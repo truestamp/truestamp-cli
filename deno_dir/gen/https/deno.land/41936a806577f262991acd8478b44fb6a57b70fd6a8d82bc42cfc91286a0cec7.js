@@ -1,0 +1,30 @@
+import { Cell } from "./cell.ts";
+export class Row extends Array {
+    options = {};
+    static from(cells) {
+        const row = new this(...cells);
+        if (cells instanceof Row) {
+            row.options = { ...cells.options };
+        }
+        return row;
+    }
+    clone() {
+        const row = new Row(...this.map((cell) => cell instanceof Cell ? cell.clone() : cell));
+        row.options = { ...this.options };
+        return row;
+    }
+    border(enable, override = true) {
+        if (override || typeof this.options.border === "undefined") {
+            this.options.border = enable;
+        }
+        return this;
+    }
+    getBorder() {
+        return this.options.border === true;
+    }
+    hasBorder() {
+        return this.getBorder() ||
+            this.some((cell) => cell instanceof Cell && cell.getBorder());
+    }
+}
+//# sourceMappingURL=data:application/json;base64,eyJ2ZXJzaW9uIjozLCJmaWxlIjoicm93LmpzIiwic291cmNlUm9vdCI6IiIsInNvdXJjZXMiOlsicm93LnRzIl0sIm5hbWVzIjpbXSwibWFwcGluZ3MiOiJBQUFBLE9BQU8sRUFBRSxJQUFJLEVBQVMsTUFBTSxXQUFXLENBQUM7QUFnQnhDLE1BQU0sT0FBTyxHQUE2QixTQUFRLEtBQVE7SUFDOUMsT0FBTyxHQUFnQixFQUFFLENBQUM7SUFPN0IsTUFBTSxDQUFDLElBQUksQ0FBMEIsS0FBYztRQUN4RCxNQUFNLEdBQUcsR0FBRyxJQUFJLElBQUksQ0FBQyxHQUFHLEtBQUssQ0FBQyxDQUFDO1FBQy9CLElBQUksS0FBSyxZQUFZLEdBQUcsRUFBRTtZQUN4QixHQUFHLENBQUMsT0FBTyxHQUFHLEVBQUUsR0FBRyxLQUFLLENBQUMsT0FBTyxFQUFFLENBQUM7U0FDcEM7UUFDRCxPQUFPLEdBQUcsQ0FBQztJQUNiLENBQUM7SUFHTSxLQUFLO1FBQ1YsTUFBTSxHQUFHLEdBQUcsSUFBSSxHQUFHLENBQ2pCLEdBQUcsSUFBSSxDQUFDLEdBQUcsQ0FBQyxDQUFDLElBQU8sRUFBRSxFQUFFLENBQUMsSUFBSSxZQUFZLElBQUksQ0FBQyxDQUFDLENBQUMsSUFBSSxDQUFDLEtBQUssRUFBRSxDQUFDLENBQUMsQ0FBQyxJQUFJLENBQUMsQ0FDckUsQ0FBQztRQUNGLEdBQUcsQ0FBQyxPQUFPLEdBQUcsRUFBRSxHQUFHLElBQUksQ0FBQyxPQUFPLEVBQUUsQ0FBQztRQUNsQyxPQUFPLEdBQUcsQ0FBQztJQUNiLENBQUM7SUFXTSxNQUFNLENBQUMsTUFBZSxFQUFFLFFBQVEsR0FBRyxJQUFJO1FBQzVDLElBQUksUUFBUSxJQUFJLE9BQU8sSUFBSSxDQUFDLE9BQU8sQ0FBQyxNQUFNLEtBQUssV0FBVyxFQUFFO1lBQzFELElBQUksQ0FBQyxPQUFPLENBQUMsTUFBTSxHQUFHLE1BQU0sQ0FBQztTQUM5QjtRQUNELE9BQU8sSUFBSSxDQUFDO0lBQ2QsQ0FBQztJQU9NLFNBQVM7UUFDZCxPQUFPLElBQUksQ0FBQyxPQUFPLENBQUMsTUFBTSxLQUFLLElBQUksQ0FBQztJQUN0QyxDQUFDO0lBR00sU0FBUztRQUNkLE9BQU8sSUFBSSxDQUFDLFNBQVMsRUFBRTtZQUNyQixJQUFJLENBQUMsSUFBSSxDQUFDLENBQUMsSUFBSSxFQUFFLEVBQUUsQ0FBQyxJQUFJLFlBQVksSUFBSSxJQUFJLElBQUksQ0FBQyxTQUFTLEVBQUUsQ0FBQyxDQUFDO0lBQ2xFLENBQUM7Q0FDRiJ9
