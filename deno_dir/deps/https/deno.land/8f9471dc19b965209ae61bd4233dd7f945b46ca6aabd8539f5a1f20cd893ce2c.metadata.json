@@ -1,0 +1,25 @@
+{
+  "headers": {
+    "alt-svc": "h3-27=\":443\"; ma=86400, h3-28=\":443\"; ma=86400, h3-29=\":443\"; ma=86400",
+    "cf-request-id": "09acb7ba0c0000cf10893d7000000001",
+    "x-amz-request-id": "XJHNN5FMPXVRTDQN",
+    "last-modified": "Sat, 23 Jan 2021 01:23:53 GMT",
+    "server": "cloudflare",
+    "content-type": "application/typescript; charset=utf-8",
+    "cf-cache-status": "HIT",
+    "etag": "\"791fd996e819458695e9500239261c26\"",
+    "content-length": "2109",
+    "access-control-allow-origin": "*",
+    "cache-control": "public, max-age=31536000, immutable",
+    "cf-ray": "645af5701bc7cf10-IAD",
+    "x-amz-version-id": "Qt5SoTkVxqKtoqECuzUY38XgxEH.51yM",
+    "vary": "Accept-Encoding",
+    "date": "Sun, 25 Apr 2021 22:20:27 GMT",
+    "expect-ct": "max-age=604800, report-uri=\"https://report-uri.cloudflare.com/cdn-cgi/beacon/expect-ct\"",
+    "accept-ranges": "bytes",
+    "x-amz-id-2": "vI+ZkGYIf+rkMt2iQa/yZBXqKad7V7cLJ4UKmIcyHA+ip5mNvZ7UAW0Z/j1Vu8LgSI8lIwPuWuo=",
+    "set-cookie": "__cfduid=d6534d7d12543c4df8da68c4650e177f81619389227; expires=Tue, 25-May-21 22:20:27 GMT; path=/; domain=.deno.land; HttpOnly; SameSite=Lax; Secure",
+    "age": "71407"
+  },
+  "url": "https://deno.land/x/god_crypto@v1.4.9/src/rsa/emsa_pss.ts"
+}
