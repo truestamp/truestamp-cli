@@ -1,16 +1,16 @@
 {
   "headers": {
-    "expect-ct": "max-age=604800, report-uri=\"https://report-uri.cloudflare.com/cdn-cgi/beacon/expect-ct\"",
-    "vary": "Accept-Encoding",
     "x-deno-warning": "Implicitly using latest version (v1.2.0) for https://deno.land/x/sleep/mod.ts",
+    "cf-ray": "646063188af15986-IAD",
     "content-length": "0",
+    "vary": "Accept-Encoding",
+    "set-cookie": "__cfduid=d384ab755314bdf303da9671bc6c217191619446147; expires=Wed, 26-May-21 14:09:07 GMT; path=/; domain=.deno.land; HttpOnly; SameSite=Lax; Secure",
+    "date": "Mon, 26 Apr 2021 14:09:08 GMT",
+    "expect-ct": "max-age=604800, report-uri=\"https://report-uri.cloudflare.com/cdn-cgi/beacon/expect-ct\"",
     "server": "cloudflare",
-    "set-cookie": "__cfduid=d138aba913e462cc064f6550c143d9f8f1619316039; expires=Tue, 25-May-21 02:00:39 GMT; path=/; domain=.deno.land; HttpOnly; SameSite=Lax; Secure",
     "alt-svc": "h3-27=\":443\"; ma=86400, h3-28=\":443\"; ma=86400, h3-29=\":443\"; ma=86400",
-    "date": "Sun, 25 Apr 2021 02:00:39 GMT",
-    "location": "/x/sleep@v1.2.0/mod.ts",
-    "cf-request-id": "09a85af58d000059e60b378000000001",
-    "cf-ray": "6453fa9c1aed59e6-IAD"
+    "cf-request-id": "09b01c43520000598642b79000000001",
+    "location": "/x/sleep@v1.2.0/mod.ts"
   },
   "url": "https://deno.land/x/sleep/mod.ts"
 }

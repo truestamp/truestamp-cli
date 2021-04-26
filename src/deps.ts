@@ -6,16 +6,16 @@ import { HelpCommand } from "https://deno.land/x/cliffy@v0.18.2/command/help/mod
 import { CompletionsCommand } from "https://deno.land/x/cliffy@v0.18.2/command/completions/mod.ts"
 import loadJsonFile from "https://deno.land/x/load_json_file@v1.0.0/mod.ts"
 import { decode, validate } from "https://deno.land/x/djwt@@v2.2/mod.ts"
-
 import {
   deleteSavedTokens,
   getSavedAccessToken,
   getSavedRefreshToken,
   getAccessTokenWithPrompts,
   getSavedIdTokenPayload,
-} from "./deviceflow.ts"
+} from "./auth.ts"
 
 import Truestamp from "https://cdn.skypack.dev/@truestamp/truestamp-js?dts"
+import { createTruestampClient } from "./truestamp.ts"
 
 export {
   colors,
@@ -33,6 +33,7 @@ export {
   Truestamp,
   validate,
   getSavedIdTokenPayload,
+  createTruestampClient,
 }
 
 export type { ITypeInfo } from "https://deno.land/x/cliffy/flags/mod.ts"
