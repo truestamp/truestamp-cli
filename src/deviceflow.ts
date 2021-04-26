@@ -11,37 +11,116 @@ import {
   Payload,
 } from "./deps.ts"
 
-// FIXME : These are environment specific and should return the right values.
-const AUTH0_DOMAIN = "truestamp-dev.auth0.com"
-const AUTH0_AUDIENCE = "https://dev-api.truestamp.com/"
-const AUTH0_CLIENT_ID = "8djbT1Ys078OZImR1uRr4jhu2Wb6d05B"
 const AUTH0_SCOPES = "openid profile offline_access"
 
-const AUTH0_TOKEN_FILE = `${configDir()}/com.truestamp.cli.tokens.json`
+const AUTH0_DOMAIN_DEVELOPMENT = "truestamp-dev.auth0.com"
+const AUTH0_AUDIENCE_DEVELOPMENT = "https://dev-api.truestamp.com/"
+const AUTH0_CLIENT_ID_DEVELOPMENT = "8djbT1Ys078OZImR1uRr4jhu2Wb6d05B"
+const AUTH0_TOKEN_FILE_DEVELOPMENT = `${configDir()}/com.truestamp.cli.development.tokens.json`
 
-async function getDeviceCode() {
-  const resp = await fetch(`https://${AUTH0_DOMAIN}/oauth/device/code`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      client_id: AUTH0_CLIENT_ID,
-      audience: AUTH0_AUDIENCE,
-      scope: AUTH0_SCOPES,
-    }),
-  })
+const AUTH0_DOMAIN_STAGING = "truestamp-staging.auth0.com"
+const AUTH0_AUDIENCE_STAGING = "https://staging-api.truestamp.com/"
+const AUTH0_CLIENT_ID_STAGING = "T0dzxGnnIj3TU0HpzCQRTZ5fx9N5Hb5m"
+const AUTH0_TOKEN_FILE_STAGING = `${configDir()}/com.truestamp.cli.staging.tokens.json`
+
+const AUTH0_DOMAIN_PRODUCTION = "truestamp.auth0.com"
+const AUTH0_AUDIENCE_PRODUCTION = "https://api.truestamp.com/"
+const AUTH0_CLIENT_ID_PRODUCTION = "pS5kRvqeuz4XLoxNPd6VX2LlUyNyU7Xj"
+const AUTH0_TOKEN_FILE_PRODUCTION = `${configDir()}/com.truestamp.cli.production.tokens.json`
+
+function getAuth0DomainForEnv(env: string): string {
+  switch (env) {
+    case "development":
+      return AUTH0_DOMAIN_DEVELOPMENT
+
+    case "staging":
+      return AUTH0_DOMAIN_STAGING
+
+    case "production":
+      return AUTH0_DOMAIN_PRODUCTION
+
+    default:
+      throw new Error(`invalid environment : '${env}'`)
+  }
+}
+
+function getAuth0AudienceForEnv(env: string): string {
+  switch (env) {
+    case "development":
+      return AUTH0_AUDIENCE_DEVELOPMENT
+
+    case "staging":
+      return AUTH0_AUDIENCE_STAGING
+
+    case "production":
+      return AUTH0_AUDIENCE_PRODUCTION
+
+    default:
+      throw new Error(`invalid environment : '${env}'`)
+  }
+}
+
+function getAuth0ClientIdForEnv(env: string): string {
+  switch (env) {
+    case "development":
+      return AUTH0_CLIENT_ID_DEVELOPMENT
+
+    case "staging":
+      return AUTH0_CLIENT_ID_STAGING
+
+    case "production":
+      return AUTH0_CLIENT_ID_PRODUCTION
+
+    default:
+      throw new Error(`invalid environment : '${env}'`)
+  }
+}
+
+function getAuth0TokenFileForEnv(env: string): string {
+  switch (env) {
+    case "development":
+      return AUTH0_TOKEN_FILE_DEVELOPMENT
+
+    case "staging":
+      return AUTH0_TOKEN_FILE_STAGING
+
+    case "production":
+      return AUTH0_TOKEN_FILE_PRODUCTION
+
+    default:
+      throw new Error(`invalid environment : '${env}'`)
+  }
+}
+
+async function getDeviceCode(env: string) {
+  const resp = await fetch(
+    `https://${getAuth0DomainForEnv(env)}/oauth/device/code`,
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        client_id: getAuth0ClientIdForEnv(env),
+        audience: getAuth0AudienceForEnv(env),
+        scope: AUTH0_SCOPES,
+      }),
+    }
+  )
   return resp.json()
 }
 
-async function callTokenEndpoint(deviceCode: string): Promise<Response> {
-  const resp = await fetch(`https://${AUTH0_DOMAIN}/oauth/token`, {
+async function callTokenEndpoint(
+  env: string,
+  deviceCode: string
+): Promise<Response> {
+  const resp = await fetch(`https://${getAuth0DomainForEnv(env)}/oauth/token`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
     },
     body: JSON.stringify({
-      client_id: AUTH0_CLIENT_ID,
+      client_id: getAuth0ClientIdForEnv(env),
       device_code: deviceCode,
       grant_type: "urn:ietf:params:oauth:grant-type:device_code",
     }),
@@ -51,12 +130,12 @@ async function callTokenEndpoint(deviceCode: string): Promise<Response> {
 
 // Get the whole token response object by polling until the
 // user authenticates or fails at doing so.
-async function getTokens(deviceCode: string, interval: number) {
+async function getTokens(env: string, deviceCode: string, interval: number) {
   let adjustedInterval = interval
 
   while (true) {
     await sleep(adjustedInterval)
-    const resp = await callTokenEndpoint(deviceCode)
+    const resp = await callTokenEndpoint(env, deviceCode)
 
     if (resp.ok) {
       return await resp.json()
@@ -90,25 +169,28 @@ async function getTokens(deviceCode: string, interval: number) {
   }
 }
 
-async function getNewTokensWithRefreshToken() {
-  const refreshToken = getSavedRefreshToken()
+async function getNewTokensWithRefreshToken(env: string) {
+  const refreshToken = getSavedRefreshToken(env)
   if (refreshToken) {
-    const resp = await fetch(`https://${AUTH0_DOMAIN}/oauth/token`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        grant_type: "refresh_token",
-        client_id: AUTH0_CLIENT_ID,
-        refresh_token: refreshToken,
-      }),
-    })
+    const resp = await fetch(
+      `https://${getAuth0DomainForEnv(env)}/oauth/token`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          grant_type: "refresh_token",
+          client_id: getAuth0ClientIdForEnv(env),
+          refresh_token: refreshToken,
+        }),
+      }
+    )
     return await resp.json()
   }
 }
 
-export function getSavedAccessToken(): string | undefined {
+export function getSavedAccessToken(env: string): string | undefined {
   try {
     const t = loadJsonFile.sync<{
       access_token: string
@@ -117,7 +199,7 @@ export function getSavedAccessToken(): string | undefined {
       scope: string
       expires_in: number
       token_type: string
-    }>(AUTH0_TOKEN_FILE)
+    }>(getAuth0TokenFileForEnv(env))
 
     if (t && t.access_token) {
       return t.access_token
@@ -129,7 +211,7 @@ export function getSavedAccessToken(): string | undefined {
   }
 }
 
-export function getSavedRefreshToken(): string | undefined {
+export function getSavedRefreshToken(env: string): string | undefined {
   try {
     const t = loadJsonFile.sync<{
       access_token: string
@@ -138,7 +220,7 @@ export function getSavedRefreshToken(): string | undefined {
       scope: string
       expires_in: number
       token_type: string
-    }>(AUTH0_TOKEN_FILE)
+    }>(getAuth0TokenFileForEnv(env))
 
     if (t && t.refresh_token) {
       return t.refresh_token
@@ -150,7 +232,7 @@ export function getSavedRefreshToken(): string | undefined {
   }
 }
 
-export function getSavedIdTokenPayload(): Payload | undefined {
+export function getSavedIdTokenPayload(env: string): Payload | undefined {
   try {
     const t = loadJsonFile.sync<{
       access_token: string
@@ -159,12 +241,10 @@ export function getSavedIdTokenPayload(): Payload | undefined {
       scope: string
       expires_in: number
       token_type: string
-    }>(AUTH0_TOKEN_FILE)
+    }>(getAuth0TokenFileForEnv(env))
 
     if (t && t.id_token) {
       const { payload } = validate(decode(t.id_token))
-      // console.log(payload)
-
       return payload
     } else {
       return undefined
@@ -174,16 +254,19 @@ export function getSavedIdTokenPayload(): Payload | undefined {
   }
 }
 
-function writeTokensToFile(tokens: {
-  access_token: string
-  id_token?: string
-  refresh_token: string
-  scope: string
-  expires_in: number
-  token_type: string
-}): void {
+function writeTokensToFile(
+  env: string,
+  tokens: {
+    access_token: string
+    id_token?: string
+    refresh_token: string
+    scope: string
+    expires_in: number
+    token_type: string
+  }
+): void {
   try {
-    Deno.writeTextFileSync(AUTH0_TOKEN_FILE, JSON.stringify(tokens))
+    Deno.writeTextFileSync(getAuth0TokenFileForEnv(env), JSON.stringify(tokens))
     // console.log(JSON.stringify(tokens));
   } catch (error) {
     throw new Error(`unable to write token file : ${error.message}`)
@@ -191,19 +274,19 @@ function writeTokensToFile(tokens: {
 }
 
 // this is how we "logout"
-export function deleteSavedTokens() {
+export function deleteSavedTokens(env: string) {
   try {
-    Deno.removeSync(AUTH0_TOKEN_FILE)
+    Deno.removeSync(getAuth0TokenFileForEnv(env))
   } catch {
     // no-op
   }
 }
 
-export async function getAccessTokenWithPrompts(): Promise<string> {
+export async function getAccessTokenWithPrompts(env: string): Promise<string> {
   var deviceCodeResp
 
   try {
-    const savedAccessToken = getSavedAccessToken()
+    const savedAccessToken = getSavedAccessToken(env)
     if (savedAccessToken) {
       try {
         // validate (but not signature check!) the saved JWT
@@ -222,20 +305,10 @@ export async function getAccessTokenWithPrompts(): Promise<string> {
             resolve(savedAccessToken)
           })
         }
-      } catch (error) {
-        // handle bad JWT by trying to refresh
-        // if refresh fails, delete saved tokens file
-        // console.error(
-        //   `BAD JWT : getting refresh token from file : ${error.message}`,
-        // );
-
-        const tokens = await getNewTokensWithRefreshToken()
+      } catch {
+        const tokens = await getNewTokensWithRefreshToken(env)
         if (tokens) {
-          // console.error(
-          //   "BAD JWT : new tokens received using refresh token, new rotating refresh token included",
-          // );
-          writeTokensToFile(tokens)
-          // console.error("BAD JWT : new access and refresh tokens written");
+          writeTokensToFile(env, tokens)
           if (tokens.access_token) {
             return new Promise((resolve) => {
               resolve(tokens.access_token)
@@ -243,7 +316,7 @@ export async function getAccessTokenWithPrompts(): Promise<string> {
           }
         } else {
           // unable to retrieve new access tokens using refresh token, cleanup saved tokens
-          deleteSavedTokens()
+          deleteSavedTokens(env)
         }
       }
     }
@@ -254,7 +327,7 @@ export async function getAccessTokenWithPrompts(): Promise<string> {
 
   // No saved tokens found. Prompt the user to auth.
   try {
-    deviceCodeResp = await getDeviceCode()
+    deviceCodeResp = await getDeviceCode(env)
     // console.log(JSON.stringify(deviceCodeResp));
   } catch (error) {
     console.error(colors.bold.red(`${error.message} error : exiting`))
@@ -279,11 +352,12 @@ export async function getAccessTokenWithPrompts(): Promise<string> {
 
   try {
     const tokens = await getTokens(
+      env,
       deviceCodeResp.device_code,
       deviceCodeResp.interval
     )
 
-    writeTokensToFile(tokens)
+    writeTokensToFile(env, tokens)
 
     return new Promise((resolve) => {
       resolve(tokens.access_token)

@@ -29,9 +29,9 @@ const authLogin = new Command()
     hidden: false,
     default: "production",
   })
-  .action(async () => {
+  .action(async (options) => {
     try {
-      const accessToken = await getAccessTokenWithPrompts()
+      const accessToken = await getAccessTokenWithPrompts(options.env)
       if (accessToken) {
         const ts = new Truestamp({ apiKey: accessToken })
         const hb = await ts.getHeartbeat()
@@ -58,22 +58,30 @@ const authLogout = new Command()
     hidden: false,
     default: "production",
   })
-  .action(() => {
-    deleteSavedTokens()
+  .action((options) => {
+    deleteSavedTokens(options.env)
     console.log("logout complete")
     Deno.exit(0)
   })
 
 const authStatus = new Command()
   .description("View authentication status")
-  .action(async () => {
-    if (!getSavedAccessToken() || !getSavedRefreshToken()) {
+  .type("envType", environmentType, { global: true })
+  .option("-E, --env [env:envType]", "API environment to use.", {
+    hidden: false,
+    default: "production",
+  })
+  .action(async (options) => {
+    if (
+      !getSavedAccessToken(options.env) ||
+      !getSavedRefreshToken(options.env)
+    ) {
       console.error("logged out")
       Deno.exit(1)
     }
 
     try {
-      const accessToken = await getAccessTokenWithPrompts()
+      const accessToken = await getAccessTokenWithPrompts(options.env)
       if (accessToken) {
         const ts = new Truestamp({ apiKey: accessToken })
         const hb = await ts.getHeartbeat()
@@ -84,7 +92,7 @@ const authStatus = new Command()
         throw new Error("auth status access token missing or invalid")
       }
 
-      const payload = getSavedIdTokenPayload()
+      const payload = getSavedIdTokenPayload(options.env)
       if (payload) {
         console.log(JSON.stringify(payload, null, 2))
       } else {
@@ -99,12 +107,7 @@ const authStatus = new Command()
   })
 
 const auth = new Command()
-  .description("Login, logout, and refresh your authentication.")
-  .type("envType", environmentType, { global: true })
-  .option("-E, --env [env:envType]", "API environment to use.", {
-    hidden: false,
-    default: "production",
-  })
+  .description("Login, logout, and show status of your authentication.")
   .action(() => {
     auth.showHelp()
     Deno.exit(0)
@@ -115,11 +118,6 @@ const auth = new Command()
 
 const documents = new Command()
   .description("Create, read, update, or destroy documents.")
-  .type("envType", environmentType, { global: true })
-  .option("-E, --env [env:envType]", "API environment to use.", {
-    hidden: false,
-    default: "production",
-  })
   .option("-s, --silent [silent:boolean]", "Disable output.")
   .action(() => {
     documents.showHelp()
@@ -133,8 +131,8 @@ const heartbeat = new Command()
     hidden: false,
     default: "production",
   })
-  .action(async () => {
-    const accessToken = await getAccessTokenWithPrompts()
+  .action(async (options) => {
+    const accessToken = await getAccessTokenWithPrompts(options.env)
     const ts = new Truestamp({ apiKey: accessToken })
     const hb = await ts.getHeartbeat()
     console.log(JSON.stringify(hb))
