@@ -8,6 +8,7 @@ import {
   loadJsonFile,
   sleep,
   validate,
+  Payload,
 } from "./deps.ts"
 
 // FIXME : These are environment specific and should return the right values.
@@ -16,8 +17,7 @@ const AUTH0_AUDIENCE = "https://dev-api.truestamp.com/"
 const AUTH0_CLIENT_ID = "8djbT1Ys078OZImR1uRr4jhu2Wb6d05B"
 const AUTH0_SCOPES = "openid profile offline_access"
 
-const ACCESS_TOKEN_FILE = `${configDir()}/com.truestamp.cli.access.json`
-const REFRESH_TOKEN_FILE = `${configDir()}/com.truestamp.cli.refresh.json`
+const AUTH0_TOKEN_FILE = `${configDir()}/com.truestamp.cli.tokens.json`
 
 async function getDeviceCode() {
   const resp = await fetch(`https://${AUTH0_DOMAIN}/oauth/device/code`, {
@@ -90,31 +90,34 @@ async function getTokens(deviceCode: string, interval: number) {
   }
 }
 
-async function getNewTokenWithRefreshToken(refreshToken: string) {
-  const resp = await fetch(`https://${AUTH0_DOMAIN}/oauth/token`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      grant_type: "refresh_token",
-      client_id: AUTH0_CLIENT_ID,
-      refresh_token: refreshToken,
-    }),
-  })
-  return await resp.json()
+async function getNewTokensWithRefreshToken() {
+  const refreshToken = getSavedRefreshToken()
+  if (refreshToken) {
+    const resp = await fetch(`https://${AUTH0_DOMAIN}/oauth/token`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        grant_type: "refresh_token",
+        client_id: AUTH0_CLIENT_ID,
+        refresh_token: refreshToken,
+      }),
+    })
+    return await resp.json()
+  }
 }
 
-function getSavedAccessToken(): string | undefined {
+export function getSavedAccessToken(): string | undefined {
   try {
     const t = loadJsonFile.sync<{
       access_token: string
       id_token?: string
-      refresh_token?: string
+      refresh_token: string
       scope: string
       expires_in: number
       token_type: string
-    }>(ACCESS_TOKEN_FILE)
+    }>(AUTH0_TOKEN_FILE)
 
     if (t && t.access_token) {
       return t.access_token
@@ -126,11 +129,16 @@ function getSavedAccessToken(): string | undefined {
   }
 }
 
-function getSavedRefreshToken(): string | undefined {
+export function getSavedRefreshToken(): string | undefined {
   try {
     const t = loadJsonFile.sync<{
+      access_token: string
+      id_token?: string
       refresh_token: string
-    }>(REFRESH_TOKEN_FILE)
+      scope: string
+      expires_in: number
+      token_type: string
+    }>(AUTH0_TOKEN_FILE)
 
     if (t && t.refresh_token) {
       return t.refresh_token
@@ -142,36 +150,53 @@ function getSavedRefreshToken(): string | undefined {
   }
 }
 
-function writeAccessTokenToFile(tokens: {
+export function getSavedIdTokenPayload(): Payload | undefined {
+  try {
+    const t = loadJsonFile.sync<{
+      access_token: string
+      id_token?: string
+      refresh_token: string
+      scope: string
+      expires_in: number
+      token_type: string
+    }>(AUTH0_TOKEN_FILE)
+
+    if (t && t.id_token) {
+      const { payload } = validate(decode(t.id_token))
+      // console.log(payload)
+
+      return payload
+    } else {
+      return undefined
+    }
+  } catch {
+    // no-op
+  }
+}
+
+function writeTokensToFile(tokens: {
   access_token: string
   id_token?: string
-  refresh_token?: string
+  refresh_token: string
   scope: string
   expires_in: number
   token_type: string
 }): void {
   try {
-    Deno.writeTextFileSync(ACCESS_TOKEN_FILE, JSON.stringify(tokens))
+    Deno.writeTextFileSync(AUTH0_TOKEN_FILE, JSON.stringify(tokens))
+    // console.log(JSON.stringify(tokens));
   } catch (error) {
     throw new Error(`unable to write token file : ${error.message}`)
   }
 }
 
-function writeRefreshTokenToFile(refreshToken: string): void {
-  try {
-    Deno.writeTextFileSync(
-      REFRESH_TOKEN_FILE,
-      JSON.stringify({ refresh_token: refreshToken })
-    )
-  } catch (error) {
-    throw new Error(`unable to write refresh token file : ${error.message}`)
-  }
-}
-
 // this is how we "logout"
-export function deleteSavedTokenFiles() {
-  Deno.removeSync(REFRESH_TOKEN_FILE)
-  Deno.removeSync(ACCESS_TOKEN_FILE)
+export function deleteSavedTokens() {
+  try {
+    Deno.removeSync(AUTH0_TOKEN_FILE)
+  } catch {
+    // no-op
+  }
 }
 
 export async function getAccessTokenWithPrompts(): Promise<string> {
@@ -200,30 +225,25 @@ export async function getAccessTokenWithPrompts(): Promise<string> {
       } catch (error) {
         // handle bad JWT by trying to refresh
         // if refresh fails, delete saved tokens file
-        console.error(
-          `BAD JWT : getting refresh token from file : ${error.message}`
-        )
+        // console.error(
+        //   `BAD JWT : getting refresh token from file : ${error.message}`,
+        // );
 
-        const refreshToken = getSavedRefreshToken()
-        if (refreshToken) {
-          console.error("BAD JWT : refresh token found")
-          const tokens = await getNewTokenWithRefreshToken(refreshToken)
-          if (tokens) {
-            console.error("BAD JWT : new tokens received using refresh token")
-            writeAccessTokenToFile(tokens)
-            console.error("BAD JWT : new access tokens written")
-            if (tokens.access_token) {
-              return new Promise((resolve) => {
-                resolve(tokens.access_token)
-              })
-            }
-          } else {
-            // unable to retrieve new access tokens using refresh token, cleanup saved tokens
-            deleteSavedTokenFiles()
+        const tokens = await getNewTokensWithRefreshToken()
+        if (tokens) {
+          // console.error(
+          //   "BAD JWT : new tokens received using refresh token, new rotating refresh token included",
+          // );
+          writeTokensToFile(tokens)
+          // console.error("BAD JWT : new access and refresh tokens written");
+          if (tokens.access_token) {
+            return new Promise((resolve) => {
+              resolve(tokens.access_token)
+            })
           }
         } else {
-          // no refresh token was found, cleanup saved tokens
-          deleteSavedTokenFiles()
+          // unable to retrieve new access tokens using refresh token, cleanup saved tokens
+          deleteSavedTokens()
         }
       }
     }
@@ -232,6 +252,7 @@ export async function getAccessTokenWithPrompts(): Promise<string> {
     Deno.exit(1)
   }
 
+  // No saved tokens found. Prompt the user to auth.
   try {
     deviceCodeResp = await getDeviceCode()
     // console.log(JSON.stringify(deviceCodeResp));
@@ -262,15 +283,7 @@ export async function getAccessTokenWithPrompts(): Promise<string> {
       deviceCodeResp.interval
     )
 
-    writeAccessTokenToFile(tokens)
-
-    // keep the refresh token separately so the auth token
-    // file can be completely overwritten. The auth token
-    // structure doesn't echo back the refresh token when
-    // its used to refresh.
-    if (tokens && tokens.refresh_token) {
-      writeRefreshTokenToFile(tokens.refresh_token)
-    }
+    writeTokensToFile(tokens)
 
     return new Promise((resolve) => {
       resolve(tokens.access_token)

@@ -1,21 +1,25 @@
 import {
   Command,
   CompletionsCommand,
+  deleteSavedTokens,
+  getSavedAccessToken,
+  getSavedRefreshToken,
   getAccessTokenWithPrompts,
+  getSavedIdTokenPayload,
   HelpCommand,
   ITypeInfo,
   Truestamp,
-} from "./deps.ts";
+} from "./deps.ts"
 
 function environmentType({ label, name, value }: ITypeInfo): string {
-  const envs = ["development", "staging", "production"];
+  const envs = ["development", "staging", "production"]
   if (!envs.includes(value.toLowerCase())) {
     throw new Error(
-      `${label} "${name}" must be a valid environment [${envs}], but got "${value}".`,
-    );
+      `${label} "${name}" must be a valid environment [${envs}], but got "${value}".`
+    )
   }
 
-  return value.toLowerCase();
+  return value.toLowerCase()
 }
 
 const authLogin = new Command()
@@ -27,17 +31,25 @@ const authLogin = new Command()
   })
   .action(async () => {
     try {
-      const accessToken = await getAccessTokenWithPrompts();
-      const ts = new Truestamp({ apiKey: accessToken });
-      const hb = await ts.getHeartbeat();
-      console.log(hb);
+      const accessToken = await getAccessTokenWithPrompts()
+      if (accessToken) {
+        const ts = new Truestamp({ apiKey: accessToken })
+        const hb = await ts.getHeartbeat()
+        if (hb) {
+          console.log("login successful")
+        } else {
+          throw new Error("auth login heartbeat check failed")
+        }
+      } else {
+        throw new Error("auth login failed")
+      }
     } catch (error) {
-      console.error("Error: ", error.message);
-      Deno.exit(1);
+      console.error("Error: ", error.message)
+      Deno.exit(1)
     }
 
-    Deno.exit(0);
-  });
+    Deno.exit(0)
+  })
 
 const authLogout = new Command()
   .description("Log out of a Truestamp host")
@@ -47,23 +59,44 @@ const authLogout = new Command()
     default: "production",
   })
   .action(() => {
-    authLogout.showHelp();
-    Deno.exit(0);
-  });
-
-const authRefresh = new Command()
-  .description("Refresh stored authentication credentials")
-  .action(() => {
-    authRefresh.showHelp();
-    Deno.exit(0);
-  });
+    deleteSavedTokens()
+    console.log("logout complete")
+    Deno.exit(0)
+  })
 
 const authStatus = new Command()
   .description("View authentication status")
-  .action(() => {
-    authStatus.showHelp();
-    Deno.exit(0);
-  });
+  .action(async () => {
+    if (!getSavedAccessToken() || !getSavedRefreshToken()) {
+      console.error("logged out")
+      Deno.exit(1)
+    }
+
+    try {
+      const accessToken = await getAccessTokenWithPrompts()
+      if (accessToken) {
+        const ts = new Truestamp({ apiKey: accessToken })
+        const hb = await ts.getHeartbeat()
+        if (!hb) {
+          throw new Error("auth status heartbeat check failed")
+        }
+      } else {
+        throw new Error("auth status access token missing or invalid")
+      }
+
+      const payload = getSavedIdTokenPayload()
+      if (payload) {
+        console.log(JSON.stringify(payload, null, 2))
+      } else {
+        throw new Error("auth status ID token missing or invalid")
+      }
+    } catch (error) {
+      console.error("Error: ", error.message)
+      Deno.exit(1)
+    }
+
+    Deno.exit(0)
+  })
 
 const auth = new Command()
   .description("Login, logout, and refresh your authentication.")
@@ -73,13 +106,12 @@ const auth = new Command()
     default: "production",
   })
   .action(() => {
-    auth.showHelp();
-    Deno.exit(0);
+    auth.showHelp()
+    Deno.exit(0)
   })
   .command("login", authLogin)
   .command("logout", authLogout)
-  .command("refresh", authRefresh)
-  .command("status", authStatus);
+  .command("status", authStatus)
 
 const documents = new Command()
   .description("Create, read, update, or destroy documents.")
@@ -90,9 +122,9 @@ const documents = new Command()
   })
   .option("-s, --silent [silent:boolean]", "Disable output.")
   .action(() => {
-    documents.showHelp();
-    Deno.exit(0);
-  });
+    documents.showHelp()
+    Deno.exit(0)
+  })
 
 const heartbeat = new Command()
   .description("Display results of API server heartbeat call.")
@@ -101,10 +133,13 @@ const heartbeat = new Command()
     hidden: false,
     default: "production",
   })
-  .action(() => {
-    heartbeat.showHelp();
-    Deno.exit(0);
-  });
+  .action(async () => {
+    const accessToken = await getAccessTokenWithPrompts()
+    const ts = new Truestamp({ apiKey: accessToken })
+    const hb = await ts.getHeartbeat()
+    console.log(JSON.stringify(hb))
+    Deno.exit(0)
+  })
 
 // Top level command
 const cmd = new Command()
@@ -116,18 +151,18 @@ const cmd = new Command()
     hints: true,
   })
   .action(() => {
-    cmd.showHelp();
-    Deno.exit(0);
+    cmd.showHelp()
+    Deno.exit(0)
   })
   .command("auth", auth)
   .command("completions", new CompletionsCommand())
   .command("documents", documents)
   .command("heartbeat", heartbeat)
-  .command("help", new HelpCommand().global());
+  .command("help", new HelpCommand().global())
 
 try {
-  cmd.parse(Deno.args);
+  cmd.parse(Deno.args)
 } catch (error) {
-  console.error("Error: ", error.message);
-  Deno.exit(1);
+  console.error("Error: ", error.message)
+  Deno.exit(1)
 }
