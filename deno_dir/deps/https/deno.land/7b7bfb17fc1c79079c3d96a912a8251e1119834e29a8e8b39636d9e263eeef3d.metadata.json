@@ -1,16 +1,16 @@
 {
   "headers": {
-    "date": "Mon, 26 Apr 2021 14:09:08 GMT",
+    "vary": "Accept-Encoding",
+    "cf-request-id": "09bb09511800004be2df0b9000000001",
+    "server": "cloudflare",
+    "cf-ray": "6471de61bed34be2-AMS",
     "content-length": "0",
     "x-deno-warning": "Implicitly using latest version (0.95.0) for https://deno.land/std/log/mod.ts",
+    "set-cookie": "__cfduid=d1db0dddecf96e5b110e6464ebbb1af0e1619629455; expires=Fri, 28-May-21 17:04:15 GMT; path=/; domain=.deno.land; HttpOnly; SameSite=Lax; Secure",
     "expect-ct": "max-age=604800, report-uri=\"https://report-uri.cloudflare.com/cdn-cgi/beacon/expect-ct\"",
-    "set-cookie": "__cfduid=d2c33db07316738bc13e01ad991674c051619446148; expires=Wed, 26-May-21 14:09:08 GMT; path=/; domain=.deno.land; HttpOnly; SameSite=Lax; Secure",
-    "location": "/std@0.95.0/log/mod.ts",
-    "vary": "Accept-Encoding",
-    "cf-request-id": "09b01c44970000598686b66000000001",
-    "server": "cloudflare",
-    "cf-ray": "6460631a8e765986-IAD",
-    "alt-svc": "h3-27=\":443\"; ma=86400, h3-28=\":443\"; ma=86400, h3-29=\":443\"; ma=86400"
+    "date": "Wed, 28 Apr 2021 17:04:15 GMT",
+    "alt-svc": "h3-27=\":443\"; ma=86400, h3-28=\":443\"; ma=86400, h3-29=\":443\"; ma=86400",
+    "location": "/std@0.95.0/log/mod.ts"
   },
   "url": "https://deno.land/std/log/mod.ts"
 }

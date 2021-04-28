@@ -1,0 +1,5 @@
+import { Base } from "../base.d.ts";
+import { HeartbeatStatus } from "./types.d.ts";
+export declare class Heartbeat extends Base {
+    getHeartbeat(): Promise<HeartbeatStatus>;
+}

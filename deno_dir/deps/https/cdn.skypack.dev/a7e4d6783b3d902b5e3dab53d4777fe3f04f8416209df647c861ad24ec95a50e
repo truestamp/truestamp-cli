@@ -1,16 +1,16 @@
 /*
- * Skypack CDN - @truestamp/truestamp-js@0.0.34
+ * Skypack CDN - @truestamp/truestamp-js@0.0.37
  *
  * Learn more:
  *   📙 Package Documentation: https://www.skypack.dev/view/@truestamp/truestamp-js
  *   📘 Skypack Documentation: https://www.skypack.dev/docs
  *
  * Pinned URL: (Optimized for Production)
- *   ▶️ Normal: Not Available. Import this URL to generate.
- *   ⏩ Minified: Not Available. Import this URL to generate.
+ *   ▶️ Normal: https://cdn.skypack.dev/pin/@truestamp/truestamp-js@v0.0.37-3wJ1zzRfBpwXrb6mhMOH/mode=imports/optimized/@truestamp/truestamp-js.js
+ *   ⏩ Minified: https://cdn.skypack.dev/pin/@truestamp/truestamp-js@v0.0.37-3wJ1zzRfBpwXrb6mhMOH/mode=imports,min/optimized/@truestamp/truestamp-js.js
  *
  */
 
 // Browser-Optimized Imports (Don't directly import the URLs below in your application!)
-export * from '/new/@truestamp/truestamp-js@v0.0.34/dist=es2020';
-export {default} from '/new/@truestamp/truestamp-js@v0.0.34/dist=es2020';
+export * from '/-/@truestamp/truestamp-js@v0.0.37-3wJ1zzRfBpwXrb6mhMOH/dist=es2020,mode=imports/optimized/@truestamp/truestamp-js.js';
+export {default} from '/-/@truestamp/truestamp-js@v0.0.37-3wJ1zzRfBpwXrb6mhMOH/dist=es2020,mode=imports/optimized/@truestamp/truestamp-js.js';

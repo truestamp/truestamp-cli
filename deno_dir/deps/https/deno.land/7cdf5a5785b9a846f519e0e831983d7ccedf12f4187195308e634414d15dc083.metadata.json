@@ -1,25 +1,25 @@
 {
   "headers": {
-    "cf-ray": "6460631b78115986-IAD",
-    "age": "2841874",
-    "cf-request-id": "09b01c45270000598689341000000001",
-    "x-amz-id-2": "zhkUkgUiXamBUQ2Yo8U8YUVUfBVB8LyNj+6WLgh+GUPcwDrigetJxdmRAjXMGeDq/jZ710YKSQw=",
-    "x-amz-request-id": "NSX2291BXAVSDJ7V",
+    "content-type": "application/typescript; charset=utf-8",
     "vary": "Accept-Encoding",
-    "set-cookie": "__cfduid=d2c33db07316738bc13e01ad991674c051619446148; expires=Wed, 26-May-21 14:09:08 GMT; path=/; domain=.deno.land; HttpOnly; SameSite=Lax; Secure",
-    "access-control-allow-origin": "*",
-    "last-modified": "Wed, 20 Jan 2021 05:26:03 GMT",
-    "date": "Mon, 26 Apr 2021 14:09:08 GMT",
+    "expect-ct": "max-age=604800, report-uri=\"https://report-uri.cloudflare.com/cdn-cgi/beacon/expect-ct\"",
     "etag": "\"56dedfab07516048be30694d32fb17e7\"",
+    "last-modified": "Wed, 20 Jan 2021 05:26:03 GMT",
+    "cf-request-id": "09bb09521600004be27b07c000000001",
+    "age": "243566",
+    "set-cookie": "__cfduid=d1db0dddecf96e5b110e6464ebbb1af0e1619629455; expires=Fri, 28-May-21 17:04:15 GMT; path=/; domain=.deno.land; HttpOnly; SameSite=Lax; Secure",
+    "content-length": "13245",
     "cache-control": "public, max-age=31536000, immutable",
     "server": "cloudflare",
-    "accept-ranges": "bytes",
+    "x-amz-id-2": "IjiB3Hxuy6ZKAXX4SxZjcL2AfueJXhCGyg3BUWtsJtJD33kXHBiKbOZIR78Z7jly3Gcstb3qoVw=",
+    "x-amz-request-id": "KAYNE5EK8QNPEA0Z",
+    "cf-ray": "6471de635aaa4be2-AMS",
     "x-amz-version-id": "MiVtiefNsQA8QysXM0.deehYhtbHTicd",
-    "expect-ct": "max-age=604800, report-uri=\"https://report-uri.cloudflare.com/cdn-cgi/beacon/expect-ct\"",
+    "date": "Wed, 28 Apr 2021 17:04:15 GMT",
     "alt-svc": "h3-27=\":443\"; ma=86400, h3-28=\":443\"; ma=86400, h3-29=\":443\"; ma=86400",
-    "content-type": "application/typescript; charset=utf-8",
     "cf-cache-status": "HIT",
-    "content-length": "13245"
+    "accept-ranges": "bytes",
+    "access-control-allow-origin": "*"
   },
   "url": "https://deno.land/std@0.84.0/hash/sha1.ts"
 }
