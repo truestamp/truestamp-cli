@@ -16,7 +16,8 @@ import {
   getSavedIdTokenPayload,
 } from "./auth.ts"
 
-import Truestamp from "https://cdn.skypack.dev/@truestamp/truestamp-js?dts"
+// Get SkyPack pinned URL using `curl -i "https://cdn.skypack.dev/@truestamp/truestamp-js?dts"`
+import Truestamp from "https://cdn.skypack.dev/pin/@truestamp/truestamp-js@v0.0.39-s9peUMKFsrLpG0Cr1TTw/mode=imports/optimized/@truestamp/truestamp-js.js"
 import { createTruestampClient } from "./truestamp.ts"
 
 export {

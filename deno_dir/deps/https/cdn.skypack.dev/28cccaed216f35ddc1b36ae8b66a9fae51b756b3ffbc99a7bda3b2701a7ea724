@@ -1,0 +1,10 @@
+/*
+ * Skypack CDN - @truestamp/truestamp-js@0.0.39
+ *
+ * 📙 Package Documentation: https://www.skypack.dev/view/@truestamp/truestamp-js
+ * 📘 Skypack Documentation: https://www.skypack.dev/docs
+ */
+
+// Browser-Optimized Imports (Don't directly import the URLs below in your application!)
+export * from '/-/@truestamp/truestamp-js@v0.0.39-s9peUMKFsrLpG0Cr1TTw/dist=es2020,mode=imports/optimized/@truestamp/truestamp-js.js';
+export {default} from '/-/@truestamp/truestamp-js@v0.0.39-s9peUMKFsrLpG0Cr1TTw/dist=es2020,mode=imports/optimized/@truestamp/truestamp-js.js';

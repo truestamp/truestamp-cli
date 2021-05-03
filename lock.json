@@ -1,5 +1,6 @@
 {
   "https://cdn.skypack.dev/-/@truestamp/truestamp-js@v0.0.39-s9peUMKFsrLpG0Cr1TTw/dist=es2020,mode=imports/optimized/@truestamp/truestamp-js.js": "e98b9901faba494e78a7f3267f0a900270846c118b971bc904727843b7a22956",
+  "https://cdn.skypack.dev/pin/@truestamp/truestamp-js@v0.0.39-s9peUMKFsrLpG0Cr1TTw/mode=imports/optimized/@truestamp/truestamp-js.js": "3247ffe0f4ce01413e17873e86d5cacad76deae6c5e390abca94347376262933",
   "https://deno.land/std@0.84.0/hash/sha1.ts": "1cca324b4b253885a47f121adafcfac55b4cc96113e22b338e1db26f37a730b8",
   "https://deno.land/std@0.84.0/hash/sha256.ts": "2a06afd9c27942b87ffc8a93b3270065b5fe4ea144fe0939e5d050bfb86d40db",
   "https://deno.land/std@0.84.0/hash/sha512.ts": "879e99a4c20d10ddadbe02a643a69565dfbabffc5fa7ddacff3ebcdb664b554c",
