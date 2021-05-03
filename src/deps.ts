@@ -5,7 +5,7 @@ import { Command } from "https://deno.land/x/cliffy@v0.18.2/command/mod.ts"
 import { HelpCommand } from "https://deno.land/x/cliffy@v0.18.2/command/help/mod.ts"
 import { CompletionsCommand } from "https://deno.land/x/cliffy@v0.18.2/command/completions/mod.ts"
 import loadJsonFile from "https://deno.land/x/load_json_file@v1.0.0/mod.ts"
-import { decode, validate } from "https://deno.land/x/djwt@v2.2/mod.ts"
+
 import {
   deleteSavedTokens,
   getSavedAccessToken,
@@ -13,6 +13,9 @@ import {
   getAccessTokenWithPrompts,
   getSavedIdTokenPayload,
 } from "./auth.ts"
+
+// depsbot-ignore
+import { decode, validate } from "https://deno.land/x/djwt@v2.2/mod.ts"
 
 // depsbot-ignore
 import Truestamp from "https://cdn.skypack.dev/@truestamp/truestamp-js?dts"

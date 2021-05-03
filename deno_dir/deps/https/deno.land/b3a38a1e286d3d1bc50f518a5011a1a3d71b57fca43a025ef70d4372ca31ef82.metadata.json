@@ -1,16 +1,16 @@
 {
   "headers": {
-    "date": "Mon, 03 May 2021 19:46:45 GMT",
+    "date": "Mon, 03 May 2021 20:04:23 GMT",
+    "server": "cloudflare",
     "location": "/x/cliffy@v0.18.2/flags/mod.ts",
     "expect-ct": "max-age=604800, report-uri=\"https://report-uri.cloudflare.com/cdn-cgi/beacon/expect-ct\"",
-    "server": "cloudflare",
+    "cf-request-id": "09d56e073900000ccd97be4000000001",
     "content-length": "0",
+    "cf-ray": "649c191eb97b0ccd-EWR",
+    "alt-svc": "h3-27=\":443\"; ma=86400, h3-28=\":443\"; ma=86400, h3-29=\":443\"; ma=86400",
     "x-deno-warning": "Implicitly using latest version (v0.18.2) for https://deno.land/x/cliffy/flags/mod.ts",
-    "set-cookie": "__cfduid=d594db55f8a6d1506763ce85fd686d2bb1620071205; expires=Wed, 02-Jun-21 19:46:45 GMT; path=/; domain=.deno.land; HttpOnly; SameSite=Lax; Secure",
-    "cf-request-id": "09d55de34400003e1c5d010000000001",
-    "vary": "Accept-Encoding",
-    "cf-ray": "649bff4b99b03e1c-EWR",
-    "alt-svc": "h3-27=\":443\"; ma=86400, h3-28=\":443\"; ma=86400, h3-29=\":443\"; ma=86400"
+    "set-cookie": "__cfduid=db8df4acb059c1c81e07cf9bc1404fa641620072263; expires=Wed, 02-Jun-21 20:04:23 GMT; path=/; domain=.deno.land; HttpOnly; SameSite=Lax; Secure",
+    "vary": "Accept-Encoding"
   },
   "url": "https://deno.land/x/cliffy/flags/mod.ts"
 }
