@@ -14,7 +14,9 @@ import {
   getSavedIdTokenPayload,
 } from "./auth.ts"
 
+// depsbot-ignore
 import Truestamp from "https://cdn.skypack.dev/@truestamp/truestamp-js?dts"
+
 import { createTruestampClient } from "./truestamp.ts"
 
 export {
