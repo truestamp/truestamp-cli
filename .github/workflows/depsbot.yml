@@ -15,3 +15,4 @@ jobs:
         uses: denosaurs/depsbot@master
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
+          path: "./src"
