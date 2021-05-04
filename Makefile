@@ -38,13 +38,13 @@ prep:
 	mkdir -p ${BUILD_DIR}
 
 compress-darwin:
-	for i in build/truestamp-darwin*; do tar -czf $$i.tar.gz $$i && rm $$i; done
+	cd ${BUILD_DIR} && for i in truestamp-darwin*; do mv $$i truestamp && tar -czf $$i.tar.gz truestamp && rm truestamp; done && cd -
 
 compress-linux:
-	for i in build/truestamp-linux*; do tar -czf $$i.tar.gz $$i && rm $$i; done
+	cd ${BUILD_DIR} && for i in truestamp-linux*; do mv $$i truestamp && tar -czf $$i.tar.gz truestamp && rm truestamp; done && cd -
 
 compress-windows:
-	for i in build/truestamp-windows*; do zip -r $$i.zip $$i && rm $$i; done
+	cd ${BUILD_DIR} && for i in truestamp-windows*; do mv $$i truestamp && zip -r $$i.zip truestamp && rm truestamp; done  && cd -
 
 compress: compress-darwin compress-linux compress-windows
 
