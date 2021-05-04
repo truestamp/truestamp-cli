@@ -1,0 +1,1386 @@
+{
+  "program": {
+    "fileInfos": {
+      "asset:///lib.es5.d.ts": {
+        "version": "1",
+        "signature": "1",
+        "affectsGlobalScope": true
+      },
+      "asset:///lib.es2015.d.ts": {
+        "version": "1",
+        "signature": "1",
+        "affectsGlobalScope": false
+      },
+      "asset:///lib.es2016.d.ts": {
+        "version": "1",
+        "signature": "1",
+        "affectsGlobalScope": false
+      },
+      "asset:///lib.es2017.d.ts": {
+        "version": "1",
+        "signature": "1",
+        "affectsGlobalScope": false
+      },
+      "asset:///lib.es2018.d.ts": {
+        "version": "1",
+        "signature": "1",
+        "affectsGlobalScope": false
+      },
+      "asset:///lib.es2019.d.ts": {
+        "version": "1",
+        "signature": "1",
+        "affectsGlobalScope": false
+      },
+      "asset:///lib.es2020.d.ts": {
+        "version": "1",
+        "signature": "1",
+        "affectsGlobalScope": false
+      },
+      "asset:///lib.esnext.d.ts": {
+        "version": "1",
+        "signature": "1",
+        "affectsGlobalScope": false
+      },
+      "asset:///lib.es2015.core.d.ts": {
+        "version": "1",
+        "signature": "1",
+        "affectsGlobalScope": true
+      },
+      "asset:///lib.es2015.collection.d.ts": {
+        "version": "1",
+        "signature": "1",
+        "affectsGlobalScope": true
+      },
+      "asset:///lib.es2015.generator.d.ts": {
+        "version": "1",
+        "signature": "1",
+        "affectsGlobalScope": true
+      },
+      "asset:///lib.es2015.iterable.d.ts": {
+        "version": "1",
+        "signature": "1",
+        "affectsGlobalScope": true
+      },
+      "asset:///lib.es2015.promise.d.ts": {
+        "version": "1",
+        "signature": "1",
+        "affectsGlobalScope": true
+      },
+      "asset:///lib.es2015.proxy.d.ts": {
+        "version": "1",
+        "signature": "1",
+        "affectsGlobalScope": true
+      },
+      "asset:///lib.es2015.reflect.d.ts": {
+        "version": "1",
+        "signature": "1",
+        "affectsGlobalScope": true
+      },
+      "asset:///lib.es2015.symbol.d.ts": {
+        "version": "1",
+        "signature": "1",
+        "affectsGlobalScope": true
+      },
+      "asset:///lib.es2015.symbol.wellknown.d.ts": {
+        "version": "1",
+        "signature": "1",
+        "affectsGlobalScope": true
+      },
+      "asset:///lib.es2016.array.include.d.ts": {
+        "version": "1",
+        "signature": "1",
+        "affectsGlobalScope": true
+      },
+      "asset:///lib.es2017.object.d.ts": {
+        "version": "1",
+        "signature": "1",
+        "affectsGlobalScope": true
+      },
+      "asset:///lib.es2017.sharedmemory.d.ts": {
+        "version": "1",
+        "signature": "1",
+        "affectsGlobalScope": true
+      },
+      "asset:///lib.es2017.string.d.ts": {
+        "version": "1",
+        "signature": "1",
+        "affectsGlobalScope": true
+      },
+      "asset:///lib.es2017.intl.d.ts": {
+        "version": "1",
+        "signature": "1",
+        "affectsGlobalScope": true
+      },
+      "asset:///lib.es2017.typedarrays.d.ts": {
+        "version": "1",
+        "signature": "1",
+        "affectsGlobalScope": true
+      },
+      "asset:///lib.es2018.asyncgenerator.d.ts": {
+        "version": "1",
+        "signature": "1",
+        "affectsGlobalScope": true
+      },
+      "asset:///lib.es2018.asynciterable.d.ts": {
+        "version": "1",
+        "signature": "1",
+        "affectsGlobalScope": true
+      },
+      "asset:///lib.es2018.intl.d.ts": {
+        "version": "1",
+        "signature": "1",
+        "affectsGlobalScope": true
+      },
+      "asset:///lib.es2018.promise.d.ts": {
+        "version": "1",
+        "signature": "1",
+        "affectsGlobalScope": true
+      },
+      "asset:///lib.es2018.regexp.d.ts": {
+        "version": "1",
+        "signature": "1",
+        "affectsGlobalScope": true
+      },
+      "asset:///lib.es2019.array.d.ts": {
+        "version": "1",
+        "signature": "1",
+        "affectsGlobalScope": true
+      },
+      "asset:///lib.es2019.object.d.ts": {
+        "version": "1",
+        "signature": "1",
+        "affectsGlobalScope": true
+      },
+      "asset:///lib.es2019.string.d.ts": {
+        "version": "1",
+        "signature": "1",
+        "affectsGlobalScope": true
+      },
+      "asset:///lib.es2019.symbol.d.ts": {
+        "version": "1",
+        "signature": "1",
+        "affectsGlobalScope": true
+      },
+      "asset:///lib.es2020.bigint.d.ts": {
+        "version": "1",
+        "signature": "1",
+        "affectsGlobalScope": true
+      },
+      "asset:///lib.es2020.promise.d.ts": {
+        "version": "1",
+        "signature": "1",
+        "affectsGlobalScope": true
+      },
+      "asset:///lib.es2020.sharedmemory.d.ts": {
+        "version": "1",
+        "signature": "1",
+        "affectsGlobalScope": true
+      },
+      "asset:///lib.es2020.string.d.ts": {
+        "version": "1",
+        "signature": "1",
+        "affectsGlobalScope": true
+      },
+      "asset:///lib.es2020.symbol.wellknown.d.ts": {
+        "version": "1",
+        "signature": "1",
+        "affectsGlobalScope": true
+      },
+      "asset:///lib.es2020.intl.d.ts": {
+        "version": "1",
+        "signature": "1",
+        "affectsGlobalScope": true
+      },
+      "asset:///lib.esnext.intl.d.ts": {
+        "version": "1",
+        "signature": "1",
+        "affectsGlobalScope": true
+      },
+      "asset:///lib.esnext.string.d.ts": {
+        "version": "1",
+        "signature": "1",
+        "affectsGlobalScope": true
+      },
+      "asset:///lib.esnext.promise.d.ts": {
+        "version": "1",
+        "signature": "1",
+        "affectsGlobalScope": true
+      },
+      "asset:///lib.esnext.weakref.d.ts": {
+        "version": "1",
+        "signature": "1",
+        "affectsGlobalScope": true
+      },
+      "asset:///lib.deno.window.d.ts": {
+        "version": "1",
+        "signature": "1",
+        "affectsGlobalScope": true
+      },
+      "asset:///lib.deno.shared_globals.d.ts": {
+        "version": "1",
+        "signature": "1",
+        "affectsGlobalScope": true
+      },
+      "asset:///lib.deno.ns.d.ts": {
+        "version": "1",
+        "signature": "1",
+        "affectsGlobalScope": true
+      },
+      "asset:///lib.deno.fetch.d.ts": {
+        "version": "1",
+        "signature": "1",
+        "affectsGlobalScope": true
+      },
+      "asset:///lib.deno.file.d.ts": {
+        "version": "1",
+        "signature": "1",
+        "affectsGlobalScope": true
+      },
+      "asset:///lib.deno.crypto.d.ts": {
+        "version": "1",
+        "signature": "1",
+        "affectsGlobalScope": true
+      },
+      "asset:///lib.deno.webgpu.d.ts": {
+        "version": "1",
+        "signature": "1",
+        "affectsGlobalScope": true
+      },
+      "asset:///lib.deno.websocket.d.ts": {
+        "version": "1",
+        "signature": "1",
+        "affectsGlobalScope": true
+      },
+      "asset:///lib.deno.web.d.ts": {
+        "version": "1",
+        "signature": "1",
+        "affectsGlobalScope": true
+      },
+      "asset:///lib.deno.console.d.ts": {
+        "version": "1",
+        "signature": "1",
+        "affectsGlobalScope": true
+      },
+      "asset:///lib.deno.url.d.ts": {
+        "version": "1",
+        "signature": "1",
+        "affectsGlobalScope": true
+      },
+      "https://deno.land/x/djwt@v2.2/algorithm.ts": {
+        "version": "79359d414f3588e2ef9e2690eccef6e9803c5a7e32ceee73ea4f2976ebd9ec4c",
+        "signature": "77d6c154320c7812661c2fcd969052d072aabebd8a2f14174eccce644cd8d788",
+        "affectsGlobalScope": false
+      },
+      "https://deno.land/std@0.95.0/log/levels.ts": {
+        "version": "1d47fa84a88ed075eb9b278b06de2845af5768ddc1167b27e5bbe56fdf25a471",
+        "signature": "3459a904172ae5b1e89ebdd0a2764074300ca337f5f18236a0bf81f969952484",
+        "affectsGlobalScope": false
+      },
+      "https://deno.land/std@0.95.0/fmt/colors.ts": {
+        "version": "faa43f605e31be725c284ea8fb7618d66d22afce496d796e7de1567ea56578e7",
+        "signature": "1bbaca7b2345105f59ecee6f863736d3a4322cb708e5fcd898e7869c1442dfeb",
+        "affectsGlobalScope": false
+      },
+      "https://deno.land/std@0.95.0/fs/exists.ts": {
+        "version": "ddd18bdd9339fe7cce2dc9d16b781c459694058e766df5937fcc0a3d64e84b6d",
+        "signature": "3221ad823b1bf0ae8de922fc76da70ff1fa49c381a3e6a481ca53f6022c9c1eb",
+        "affectsGlobalScope": false
+      },
+      "https://deno.land/std@0.95.0/bytes/mod.ts": {
+        "version": "b3c3e09a65477430c2cf3995f47ed28b566afd2efbcc71ac6d88542c172d4160",
+        "signature": "901181e4a053aa162c1a0f88541a194ad9848472060d478d6bf868eb5eb1a986",
+        "affectsGlobalScope": false
+      },
+      "https://deno.land/std@0.95.0/_util/assert.ts": {
+        "version": "9e8cd812469a5b6bd1908e1a9518fd2d3d003e13b80a221366e9eb5b9f6cdf35",
+        "signature": "614e682a04ae989920444e2762c5e5e40bdfe23ae1040f938e528d1ca6731170",
+        "affectsGlobalScope": false
+      },
+      "https://deno.land/std@0.95.0/io/buffer.ts": {
+        "version": "62776986d1bd1d3c7410797032f4773e13283355166a2446ab1c8f541c673a94",
+        "signature": "422b14d5e36a9b9a733efe62c96fc4c3a606a6b4b4c9f1029f2e538b1d926b0b",
+        "affectsGlobalScope": false
+      },
+      "https://deno.land/std@0.95.0/io/util.ts": {
+        "version": "37b959b672c3dae8a55e454d044b89bd71f1bf032791f0df07ca33b80cb2746d",
+        "signature": "449c91dffb856de81230b88284d0fafef213ccafc66ce67469d422cba25e99a3",
+        "affectsGlobalScope": false
+      },
+      "https://deno.land/std@0.95.0/io/bufio.ts": {
+        "version": "b8f5da9cea4eef9425a77b8a96c3d3010d88723723cdf98e6193dac790f79ceb",
+        "signature": "833abd99e7cfde6a7ddc211ec82aca6e0a42acbc6a0f290335fa96e0d2397d09",
+        "affectsGlobalScope": false
+      },
+      "https://deno.land/std@0.95.0/log/handlers.ts": {
+        "version": "3379039fe60ce6d84d27fca012bcc440500d782614ad0abe3a7238fbb670844a",
+        "signature": "ccf0adaa91f2324c09399ac93d6c6a3f605b55dbf1bb8a63609d9852b29ef62e",
+        "affectsGlobalScope": false
+      },
+      "https://deno.land/std@0.95.0/log/logger.ts": {
+        "version": "1a98981fa44131fae2e0815d72030d2061227bce786d35b3d2cbb386f958c135",
+        "signature": "66a8ce46e1502db805e52946a847888f1597f5bd790b09e2ae4837b7fa9c6ec7",
+        "affectsGlobalScope": false
+      },
+      "https://deno.land/std@0.95.0/log/mod.ts": {
+        "version": "60a9680bbe75757e2f2b79dc30ae22f3b0c1abdae82565244e8cf9dedc43898e",
+        "signature": "82fc6944ef2a91411d675ade29115b9587a0eadbb064ff6123c60b68ae155bf4",
+        "affectsGlobalScope": false
+      },
+      "https://deno.land/x/sleep@v1.2.0/sleep.ts": {
+        "version": "4337b1f680e02720dc14d03cb356d53fa1f44038de5d52047f2afc2459f92115",
+        "signature": "ec0e5835de96e3723bac7b6b810496b45df4fb5ec191ecd68a37e0c24f8a7ec8",
+        "affectsGlobalScope": false
+      },
+      "https://deno.land/x/sleep@v1.2.0/mod.ts": {
+        "version": "d9e2ffcef7b2f7673c635df07c3d337de3fbb8317d5b9f36874750fa4f12c80c",
+        "signature": "d67158cf628d1f545d64f7a6b66db96a462fef3da2ea852297376becc297493f",
+        "affectsGlobalScope": false
+      },
+      "https://deno.land/std@0.85.0/encoding/base64.ts": {
+        "version": "3e50dc5c703ebed92561df502f542750076bba04f599dffff1a554c9d35016ab",
+        "signature": "60ae1a2d267c5bdbc1e4d221b516b4eb1d27b72a50a6b7feaeb4f631e96e1c02",
+        "affectsGlobalScope": false
+      },
+      "https://deno.land/std@0.85.0/encoding/base64url.ts": {
+        "version": "661aa8916dc3b3f93409bb24d1f60a6282ceeb5864d91d9ad9a90262a15ec344",
+        "signature": "273f5924959985db0186399a2bc74b4fbb1c29c7c927e86723dd96ba8a99000a",
+        "affectsGlobalScope": false
+      },
+      "https://deno.land/std@0.85.0/encoding/hex.ts": {
+        "version": "da005f288f9084f5b27366d62e76ffcaac54c79cc62e8fd21ca8a7dc12d597b4",
+        "signature": "a4af052230e6f5942e08846c49ba31a0bfbf39e0da49ce21f574c93cab533ca9",
+        "affectsGlobalScope": false
+      },
+      "https://deno.land/x/cliffy@v0.18.2/flags/types.ts": {
+        "version": "dd6c280743c5ee80c0e5ac66eeffac42ed15be98843247fbfd4b619a42cf6eea",
+        "signature": "7579baae940cda1f1361dfd57c3c40a62155ec49a6ff507b86e94dee4835c2e3",
+        "affectsGlobalScope": false
+      },
+      "https://deno.land/x/cliffy@v0.18.2/_utils/distance.ts": {
+        "version": "7540674f75c845a9eec720f6df0ca452132c6da78eb3c5d06f5a731cd51b8ad2",
+        "signature": "e8ee201a49c994763a40537a2e5f5dd273fbc583ed66b558fc9979f88d4a49c2",
+        "affectsGlobalScope": false
+      },
+      "https://deno.land/x/cliffy@v0.18.2/flags/_utils.ts": {
+        "version": "933a8bc76c34ee47ae463efac3d74af297d5ac4bd59d53adde05fc3e4786c20a",
+        "signature": "35a30ec469aa62ff5b464f6a3d1c4c13a4fffe89cdf8f2b8730d6fb0b4b2ee5b",
+        "affectsGlobalScope": false
+      },
+      "https://deno.land/x/cliffy@v0.18.2/flags/_errors.ts": {
+        "version": "2cc90832ebc94623ea5ae3b9867c2cb40f7ff58875eb03c2a0602d4b3ab34b15",
+        "signature": "4ffdfdbcb9a8e7b3a7c823647802eb1fd82cdc0db3750b571f3e414f50475fd3",
+        "affectsGlobalScope": false
+      },
+      "https://deno.land/x/cliffy@v0.18.2/flags/normalize.ts": {
+        "version": "80e4be528b35154a43ace5abf7f3b60a257657dad5d1c7b2f0a6a1350c3115f3",
+        "signature": "f4f430e7ef6f3450f66e81cdae87c92de8297444464aa551791644e0e6e39cae",
+        "affectsGlobalScope": false
+      },
+      "https://deno.land/x/cliffy@v0.18.2/flags/types/boolean.ts": {
+        "version": "83fc0875715adee8fd523a3ef93cf00516b9bf74ff3139e553ca360af4402f53",
+        "signature": "e2c95c44559e833053aad8ef480374411a0aa244d206fcb57837fac2bc49aa0e",
+        "affectsGlobalScope": false
+      },
+      "https://deno.land/x/cliffy@v0.18.2/flags/types/number.ts": {
+        "version": "3b2f9ac03e11f843dd6a68cd849103996cc58195d5ccfc40d80f7d44701b19d3",
+        "signature": "e7d549dc77253db34257182fd33256a20c653b86dc9f51dbba3d5e16849af04a",
+        "affectsGlobalScope": false
+      },
+      "https://deno.land/x/cliffy@v0.18.2/flags/types/string.ts": {
+        "version": "2b535ad70a1c9d79a1f7f27d405ed3761194d57529277d716a0281652d7c1ce1",
+        "signature": "13c395c123d2a47a789c7971766a15acad3131f87b4f8462ccb5c03b284b61bd",
+        "affectsGlobalScope": false
+      },
+      "https://deno.land/x/cliffy@v0.18.2/flags/validate_flags.ts": {
+        "version": "c6cafda85fb9fa034fc5f549cde502b86ffec24caa9a4c6cae17df91fd0626be",
+        "signature": "885816d0b8813d072c0f6341b9f3860a826985130795ed1501da2f2098770142",
+        "affectsGlobalScope": false
+      },
+      "https://deno.land/x/cliffy@v0.18.2/flags/flags.ts": {
+        "version": "0b3fc77a153c66b75fa48626f13b6a6c727654d8980cffb5d0fa02cae6f01e98",
+        "signature": "d1fee3192beb7aa6cea3a0851f7be5cda681bb6a44376e2c4e2cc9b6a3ed1a88",
+        "affectsGlobalScope": false
+      },
+      "https://deno.land/x/cliffy@v0.18.2/command/type.ts": {
+        "version": "8969fa6170335dedd0b810eebac62ac900f116875acc752d39c2b3d8a81a3eeb",
+        "signature": "a7f0152cf479ccb3aabf507e2b2f4085340c3b61b93c018e78a6696b2fc1fe7d",
+        "affectsGlobalScope": false
+      },
+      "https://deno.land/x/cliffy@v0.18.2/command/types.ts": {
+        "version": "d4c70acb1a121f54dbca4cde86aaeb250c9c6cca80f989c74b00ae1ff57d0d18",
+        "signature": "e61a64a50e2c837163cf3c547b1444cf9f66196f155eeb44f39c58f8e0f271ab",
+        "affectsGlobalScope": false
+      },
+      "https://deno.land/x/cliffy@v0.18.2/command/_utils.ts": {
+        "version": "828acd20e2570e16b8a6839bb6a60d0c320a522fde998f711bab9c6ddbaf8682",
+        "signature": "f0caab975cfdfda68e337bd4d9791963f61a9d4234455ff78f69e60bb3ddcde3",
+        "affectsGlobalScope": false
+      },
+      "https://deno.land/std@0.93.0/fmt/colors.ts": {
+        "version": "faa43f605e31be725c284ea8fb7618d66d22afce496d796e7de1567ea56578e7",
+        "signature": "a3c5bcf9f8069e4e7f7aa28425b391173b362c302d3138c65a1cc8684c02111f",
+        "affectsGlobalScope": false
+      },
+      "https://deno.land/std@0.93.0/fs/exists.ts": {
+        "version": "ddd18bdd9339fe7cce2dc9d16b781c459694058e766df5937fcc0a3d64e84b6d",
+        "signature": "4a2ebc19c714f8585fd9a46108eb510f08aea6ffc45997ef1022eb80843e35a1",
+        "affectsGlobalScope": false
+      },
+      "https://deno.land/x/cliffy@v0.18.2/command/deps.ts": {
+        "version": "5e5efa76601af1d243943ab6000e86cdc09dd3e8d92ffa0246ec9d68a6414758",
+        "signature": "ceef62c91d16dc21be1e153d103ebbf3dca0c4197276e3c9ab3e225586de4029",
+        "affectsGlobalScope": false
+      },
+      "https://deno.land/x/cliffy@v0.18.2/command/_errors.ts": {
+        "version": "7b6756bdefd2248f67d668bb8af38d4d5d8e2f1b92d9588f6f4a185a0a2fcadb",
+        "signature": "5cfb14b293843d0397bfa70fd9c2c4bad4a896c0e09a881990c6bd3fc8835c91",
+        "affectsGlobalScope": false
+      },
+      "https://deno.land/x/cliffy@v0.18.2/command/types/boolean.ts": {
+        "version": "4a2ae00c6ecc38b834301a54429e306ec7a1272bf3fbe26ffbd5647366fe1eca",
+        "signature": "55189d806aff7a1af4ab6c7f1798da6727080a544d2eb736527f01d5bf8b2b0b",
+        "affectsGlobalScope": false
+      },
+      "https://deno.land/x/cliffy@v0.18.2/command/types/number.ts": {
+        "version": "5b238a84a4c50cf3b5db46dcb52d7fcbfdeba64ceefbf4972d209aacf701c044",
+        "signature": "f8f31a87170b419e6376914f5945279cd98b28049a4c1c2a6e128448e205b84e",
+        "affectsGlobalScope": false
+      },
+      "https://deno.land/x/cliffy@v0.18.2/command/types/string.ts": {
+        "version": "6deb7816b6c12e604067ba1be99eaf860cf3683378a2183d2178f6cbb2deb382",
+        "signature": "b20cac21d19c92b4039e3694c5fb6f52bb8f547306099f7aafb06c0c4595b30e",
+        "affectsGlobalScope": false
+      },
+      "https://deno.land/x/cliffy@v0.18.2/table/border.ts": {
+        "version": "f90965dae7633e335fbec80e4e607ed9026585ed0bb7323fd4d1b5b5630d5566",
+        "signature": "8e740388ec44e6e357dd2741b2d2cf594c3a8e7f924a71bfc91992dda14183fd",
+        "affectsGlobalScope": false
+      },
+      "https://deno.land/x/cliffy@v0.18.2/table/cell.ts": {
+        "version": "28927e283d05140ea6bc7db25df2a06509a997b35acefb68561a83dd52f8df46",
+        "signature": "894dabc384bcbd51458dcc064fd04ebd72a4764cf747bfd735415cca584d8518",
+        "affectsGlobalScope": false
+      },
+      "https://deno.land/x/cliffy@v0.18.2/table/deps.ts": {
+        "version": "d1b6c099609641895d3eb405006a8b0334e0a641c324d6cd6a2a9a14ec72afda",
+        "signature": "00020615eee1e9599f0be28250b37f5f45446b367b506ce78545a005ba22c41d",
+        "affectsGlobalScope": false
+      },
+      "https://deno.land/x/cliffy@v0.18.2/table/row.ts": {
+        "version": "27c5c2ada6748d4dcfc7026a36557f3a0aa641a9d3a16ef233a0c15510232f98",
+        "signature": "0035cdf973c33566c6bce76950175299e125c771721a06298b01da1bb08c4aac",
+        "affectsGlobalScope": false
+      },
+      "https://deno.land/x/cliffy@v0.18.2/table/utils.ts": {
+        "version": "91bb6a0f738abfd56ccc98b8d6f232f56e3763fc186b68f63408c6b61e971305",
+        "signature": "22f02f7a50f72208f01edb90e86e58ef9fea8f77bc20ea1264aadbfe17714b8a",
+        "affectsGlobalScope": false
+      },
+      "https://deno.land/x/cliffy@v0.18.2/table/layout.ts": {
+        "version": "a80de8ba0f694d35a1dfb2ca00da11bea21bff8b80898d16e37f3e6567e1721d",
+        "signature": "fe55d11006be29863e7822d92f9a1bc4c41217d910aff91e2f33f91969994782",
+        "affectsGlobalScope": false
+      },
+      "https://deno.land/x/cliffy@v0.18.2/table/table.ts": {
+        "version": "95cacc4e4304d4307df0218db93074c5046b98f0d879cde2905d19bcc9854392",
+        "signature": "efdd5b6eefdf2e1818ad4997d85f2aa4d06ca3b493d52fa3c7a9f324be227196",
+        "affectsGlobalScope": false
+      },
+      "https://deno.land/x/cliffy@v0.18.2/command/help/_help_generator.ts": {
+        "version": "ab11e4d76b89539d89d8ff739659034eab4d11700d1c2c85a4ff2a53fc69ea2c",
+        "signature": "09545127b30ad917f128e8cda9aa37d793f5010ef4796a623c3950bc1cb807f2",
+        "affectsGlobalScope": false
+      },
+      "https://deno.land/x/cliffy@v0.18.2/command/command.ts": {
+        "version": "ecca1e5eb322becba4da86aa1237c88792353987570e0e0d5ab2f7d8a2b89f45",
+        "signature": "e55ab845614c7325ffab213a334bb578d8a57735f769c5cb1a14251426965f93",
+        "affectsGlobalScope": false
+      },
+      "https://deno.land/x/cliffy@v0.18.2/command/completions/_bash_completions_generator.ts": {
+        "version": "07b47f8c18d8916f0ce033163fa4a5b934e04175f51b67b61266749c82683333",
+        "signature": "7abc6e2f204a228a988cc69947e2d486c5edb83fbae1d07e6ba957dc125d7812",
+        "affectsGlobalScope": false
+      },
+      "https://deno.land/x/cliffy@v0.18.2/command/completions/bash.ts": {
+        "version": "1ce9a0d75f143f6860bde8717c6dc3f8e1cee96eeff8abaf164683b81f077f0f",
+        "signature": "755f805f533822fa3deb8187763cb673fb66fb35394f32dd5d3623672cc1f35b",
+        "affectsGlobalScope": false
+      },
+      "https://deno.land/x/cliffy@v0.18.2/command/completions/complete.ts": {
+        "version": "d8bf8ffb5a90ff915638e2c3cd37e242424206b68f82cae1ed7a923484f074cc",
+        "signature": "605d900d2781aad526b4473b046b57c8b3dbdface257db00c7f237cf58566f6a",
+        "affectsGlobalScope": false
+      },
+      "https://deno.land/x/cliffy@v0.18.2/command/completions/_fish_completions_generator.ts": {
+        "version": "57c91bcaf73ff209a8b4b26d886ed79f87560991fe5f934a059f8117aa5681ff",
+        "signature": "fb0c427b0fbb35754efcae93891bf20c120f2706860c5a9d68b77a13ada22b68",
+        "affectsGlobalScope": false
+      },
+      "https://deno.land/x/cliffy@v0.18.2/command/completions/fish.ts": {
+        "version": "20f14944a972a537dd544dd319074a9dab84588e68f4108f2284ccb88e002f7a",
+        "signature": "c05486bc70884bc885b1083b767e068f577d8f131cc7e2f0621dd11b9403acff",
+        "affectsGlobalScope": false
+      },
+      "https://deno.land/x/cliffy@v0.18.2/command/completions/_zsh_completions_generator.ts": {
+        "version": "b6f02cef47b47d5aa3ef5daa756ef90bff39d950bb92814d526d74a25565c1b4",
+        "signature": "22e2c3e5c2e69585027358c9b23c560c809d45fae68b94be1a0f60e665a891a6",
+        "affectsGlobalScope": false
+      },
+      "https://deno.land/x/cliffy@v0.18.2/command/completions/zsh.ts": {
+        "version": "c5d6ef8e43d1c2bc15e440a72ad22d9e0df75076d3a5f7c8ea6b13e0b98cfd56",
+        "signature": "f79db7184af93b41301e2d770c1431f79874c3fd44b9b2801914a9bac5ab061f",
+        "affectsGlobalScope": false
+      },
+      "https://deno.land/x/cliffy@v0.18.2/command/completions/mod.ts": {
+        "version": "f61cf308926a20782eb66327245e1fe4a03a6b12b988c4cc679468cb7393a089",
+        "signature": "5c00ac72ac9e19a87ba32cf7d0e1c44a77f93cec23e6da92663fc1510b50e7dc",
+        "affectsGlobalScope": false
+      },
+      "https://deno.land/x/god_crypto@v1.4.9/src/math.ts": {
+        "version": "9ebe2f867634a0b0043bfd99d18e56acc5fa7f29ffc325dc475144d73bbd80f3",
+        "signature": "d1273d22e4fe261e31c51e3124e2635659f9bf6703e6724e774b5cd44a661d38",
+        "affectsGlobalScope": false
+      },
+      "https://deno.land/std@0.84.0/hash/sha1.ts": {
+        "version": "fc696c46ce86463098a9da90d452ea4d93540d881cbf97410624f835748988d1",
+        "signature": "1dad993145e6c968fe618adf4e6c0657cda235d8081a7dabd3a8c634dd89b157",
+        "affectsGlobalScope": false
+      },
+      "https://deno.land/std@0.84.0/hash/sha256.ts": {
+        "version": "546d3c93369d2c9a81765a4b85a3c688ce9cdf7d2d629c8a5b7a2537f76087ad",
+        "signature": "ce8879e714bd3c7abb8567c40df925fd9f696801ee59c9f9b577abf64fbc51dc",
+        "affectsGlobalScope": false
+      },
+      "https://deno.land/std@0.84.0/hash/sha512.ts": {
+        "version": "0724875ffe46ea9b5f0dc1ea0bb78738db6fae60824e6084118aa1e2c3e1f02d",
+        "signature": "7eff7c389d34edddbaab44b16911d31ea6e8d997b2c83dd91fcd3fe91de1679a",
+        "affectsGlobalScope": false
+      },
+      "https://deno.land/x/god_crypto@v1.4.9/src/rsa/common.ts": {
+        "version": "aa3a447037589c896cad20c632fce6698e2a94b6d725efe94987af86f18703c0",
+        "signature": "01ce7fb472fe9f3834caf662e85a665f4db1b79881b2bea1ddd21b25a8d0e4ef",
+        "affectsGlobalScope": false
+      },
+      "https://deno.land/x/god_crypto@v1.4.9/src/hash.ts": {
+        "version": "25f74d9172a76b4585fd17d41912912877cff8ee9a044341a477154405839ca3",
+        "signature": "64b43bb397fa56d446ac25aa6092dd22edabed0cf66eb9dd481efb2a45462070",
+        "affectsGlobalScope": false
+      },
+      "https://deno.land/x/god_crypto@v1.4.9/src/rsa/primitives.ts": {
+        "version": "4318882079f821c543712ee79a7d9be3f6e80789f2edc1ec0937282c21b5fbe1",
+        "signature": "d4a5bfe67dc076552d185a2a430c170c256fe7a3e518c057e9ac3a51183f4b8a",
+        "affectsGlobalScope": false
+      },
+      "https://deno.land/x/god_crypto@v1.4.9/src/helper.ts": {
+        "version": "1df34595202022ce3dee6709bc9d6a5fa13521d1802dc4936f4b523198ac54a8",
+        "signature": "0b3cd62963edd0612824baaea091ae117dd23c464ddad2026efdac9c4f697701",
+        "affectsGlobalScope": false
+      },
+      "https://deno.land/x/god_crypto@v1.4.9/src/rsa/eme_oaep.ts": {
+        "version": "c1e796db124c13dcbabb0be33c18091d863e6f79f82b31bf5668903d3f5cd5ba",
+        "signature": "d5fabd6dffaab528291dc7bbf04d2aac706dbc15ea16aededb13ea486bae7256",
+        "affectsGlobalScope": false
+      },
+      "https://deno.land/x/god_crypto@v1.4.9/src/rsa/basic_encoding_rule.ts": {
+        "version": "a11a2eb6acc8e8346fa8a3371208e9ce5a2a71cd277bbd720991fa54fe5ae909",
+        "signature": "38fdf9975a5bcfa38cebde96919226ee6bcba545865a249b4cbf54183da6cffd",
+        "affectsGlobalScope": false
+      },
+      "https://deno.land/x/god_crypto@v1.4.9/src/binary.ts": {
+        "version": "a40e29b0dde495ad602beb21e9a405d80b0565fc56344223cbc74b3c18121384",
+        "signature": "0e5e82b8bcfd00df033b4883c875445968a475bace88c213b46cbcb5e006f027",
+        "affectsGlobalScope": false
+      },
+      "https://deno.land/x/god_crypto@v1.4.9/src/utility/encode.ts": {
+        "version": "c9733bfd9a16df763f08b77361f41c5fc90a53f423330e4e4376e8f5ffa77581",
+        "signature": "fa43ff8ecb697728fe28f059632301ca905f700ef90358ec70fb1c1ad424e62e",
+        "affectsGlobalScope": false
+      },
+      "https://deno.land/x/god_crypto@v1.4.9/src/utility/asn1.ts": {
+        "version": "6bf880e8b5c6f1e6b46a7270be6c94b3797e69c0bb0370ad8a714ee2c669089c",
+        "signature": "48093f24b5d8b126f6493534e0bf2b391ba94d5d9af893bb7fdbfb2215d81ca3",
+        "affectsGlobalScope": false
+      },
+      "https://deno.land/x/god_crypto@v1.4.9/src/rsa/export_key.ts": {
+        "version": "127750f3184643d9ebaef24f218fabf7bedfe0aaeb18877f735409414e23c372",
+        "signature": "592b173b9a42b268cf9de04b8c7ee01390cfa6670d805222e83f58de60b72254",
+        "affectsGlobalScope": false
+      },
+      "https://deno.land/x/god_crypto@v1.4.9/src/rsa/rsa_key.ts": {
+        "version": "e4c1d7276b0672a5dc518ba82e69ae4297510590ffac7141f150c4a780055f9f",
+        "signature": "b16cfa85241cbe908a58996351c45fe299cbd13a6cc548d69d230e0c09e5c44c",
+        "affectsGlobalScope": false
+      },
+      "https://deno.land/x/god_crypto@v1.4.9/src/rsa/rsa_internal.ts": {
+        "version": "80c7cf0b5c82d25fb021a47977643bf0701f2e62ee7f0ea2eaa31170f4edc5c1",
+        "signature": "89ab8b038cf734946485272b39937cc5c652d27d57fba44eaec796419e77dc6b",
+        "affectsGlobalScope": false
+      },
+      "https://deno.land/x/god_crypto@v1.4.9/src/rsa/emsa_pss.ts": {
+        "version": "797f4a71de02b360b4dbef49a195c82b92acfd93bc40c82ce3a71b8885f0ec1a",
+        "signature": "08d2465dc45eef82f4bf3ee4236a2d9a821b5e7dd2c536638883f5a4391c259a",
+        "affectsGlobalScope": false
+      },
+      "https://deno.land/x/god_crypto@v1.4.9/src/rsa/rsassa_pss.ts": {
+        "version": "e8f1765c035cea613f3527ba58946823b52cfcf0a696a2e349b518b794323d71",
+        "signature": "0494cbd96a024f1b7cf1b8b6f61ce8fb2a51771a83b245dc7ef4b395e702a1dc",
+        "affectsGlobalScope": false
+      },
+      "https://deno.land/x/god_crypto@v1.4.9/src/rsa/rsa_js.ts": {
+        "version": "a79f662480f876ba83aea9689e57b85ff3b1a33574cd0e75874794c315c695c4",
+        "signature": "e5ff9c4fcd3d2fdd5d751f48e05bec4f82635e6bfa1290df8aa921111e20bb1e",
+        "affectsGlobalScope": false
+      },
+      "https://deno.land/std@0.85.0/hash/sha256.ts": {
+        "version": "546d3c93369d2c9a81765a4b85a3c688ce9cdf7d2d629c8a5b7a2537f76087ad",
+        "signature": "9d169a9e58dd35a97135d17c328cde380134dcfa37553a2522b520c08f4d7579",
+        "affectsGlobalScope": false
+      },
+      "https://deno.land/std@0.85.0/hash/sha512.ts": {
+        "version": "0724875ffe46ea9b5f0dc1ea0bb78738db6fae60824e6084118aa1e2c3e1f02d",
+        "signature": "012bc3a151f62dd0f17df004536e31ee6ad8fff54d46e9288f73697294f104b3",
+        "affectsGlobalScope": false
+      },
+      "https://deno.land/x/god_crypto@v1.4.9/src/rsa/rsa_wc.ts": {
+        "version": "d55b5f2c9a40553a5794b8166060ef59bd26e6b791b3bec5d2a1cfc4ef5c07ad",
+        "signature": "a1e7b8f70166554cc24d88e75a5859e429696b488a2b9fd93df35fc12a10d56c",
+        "affectsGlobalScope": false
+      },
+      "https://deno.land/x/god_crypto@v1.4.9/src/rsa/import_key.ts": {
+        "version": "a50bad67ec6249e38b1996bb9480daf4433dbf8c2bd0350191a1698ff69c9551",
+        "signature": "a045b9d306ce89c134b679eb3a77e8f2ffa37cc47945f7480c86eb34b6cf8c63",
+        "affectsGlobalScope": false
+      },
+      "https://deno.land/x/god_crypto@v1.4.9/src/rsa/mod.ts": {
+        "version": "2ad7ebc5f2a3e84e195749e2567be57c50ed58f214a8efcd42fb662fdce9a27f",
+        "signature": "ee8be0fdf01f546166113250bd953fefdd92442ed4a89ecc75893141fd5a336b",
+        "affectsGlobalScope": false
+      },
+      "https://deno.land/x/god_crypto@v1.4.9/rsa.ts": {
+        "version": "42379d72ef1a05d1b0c9bf981a3f01c7aac8e85cc14f23ecfb0a9d83b6c121cc",
+        "signature": "fc196b286b77b0bfe0ec16290ab4d00b61bea749d6cd0542a661c1f1e196cf51",
+        "affectsGlobalScope": false
+      },
+      "https://deno.land/x/djwt@v2.2/deps.ts": {
+        "version": "71fd903a500315b8ce506f717b25c87e0ae0048b2d5d2460e549a9c0235783a4",
+        "signature": "6698681d958ec49aa1113febaee489f6b4e1e06a9b6d58a113b7a8d40c707718",
+        "affectsGlobalScope": false
+      },
+      "https://deno.land/x/load_json_file@v1.0.0/mod.ts": {
+        "version": "53f80ac6056520d8da41e60613e4cbf2dae8adea70c2e557d1887027804a8fe1",
+        "signature": "220bec44a8bcc34f2ddb27fb99fe70ced236e1735e8d5cee97db3dc0625277d2",
+        "affectsGlobalScope": false
+      },
+      "https://deno.land/x/config_dir@v0.1.1/mod.ts": {
+        "version": "b70edc6c59f50be9d38371d6bfed845c3f02248c71781eaceda1074deefcf56f",
+        "signature": "e8b334f64c82befb9dba08467169442a7f89397acbd05272e24df91b36447419",
+        "affectsGlobalScope": false
+      },
+      "https://deno.land/x/djwt@v2.2/signature.ts": {
+        "version": "160a5204f37ad9a8a4f4e06c610b001913ce0a5dba71d95d267b64b0d0d7cd24",
+        "signature": "f1262fff4a346c85ded20452382bfdaf50cfbed637849a25a6e08f5b65ed1882",
+        "affectsGlobalScope": false
+      },
+      "https://deno.land/x/djwt@v2.2/mod.ts": {
+        "version": "60119e7fb4ddef291d5ae3d505953d3d6b397cbc4f8a2e7b8b763c63c1a4ff95",
+        "signature": "550b3685374ff9f6b96ff365fb19fc2642a7b4425a2c806ec91ad955ceacfe03",
+        "affectsGlobalScope": false
+      },
+      "https://deno.land/x/cliffy@v0.18.2/ansi/colors.ts": {
+        "version": "59b48e22b136e093a67c77e5508d77f0306ba74f4397341c048f6683303d2f8f",
+        "signature": "0990660ddbd134462abec0dfe484e1ce9b0eb09963dad692b0b0bba2ae038a7e",
+        "affectsGlobalScope": false
+      },
+      "https://deno.land/x/cliffy@v0.18.2/command/types/command.ts": {
+        "version": "9383bb58abe02d29d8d039db4aa626fccf96c500e8e1eca312a7ea2cd0f558b1",
+        "signature": "6329d3b858ca8ee1a7ef40ae2dd525cd2c4b3f027a08dbf021f7a37008e009ab",
+        "affectsGlobalScope": false
+      },
+      "https://deno.land/x/cliffy@v0.18.2/command/help/mod.ts": {
+        "version": "c31fd140a2d20e9897664bfa7d0c9e1ecd7f7389b3efdae794d39d423be58dac",
+        "signature": "45242be05f04e795d5107ecada2c269317528421a825648c0318f7dc9cecdf03",
+        "affectsGlobalScope": false
+      },
+      "https://deno.land/x/cliffy@v0.18.2/command/types/action_list.ts": {
+        "version": "dad30e01fd3148b397c2a781bbcfd0ab3d585f23a2ab5ab3ffc0630e2073375f",
+        "signature": "1ea6e62478586e451e95d2fcd8cd3083fabc062fa82e94f646dc4c8c44d6c5c2",
+        "affectsGlobalScope": false
+      },
+      "https://deno.land/x/cliffy@v0.18.2/command/types/child_command.ts": {
+        "version": "620a1c6e6eadf764d9cac8d6b14d149ca5b1e012026e45695ee2e296fdb2d58a",
+        "signature": "fe7f9feeb256ac4de05533921ac12c7e7766eb9bb3da27440ffe2ddebade1e6c",
+        "affectsGlobalScope": false
+      },
+      "https://deno.land/x/cliffy@v0.18.2/command/mod.ts": {
+        "version": "4e2f6a05609f6a00ae4415818f9cb21f2075e12c73d61f79d640161a4e375841",
+        "signature": "46db886ca4cb6670a1f550561460cfb9620aea2a20d71c730531c08a2cce0ad3",
+        "affectsGlobalScope": false
+      },
+      "file:///Users/glenn/src/github.com/truestamp/truestamp-cli/src/auth.ts": {
+        "version": "3ea29b79e6a8639d0f94ea724812b2eb6685332a6a8552f592b036361143acf2",
+        "signature": "bdc6d447defce7adcccbbe22e59e6a9e79bfbbbbdb9600186e5359eb2f8afb26",
+        "affectsGlobalScope": false
+      },
+      "https://cdn.skypack.dev/-/@truestamp/truestamp-js@v0.0.39-s9peUMKFsrLpG0Cr1TTw/dist=es2020,mode=imports/optimized/@truestamp/truestamp-js.js": {
+        "version": "de5e9383bbca111d75b75b2551b5deda7315905e52262877dff8d7396533b67b",
+        "signature": "e5662c9763c03c43ba981efe747855a8bd421d4367b559cf064cb8d8d72903d3",
+        "affectsGlobalScope": false
+      },
+      "https://cdn.skypack.dev/pin/@truestamp/truestamp-js@v0.0.39-s9peUMKFsrLpG0Cr1TTw/mode=imports/optimized/@truestamp/truestamp-js.js": {
+        "version": "caf0e4206ba66333027d0455a1986ec3c4dfb70be510ff6cb624a87dd233680e",
+        "signature": "6092d47e302a59fbb77de4369f07768e71374c8c818cbcb121f62a2734f0fa50",
+        "affectsGlobalScope": false
+      },
+      "file:///Users/glenn/src/github.com/truestamp/truestamp-cli/src/truestamp.ts": {
+        "version": "53af44bfb7b48110f830c2d9bc6ad96e91067e05fd520e914fb1e9d224c42a29",
+        "signature": "2becba74819f270773c9112097e51ada57ec7b3da09aaf361aaf3b188f1ac0b8",
+        "affectsGlobalScope": false
+      },
+      "https://deno.land/x/cliffy@v0.18.2/flags/mod.ts": {
+        "version": "756de71e0e2aba8d3c595b3594310bf3b549cc8cb2a51ec9c19684d1e050fa02",
+        "signature": "7b5f9a4deda3ca5c168ae27d1abeed3987649d9b9cf2e5ea185470cfa2e996ac",
+        "affectsGlobalScope": false
+      },
+      "file:///Users/glenn/src/github.com/truestamp/truestamp-cli/src/deps.ts": {
+        "version": "80dad0505d56fc1285a8ab1db71db1b943d042303171292bf5d707e6ec49e316",
+        "signature": "f52dea6ba7862f8a486cd804b3700f3daefca6d9c0118a552b552eb40af54c94",
+        "affectsGlobalScope": false
+      }
+    },
+    "options": {
+      "allowJs": true,
+      "esModuleInterop": true,
+      "experimentalDecorators": true,
+      "incremental": true,
+      "jsx": 2,
+      "isolatedModules": true,
+      "lib": [
+        "lib.deno.window.d.ts"
+      ],
+      "module": 99,
+      "strict": true,
+      "target": 99,
+      "tsBuildInfoFile": "./.tsbuildinfo",
+      "useDefineForClassFields": true,
+      "emitDecoratorMetadata": false,
+      "importsNotUsedAsValues": 0,
+      "inlineSourceMap": true,
+      "outDir": "deno://",
+      "removeComments": true,
+      "allowNonTsExtensions": true
+    },
+    "referencedMap": {
+      "file:///Users/glenn/src/github.com/truestamp/truestamp-cli/src/auth.ts": [
+        "file:///Users/glenn/src/github.com/truestamp/truestamp-cli/src/deps.ts"
+      ],
+      "file:///Users/glenn/src/github.com/truestamp/truestamp-cli/src/deps.ts": [
+        "file:///Users/glenn/src/github.com/truestamp/truestamp-cli/src/auth.ts",
+        "file:///Users/glenn/src/github.com/truestamp/truestamp-cli/src/truestamp.ts",
+        "https://cdn.skypack.dev/pin/@truestamp/truestamp-js@v0.0.39-s9peUMKFsrLpG0Cr1TTw/mode=imports/optimized/@truestamp/truestamp-js.js",
+        "https://deno.land/x/cliffy@v0.18.2/ansi/colors.ts",
+        "https://deno.land/x/cliffy@v0.18.2/command/completions/mod.ts",
+        "https://deno.land/x/cliffy@v0.18.2/command/help/mod.ts",
+        "https://deno.land/x/cliffy@v0.18.2/command/mod.ts",
+        "https://deno.land/x/cliffy@v0.18.2/flags/mod.ts",
+        "https://deno.land/x/config_dir@v0.1.1/mod.ts",
+        "https://deno.land/x/djwt@v2.2/mod.ts",
+        "https://deno.land/x/load_json_file@v1.0.0/mod.ts",
+        "https://deno.land/x/sleep@v1.2.0/mod.ts"
+      ],
+      "file:///Users/glenn/src/github.com/truestamp/truestamp-cli/src/truestamp.ts": [
+        "file:///Users/glenn/src/github.com/truestamp/truestamp-cli/src/deps.ts"
+      ],
+      "https://cdn.skypack.dev/pin/@truestamp/truestamp-js@v0.0.39-s9peUMKFsrLpG0Cr1TTw/mode=imports/optimized/@truestamp/truestamp-js.js": [
+        "https://cdn.skypack.dev/-/@truestamp/truestamp-js@v0.0.39-s9peUMKFsrLpG0Cr1TTw/dist=es2020,mode=imports/optimized/@truestamp/truestamp-js.js"
+      ],
+      "https://deno.land/std@0.85.0/encoding/base64url.ts": [
+        "https://deno.land/std@0.85.0/encoding/base64.ts"
+      ],
+      "https://deno.land/std@0.95.0/io/buffer.ts": [
+        "https://deno.land/std@0.95.0/_util/assert.ts",
+        "https://deno.land/std@0.95.0/bytes/mod.ts"
+      ],
+      "https://deno.land/std@0.95.0/io/bufio.ts": [
+        "https://deno.land/std@0.95.0/_util/assert.ts",
+        "https://deno.land/std@0.95.0/bytes/mod.ts",
+        "https://deno.land/std@0.95.0/io/buffer.ts",
+        "https://deno.land/std@0.95.0/io/util.ts"
+      ],
+      "https://deno.land/std@0.95.0/io/util.ts": [
+        "https://deno.land/std@0.95.0/io/buffer.ts"
+      ],
+      "https://deno.land/std@0.95.0/log/handlers.ts": [
+        "https://deno.land/std@0.95.0/fmt/colors.ts",
+        "https://deno.land/std@0.95.0/fs/exists.ts",
+        "https://deno.land/std@0.95.0/io/bufio.ts",
+        "https://deno.land/std@0.95.0/log/levels.ts",
+        "https://deno.land/std@0.95.0/log/logger.ts"
+      ],
+      "https://deno.land/std@0.95.0/log/logger.ts": [
+        "https://deno.land/std@0.95.0/log/handlers.ts",
+        "https://deno.land/std@0.95.0/log/levels.ts"
+      ],
+      "https://deno.land/std@0.95.0/log/mod.ts": [
+        "https://deno.land/std@0.95.0/_util/assert.ts",
+        "https://deno.land/std@0.95.0/log/handlers.ts",
+        "https://deno.land/std@0.95.0/log/levels.ts",
+        "https://deno.land/std@0.95.0/log/logger.ts"
+      ],
+      "https://deno.land/x/cliffy@v0.18.2/ansi/colors.ts": [
+        "https://deno.land/std@0.93.0/fmt/colors.ts"
+      ],
+      "https://deno.land/x/cliffy@v0.18.2/command/_errors.ts": [
+        "https://deno.land/x/cliffy@v0.18.2/command/_utils.ts",
+        "https://deno.land/x/cliffy@v0.18.2/command/command.ts",
+        "https://deno.land/x/cliffy@v0.18.2/flags/_errors.ts"
+      ],
+      "https://deno.land/x/cliffy@v0.18.2/command/_utils.ts": [
+        "https://deno.land/x/cliffy@v0.18.2/command/command.ts",
+        "https://deno.land/x/cliffy@v0.18.2/command/types.ts",
+        "https://deno.land/x/cliffy@v0.18.2/flags/_errors.ts",
+        "https://deno.land/x/cliffy@v0.18.2/flags/_utils.ts",
+        "https://deno.land/x/cliffy@v0.18.2/flags/types.ts"
+      ],
+      "https://deno.land/x/cliffy@v0.18.2/command/command.ts": [
+        "https://deno.land/x/cliffy@v0.18.2/command/_errors.ts",
+        "https://deno.land/x/cliffy@v0.18.2/command/_utils.ts",
+        "https://deno.land/x/cliffy@v0.18.2/command/deps.ts",
+        "https://deno.land/x/cliffy@v0.18.2/command/help/_help_generator.ts",
+        "https://deno.land/x/cliffy@v0.18.2/command/type.ts",
+        "https://deno.land/x/cliffy@v0.18.2/command/types.ts",
+        "https://deno.land/x/cliffy@v0.18.2/command/types/boolean.ts",
+        "https://deno.land/x/cliffy@v0.18.2/command/types/number.ts",
+        "https://deno.land/x/cliffy@v0.18.2/command/types/string.ts",
+        "https://deno.land/x/cliffy@v0.18.2/flags/_errors.ts",
+        "https://deno.land/x/cliffy@v0.18.2/flags/flags.ts",
+        "https://deno.land/x/cliffy@v0.18.2/flags/types.ts"
+      ],
+      "https://deno.land/x/cliffy@v0.18.2/command/completions/_bash_completions_generator.ts": [
+        "https://deno.land/x/cliffy@v0.18.2/command/command.ts",
+        "https://deno.land/x/cliffy@v0.18.2/command/types.ts"
+      ],
+      "https://deno.land/x/cliffy@v0.18.2/command/completions/_fish_completions_generator.ts": [
+        "https://deno.land/x/cliffy@v0.18.2/command/command.ts",
+        "https://deno.land/x/cliffy@v0.18.2/command/types.ts"
+      ],
+      "https://deno.land/x/cliffy@v0.18.2/command/completions/_zsh_completions_generator.ts": [
+        "https://deno.land/x/cliffy@v0.18.2/command/command.ts",
+        "https://deno.land/x/cliffy@v0.18.2/command/types.ts"
+      ],
+      "https://deno.land/x/cliffy@v0.18.2/command/completions/bash.ts": [
+        "https://deno.land/x/cliffy@v0.18.2/command/command.ts",
+        "https://deno.land/x/cliffy@v0.18.2/command/completions/_bash_completions_generator.ts",
+        "https://deno.land/x/cliffy@v0.18.2/command/deps.ts"
+      ],
+      "https://deno.land/x/cliffy@v0.18.2/command/completions/complete.ts": [
+        "https://deno.land/x/cliffy@v0.18.2/command/_errors.ts",
+        "https://deno.land/x/cliffy@v0.18.2/command/command.ts",
+        "https://deno.land/x/cliffy@v0.18.2/command/types.ts"
+      ],
+      "https://deno.land/x/cliffy@v0.18.2/command/completions/fish.ts": [
+        "https://deno.land/x/cliffy@v0.18.2/command/command.ts",
+        "https://deno.land/x/cliffy@v0.18.2/command/completions/_fish_completions_generator.ts",
+        "https://deno.land/x/cliffy@v0.18.2/command/deps.ts"
+      ],
+      "https://deno.land/x/cliffy@v0.18.2/command/completions/mod.ts": [
+        "https://deno.land/x/cliffy@v0.18.2/command/command.ts",
+        "https://deno.land/x/cliffy@v0.18.2/command/completions/bash.ts",
+        "https://deno.land/x/cliffy@v0.18.2/command/completions/complete.ts",
+        "https://deno.land/x/cliffy@v0.18.2/command/completions/fish.ts",
+        "https://deno.land/x/cliffy@v0.18.2/command/completions/zsh.ts",
+        "https://deno.land/x/cliffy@v0.18.2/command/deps.ts"
+      ],
+      "https://deno.land/x/cliffy@v0.18.2/command/completions/zsh.ts": [
+        "https://deno.land/x/cliffy@v0.18.2/command/command.ts",
+        "https://deno.land/x/cliffy@v0.18.2/command/completions/_zsh_completions_generator.ts",
+        "https://deno.land/x/cliffy@v0.18.2/command/deps.ts"
+      ],
+      "https://deno.land/x/cliffy@v0.18.2/command/deps.ts": [
+        "https://deno.land/std@0.93.0/fmt/colors.ts",
+        "https://deno.land/std@0.93.0/fs/exists.ts"
+      ],
+      "https://deno.land/x/cliffy@v0.18.2/command/help/_help_generator.ts": [
+        "https://deno.land/x/cliffy@v0.18.2/command/_utils.ts",
+        "https://deno.land/x/cliffy@v0.18.2/command/command.ts",
+        "https://deno.land/x/cliffy@v0.18.2/command/deps.ts",
+        "https://deno.land/x/cliffy@v0.18.2/command/types.ts",
+        "https://deno.land/x/cliffy@v0.18.2/flags/_utils.ts",
+        "https://deno.land/x/cliffy@v0.18.2/table/table.ts"
+      ],
+      "https://deno.land/x/cliffy@v0.18.2/command/help/mod.ts": [
+        "https://deno.land/x/cliffy@v0.18.2/command/_errors.ts",
+        "https://deno.land/x/cliffy@v0.18.2/command/command.ts",
+        "https://deno.land/x/cliffy@v0.18.2/command/types/command.ts"
+      ],
+      "https://deno.land/x/cliffy@v0.18.2/command/mod.ts": [
+        "https://deno.land/x/cliffy@v0.18.2/command/command.ts",
+        "https://deno.land/x/cliffy@v0.18.2/command/completions/mod.ts",
+        "https://deno.land/x/cliffy@v0.18.2/command/help/mod.ts",
+        "https://deno.land/x/cliffy@v0.18.2/command/type.ts",
+        "https://deno.land/x/cliffy@v0.18.2/command/types.ts",
+        "https://deno.land/x/cliffy@v0.18.2/command/types/action_list.ts",
+        "https://deno.land/x/cliffy@v0.18.2/command/types/boolean.ts",
+        "https://deno.land/x/cliffy@v0.18.2/command/types/child_command.ts",
+        "https://deno.land/x/cliffy@v0.18.2/command/types/number.ts",
+        "https://deno.land/x/cliffy@v0.18.2/command/types/string.ts",
+        "https://deno.land/x/cliffy@v0.18.2/flags/_errors.ts"
+      ],
+      "https://deno.land/x/cliffy@v0.18.2/command/type.ts": [
+        "https://deno.land/x/cliffy@v0.18.2/command/command.ts",
+        "https://deno.land/x/cliffy@v0.18.2/command/types.ts"
+      ],
+      "https://deno.land/x/cliffy@v0.18.2/command/types.ts": [
+        "https://deno.land/x/cliffy@v0.18.2/command/command.ts",
+        "https://deno.land/x/cliffy@v0.18.2/command/type.ts",
+        "https://deno.land/x/cliffy@v0.18.2/flags/types.ts"
+      ],
+      "https://deno.land/x/cliffy@v0.18.2/command/types/action_list.ts": [
+        "https://deno.land/x/cliffy@v0.18.2/command/command.ts",
+        "https://deno.land/x/cliffy@v0.18.2/command/types/string.ts"
+      ],
+      "https://deno.land/x/cliffy@v0.18.2/command/types/boolean.ts": [
+        "https://deno.land/x/cliffy@v0.18.2/command/type.ts",
+        "https://deno.land/x/cliffy@v0.18.2/command/types.ts",
+        "https://deno.land/x/cliffy@v0.18.2/flags/types/boolean.ts"
+      ],
+      "https://deno.land/x/cliffy@v0.18.2/command/types/child_command.ts": [
+        "https://deno.land/x/cliffy@v0.18.2/command/command.ts",
+        "https://deno.land/x/cliffy@v0.18.2/command/types/string.ts"
+      ],
+      "https://deno.land/x/cliffy@v0.18.2/command/types/command.ts": [
+        "https://deno.land/x/cliffy@v0.18.2/command/command.ts",
+        "https://deno.land/x/cliffy@v0.18.2/command/types/string.ts"
+      ],
+      "https://deno.land/x/cliffy@v0.18.2/command/types/number.ts": [
+        "https://deno.land/x/cliffy@v0.18.2/command/type.ts",
+        "https://deno.land/x/cliffy@v0.18.2/command/types.ts",
+        "https://deno.land/x/cliffy@v0.18.2/flags/types/number.ts"
+      ],
+      "https://deno.land/x/cliffy@v0.18.2/command/types/string.ts": [
+        "https://deno.land/x/cliffy@v0.18.2/command/type.ts",
+        "https://deno.land/x/cliffy@v0.18.2/command/types.ts",
+        "https://deno.land/x/cliffy@v0.18.2/flags/types/string.ts"
+      ],
+      "https://deno.land/x/cliffy@v0.18.2/flags/_errors.ts": [
+        "https://deno.land/x/cliffy@v0.18.2/flags/_utils.ts",
+        "https://deno.land/x/cliffy@v0.18.2/flags/types.ts"
+      ],
+      "https://deno.land/x/cliffy@v0.18.2/flags/_utils.ts": [
+        "https://deno.land/x/cliffy@v0.18.2/_utils/distance.ts",
+        "https://deno.land/x/cliffy@v0.18.2/flags/types.ts"
+      ],
+      "https://deno.land/x/cliffy@v0.18.2/flags/flags.ts": [
+        "https://deno.land/x/cliffy@v0.18.2/flags/_errors.ts",
+        "https://deno.land/x/cliffy@v0.18.2/flags/_utils.ts",
+        "https://deno.land/x/cliffy@v0.18.2/flags/normalize.ts",
+        "https://deno.land/x/cliffy@v0.18.2/flags/types.ts",
+        "https://deno.land/x/cliffy@v0.18.2/flags/types/boolean.ts",
+        "https://deno.land/x/cliffy@v0.18.2/flags/types/number.ts",
+        "https://deno.land/x/cliffy@v0.18.2/flags/types/string.ts",
+        "https://deno.land/x/cliffy@v0.18.2/flags/validate_flags.ts"
+      ],
+      "https://deno.land/x/cliffy@v0.18.2/flags/mod.ts": [
+        "https://deno.land/x/cliffy@v0.18.2/flags/_errors.ts",
+        "https://deno.land/x/cliffy@v0.18.2/flags/flags.ts",
+        "https://deno.land/x/cliffy@v0.18.2/flags/normalize.ts",
+        "https://deno.land/x/cliffy@v0.18.2/flags/types.ts",
+        "https://deno.land/x/cliffy@v0.18.2/flags/types/boolean.ts",
+        "https://deno.land/x/cliffy@v0.18.2/flags/types/number.ts",
+        "https://deno.land/x/cliffy@v0.18.2/flags/types/string.ts",
+        "https://deno.land/x/cliffy@v0.18.2/flags/validate_flags.ts"
+      ],
+      "https://deno.land/x/cliffy@v0.18.2/flags/types/boolean.ts": [
+        "https://deno.land/x/cliffy@v0.18.2/flags/types.ts"
+      ],
+      "https://deno.land/x/cliffy@v0.18.2/flags/types/number.ts": [
+        "https://deno.land/x/cliffy@v0.18.2/flags/types.ts"
+      ],
+      "https://deno.land/x/cliffy@v0.18.2/flags/types/string.ts": [
+        "https://deno.land/x/cliffy@v0.18.2/flags/types.ts"
+      ],
+      "https://deno.land/x/cliffy@v0.18.2/flags/validate_flags.ts": [
+        "https://deno.land/x/cliffy@v0.18.2/flags/_errors.ts",
+        "https://deno.land/x/cliffy@v0.18.2/flags/_utils.ts",
+        "https://deno.land/x/cliffy@v0.18.2/flags/types.ts"
+      ],
+      "https://deno.land/x/cliffy@v0.18.2/table/deps.ts": [
+        "https://deno.land/std@0.93.0/fmt/colors.ts"
+      ],
+      "https://deno.land/x/cliffy@v0.18.2/table/layout.ts": [
+        "https://deno.land/x/cliffy@v0.18.2/table/cell.ts",
+        "https://deno.land/x/cliffy@v0.18.2/table/deps.ts",
+        "https://deno.land/x/cliffy@v0.18.2/table/row.ts",
+        "https://deno.land/x/cliffy@v0.18.2/table/table.ts",
+        "https://deno.land/x/cliffy@v0.18.2/table/utils.ts"
+      ],
+      "https://deno.land/x/cliffy@v0.18.2/table/row.ts": [
+        "https://deno.land/x/cliffy@v0.18.2/table/cell.ts"
+      ],
+      "https://deno.land/x/cliffy@v0.18.2/table/table.ts": [
+        "https://deno.land/x/cliffy@v0.18.2/table/border.ts",
+        "https://deno.land/x/cliffy@v0.18.2/table/cell.ts",
+        "https://deno.land/x/cliffy@v0.18.2/table/layout.ts",
+        "https://deno.land/x/cliffy@v0.18.2/table/row.ts"
+      ],
+      "https://deno.land/x/cliffy@v0.18.2/table/utils.ts": [
+        "https://deno.land/x/cliffy@v0.18.2/table/cell.ts",
+        "https://deno.land/x/cliffy@v0.18.2/table/deps.ts"
+      ],
+      "https://deno.land/x/djwt@v2.2/deps.ts": [
+        "https://deno.land/std@0.85.0/encoding/base64url.ts",
+        "https://deno.land/std@0.85.0/encoding/hex.ts",
+        "https://deno.land/std@0.85.0/hash/sha256.ts",
+        "https://deno.land/std@0.85.0/hash/sha512.ts",
+        "https://deno.land/x/god_crypto@v1.4.9/rsa.ts"
+      ],
+      "https://deno.land/x/djwt@v2.2/mod.ts": [
+        "https://deno.land/x/djwt@v2.2/algorithm.ts",
+        "https://deno.land/x/djwt@v2.2/deps.ts",
+        "https://deno.land/x/djwt@v2.2/signature.ts"
+      ],
+      "https://deno.land/x/djwt@v2.2/signature.ts": [
+        "https://deno.land/x/djwt@v2.2/algorithm.ts",
+        "https://deno.land/x/djwt@v2.2/deps.ts"
+      ],
+      "https://deno.land/x/god_crypto@v1.4.9/rsa.ts": [
+        "https://deno.land/x/god_crypto@v1.4.9/src/rsa/mod.ts"
+      ],
+      "https://deno.land/x/god_crypto@v1.4.9/src/hash.ts": [
+        "https://deno.land/std@0.84.0/hash/sha1.ts",
+        "https://deno.land/std@0.84.0/hash/sha256.ts",
+        "https://deno.land/std@0.84.0/hash/sha512.ts",
+        "https://deno.land/x/god_crypto@v1.4.9/src/rsa/common.ts"
+      ],
+      "https://deno.land/x/god_crypto@v1.4.9/src/rsa/eme_oaep.ts": [
+        "https://deno.land/x/god_crypto@v1.4.9/src/hash.ts",
+        "https://deno.land/x/god_crypto@v1.4.9/src/helper.ts",
+        "https://deno.land/x/god_crypto@v1.4.9/src/rsa/common.ts",
+        "https://deno.land/x/god_crypto@v1.4.9/src/rsa/primitives.ts"
+      ],
+      "https://deno.land/x/god_crypto@v1.4.9/src/rsa/emsa_pss.ts": [
+        "https://deno.land/x/god_crypto@v1.4.9/src/hash.ts",
+        "https://deno.land/x/god_crypto@v1.4.9/src/helper.ts",
+        "https://deno.land/x/god_crypto@v1.4.9/src/rsa/common.ts",
+        "https://deno.land/x/god_crypto@v1.4.9/src/rsa/primitives.ts"
+      ],
+      "https://deno.land/x/god_crypto@v1.4.9/src/rsa/export_key.ts": [
+        "https://deno.land/x/god_crypto@v1.4.9/src/helper.ts",
+        "https://deno.land/x/god_crypto@v1.4.9/src/rsa/common.ts",
+        "https://deno.land/x/god_crypto@v1.4.9/src/utility/asn1.ts",
+        "https://deno.land/x/god_crypto@v1.4.9/src/utility/encode.ts"
+      ],
+      "https://deno.land/x/god_crypto@v1.4.9/src/rsa/import_key.ts": [
+        "https://deno.land/x/god_crypto@v1.4.9/src/helper.ts",
+        "https://deno.land/x/god_crypto@v1.4.9/src/rsa/basic_encoding_rule.ts",
+        "https://deno.land/x/god_crypto@v1.4.9/src/rsa/common.ts",
+        "https://deno.land/x/god_crypto@v1.4.9/src/rsa/primitives.ts",
+        "https://deno.land/x/god_crypto@v1.4.9/src/utility/encode.ts"
+      ],
+      "https://deno.land/x/god_crypto@v1.4.9/src/rsa/mod.ts": [
+        "https://deno.land/x/god_crypto@v1.4.9/src/binary.ts",
+        "https://deno.land/x/god_crypto@v1.4.9/src/rsa/common.ts",
+        "https://deno.land/x/god_crypto@v1.4.9/src/rsa/import_key.ts",
+        "https://deno.land/x/god_crypto@v1.4.9/src/rsa/rsa_js.ts",
+        "https://deno.land/x/god_crypto@v1.4.9/src/rsa/rsa_key.ts",
+        "https://deno.land/x/god_crypto@v1.4.9/src/rsa/rsa_wc.ts"
+      ],
+      "https://deno.land/x/god_crypto@v1.4.9/src/rsa/primitives.ts": [
+        "https://deno.land/x/god_crypto@v1.4.9/src/hash.ts",
+        "https://deno.land/x/god_crypto@v1.4.9/src/rsa/common.ts"
+      ],
+      "https://deno.land/x/god_crypto@v1.4.9/src/rsa/rsa_internal.ts": [
+        "https://deno.land/x/god_crypto@v1.4.9/src/binary.ts",
+        "https://deno.land/x/god_crypto@v1.4.9/src/helper.ts",
+        "https://deno.land/x/god_crypto@v1.4.9/src/math.ts",
+        "https://deno.land/x/god_crypto@v1.4.9/src/rsa/basic_encoding_rule.ts",
+        "https://deno.land/x/god_crypto@v1.4.9/src/rsa/common.ts",
+        "https://deno.land/x/god_crypto@v1.4.9/src/rsa/eme_oaep.ts",
+        "https://deno.land/x/god_crypto@v1.4.9/src/rsa/primitives.ts",
+        "https://deno.land/x/god_crypto@v1.4.9/src/rsa/rsa_key.ts"
+      ],
+      "https://deno.land/x/god_crypto@v1.4.9/src/rsa/rsa_js.ts": [
+        "https://deno.land/x/god_crypto@v1.4.9/src/binary.ts",
+        "https://deno.land/x/god_crypto@v1.4.9/src/hash.ts",
+        "https://deno.land/x/god_crypto@v1.4.9/src/rsa/common.ts",
+        "https://deno.land/x/god_crypto@v1.4.9/src/rsa/rsa_internal.ts",
+        "https://deno.land/x/god_crypto@v1.4.9/src/rsa/rsa_key.ts",
+        "https://deno.land/x/god_crypto@v1.4.9/src/rsa/rsassa_pss.ts"
+      ],
+      "https://deno.land/x/god_crypto@v1.4.9/src/rsa/rsa_key.ts": [
+        "https://deno.land/x/god_crypto@v1.4.9/src/rsa/common.ts",
+        "https://deno.land/x/god_crypto@v1.4.9/src/rsa/export_key.ts",
+        "https://deno.land/x/god_crypto@v1.4.9/src/utility/encode.ts"
+      ],
+      "https://deno.land/x/god_crypto@v1.4.9/src/rsa/rsa_wc.ts": [
+        "https://deno.land/x/god_crypto@v1.4.9/src/rsa/common.ts",
+        "https://deno.land/x/god_crypto@v1.4.9/src/rsa/rsa_key.ts"
+      ],
+      "https://deno.land/x/god_crypto@v1.4.9/src/rsa/rsassa_pss.ts": [
+        "https://deno.land/x/god_crypto@v1.4.9/src/binary.ts",
+        "https://deno.land/x/god_crypto@v1.4.9/src/hash.ts",
+        "https://deno.land/x/god_crypto@v1.4.9/src/rsa/common.ts",
+        "https://deno.land/x/god_crypto@v1.4.9/src/rsa/emsa_pss.ts",
+        "https://deno.land/x/god_crypto@v1.4.9/src/rsa/primitives.ts",
+        "https://deno.land/x/god_crypto@v1.4.9/src/rsa/rsa_internal.ts",
+        "https://deno.land/x/god_crypto@v1.4.9/src/rsa/rsa_key.ts"
+      ],
+      "https://deno.land/x/god_crypto@v1.4.9/src/utility/encode.ts": [
+        "https://deno.land/x/god_crypto@v1.4.9/src/binary.ts"
+      ],
+      "https://deno.land/x/sleep@v1.2.0/mod.ts": [
+        "https://deno.land/x/sleep@v1.2.0/sleep.ts"
+      ],
+      "https://deno.land/x/sleep@v1.2.0/sleep.ts": [
+        "https://deno.land/std@0.95.0/log/mod.ts"
+      ]
+    },
+    "exportedModulesMap": {
+      "file:///Users/glenn/src/github.com/truestamp/truestamp-cli/src/auth.ts": [
+        "file:///Users/glenn/src/github.com/truestamp/truestamp-cli/src/deps.ts"
+      ],
+      "file:///Users/glenn/src/github.com/truestamp/truestamp-cli/src/deps.ts": [
+        "file:///Users/glenn/src/github.com/truestamp/truestamp-cli/src/auth.ts",
+        "file:///Users/glenn/src/github.com/truestamp/truestamp-cli/src/truestamp.ts",
+        "https://cdn.skypack.dev/pin/@truestamp/truestamp-js@v0.0.39-s9peUMKFsrLpG0Cr1TTw/mode=imports/optimized/@truestamp/truestamp-js.js",
+        "https://deno.land/x/cliffy@v0.18.2/ansi/colors.ts",
+        "https://deno.land/x/cliffy@v0.18.2/command/completions/mod.ts",
+        "https://deno.land/x/cliffy@v0.18.2/command/help/mod.ts",
+        "https://deno.land/x/cliffy@v0.18.2/command/mod.ts",
+        "https://deno.land/x/cliffy@v0.18.2/flags/mod.ts",
+        "https://deno.land/x/config_dir@v0.1.1/mod.ts",
+        "https://deno.land/x/djwt@v2.2/mod.ts",
+        "https://deno.land/x/load_json_file@v1.0.0/mod.ts",
+        "https://deno.land/x/sleep@v1.2.0/mod.ts"
+      ],
+      "https://deno.land/std@0.95.0/log/handlers.ts": [
+        "https://deno.land/std@0.95.0/io/bufio.ts",
+        "https://deno.land/std@0.95.0/log/levels.ts",
+        "https://deno.land/std@0.95.0/log/logger.ts"
+      ],
+      "https://deno.land/std@0.95.0/log/logger.ts": [
+        "https://deno.land/std@0.95.0/log/handlers.ts",
+        "https://deno.land/std@0.95.0/log/levels.ts"
+      ],
+      "https://deno.land/std@0.95.0/log/mod.ts": [
+        "https://deno.land/std@0.95.0/log/handlers.ts",
+        "https://deno.land/std@0.95.0/log/levels.ts",
+        "https://deno.land/std@0.95.0/log/logger.ts"
+      ],
+      "https://deno.land/x/cliffy@v0.18.2/ansi/colors.ts": [
+        "https://deno.land/std@0.93.0/fmt/colors.ts"
+      ],
+      "https://deno.land/x/cliffy@v0.18.2/command/_errors.ts": [
+        "https://deno.land/x/cliffy@v0.18.2/command/command.ts",
+        "https://deno.land/x/cliffy@v0.18.2/flags/_errors.ts"
+      ],
+      "https://deno.land/x/cliffy@v0.18.2/command/_utils.ts": [
+        "https://deno.land/x/cliffy@v0.18.2/command/command.ts",
+        "https://deno.land/x/cliffy@v0.18.2/command/types.ts"
+      ],
+      "https://deno.land/x/cliffy@v0.18.2/command/command.ts": [
+        "https://deno.land/x/cliffy@v0.18.2/command/help/_help_generator.ts",
+        "https://deno.land/x/cliffy@v0.18.2/command/type.ts",
+        "https://deno.land/x/cliffy@v0.18.2/command/types.ts",
+        "https://deno.land/x/cliffy@v0.18.2/flags/types.ts"
+      ],
+      "https://deno.land/x/cliffy@v0.18.2/command/completions/_bash_completions_generator.ts": [
+        "https://deno.land/x/cliffy@v0.18.2/command/command.ts"
+      ],
+      "https://deno.land/x/cliffy@v0.18.2/command/completions/_fish_completions_generator.ts": [
+        "https://deno.land/x/cliffy@v0.18.2/command/command.ts"
+      ],
+      "https://deno.land/x/cliffy@v0.18.2/command/completions/_zsh_completions_generator.ts": [
+        "https://deno.land/x/cliffy@v0.18.2/command/command.ts"
+      ],
+      "https://deno.land/x/cliffy@v0.18.2/command/completions/bash.ts": [
+        "https://deno.land/x/cliffy@v0.18.2/command/command.ts"
+      ],
+      "https://deno.land/x/cliffy@v0.18.2/command/completions/complete.ts": [
+        "https://deno.land/x/cliffy@v0.18.2/command/command.ts"
+      ],
+      "https://deno.land/x/cliffy@v0.18.2/command/completions/fish.ts": [
+        "https://deno.land/x/cliffy@v0.18.2/command/command.ts"
+      ],
+      "https://deno.land/x/cliffy@v0.18.2/command/completions/mod.ts": [
+        "https://deno.land/x/cliffy@v0.18.2/command/command.ts"
+      ],
+      "https://deno.land/x/cliffy@v0.18.2/command/completions/zsh.ts": [
+        "https://deno.land/x/cliffy@v0.18.2/command/command.ts"
+      ],
+      "https://deno.land/x/cliffy@v0.18.2/command/deps.ts": [
+        "https://deno.land/std@0.93.0/fmt/colors.ts",
+        "https://deno.land/std@0.93.0/fs/exists.ts"
+      ],
+      "https://deno.land/x/cliffy@v0.18.2/command/help/_help_generator.ts": [
+        "https://deno.land/x/cliffy@v0.18.2/command/command.ts"
+      ],
+      "https://deno.land/x/cliffy@v0.18.2/command/help/mod.ts": [
+        "https://deno.land/x/cliffy@v0.18.2/command/command.ts"
+      ],
+      "https://deno.land/x/cliffy@v0.18.2/command/mod.ts": [
+        "https://deno.land/x/cliffy@v0.18.2/command/command.ts",
+        "https://deno.land/x/cliffy@v0.18.2/command/completions/mod.ts",
+        "https://deno.land/x/cliffy@v0.18.2/command/help/mod.ts",
+        "https://deno.land/x/cliffy@v0.18.2/command/type.ts",
+        "https://deno.land/x/cliffy@v0.18.2/command/types.ts",
+        "https://deno.land/x/cliffy@v0.18.2/command/types/action_list.ts",
+        "https://deno.land/x/cliffy@v0.18.2/command/types/boolean.ts",
+        "https://deno.land/x/cliffy@v0.18.2/command/types/child_command.ts",
+        "https://deno.land/x/cliffy@v0.18.2/command/types/number.ts",
+        "https://deno.land/x/cliffy@v0.18.2/command/types/string.ts",
+        "https://deno.land/x/cliffy@v0.18.2/flags/_errors.ts"
+      ],
+      "https://deno.land/x/cliffy@v0.18.2/command/type.ts": [
+        "https://deno.land/x/cliffy@v0.18.2/command/command.ts",
+        "https://deno.land/x/cliffy@v0.18.2/command/types.ts"
+      ],
+      "https://deno.land/x/cliffy@v0.18.2/command/types.ts": [
+        "https://deno.land/x/cliffy@v0.18.2/command/command.ts",
+        "https://deno.land/x/cliffy@v0.18.2/command/type.ts",
+        "https://deno.land/x/cliffy@v0.18.2/flags/types.ts"
+      ],
+      "https://deno.land/x/cliffy@v0.18.2/command/types/action_list.ts": [
+        "https://deno.land/x/cliffy@v0.18.2/command/command.ts",
+        "https://deno.land/x/cliffy@v0.18.2/command/types/string.ts"
+      ],
+      "https://deno.land/x/cliffy@v0.18.2/command/types/boolean.ts": [
+        "https://deno.land/x/cliffy@v0.18.2/command/type.ts",
+        "https://deno.land/x/cliffy@v0.18.2/command/types.ts"
+      ],
+      "https://deno.land/x/cliffy@v0.18.2/command/types/child_command.ts": [
+        "https://deno.land/x/cliffy@v0.18.2/command/command.ts",
+        "https://deno.land/x/cliffy@v0.18.2/command/types/string.ts"
+      ],
+      "https://deno.land/x/cliffy@v0.18.2/command/types/command.ts": [
+        "https://deno.land/x/cliffy@v0.18.2/command/command.ts",
+        "https://deno.land/x/cliffy@v0.18.2/command/types/string.ts"
+      ],
+      "https://deno.land/x/cliffy@v0.18.2/command/types/number.ts": [
+        "https://deno.land/x/cliffy@v0.18.2/command/type.ts",
+        "https://deno.land/x/cliffy@v0.18.2/command/types.ts"
+      ],
+      "https://deno.land/x/cliffy@v0.18.2/command/types/string.ts": [
+        "https://deno.land/x/cliffy@v0.18.2/command/type.ts",
+        "https://deno.land/x/cliffy@v0.18.2/command/types.ts"
+      ],
+      "https://deno.land/x/cliffy@v0.18.2/flags/_errors.ts": [
+        "https://deno.land/x/cliffy@v0.18.2/flags/types.ts"
+      ],
+      "https://deno.land/x/cliffy@v0.18.2/flags/_utils.ts": [
+        "https://deno.land/x/cliffy@v0.18.2/flags/types.ts"
+      ],
+      "https://deno.land/x/cliffy@v0.18.2/flags/flags.ts": [
+        "https://deno.land/x/cliffy@v0.18.2/flags/types.ts"
+      ],
+      "https://deno.land/x/cliffy@v0.18.2/flags/mod.ts": [
+        "https://deno.land/x/cliffy@v0.18.2/flags/_errors.ts",
+        "https://deno.land/x/cliffy@v0.18.2/flags/flags.ts",
+        "https://deno.land/x/cliffy@v0.18.2/flags/normalize.ts",
+        "https://deno.land/x/cliffy@v0.18.2/flags/types.ts",
+        "https://deno.land/x/cliffy@v0.18.2/flags/types/boolean.ts",
+        "https://deno.land/x/cliffy@v0.18.2/flags/types/number.ts",
+        "https://deno.land/x/cliffy@v0.18.2/flags/types/string.ts",
+        "https://deno.land/x/cliffy@v0.18.2/flags/validate_flags.ts"
+      ],
+      "https://deno.land/x/cliffy@v0.18.2/flags/types/boolean.ts": [
+        "https://deno.land/x/cliffy@v0.18.2/flags/types.ts"
+      ],
+      "https://deno.land/x/cliffy@v0.18.2/flags/types/number.ts": [
+        "https://deno.land/x/cliffy@v0.18.2/flags/types.ts"
+      ],
+      "https://deno.land/x/cliffy@v0.18.2/flags/types/string.ts": [
+        "https://deno.land/x/cliffy@v0.18.2/flags/types.ts"
+      ],
+      "https://deno.land/x/cliffy@v0.18.2/flags/validate_flags.ts": [
+        "https://deno.land/x/cliffy@v0.18.2/flags/types.ts"
+      ],
+      "https://deno.land/x/cliffy@v0.18.2/table/deps.ts": [
+        "https://deno.land/std@0.93.0/fmt/colors.ts"
+      ],
+      "https://deno.land/x/cliffy@v0.18.2/table/layout.ts": [
+        "https://deno.land/x/cliffy@v0.18.2/table/cell.ts",
+        "https://deno.land/x/cliffy@v0.18.2/table/row.ts",
+        "https://deno.land/x/cliffy@v0.18.2/table/table.ts"
+      ],
+      "https://deno.land/x/cliffy@v0.18.2/table/row.ts": [
+        "https://deno.land/x/cliffy@v0.18.2/table/cell.ts"
+      ],
+      "https://deno.land/x/cliffy@v0.18.2/table/table.ts": [
+        "https://deno.land/x/cliffy@v0.18.2/table/border.ts",
+        "https://deno.land/x/cliffy@v0.18.2/table/row.ts"
+      ],
+      "https://deno.land/x/cliffy@v0.18.2/table/utils.ts": [
+        "https://deno.land/x/cliffy@v0.18.2/table/cell.ts"
+      ],
+      "https://deno.land/x/djwt@v2.2/deps.ts": [
+        "https://deno.land/std@0.85.0/encoding/base64url.ts",
+        "https://deno.land/std@0.85.0/encoding/hex.ts",
+        "https://deno.land/std@0.85.0/hash/sha256.ts",
+        "https://deno.land/std@0.85.0/hash/sha512.ts",
+        "https://deno.land/x/god_crypto@v1.4.9/rsa.ts"
+      ],
+      "https://deno.land/x/djwt@v2.2/mod.ts": [
+        "https://deno.land/x/djwt@v2.2/algorithm.ts"
+      ],
+      "https://deno.land/x/djwt@v2.2/signature.ts": [
+        "https://deno.land/x/djwt@v2.2/algorithm.ts"
+      ],
+      "https://deno.land/x/god_crypto@v1.4.9/rsa.ts": [
+        "https://deno.land/x/god_crypto@v1.4.9/src/rsa/mod.ts"
+      ],
+      "https://deno.land/x/god_crypto@v1.4.9/src/hash.ts": [
+        "https://deno.land/x/god_crypto@v1.4.9/src/rsa/common.ts"
+      ],
+      "https://deno.land/x/god_crypto@v1.4.9/src/rsa/eme_oaep.ts": [
+        "https://deno.land/x/god_crypto@v1.4.9/src/rsa/common.ts"
+      ],
+      "https://deno.land/x/god_crypto@v1.4.9/src/rsa/emsa_pss.ts": [
+        "https://deno.land/x/god_crypto@v1.4.9/src/rsa/common.ts"
+      ],
+      "https://deno.land/x/god_crypto@v1.4.9/src/rsa/export_key.ts": [
+        "https://deno.land/x/god_crypto@v1.4.9/src/rsa/common.ts"
+      ],
+      "https://deno.land/x/god_crypto@v1.4.9/src/rsa/import_key.ts": [
+        "https://deno.land/x/god_crypto@v1.4.9/src/rsa/common.ts"
+      ],
+      "https://deno.land/x/god_crypto@v1.4.9/src/rsa/mod.ts": [
+        "https://deno.land/x/god_crypto@v1.4.9/src/binary.ts",
+        "https://deno.land/x/god_crypto@v1.4.9/src/rsa/common.ts",
+        "https://deno.land/x/god_crypto@v1.4.9/src/rsa/rsa_key.ts"
+      ],
+      "https://deno.land/x/god_crypto@v1.4.9/src/rsa/primitives.ts": [
+        "https://deno.land/x/god_crypto@v1.4.9/src/rsa/common.ts"
+      ],
+      "https://deno.land/x/god_crypto@v1.4.9/src/rsa/rsa_internal.ts": [
+        "https://deno.land/x/god_crypto@v1.4.9/src/binary.ts",
+        "https://deno.land/x/god_crypto@v1.4.9/src/rsa/common.ts",
+        "https://deno.land/x/god_crypto@v1.4.9/src/rsa/rsa_key.ts"
+      ],
+      "https://deno.land/x/god_crypto@v1.4.9/src/rsa/rsa_js.ts": [
+        "https://deno.land/x/god_crypto@v1.4.9/src/binary.ts",
+        "https://deno.land/x/god_crypto@v1.4.9/src/rsa/common.ts",
+        "https://deno.land/x/god_crypto@v1.4.9/src/rsa/rsa_key.ts"
+      ],
+      "https://deno.land/x/god_crypto@v1.4.9/src/rsa/rsa_key.ts": [
+        "https://deno.land/x/god_crypto@v1.4.9/src/rsa/common.ts"
+      ],
+      "https://deno.land/x/god_crypto@v1.4.9/src/rsa/rsa_wc.ts": [
+        "https://deno.land/x/god_crypto@v1.4.9/src/rsa/common.ts",
+        "https://deno.land/x/god_crypto@v1.4.9/src/rsa/rsa_key.ts"
+      ],
+      "https://deno.land/x/god_crypto@v1.4.9/src/rsa/rsassa_pss.ts": [
+        "https://deno.land/x/god_crypto@v1.4.9/src/binary.ts",
+        "https://deno.land/x/god_crypto@v1.4.9/src/rsa/common.ts",
+        "https://deno.land/x/god_crypto@v1.4.9/src/rsa/rsa_key.ts"
+      ],
+      "https://deno.land/x/god_crypto@v1.4.9/src/utility/encode.ts": [
+        "https://deno.land/x/god_crypto@v1.4.9/src/binary.ts"
+      ],
+      "https://deno.land/x/sleep@v1.2.0/mod.ts": [
+        "https://deno.land/x/sleep@v1.2.0/sleep.ts"
+      ]
+    },
+    "semanticDiagnosticsPerFile": []
+  },
+  "version": "4.2.2"
+}

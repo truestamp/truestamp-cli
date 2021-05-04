@@ -1,0 +1,9 @@
+import { getAccessTokenWithPrompts, Truestamp } from "./deps.ts";
+export async function createTruestampClient(apiEnv) {
+    const client = new Truestamp({
+        accessToken: await getAccessTokenWithPrompts(apiEnv),
+        apiEnv: apiEnv,
+    });
+    return client;
+}
+//# sourceMappingURL=data:application/json;base64,eyJ2ZXJzaW9uIjozLCJmaWxlIjoidHJ1ZXN0YW1wLmpzIiwic291cmNlUm9vdCI6IiIsInNvdXJjZXMiOlsidHJ1ZXN0YW1wLnRzIl0sIm5hbWVzIjpbXSwibWFwcGluZ3MiOiJBQUFBLE9BQU8sRUFBRSx5QkFBeUIsRUFBRSxTQUFTLEVBQUUsTUFBTSxXQUFXLENBQUE7QUFFaEUsTUFBTSxDQUFDLEtBQUssVUFBVSxxQkFBcUIsQ0FBQyxNQUFjO0lBRXhELE1BQU0sTUFBTSxHQUFHLElBQUssU0FBaUIsQ0FBQztRQUNwQyxXQUFXLEVBQUUsTUFBTSx5QkFBeUIsQ0FBQyxNQUFNLENBQUM7UUFDcEQsTUFBTSxFQUFFLE1BQU07S0FDZixDQUFDLENBQUE7SUFFRixPQUFPLE1BQU0sQ0FBQTtBQUNmLENBQUMifQ==
