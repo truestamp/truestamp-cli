@@ -5,30 +5,30 @@ DENO_DIR := ./deno_dir
 BUILD_DIR := ./build
 ARGS := --unstable --allow-env=HOME --allow-net=api.truestamp.com,staging-api.truestamp.com,dev-api.truestamp.com,truestamp.auth0.com,truestamp-staging.auth0.com,truestamp-dev.auth0.com --allow-read --allow-write --lock=${LOCK} --cached-only
 
-build: clean prep compile-darwin-x86 compile-darwin-x86-lite compile-darwin-arm compile-darwin-arm-lite compile-windows compile-windows-lite compile-linux compile-linux-lite
+build: clean prep build-darwin-x86 build-darwin-x86-lite build-darwin-arm build-darwin-arm-lite build-windows build-windows-lite build-linux build-linux-lite compress
 
-compile-darwin-x86:
+build-darwin-x86:
 	export DENO_DIR=${DENO_DIR} && deno compile --target=x86_64-apple-darwin --output=${BUILD_DIR}/truestamp-darwin-x86_64 ${ARGS} ${SRC}
 
-compile-darwin-x86-lite:
+build-darwin-x86-lite:
 	export DENO_DIR=${DENO_DIR} && deno compile --target=x86_64-apple-darwin --output=${BUILD_DIR}/truestamp-darwin-x86_64-lite --lite ${ARGS} ${SRC}
 
-compile-darwin-arm:
+build-darwin-arm:
 	export DENO_DIR=${DENO_DIR} && deno compile --target=aarch64-apple-darwin --output=${BUILD_DIR}/truestamp-darwin-arm ${ARGS} ${SRC}
 
-compile-darwin-arm-lite:
+build-darwin-arm-lite:
 	export DENO_DIR=${DENO_DIR} && deno compile --target=aarch64-apple-darwin --output=${BUILD_DIR}/truestamp-darwin-arm-lite --lite ${ARGS} ${SRC}
 
-compile-windows:
+build-windows:
 	export DENO_DIR=${DENO_DIR} && deno compile --target=x86_64-pc-windows-msvc --output=${BUILD_DIR}/truestamp-windows ${ARGS} ${SRC}
 
-compile-windows-lite:
+build-windows-lite:
 	export DENO_DIR=${DENO_DIR} && deno compile --target=x86_64-pc-windows-msvc --output=${BUILD_DIR}/truestamp-windows-lite --lite ${ARGS} ${SRC}
 
-compile-linux:
+build-linux:
 	export DENO_DIR=${DENO_DIR} && deno compile --target=x86_64-unknown-linux-gnu --output=${BUILD_DIR}/truestamp-linux-x86_64 ${ARGS} ${SRC}
 
-compile-linux-lite:
+build-linux-lite:
 	export DENO_DIR=${DENO_DIR} && deno compile --target=x86_64-unknown-linux-gnu --output=${BUILD_DIR}/truestamp-linux-x86_64-lite --lite ${ARGS} ${SRC}
 
 clean:
@@ -36,6 +36,17 @@ clean:
 
 prep:
 	mkdir -p ${BUILD_DIR}
+
+compress-darwin:
+	for i in build/truestamp-darwin*; do tar -czf $$i.tar.gz $$i && rm $$i; done
+
+compress-linux:
+	for i in build/truestamp-linux*; do tar -czf $$i.tar.gz $$i && rm $$i; done
+
+compress-windows:
+	for i in build/truestamp-windows*; do zip -r $$i.zip $$i && rm $$i; done
+
+compress: compress-darwin compress-linux compress-windows
 
 lock:
 	export DENO_DIR=${DENO_DIR} && deno cache --lock=${LOCK} --lock-write ${DEPS}
