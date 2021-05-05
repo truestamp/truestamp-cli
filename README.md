@@ -25,6 +25,8 @@ wget https://github.com/truestamp/truestamp-cli/releases/download/v0.0.1/truesta
 tar -zxvf truestamp-darwin-x86_64-lite.tar.gz
 ```
 
+Continue with the instructions for all Macs below.
+
 ### Download and unpack for Apple Silicon (M1) Macs
 
 Download the `darwin` platform `aarch64` arch `.tar.gz` file for your chosen release version.
@@ -37,6 +39,8 @@ wget https://github.com/truestamp/truestamp-cli/releases/download/v0.0.1/truesta
 # unpack the `truestamp` binary for your system arch
 tar -zxvf truestamp-darwin-aarch64-lite.tar.gz
 ```
+
+Continue with the instructions for all Macs below.
 
 ### All Macs
 
