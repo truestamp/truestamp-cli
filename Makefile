@@ -7,6 +7,9 @@ ARGS := --unstable --allow-env=HOME --allow-net=api.truestamp.com,staging-api.tr
 
 build: clean prep build-darwin-x86 build-darwin-x86-lite build-darwin-aarch64 build-darwin-aarch64-lite build-windows build-windows-lite build-linux build-linux-lite compress
 
+build-dev:
+	export DENO_DIR=${DENO_DIR} && deno compile --target=x86_64-apple-darwin --output=truestamp ${ARGS} ${SRC}
+
 build-darwin-x86:
 	export DENO_DIR=${DENO_DIR} && deno compile --target=x86_64-apple-darwin --output=${BUILD_DIR}/truestamp-darwin-x86_64 ${ARGS} ${SRC}
 
