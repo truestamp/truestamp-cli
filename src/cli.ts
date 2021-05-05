@@ -122,14 +122,14 @@ const documentsNew = new Command()
   })
   .allowEmpty(false)
   .option(
-    "-h, --hash [type:string]",
+    "-H, --hash [hash:string]",
     "A document hash encoded as a MultiHash, hex, or Base64 string.",
     {
       required: true,
     }
   )
   .option(
-    "-t, --type [type:string]",
+    "-T, --type [type:string]",
     "a MultiHash hash type. Optional only if '--hash' is a MultiHash.",
     {
       required: false,
@@ -197,18 +197,18 @@ const documentsUpdate = new Command()
     default: "production",
   })
   .allowEmpty(false)
-  .option("-i, --id [type:string]", "A document ID.", {
+  .option("-i, --id [id:string]", "A document ID.", {
     required: true,
   })
   .option(
-    "-h, --hash [type:string]",
+    "-H, --hash [hash:string]",
     "A document hash encoded as a MultiHash, hex, or Base64 string.",
     {
       required: true,
     }
   )
   .option(
-    "-t, --type [type:string]",
+    "-T, --type [type:string]",
     "a MultiHash hash type. Optional only if '--hash' is a MultiHash.",
     {
       required: false,
