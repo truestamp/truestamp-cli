@@ -6,6 +6,8 @@ A Truestamp Command Line Interface (CLI) that utilizes the [truestamp-js](https:
 
 ### macOS
 
+Install using [Homebrew](https://brew.sh/).
+
 ```sh
 brew tap truestamp/tap
 brew install truestamp-cli
