@@ -28,6 +28,7 @@ jobs:
           prerelease: false
           files: |
             RELEASE.txt
+            README.md
             build/*
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
