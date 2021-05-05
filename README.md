@@ -2,49 +2,36 @@
 
 A Truestamp Command Line Interface (CLI) that utilizes the [truestamp-js](https://github.com/truestamp/truestamp-js) library, written in Typescript.
 
+This CLI is compiled from Typescript using [Deno](https://deno.land/). The platforms we support are determined by the set that Deno currently supports.
+
+Deno provides the benefits of a single-file binary download, with no pre-requisites or dependencies. Additionally Deno is security limited to allow contact with only the limited set of internet addresses, environment variables, and files it requires and has been configured to access at compile time.
+
 ## Install
 
-## macOS with Homebrew install
+If you are using macOS it is recommended you install this client using [Homebrew](https://brew.sh/).
 
-Please see the instructions for installation using our [truestamp/homebrew-tap](https://github.com/truestamp/homebrew-tap/).
+For manual installation please be sure to specify the current stable release version in the release URL for pre-compiled binaries. Version `v0.0.0` is used in these examples. The latest stable release versions can be found on the [releases](https://github.com/truestamp/truestamp-cli/releases) page.
 
-## macOS manual install
+You will see a `lite` version of each released build. This should be functionally identical but may have a somewhat smaller download footprint.
 
-Please be sure to specify the current stable release version in the release URL. Version `v0.0.1` is used in this example. The latest stable release versions can be found on the [releases](https://github.com/truestamp/truestamp-cli/releases) page.
+### macOS
 
-### Download and unpack for Intel x86 Macs
+#### Homebrew install
 
-Download the `darwin` platform `x86` arch `.tar.gz` file for your chosen release version.
+This is the recommended installation method for macOS. Please see the instructions for installation using our [truestamp/homebrew-tap](https://github.com/truestamp/homebrew-tap/).
+
+#### Manual install - Apple macOS Intel x86 Macs
+
+Download and install the `darwin` platform `x86` arch `.tar.gz` file for your chosen [release](https://github.com/truestamp/truestamp-cli/releases) version.
 
 Example:
 
 ```sh
-wget https://github.com/truestamp/truestamp-cli/releases/download/v0.0.1/truestamp-darwin-x86_64-lite.tar.gz
+wget -q https://github.com/truestamp/truestamp-cli/releases/download/v0.0.0/truestamp-darwin-x86_64-lite.tar.gz
 
 # unpack the `truestamp` binary for your system arch
 tar -zxvf truestamp-darwin-x86_64-lite.tar.gz
-```
 
-Continue with the instructions for all Macs below.
-
-### Download and unpack for Apple Silicon (M1) Macs
-
-Download the `darwin` platform `aarch64` arch `.tar.gz` file for your chosen release version.
-
-Example:
-
-```sh
-wget https://github.com/truestamp/truestamp-cli/releases/download/v0.0.1/truestamp-darwin-aarch64-lite.tar.gz
-
-# unpack the `truestamp` binary for your system arch
-tar -zxvf truestamp-darwin-aarch64-lite.tar.gz
-```
-
-Continue with the instructions for all Macs below.
-
-### All Macs
-
-```sh
 # assuming /usr/local/bin exists and is on your $PATH
 mv ./truestamp /usr/local/bin
 
@@ -52,9 +39,79 @@ mv ./truestamp /usr/local/bin
 spctl --add  /usr/local/bin/truestamp
 ```
 
-### Other
+#### Manual install - Apple Silicon (M1) Macs
 
-Pre-compiled binaries for Linux, and Windows are also available as tagged [releases](https://github.com/truestamp/truestamp-cli/releases).
+Download and install the `darwin` platform `aarch64` arch `.tar.gz` file for your chosen [release](https://github.com/truestamp/truestamp-cli/releases) version.
+
+Example:
+
+```sh
+wget -q https://github.com/truestamp/truestamp-cli/releases/download/v0.0.0/truestamp-darwin-aarch64-lite.tar.gz
+
+# unpack the `truestamp` binary for your system arch
+tar -zxvf truestamp-darwin-aarch64-lite.tar.gz
+
+# assuming /usr/local/bin exists and is on your $PATH
+mv ./truestamp /usr/local/bin
+
+# Add this single file to the macOS Gatekeeper allow list
+spctl --add  /usr/local/bin/truestamp
+```
+
+#### Manual install - Linux x86 64 bit
+
+Download and install the `linux` platform `x86_64` arch `.tar.gz` file for your chosen [release](https://github.com/truestamp/truestamp-cli/releases) version.
+
+```sh
+wget -q https://github.com/truestamp/truestamp-cli/releases/download/v0.0.0/truestamp-linux-x86_64-lite.tar.gz
+
+# unpack the `truestamp` binary for your system arch
+tar -zxvf truestamp-linux-x86_64-lite.tar.gz
+
+# assuming /usr/local/bin exists and is on your $PATH
+mv ./truestamp /usr/local/bin
+```
+
+#### Manual install - Windows x86 64 bit
+
+Download and install the `windows` platform `.zip` file for your chosen [release](https://github.com/truestamp/truestamp-cli/releases) version.
+
+```sh
+# PowerShell
+
+Invoke-WebRequest -OutFile truestamp-windows-lite.exe.zip https://github.com/truestamp/truestamp-cli/releases/download/v0.0.0/truestamp-windows-lite.exe.zip
+
+# Expand-Archive -LiteralPath <PathToZipFile> -DestinationPath <PathToDestination>
+Expand-Archive -LiteralPath truestamp-windows-lite.exe.zip
+```
+
+## Usage
+
+The CLI has its own help system and every command and sub-command can be invoked with `-h`, `--help`, or simply `help` to learn more.
+
+```txt
+❯ truestamp -h
+
+  Usage:   truestamp
+  Version: v0.0.0
+
+  Description:
+
+    Truestamp CLI
+
+  Options:
+
+    -h, --help     - Show this help.
+    -V, --version  - Show the version number for this program.
+
+  Commands:
+
+    auth                    - Login, logout, and show status of your authentication.
+    completions             - Generate shell completions.
+    documents               - Create, read, update, or destroy documents.
+    heartbeat               - Display results of API server heartbeat call.
+    help         [command]  - Show this help or the help of a sub-command.
+```
 
 ## Legal
 
