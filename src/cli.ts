@@ -1,13 +1,13 @@
 import {
   Command,
   CompletionsCommand,
+  createTruestampClient,
   deleteSavedTokens,
   getSavedAccessToken,
-  getSavedRefreshToken,
   getSavedIdTokenPayload,
+  getSavedRefreshToken,
   HelpCommand,
   ITypeInfo,
-  createTruestampClient,
 } from "./deps.ts"
 
 function environmentType({ label, name, value }: ITypeInfo): string {

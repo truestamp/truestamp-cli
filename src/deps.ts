@@ -10,14 +10,15 @@ import { CompletionsCommand } from "https://deno.land/x/cliffy@v0.18.2/command/c
 
 import {
   deleteSavedTokens,
-  getSavedAccessToken,
-  getSavedRefreshToken,
   getAccessTokenWithPrompts,
+  getSavedAccessToken,
   getSavedIdTokenPayload,
+  getSavedRefreshToken,
 } from "./auth.ts"
 
-// Get SkyPack pinned URL using `curl -i "https://cdn.skypack.dev/@truestamp/truestamp-js?dts"`
-import Truestamp from "https://cdn.skypack.dev/pin/@truestamp/truestamp-js@v0.0.39-s9peUMKFsrLpG0Cr1TTw/mode=imports/optimized/@truestamp/truestamp-js.js"
+// See : https://www.skypack.dev/view/@truestamp/truestamp-js
+// Get SkyPack pinned URL using `curl -iL 'https://cdn.skypack.dev/@truestamp/truestamp-js?dts'`
+import Truestamp from "https://cdn.skypack.dev/pin/@truestamp/truestamp-js@v0.0.41-HNH52xg1IH18JGuJsLXQ/mode=imports/optimized/@truestamp/truestamp-js.js"
 import { createTruestampClient } from "./truestamp.ts"
 
 export {
@@ -25,18 +26,18 @@ export {
   Command,
   CompletionsCommand,
   configDir,
+  createTruestampClient,
   decode,
   deleteSavedTokens,
-  getSavedAccessToken,
-  getSavedRefreshToken,
   getAccessTokenWithPrompts,
+  getSavedAccessToken,
+  getSavedIdTokenPayload,
+  getSavedRefreshToken,
   HelpCommand,
   loadJsonFile,
   sleep,
   Truestamp,
   validate,
-  getSavedIdTokenPayload,
-  createTruestampClient,
 }
 
 export type { ITypeInfo } from "https://deno.land/x/cliffy/flags/mod.ts"

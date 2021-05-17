@@ -6,9 +6,9 @@ import {
   configDir,
   decode,
   loadJsonFile,
+  Payload,
   sleep,
   validate,
-  Payload,
 } from "./deps.ts"
 
 const AUTH0_SCOPES = "openid profile email offline_access"
@@ -23,7 +23,7 @@ const AUTH0_AUDIENCE_STAGING = "https://staging-api.truestamp.com/"
 const AUTH0_CLIENT_ID_STAGING = "T0dzxGnnIj3TU0HpzCQRTZ5fx9N5Hb5m"
 const AUTH0_TOKEN_FILE_STAGING = `${configDir()}/com.truestamp.cli.staging.tokens.json`
 
-const AUTH0_DOMAIN_PRODUCTION = "truestamp.auth0.com"
+const AUTH0_DOMAIN_PRODUCTION = "login.truestamp.com"
 const AUTH0_AUDIENCE_PRODUCTION = "https://api.truestamp.com/"
 const AUTH0_CLIENT_ID_PRODUCTION = "pS5kRvqeuz4XLoxNPd6VX2LlUyNyU7Xj"
 const AUTH0_TOKEN_FILE_PRODUCTION = `${configDir()}/com.truestamp.cli.production.tokens.json`
