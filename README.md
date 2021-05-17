@@ -27,10 +27,10 @@ Download and install the `darwin` platform `x86` arch `.tar.gz` file for your ch
 Example:
 
 ```sh
-wget -q https://github.com/truestamp/truestamp-cli/releases/download/v0.0.0/truestamp-darwin-x86_64-lite.tar.gz
+wget -q https://github.com/truestamp/truestamp-cli/releases/download/v0.0.0/truestamp-darwin-x86_64.tar.gz
 
 # unpack the `truestamp` binary for your system arch
-tar -zxvf truestamp-darwin-x86_64-lite.tar.gz
+tar -zxvf truestamp-darwin-x86_64.tar.gz
 
 # assuming /usr/local/bin exists and is on your $PATH
 mv ./truestamp /usr/local/bin
@@ -46,10 +46,10 @@ Download and install the `darwin` platform `aarch64` arch `.tar.gz` file for you
 Example:
 
 ```sh
-wget -q https://github.com/truestamp/truestamp-cli/releases/download/v0.0.0/truestamp-darwin-aarch64-lite.tar.gz
+wget -q https://github.com/truestamp/truestamp-cli/releases/download/v0.0.0/truestamp-darwin-aarch64.tar.gz
 
 # unpack the `truestamp` binary for your system arch
-tar -zxvf truestamp-darwin-aarch64-lite.tar.gz
+tar -zxvf truestamp-darwin-aarch64.tar.gz
 
 # assuming /usr/local/bin exists and is on your $PATH
 mv ./truestamp /usr/local/bin
@@ -63,10 +63,10 @@ spctl --add  /usr/local/bin/truestamp
 Download and install the `linux` platform `x86_64` arch `.tar.gz` file for your chosen [release](https://github.com/truestamp/truestamp-cli/releases) version.
 
 ```sh
-wget -q https://github.com/truestamp/truestamp-cli/releases/download/v0.0.0/truestamp-linux-x86_64-lite.tar.gz
+wget -q https://github.com/truestamp/truestamp-cli/releases/download/v0.0.0/truestamp-linux-x86_64.tar.gz
 
 # unpack the `truestamp` binary for your system arch
-tar -zxvf truestamp-linux-x86_64-lite.tar.gz
+tar -zxvf truestamp-linux-x86_64.tar.gz
 
 # assuming /usr/local/bin exists and is on your $PATH
 mv ./truestamp /usr/local/bin
@@ -79,10 +79,10 @@ Download and install the `windows` platform `.zip` file for your chosen [release
 ```sh
 # PowerShell
 
-Invoke-WebRequest -OutFile truestamp-windows-lite.exe.zip https://github.com/truestamp/truestamp-cli/releases/download/v0.0.0/truestamp-windows-lite.exe.zip
+Invoke-WebRequest -OutFile truestamp-windows.exe.zip https://github.com/truestamp/truestamp-cli/releases/download/v0.0.0/truestamp-windows.exe.zip
 
 # Expand-Archive -LiteralPath <PathToZipFile> -DestinationPath <PathToDestination>
-Expand-Archive -LiteralPath truestamp-windows-lite.exe.zip
+Expand-Archive -LiteralPath truestamp-windows.exe.zip
 ```
 
 ## Usage
