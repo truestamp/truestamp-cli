@@ -1,15 +1,15 @@
 {
   "headers": {
-    "alt-svc": "h3-27=\":443\"; ma=86400, h3-28=\":443\"; ma=86400, h3-29=\":443\"; ma=86400",
-    "content-length": "0",
-    "cf-request-id": "0a1d803fad000059ecdb940000000001",
     "x-deno-warning": "Implicitly using latest version (v0.18.2) for https://deno.land/x/cliffy/flags/mod.ts",
-    "server": "cloudflare",
-    "date": "Mon, 17 May 2021 19:56:57 GMT",
+    "cf-request-id": "0a2225d67c00005944ce972000000001",
     "expect-ct": "max-age=604800, report-uri=\"https://report-uri.cloudflare.com/cdn-cgi/beacon/expect-ct\"",
+    "alt-svc": "h3-27=\":443\"; ma=86400, h3-28=\":443\"; ma=86400, h3-29=\":443\"; ma=86400",
+    "date": "Tue, 18 May 2021 17:36:18 GMT",
+    "location": "/x/cliffy@v0.18.2/flags/mod.ts",
+    "server": "cloudflare",
+    "cf-ray": "6516d8d0b90d5944-IAD",
     "vary": "Accept-Encoding",
-    "cf-ray": "650f6979188a59ec-IAD",
-    "location": "/x/cliffy@v0.18.2/flags/mod.ts"
+    "content-length": "0"
   },
   "url": "https://deno.land/x/cliffy/flags/mod.ts"
 }

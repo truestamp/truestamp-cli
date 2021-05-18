@@ -17,8 +17,7 @@ import {
 } from "./auth.ts"
 
 // See : https://www.skypack.dev/view/@truestamp/truestamp-js
-// Get SkyPack pinned URL using `curl -iL 'https://cdn.skypack.dev/@truestamp/truestamp-js?dts'`
-import Truestamp from "https://cdn.skypack.dev/pin/@truestamp/truestamp-js@v0.0.41-HNH52xg1IH18JGuJsLXQ/mode=imports/optimized/@truestamp/truestamp-js.js"
+import Truestamp from "https://cdn.skypack.dev/@truestamp/truestamp-js?dts"
 import { createTruestampClient } from "./truestamp.ts"
 
 export {
