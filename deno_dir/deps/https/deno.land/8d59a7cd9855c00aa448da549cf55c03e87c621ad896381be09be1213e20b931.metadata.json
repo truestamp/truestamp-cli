@@ -1,0 +1,23 @@
+{
+  "headers": {
+    "expect-ct": "max-age=604800, report-uri=\"https://report-uri.cloudflare.com/cdn-cgi/beacon/expect-ct\"",
+    "cf-cache-status": "MISS",
+    "accept-ranges": "bytes",
+    "content-type": "application/typescript; charset=utf-8",
+    "last-modified": "Mon, 24 May 2021 18:55:01 GMT",
+    "cf-ray": "6549c6ff2feb5da4-IAD",
+    "access-control-allow-origin": "*",
+    "server": "cloudflare",
+    "x-amz-request-id": "5YGRBMVHF49NBJN4",
+    "cf-request-id": "0a41fab37900005da4c1bce000000001",
+    "vary": "Accept-Encoding",
+    "x-amz-version-id": "2Z18w_n2ku5rSuK6oMkW9672VKb7zzEK",
+    "date": "Mon, 24 May 2021 21:57:02 GMT",
+    "etag": "\"9303f6ec8b75d333e17f109ac6ab35f6\"",
+    "content-length": "6439",
+    "x-amz-id-2": "KjQu1llo79TCx/+r1kh5VmN0HPgnkrmefD0M1asrptqPftvML9VHwEDwwR6VrF0XeptbFLHrILk=",
+    "cache-control": "public, max-age=31536000, immutable",
+    "alt-svc": "h3-27=\":443\"; ma=86400, h3-28=\":443\"; ma=86400, h3-29=\":443\"; ma=86400"
+  },
+  "url": "https://deno.land/x/aws_sdk@v3.16.0-3/client-s3/commands/GetBucketAccelerateConfigurationCommand.ts"
+}

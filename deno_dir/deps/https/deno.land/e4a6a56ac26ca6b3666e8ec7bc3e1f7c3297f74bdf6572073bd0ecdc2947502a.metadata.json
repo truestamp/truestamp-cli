@@ -1,0 +1,23 @@
+{
+  "headers": {
+    "x-amz-id-2": "Smg8F2bN2Wi8PDCUjcA6ZkWdUvQHp7Yawlt7eFEKy6m5QTfI6WD8BF7MnSbGDCOghSRHJ4Qow38=",
+    "date": "Mon, 24 May 2021 21:57:02 GMT",
+    "cf-cache-status": "MISS",
+    "server": "cloudflare",
+    "accept-ranges": "bytes",
+    "access-control-allow-origin": "*",
+    "cf-ray": "6549c6ff2fd95da4-IAD",
+    "last-modified": "Mon, 24 May 2021 18:55:01 GMT",
+    "cache-control": "public, max-age=31536000, immutable",
+    "cf-request-id": "0a41fab37700005da475b28000000001",
+    "expect-ct": "max-age=604800, report-uri=\"https://report-uri.cloudflare.com/cdn-cgi/beacon/expect-ct\"",
+    "etag": "\"3a08e20f48e69a8009de676281c7c84d\"",
+    "x-amz-version-id": "hbCreUWkWxu9w8w1QiTup0m_EY4BNOWb",
+    "alt-svc": "h3-27=\":443\"; ma=86400, h3-28=\":443\"; ma=86400, h3-29=\":443\"; ma=86400",
+    "content-length": "6500",
+    "vary": "Accept-Encoding",
+    "content-type": "application/typescript; charset=utf-8",
+    "x-amz-request-id": "5YGRX4DGDG1N5MN5"
+  },
+  "url": "https://deno.land/x/aws_sdk@v3.16.0-3/client-s3/commands/GetBucketIntelligentTieringConfigurationCommand.ts"
+}

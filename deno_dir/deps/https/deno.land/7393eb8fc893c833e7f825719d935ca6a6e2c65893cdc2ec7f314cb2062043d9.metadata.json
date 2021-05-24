@@ -1,0 +1,23 @@
+{
+  "headers": {
+    "server": "cloudflare",
+    "last-modified": "Mon, 24 May 2021 18:55:01 GMT",
+    "date": "Mon, 24 May 2021 21:57:02 GMT",
+    "x-amz-request-id": "5YGGPY1KV69BPXD2",
+    "vary": "Accept-Encoding",
+    "cf-ray": "6549c6ff2ff15da4-IAD",
+    "expect-ct": "max-age=604800, report-uri=\"https://report-uri.cloudflare.com/cdn-cgi/beacon/expect-ct\"",
+    "accept-ranges": "bytes",
+    "access-control-allow-origin": "*",
+    "content-length": "4902",
+    "cf-request-id": "0a41fab37a00005da46aa93000000001",
+    "cf-cache-status": "MISS",
+    "x-amz-version-id": "qloYUPE_MTNSZ2EEwGisvILJM0hTY7w.",
+    "cache-control": "public, max-age=31536000, immutable",
+    "x-amz-id-2": "Ooe3ReVu6Vrzx3gi7YggpU1GNkTnu/SXnNokOJZECukiuBowPFtQ+vk2BhZt2wxXl4hGMZXMYZY=",
+    "alt-svc": "h3-27=\":443\"; ma=86400, h3-28=\":443\"; ma=86400, h3-29=\":443\"; ma=86400",
+    "content-type": "application/typescript; charset=utf-8",
+    "etag": "\"48565f9cdfd63e129889deeac05da8c0\""
+  },
+  "url": "https://deno.land/x/aws_sdk@v3.16.0-3/client-s3/commands/PutBucketOwnershipControlsCommand.ts"
+}

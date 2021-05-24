@@ -10,7 +10,7 @@ import { Command } from "https://deno.land/x/cliffy@v0.18.2/command/mod.ts";
 import { HelpCommand } from "https://deno.land/x/cliffy@v0.18.2/command/help/mod.ts";
 import { CompletionsCommand } from "https://deno.land/x/cliffy@v0.18.2/command/completions/mod.ts";
 import { ulid } from "https://cdn.skypack.dev/ulid?dts";
-import { S3 } from "https://deno.land/x/aws_sdk@v3.15.0.2/client-s3/mod.ts";
+import { S3 } from "https://deno.land/x/aws_sdk@v3.16.0-3/client-s3/mod.ts";
 import { deleteSavedTokens, getAccessTokenWithPrompts, getSavedAccessToken, getSavedIdTokenPayload, getSavedRefreshToken, } from "./auth.ts";
 import Truestamp from "https://cdn.skypack.dev/@truestamp/truestamp-js?dts";
 import { createTruestampClient } from "./truestamp.ts";

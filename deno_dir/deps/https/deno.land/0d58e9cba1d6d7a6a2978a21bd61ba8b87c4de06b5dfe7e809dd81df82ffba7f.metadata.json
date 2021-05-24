@@ -1,0 +1,23 @@
+{
+  "headers": {
+    "last-modified": "Mon, 24 May 2021 18:55:01 GMT",
+    "cf-request-id": "0a41fab38d00005da49088e000000001",
+    "content-length": "20936",
+    "accept-ranges": "bytes",
+    "content-type": "application/typescript; charset=utf-8",
+    "expect-ct": "max-age=604800, report-uri=\"https://report-uri.cloudflare.com/cdn-cgi/beacon/expect-ct\"",
+    "x-amz-version-id": "vacRB9N70KGQyNE68zPWak0gPGAh6to.",
+    "cache-control": "public, max-age=31536000, immutable",
+    "cf-ray": "6549c6ff285a5da4-IAD",
+    "x-amz-id-2": "oudmoftzWSVPyCFy7m9sftEmOojfexTfty36v2D0GAATuiNbymkXxDfsL7ZZpccuZsMl5pDyClo=",
+    "x-amz-request-id": "5YGVGG61AJ5A8K71",
+    "date": "Mon, 24 May 2021 21:57:02 GMT",
+    "etag": "\"f82ce355fbc8d66aeca37de32832e027\"",
+    "cf-cache-status": "MISS",
+    "alt-svc": "h3-27=\":443\"; ma=86400, h3-28=\":443\"; ma=86400, h3-29=\":443\"; ma=86400",
+    "vary": "Accept-Encoding",
+    "server": "cloudflare",
+    "access-control-allow-origin": "*"
+  },
+  "url": "https://deno.land/x/aws_sdk@v3.16.0-3/client-s3/commands/RestoreObjectCommand.ts"
+}

@@ -1,0 +1,25 @@
+{
+  "headers": {
+    "expires": "Mon, 31 May 2021 17:08:12 GMT",
+    "x-goog-stored-content-length": "602",
+    "content-language": "en",
+    "x-goog-stored-content-encoding": "br",
+    "x-goog-metageneration": "2",
+    "access-control-expose-headers": "Content-Type",
+    "server": "UploadServer",
+    "cache-control": "public, max-age=31536000, s-maxage=604800, immutable",
+    "etag": "\"4f4ef32fbc04318e1edb2e7b00154875\"",
+    "content-type": "application/javascript",
+    "x-guploader-uploadid": "ABg5-Uwde58ePjgudYZXzARW8I6ZbqpM1vXLQtBpzJRklDon7BhoZ-iFeXnzRrY4Rzz1QFgA92ccC7luaNjuS0pNghNex7vO9Q",
+    "last-modified": "Mon, 25 Jan 2021 00:54:16 GMT",
+    "accept-ranges": "bytes",
+    "x-goog-hash": "crc32c=gva83Q==,md5=T07zL7wEMY4e2y57ABVIdQ==",
+    "alt-svc": "clear",
+    "x-goog-generation": "1611536056455855",
+    "age": "17330",
+    "access-control-allow-origin": "*",
+    "x-goog-storage-class": "STANDARD",
+    "date": "Mon, 24 May 2021 17:08:12 GMT"
+  },
+  "url": "https://jspm.dev/npm:entities@2.2.0/lib/maps/legacy.json!cjs"
+}

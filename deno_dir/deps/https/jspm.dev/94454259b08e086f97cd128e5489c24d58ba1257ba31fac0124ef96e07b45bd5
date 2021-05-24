@@ -1,0 +1,8 @@
+import "/npm:entities@2.2.0/lib/maps/entities.json!cjs";
+import "/npm:entities@2.2.0/lib/maps/legacy.json!cjs";
+import "/npm:entities@2.2.0/lib/maps/xml.json!cjs";
+import "/npm:entities@2.2.0/lib/decode_codepoint.js!cjs";
+import "/npm:entities@2.2.0/lib/decode!cjs";
+import "/npm:entities@2.2.0/lib/encode!cjs";
+export * from "/npm:entities@2.2.0!cjs";
+export { default } from "/npm:entities@2.2.0!cjs";

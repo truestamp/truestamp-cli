@@ -1,0 +1,23 @@
+{
+  "headers": {
+    "x-amz-request-id": "5YGSYY8XHKZVR3S0",
+    "cf-ray": "6549c6ff28615da4-IAD",
+    "alt-svc": "h3-27=\":443\"; ma=86400, h3-28=\":443\"; ma=86400, h3-29=\":443\"; ma=86400",
+    "expect-ct": "max-age=604800, report-uri=\"https://report-uri.cloudflare.com/cdn-cgi/beacon/expect-ct\"",
+    "content-length": "6074",
+    "x-amz-id-2": "F/QWYb86BfzibegRwGPIzHHkAp8f9STZEDq6PHJrLre52wj5592lT+G8MW9iDUSPuRWFN0vNaeQ=",
+    "cf-request-id": "0a41fab39000005da459198000000001",
+    "cache-control": "public, max-age=31536000, immutable",
+    "cf-cache-status": "MISS",
+    "access-control-allow-origin": "*",
+    "server": "cloudflare",
+    "date": "Mon, 24 May 2021 21:57:02 GMT",
+    "accept-ranges": "bytes",
+    "vary": "Accept-Encoding",
+    "x-amz-version-id": "iZzZ3QnUPXKoxX0YpxH28xELPnyFLxKO",
+    "content-type": "application/typescript; charset=utf-8",
+    "last-modified": "Mon, 24 May 2021 18:55:01 GMT",
+    "etag": "\"4f69cb3039568f7465bd9739e05dd652\""
+  },
+  "url": "https://deno.land/x/aws_sdk@v3.16.0-3/client-s3/commands/AbortMultipartUploadCommand.ts"
+}

@@ -1,0 +1,93 @@
+import _entities from './maps/entities.json!cjs';
+import _legacy from './maps/legacy.json!cjs';
+import _xml from './maps/xml.json!cjs';
+import exports$1 from './decode_codepoint.js!cjs';
+
+var exports = {};
+
+var __importDefault = exports && exports.__importDefault || function (mod) {
+  return mod && mod.__esModule ? mod : {
+    "default": mod
+  };
+};
+
+Object.defineProperty(exports, "__esModule", {
+  value: true
+});
+exports.decodeHTML = exports.decodeHTMLStrict = exports.decodeXML = void 0;
+
+var entities_json_1 = __importDefault(_entities);
+
+var legacy_json_1 = __importDefault(_legacy);
+
+var xml_json_1 = __importDefault(_xml);
+
+var decode_codepoint_1 = __importDefault(exports$1);
+
+var strictEntityRe = /&(?:[a-zA-Z0-9]+|#[xX][\da-fA-F]+|#\d+);/g;
+exports.decodeXML = getStrictDecoder(xml_json_1.default);
+exports.decodeHTMLStrict = getStrictDecoder(entities_json_1.default);
+
+function getStrictDecoder(map) {
+  var replace = getReplacer(map);
+  return function (str) {
+    return String(str).replace(strictEntityRe, replace);
+  };
+}
+
+var sorter = function (a, b) {
+  return a < b ? 1 : -1;
+};
+
+exports.decodeHTML = function () {
+  var legacy = Object.keys(legacy_json_1.default).sort(sorter);
+  var keys = Object.keys(entities_json_1.default).sort(sorter);
+
+  for (var i = 0, j = 0; i < keys.length; i++) {
+    if (legacy[j] === keys[i]) {
+      keys[i] += ";?";
+      j++;
+    } else {
+      keys[i] += ";";
+    }
+  }
+
+  var re = new RegExp("&(?:" + keys.join("|") + "|#[xX][\\da-fA-F]+;?|#\\d+;?)", "g");
+  var replace = getReplacer(entities_json_1.default);
+
+  function replacer(str) {
+    if (str.substr(-1) !== ";") str += ";";
+    return replace(str);
+  } // TODO consider creating a merged map
+
+
+  return function (str) {
+    return String(str).replace(re, replacer);
+  };
+}();
+
+function getReplacer(map) {
+  return function replace(str) {
+    if (str.charAt(1) === "#") {
+      var secondChar = str.charAt(2);
+
+      if (secondChar === "X" || secondChar === "x") {
+        return decode_codepoint_1.default(parseInt(str.substr(3), 16));
+      }
+
+      return decode_codepoint_1.default(parseInt(str.substr(2), 10));
+    } // eslint-disable-next-line @typescript-eslint/prefer-nullish-coalescing
+
+
+    return map[str.slice(1, -1)] || str;
+  };
+}
+const __esModule = exports.__esModule,
+      decodeHTML = exports.decodeHTML,
+      decodeHTMLStrict = exports.decodeHTMLStrict,
+      decodeXML = exports.decodeXML;
+
+export default exports;
+export { __esModule, decodeHTML, decodeHTMLStrict, decodeXML };
+
+//# sourceMappingURL=decode!cjs.map

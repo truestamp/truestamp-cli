@@ -1,0 +1,23 @@
+{
+  "headers": {
+    "date": "Mon, 24 May 2021 21:57:02 GMT",
+    "content-length": "4133",
+    "etag": "\"87275b79972e834e44625ac00c539e96\"",
+    "last-modified": "Mon, 24 May 2021 18:55:01 GMT",
+    "accept-ranges": "bytes",
+    "content-type": "application/typescript; charset=utf-8",
+    "cf-request-id": "0a41fab38f00005da45e91b000000001",
+    "x-amz-id-2": "6Sl8vIM6DMYn2rSUEYq7kdz313aaJiAsvRyia2yvedxPXCFD6TcpRLnNh49eOIONLQ8GwKeCl9c=",
+    "x-amz-request-id": "5YGK7PZTPVPEXMYF",
+    "expect-ct": "max-age=604800, report-uri=\"https://report-uri.cloudflare.com/cdn-cgi/beacon/expect-ct\"",
+    "x-amz-version-id": "o5juC3bObv64FidrosT98on0zF86FYop",
+    "cache-control": "public, max-age=31536000, immutable",
+    "vary": "Accept-Encoding",
+    "cf-ray": "6549c6ff28655da4-IAD",
+    "server": "cloudflare",
+    "cf-cache-status": "MISS",
+    "alt-svc": "h3-27=\":443\"; ma=86400, h3-28=\":443\"; ma=86400, h3-29=\":443\"; ma=86400",
+    "access-control-allow-origin": "*"
+  },
+  "url": "https://deno.land/x/aws_sdk@v3.16.0-3/client-s3/commands/DeleteBucketCommand.ts"
+}

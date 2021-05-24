@@ -1,0 +1,24 @@
+{
+  "headers": {
+    "cf-request-id": "0a41fab72200005da47035c000000001",
+    "last-modified": "Tue, 13 Apr 2021 18:10:49 GMT",
+    "content-length": "46",
+    "content-type": "application/typescript; charset=utf-8",
+    "age": "11212",
+    "x-amz-id-2": "Jc0ntVuCU/ErJC0yQc53dm6Zos7zWNleUrAuZ6Xl6neY4oFaSkUIRcw3rNrjXMLGTTKuPe8yrrE=",
+    "alt-svc": "h3-27=\":443\"; ma=86400, h3-28=\":443\"; ma=86400, h3-29=\":443\"; ma=86400",
+    "cf-cache-status": "HIT",
+    "vary": "Accept-Encoding",
+    "cache-control": "public, max-age=31536000, immutable",
+    "x-amz-request-id": "NGZAMTHVRGZC2NVA",
+    "server": "cloudflare",
+    "accept-ranges": "bytes",
+    "access-control-allow-origin": "*",
+    "etag": "\"6e880e766ed98ee97b28abe5e3365d66\"",
+    "cf-ray": "6549c70509205da4-IAD",
+    "date": "Mon, 24 May 2021 21:57:02 GMT",
+    "x-amz-version-id": "aLhpBp6.yUW15evtMWfa5QOQi4tFSv6l",
+    "expect-ct": "max-age=604800, report-uri=\"https://report-uri.cloudflare.com/cdn-cgi/beacon/expect-ct\""
+  },
+  "url": "https://deno.land/std@0.93.0/node/_crypto/constants.ts"
+}

@@ -18,7 +18,7 @@ import { CompletionsCommand } from "https://deno.land/x/cliffy@v0.18.2/command/c
 //      : https://www.skypack.dev/view/ulid
 import { ulid } from "https://cdn.skypack.dev/ulid?dts"
 
-import { S3 } from "https://deno.land/x/aws_sdk@v3.15.0.2/client-s3/mod.ts"
+import { S3 } from "https://deno.land/x/aws_sdk@v3.16.0-3/client-s3/mod.ts"
 
 import {
   deleteSavedTokens,
