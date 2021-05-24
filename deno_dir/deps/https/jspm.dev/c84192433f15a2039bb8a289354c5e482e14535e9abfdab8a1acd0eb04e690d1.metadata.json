@@ -1,0 +1,25 @@
+{
+  "headers": {
+    "last-modified": "Wed, 24 Jun 2020 05:38:29 GMT",
+    "etag": "\"4e69cfa8d0dbf346d29510c44b3fa43c\"",
+    "date": "Mon, 24 May 2021 12:10:23 GMT",
+    "alt-svc": "clear",
+    "accept-ranges": "bytes",
+    "age": "33038",
+    "x-goog-generation": "1592977109813422",
+    "x-goog-stored-content-length": "1822",
+    "x-guploader-uploadid": "ABg5-Uy3D8mott5-y5LL1pKKZvxQU4QEHxG4Mo5U26jJo1b0tJEXtRHqZAMQ6HEUXHXYcdi6rb6TRmR86hPl332c1g8",
+    "x-goog-metageneration": "2",
+    "access-control-allow-origin": "*",
+    "x-goog-stored-content-encoding": "br",
+    "expires": "Mon, 31 May 2021 12:10:23 GMT",
+    "content-type": "application/javascript",
+    "x-goog-hash": "crc32c=fGiNKw==,md5=TmnPqNDb80bSlRDESz+kPA==",
+    "x-goog-storage-class": "STANDARD",
+    "access-control-expose-headers": "Content-Type",
+    "content-language": "en",
+    "cache-control": "public, max-age=31536000, s-maxage=604800, immutable",
+    "server": "UploadServer"
+  },
+  "url": "https://jspm.dev/npm:@jspm/core@2.0.0-beta.7/nodelibs/events"
+}

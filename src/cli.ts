@@ -1,6 +1,11 @@
+// © 2020-2021 Truestamp Inc. All rights reserved.
+
 import {
+  Buffer,
   Command,
   CompletionsCommand,
+  configDir,
+  createHash,
   createTruestampClient,
   deleteSavedTokens,
   getSavedAccessToken,
@@ -8,6 +13,9 @@ import {
   getSavedRefreshToken,
   HelpCommand,
   ITypeInfo,
+  loadJsonFile,
+  path,
+  S3,
 } from "./deps.ts"
 
 function environmentType({ label, name, value }: ITypeInfo): string {
@@ -19,6 +27,51 @@ function environmentType({ label, name, value }: ITypeInfo): string {
   }
 
   return value.toLowerCase()
+}
+
+function getConfigFileForEnv(env: string): string {
+  return `${configDir()}/com.truestamp.cli.${env}.config.json`
+}
+
+function getConfigForEnv(env: string): Record<string, string> | undefined {
+  const configFile = getConfigFileForEnv(env)
+
+  try {
+    const c =
+      loadJsonFile.sync<{
+        aws_s3_region?: string
+        aws_s3_bucket?: string
+      }>(configFile)
+
+    if (c) {
+      return c
+    }
+  } catch {
+    // no-op
+  }
+}
+
+function getConfigKeyForEnv(env: string, key: string): string | undefined {
+  const config = getConfigForEnv(env)
+  if (config && config[key]) {
+    return config[key]
+  }
+}
+
+function writeConfigForEnvKeyValue(
+  env: string,
+  key: string,
+  value: string
+): void {
+  const config = getConfigForEnv(env) || {}
+  config[key] = value
+
+  try {
+    Deno.writeTextFileSync(getConfigFileForEnv(env), JSON.stringify(config))
+    // console.log(JSON.stringify(config));
+  } catch (error) {
+    throw new Error(`unable to write config file : ${error.message}`)
+  }
 }
 
 const authLogin = new Command()
@@ -298,6 +351,242 @@ const documents = new Command()
   .command("delete", documentsDelete)
   .command("list", documentsList)
 
+const s3ConfigSet = new Command()
+  .description(`Set environment specific persistent config for AWS S3.`)
+  .type("envType", environmentType, { global: true })
+  .option("-E, --env [env:envType]", "API environment to use.", {
+    hidden: false,
+    default: "production",
+  })
+  .allowEmpty(false)
+  .option(
+    "-r, --region [region:string]",
+    "Set the AWS S3 region the bucket exists in.",
+    {
+      required: true,
+      default: "us-east-1",
+    }
+  )
+  .option(
+    "-b, --bucket [bucket:string]",
+    "Set the name of the AWS S3 bucket (must exist in region specified in '--region').",
+    {
+      required: true,
+    }
+  )
+  .action((options) => {
+    try {
+      if (options.region !== getConfigKeyForEnv(options.env, "aws_s3_region")) {
+        writeConfigForEnvKeyValue(options.env, "aws_s3_region", options.region)
+      }
+
+      if (options.bucket !== getConfigKeyForEnv(options.env, "aws_s3_bucket")) {
+        writeConfigForEnvKeyValue(options.env, "aws_s3_bucket", options.bucket)
+      }
+    } catch (error) {
+      console.error("Error: ", error.message)
+      Deno.exit(1)
+    }
+
+    Deno.exit(0)
+  })
+
+const s3Config = new Command()
+  .description(`View environment specific config for AWS S3.`)
+  .type("envType", environmentType, { global: true })
+  .option("-E, --env [env:envType]", "API environment to use.", {
+    hidden: false,
+    default: "production",
+  })
+  .allowEmpty(false)
+  .action((options) => {
+    const config = getConfigForEnv(options.env)
+    console.log(JSON.stringify(config))
+    Deno.exit(0)
+  })
+  .command("set", s3ConfigSet)
+
+const s3Upload = new Command()
+  .description(
+    `Upload a file to an AWS S3 bucket monitored by Truestamp.
+
+  By default only the base filename of a path will be used to determine the
+  'key' the object will be stored at. This base filename can be overriden with
+  the '--key' argument. An optional '--prefix' can also be provided to store key
+  in a 'folder'.
+
+  Uploading a file to a pre-existing key in a bucket will result
+  in the silent creation of a new version of the file in S3 in
+  versioned buckets.
+
+  The use of this command assumes an existing install of
+  an appropriate Truestamp AWS S3 monitoring function. Without
+  it, uploaded files will not be observed.
+  `
+  )
+  .type("envType", environmentType, { global: true })
+  .option("-E, --env [env:envType]", "API environment to use.", {
+    hidden: false,
+    default: "production",
+  })
+  .allowEmpty(false)
+  .option(
+    "-p, --path [path:string]",
+    "The relative, or absolute, filesystem path of a local file to upload. The file basename will be used as the S3 object key. e.g. '/my/path/doc.txt' has a basename of 'doc.txt'.",
+    {
+      required: true,
+    }
+  )
+  .option(
+    "-P, --prefix [prefix:string]",
+    "The prefix that preceeds the file '--path' basename or '--key'. The prefix can emulate a folder structure with slashes '/' as the delimiter. If no prefix is provided the object will be stored in the root of the bucket.",
+    {
+      required: false,
+      default: "",
+    }
+  )
+  .option(
+    "-k, --key [key:string]",
+    "The 'key' to store the object in the AWS S3 bucket. Overrides the file basename from the '--path' option.",
+    {
+      required: false,
+    }
+  )
+  .action(async (options) => {
+    try {
+      const config = getConfigForEnv(options.env)
+      if (!config || !config.aws_s3_bucket) {
+        throw new Error("missing aws s3 bucket config")
+      }
+
+      if (!config || !config.aws_s3_region) {
+        throw new Error("missing aws s3 region config")
+      }
+
+      // ex: /path/to/my-picture.png becomes my-picture.png
+      const fileBaseName = path.basename(options.path)
+
+      const fileContents = await Deno.readFile(options.path)
+
+      // If you want to save to "my-bucket/{prefix}/{filename}"
+      //                    ex: "my-bucket/my-pictures-folder/my-picture.png"
+      const resolvedFileName = options.key ? options.key : fileBaseName
+
+      const keyName = [options.prefix, resolvedFileName].join("")
+
+      // https://docs.aws.amazon.com/AmazonS3/latest/userguide/object-keys.html
+      const keyRegex = /^[a-zA-Z0-9\/\!\-\_\.\*\'\(\)]+$/
+      if (!keyRegex.test(keyName)) {
+        throw new Error(
+          `object prefix + key must be valid, but got "${keyName}". Allowed RegEx ${keyRegex}`
+        )
+      }
+
+      // MD5 hash to be submitted with the content to
+      // ensure integrity of file stored. This is
+      // required for buckets using a retention period
+      // configured using Amazon S3 Object Lock.
+      // https://docs.aws.amazon.com/AmazonS3/latest/API/API_PutObject.html
+      const hashMD5 = createHash("md5")
+      hashMD5.update(fileContents)
+      const hashMD5InBase64 = hashMD5.toString("base64")
+
+      // SHA256 hash (Base64 encoded) to submit as
+      // user-defined metadata and stored with the S3 object
+      const hashSHA256 = createHash("sha256")
+      hashSHA256.update(fileContents)
+      const hashSHA256InBase64 = hashSHA256.toString("base64")
+
+      const metadata = {
+        "hash-sha256": hashSHA256InBase64,
+        creator: `truestamp-cli-v${s3Upload.getVersion()}`,
+      }
+
+      const s3ObjParams = {
+        Bucket: config.aws_s3_bucket,
+        Body: fileContents,
+        ContentMD5: hashMD5InBase64,
+        Key: keyName,
+        Metadata: metadata,
+      }
+
+      const client = new S3({
+        region: config.aws_s3_region,
+      })
+
+      const resp = await client.putObject(s3ObjParams)
+      // console.log(resp)
+
+      // The ETag is being returned wrapped in extra quotes
+      // See : https://github.com/aws/aws-sdk-net/issues/815
+      const eTagStripped = resp.ETag ? resp.ETag.replace(/(^"|"$)/g, "") : ""
+
+      // compare() method compares two buffer objects and returns a number defining their differences
+      // https://teppen.io/2018/06/23/aws_s3_etags/
+      if (
+        Buffer.compare(
+          Buffer.from(hashMD5InBase64, "base64"),
+          Buffer.from(eTagStripped, "hex")
+        ) != 0
+      ) {
+        throw new Error(
+          "the md5 end-to-end integrity check on the submitted data and the returned ETag failed"
+        )
+      }
+
+      const objMeta = {
+        region: config.aws_s3_region,
+        bucket: config.aws_s3_bucket,
+        key: keyName,
+        versionId: resp.VersionId,
+        eTag: eTagStripped,
+        metadata: metadata,
+      }
+      console.log(JSON.stringify(objMeta))
+    } catch (error) {
+      console.error("Error: ", error.message)
+      Deno.exit(1)
+    }
+
+    Deno.exit(0)
+  })
+
+const s3 = new Command()
+  .description(
+    "Manage files stored in an AWS S3 bucket monitored by Truestamp."
+  )
+  .hidden()
+  .env(
+    "AWS_PROFILE=<aws_client_credentials_profile:string>",
+    "The AWS client credentials profile to use.",
+    {
+      global: true,
+      hidden: false,
+    }
+  )
+  .env(
+    "AWS_ACCESS_KEY_ID=<aws_access_key_id:string>",
+    "The AWS Access Key ID to use.",
+    {
+      global: true,
+      hidden: false,
+    }
+  )
+  .env(
+    "AWS_SECRET_ACCESS_KEY=<aws_secret_access_key:string>",
+    "The AWS Secret Access Key to use.",
+    {
+      global: true,
+      hidden: false,
+    }
+  )
+  .action(() => {
+    s3.showHelp()
+    Deno.exit(0)
+  })
+  .command("config", s3Config)
+  .command("upload", s3Upload)
+
 const heartbeat = new Command()
   .description("Display results of API server heartbeat call.")
   .type("envType", environmentType, { global: true })
@@ -315,7 +604,7 @@ const heartbeat = new Command()
 // Top level command
 const cmd = new Command()
   .name("truestamp")
-  .version("0.0.0")
+  .version("0.0.4")
   .description("Truestamp CLI")
   .help({
     types: false,
@@ -330,6 +619,7 @@ const cmd = new Command()
   .command("documents", documents)
   .command("heartbeat", heartbeat)
   .command("help", new HelpCommand().global())
+  .command("s3", s3)
 
 try {
   cmd.parse(Deno.args)

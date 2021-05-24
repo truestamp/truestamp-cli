@@ -1,0 +1,16 @@
+{
+  "headers": {
+    "cf-ray": "6549923c6c90cf3c-IAD",
+    "cache-control": "max-age=3600",
+    "alt-svc": "h3-27=\":443\"; ma=86400, h3-28=\":443\"; ma=86400, h3-29=\":443\"; ma=86400",
+    "connection": "keep-alive",
+    "cf-request-id": "0a41d9b9c00000cf3c398d0000000001",
+    "transfer-encoding": "chunked",
+    "date": "Mon, 24 May 2021 21:21:00 GMT",
+    "expires": "Mon, 24 May 2021 22:21:00 GMT",
+    "location": "https://deno.land/x/node_buffer@1.1.0/mod.ts",
+    "server": "cloudflare",
+    "vary": "Accept-Encoding"
+  },
+  "url": "http://deno.land/x/node_buffer@1.1.0/mod.ts"
+}

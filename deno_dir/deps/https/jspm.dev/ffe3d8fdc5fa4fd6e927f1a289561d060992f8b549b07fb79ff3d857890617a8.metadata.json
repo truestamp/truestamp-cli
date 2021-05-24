@@ -1,0 +1,25 @@
+{
+  "headers": {
+    "content-language": "en",
+    "x-goog-hash": "crc32c=HdJA3A==,md5=ePDOVCIeh9E5doJxLYFpUw==",
+    "expires": "Mon, 24 May 2021 21:24:21 GMT",
+    "x-guploader-uploadid": "ABg5-UxAyoG5K6UsophrqvxwX5ggqGaHr6ON2Srn0b5OgUZ7ePrZ8TT8cUPrI-1Rc4uCw3ZFScgaUmyJBi-I0uTX4S8",
+    "content-type": "application/javascript",
+    "x-goog-storage-class": "STANDARD",
+    "accept-ranges": "bytes",
+    "x-goog-stored-content-encoding": "br",
+    "age": "0",
+    "x-goog-stored-content-length": "65",
+    "alt-svc": "clear",
+    "x-goog-metageneration": "2",
+    "x-goog-generation": "1615710866696044",
+    "access-control-expose-headers": "Content-Type",
+    "date": "Mon, 24 May 2021 21:21:01 GMT",
+    "server": "UploadServer",
+    "access-control-allow-origin": "*",
+    "cache-control": "public, max-age=200",
+    "etag": "\"78f0ce54221e87d1397682712d816953\"",
+    "last-modified": "Sun, 14 Mar 2021 08:34:26 GMT"
+  },
+  "url": "https://jspm.dev/fast-xml-parser"
+}

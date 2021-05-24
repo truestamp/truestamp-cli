@@ -1,0 +1,140 @@
+import { once } from "../_utils.ts";
+import { ERR_INVALID_ARG_TYPE, ERR_STREAM_PREMATURE_CLOSE, } from "../_errors.ts";
+function isReadable(stream) {
+    return typeof stream.readable === "boolean" ||
+        typeof stream.readableEnded === "boolean" ||
+        !!stream._readableState;
+}
+function isWritable(stream) {
+    return typeof stream.writable === "boolean" ||
+        typeof stream.writableEnded === "boolean" ||
+        !!stream._writableState;
+}
+function isWritableFinished(stream) {
+    if (stream.writableFinished)
+        return true;
+    const wState = stream._writableState;
+    if (!wState || wState.errored)
+        return false;
+    return wState.finished || (wState.ended && wState.length === 0);
+}
+function nop() { }
+function isReadableEnded(stream) {
+    if (stream.readableEnded)
+        return true;
+    const rState = stream._readableState;
+    if (!rState || rState.errored)
+        return false;
+    return rState.endEmitted || (rState.ended && rState.length === 0);
+}
+export default function eos(stream, x, y) {
+    let opts;
+    let callback;
+    if (!y) {
+        if (typeof x !== "function") {
+            throw new ERR_INVALID_ARG_TYPE("callback", "function", x);
+        }
+        opts = {};
+        callback = x;
+    }
+    else {
+        if (!x || Array.isArray(x) || typeof x !== "object") {
+            throw new ERR_INVALID_ARG_TYPE("opts", "object", x);
+        }
+        opts = x;
+        if (typeof y !== "function") {
+            throw new ERR_INVALID_ARG_TYPE("callback", "function", y);
+        }
+        callback = y;
+    }
+    callback = once(callback);
+    const readable = opts.readable ?? isReadable(stream);
+    const writable = opts.writable ?? isWritable(stream);
+    const wState = stream._writableState;
+    const rState = stream._readableState;
+    const validState = wState || rState;
+    const onlegacyfinish = () => {
+        if (!stream.writable) {
+            onfinish();
+        }
+    };
+    let willEmitClose = (validState?.autoDestroy &&
+        validState?.emitClose &&
+        validState?.closed === false &&
+        isReadable(stream) === readable &&
+        isWritable(stream) === writable);
+    let writableFinished = stream.writableFinished ||
+        wState?.finished;
+    const onfinish = () => {
+        writableFinished = true;
+        if (stream.destroyed) {
+            willEmitClose = false;
+        }
+        if (willEmitClose && (!stream.readable || readable)) {
+            return;
+        }
+        if (!readable || readableEnded) {
+            callback.call(stream);
+        }
+    };
+    let readableEnded = stream.readableEnded || rState?.endEmitted;
+    const onend = () => {
+        readableEnded = true;
+        if (stream.destroyed) {
+            willEmitClose = false;
+        }
+        if (willEmitClose && (!stream.writable || writable)) {
+            return;
+        }
+        if (!writable || writableFinished) {
+            callback.call(stream);
+        }
+    };
+    const onerror = (err) => {
+        callback.call(stream, err);
+    };
+    const onclose = () => {
+        if (readable && !readableEnded) {
+            if (!isReadableEnded(stream)) {
+                return callback.call(stream, new ERR_STREAM_PREMATURE_CLOSE());
+            }
+        }
+        if (writable && !writableFinished) {
+            if (!isWritableFinished(stream)) {
+                return callback.call(stream, new ERR_STREAM_PREMATURE_CLOSE());
+            }
+        }
+        callback.call(stream);
+    };
+    if (writable && !wState) {
+        stream.on("end", onlegacyfinish);
+        stream.on("close", onlegacyfinish);
+    }
+    stream.on("end", onend);
+    stream.on("finish", onfinish);
+    if (opts.error !== false)
+        stream.on("error", onerror);
+    stream.on("close", onclose);
+    const closed = (wState?.closed ||
+        rState?.closed ||
+        wState?.errorEmitted ||
+        rState?.errorEmitted ||
+        ((!writable || wState?.finished) &&
+            (!readable || rState?.endEmitted)));
+    if (closed) {
+        queueMicrotask(callback);
+    }
+    return function () {
+        callback = nop;
+        stream.removeListener("aborted", onclose);
+        stream.removeListener("complete", onfinish);
+        stream.removeListener("abort", onclose);
+        stream.removeListener("end", onlegacyfinish);
+        stream.removeListener("close", onlegacyfinish);
+        stream.removeListener("finish", onfinish);
+        stream.removeListener("end", onend);
+        stream.removeListener("error", onerror);
+        stream.removeListener("close", onclose);
+    };
+}
+//# sourceMappingURL=data:application/json;base64,eyJ2ZXJzaW9uIjozLCJmaWxlIjoiZW5kX29mX3N0cmVhbS5qcyIsInNvdXJjZVJvb3QiOiIiLCJzb3VyY2VzIjpbImVuZF9vZl9zdHJlYW0udHMiXSwibmFtZXMiOltdLCJtYXBwaW5ncyI6IkFBQ0EsT0FBTyxFQUFFLElBQUksRUFBRSxNQUFNLGNBQWMsQ0FBQztBQU9wQyxPQUFPLEVBQ0wsb0JBQW9CLEVBQ3BCLDBCQUEwQixHQUUzQixNQUFNLGVBQWUsQ0FBQztBQVd2QixTQUFTLFVBQVUsQ0FBQyxNQUFXO0lBQzdCLE9BQU8sT0FBTyxNQUFNLENBQUMsUUFBUSxLQUFLLFNBQVM7UUFDekMsT0FBTyxNQUFNLENBQUMsYUFBYSxLQUFLLFNBQVM7UUFDekMsQ0FBQyxDQUFDLE1BQU0sQ0FBQyxjQUFjLENBQUM7QUFDNUIsQ0FBQztBQUdELFNBQVMsVUFBVSxDQUFDLE1BQVc7SUFDN0IsT0FBTyxPQUFPLE1BQU0sQ0FBQyxRQUFRLEtBQUssU0FBUztRQUN6QyxPQUFPLE1BQU0sQ0FBQyxhQUFhLEtBQUssU0FBUztRQUN6QyxDQUFDLENBQUMsTUFBTSxDQUFDLGNBQWMsQ0FBQztBQUM1QixDQUFDO0FBRUQsU0FBUyxrQkFBa0IsQ0FBQyxNQUFnQjtJQUMxQyxJQUFJLE1BQU0sQ0FBQyxnQkFBZ0I7UUFBRSxPQUFPLElBQUksQ0FBQztJQUN6QyxNQUFNLE1BQU0sR0FBRyxNQUFNLENBQUMsY0FBYyxDQUFDO0lBQ3JDLElBQUksQ0FBQyxNQUFNLElBQUksTUFBTSxDQUFDLE9BQU87UUFBRSxPQUFPLEtBQUssQ0FBQztJQUM1QyxPQUFPLE1BQU0sQ0FBQyxRQUFRLElBQUksQ0FBQyxNQUFNLENBQUMsS0FBSyxJQUFJLE1BQU0sQ0FBQyxNQUFNLEtBQUssQ0FBQyxDQUFDLENBQUM7QUFDbEUsQ0FBQztBQUVELFNBQVMsR0FBRyxLQUFJLENBQUM7QUFFakIsU0FBUyxlQUFlLENBQUMsTUFBZ0I7SUFDdkMsSUFBSSxNQUFNLENBQUMsYUFBYTtRQUFFLE9BQU8sSUFBSSxDQUFDO0lBQ3RDLE1BQU0sTUFBTSxH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

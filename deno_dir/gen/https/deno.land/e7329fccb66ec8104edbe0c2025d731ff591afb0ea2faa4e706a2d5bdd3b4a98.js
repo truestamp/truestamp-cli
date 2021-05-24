@@ -1,0 +1,4 @@
+export function resolveLocationConstraintConfig(input) {
+    return { ...input };
+}
+//# sourceMappingURL=data:application/json;base64,eyJ2ZXJzaW9uIjozLCJmaWxlIjoiY29uZmlndXJhdGlvbi5qcyIsInNvdXJjZVJvb3QiOiIiLCJzb3VyY2VzIjpbImNvbmZpZ3VyYXRpb24udHMiXSwibmFtZXMiOltdLCJtYXBwaW5ncyI6IkFBV0EsTUFBTSxVQUFVLCtCQUErQixDQUM3QyxLQUE2RDtJQUU3RCxPQUFPLEVBQUUsR0FBRyxLQUFLLEVBQUUsQ0FBQztBQUN0QixDQUFDIn0=

@@ -1,0 +1,25 @@
+{
+  "headers": {
+    "content-language": "en",
+    "date": "Mon, 24 May 2021 21:21:01 GMT",
+    "cache-control": "public, max-age=200",
+    "last-modified": "Wed, 24 Jun 2020 05:51:03 GMT",
+    "x-goog-metageneration": "2",
+    "x-goog-stored-content-encoding": "br",
+    "x-goog-stored-content-length": "154",
+    "accept-ranges": "bytes",
+    "access-control-allow-origin": "*",
+    "etag": "\"11a88e7b22fbcf151152cf173a2eea7f\"",
+    "content-type": "application/javascript",
+    "access-control-expose-headers": "Content-Type",
+    "server": "UploadServer",
+    "x-guploader-uploadid": "ABg5-UxL_jVLrHyhKHRwgz5_ju7CHTqKn31vg3UX3nZAp_VOXc1YLFM-drvcGNCstKnk1of67UAZhKS4EA2-zdPTV2A",
+    "x-goog-generation": "1592977863548538",
+    "age": "0",
+    "x-goog-hash": "crc32c=6lmfSA==,md5=EaiOeyL7zxURUs8XOi7qfw==",
+    "expires": "Mon, 24 May 2021 21:24:21 GMT",
+    "alt-svc": "clear",
+    "x-goog-storage-class": "STANDARD"
+  },
+  "url": "https://jspm.dev/npm:@jspm/core@2/nodelibs/crypto"
+}

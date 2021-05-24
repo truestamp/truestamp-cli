@@ -1,0 +1,24 @@
+{
+  "headers": {
+    "access-control-allow-origin": "*",
+    "expires": "Mon, 24 May 2021 21:24:21 GMT",
+    "x-goog-storage-class": "STANDARD",
+    "last-modified": "Tue, 11 May 2021 01:28:14 GMT",
+    "content-type": "application/javascript; charset=utf-8",
+    "x-guploader-uploadid": "ABg5-UxZzXCtZAtYI7kkVBQDSySejDDb75dBXpygIBqpz-rMa2bVgd6pGmhijqe5llF-22gQTL3oibD2HxUfgmnBsic",
+    "age": "0",
+    "x-goog-stored-content-encoding": "br",
+    "x-goog-hash": "crc32c=I7x64g==,md5=BWymgGoaGy7S763T1oJS+Q==",
+    "x-goog-generation": "1620696494422682",
+    "alt-svc": "clear",
+    "date": "Mon, 24 May 2021 21:21:01 GMT",
+    "access-control-expose-headers": "Content-Type",
+    "etag": "\"056ca6806a1a1b2ed2efadd3d68252f9\"",
+    "x-goog-stored-content-length": "131",
+    "server": "UploadServer",
+    "cache-control": "public, max-age=200",
+    "x-goog-metageneration": "2",
+    "accept-ranges": "bytes"
+  },
+  "url": "https://jspm.dev/@aws-sdk/hash-node"
+}

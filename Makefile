@@ -3,7 +3,7 @@ DEPS := src/deps.ts
 LOCK := lock.json
 DENO_DIR := ./deno_dir
 BUILD_DIR := ./build
-ARGS := --unstable --allow-env=HOME --allow-net=api.truestamp.com,staging-api.truestamp.com,dev-api.truestamp.com,login.truestamp.com,truestamp.auth0.com,truestamp-staging.auth0.com,truestamp-dev.auth0.com --allow-read --allow-write --lock=${LOCK} --cached-only
+ARGS := --unstable --allow-env --allow-net --allow-read --allow-write --lock=${LOCK} --cached-only
 
 build: clean prep build-darwin-x86 build-darwin-aarch64 build-windows build-linux compress
 
@@ -40,16 +40,16 @@ compress-windows:
 compress: compress-darwin compress-linux compress-windows
 
 lock:
-	export DENO_DIR=${DENO_DIR} && deno cache --lock=${LOCK} --lock-write ${DEPS}
+	export DENO_DIR=${DENO_DIR} && deno cache --unstable --lock=${LOCK} --lock-write ${DEPS}
 
 cache:
-	export DENO_DIR=${DENO_DIR} && deno cache ${DEPS} && make lock
+	export DENO_DIR=${DENO_DIR} && deno cache --unstable ${DEPS} && make lock
 
 cache-reload:
-	export DENO_DIR=${DENO_DIR} && deno cache --reload ${DEPS} && make lock
+	export DENO_DIR=${DENO_DIR} && deno cache --unstable --reload ${DEPS} && make lock
 
 test:
-	export DENO_DIR=${DENO_DIR} && deno test --lock=${LOCK} --cached-only src
+	export DENO_DIR=${DENO_DIR} && deno test ${ARGS} src
 
 format:
 	export DENO_DIR=${DENO_DIR} && deno fmt src

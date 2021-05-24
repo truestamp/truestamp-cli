@@ -1,0 +1,24 @@
+{
+  "headers": {
+    "access-control-allow-origin": "*",
+    "cf-request-id": "0a41d9ba28000037f96f91f000000001",
+    "cf-cache-status": "HIT",
+    "alt-svc": "h3-27=\":443\"; ma=86400, h3-28=\":443\"; ma=86400, h3-29=\":443\"; ma=86400",
+    "expect-ct": "max-age=604800, report-uri=\"https://report-uri.cloudflare.com/cdn-cgi/beacon/expect-ct\"",
+    "content-length": "4355",
+    "date": "Mon, 24 May 2021 21:21:01 GMT",
+    "etag": "\"8426899a5f574d64bde40f84254ba4d2\"",
+    "vary": "Accept-Encoding",
+    "age": "11327",
+    "server": "cloudflare",
+    "cache-control": "public, max-age=31536000, immutable",
+    "last-modified": "Mon, 24 May 2021 12:15:16 GMT",
+    "accept-ranges": "bytes",
+    "x-amz-id-2": "HjJNdF5SDcEX7M1kjkdFRYutqnS6ShXChCKCKqmFko5VJQRFDrR9tPBgUsJ37d3lx6KZBQlgT/U=",
+    "content-type": "application/typescript; charset=utf-8",
+    "cf-ray": "6549923d0dcd37f9-IAD",
+    "x-amz-version-id": "tF3fFAGutwaEJb6r6F5c20Ib3GPpT2VJ",
+    "x-amz-request-id": "99PPABCZ5Z78K7W5"
+  },
+  "url": "https://deno.land/x/aws_sdk@v3.15.0.2/client-s3/commands/GetObjectLockConfigurationCommand.ts"
+}

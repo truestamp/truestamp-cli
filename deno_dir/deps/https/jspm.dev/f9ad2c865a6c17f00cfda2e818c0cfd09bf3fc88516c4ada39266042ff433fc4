@@ -1,0 +1,3 @@
+import "/npm:tslib@1!cjs";
+export * from "/npm:@aws-crypto/crc32@1.0.0!cjs";
+export { default } from "/npm:@aws-crypto/crc32@1.0.0!cjs";

@@ -1,0 +1,83 @@
+import { notImplemented } from "../_utils.ts";
+import { fromFileUrl } from "../path.ts";
+import { Buffer } from "../buffer.ts";
+import { checkEncoding, getEncoding, getOpenOptions, isFileOptions, } from "./_fs_common.ts";
+export function writeFile(pathOrRid, data, optOrCallback, callback) {
+    const callbackFn = optOrCallback instanceof Function ? optOrCallback : callback;
+    const options = optOrCallback instanceof Function ? undefined : optOrCallback;
+    if (!callbackFn) {
+        throw new TypeError("Callback must be a function.");
+    }
+    pathOrRid = pathOrRid instanceof URL ? fromFileUrl(pathOrRid) : pathOrRid;
+    const flag = isFileOptions(options)
+        ? options.flag
+        : undefined;
+    const mode = isFileOptions(options)
+        ? options.mode
+        : undefined;
+    const encoding = checkEncoding(getEncoding(options)) || "utf8";
+    const openOptions = getOpenOptions(flag || "w");
+    if (typeof data === "string")
+        data = Buffer.from(data, encoding);
+    const isRid = typeof pathOrRid === "number";
+    let file;
+    let error = null;
+    (async () => {
+        try {
+            file = isRid
+                ? new Deno.File(pathOrRid)
+                : await Deno.open(pathOrRid, openOptions);
+            if (!isRid && mode) {
+                if (Deno.build.os === "windows")
+                    notImplemented(`"mode" on Windows`);
+                await Deno.chmod(pathOrRid, mode);
+            }
+            await Deno.writeAll(file, data);
+        }
+        catch (e) {
+            error = e;
+        }
+        finally {
+            if (!isRid && file)
+                file.close();
+            callbackFn(error);
+        }
+    })();
+}
+export function writeFileSync(pathOrRid, data, options) {
+    pathOrRid = pathOrRid instanceof URL ? fromFileUrl(pathOrRid) : pathOrRid;
+    const flag = isFileOptions(options)
+        ? options.flag
+        : undefined;
+    const mode = isFileOptions(options)
+        ? options.mode
+        : undefined;
+    const encoding = checkEncoding(getEncoding(options)) || "utf8";
+    const openOptions = getOpenOptions(flag || "w");
+    if (typeof data === "string")
+        data = Buffer.from(data, encoding);
+    const isRid = typeof pathOrRid === "number";
+    let file;
+    let error = null;
+    try {
+        file = isRid
+            ? new Deno.File(pathOrRid)
+            : Deno.openSync(pathOrRid, openOptions);
+        if (!isRid && mode) {
+            if (Deno.build.os === "windows")
+                notImplemented(`"mode" on Windows`);
+            Deno.chmodSync(pathOrRid, mode);
+        }
+        Deno.writeAllSync(file, data);
+    }
+    catch (e) {
+        error = e;
+    }
+    finally {
+        if (!isRid && file)
+            file.close();
+        if (error)
+            throw error;
+    }
+}
+//# sourceMappingURL=data:application/json;base64,eyJ2ZXJzaW9uIjozLCJmaWxlIjoiX2ZzX3dyaXRlRmlsZS5qcyIsInNvdXJjZVJvb3QiOiIiLCJzb3VyY2VzIjpbIl9mc193cml0ZUZpbGUudHMiXSwibmFtZXMiOltdLCJtYXBwaW5ncyI6IkFBQ0EsT0FBTyxFQUFhLGNBQWMsRUFBRSxNQUFNLGNBQWMsQ0FBQztBQUN6RCxPQUFPLEVBQUUsV0FBVyxFQUFFLE1BQU0sWUFBWSxDQUFDO0FBQ3pDLE9BQU8sRUFBRSxNQUFNLEVBQUUsTUFBTSxjQUFjLENBQUM7QUFDdEMsT0FBTyxFQUVMLGFBQWEsRUFDYixXQUFXLEVBQ1gsY0FBYyxFQUNkLGFBQWEsR0FFZCxNQUFNLGlCQUFpQixDQUFDO0FBRXpCLE1BQU0sVUFBVSxTQUFTLENBQ3ZCLFNBQWdDLEVBQ2hDLElBQXlCLEVBQ3pCLGFBQTJFLEVBQzNFLFFBQTRCO0lBRTVCLE1BQU0sVUFBVSxHQUNkLGFBQWEsWUFBWSxRQUFRLENBQUMsQ0FBQyxDQUFDLGFBQWEsQ0FBQyxDQUFDLENBQUMsUUFBUSxDQUFDO0lBQy9ELE1BQU0sT0FBTyxHQUNYLGFBQWEsWUFBWSxRQUFRLENBQUMsQ0FBQyxDQUFDLFNBQVMsQ0FBQyxDQUFDLENBQUMsYUFBYSxDQUFDO0lBRWhFLElBQUksQ0FBQyxVQUFVLEVBQUU7UUFDZixNQUFNLElBQUksU0FBUyxDQUFDLDhCQUE4QixDQUFDLENBQUM7S0FDckQ7SUFFRCxTQUFTLEdBQUcsU0FBUyxZQUFZLEdBQUcsQ0FBQyxDQUFDLENBQUMsV0FBVyxDQUFDLFNBQVMsQ0FBQyxDQUFDLENBQUMsQ0FBQyxTQUFTLENBQUM7SUFFMUUsTUFBTSxJQUFJLEdBQXVCLGFBQWEsQ0FBQyxPQUFPLENBQUM7UUFDckQsQ0FBQyxDQUFDLE9BQU8sQ0FBQyxJQUFJO1FBQ2QsQ0FBQyxDQUFDLFNBQVMsQ0FBQztJQUVkLE1BQU0sSUFBSSxHQUF1QixhQUFhLENBQUMsT0FBTyxDQUFDO1FBQ3JELENBQUMsQ0FBQyxPQUFPLENBQUMsSUFBSTtRQUNkLENBQUMsQ0FBQyxTQUFTLENBQUM7SUFFZCxN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

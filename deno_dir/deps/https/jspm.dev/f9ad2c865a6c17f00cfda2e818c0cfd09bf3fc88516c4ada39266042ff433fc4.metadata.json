@@ -1,0 +1,25 @@
+{
+  "headers": {
+    "access-control-expose-headers": "Content-Type",
+    "last-modified": "Thu, 22 Oct 2020 23:19:25 GMT",
+    "x-goog-storage-class": "STANDARD",
+    "etag": "\"ea8c9076bb06a8a1b7438fcbb536e51b\"",
+    "expires": "Mon, 24 May 2021 21:24:22 GMT",
+    "age": "0",
+    "date": "Mon, 24 May 2021 21:21:02 GMT",
+    "content-language": "en",
+    "x-goog-stored-content-encoding": "br",
+    "x-guploader-uploadid": "ABg5-UxXAh4Fny5kU6GAZPplHJ76hUKbDpRmtSeuSa4PD_t8s51ZFqVBKpPCso1Esi2T3J3qtfoVdrerfF1qJkvFf7g",
+    "access-control-allow-origin": "*",
+    "alt-svc": "clear",
+    "server": "UploadServer",
+    "cache-control": "public, max-age=200",
+    "accept-ranges": "bytes",
+    "x-goog-hash": "crc32c=95pp4w==,md5=6oyQdrsGqKG3Q4/LtTblGw==",
+    "x-goog-generation": "1603408765313992",
+    "x-goog-stored-content-length": "79",
+    "content-type": "application/javascript",
+    "x-goog-metageneration": "2"
+  },
+  "url": "https://jspm.dev/@aws-crypto/crc32"
+}

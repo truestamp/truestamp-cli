@@ -1,0 +1,24 @@
+{
+  "headers": {
+    "server": "cloudflare",
+    "last-modified": "Mon, 24 May 2021 12:10:21 GMT",
+    "date": "Mon, 24 May 2021 21:21:01 GMT",
+    "alt-svc": "h3-27=\":443\"; ma=86400, h3-28=\":443\"; ma=86400, h3-29=\":443\"; ma=86400",
+    "access-control-allow-origin": "*",
+    "cf-cache-status": "HIT",
+    "x-amz-id-2": "8DEx4lunPvTervMNt6iQ1VtqKkTK8D3D4HH9O7Lt/ac/KlXi24Qjz1tIs93Zo2Cu/JiFRK8cB0g=",
+    "vary": "Accept-Encoding",
+    "content-type": "application/typescript; charset=utf-8",
+    "age": "33039",
+    "etag": "\"0a7fdd4abc696632660ac636a6dec04a\"",
+    "accept-ranges": "bytes",
+    "content-length": "185",
+    "cf-ray": "6549923f8ab937f9-IAD",
+    "cache-control": "public, max-age=31536000, immutable",
+    "expect-ct": "max-age=604800, report-uri=\"https://report-uri.cloudflare.com/cdn-cgi/beacon/expect-ct\"",
+    "x-amz-request-id": "G0VDWRAV5W9PCV2Z",
+    "cf-request-id": "0a41d9bbb3000037f96d810000000001",
+    "x-amz-version-id": "DTMyZugbJTox7UayAn0wz7oWCTwgIErr"
+  },
+  "url": "https://deno.land/x/aws_sdk@v3.15.0.2/smithy-client/sdk-error.ts"
+}

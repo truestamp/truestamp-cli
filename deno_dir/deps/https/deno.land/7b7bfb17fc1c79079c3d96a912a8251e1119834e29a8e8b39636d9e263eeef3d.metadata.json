@@ -1,15 +1,15 @@
 {
   "headers": {
     "expect-ct": "max-age=604800, report-uri=\"https://report-uri.cloudflare.com/cdn-cgi/beacon/expect-ct\"",
-    "cf-ray": "6516d8d26c865944-IAD",
     "alt-svc": "h3-27=\":443\"; ma=86400, h3-28=\":443\"; ma=86400, h3-29=\":443\"; ma=86400",
-    "vary": "Accept-Encoding",
+    "cf-request-id": "0a41d9bc87000037f959127000000001",
     "content-length": "0",
+    "x-deno-warning": "Implicitly using latest version (0.97.0) for https://deno.land/std/log/mod.ts",
     "location": "/std@0.97.0/log/mod.ts",
-    "cf-request-id": "0a2225d77f00005944d19fe000000001",
-    "date": "Tue, 18 May 2021 17:36:18 GMT",
-    "server": "cloudflare",
-    "x-deno-warning": "Implicitly using latest version (0.97.0) for https://deno.land/std/log/mod.ts"
+    "date": "Mon, 24 May 2021 21:21:01 GMT",
+    "vary": "Accept-Encoding",
+    "cf-ray": "65499240cd8637f9-IAD",
+    "server": "cloudflare"
   },
   "url": "https://deno.land/std/log/mod.ts"
 }

@@ -1,0 +1,24 @@
+{
+  "headers": {
+    "cf-cache-status": "HIT",
+    "x-amz-id-2": "mTMYbKb6oUZ9Dv9qvdlGVV5YvtOuZrkTyuvBytYanj0fRwL8CdCE8JQCXahWS0Ixpe7bmK1mEyE=",
+    "age": "11328",
+    "cache-control": "public, max-age=31536000, immutable",
+    "x-amz-version-id": "eeSMwCYdsioczb8Gx7OBihNcHuzqTMhT",
+    "server": "cloudflare",
+    "expect-ct": "max-age=604800, report-uri=\"https://report-uri.cloudflare.com/cdn-cgi/beacon/expect-ct\"",
+    "last-modified": "Mon, 24 May 2021 12:15:16 GMT",
+    "content-type": "application/typescript; charset=utf-8",
+    "x-amz-request-id": "99PM606PMY4FHAHR",
+    "etag": "\"9affc2bb2b2627f893697cd71445ec2e\"",
+    "cf-ray": "6549923d0e3237f9-IAD",
+    "accept-ranges": "bytes",
+    "content-length": "5499",
+    "cf-request-id": "0a41d9ba35000037f989817000000001",
+    "vary": "Accept-Encoding",
+    "date": "Mon, 24 May 2021 21:21:01 GMT",
+    "alt-svc": "h3-27=\":443\"; ma=86400, h3-28=\":443\"; ma=86400, h3-29=\":443\"; ma=86400",
+    "access-control-allow-origin": "*"
+  },
+  "url": "https://deno.land/x/aws_sdk@v3.15.0.2/client-s3/commands/GetBucketNotificationConfigurationCommand.ts"
+}

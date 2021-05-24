@@ -1,0 +1,25 @@
+{
+  "headers": {
+    "cache-control": "public, max-age=31536000, s-maxage=604800, immutable",
+    "x-guploader-uploadid": "ABg5-UyDKCWsaTX7lpmzS0td_CqUopsO3YLoCCnKSWO-ey4qS2_tffct5CYtrUyOGGbwIr9FNJz2I6Xq1ZTmzUjKDn0",
+    "content-type": "application/javascript",
+    "etag": "\"c89dcfa3b859ee2dd4756347f1df4dd2\"",
+    "x-goog-metageneration": "2",
+    "date": "Mon, 24 May 2021 12:10:23 GMT",
+    "x-goog-generation": "1592977109889061",
+    "x-goog-stored-content-encoding": "br",
+    "x-goog-stored-content-length": "1007",
+    "age": "33038",
+    "access-control-expose-headers": "Content-Type",
+    "server": "UploadServer",
+    "alt-svc": "clear",
+    "accept-ranges": "bytes",
+    "last-modified": "Wed, 24 Jun 2020 05:38:29 GMT",
+    "access-control-allow-origin": "*",
+    "x-goog-storage-class": "STANDARD",
+    "expires": "Mon, 31 May 2021 12:10:23 GMT",
+    "x-goog-hash": "crc32c=pU2eug==,md5=yJ3Po7hZ7i3UdWNH8d9N0g==",
+    "content-language": "en"
+  },
+  "url": "https://jspm.dev/npm:@jspm/core@2.0.0-beta.7/nodelibs/vm"
+}

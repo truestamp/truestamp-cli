@@ -1,0 +1,24 @@
+{
+  "headers": {
+    "cf-cache-status": "HIT",
+    "date": "Mon, 24 May 2021 21:21:01 GMT",
+    "access-control-allow-origin": "*",
+    "alt-svc": "h3-27=\":443\"; ma=86400, h3-28=\":443\"; ma=86400, h3-29=\":443\"; ma=86400",
+    "last-modified": "Mon, 24 May 2021 12:10:20 GMT",
+    "server": "cloudflare",
+    "x-amz-request-id": "Q0Z26A01HYT7AVPZ",
+    "x-amz-version-id": "d0Cw4rD.oUUezo71SmxDSxJkpgqHzsfA",
+    "vary": "Accept-Encoding",
+    "cache-control": "public, max-age=31536000, immutable",
+    "cf-request-id": "0a41d9bdbe000037f975a83000000001",
+    "x-amz-id-2": "OhfMSfKhmqlvam6tdpRBGyKnGcnxuLWkvc2vaZ8qBTwoIStUjhd3OyxaAG+NdfIKfHcLYPnFpoA=",
+    "age": "32800",
+    "accept-ranges": "bytes",
+    "content-length": "2072",
+    "etag": "\"914baf8c3c732b1bda8183c0fd71d5be\"",
+    "expect-ct": "max-age=604800, report-uri=\"https://report-uri.cloudflare.com/cdn-cgi/beacon/expect-ct\"",
+    "cf-ray": "65499242c96c37f9-IAD",
+    "content-type": "application/typescript; charset=utf-8"
+  },
+  "url": "https://deno.land/x/aws_sdk@v3.15.0.2/eventstream-marshaller/EventStreamMarshaller.ts"
+}

@@ -1,0 +1,6 @@
+import { chain, memoize } from "../property-provider/mod.ts";
+import { fromEnv } from "./fromEnv.ts";
+import { fromSharedConfigFiles } from "./fromSharedConfigFiles.ts";
+import { fromStatic } from "./fromStatic.ts";
+export const loadConfig = ({ environmentVariableSelector, configFileSelector, default: defaultValue }, configuration = {}) => memoize(chain(fromEnv(environmentVariableSelector), fromSharedConfigFiles(configFileSelector, configuration), fromStatic(defaultValue)));
+//# sourceMappingURL=data:application/json;base64,eyJ2ZXJzaW9uIjozLCJmaWxlIjoiY29uZmlnTG9hZGVyLmpzIiwic291cmNlUm9vdCI6IiIsInNvdXJjZXMiOlsiY29uZmlnTG9hZGVyLnRzIl0sIm5hbWVzIjpbXSwibWFwcGluZ3MiOiJBQUFBLE9BQU8sRUFBRSxLQUFLLEVBQUUsT0FBTyxFQUFFLE1BQU0sNkJBQTZCLENBQUM7QUFHN0QsT0FBTyxFQUFFLE9BQU8sRUFBaUIsTUFBTSxjQUFjLENBQUM7QUFDdEQsT0FBTyxFQUFFLHFCQUFxQixFQUFzQyxNQUFNLDRCQUE0QixDQUFDO0FBQ3ZHLE9BQU8sRUFBRSxVQUFVLEVBQW9CLE1BQU0saUJBQWlCLENBQUM7QUFxQi9ELE1BQU0sQ0FBQyxNQUFNLFVBQVUsR0FBRyxDQUN4QixFQUFFLDJCQUEyQixFQUFFLGtCQUFrQixFQUFFLE9BQU8sRUFBRSxZQUFZLEVBQTRCLEVBQ3BHLGdCQUFvQyxFQUFFLEVBQ3pCLEVBQUUsQ0FDZixPQUFPLENBQ0wsS0FBSyxDQUNILE9BQU8sQ0FBQywyQkFBMkIsQ0FBQyxFQUNwQyxxQkFBcUIsQ0FBQyxrQkFBa0IsRUFBRSxhQUFhLENBQUMsRUFDeEQsVUFBVSxDQUFDLFlBQVksQ0FBQyxDQUN6QixDQUNGLENBQUMifQ==

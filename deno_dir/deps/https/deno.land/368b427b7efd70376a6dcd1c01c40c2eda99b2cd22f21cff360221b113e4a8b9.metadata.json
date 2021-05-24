@@ -1,0 +1,22 @@
+{
+  "headers": {
+    "x-amz-version-id": "kU3WlQGKaGagReT8Hlg7DhX7dOEQaQdr",
+    "etag": "W/\"03d09302505dbd7e2b2924da982d899a\"",
+    "content-type": "application/javascript",
+    "last-modified": "Tue, 02 Mar 2021 19:10:30 GMT",
+    "server": "cloudflare",
+    "expect-ct": "max-age=604800, report-uri=\"https://report-uri.cloudflare.com/cdn-cgi/beacon/expect-ct\"",
+    "cf-ray": "654992451dab37f9-IAD",
+    "cf-request-id": "0a41d9bf2b000037f94232f000000001",
+    "x-amz-request-id": "FCMX473RZRWAA43H",
+    "cache-control": "public, max-age=31536000, immutable",
+    "date": "Mon, 24 May 2021 21:21:02 GMT",
+    "alt-svc": "h3-27=\":443\"; ma=86400, h3-28=\":443\"; ma=86400, h3-29=\":443\"; ma=86400",
+    "vary": "Accept-Encoding",
+    "x-amz-id-2": "32wZOyv04AXOIAHjc0d5YP9Gs+OqQQoFr9GID+puSHnPPmSMD4mMRySmEqgrdchLw5eHjSwMKdU=",
+    "access-control-allow-origin": "*",
+    "cf-cache-status": "HIT",
+    "age": "94891"
+  },
+  "url": "https://deno.land/std@0.89.0/hash/_wasm/wasm.js"
+}

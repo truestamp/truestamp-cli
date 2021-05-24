@@ -1,0 +1,9 @@
+import './buffer';
+import { e as e$1 } from '../_/d078875f.js';
+export { e as default } from '../_/d078875f.js';
+
+var StringDecoder=e$1.StringDecoder;
+
+export { StringDecoder };
+
+//# sourceMappingURL=string_decoder.map

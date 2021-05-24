@@ -1,0 +1,2 @@
+export * from "/npm:fast-xml-parser@3.19.0!cjs";
+export { default } from "/npm:fast-xml-parser@3.19.0!cjs";
