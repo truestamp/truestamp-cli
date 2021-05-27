@@ -1,0 +1,26 @@
+{
+  "headers": {
+    "strict-transport-security": "max-age=31536000",
+    "x-xss-protection": "1; mode=block",
+    "date": "Thu, 27 May 2021 18:07:38 GMT",
+    "x-github-request-id": "8058:3669:80EB0:98288:60AFDFEA",
+    "x-cache": "MISS",
+    "x-fastly-request-id": "9fbb1fd64cec1e8ddcaf09b9c836ce8cb171af24",
+    "content-security-policy": "default-src 'none'; style-src 'unsafe-inline'; sandbox",
+    "x-timer": "S1622138858.340417,VS0,VE96",
+    "expires": "Thu, 27 May 2021 18:12:38 GMT",
+    "x-frame-options": "deny",
+    "source-age": "0",
+    "accept-ranges": "bytes",
+    "via": "1.1 varnish",
+    "content-type": "text/plain; charset=utf-8",
+    "x-content-type-options": "nosniff",
+    "vary": "Authorization,Accept-Encoding",
+    "x-cache-hits": "0",
+    "x-served-by": "cache-wdc5534-WDC",
+    "access-control-allow-origin": "*",
+    "etag": "W/\"cd6d79e692b455ce012fa8b50dd0ecbb85b79091618a963f6bc2072a2241a308\"",
+    "cache-control": "max-age=300"
+  },
+  "url": "https://raw.githubusercontent.com/truestamp/deno-app-paths/main/mod.ts"
+}

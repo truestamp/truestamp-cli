@@ -580,5 +580,7 @@
   "https://jspm.dev/npm:entities@2.2.0/lib/maps/xml.json!cjs": "3eece1d441172ca8bbd9bea095187cc16bc34e241682ad31f94cef6b9b767610",
   "https://jspm.dev/npm:fast-xml-parser@3.19.0!cjs": "f0e3fc2b81267f2a9c0dfe0d72daf839f6435c2d194f8198b5aa86aea9a05920",
   "https://jspm.dev/npm:tslib@1!cjs": "12a3572364daf1eb1c7013e5952b3a53588cc5759e288a119de0b1e45dd3d780",
-  "https://jspm.dev/npm:tslib@1.14.1!cjs": "5d40d5f42266f46fa5be8c30c5a5d5748ea304205f06156b5f491f979b9f747f"
+  "https://jspm.dev/npm:tslib@1.14.1!cjs": "5d40d5f42266f46fa5be8c30c5a5d5748ea304205f06156b5f491f979b9f747f",
+  "https://raw.githubusercontent.com/truestamp/deno-app-paths/main/mod.ts": "5a4324585be0c87324eaa50130a59b7e96e3541195fd236c7d79c660d4a8a10d",
+  "https://raw.githubusercontent.com/truestamp/deno-conf/v1.0.0-beta/mod.ts": "0fbe7e1edda29b5cd93d67c39c03890ca86d59189f618ed3767b341da8d719bd"
 }
