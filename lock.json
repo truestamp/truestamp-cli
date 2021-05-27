@@ -582,5 +582,5 @@
   "https://jspm.dev/npm:tslib@1!cjs": "12a3572364daf1eb1c7013e5952b3a53588cc5759e288a119de0b1e45dd3d780",
   "https://jspm.dev/npm:tslib@1.14.1!cjs": "5d40d5f42266f46fa5be8c30c5a5d5748ea304205f06156b5f491f979b9f747f",
   "https://raw.githubusercontent.com/truestamp/deno-app-paths/main/mod.ts": "5a4324585be0c87324eaa50130a59b7e96e3541195fd236c7d79c660d4a8a10d",
-  "https://raw.githubusercontent.com/truestamp/deno-conf/v1.0.0-beta/mod.ts": "0fbe7e1edda29b5cd93d67c39c03890ca86d59189f618ed3767b341da8d719bd"
+  "https://raw.githubusercontent.com/truestamp/deno-conf/v1.0.2-beta/mod.ts": "a3bbc1b680e1d7d56dbd6ede1434c7418d9144b346acb1066aa8cf6a82d69452"
 }

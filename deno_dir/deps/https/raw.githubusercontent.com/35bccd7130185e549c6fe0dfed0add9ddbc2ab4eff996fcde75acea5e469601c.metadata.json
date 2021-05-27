@@ -1,0 +1,26 @@
+{
+  "headers": {
+    "cache-control": "max-age=300",
+    "etag": "W/\"2c119fa6148e08df80b3d72d71b4e2b71e68c7df3d478b2f9e1e139a4b89bd2e\"",
+    "date": "Thu, 27 May 2021 19:49:58 GMT",
+    "x-cache-hits": "0",
+    "vary": "Authorization,Accept-Encoding",
+    "strict-transport-security": "max-age=31536000",
+    "accept-ranges": "bytes",
+    "via": "1.1 varnish",
+    "x-cache": "MISS",
+    "x-timer": "S1622144999.540388,VS0,VE89",
+    "x-frame-options": "deny",
+    "content-security-policy": "default-src 'none'; style-src 'unsafe-inline'; sandbox",
+    "x-content-type-options": "nosniff",
+    "x-xss-protection": "1; mode=block",
+    "access-control-allow-origin": "*",
+    "x-github-request-id": "6118:611F:BE78A:E22D4:60AFF7E6",
+    "content-type": "text/plain; charset=utf-8",
+    "x-fastly-request-id": "6c26bae47d3df2792ff431e64d6d586e8a4d2e53",
+    "source-age": "0",
+    "expires": "Thu, 27 May 2021 19:54:58 GMT",
+    "x-served-by": "cache-wdc5536-WDC"
+  },
+  "url": "https://raw.githubusercontent.com/truestamp/deno-conf/v1.0.2-beta/mod.ts"
+}

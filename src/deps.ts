@@ -14,7 +14,7 @@ import { Command } from "https://deno.land/x/cliffy@v0.18.2/command/mod.ts";
 import { HelpCommand } from "https://deno.land/x/cliffy@v0.18.2/command/help/mod.ts";
 import { CompletionsCommand } from "https://deno.land/x/cliffy@v0.18.2/command/completions/mod.ts";
 
-import Conf from "https://raw.githubusercontent.com/truestamp/deno-conf/v1.0.0-beta/mod.ts";
+import Conf from "https://raw.githubusercontent.com/truestamp/deno-conf/v1.0.2-beta/mod.ts";
 
 // ULID : https://github.com/ulid/javascript
 //      : https://www.skypack.dev/view/ulid
@@ -61,3 +61,8 @@ export {
 
 export type { ITypeInfo } from "https://deno.land/x/cliffy/flags/mod.ts";
 export type { Payload } from "https://deno.land/x/djwt@v2.2/mod.ts";
+
+export type {
+  ItemType,
+  StoreType,
+} from "https://raw.githubusercontent.com/truestamp/deno-conf/v1.0.2-beta/mod.ts";

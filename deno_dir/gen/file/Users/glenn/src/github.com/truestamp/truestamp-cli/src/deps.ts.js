@@ -9,7 +9,7 @@ import { colors } from "https://deno.land/x/cliffy@v0.18.2/ansi/colors.ts";
 import { Command } from "https://deno.land/x/cliffy@v0.18.2/command/mod.ts";
 import { HelpCommand } from "https://deno.land/x/cliffy@v0.18.2/command/help/mod.ts";
 import { CompletionsCommand } from "https://deno.land/x/cliffy@v0.18.2/command/completions/mod.ts";
-import Conf from "https://raw.githubusercontent.com/truestamp/deno-conf/v1.0.0-beta/mod.ts";
+import Conf from "https://raw.githubusercontent.com/truestamp/deno-conf/v1.0.2-beta/mod.ts";
 import { ulid } from "https://cdn.skypack.dev/ulid?dts";
 import { S3 } from "https://deno.land/x/aws_sdk@v3.16.0-3/client-s3/mod.ts";
 import { deleteSavedTokens, getAccessTokenWithPrompts, getSavedAccessToken, getSavedIdTokenPayload, getSavedRefreshToken, } from "./auth.ts";

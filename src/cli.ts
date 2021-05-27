@@ -4,8 +4,6 @@ import {
   Buffer,
   Command,
   CompletionsCommand,
-  Conf,
-  configDir,
   createHash,
   createTruestampClient,
   deleteSavedTokens,
@@ -14,10 +12,15 @@ import {
   getSavedRefreshToken,
   HelpCommand,
   ITypeInfo,
-  loadJsonFile,
   path,
   S3,
 } from "./deps.ts";
+
+import {
+  getConfigForEnv,
+  getConfigKeyForEnv,
+  setConfigKeyForEnv,
+} from "./config.ts";
 
 function environmentType({ label, name, value }: ITypeInfo): string {
   const envs = ["development", "staging", "production"];
@@ -28,55 +31,6 @@ function environmentType({ label, name, value }: ITypeInfo): string {
   }
 
   return value.toLowerCase();
-}
-
-function getConfigFileForEnv(env: string): string {
-  return `${configDir()}/com.truestamp.cli.${env}.config.json`;
-}
-
-// FIXME : integrate this for each env
-// const config = new Conf({
-//   projectName: "com.truestamp.truestamp-cli",
-// });
-
-function getConfigForEnv(env: string): Record<string, string> | undefined {
-  const configFile = getConfigFileForEnv(env);
-
-  try {
-    const c = loadJsonFile.sync<{
-      aws_s3_region?: string;
-      aws_s3_bucket?: string;
-    }>(configFile);
-
-    if (c) {
-      return c;
-    }
-  } catch {
-    // no-op
-  }
-}
-
-function getConfigKeyForEnv(env: string, key: string): string | undefined {
-  const config = getConfigForEnv(env);
-  if (config && config[key]) {
-    return config[key];
-  }
-}
-
-function writeConfigForEnvKeyValue(
-  env: string,
-  key: string,
-  value: string,
-): void {
-  const config = getConfigForEnv(env) || {};
-  config[key] = value;
-
-  try {
-    Deno.writeTextFileSync(getConfigFileForEnv(env), JSON.stringify(config));
-    // console.log(JSON.stringify(config));
-  } catch (error) {
-    throw new Error(`unable to write config file : ${error.message}`);
-  }
 }
 
 const authLogin = new Command()
@@ -382,11 +336,11 @@ const s3ConfigSet = new Command()
   .action((options) => {
     try {
       if (options.region !== getConfigKeyForEnv(options.env, "aws_s3_region")) {
-        writeConfigForEnvKeyValue(options.env, "aws_s3_region", options.region);
+        setConfigKeyForEnv(options.env, "aws_s3_region", options.region);
       }
 
       if (options.bucket !== getConfigKeyForEnv(options.env, "aws_s3_bucket")) {
-        writeConfigForEnvKeyValue(options.env, "aws_s3_bucket", options.bucket);
+        setConfigKeyForEnv(options.env, "aws_s3_bucket", options.bucket);
       }
     } catch (error) {
       console.error("Error: ", error.message);
@@ -406,7 +360,7 @@ const s3Config = new Command()
   .allowEmpty(false)
   .action((options) => {
     const config = getConfigForEnv(options.env);
-    console.log(JSON.stringify(config));
+    console.log(JSON.stringify(config.store));
     Deno.exit(0);
   })
   .command("set", s3ConfigSet);
@@ -459,14 +413,23 @@ const s3Upload = new Command()
   )
   .action(async (options) => {
     try {
-      const config = getConfigForEnv(options.env);
-      if (!config || !config.aws_s3_bucket) {
+      if (!getConfigKeyForEnv(options.env, "aws_s3_bucket")) {
         throw new Error("missing aws s3 bucket config");
       }
 
-      if (!config || !config.aws_s3_region) {
+      const awsS3Bucket = getConfigKeyForEnv(
+        options.env,
+        "aws_s3_bucket",
+      ) as string;
+
+      if (!getConfigKeyForEnv(options.env, "aws_s3_region")) {
         throw new Error("missing aws s3 region config");
       }
+
+      const awsS3Region = getConfigKeyForEnv(
+        options.env,
+        "aws_s3_region",
+      ) as string;
 
       // ex: /path/to/my-picture.png becomes my-picture.png
       const fileBaseName = path.basename(options.path);
@@ -508,7 +471,7 @@ const s3Upload = new Command()
       };
 
       const s3ObjParams = {
-        Bucket: config.aws_s3_bucket,
+        Bucket: awsS3Bucket,
         Body: fileContents,
         ContentMD5: hashMD5InBase64,
         Key: keyName,
@@ -516,7 +479,7 @@ const s3Upload = new Command()
       };
 
       const client = new S3({
-        region: config.aws_s3_region,
+        region: awsS3Region,
       });
 
       const resp = await client.putObject(s3ObjParams);
@@ -540,8 +503,8 @@ const s3Upload = new Command()
       }
 
       const objMeta = {
-        region: config.aws_s3_region,
-        bucket: config.aws_s3_bucket,
+        region: awsS3Region,
+        bucket: awsS3Bucket,
         key: keyName,
         versionId: resp.VersionId,
         eTag: eTagStripped,
