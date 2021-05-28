@@ -66,3 +66,7 @@ export type {
   ItemType,
   StoreType,
 } from "https://raw.githubusercontent.com/truestamp/deno-conf/v1.0.2-beta/mod.ts";
+
+export type {
+  S3ClientConfig,
+} from "https://deno.land/x/aws_sdk@v3.16.0-3/client-s3/mod.ts";
