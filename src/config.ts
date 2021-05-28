@@ -31,8 +31,16 @@ export function getConfigKeyForEnv(
 export function setConfigKeyForEnv(
   env: string,
   key: string,
-  value: string,
+  value: ItemType,
 ): void {
   const config = getConfigForEnv(env);
   config.set(key, value);
+}
+
+export function deleteConfigKeyForEnv(
+  env: string,
+  key: string,
+): void {
+  const config = getConfigForEnv(env);
+  config.delete(key);
 }

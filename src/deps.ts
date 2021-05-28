@@ -4,9 +4,7 @@ import { createHash } from "https://deno.land/std@0.97.0/hash/mod.ts";
 import * as path from "https://deno.land/std@0.97.0/path/mod.ts";
 
 import { Buffer } from "http://deno.land/x/node_buffer@1.1.0/mod.ts";
-import configDir from "https://deno.land/x/config_dir/mod.ts";
 import { sleep } from "https://deno.land/x/sleep/mod.ts";
-import loadJsonFile from "https://deno.land/x/load_json_file@v1.0.0/mod.ts";
 import { decode, validate } from "https://deno.land/x/djwt@v2.2/mod.ts";
 
 import { colors } from "https://deno.land/x/cliffy@v0.18.2/ansi/colors.ts";
@@ -23,11 +21,11 @@ import { ulid } from "https://cdn.skypack.dev/ulid?dts";
 import { S3 } from "https://deno.land/x/aws_sdk@v3.16.0-3/client-s3/mod.ts";
 
 import {
-  deleteSavedTokens,
+  deleteTokensInConfig,
   getAccessTokenWithPrompts,
-  getSavedAccessToken,
-  getSavedIdTokenPayload,
-  getSavedRefreshToken,
+  getConfigAccessToken,
+  getConfigIdTokenPayload,
+  getConfigRefreshToken,
 } from "./auth.ts";
 
 // See : https://www.skypack.dev/view/@truestamp/truestamp-js
@@ -40,17 +38,15 @@ export {
   Command,
   CompletionsCommand,
   Conf,
-  configDir,
   createHash,
   createTruestampClient,
   decode,
-  deleteSavedTokens,
+  deleteTokensInConfig,
   getAccessTokenWithPrompts,
-  getSavedAccessToken,
-  getSavedIdTokenPayload,
-  getSavedRefreshToken,
+  getConfigAccessToken,
+  getConfigIdTokenPayload,
+  getConfigRefreshToken,
   HelpCommand,
-  loadJsonFile,
   path,
   S3,
   sleep,

@@ -3,35 +3,27 @@
 // See: https://github.com/truestamp/deviceflow
 // See: https://github.com/jatinvaidya/cli-authz-device-flow/blob/master/device/device.js
 
+import { colors, decode, Payload, sleep, validate } from "./deps.ts";
+
 import {
-  colors,
-  configDir,
-  decode,
-  loadJsonFile,
-  Payload,
-  sleep,
-  validate,
-} from "./deps.ts";
+  deleteConfigKeyForEnv,
+  getConfigKeyForEnv,
+  setConfigKeyForEnv,
+} from "./config.ts";
 
 const AUTH0_SCOPES = "openid profile email offline_access";
 
 const AUTH0_DOMAIN_DEVELOPMENT = "truestamp-dev.auth0.com";
 const AUTH0_AUDIENCE_DEVELOPMENT = "https://dev-api.truestamp.com/";
 const AUTH0_CLIENT_ID_DEVELOPMENT = "8djbT1Ys078OZImR1uRr4jhu2Wb6d05B";
-const AUTH0_TOKEN_FILE_DEVELOPMENT =
-  `${configDir()}/com.truestamp.cli.development.tokens.json`;
 
 const AUTH0_DOMAIN_STAGING = "truestamp-staging.auth0.com";
 const AUTH0_AUDIENCE_STAGING = "https://staging-api.truestamp.com/";
 const AUTH0_CLIENT_ID_STAGING = "T0dzxGnnIj3TU0HpzCQRTZ5fx9N5Hb5m";
-const AUTH0_TOKEN_FILE_STAGING =
-  `${configDir()}/com.truestamp.cli.staging.tokens.json`;
 
 const AUTH0_DOMAIN_PRODUCTION = "login.truestamp.com";
 const AUTH0_AUDIENCE_PRODUCTION = "https://api.truestamp.com/";
 const AUTH0_CLIENT_ID_PRODUCTION = "pS5kRvqeuz4XLoxNPd6VX2LlUyNyU7Xj";
-const AUTH0_TOKEN_FILE_PRODUCTION =
-  `${configDir()}/com.truestamp.cli.production.tokens.json`;
 
 function getAuth0DomainForEnv(env: string): string {
   switch (env) {
@@ -75,22 +67,6 @@ function getAuth0ClientIdForEnv(env: string): string {
 
     case "production":
       return AUTH0_CLIENT_ID_PRODUCTION;
-
-    default:
-      throw new Error(`invalid environment : '${env}'`);
-  }
-}
-
-function getAuth0TokenFileForEnv(env: string): string {
-  switch (env) {
-    case "development":
-      return AUTH0_TOKEN_FILE_DEVELOPMENT;
-
-    case "staging":
-      return AUTH0_TOKEN_FILE_STAGING;
-
-    case "production":
-      return AUTH0_TOKEN_FILE_PRODUCTION;
 
     default:
       throw new Error(`invalid environment : '${env}'`);
@@ -175,7 +151,7 @@ async function getTokens(env: string, deviceCode: string, interval: number) {
 }
 
 async function getNewTokensWithRefreshToken(env: string) {
-  const refreshToken = getSavedRefreshToken(env);
+  const refreshToken = getConfigRefreshToken(env);
   if (refreshToken) {
     const resp = await fetch(
       `https://${getAuth0DomainForEnv(env)}/oauth/token`,
@@ -195,71 +171,28 @@ async function getNewTokensWithRefreshToken(env: string) {
   }
 }
 
-export function getSavedAccessToken(env: string): string | undefined {
-  try {
-    const t = loadJsonFile.sync<{
-      access_token: string;
-      id_token?: string;
-      refresh_token: string;
-      scope: string;
-      expires_in: number;
-      token_type: string;
-    }>(getAuth0TokenFileForEnv(env));
+export function getConfigAccessToken(env: string): string | undefined {
+  const t = getConfigKeyForEnv(env, "auth0_access_token") as string;
+  return t ? t : undefined;
+}
 
-    if (t && t.access_token) {
-      return t.access_token;
-    } else {
-      return undefined;
-    }
-  } catch {
-    // no-op
+export function getConfigRefreshToken(env: string): string | undefined {
+  const t = getConfigKeyForEnv(env, "auth0_refresh_token") as string;
+  return t ? t : undefined;
+}
+
+export function getConfigIdTokenPayload(env: string): Payload | undefined {
+  const t = getConfigKeyForEnv(env, "auth0_id_token") as string;
+
+  if (t) {
+    const { payload } = validate(decode(t));
+    return payload;
+  } else {
+    return undefined;
   }
 }
 
-export function getSavedRefreshToken(env: string): string | undefined {
-  try {
-    const t = loadJsonFile.sync<{
-      access_token: string;
-      id_token?: string;
-      refresh_token: string;
-      scope: string;
-      expires_in: number;
-      token_type: string;
-    }>(getAuth0TokenFileForEnv(env));
-
-    if (t && t.refresh_token) {
-      return t.refresh_token;
-    } else {
-      return undefined;
-    }
-  } catch {
-    // no-op
-  }
-}
-
-export function getSavedIdTokenPayload(env: string): Payload | undefined {
-  try {
-    const t = loadJsonFile.sync<{
-      access_token: string;
-      id_token?: string;
-      refresh_token: string;
-      scope: string;
-      expires_in: number;
-      token_type: string;
-    }>(getAuth0TokenFileForEnv(env));
-
-    if (t && t.id_token) {
-      const { payload } = validate(decode(t.id_token));
-      return payload;
-    } else {
-      return undefined;
-    }
-  } catch {
-    // no-op
-  }
-}
-
-function writeTokensToFile(
+function setTokensInConfig(
   env: string,
   tokens: {
     access_token: string;
@@ -271,37 +204,42 @@ function writeTokensToFile(
   },
 ): void {
   try {
-    Deno.writeTextFileSync(
-      getAuth0TokenFileForEnv(env),
-      JSON.stringify(tokens),
-    );
-    // console.log(JSON.stringify(tokens));
+    setConfigKeyForEnv(env, "auth0_refresh_token", tokens.refresh_token);
+    setConfigKeyForEnv(env, "auth0_access_token", tokens.access_token);
+    setConfigKeyForEnv(env, "auth0_expires_in", tokens.expires_in);
+    setConfigKeyForEnv(env, "auth0_scope", tokens.scope);
+    setConfigKeyForEnv(env, "auth0_token_type", tokens.token_type);
+
+    if (tokens.id_token) {
+      setConfigKeyForEnv(env, "auth0_id_token", tokens.id_token);
+    }
   } catch (error) {
-    throw new Error(`unable to write token file : ${error.message}`);
+    throw new Error(`unable to write tokens to config : ${error.message}`);
   }
 }
 
 // this is how we "logout"
-export function deleteSavedTokens(env: string) {
-  try {
-    Deno.removeSync(getAuth0TokenFileForEnv(env));
-  } catch {
-    // no-op
-  }
+export function deleteTokensInConfig(env: string) {
+  deleteConfigKeyForEnv(env, "auth0_refresh_token");
+  deleteConfigKeyForEnv(env, "auth0_access_token");
+  deleteConfigKeyForEnv(env, "auth0_expires_in");
+  deleteConfigKeyForEnv(env, "auth0_scope");
+  deleteConfigKeyForEnv(env, "auth0_token_type");
+  deleteConfigKeyForEnv(env, "auth0_id_token");
 }
 
 export async function getAccessTokenWithPrompts(env: string): Promise<string> {
   var deviceCodeResp;
 
   try {
-    const savedAccessToken = getSavedAccessToken(env);
-    if (savedAccessToken) {
+    const accessToken = getConfigAccessToken(env);
+    if (accessToken) {
       try {
         // validate (but not signature check!) the saved JWT
         // this is primarily to avoid sending API req with
         // expired token.
         const { header, payload, signature } = validate(
-          decode(savedAccessToken),
+          decode(accessToken),
         );
 
         // console.log(header)
@@ -310,13 +248,13 @@ export async function getAccessTokenWithPrompts(env: string): Promise<string> {
         if (header && payload && signature) {
           // structurally valid and unexpired JWT
           return new Promise((resolve) => {
-            resolve(savedAccessToken);
+            resolve(accessToken);
           });
         }
       } catch {
         const tokens = await getNewTokensWithRefreshToken(env);
         if (tokens) {
-          writeTokensToFile(env, tokens);
+          setTokensInConfig(env, tokens);
           if (tokens.access_token) {
             return new Promise((resolve) => {
               resolve(tokens.access_token);
@@ -324,7 +262,7 @@ export async function getAccessTokenWithPrompts(env: string): Promise<string> {
           }
         } else {
           // unable to retrieve new access tokens using refresh token, cleanup saved tokens
-          deleteSavedTokens(env);
+          deleteTokensInConfig(env);
         }
       }
     }
@@ -369,7 +307,7 @@ export async function getAccessTokenWithPrompts(env: string): Promise<string> {
       throw new Error("retrieval of access tokens failed");
     }
 
-    writeTokensToFile(env, tokens);
+    setTokensInConfig(env, tokens);
 
     return new Promise((resolve) => {
       resolve(tokens.access_token);

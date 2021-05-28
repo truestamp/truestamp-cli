@@ -6,10 +6,10 @@ import {
   CompletionsCommand,
   createHash,
   createTruestampClient,
-  deleteSavedTokens,
-  getSavedAccessToken,
-  getSavedIdTokenPayload,
-  getSavedRefreshToken,
+  deleteTokensInConfig,
+  getConfigAccessToken,
+  getConfigIdTokenPayload,
+  getConfigRefreshToken,
   HelpCommand,
   ITypeInfo,
   path,
@@ -65,7 +65,7 @@ const authLogout = new Command()
     default: "production",
   })
   .action((options) => {
-    deleteSavedTokens(options.env);
+    deleteTokensInConfig(options.env);
     console.log("logout complete");
     Deno.exit(0);
   });
@@ -79,8 +79,8 @@ const authStatus = new Command()
   })
   .action(async (options) => {
     if (
-      !getSavedAccessToken(options.env) ||
-      !getSavedRefreshToken(options.env)
+      !getConfigAccessToken(options.env) ||
+      !getConfigRefreshToken(options.env)
     ) {
       console.error("logged out");
       Deno.exit(1);
@@ -93,7 +93,7 @@ const authStatus = new Command()
         throw new Error("auth status heartbeat check failed");
       }
 
-      const payload = getSavedIdTokenPayload(options.env);
+      const payload = getConfigIdTokenPayload(options.env);
       if (payload) {
         console.log(
           `logged into '${options.env}' environment as user '${payload.name} (${payload.email})'`,

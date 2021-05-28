@@ -6,11 +6,11 @@
  *   📘 Skypack Documentation: https://www.skypack.dev/docs
  *
  * Pinned URL: (Optimized for Production)
- *   ▶️ Normal: https://cdn.skypack.dev/pin/@truestamp/truestamp-js@v0.0.42-0O7YGeTUn7aLGfP6f5pC/mode=imports/optimized/@truestamp/truestamp-js.js
- *   ⏩ Minified: https://cdn.skypack.dev/pin/@truestamp/truestamp-js@v0.0.42-0O7YGeTUn7aLGfP6f5pC/mode=imports,min/optimized/@truestamp/truestamp-js.js
+ *   ▶️ Normal: https://cdn.skypack.dev/pin/@truestamp/truestamp-js@v0.0.42-SFXrgwX38LqCS8NVudUr/mode=imports/optimized/@truestamp/truestamp-js.js
+ *   ⏩ Minified: https://cdn.skypack.dev/pin/@truestamp/truestamp-js@v0.0.42-SFXrgwX38LqCS8NVudUr/mode=imports,min/optimized/@truestamp/truestamp-js.js
  *
  */
 
 // Browser-Optimized Imports (Don't directly import the URLs below in your application!)
-export * from '/-/@truestamp/truestamp-js@v0.0.42-0O7YGeTUn7aLGfP6f5pC/dist=es2020,mode=imports/optimized/@truestamp/truestamp-js.js';
-export {default} from '/-/@truestamp/truestamp-js@v0.0.42-0O7YGeTUn7aLGfP6f5pC/dist=es2020,mode=imports/optimized/@truestamp/truestamp-js.js';
+export * from '/-/@truestamp/truestamp-js@v0.0.42-SFXrgwX38LqCS8NVudUr/dist=es2020,mode=imports/optimized/@truestamp/truestamp-js.js';
+export {default} from '/-/@truestamp/truestamp-js@v0.0.42-SFXrgwX38LqCS8NVudUr/dist=es2020,mode=imports/optimized/@truestamp/truestamp-js.js';
