@@ -1,25 +1,25 @@
 {
   "headers": {
-    "x-goog-generation": "1592977109903031",
-    "last-modified": "Wed, 24 Jun 2020 05:38:29 GMT",
-    "x-goog-stored-content-length": "76167",
+    "access-control-allow-origin": "*",
     "server": "UploadServer",
-    "cache-control": "public, max-age=31536000, s-maxage=604800, immutable",
+    "content-language": "en",
     "expires": "Thu, 03 Jun 2021 18:29:52 GMT",
-    "x-goog-stored-content-encoding": "br",
+    "x-goog-storage-class": "STANDARD",
+    "accept-ranges": "bytes",
     "x-goog-hash": "crc32c=OGtyxQ==,md5=nu2i/J/zQUNb8fDSpPo2Mw==",
     "alt-svc": "clear",
-    "x-goog-storage-class": "STANDARD",
     "etag": "\"9eeda2fc9ff341435bf1f0d2a4fa3633\"",
-    "accept-ranges": "bytes",
-    "access-control-allow-origin": "*",
     "content-type": "application/javascript",
-    "date": "Thu, 27 May 2021 18:29:52 GMT",
-    "x-goog-metageneration": "2",
-    "x-guploader-uploadid": "ABg5-Uwz3Oz_80oENuTJ1rH6oIkPuqAbMSnSfNPFXxMkbSQrB-PjyXZJSkxFZLf66RG9wGvyLYRv_vi5NDCed8UZlbjZI4FfNg",
-    "content-language": "en",
     "access-control-expose-headers": "Content-Type",
-    "age": "72979"
+    "age": "76525",
+    "last-modified": "Wed, 24 Jun 2020 05:38:29 GMT",
+    "x-guploader-uploadid": "ABg5-Uwz3Oz_80oENuTJ1rH6oIkPuqAbMSnSfNPFXxMkbSQrB-PjyXZJSkxFZLf66RG9wGvyLYRv_vi5NDCed8UZlbjZI4FfNg",
+    "x-goog-metageneration": "2",
+    "date": "Thu, 27 May 2021 18:29:52 GMT",
+    "x-goog-generation": "1592977109903031",
+    "x-goog-stored-content-length": "76167",
+    "x-goog-stored-content-encoding": "br",
+    "cache-control": "public, max-age=31536000, s-maxage=604800, immutable"
   },
   "url": "https://jspm.dev/npm:@jspm/core@2.0.0-beta.7/nodelibs/crypto"
 }

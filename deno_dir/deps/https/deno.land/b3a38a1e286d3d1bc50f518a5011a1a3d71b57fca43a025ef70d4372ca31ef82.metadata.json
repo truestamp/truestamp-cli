@@ -1,15 +1,15 @@
 {
   "headers": {
-    "x-deno-warning": "Implicitly using latest version (v0.19.0) for https://deno.land/x/cliffy/flags/mod.ts",
-    "content-length": "0",
-    "vary": "Accept-Encoding",
+    "date": "Fri, 28 May 2021 15:45:16 GMT",
     "location": "/x/cliffy@v0.19.0/flags/mod.ts",
-    "expect-ct": "max-age=604800, report-uri=\"https://report-uri.cloudflare.com/cdn-cgi/beacon/expect-ct\"",
+    "x-deno-warning": "Implicitly using latest version (v0.19.0) for https://deno.land/x/cliffy/flags/mod.ts",
+    "vary": "Accept-Encoding",
+    "content-length": "0",
     "server": "cloudflare",
-    "cf-ray": "6568455c2a225a51-IAD",
-    "cf-request-id": "0a5509ada100005a51a1249000000001",
+    "expect-ct": "max-age=604800, report-uri=\"https://report-uri.cloudflare.com/cdn-cgi/beacon/expect-ct\"",
+    "cf-ray": "65689beffeb85c9b-IAD",
     "alt-svc": "h3-27=\":443\"; ma=86400, h3-28=\":443\"; ma=86400, h3-29=\":443\"; ma=86400",
-    "date": "Fri, 28 May 2021 14:46:10 GMT"
+    "cf-request-id": "0a553fc9fc00005c9b0096c000000001"
   },
   "url": "https://deno.land/x/cliffy/flags/mod.ts"
 }

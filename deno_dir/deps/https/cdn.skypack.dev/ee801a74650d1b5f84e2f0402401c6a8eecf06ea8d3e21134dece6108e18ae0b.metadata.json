@@ -1,23 +1,23 @@
 {
   "headers": {
-    "x-vercel-id": "iad1::sfo1::hccwc-1622213188517-3bb93bae4896",
-    "report-to": "{\"endpoints\":[{\"url\":\"https:\\/\\/a.nel.cloudflare.com\\/report\\/v2?s=fCxt%2FKHiy7M61UDGq6gMLdZQp4P9rlW67fPbhdoto2PX5Kpr%2FZFxbcR6kDMMYgurcvtEsTZNn27tYffVnKBgmMKmkvn0DgJA%2BOafFQCcoankkGfPIonTpsOx4l4%3D\"}],\"group\":\"cf-nel\",\"max_age\":604800}",
-    "age": "0",
-    "cf-cache-status": "DYNAMIC",
-    "content-type": "application/typescript; charset=utf-8",
-    "server": "cloudflare",
-    "x-vercel-cache": "MISS",
-    "cf-request-id": "0a5509f39800005cb331220000000001",
-    "content-length": "711",
-    "nel": "{\"report_to\":\"cf-nel\",\"max_age\":604800}",
-    "expect-ct": "max-age=604800, report-uri=\"https://report-uri.cloudflare.com/cdn-cgi/beacon/expect-ct\"",
+    "date": "Fri, 28 May 2021 15:45:18 GMT",
+    "x-vercel-id": "iad1::sfo1::9klgg-1622216718626-88e12ebc4a14",
     "strict-transport-security": "max-age=63072000",
-    "alt-svc": "h3-27=\":443\"; ma=86400, h3-28=\":443\"; ma=86400, h3-29=\":443\"; ma=86400",
-    "access-control-allow-origin": "*",
+    "cf-request-id": "0a553fd10f00005b04e10e3000000001",
+    "content-type": "application/typescript; charset=utf-8",
+    "cf-cache-status": "DYNAMIC",
+    "age": "0",
     "cache-control": "public, max-age=31536000, immutable",
-    "cf-ray": "656845cc29255cb3-IAD",
+    "report-to": "{\"endpoints\":[{\"url\":\"https:\\/\\/a.nel.cloudflare.com\\/report\\/v2?s=Ofa0xnW5O%2Fqr6sfhAT2vxSpgFXdi45XHeBRAa9m7bTJNnRUnilp7JhXvFA1GyAiTrYb3bJNc9E8e%2BRGCje9iMh0gDHRfqSYNpaoSuSrrTFQ29Fs%2FWZMJ6j5JBfA%3D\"}],\"group\":\"cf-nel\",\"max_age\":604800}",
+    "nel": "{\"report_to\":\"cf-nel\",\"max_age\":604800}",
+    "server": "cloudflare",
     "etag": "W/\"2c7-WGJcn7+fdW6C86b5YAWLZyciEqA\"",
-    "date": "Fri, 28 May 2021 14:46:28 GMT"
+    "x-vercel-cache": "MISS",
+    "content-length": "711",
+    "expect-ct": "max-age=604800, report-uri=\"https://report-uri.cloudflare.com/cdn-cgi/beacon/expect-ct\"",
+    "cf-ray": "65689bfb48bd5b04-IAD",
+    "access-control-allow-origin": "*",
+    "alt-svc": "h3-27=\":443\"; ma=86400, h3-28=\":443\"; ma=86400, h3-29=\":443\"; ma=86400"
   },
   "url": "https://cdn.skypack.dev/-/@truestamp/truestamp-js@v0.0.42-SFXrgwX38LqCS8NVudUr/dist=es2020,mode=types/dist/documents/index.d.ts"
 }

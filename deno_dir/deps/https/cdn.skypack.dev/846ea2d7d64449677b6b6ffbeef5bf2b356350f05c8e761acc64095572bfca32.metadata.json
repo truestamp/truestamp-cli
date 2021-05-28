@@ -1,23 +1,23 @@
 {
   "headers": {
-    "date": "Fri, 28 May 2021 14:46:28 GMT",
     "strict-transport-security": "max-age=63072000",
-    "expect-ct": "max-age=604800, report-uri=\"https://report-uri.cloudflare.com/cdn-cgi/beacon/expect-ct\"",
-    "cache-control": "public, max-age=31536000, immutable",
-    "etag": "W/\"15f8-WHN+Yr8loQjvLeNXbCRwIFtp90E\"",
-    "alt-svc": "h3-27=\":443\"; ma=86400, h3-28=\":443\"; ma=86400, h3-29=\":443\"; ma=86400",
-    "content-type": "application/javascript; charset=utf-8",
-    "cf-cache-status": "EXPIRED",
-    "x-vercel-cache": "MISS",
-    "vary": "Accept-Encoding",
-    "x-vercel-id": "iad1::sfo1::sxvmp-1622213187031-da20a64041d0",
+    "cf-request-id": "0a553fccca00005b04990f4000000001",
+    "cf-cache-status": "MISS",
+    "cf-ray": "65689bf47ac45b04-IAD",
     "access-control-allow-origin": "*",
-    "access-control-expose-headers": "Content-Length, X-Imports",
+    "x-vercel-id": "iad1::sfo1::t297f-1622216717532-c223360adf61",
     "server": "cloudflare",
-    "cf-ray": "656845c2dd285cb3-IAD",
+    "report-to": "{\"endpoints\":[{\"url\":\"https:\\/\\/a.nel.cloudflare.com\\/report\\/v2?s=T3RmT06rfIgJXaTL8FvNY90hcLDErInJeGbDYOoRIbtm9JrPDVL6vhWcWko16iEbMxn3Vgmjh6HgPvtMraAH4o4HjTY%2FuDNEV47WVIhcyVDDYjd9rzVc9EU7MJ0%3D\"}],\"group\":\"cf-nel\",\"max_age\":604800}",
+    "x-vercel-cache": "MISS",
+    "access-control-expose-headers": "Content-Length, X-Imports",
+    "content-type": "application/javascript; charset=utf-8",
+    "expect-ct": "max-age=604800, report-uri=\"https://report-uri.cloudflare.com/cdn-cgi/beacon/expect-ct\"",
     "nel": "{\"report_to\":\"cf-nel\",\"max_age\":604800}",
-    "cf-request-id": "0a5509edc400005cb32b1b1000000001",
-    "report-to": "{\"endpoints\":[{\"url\":\"https:\\/\\/a.nel.cloudflare.com\\/report\\/v2?s=kAfCo2tSaFcXzCgStcPZNBCy6T4%2Bu2cZjK1l%2BsIAkIxd%2Fe22GFXZU%2BhG2Xw1MtdkKakO05dWUCRLcidPm7iTHaiSuUIKSThrTOr90wQ7unC9eMNprS5qP%2Bh%2BXiU%3D\"}],\"group\":\"cf-nel\",\"max_age\":604800}"
+    "alt-svc": "h3-27=\":443\"; ma=86400, h3-28=\":443\"; ma=86400, h3-29=\":443\"; ma=86400",
+    "date": "Fri, 28 May 2021 15:45:18 GMT",
+    "etag": "W/\"15f8-WHN+Yr8loQjvLeNXbCRwIFtp90E\"",
+    "vary": "Accept-Encoding",
+    "cache-control": "public, max-age=31536000, immutable"
   },
   "url": "https://cdn.skypack.dev/-/@truestamp/truestamp-js@v0.0.42-SFXrgwX38LqCS8NVudUr/dist=es2020,mode=imports/optimized/@truestamp/truestamp-js.js"
 }

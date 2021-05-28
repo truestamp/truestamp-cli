@@ -43,10 +43,13 @@ lock:
 	export DENO_DIR=${DENO_DIR} && deno cache --unstable --lock=${LOCK} --lock-write ${DEPS}
 
 cache:
-	export DENO_DIR=${DENO_DIR} && deno cache --unstable ${DEPS} && make lock
+	make cache-system && export DENO_DIR=${DENO_DIR} && deno cache --unstable ${DEPS} && make lock
 
 cache-reload:
 	export DENO_DIR=${DENO_DIR} && deno cache --unstable --reload ${DEPS} && make lock
+
+cache-system:
+	deno cache --unstable ${DEPS}
 
 test:
 	export DENO_DIR=${DENO_DIR} && deno test ${ARGS} src

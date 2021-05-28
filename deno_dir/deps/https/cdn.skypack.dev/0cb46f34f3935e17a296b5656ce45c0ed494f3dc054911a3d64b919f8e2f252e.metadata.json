@@ -1,23 +1,23 @@
 {
   "headers": {
-    "cf-request-id": "0a5509f1dd00005cb3fc999000000001",
-    "nel": "{\"report_to\":\"cf-nel\",\"max_age\":604800}",
-    "cf-ray": "656845c95da35cb3-IAD",
-    "x-vercel-id": "iad1::sfo1::6ffqq-1622213188090-621106ca9efb",
-    "expect-ct": "max-age=604800, report-uri=\"https://report-uri.cloudflare.com/cdn-cgi/beacon/expect-ct\"",
-    "content-type": "application/typescript; charset=utf-8",
-    "report-to": "{\"endpoints\":[{\"url\":\"https:\\/\\/a.nel.cloudflare.com\\/report\\/v2?s=NmfRNYpByMezVGhgNQveiz5rG3vfcoD3hRddskFvr9D6SzWgwKJZBIiTCn6t%2BW2OJNeR6rR0H6YUZqD8E0F6RS2C1qYCWZYi9HX9ZfA%2BPT6wsWmVLI55jI5wlK0%3D\"}],\"group\":\"cf-nel\",\"max_age\":604800}",
-    "x-vercel-cache": "MISS",
-    "access-control-allow-origin": "*",
-    "cf-cache-status": "DYNAMIC",
-    "strict-transport-security": "max-age=63072000",
+    "x-vercel-cache": "HIT",
     "alt-svc": "h3-27=\":443\"; ma=86400, h3-28=\":443\"; ma=86400, h3-29=\":443\"; ma=86400",
+    "date": "Fri, 28 May 2021 15:45:18 GMT",
+    "x-vercel-id": "iad1::sfo1::flt5l-1622216718036-7d82d3e03661",
+    "cf-ray": "65689bf7a96c5b04-IAD",
+    "access-control-allow-origin": "*",
     "etag": "W/\"126-ViF6gRu6VXDduOrqa2TYqcJLRF8\"",
-    "cache-control": "public, max-age=31536000, immutable",
+    "cf-cache-status": "DYNAMIC",
+    "expect-ct": "max-age=604800, report-uri=\"https://report-uri.cloudflare.com/cdn-cgi/beacon/expect-ct\"",
     "server": "cloudflare",
+    "cf-request-id": "0a553fcec700005b047b097000000001",
+    "content-type": "application/typescript; charset=utf-8",
+    "strict-transport-security": "max-age=63072000",
+    "cache-control": "public, max-age=31536000, immutable",
+    "report-to": "{\"endpoints\":[{\"url\":\"https:\\/\\/a.nel.cloudflare.com\\/report\\/v2?s=VR%2Fwl%2BdBl0%2B1A8e9Z2XA8g3XyLvdG%2BColmtkHpd3QZgR41JjPh7ysbtnKImNwHL6UYb%2B8GVlsnO742p%2BKpVsMASbJMhxLkJRjdeqJ3JUSof%2FM7wSNh6WN41fyeY%3D\"}],\"group\":\"cf-nel\",\"max_age\":604800}",
     "content-length": "294",
-    "age": "0",
-    "date": "Fri, 28 May 2021 14:46:28 GMT"
+    "age": "3529",
+    "nel": "{\"report_to\":\"cf-nel\",\"max_age\":604800}"
   },
   "url": "https://cdn.skypack.dev/-/@truestamp/truestamp-js@v0.0.42-SFXrgwX38LqCS8NVudUr/dist=es2020,mode=types/dist/base.d.ts"
 }

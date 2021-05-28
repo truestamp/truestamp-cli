@@ -7,11 +7,11 @@ import {
   createHash,
   createTruestampClient,
   deleteTokensInConfig,
+  EnumType,
   getConfigAccessToken,
   getConfigIdTokenPayload,
   getConfigRefreshToken,
   HelpCommand,
-  ITypeInfo,
   path,
   S3,
 } from "./deps.ts";
@@ -22,24 +22,8 @@ import {
   setConfigKeyForEnv,
 } from "./config.ts";
 
-function environmentType({ label, name, value }: ITypeInfo): string {
-  const envs = ["development", "staging", "production"];
-  if (!envs.includes(value.toLowerCase())) {
-    throw new Error(
-      `${label} "${name}" must be a valid environment [${envs}], but got "${value}".`,
-    );
-  }
-
-  return value.toLowerCase();
-}
-
 const authLogin = new Command()
   .description("Authenticate with a Truestamp host")
-  .type("envType", environmentType, { global: true })
-  .option("-E, --env [env:envType]", "API environment to use.", {
-    hidden: false,
-    default: "production",
-  })
   .action(async (options) => {
     try {
       const ts = await createTruestampClient(options.env);
@@ -59,11 +43,6 @@ const authLogin = new Command()
 
 const authLogout = new Command()
   .description("Log out of a Truestamp host")
-  .type("envType", environmentType, { global: true })
-  .option("-E, --env [env:envType]", "API environment to use.", {
-    hidden: false,
-    default: "production",
-  })
   .action((options) => {
     deleteTokensInConfig(options.env);
     console.log("logout complete");
@@ -72,11 +51,6 @@ const authLogout = new Command()
 
 const authStatus = new Command()
   .description("View authentication status")
-  .type("envType", environmentType, { global: true })
-  .option("-E, --env [env:envType]", "API environment to use.", {
-    hidden: false,
-    default: "production",
-  })
   .action(async (options) => {
     if (
       !getConfigAccessToken(options.env) ||
@@ -127,11 +101,6 @@ const documentsNew = new Command()
   https://github.com/multiformats/multicodec/blob/master/table.csv
   `,
   )
-  .type("envType", environmentType, { global: true })
-  .option("-E, --env [env:envType]", "API environment to use.", {
-    hidden: false,
-    default: "production",
-  })
   .allowEmpty(false)
   .option(
     "-H, --hash [hash:string]",
@@ -169,11 +138,6 @@ const documentsNew = new Command()
 
 const documentsShow = new Command()
   .description("Show an existing document.")
-  .type("envType", environmentType, { global: true })
-  .option("-E, --env [env:envType]", "API environment to use.", {
-    hidden: false,
-    default: "production",
-  })
   .allowEmpty(false)
   .option("-i, --id [type:string]", "A document ID.", {
     required: true,
@@ -203,11 +167,6 @@ const documentsUpdate = new Command()
   https://github.com/multiformats/multicodec/blob/master/table.csv
   `,
   )
-  .type("envType", environmentType, { global: true })
-  .option("-E, --env [env:envType]", "API environment to use.", {
-    hidden: false,
-    default: "production",
-  })
   .allowEmpty(false)
   .option("-i, --id [id:string]", "A document ID.", {
     required: true,
@@ -248,11 +207,6 @@ const documentsUpdate = new Command()
 
 const documentsDelete = new Command()
   .description("Delete an existing document.")
-  .type("envType", environmentType, { global: true })
-  .option("-E, --env [env:envType]", "API environment to use.", {
-    hidden: false,
-    default: "production",
-  })
   .allowEmpty(false)
   .option("-i, --id [type:string]", "A document ID.", {
     required: true,
@@ -276,11 +230,6 @@ const documentsDelete = new Command()
 
 const documentsList = new Command()
   .description("List all existing documents.")
-  .type("envType", environmentType, { global: true })
-  .option("-E, --env [env:envType]", "API environment to use.", {
-    hidden: false,
-    default: "production",
-  })
   .action(async (options) => {
     try {
       const ts = await createTruestampClient(options.env);
@@ -312,11 +261,6 @@ const documents = new Command()
 
 const s3ConfigSet = new Command()
   .description(`Set environment specific persistent config for AWS S3.`)
-  .type("envType", environmentType, { global: true })
-  .option("-E, --env [env:envType]", "API environment to use.", {
-    hidden: false,
-    default: "production",
-  })
   .allowEmpty(false)
   .option(
     "-r, --region [region:string]",
@@ -352,11 +296,6 @@ const s3ConfigSet = new Command()
 
 const s3Config = new Command()
   .description(`View environment specific config for AWS S3.`)
-  .type("envType", environmentType, { global: true })
-  .option("-E, --env [env:envType]", "API environment to use.", {
-    hidden: false,
-    default: "production",
-  })
   .allowEmpty(false)
   .action((options) => {
     const config = getConfigForEnv(options.env);
@@ -383,11 +322,6 @@ const s3Upload = new Command()
   it, uploaded files will not be observed.
   `,
   )
-  .type("envType", environmentType, { global: true })
-  .option("-E, --env [env:envType]", "API environment to use.", {
-    hidden: false,
-    default: "production",
-  })
   .allowEmpty(false)
   .option(
     "-p, --path [path:string]",
@@ -557,11 +491,6 @@ const s3 = new Command()
 
 const heartbeat = new Command()
   .description("Display results of API server heartbeat call.")
-  .type("envType", environmentType, { global: true })
-  .option("-E, --env [env:envType]", "API environment to use.", {
-    hidden: false,
-    default: "production",
-  })
   .action(async (options) => {
     const ts = await createTruestampClient(options.env);
     const hb = await ts.getHeartbeat();
@@ -578,6 +507,18 @@ const cmd = new Command()
     types: false,
     hints: true,
   })
+  .type("environment", new EnumType(["development", "staging", "production"]), {
+    global: true,
+  })
+  .option(
+    "-E, --env [env:environment]",
+    "API environment to use.",
+    {
+      hidden: true,
+      default: "production",
+      global: true,
+    },
+  )
   .action(() => {
     cmd.showHelp();
     Deno.exit(0);

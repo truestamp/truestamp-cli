@@ -7,10 +7,13 @@ import { Buffer } from "http://deno.land/x/node_buffer@1.1.0/mod.ts";
 import { sleep } from "https://deno.land/x/sleep/mod.ts";
 import { decode, validate } from "https://deno.land/x/djwt@v2.2/mod.ts";
 
-import { colors } from "https://deno.land/x/cliffy@v0.18.2/ansi/colors.ts";
-import { Command } from "https://deno.land/x/cliffy@v0.18.2/command/mod.ts";
-import { HelpCommand } from "https://deno.land/x/cliffy@v0.18.2/command/help/mod.ts";
-import { CompletionsCommand } from "https://deno.land/x/cliffy@v0.18.2/command/completions/mod.ts";
+import { colors } from "https://deno.land/x/cliffy@v0.19.0/ansi/colors.ts";
+import {
+  Command,
+  EnumType,
+} from "https://deno.land/x/cliffy@v0.19.0/command/mod.ts";
+import { HelpCommand } from "https://deno.land/x/cliffy@v0.19.0/command/help/mod.ts";
+import { CompletionsCommand } from "https://deno.land/x/cliffy@v0.19.0/command/completions/mod.ts";
 
 import Conf from "https://raw.githubusercontent.com/truestamp/deno-conf/v1.0.2-beta/mod.ts";
 
@@ -42,6 +45,7 @@ export {
   createTruestampClient,
   decode,
   deleteTokensInConfig,
+  EnumType,
   getAccessTokenWithPrompts,
   getConfigAccessToken,
   getConfigIdTokenPayload,

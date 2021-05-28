@@ -1,15 +1,15 @@
 {
   "headers": {
+    "vary": "Accept-Encoding",
+    "expect-ct": "max-age=604800, report-uri=\"https://report-uri.cloudflare.com/cdn-cgi/beacon/expect-ct\"",
+    "alt-svc": "h3-27=\":443\"; ma=86400, h3-28=\":443\"; ma=86400, h3-29=\":443\"; ma=86400",
     "x-deno-warning": "Implicitly using latest version (v1.2.0) for https://deno.land/x/sleep/mod.ts",
-    "content-length": "0",
     "server": "cloudflare",
     "location": "/x/sleep@v1.2.0/mod.ts",
-    "expect-ct": "max-age=604800, report-uri=\"https://report-uri.cloudflare.com/cdn-cgi/beacon/expect-ct\"",
-    "cf-ray": "6568455c2a245a51-IAD",
-    "alt-svc": "h3-27=\":443\"; ma=86400, h3-28=\":443\"; ma=86400, h3-29=\":443\"; ma=86400",
-    "vary": "Accept-Encoding",
-    "date": "Fri, 28 May 2021 14:46:10 GMT",
-    "cf-request-id": "0a5509ad9f00005a5163042000000001"
+    "content-length": "0",
+    "date": "Fri, 28 May 2021 15:45:16 GMT",
+    "cf-request-id": "0a553fca0000005c9b0f036000000001",
+    "cf-ray": "65689beffebe5c9b-IAD"
   },
   "url": "https://deno.land/x/sleep/mod.ts"
 }

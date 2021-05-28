@@ -1,0 +1,24 @@
+{
+  "headers": {
+    "alt-svc": "h3-27=\":443\"; ma=86400, h3-28=\":443\"; ma=86400, h3-29=\":443\"; ma=86400",
+    "x-amz-request-id": "EBQDHDF3HRRFJ1AE",
+    "content-length": "8220",
+    "date": "Fri, 28 May 2021 15:45:16 GMT",
+    "x-amz-id-2": "4InUws6j2yqmrrk38geb7KwyJcrvWVgt7ZMH5J3nAFq1d9f5GGZHEv+iXRndEQ+U6qZIa/3IF6Y=",
+    "expect-ct": "max-age=604800, report-uri=\"https://report-uri.cloudflare.com/cdn-cgi/beacon/expect-ct\"",
+    "access-control-allow-origin": "*",
+    "content-type": "application/typescript; charset=utf-8",
+    "vary": "Accept-Encoding",
+    "age": "2585",
+    "server": "cloudflare",
+    "cf-request-id": "0a553fca6700005c9b0f03f000000001",
+    "last-modified": "Wed, 26 May 2021 16:47:32 GMT",
+    "cf-ray": "65689bf0afeb5c9b-IAD",
+    "cf-cache-status": "HIT",
+    "etag": "\"31cc0108960a69f657d3a0a2229f3ba2\"",
+    "cache-control": "public, max-age=31536000, immutable",
+    "accept-ranges": "bytes",
+    "x-amz-version-id": "CnEYmZYQlRR0mHP4cn13YvG644oKufm6"
+  },
+  "url": "https://deno.land/x/cliffy@v0.19.0/command/help/_help_generator.ts"
+}

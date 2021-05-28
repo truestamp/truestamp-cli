@@ -1,23 +1,23 @@
 {
   "headers": {
-    "age": "0",
+    "cf-ray": "65689bfdbda75b04-IAD",
+    "alt-svc": "h3-27=\":443\"; ma=86400, h3-28=\":443\"; ma=86400, h3-29=\":443\"; ma=86400",
     "content-type": "application/typescript; charset=utf-8",
-    "content-length": "746",
+    "report-to": "{\"endpoints\":[{\"url\":\"https:\\/\\/a.nel.cloudflare.com\\/report\\/v2?s=fjK8OaGe%2Fev9zlOKztU9UN8RDI7fNJJE9VM2oXU%2Buwt8x3tMFSkOHT1b7wd%2BLinH%2FrKWHozftVQJA3YzHKKF%2FUMbzMtv3XN%2FMF5rRmf3%2FNyE%2BzEHT5dhpdrcNoE%3D\"}],\"group\":\"cf-nel\",\"max_age\":604800}",
+    "x-vercel-cache": "MISS",
+    "server": "cloudflare",
+    "expect-ct": "max-age=604800, report-uri=\"https://report-uri.cloudflare.com/cdn-cgi/beacon/expect-ct\"",
     "access-control-allow-origin": "*",
     "cf-cache-status": "DYNAMIC",
-    "report-to": "{\"endpoints\":[{\"url\":\"https:\\/\\/a.nel.cloudflare.com\\/report\\/v2?s=aRmywvnT5RtY7POweoH%2Br%2FZB6Ln%2BD5EsR7zHYNoqGXVBz92Mj%2FdgqOknxnn4sA00JTr96o2rzk0irPHZEURU0iJnGlV3N9GLRM%2B5AaCRcCGigEmZyMSnppQDgXg%3D\"}],\"group\":\"cf-nel\",\"max_age\":604800}",
-    "nel": "{\"report_to\":\"cf-nel\",\"max_age\":604800}",
-    "server": "cloudflare",
-    "cf-request-id": "0a5509f50400005cb32b267000000001",
-    "expect-ct": "max-age=604800, report-uri=\"https://report-uri.cloudflare.com/cdn-cgi/beacon/expect-ct\"",
-    "alt-svc": "h3-27=\":443\"; ma=86400, h3-28=\":443\"; ma=86400, h3-29=\":443\"; ma=86400",
-    "x-vercel-cache": "MISS",
-    "strict-transport-security": "max-age=63072000",
+    "cf-request-id": "0a553fd29200005b04979d9000000001",
     "cache-control": "public, max-age=31536000, immutable",
-    "date": "Fri, 28 May 2021 14:46:29 GMT",
-    "cf-ray": "656845ce6bf45cb3-IAD",
+    "age": "0",
+    "strict-transport-security": "max-age=63072000",
+    "date": "Fri, 28 May 2021 15:45:19 GMT",
     "etag": "W/\"2ea-Vk2EZrQ1ysZLrTpSV+lPLpkOWY4\"",
-    "x-vercel-id": "iad1::sfo1::c58cz-1622213188880-1d236807e1d4"
+    "content-length": "746",
+    "x-vercel-id": "iad1::sfo1::j6nfz-1622216719017-3d92310d31f2",
+    "nel": "{\"report_to\":\"cf-nel\",\"max_age\":604800}"
   },
   "url": "https://cdn.skypack.dev/-/@truestamp/truestamp-js@v0.0.42-SFXrgwX38LqCS8NVudUr/dist=es2020,mode=types/dist/documents/types.d.ts"
 }
