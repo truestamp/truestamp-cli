@@ -25,6 +25,12 @@ import { ulid } from "https://cdn.skypack.dev/ulid?dts";
 import { S3 } from "https://deno.land/x/aws_sdk@v3.16.0-3/client-s3/mod.ts";
 
 import {
+  getConfigForEnv,
+  getConfigKeyForEnv,
+  setConfigKeyForEnv,
+} from "./config.ts";
+
+import {
   deleteTokensInConfig,
   getAccessTokenWithPrompts,
   getConfigAccessToken,
@@ -49,11 +55,14 @@ export {
   EnumType,
   getAccessTokenWithPrompts,
   getConfigAccessToken,
+  getConfigForEnv,
   getConfigIdTokenPayload,
+  getConfigKeyForEnv,
   getConfigRefreshToken,
   HelpCommand,
   path,
   S3,
+  setConfigKeyForEnv,
   sleep,
   Truestamp,
   ulid,
