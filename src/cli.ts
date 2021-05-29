@@ -2,6 +2,7 @@
 
 import {
   Buffer,
+  colors,
   Command,
   CompletionsCommand,
   createHash,
@@ -15,6 +16,7 @@ import {
   path,
   S3,
   S3ClientConfig,
+  ValidationError,
 } from "./deps.ts";
 
 import {
@@ -26,20 +28,13 @@ import {
 const authLogin = new Command()
   .description("Authenticate with a Truestamp host")
   .action(async (options) => {
-    try {
-      const ts = await createTruestampClient(options.env);
-      const hb = await ts.getHeartbeat();
-      if (hb) {
-        console.log("login successful");
-      } else {
-        throw new Error("auth login heartbeat check failed");
-      }
-    } catch (error) {
-      console.error("Error: ", error.message);
-      Deno.exit(1);
+    const ts = await createTruestampClient(options.env);
+    const hb = await ts.getHeartbeat();
+    if (hb) {
+      console.log("login successful");
+    } else {
+      throw new Error("auth login heartbeat check failed");
     }
-
-    Deno.exit(0);
   });
 
 const authLogout = new Command()
@@ -47,7 +42,6 @@ const authLogout = new Command()
   .action((options) => {
     deleteTokensInConfig(options.env);
     console.log("logout complete");
-    Deno.exit(0);
   });
 
 const authStatus = new Command()
@@ -61,34 +55,26 @@ const authStatus = new Command()
       Deno.exit(1);
     }
 
-    try {
-      const ts = await createTruestampClient(options.env);
-      const hb = await ts.getHeartbeat();
-      if (!hb) {
-        throw new Error("auth status heartbeat check failed");
-      }
-
-      const payload = getConfigIdTokenPayload(options.env);
-      if (payload) {
-        console.log(
-          `logged into '${options.env}' environment as user '${payload.name} (${payload.email})'`,
-        );
-      } else {
-        throw new Error("id token missing or invalid");
-      }
-    } catch (error) {
-      console.error("Error: ", error.message);
-      Deno.exit(1);
+    const ts = await createTruestampClient(options.env);
+    const hb = await ts.getHeartbeat();
+    if (!hb) {
+      throw new Error("auth status heartbeat check failed");
     }
 
-    Deno.exit(0);
+    const payload = getConfigIdTokenPayload(options.env);
+    if (payload) {
+      console.log(
+        `logged into '${options.env}' environment as user '${payload.name} (${payload.email})'`,
+      );
+    } else {
+      throw new Error("id token missing or invalid");
+    }
   });
 
 const auth = new Command()
   .description("Login, logout, and show status of your authentication.")
   .action(() => {
     auth.showHelp();
-    Deno.exit(0);
   })
   .command("login", authLogin)
   .command("logout", authLogout)
@@ -102,7 +88,6 @@ const documentsNew = new Command()
   https://github.com/multiformats/multicodec/blob/master/table.csv
   `,
   )
-  .allowEmpty(false)
   .option(
     "-H, --hash [hash:string]",
     "A document hash encoded as a MultiHash, hex, or Base64 string.",
@@ -118,46 +103,31 @@ const documentsNew = new Command()
     },
   )
   .action(async (options) => {
-    try {
-      const ts = await createTruestampClient(options.env);
-      const d = await ts.createDocument({
-        hash: options.hash,
-        type: options.type,
-      });
-      if (d) {
-        console.log(JSON.stringify(d));
-      } else {
-        throw new Error("new document creation failed");
-      }
-    } catch (error) {
-      console.error("Error: ", error.message);
-      Deno.exit(1);
+    const ts = await createTruestampClient(options.env);
+    const d = await ts.createDocument({
+      hash: options.hash,
+      type: options.type,
+    });
+    if (d) {
+      console.log(JSON.stringify(d));
+    } else {
+      throw new Error("new document creation failed");
     }
-
-    Deno.exit(0);
   });
 
 const documentsShow = new Command()
   .description("Show an existing document.")
-  .allowEmpty(false)
   .option("-i, --id [type:string]", "A document ID.", {
     required: true,
   })
   .action(async (options) => {
-    try {
-      const ts = await createTruestampClient(options.env);
-      const d = await ts.getDocument(options.id);
-      if (d) {
-        console.log(JSON.stringify(d));
-      } else {
-        throw new Error("document not found");
-      }
-    } catch (error) {
-      console.error("Error: ", error.message);
-      Deno.exit(1);
+    const ts = await createTruestampClient(options.env);
+    const d = await ts.getDocument(options.id);
+    if (d) {
+      console.log(JSON.stringify(d));
+    } else {
+      throw new Error("document not found");
     }
-
-    Deno.exit(0);
   });
 
 const documentsUpdate = new Command()
@@ -168,7 +138,6 @@ const documentsUpdate = new Command()
   https://github.com/multiformats/multicodec/blob/master/table.csv
   `,
   )
-  .allowEmpty(false)
   .option("-i, --id [id:string]", "A document ID.", {
     required: true,
   })
@@ -187,72 +156,49 @@ const documentsUpdate = new Command()
     },
   )
   .action(async (options) => {
-    try {
-      const ts = await createTruestampClient(options.env);
-      const d = await ts.updateDocument(options.id, {
-        hash: options.hash,
-        type: options.type,
-      });
-      if (d) {
-        console.log(JSON.stringify(d));
-      } else {
-        throw new Error("document not found");
-      }
-    } catch (error) {
-      console.error("Error: ", error.message);
-      Deno.exit(1);
+    const ts = await createTruestampClient(options.env);
+    const d = await ts.updateDocument(options.id, {
+      hash: options.hash,
+      type: options.type,
+    });
+    if (d) {
+      console.log(JSON.stringify(d));
+    } else {
+      throw new Error("document not found");
     }
-
-    Deno.exit(0);
   });
 
 const documentsDelete = new Command()
   .description("Delete an existing document.")
-  .allowEmpty(false)
   .option("-i, --id [type:string]", "A document ID.", {
     required: true,
   })
   .action(async (options) => {
-    try {
-      const ts = await createTruestampClient(options.env);
-      const d = await ts.deleteDocument(options.id);
-      if (d) {
-        console.log(JSON.stringify(d));
-      } else {
-        throw new Error("document not found");
-      }
-    } catch (error) {
-      console.error("Error: ", error.message);
-      Deno.exit(1);
+    const ts = await createTruestampClient(options.env);
+    const d = await ts.deleteDocument(options.id);
+    if (d) {
+      console.log(JSON.stringify(d));
+    } else {
+      throw new Error("document not found");
     }
-
-    Deno.exit(0);
   });
 
 const documentsList = new Command()
   .description("List all existing documents.")
   .action(async (options) => {
-    try {
-      const ts = await createTruestampClient(options.env);
-      const d = await ts.getAllDocuments();
-      if (d) {
-        console.log(JSON.stringify(d));
-      } else {
-        throw new Error("documents not found");
-      }
-    } catch (error) {
-      console.error("Error: ", error.message);
-      Deno.exit(1);
+    const ts = await createTruestampClient(options.env);
+    const d = await ts.getAllDocuments();
+    if (d) {
+      console.log(JSON.stringify(d));
+    } else {
+      throw new Error("documents not found");
     }
-
-    Deno.exit(0);
   });
 
 const documents = new Command()
   .description("Create, read, update, or destroy documents.")
   .action(() => {
     documents.showHelp();
-    Deno.exit(0);
   })
   .command("new", documentsNew)
   .command("show", documentsShow)
@@ -290,7 +236,6 @@ const awsRegions = [
 
 const s3ConfigSet = new Command()
   .description(`Set environment specific persistent config for AWS S3.`)
-  .allowEmpty(false)
   .option(
     "-b, --bucket [bucket:string]",
     "Set the name of the AWS S3 bucket (must exist in same region client uses. Override with ).",
@@ -299,25 +244,16 @@ const s3ConfigSet = new Command()
     },
   )
   .action((options) => {
-    try {
-      if (options.bucket !== getConfigKeyForEnv(options.env, "aws_s3_bucket")) {
-        setConfigKeyForEnv(options.env, "aws_s3_bucket", options.bucket);
-      }
-    } catch (error) {
-      console.error("Error: ", error.message);
-      Deno.exit(1);
+    if (options.bucket !== getConfigKeyForEnv(options.env, "aws_s3_bucket")) {
+      setConfigKeyForEnv(options.env, "aws_s3_bucket", options.bucket);
     }
-
-    Deno.exit(0);
   });
 
 const s3Config = new Command()
   .description(`View environment specific config for AWS S3.`)
-  .allowEmpty(false)
   .action((options) => {
     const config = getConfigForEnv(options.env);
     console.log(JSON.stringify(config.store));
-    Deno.exit(0);
   })
   .command("set", s3ConfigSet);
 
@@ -348,7 +284,6 @@ const s3Upload = new Command()
   object attached as permanent object metadata.
   `,
   )
-  .allowEmpty(false)
   .option(
     "-p, --path [path:string]",
     "The relative, or absolute, filesystem path of a local file to upload. The file basename will be used as the S3 object key. e.g. '/my/path/doc.txt' has a basename of 'doc.txt'.",
@@ -379,120 +314,113 @@ const s3Upload = new Command()
     },
   )
   .action(async (options) => {
-    try {
-      if (!getConfigKeyForEnv(options.env, "aws_s3_bucket")) {
-        throw new Error("missing aws s3 bucket config");
-      }
-
-      const awsS3Bucket = getConfigKeyForEnv(
-        options.env,
-        "aws_s3_bucket",
-      ) as string;
-
-      // ex: /path/to/my-picture.png becomes my-picture.png
-      const fileBaseName = path.basename(options.path);
-
-      const fileContents = await Deno.readFile(options.path);
-
-      // If you want to save to "my-bucket/{prefix}/{filename}"
-      //                    ex: "my-bucket/my-pictures-folder/my-picture.png"
-      const resolvedFileName = options.key ? options.key : fileBaseName;
-
-      const keyName = [options.prefix, resolvedFileName].join("");
-
-      // https://docs.aws.amazon.com/AmazonS3/latest/userguide/object-keys.html
-      const keyRegex = /^[a-zA-Z0-9\/\!\-\_\.\*\'\(\)]+$/;
-      if (!keyRegex.test(keyName)) {
-        throw new Error(
-          `object prefix + key must be valid, but got "${keyName}". Allowed RegEx ${keyRegex}`,
-        );
-      }
-
-      // MD5 hash to be submitted with the content to
-      // ensure integrity of file stored. This is
-      // required for buckets using a retention period
-      // configured using Amazon S3 Object Lock.
-      // https://docs.aws.amazon.com/AmazonS3/latest/API/API_PutObject.html
-      const hashMD5 = createHash("md5");
-      hashMD5.update(fileContents);
-      const hashMD5InBase64 = hashMD5.toString("base64");
-
-      // SHA256 hash (Base64 encoded) to submit as
-      // user-defined metadata and stored with the S3 object
-      const hashSHA256 = createHash("sha256");
-      hashSHA256.update(fileContents);
-      const hashSHA256InBase64 = hashSHA256.toString("base64");
-
-      const metadata = {
-        "hash-sha256": hashSHA256InBase64,
-        creator: `truestamp-cli-v${s3Upload.getVersion()}`,
-      };
-
-      const s3ObjParams = {
-        Bucket: awsS3Bucket,
-        Body: fileContents,
-        ContentMD5: hashMD5InBase64,
-        Key: keyName,
-        Metadata: metadata,
-      };
-
-      // The AWS client will automatically look for an `AWS_REGION` or `AMAZON_REGION`
-      // environment variable. The region specified in the options will override this
-      // if provided.
-      if (
-        !options.awsRegion && !Deno.env.get("AWS_REGION") &&
-        !Deno.env.get("AMAZON_REGION")
-      ) {
-        throw new Error(
-          "missing AWS S3 region. Specify `--aws-region` or `AWS_REGION` or `AMAZON_REGION` env var.",
-        );
-      }
-
-      // The AWS_* region env vars don't need to be specified here since the SDK
-      // will look for them automatically.
-      const awsS3RegionOverride = options.awsRegion ? options.awsRegion : null;
-      const clientConfig: S3ClientConfig = {};
-      if (awsS3RegionOverride) {
-        clientConfig.region = awsS3RegionOverride;
-      }
-      const s3 = new S3(clientConfig);
-
-      const resp = await s3.putObject(s3ObjParams);
-      console.log(resp);
-
-      // The ETag is being returned wrapped in extra quotes
-      // See : https://github.com/aws/aws-sdk-net/issues/815
-      const eTagStripped = resp.ETag ? resp.ETag.replace(/(^"|"$)/g, "") : "";
-
-      // compare() method compares two buffer objects and returns a number defining their differences
-      // https://teppen.io/2018/06/23/aws_s3_etags/
-      if (
-        Buffer.compare(
-          Buffer.from(hashMD5InBase64, "base64"),
-          Buffer.from(eTagStripped, "hex"),
-        ) != 0
-      ) {
-        throw new Error(
-          "the md5 end-to-end integrity check on the submitted data and the returned ETag failed",
-        );
-      }
-
-      const objMeta = {
-        region: options.awsRegion || Deno.env.get("AWS_REGION") ||
-          Deno.env.get("AMAZON_REGION"),
-        bucket: awsS3Bucket,
-        key: keyName,
-        versionId: resp.VersionId,
-        eTag: eTagStripped,
-        metadata: metadata,
-      };
-      console.log(JSON.stringify(objMeta));
-    } catch (error) {
-      console.error("Error: ", error.message);
-      Deno.exit(1);
+    if (!getConfigKeyForEnv(options.env, "aws_s3_bucket")) {
+      throw new ValidationError("missing aws s3 bucket config");
     }
 
-    Deno.exit(0);
+    const awsS3Bucket = getConfigKeyForEnv(
+      options.env,
+      "aws_s3_bucket",
+    ) as string;
+
+    // ex: /path/to/my-picture.png becomes my-picture.png
+    const fileBaseName = path.basename(options.path);
+
+    const fileContents = await Deno.readFile(options.path);
+
+    // If you want to save to "my-bucket/{prefix}/{filename}"
+    //                    ex: "my-bucket/my-pictures-folder/my-picture.png"
+    const resolvedFileName = options.key ? options.key : fileBaseName;
+
+    const keyName = [options.prefix, resolvedFileName].join("");
+
+    // https://docs.aws.amazon.com/AmazonS3/latest/userguide/object-keys.html
+    const keyRegex = /^[a-zA-Z0-9\/\!\-\_\.\*\'\(\)]+$/;
+    if (!keyRegex.test(keyName)) {
+      throw new ValidationError(
+        `object prefix + key must be valid, but got "${keyName}". Allowed RegEx ${keyRegex}`,
+      );
+    }
+
+    // MD5 hash to be submitted with the content to
+    // ensure integrity of file stored. This is
+    // required for buckets using a retention period
+    // configured using Amazon S3 Object Lock.
+    // https://docs.aws.amazon.com/AmazonS3/latest/API/API_PutObject.html
+    const hashMD5 = createHash("md5");
+    hashMD5.update(fileContents);
+    const hashMD5InBase64 = hashMD5.toString("base64");
+
+    // SHA256 hash (Base64 encoded) to submit as
+    // user-defined metadata and stored with the S3 object
+    const hashSHA256 = createHash("sha256");
+    hashSHA256.update(fileContents);
+    const hashSHA256InBase64 = hashSHA256.toString("base64");
+
+    const metadata = {
+      "hash-sha256": hashSHA256InBase64,
+      creator: `truestamp-cli-v${s3Upload.getVersion()}`,
+    };
+
+    const s3ObjParams = {
+      Bucket: awsS3Bucket,
+      Body: fileContents,
+      ContentMD5: hashMD5InBase64,
+      Key: keyName,
+      Metadata: metadata,
+    };
+
+    // The AWS client will automatically look for an `AWS_REGION` or `AMAZON_REGION`
+    // environment variable. The region specified in the options will override this
+    // if provided.
+    if (
+      !options.awsRegion && !Deno.env.get("AWS_REGION") &&
+      !Deno.env.get("AMAZON_REGION")
+    ) {
+      throw new ValidationError(
+        "missing AWS S3 region. Specify `--aws-region` or `AWS_REGION` or `AMAZON_REGION` env var.",
+      );
+    }
+
+    // The AWS_* region env vars don't need to be specified here since the SDK
+    // will look for them automatically.
+    const awsS3RegionOverride = options.awsRegion ? options.awsRegion : null;
+    const clientConfig: S3ClientConfig = {};
+    if (awsS3RegionOverride) {
+      clientConfig.region = awsS3RegionOverride;
+    }
+    const s3 = new S3(clientConfig);
+
+    const resp = await s3.putObject(s3ObjParams);
+    console.log(resp);
+
+    // The ETag is being returned wrapped in extra quotes
+    // See : https://github.com/aws/aws-sdk-net/issues/815
+    const eTagStripped = resp.ETag ? resp.ETag.replace(/(^"|"$)/g, "") : "";
+
+    // compare() method compares two buffer objects and returns a number defining their differences
+    // https://teppen.io/2018/06/23/aws_s3_etags/
+    if (
+      Buffer.compare(
+        Buffer.from(hashMD5InBase64, "base64"),
+        Buffer.from(eTagStripped, "hex"),
+      ) != 0
+    ) {
+      throw new Error(
+        "the MD5 hash end-to-end integrity check on the submitted data and the returned ETag failed",
+      );
+    }
+
+    const objMeta = {
+      region: options.awsRegion || Deno.env.get("AWS_REGION") ||
+        Deno.env.get("AMAZON_REGION"),
+      bucket: awsS3Bucket,
+      key: keyName,
+      versionId: resp.VersionId,
+      eTag: eTagStripped,
+      metadata: metadata,
+    };
+    console.log(JSON.stringify(objMeta));
   });
 
 const s3 = new Command()
@@ -560,11 +488,11 @@ const heartbeat = new Command()
     const ts = await createTruestampClient(options.env);
     const hb = await ts.getHeartbeat();
     console.log(JSON.stringify(hb));
-    Deno.exit(0);
   });
 
 // Top level command
 const cmd = new Command()
+  .throwErrors()
   .name("truestamp")
   .version("0.0.4")
   .description("Truestamp CLI")
@@ -586,7 +514,6 @@ const cmd = new Command()
   )
   .action(() => {
     cmd.showHelp();
-    Deno.exit(0);
   })
   .command("auth", auth)
   .command("completions", new CompletionsCommand())
@@ -596,8 +523,23 @@ const cmd = new Command()
   .command("s3", s3);
 
 try {
-  cmd.parse(Deno.args);
+  await cmd.parse(Deno.args);
 } catch (error) {
-  console.error("Error: ", error.message);
-  Deno.exit(1);
+  if (error instanceof ValidationError) {
+    cmd.showHelp();
+    Deno.stderr.writeSync(
+      new TextEncoder().encode(
+        colors.yellow(
+          `  ${colors.bold("Validation Error")}: ${error.message}\n`,
+        ) + "\n",
+      ),
+    );
+  } else {
+    Deno.stderr.writeSync(
+      new TextEncoder().encode(
+        colors.red(`  ${colors.bold("Error")}: ${error.message}\n`) + "\n",
+      ),
+    );
+  }
+  Deno.exit(error instanceof ValidationError ? error.exitCode : 1);
 }

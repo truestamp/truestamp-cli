@@ -12,10 +12,7 @@ export function getConfigForEnv(
   const projectName = getConfigProjectNameForEnv(env);
   const config = new Conf({
     projectName,
-    defaults: { aws_s3_region: "us-east-1" },
   });
-
-  console.log(config);
 
   return config;
 }

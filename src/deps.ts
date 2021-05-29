@@ -11,6 +11,7 @@ import { colors } from "https://deno.land/x/cliffy@v0.19.0/ansi/colors.ts";
 import {
   Command,
   EnumType,
+  ValidationError,
 } from "https://deno.land/x/cliffy@v0.19.0/command/mod.ts";
 import { HelpCommand } from "https://deno.land/x/cliffy@v0.19.0/command/help/mod.ts";
 import { CompletionsCommand } from "https://deno.land/x/cliffy@v0.19.0/command/completions/mod.ts";
@@ -57,6 +58,7 @@ export {
   Truestamp,
   ulid,
   validate,
+  ValidationError,
 };
 
 export type { ITypeInfo } from "https://deno.land/x/cliffy/flags/mod.ts";
