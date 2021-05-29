@@ -1,23 +1,23 @@
 {
   "headers": {
+    "content-length": "256",
+    "x-vercel-cache": "MISS",
+    "strict-transport-security": "max-age=63072000",
+    "content-type": "application/typescript; charset=utf-8",
+    "cf-request-id": "0a5a7a622800005d91cc9f7000000001",
+    "age": "0",
+    "report-to": "{\"endpoints\":[{\"url\":\"https:\\/\\/a.nel.cloudflare.com\\/report\\/v2?s=qdsZIGk6lrSDTB5RfFndTH7rNIH4sx8jDXOhIBvSPX0OiS8sKwQfJow1yeUQzEOuL8oHiERdI5G3scoJC2R0DD92qyDls1DLXRUSSRnios0Pwkt7rgQRsg8uQ9Y%3D\"}],\"group\":\"cf-nel\",\"max_age\":604800}",
+    "cf-cache-status": "DYNAMIC",
     "nel": "{\"report_to\":\"cf-nel\",\"max_age\":604800}",
+    "access-control-allow-origin": "*",
+    "etag": "W/\"100-sER/U+RTaYVJkjNT0yHByaoDdZY\"",
+    "x-vercel-id": "iad1::sfo1::9bwzf-1622304442934-6c97b9c4d878",
+    "alt-svc": "h3-27=\":443\"; ma=86400, h3-28=\":443\"; ma=86400, h3-29=\":443\"; ma=86400",
+    "cache-control": "public, max-age=31536000, immutable",
     "server": "cloudflare",
     "expect-ct": "max-age=604800, report-uri=\"https://report-uri.cloudflare.com/cdn-cgi/beacon/expect-ct\"",
-    "cf-ray": "65689bf47ac95b04-IAD",
-    "content-length": "256",
-    "date": "Fri, 28 May 2021 15:45:18 GMT",
-    "x-vercel-cache": "MISS",
-    "content-type": "application/typescript; charset=utf-8",
-    "cache-control": "public, max-age=31536000, immutable",
-    "strict-transport-security": "max-age=63072000",
-    "cf-request-id": "0a553fccd600005b04860b6000000001",
-    "etag": "W/\"100-sER/U+RTaYVJkjNT0yHByaoDdZY\"",
-    "alt-svc": "h3-27=\":443\"; ma=86400, h3-28=\":443\"; ma=86400, h3-29=\":443\"; ma=86400",
-    "age": "0",
-    "report-to": "{\"endpoints\":[{\"url\":\"https:\\/\\/a.nel.cloudflare.com\\/report\\/v2?s=mKDSVcHVnXWHWwtXmZlQGxr5xGD6YYFdxdJgtCOzf4zCs88s7OyDwO%2FC%2BKd5w6Cankr5eP8YLWslywQ%2BAnRnPSDguS6ZCTk6%2FBNAM6khjXt1DSLf60SOBzDj4iY%3D\"}],\"group\":\"cf-nel\",\"max_age\":604800}",
-    "access-control-allow-origin": "*",
-    "cf-cache-status": "DYNAMIC",
-    "x-vercel-id": "iad1::sfo1::sxvmp-1622216717558-1f93dd27404f"
+    "date": "Sat, 29 May 2021 16:07:23 GMT",
+    "cf-ray": "6570f9b03f535d91-IAD"
   },
   "url": "https://cdn.skypack.dev/-/@truestamp/truestamp-js@v0.0.42-SFXrgwX38LqCS8NVudUr/dist=es2020,mode=types/dist/index.d.ts"
 }

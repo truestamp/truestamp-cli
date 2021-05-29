@@ -1,22 +1,22 @@
 {
   "headers": {
-    "content-length": "0",
-    "x-vercel-cache": "MISS",
-    "date": "Fri, 28 May 2021 15:45:18 GMT",
-    "expect-ct": "max-age=604800, report-uri=\"https://report-uri.cloudflare.com/cdn-cgi/beacon/expect-ct\"",
-    "cache-control": "public, max-age=0, must-revalidate",
-    "report-to": "{\"endpoints\":[{\"url\":\"https:\\/\\/a.nel.cloudflare.com\\/report\\/v2?s=s2D0GNgVawops%2BrcXSkr9wyx03JK5LHPlRabQSv2lFYd2okAc%2FxnVP5FmpBpw2DQogroHUA0DJxh7P%2BoLlsSc5bumJqPZWjOY73SeS4ogAGREiQ%2BdyTlv1nP9I0%3D\"}],\"group\":\"cf-nel\",\"max_age\":604800}",
-    "alt-svc": "h3-27=\":443\"; ma=86400, h3-28=\":443\"; ma=86400, h3-29=\":443\"; ma=86400",
-    "x-vercel-id": "iad1::sfo1::phlbs-1622216718058-6964c027cbc5",
-    "age": "0",
-    "cf-request-id": "0a553fcec700005b04ba029000000001",
     "nel": "{\"report_to\":\"cf-nel\",\"max_age\":604800}",
-    "cf-cache-status": "DYNAMIC",
-    "cf-ray": "65689bf7a96b5b04-IAD",
+    "content-length": "0",
+    "cf-request-id": "0a5a7a63dc00005d91a49ee000000001",
+    "x-vercel-id": "iad1::sfo1::zh4tg-1622304443365-cf9ebffbf204",
+    "cache-control": "public, max-age=0, must-revalidate",
+    "x-vercel-cache": "MISS",
+    "date": "Sat, 29 May 2021 16:07:23 GMT",
     "strict-transport-security": "max-age=63072000",
     "server": "cloudflare",
+    "cf-ray": "6570f9b2fae95d91-IAD",
+    "alt-svc": "h3-27=\":443\"; ma=86400, h3-28=\":443\"; ma=86400, h3-29=\":443\"; ma=86400",
+    "report-to": "{\"endpoints\":[{\"url\":\"https:\\/\\/a.nel.cloudflare.com\\/report\\/v2?s=aG7CgVLm3Gjy1U7KQEaRAjHQwaLjus2sPwf3gevdM89ikgP3eFKOg8EjcngEU8BVKfUwi1QUsgK73wmadCLUZQTAaiWNtgRDeHEkhCFwLwhDlH8lPlfmh4F%2F%2FKQ%3D\"}],\"group\":\"cf-nel\",\"max_age\":604800}",
     "location": "/-/@truestamp/truestamp-js@v0.0.42-SFXrgwX38LqCS8NVudUr/dist=es2020,mode=types/dist/documents/index.d.ts",
-    "access-control-allow-origin": "*"
+    "access-control-allow-origin": "*",
+    "expect-ct": "max-age=604800, report-uri=\"https://report-uri.cloudflare.com/cdn-cgi/beacon/expect-ct\"",
+    "cf-cache-status": "DYNAMIC",
+    "age": "0"
   },
   "url": "https://cdn.skypack.dev/-/@truestamp/truestamp-js@v0.0.42-SFXrgwX38LqCS8NVudUr/dist=es2020,mode=types/dist/documents.d.ts"
 }

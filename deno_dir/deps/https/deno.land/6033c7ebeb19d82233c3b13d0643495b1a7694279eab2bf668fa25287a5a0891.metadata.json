@@ -1,24 +1,24 @@
 {
   "headers": {
-    "etag": "\"225353f766114e1cd5ddef0e07dd05db\"",
-    "cache-control": "public, max-age=31536000, immutable",
-    "age": "63859",
     "accept-ranges": "bytes",
+    "cf-ray": "6570f9aedbca5a88-IAD",
+    "access-control-allow-origin": "*",
     "cf-cache-status": "HIT",
-    "cf-ray": "65689bf4aeae5c9b-IAD",
-    "alt-svc": "h3-27=\":443\"; ma=86400, h3-28=\":443\"; ma=86400, h3-29=\":443\"; ma=86400",
-    "date": "Fri, 28 May 2021 15:45:17 GMT",
-    "cf-request-id": "0a553fcce500005c9bb6a61000000001",
     "server": "cloudflare",
-    "x-amz-id-2": "TJkzPR2XxfW/c1Mj7vQfyVYL3CwaRChrNx/ByIFzzaJe/9L/bBSp5hYEfcqgh8ViMeFfNwxy92M=",
-    "x-amz-version-id": "PblkEWPBJ_rcvdVoVdGuAp4Db1ssvB22",
-    "content-length": "5776",
-    "x-amz-request-id": "S6J4GESEJWK9YQ5R",
     "content-type": "application/typescript; charset=utf-8",
-    "last-modified": "Mon, 17 May 2021 14:44:06 GMT",
+    "cache-control": "public, max-age=31536000, immutable",
+    "alt-svc": "h3-27=\":443\"; ma=86400, h3-28=\":443\"; ma=86400, h3-29=\":443\"; ma=86400",
+    "age": "163212",
+    "content-length": "5776",
+    "cf-request-id": "0a5a7a614200005a8892b91000000001",
     "expect-ct": "max-age=604800, report-uri=\"https://report-uri.cloudflare.com/cdn-cgi/beacon/expect-ct\"",
     "vary": "Accept-Encoding",
-    "access-control-allow-origin": "*"
+    "x-amz-request-id": "HN0AAX9MYHB0PSR4",
+    "last-modified": "Mon, 17 May 2021 14:44:06 GMT",
+    "etag": "\"225353f766114e1cd5ddef0e07dd05db\"",
+    "x-amz-version-id": "PblkEWPBJ_rcvdVoVdGuAp4Db1ssvB22",
+    "date": "Sat, 29 May 2021 16:07:22 GMT",
+    "x-amz-id-2": "09Ne2lZV4MCvRLoh3XqhCDHwmVpVP0557IJkfscnO1cQXFjAlrVm3Q2oWWIg9KX/YQhMBh0sgL8="
   },
   "url": "https://deno.land/std@0.97.0/log/mod.ts"
 }

@@ -1,23 +1,23 @@
 {
   "headers": {
-    "cf-ray": "65689bfdbda75b04-IAD",
-    "alt-svc": "h3-27=\":443\"; ma=86400, h3-28=\":443\"; ma=86400, h3-29=\":443\"; ma=86400",
+    "date": "Sat, 29 May 2021 16:07:24 GMT",
     "content-type": "application/typescript; charset=utf-8",
-    "report-to": "{\"endpoints\":[{\"url\":\"https:\\/\\/a.nel.cloudflare.com\\/report\\/v2?s=fjK8OaGe%2Fev9zlOKztU9UN8RDI7fNJJE9VM2oXU%2Buwt8x3tMFSkOHT1b7wd%2BLinH%2FrKWHozftVQJA3YzHKKF%2FUMbzMtv3XN%2FMF5rRmf3%2FNyE%2BzEHT5dhpdrcNoE%3D\"}],\"group\":\"cf-nel\",\"max_age\":604800}",
+    "cache-control": "public, max-age=31536000, immutable",
+    "strict-transport-security": "max-age=63072000",
+    "expect-ct": "max-age=604800, report-uri=\"https://report-uri.cloudflare.com/cdn-cgi/beacon/expect-ct\"",
+    "content-length": "746",
+    "access-control-allow-origin": "*",
+    "report-to": "{\"endpoints\":[{\"url\":\"https:\\/\\/a.nel.cloudflare.com\\/report\\/v2?s=PbwqWkp9HHqeSysAUl%2FZ9%2FPrJtx5fMWMa2Rqso6foU%2BIjE1CrLhLxID6hrHNUOQZHjctVLOVwOIkpdJyY48PAuZKIguOVnbk%2FD3y8PSG3kEXRv8t60mGF6jAf2s%3D\"}],\"group\":\"cf-nel\",\"max_age\":604800}",
+    "nel": "{\"report_to\":\"cf-nel\",\"max_age\":604800}",
     "x-vercel-cache": "MISS",
     "server": "cloudflare",
-    "expect-ct": "max-age=604800, report-uri=\"https://report-uri.cloudflare.com/cdn-cgi/beacon/expect-ct\"",
-    "access-control-allow-origin": "*",
-    "cf-cache-status": "DYNAMIC",
-    "cf-request-id": "0a553fd29200005b04979d9000000001",
-    "cache-control": "public, max-age=31536000, immutable",
     "age": "0",
-    "strict-transport-security": "max-age=63072000",
-    "date": "Fri, 28 May 2021 15:45:19 GMT",
+    "cf-cache-status": "DYNAMIC",
+    "cf-request-id": "0a5a7a673800005d9183153000000001",
+    "cf-ray": "6570f9b859975d91-IAD",
     "etag": "W/\"2ea-Vk2EZrQ1ysZLrTpSV+lPLpkOWY4\"",
-    "content-length": "746",
-    "x-vercel-id": "iad1::sfo1::j6nfz-1622216719017-3d92310d31f2",
-    "nel": "{\"report_to\":\"cf-nel\",\"max_age\":604800}"
+    "x-vercel-id": "iad1::sfo1::fddwk-1622304444227-1cc8eeef8828",
+    "alt-svc": "h3-27=\":443\"; ma=86400, h3-28=\":443\"; ma=86400, h3-29=\":443\"; ma=86400"
   },
   "url": "https://cdn.skypack.dev/-/@truestamp/truestamp-js@v0.0.42-SFXrgwX38LqCS8NVudUr/dist=es2020,mode=types/dist/documents/types.d.ts"
 }

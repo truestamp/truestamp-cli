@@ -1,23 +1,24 @@
 {
   "headers": {
-    "cache-control": "public, max-age=31536000, immutable",
-    "x-amz-id-2": "koH0wlkY2VxzWAUfn3nhZSdUzI17Dp39X/zbSQ+190DhJgzvfybfO2ADgasqzpXCUcKXV+WveXE=",
-    "cf-request-id": "0a553fca8b00005c9bf135b000000001",
-    "last-modified": "Mon, 24 May 2021 18:55:01 GMT",
+    "date": "Sat, 29 May 2021 16:07:22 GMT",
+    "expect-ct": "max-age=604800, report-uri=\"https://report-uri.cloudflare.com/cdn-cgi/beacon/expect-ct\"",
+    "cf-ray": "6570f9a9eb4e5a88-IAD",
+    "alt-svc": "h3-27=\":443\"; ma=86400, h3-28=\":443\"; ma=86400, h3-29=\":443\"; ma=86400",
     "etag": "\"ebf18764afe896f76cc27e73d36e48e5\"",
     "access-control-allow-origin": "*",
-    "alt-svc": "h3-27=\":443\"; ma=86400, h3-28=\":443\"; ma=86400, h3-29=\":443\"; ma=86400",
     "accept-ranges": "bytes",
-    "x-amz-request-id": "TCSKNXZ35MHW5YY6",
-    "date": "Fri, 28 May 2021 15:45:17 GMT",
-    "content-type": "application/typescript; charset=utf-8",
-    "cf-ray": "65689bf0c8875c9b-IAD",
-    "x-amz-version-id": "KXdwOn8o3.YzWUkvvHikuEbQ5o6UIVpq",
-    "expect-ct": "max-age=604800, report-uri=\"https://report-uri.cloudflare.com/cdn-cgi/beacon/expect-ct\"",
-    "vary": "Accept-Encoding",
+    "x-amz-id-2": "YOKNhr882850lvdZOHOUYkLbY1x2ccAQVeF5cgTrzw864CRrKaZlEa4dvbkVOzC7xEUJIybaMUM=",
+    "cf-cache-status": "HIT",
+    "cache-control": "public, max-age=31536000, immutable",
+    "last-modified": "Mon, 24 May 2021 18:55:01 GMT",
+    "age": "91271",
     "server": "cloudflare",
-    "content-length": "5521",
-    "cf-cache-status": "EXPIRED"
+    "content-type": "application/typescript; charset=utf-8",
+    "x-amz-request-id": "PD5EJDW99SVE4RQF",
+    "cf-request-id": "0a5a7a5e3600005a8892b38000000001",
+    "x-amz-version-id": "KXdwOn8o3.YzWUkvvHikuEbQ5o6UIVpq",
+    "vary": "Accept-Encoding",
+    "content-length": "5521"
   },
   "url": "https://deno.land/x/aws_sdk@v3.16.0-3/client-s3/commands/DeleteBucketReplicationCommand.ts"
 }

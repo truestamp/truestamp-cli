@@ -1,23 +1,23 @@
 {
   "headers": {
-    "cf-cache-status": "DYNAMIC",
     "content-length": "802",
-    "content-type": "application/typescript; charset=utf-8",
-    "server": "cloudflare",
-    "cf-ray": "65689bf2beaa5b04-IAD",
-    "alt-svc": "h3-27=\":443\"; ma=86400, h3-28=\":443\"; ma=86400, h3-29=\":443\"; ma=86400",
-    "etag": "W/\"322-0oaZbN2XsPQ7VyICBO8EaAkXqDw\"",
+    "cf-cache-status": "DYNAMIC",
     "strict-transport-security": "max-age=63072000",
-    "date": "Fri, 28 May 2021 15:45:17 GMT",
-    "expect-ct": "max-age=604800, report-uri=\"https://report-uri.cloudflare.com/cdn-cgi/beacon/expect-ct\"",
-    "report-to": "{\"endpoints\":[{\"url\":\"https:\\/\\/a.nel.cloudflare.com\\/report\\/v2?s=4cYbP%2BeBOg%2FNo%2ByaXLhTgJtI4OijScTFK4LOHDEp3f3muljFbMrl91zb3tLMBu9yiSkLjC0cXuyiE2yC5Hbs%2Fr8jrnq3ECtJGpf43IgTtIl%2FQGjJQkuZFKDaZQQ%3D\"}],\"group\":\"cf-nel\",\"max_age\":604800}",
-    "x-vercel-cache": "MISS",
-    "age": "0",
-    "x-vercel-id": "iad1::sfo1::hccwc-1622216717256-7a8514337d68",
-    "access-control-allow-origin": "*",
-    "cf-request-id": "0a553fcbbb00005b04aea6a000000001",
+    "report-to": "{\"endpoints\":[{\"url\":\"https:\\/\\/a.nel.cloudflare.com\\/report\\/v2?s=ShplcLSPJZjwd6GgwZnWZJ41sWC1YZPBKkg8tLcR8lSRqwj%2Fvdp7v4p7fHwnXYsB2rs5jmfTYzI%2BdNW0MWqPrv93BWDXKIrmJcKrUgMQ9rRNOLQWNV2kDFYWTyU%3D\"}],\"group\":\"cf-nel\",\"max_age\":604800}",
+    "alt-svc": "h3-27=\":443\"; ma=86400, h3-28=\":443\"; ma=86400, h3-29=\":443\"; ma=86400",
     "cache-control": "public, max-age=31536000, immutable",
-    "nel": "{\"report_to\":\"cf-nel\",\"max_age\":604800}"
+    "x-vercel-cache": "MISS",
+    "nel": "{\"report_to\":\"cf-nel\",\"max_age\":604800}",
+    "x-vercel-id": "iad1::sfo1::2kc4g-1622304442352-7f2d8a836695",
+    "cf-ray": "6570f9ac9b085d91-IAD",
+    "expect-ct": "max-age=604800, report-uri=\"https://report-uri.cloudflare.com/cdn-cgi/beacon/expect-ct\"",
+    "etag": "W/\"322-0oaZbN2XsPQ7VyICBO8EaAkXqDw\"",
+    "content-type": "application/typescript; charset=utf-8",
+    "access-control-allow-origin": "*",
+    "date": "Sat, 29 May 2021 16:07:22 GMT",
+    "age": "0",
+    "cf-request-id": "0a5a7a5fe000005d91f238b000000001",
+    "server": "cloudflare"
   },
   "url": "https://cdn.skypack.dev/-/ulid@v2.3.0-AsEipntPjmYMbO2O0b8l/dist=es2020,mode=types/dist/index.d.ts"
 }
