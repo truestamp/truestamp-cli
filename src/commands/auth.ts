@@ -55,6 +55,26 @@ const authStatus = new Command()
     }
   });
 
+const authToken = new Command()
+  .description("Get a long-lived API token")
+  .action(async (options) => {
+    if (
+      !getConfigAccessToken(options.env) ||
+      !getConfigRefreshToken(options.env)
+    ) {
+      console.error("logged out");
+      Deno.exit(1);
+    }
+
+    const ts = await createTruestampClient(options.env);
+    const token = await ts.getToken();
+    if (!token) {
+      throw new Error("auth token retrieval failed");
+    }
+
+    console.log(JSON.stringify(token));
+  });
+
 export const auth = new Command()
   .description("Login, logout, and show status of your authentication.")
   .action(() => {
@@ -62,4 +82,5 @@ export const auth = new Command()
   })
   .command("login", authLogin)
   .command("logout", authLogout)
-  .command("status", authStatus);
+  .command("status", authStatus)
+  .command("token", authToken);
