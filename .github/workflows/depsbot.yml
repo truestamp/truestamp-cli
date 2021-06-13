@@ -3,8 +3,8 @@ name: DepsBot
 on:
   schedule:
     - cron: "0 0 * * *" # run depsbot everyday at 00:00 UTC
-  push:
-  pull_request: # but also check on push and pull requests
+  # push:
+  # pull_request: # but also check on push and pull requests
 
 jobs:
   depsbot:

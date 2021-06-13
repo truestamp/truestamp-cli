@@ -15,7 +15,7 @@ jobs:
       - name: Setup Deno
         uses: denoland/setup-deno@main
         with:
-          deno-version: v1.x
+          deno-version: v1.10.3
       - name: Build RELEASE.txt
         run: echo ${{ github.sha }} > RELEASE.txt
       - name: Build
