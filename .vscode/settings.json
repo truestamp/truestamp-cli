@@ -8,5 +8,9 @@
   },
   "editor.defaultFormatter": "denoland.vscode-deno",
   "editor.formatOnSave": true,
-  "editor.formatOnPaste": false
+  "editor.formatOnPaste": false,
+  "deno.suggest.imports.hosts": {
+    "https://deno.land/": true,
+    "http://deno.land": true
+  }
 }
