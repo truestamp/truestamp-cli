@@ -1,0 +1,26 @@
+{
+  "headers": {
+    "accept-ranges": "bytes",
+    "x-xss-protection": "1; mode=block",
+    "etag": "W/\"5293211cebcbacbbb53d554be0250f8d823906de019210e0e74f18b203e68083\"",
+    "x-fastly-request-id": "bc0e3a56da59e357e017e24d62024a098f73cfc2",
+    "source-age": "0",
+    "cache-control": "max-age=300",
+    "vary": "Authorization,Accept-Encoding",
+    "expires": "Mon, 14 Jun 2021 04:55:28 GMT",
+    "content-security-policy": "default-src 'none'; style-src 'unsafe-inline'; sandbox",
+    "strict-transport-security": "max-age=31536000",
+    "date": "Mon, 14 Jun 2021 04:50:28 GMT",
+    "content-type": "text/plain; charset=utf-8",
+    "x-cache": "MISS",
+    "x-timer": "S1623646228.973825,VS0,VE89",
+    "via": "1.1 varnish",
+    "x-content-type-options": "nosniff",
+    "x-github-request-id": "9908:2723:50EF04:6C6306:60C6E013",
+    "x-served-by": "cache-wdc5553-WDC",
+    "access-control-allow-origin": "*",
+    "x-frame-options": "deny",
+    "x-cache-hits": "0"
+  },
+  "url": "https://raw.githubusercontent.com/truestamp/sleep/v1.3.0/sleep.ts"
+}
