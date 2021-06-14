@@ -4,7 +4,7 @@ import { createHash } from "https://deno.land/std@0.97.0/hash/mod.ts";
 import * as path from "https://deno.land/std@0.97.0/path/mod.ts";
 
 import { Buffer } from "http://deno.land/x/node_buffer@1.1.0/mod.ts";
-import { sleep } from "https://deno.land/x/sleep/mod.ts";
+import { sleep } from "https://deno.land/x/sleep@v1.2.0/mod.ts";
 import { decode, validate } from "https://deno.land/x/djwt@v2.2/mod.ts";
 
 import { colors } from "https://deno.land/x/cliffy@v0.19.1/ansi/colors.ts";
@@ -39,7 +39,8 @@ import {
 } from "./auth.ts";
 
 // See : https://www.skypack.dev/view/@truestamp/truestamp-js
-import Truestamp from "https://cdn.skypack.dev/@truestamp/truestamp-js?dts";
+// See SkyPack : https://docs.skypack.dev/skypack-cdn/api-reference/lookup-urls
+import Truestamp from "https://cdn.skypack.dev/@truestamp/truestamp-js@~v0.0.46?dts";
 import { createTruestampClient } from "./truestamp.ts";
 
 export {

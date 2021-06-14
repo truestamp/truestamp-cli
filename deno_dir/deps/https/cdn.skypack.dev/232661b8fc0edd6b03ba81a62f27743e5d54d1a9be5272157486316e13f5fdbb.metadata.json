@@ -1,0 +1,22 @@
+{
+  "headers": {
+    "content-length": "0",
+    "server": "cloudflare",
+    "cf-request-id": "0aa9f94a7800005991c4b58000000001",
+    "x-vercel-id": "iad1::sfo1::9dds2-1623638160000-d92990acec7e",
+    "date": "Mon, 14 Jun 2021 02:36:00 GMT",
+    "cf-cache-status": "DYNAMIC",
+    "location": "/-/@truestamp/truestamp-js@v0.0.46-9X4CFsVfDrVQQs1bw0gr/dist=es2020,mode=types/dist/tokens/index.d.ts",
+    "alt-svc": "h3-27=\":443\"; ma=86400, h3-28=\":443\"; ma=86400, h3-29=\":443\"; ma=86400, h3=\":443\"; ma=86400",
+    "access-control-allow-origin": "*",
+    "cache-control": "public, max-age=0, must-revalidate",
+    "x-vercel-cache": "MISS",
+    "strict-transport-security": "max-age=63072000",
+    "expect-ct": "max-age=604800, report-uri=\"https://report-uri.cloudflare.com/cdn-cgi/beacon/expect-ct\"",
+    "age": "0",
+    "nel": "{\"report_to\":\"cf-nel\",\"max_age\":604800}",
+    "cf-ray": "65f02b23edf05991-IAD",
+    "report-to": "{\"endpoints\":[{\"url\":\"https:\\/\\/a.nel.cloudflare.com\\/report\\/v2?s=NMeQRDhnbu87BUVoHrbPzZ%2Fb4ZWLoKl6PMFZe5XwKquCHX0ZdW1p0jlP%2BXOXei657loYokgeTQF1ZXnSYhCZQyc6bdIjXCeUYTd%2FBFujGOETg%2FaBewVaJFP7wZA%3D\"}],\"group\":\"cf-nel\",\"max_age\":604800}"
+  },
+  "url": "https://cdn.skypack.dev/-/@truestamp/truestamp-js@v0.0.46-9X4CFsVfDrVQQs1bw0gr/dist=es2020,mode=types/dist/tokens.d.ts"
+}
