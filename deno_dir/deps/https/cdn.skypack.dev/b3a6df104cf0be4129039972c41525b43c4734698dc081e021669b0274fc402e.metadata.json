@@ -1,22 +1,22 @@
 {
   "headers": {
-    "expect-ct": "max-age=604800, report-uri=\"https://report-uri.cloudflare.com/cdn-cgi/beacon/expect-ct\"",
-    "server": "cloudflare",
-    "cf-cache-status": "DYNAMIC",
-    "access-control-allow-origin": "*",
-    "cf-request-id": "0aa9f94a7500005991c5064000000001",
+    "cf-ray": "65f50f07391159da-IAD",
     "x-vercel-cache": "MISS",
-    "alt-svc": "h3-27=\":443\"; ma=86400, h3-28=\":443\"; ma=86400, h3-29=\":443\"; ma=86400, h3=\":443\"; ma=86400",
-    "date": "Mon, 14 Jun 2021 02:36:00 GMT",
-    "age": "0",
-    "location": "/-/@truestamp/truestamp-js@v0.0.46-9X4CFsVfDrVQQs1bw0gr/dist=es2020,mode=types/dist/heartbeat/index.d.ts",
-    "cache-control": "public, max-age=0, must-revalidate",
-    "strict-transport-security": "max-age=63072000",
+    "report-to": "{\"endpoints\":[{\"url\":\"https:\\/\\/a.nel.cloudflare.com\\/report\\/v2?s=DSDQVYpDXqJLADysG0cVuSGL%2BKjPaA%2F5GQBR7Vn8%2Bl9Boas8epSAX5e3I5Y2lquO5vMGnFr2wZW2rdHmuJ6y6Kn2ottaWOKcnBA4HVuAL8zPHAEcfNbOldmebWQ%3D\"}],\"group\":\"cf-nel\",\"max_age\":604800}",
+    "expect-ct": "max-age=604800, report-uri=\"https://report-uri.cloudflare.com/cdn-cgi/beacon/expect-ct\"",
     "content-length": "0",
-    "report-to": "{\"endpoints\":[{\"url\":\"https:\\/\\/a.nel.cloudflare.com\\/report\\/v2?s=yaMKmsG7nwVlhJIkZBmun2%2F6yFJytkLkDsiIdcYsSaBQ3jXZZ5KnPWIqFxTPUpyugBuljcMSq3PG5pbrJIp5nIDvD77dmrA1elngNBAnQuxxG0gVUeol4bSPCpk%3D\"}],\"group\":\"cf-nel\",\"max_age\":604800}",
-    "x-vercel-id": "iad1::sfo1::cgt7f-1623638160015-73065bbb9bdf",
+    "age": "0",
+    "alt-svc": "h3-27=\":443\"; ma=86400, h3-28=\":443\"; ma=86400, h3-29=\":443\"; ma=86400, h3=\":443\"; ma=86400",
+    "cache-control": "public, max-age=0, must-revalidate",
+    "location": "/-/@truestamp/truestamp-js@v0.0.46-9X4CFsVfDrVQQs1bw0gr/dist=es2020,mode=types/dist/heartbeat/index.d.ts",
+    "access-control-allow-origin": "*",
     "nel": "{\"report_to\":\"cf-nel\",\"max_age\":604800}",
-    "cf-ray": "65f02b23edf45991-IAD"
+    "strict-transport-security": "max-age=63072000",
+    "date": "Mon, 14 Jun 2021 16:50:37 GMT",
+    "cf-request-id": "0aad07b880000059da59397000000001",
+    "x-vercel-id": "iad1::sfo1::m8d6n-1623689437319-674958662a0e",
+    "cf-cache-status": "DYNAMIC",
+    "server": "cloudflare"
   },
   "url": "https://cdn.skypack.dev/-/@truestamp/truestamp-js@v0.0.46-9X4CFsVfDrVQQs1bw0gr/dist=es2020,mode=types/dist/heartbeat.d.ts"
 }

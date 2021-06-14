@@ -1,23 +1,23 @@
 {
   "headers": {
-    "content-length": "802",
-    "cf-cache-status": "DYNAMIC",
-    "strict-transport-security": "max-age=63072000",
-    "report-to": "{\"endpoints\":[{\"url\":\"https:\\/\\/a.nel.cloudflare.com\\/report\\/v2?s=ShplcLSPJZjwd6GgwZnWZJ41sWC1YZPBKkg8tLcR8lSRqwj%2Fvdp7v4p7fHwnXYsB2rs5jmfTYzI%2BdNW0MWqPrv93BWDXKIrmJcKrUgMQ9rRNOLQWNV2kDFYWTyU%3D\"}],\"group\":\"cf-nel\",\"max_age\":604800}",
-    "alt-svc": "h3-27=\":443\"; ma=86400, h3-28=\":443\"; ma=86400, h3-29=\":443\"; ma=86400",
-    "cache-control": "public, max-age=31536000, immutable",
-    "x-vercel-cache": "MISS",
-    "nel": "{\"report_to\":\"cf-nel\",\"max_age\":604800}",
-    "x-vercel-id": "iad1::sfo1::2kc4g-1622304442352-7f2d8a836695",
-    "cf-ray": "6570f9ac9b085d91-IAD",
-    "expect-ct": "max-age=604800, report-uri=\"https://report-uri.cloudflare.com/cdn-cgi/beacon/expect-ct\"",
     "etag": "W/\"322-0oaZbN2XsPQ7VyICBO8EaAkXqDw\"",
+    "server": "cloudflare",
+    "x-vercel-cache": "HIT",
+    "strict-transport-security": "max-age=63072000",
+    "date": "Mon, 14 Jun 2021 16:50:36 GMT",
+    "cf-cache-status": "DYNAMIC",
+    "alt-svc": "h3-27=\":443\"; ma=86400, h3-28=\":443\"; ma=86400, h3-29=\":443\"; ma=86400, h3=\":443\"; ma=86400",
+    "nel": "{\"report_to\":\"cf-nel\",\"max_age\":604800}",
+    "cf-ray": "65f50f04dd1759da-IAD",
     "content-type": "application/typescript; charset=utf-8",
     "access-control-allow-origin": "*",
-    "date": "Sat, 29 May 2021 16:07:22 GMT",
-    "age": "0",
-    "cf-request-id": "0a5a7a5fe000005d91f238b000000001",
-    "server": "cloudflare"
+    "cache-control": "public, max-age=31536000, immutable",
+    "x-vercel-id": "iad1::sfo1::m8d6n-1623689436942-8a5d8d57628b",
+    "cf-request-id": "0aad07b709000059da5936d000000001",
+    "age": "202",
+    "content-length": "802",
+    "report-to": "{\"endpoints\":[{\"url\":\"https:\\/\\/a.nel.cloudflare.com\\/report\\/v2?s=LH3lIuew1wImPNSavdMtGsn0CqXSr%2BHyP9wx6qCvcdhXDSJCCQNKr5jj%2FyMYyaDnKoziaVnQLYn6h4ffGAZjGJWgZTlNab4UpE9SOU3%2FSWeyC0qxpsBS065rQN8%3D\"}],\"group\":\"cf-nel\",\"max_age\":604800}",
+    "expect-ct": "max-age=604800, report-uri=\"https://report-uri.cloudflare.com/cdn-cgi/beacon/expect-ct\""
   },
   "url": "https://cdn.skypack.dev/-/ulid@v2.3.0-AsEipntPjmYMbO2O0b8l/dist=es2020,mode=types/dist/index.d.ts"
 }

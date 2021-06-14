@@ -3,8 +3,11 @@
 import { createHash } from "https://deno.land/std@0.97.0/hash/mod.ts";
 import * as path from "https://deno.land/std@0.97.0/path/mod.ts";
 
-import { Buffer } from "http://deno.land/x/node_buffer@1.1.0/mod.ts";
+import { Buffer } from "https://deno.land/x/node_buffer@1.1.0/mod.ts";
+
+// FIXME : using a tag from our own fork of this lib while waiting for upstream PR to merge
 import { sleep } from "https://raw.githubusercontent.com/truestamp/sleep/v1.3.0/mod.ts";
+
 import { decode, validate } from "https://deno.land/x/djwt@v2.2/mod.ts";
 
 import { colors } from "https://deno.land/x/cliffy@v0.19.1/ansi/colors.ts";

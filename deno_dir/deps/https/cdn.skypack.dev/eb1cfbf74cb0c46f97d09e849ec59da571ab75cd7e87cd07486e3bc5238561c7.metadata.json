@@ -1,23 +1,23 @@
 {
   "headers": {
-    "x-vercel-id": "iad1::sfo1::2zjcj-1623638160663-1d5ef913b2e5",
-    "x-vercel-cache": "HIT",
-    "content-type": "application/typescript; charset=utf-8",
-    "cf-request-id": "0aa9f94cc500005991b5096000000001",
-    "report-to": "{\"endpoints\":[{\"url\":\"https:\\/\\/a.nel.cloudflare.com\\/report\\/v2?s=T6gVxoGWPhrWUaq2kxNyphhBgROrHsn4HU0c55s2ayi%2B71ROmj9W7ZJn4wFO1RJ0l%2BGc8j2vWnrQjXFzjLSs1wNtzBWAsL96hiMAxEUNQzStNSNulSt5p9pZj4E%3D\"}],\"group\":\"cf-nel\",\"max_age\":604800}",
-    "date": "Mon, 14 Jun 2021 02:36:00 GMT",
-    "expect-ct": "max-age=604800, report-uri=\"https://report-uri.cloudflare.com/cdn-cgi/beacon/expect-ct\"",
-    "cf-ray": "65f02b27ab715991-IAD",
-    "etag": "W/\"9d-/kEWDeC0U14zlXAMAPDr/TfO0ys\"",
+    "cf-cache-status": "DYNAMIC",
     "strict-transport-security": "max-age=63072000",
-    "age": "9",
-    "content-length": "157",
-    "nel": "{\"report_to\":\"cf-nel\",\"max_age\":604800}",
+    "expect-ct": "max-age=604800, report-uri=\"https://report-uri.cloudflare.com/cdn-cgi/beacon/expect-ct\"",
+    "x-vercel-cache": "HIT",
+    "report-to": "{\"endpoints\":[{\"url\":\"https:\\/\\/a.nel.cloudflare.com\\/report\\/v2?s=UB0ycB9ZBwDQ9c5aD%2Fr0cpxnN8mY7lyFkmy3%2B08KwcGc5FoQ%2FpyLuMJbYo%2FYDskcV9t3EFXLJFSCT%2FwUhAA6EurQROfApYcdHLP6R2bBWK0SeK2K8XRtsac%2BE2Y%3D\"}],\"group\":\"cf-nel\",\"max_age\":604800}",
+    "x-vercel-id": "iad1::sfo1::5czbw-1623689437854-56971ad1304d",
+    "server": "cloudflare",
+    "cf-ray": "65f50f0a7fac59da-IAD",
     "alt-svc": "h3-27=\":443\"; ma=86400, h3-28=\":443\"; ma=86400, h3-29=\":443\"; ma=86400, h3=\":443\"; ma=86400",
     "access-control-allow-origin": "*",
+    "nel": "{\"report_to\":\"cf-nel\",\"max_age\":604800}",
+    "content-type": "application/typescript; charset=utf-8",
+    "etag": "W/\"9d-/kEWDeC0U14zlXAMAPDr/TfO0ys\"",
+    "content-length": "157",
     "cache-control": "public, max-age=31536000, immutable",
-    "cf-cache-status": "DYNAMIC",
-    "server": "cloudflare"
+    "cf-request-id": "0aad07ba8c000059da3f15b000000001",
+    "date": "Mon, 14 Jun 2021 16:50:37 GMT",
+    "age": "200"
   },
   "url": "https://cdn.skypack.dev/-/@truestamp/truestamp-js@v0.0.46-9X4CFsVfDrVQQs1bw0gr/dist=es2020,mode=types/dist/tokens/index.d.ts"
 }

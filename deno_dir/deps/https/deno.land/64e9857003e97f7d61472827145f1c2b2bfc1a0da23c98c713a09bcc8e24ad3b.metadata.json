@@ -1,23 +1,24 @@
 {
   "headers": {
-    "content-length": "5018",
-    "access-control-allow-origin": "*",
-    "cf-cache-status": "MISS",
     "cache-control": "public, max-age=31536000, immutable",
-    "accept-ranges": "bytes",
-    "last-modified": "Mon, 24 May 2021 18:55:01 GMT",
+    "cf-cache-status": "HIT",
     "content-type": "application/typescript; charset=utf-8",
-    "x-amz-id-2": "woKd4Tn6buLzg6hXKgR1JCC9CzeYh4Uy63mkpUIl3/sZnp2V3ZPGM9HZLFbZuyY6ldDzQIDfM2s=",
+    "expect-ct": "max-age=604800, report-uri=\"https://report-uri.cloudflare.com/cdn-cgi/beacon/expect-ct\"",
+    "access-control-allow-origin": "*",
+    "cf-request-id": "0aad07b5a100005c233f02f000000001",
+    "server": "cloudflare",
+    "last-modified": "Mon, 24 May 2021 18:55:01 GMT",
+    "cf-ray": "65f50f027ad15c23-IAD",
+    "x-amz-id-2": "svUCzC8cBqL6XxXRDgbHOQfwdrCT9ZTJzh/foRD1vTvYd7sac9A3blpmfhg1vAVpDQgPD9Ligus=",
+    "x-amz-request-id": "24HVS2NNM2KKZQA4",
+    "date": "Mon, 14 Jun 2021 16:50:36 GMT",
+    "content-length": "5018",
     "x-amz-version-id": "_LF53G7TwtZYIvZlmkwYOkjYrlerJosH",
     "vary": "Accept-Encoding",
-    "alt-svc": "h3-27=\":443\"; ma=86400, h3-28=\":443\"; ma=86400, h3-29=\":443\"; ma=86400, h3=\":443\"; ma=86400",
-    "date": "Fri, 04 Jun 2021 22:55:03 GMT",
+    "accept-ranges": "bytes",
     "etag": "\"7cf96e5371626347a69b890aa81a6a9f\"",
-    "server": "cloudflare",
-    "x-amz-request-id": "BPZE06D6791ZXFZR",
-    "cf-ray": "65a4bf1c7bd4060e-IAD",
-    "cf-request-id": "0a7ad5c5d50000060e3b017000000001",
-    "expect-ct": "max-age=604800, report-uri=\"https://report-uri.cloudflare.com/cdn-cgi/beacon/expect-ct\""
+    "age": "43063",
+    "alt-svc": "h3-27=\":443\"; ma=86400, h3-28=\":443\"; ma=86400, h3-29=\":443\"; ma=86400, h3=\":443\"; ma=86400"
   },
   "url": "https://deno.land/x/aws_sdk@v3.16.0-3/client-s3/commands/DeleteObjectTaggingCommand.ts"
 }
