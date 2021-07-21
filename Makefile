@@ -59,3 +59,7 @@ format:
 
 format-watch:
 	export DENO_DIR=${DENO_DIR} && deno fmt --unstable --watch src
+
+depsbot:
+	npx depsbot
+	
