@@ -1,0 +1,23 @@
+{
+  "headers": {
+    "x-amz-request-id": "XH5E4YPFQG9X05WM",
+    "date": "Wed, 21 Jul 2021 22:37:31 GMT",
+    "content-type": "application/typescript; charset=utf-8",
+    "x-amz-version-id": "QxEXo9sIvk1qE1w_n77itbKsFbgNW89C",
+    "content-length": "2979",
+    "cf-ray": "6727ea0e1fce5c29-IAD",
+    "server": "cloudflare",
+    "x-deno-ray": "us-east4-c::9181f061844b3e94d4d937baa9e2336f",
+    "via": "HTTP/1.1 deploy",
+    "expect-ct": "max-age=604800, report-uri=\"https://report-uri.cloudflare.com/cdn-cgi/beacon/expect-ct\"",
+    "cache-control": "public, max-age=31536000, immutable",
+    "cf-cache-status": "DYNAMIC",
+    "access-control-allow-origin": "*",
+    "x-amz-id-2": "eWd8uBsaFJ6F3KkEDcbdbbgoDgI3ExAndMwQBNG/VMAx5zLZ1JG7gFmIKGsCOPaMKYXqncq97NQ=",
+    "etag": "\"350283e94aa55d21a815907c8350214f\"",
+    "last-modified": "Mon, 19 Jul 2021 09:27:27 GMT",
+    "vary": "Accept-Encoding",
+    "alt-svc": "h3-27=\":443\"; ma=86400, h3-28=\":443\"; ma=86400, h3-29=\":443\"; ma=86400, h3=\":443\"; ma=86400"
+  },
+  "url": "https://deno.land/x/aws_sdk@v3.22.0-1/smithy-client/client.ts"
+}

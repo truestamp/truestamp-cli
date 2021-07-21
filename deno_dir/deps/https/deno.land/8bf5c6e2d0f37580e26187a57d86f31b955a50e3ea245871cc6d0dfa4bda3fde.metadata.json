@@ -1,0 +1,23 @@
+{
+  "headers": {
+    "cache-control": "public, max-age=31536000, immutable",
+    "access-control-allow-origin": "*",
+    "via": "HTTP/1.1 deploy",
+    "x-amz-version-id": "N8L7v.OVw49oZx3g1.OfxHfvm8fjeiJh",
+    "x-amz-id-2": "dXfMWXDsjSGbPGwAmReY7NRPAyNtaQ/smyZBGtBO0NtTEpshlH5ng7nKf2Zgdnkdf740g5GpiWE=",
+    "cf-ray": "6727ea0a9a555c29-IAD",
+    "server": "cloudflare",
+    "alt-svc": "h3-27=\":443\"; ma=86400, h3-28=\":443\"; ma=86400, h3-29=\":443\"; ma=86400, h3=\":443\"; ma=86400",
+    "date": "Wed, 21 Jul 2021 22:37:30 GMT",
+    "x-deno-ray": "us-east4-c::f3c8a157da11a3b3eb69a167192257ca",
+    "cf-cache-status": "DYNAMIC",
+    "etag": "\"a1ba4027ef69b0a73fbacf24a05a9e09\"",
+    "last-modified": "Mon, 19 Jul 2021 09:27:21 GMT",
+    "x-amz-request-id": "BNW6W5445MWZM0AH",
+    "content-type": "application/typescript; charset=utf-8",
+    "expect-ct": "max-age=604800, report-uri=\"https://report-uri.cloudflare.com/cdn-cgi/beacon/expect-ct\"",
+    "vary": "Accept-Encoding",
+    "content-length": "8189"
+  },
+  "url": "https://deno.land/x/aws_sdk@v3.22.0-1/client-s3/commands/PutBucketTaggingCommand.ts"
+}

@@ -1,0 +1,24 @@
+{
+  "headers": {
+    "vary": "Accept-Encoding",
+    "x-amz-version-id": "qyBQd7f_R8_SBd5t8Nfe6IM0W34dEvKO",
+    "x-amz-request-id": "XPE3PE81XY0W1KE2",
+    "alt-svc": "h3-27=\":443\"; ma=86400, h3-28=\":443\"; ma=86400, h3-29=\":443\"; ma=86400, h3=\":443\"; ma=86400",
+    "cf-ray": "65f5332b8f79e10e-IAD",
+    "date": "Mon, 14 Jun 2021 17:15:17 GMT",
+    "access-control-allow-origin": "*",
+    "last-modified": "Thu, 27 May 2021 18:29:44 GMT",
+    "cf-cache-status": "HIT",
+    "cache-control": "public, max-age=31536000, immutable",
+    "x-amz-id-2": "uIqgCmyrF+DjNci3ZhO9nrTUoauWEVa9RexGt07bgbZQc4ha1c4ujOEpZGECF5wE6PQ3CxI1i8Q=",
+    "cf-request-id": "0aad1e4f580000e10ee2981000000001",
+    "expect-ct": "max-age=604800, report-uri=\"https://report-uri.cloudflare.com/cdn-cgi/beacon/expect-ct\"",
+    "server": "cloudflare",
+    "etag": "\"9303f6ec8b75d333e17f109ac6ab35f6\"",
+    "content-length": "6439",
+    "accept-ranges": "bytes",
+    "content-type": "application/typescript; charset=utf-8",
+    "age": "69804"
+  },
+  "url": "https://deno.land/x/aws_sdk@v3.17.0-2/client-s3/commands/GetBucketAccelerateConfigurationCommand.ts"
+}

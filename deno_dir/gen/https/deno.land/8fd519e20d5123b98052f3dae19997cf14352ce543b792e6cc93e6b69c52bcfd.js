@@ -1,0 +1,15 @@
+export function ftruncate(fd, lenOrCallback, maybeCallback) {
+    const len = typeof lenOrCallback === "number"
+        ? lenOrCallback
+        : undefined;
+    const callback = typeof lenOrCallback === "function"
+        ? lenOrCallback
+        : maybeCallback;
+    if (!callback)
+        throw new Error("No callback function supplied");
+    Deno.ftruncate(fd, len).then(() => callback(null), callback);
+}
+export function ftruncateSync(fd, len) {
+    Deno.ftruncateSync(fd, len);
+}
+//# sourceMappingURL=data:application/json;base64,eyJ2ZXJzaW9uIjozLCJmaWxlIjoiX2ZzX2Z0cnVuY2F0ZS5qcyIsInNvdXJjZVJvb3QiOiIiLCJzb3VyY2VzIjpbIl9mc19mdHJ1bmNhdGUudHMiXSwibmFtZXMiOltdLCJtYXBwaW5ncyI6IkFBR0EsTUFBTSxVQUFVLFNBQVMsQ0FDdkIsRUFBVSxFQUNWLGFBQXlDLEVBQ3pDLGFBQWlDO0lBRWpDLE1BQU0sR0FBRyxHQUF1QixPQUFPLGFBQWEsS0FBSyxRQUFRO1FBQy9ELENBQUMsQ0FBQyxhQUFhO1FBQ2YsQ0FBQyxDQUFDLFNBQVMsQ0FBQztJQUNkLE1BQU0sUUFBUSxHQUFzQixPQUFPLGFBQWEsS0FBSyxVQUFVO1FBQ3JFLENBQUMsQ0FBQyxhQUFhO1FBQ2YsQ0FBQyxDQUFDLGFBQWtDLENBQUM7SUFFdkMsSUFBSSxDQUFDLFFBQVE7UUFBRSxNQUFNLElBQUksS0FBSyxDQUFDLCtCQUErQixDQUFDLENBQUM7SUFFaEUsSUFBSSxDQUFDLFNBQVMsQ0FBQyxFQUFFLEVBQUUsR0FBRyxDQUFDLENBQUMsSUFBSSxDQUFDLEdBQUcsRUFBRSxDQUFDLFFBQVEsQ0FBQyxJQUFJLENBQUMsRUFBRSxRQUFRLENBQUMsQ0FBQztBQUMvRCxDQUFDO0FBRUQsTUFBTSxVQUFVLGFBQWEsQ0FBQyxFQUFVLEVBQUUsR0FBWTtJQUNwRCxJQUFJLENBQUMsYUFBYSxDQUFDLEVBQUUsRUFBRSxHQUFHLENBQUMsQ0FBQztBQUM5QixDQUFDIn0=

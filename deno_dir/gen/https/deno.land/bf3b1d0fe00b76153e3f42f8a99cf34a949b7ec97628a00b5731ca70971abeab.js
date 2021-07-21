@@ -1,0 +1,2 @@
+export const fromStatic = (staticValue) => () => Promise.resolve(staticValue);
+//# sourceMappingURL=data:application/json;base64,eyJ2ZXJzaW9uIjozLCJmaWxlIjoiZnJvbVN0YXRpYy5qcyIsInNvdXJjZVJvb3QiOiIiLCJzb3VyY2VzIjpbImZyb21TdGF0aWMudHMiXSwibmFtZXMiOltdLCJtYXBwaW5ncyI6IkFBRUEsTUFBTSxDQUFDLE1BQU0sVUFBVSxHQUNyQixDQUFJLFdBQWMsRUFBZSxFQUFFLENBQ25DLEdBQUcsRUFBRSxDQUNILE9BQU8sQ0FBQyxPQUFPLENBQUMsV0FBVyxDQUFDLENBQUMifQ==

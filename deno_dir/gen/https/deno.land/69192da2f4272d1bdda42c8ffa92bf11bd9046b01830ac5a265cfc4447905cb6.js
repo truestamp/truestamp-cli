@@ -1,0 +1,356 @@
+import { Buffer } from "../buffer.ts";
+import { kPaused } from "./symbols.ts";
+import { ERR_STREAM_PUSH_AFTER_EOF, ERR_STREAM_UNSHIFT_AFTER_END_EVENT, } from "../_errors.ts";
+export function _destroy(self, err, cb) {
+    self._destroy(err || null, (err) => {
+        const r = self._readableState;
+        if (err) {
+            err.stack;
+            if (!r.errored) {
+                r.errored = err;
+            }
+        }
+        r.closed = true;
+        if (typeof cb === "function") {
+            cb(err);
+        }
+        if (err) {
+            queueMicrotask(() => {
+                if (!r.errorEmitted) {
+                    r.errorEmitted = true;
+                    self.emit("error", err);
+                }
+                r.closeEmitted = true;
+                if (r.emitClose) {
+                    self.emit("close");
+                }
+            });
+        }
+        else {
+            queueMicrotask(() => {
+                r.closeEmitted = true;
+                if (r.emitClose) {
+                    self.emit("close");
+                }
+            });
+        }
+    });
+}
+export function addChunk(stream, state, chunk, addToFront) {
+    if (state.flowing && state.length === 0 && !state.sync) {
+        if (state.multiAwaitDrain) {
+            state.awaitDrainWriters.clear();
+        }
+        else {
+            state.awaitDrainWriters = null;
+        }
+        stream.emit("data", chunk);
+    }
+    else {
+        state.length += state.objectMode ? 1 : chunk.length;
+        if (addToFront) {
+            state.buffer.unshift(chunk);
+        }
+        else {
+            state.buffer.push(chunk);
+        }
+        if (state.needReadable) {
+            emitReadable(stream);
+        }
+    }
+    maybeReadMore(stream, state);
+}
+const MAX_HWM = 0x40000000;
+export function computeNewHighWaterMark(n) {
+    if (n >= MAX_HWM) {
+        n = MAX_HWM;
+    }
+    else {
+        n--;
+        n |= n >>> 1;
+        n |= n >>> 2;
+        n |= n >>> 4;
+        n |= n >>> 8;
+        n |= n >>> 16;
+        n++;
+    }
+    return n;
+}
+export function emitReadable(stream) {
+    const state = stream._readableState;
+    state.needReadable = false;
+    if (!state.emittedReadable) {
+        state.emittedReadable = true;
+        queueMicrotask(() => emitReadable_(stream));
+    }
+}
+function emitReadable_(stream) {
+    const state = stream._readableState;
+    if (!state.destroyed && !state.errored && (state.length || state.ended)) {
+        stream.emit("readable");
+        state.emittedReadable = false;
+    }
+    state.needReadable = !state.flowing &&
+        !state.ended &&
+        state.length <= state.highWaterMark;
+    flow(stream);
+}
+export function endReadable(stream) {
+    const state = stream._readableState;
+    if (!state.endEmitted) {
+        state.ended = true;
+        queueMicrotask(() => endReadableNT(state, stream));
+    }
+}
+function endReadableNT(state, stream) {
+    if (!state.errorEmitted && !state.closeEmitted &&
+        !state.endEmitted && state.length === 0) {
+        state.endEmitted = true;
+        stream.emit("end");
+        if (state.autoDestroy) {
+            stream.destroy();
+        }
+    }
+}
+export function errorOrDestroy(stream, err, sync = false) {
+    const r = stream._readableState;
+    if (r.destroyed) {
+        return stream;
+    }
+    if (r.autoDestroy) {
+        stream.destroy(err);
+    }
+    else if (err) {
+        err.stack;
+        if (!r.errored) {
+            r.errored = err;
+        }
+        if (sync) {
+            queueMicrotask(() => {
+                if (!r.errorEmitted) {
+                    r.errorEmitted = true;
+                    stream.emit("error", err);
+                }
+            });
+        }
+        else if (!r.errorEmitted) {
+            r.errorEmitted = true;
+            stream.emit("error", err);
+        }
+    }
+}
+function flow(stream) {
+    const state = stream._readableState;
+    while (state.flowing && stream.read() !== null)
+        ;
+}
+export function fromList(n, state) {
+    if (state.length === 0) {
+        return null;
+    }
+    let ret;
+    if (state.objectMode) {
+        ret = state.buffer.shift();
+    }
+    else if (!n || n >= state.length) {
+        if (state.decoder) {
+            ret = state.buffer.join("");
+        }
+        else if (state.buffer.length === 1) {
+            ret = state.buffer.first();
+        }
+        else {
+            ret = state.buffer.concat(state.length);
+        }
+        state.buffer.clear();
+    }
+    else {
+        ret = state.buffer.consume(n, !!state.decoder);
+    }
+    return ret;
+}
+export function howMuchToRead(n, state) {
+    if (n <= 0 || (state.length === 0 && state.ended)) {
+        return 0;
+    }
+    if (state.objectMode) {
+        return 1;
+    }
+    if (Number.isNaN(n)) {
+        if (state.flowing && state.length) {
+            return state.buffer.first().length;
+        }
+        return state.length;
+    }
+    if (n <= state.length) {
+        return n;
+    }
+    return state.ended ? state.length : 0;
+}
+export function maybeReadMore(stream, state) {
+    if (!state.readingMore && state.constructed) {
+        state.readingMore = true;
+        queueMicrotask(() => maybeReadMore_(stream, state));
+    }
+}
+function maybeReadMore_(stream, state) {
+    while (!state.reading && !state.ended &&
+        (state.length < state.highWaterMark ||
+            (state.flowing && state.length === 0))) {
+        const len = state.length;
+        stream.read(0);
+        if (len === state.length) {
+            break;
+        }
+    }
+    state.readingMore = false;
+}
+export function nReadingNextTick(self) {
+    self.read(0);
+}
+export function onEofChunk(stream, state) {
+    if (state.ended)
+        return;
+    if (state.decoder) {
+        const chunk = state.decoder.end();
+        if (chunk && chunk.length) {
+            state.buffer.push(chunk);
+            state.length += state.objectMode ? 1 : chunk.length;
+        }
+    }
+    state.ended = true;
+    if (state.sync) {
+        emitReadable(stream);
+    }
+    else {
+        state.needReadable = false;
+        state.emittedReadable = true;
+        emitReadable_(stream);
+    }
+}
+export function pipeOnDrain(src, dest) {
+    return function pipeOnDrainFunctionResult() {
+        const state = src._readableState;
+        if (state.awaitDrainWriters === dest) {
+            state.awaitDrainWriters = null;
+        }
+        else if (state.multiAwaitDrain) {
+            state.awaitDrainWriters.delete(dest);
+        }
+        if ((!state.awaitDrainWriters ||
+            state.awaitDrainWriters.size === 0) &&
+            src.listenerCount("data")) {
+            state.flowing = true;
+            flow(src);
+        }
+    };
+}
+export function prependListener(emitter, event, fn) {
+    if (typeof emitter.prependListener === "function") {
+        return emitter.prependListener(event, fn);
+    }
+    if (emitter._events.get(event)?.length) {
+        const listeners = [fn, ...emitter._events.get(event)];
+        emitter._events.set(event, listeners);
+    }
+    else {
+        emitter.on(event, fn);
+    }
+}
+export function readableAddChunk(stream, chunk, encoding = undefined, addToFront) {
+    const state = stream._readableState;
+    let usedEncoding = encoding;
+    let err;
+    if (!state.objectMode) {
+        if (typeof chunk === "string") {
+            usedEncoding = encoding || state.defaultEncoding;
+            if (state.encoding !== usedEncoding) {
+                if (addToFront && state.encoding) {
+                    chunk = Buffer.from(chunk, usedEncoding).toString(state.encoding);
+                }
+                else {
+                    chunk = Buffer.from(chunk, usedEncoding);
+                    usedEncoding = "";
+                }
+            }
+        }
+        else if (chunk instanceof Uint8Array) {
+            chunk = Buffer.from(chunk);
+        }
+    }
+    if (err) {
+        errorOrDestroy(stream, err);
+    }
+    else if (chunk === null) {
+        state.reading = false;
+        onEofChunk(stream, state);
+    }
+    else if (state.objectMode || (chunk.length > 0)) {
+        if (addToFront) {
+            if (state.endEmitted) {
+                errorOrDestroy(stream, new ERR_STREAM_UNSHIFT_AFTER_END_EVENT());
+            }
+            else {
+                addChunk(stream, state, chunk, true);
+            }
+        }
+        else if (state.ended) {
+            errorOrDestroy(stream, new ERR_STREAM_PUSH_AFTER_EOF());
+        }
+        else if (state.destroyed || state.errored) {
+            return false;
+        }
+        else {
+            state.reading = false;
+            if (state.decoder && !usedEncoding) {
+                chunk = state.decoder.write(Buffer.from(chunk));
+                if (state.objectMode || chunk.length !== 0) {
+                    addChunk(stream, state, chunk, false);
+                }
+                else {
+                    maybeReadMore(stream, state);
+                }
+            }
+            else {
+                addChunk(stream, state, chunk, false);
+            }
+        }
+    }
+    else if (!addToFront) {
+        state.reading = false;
+        maybeReadMore(stream, state);
+    }
+    return !state.ended &&
+        (state.length < state.highWaterMark || state.length === 0);
+}
+export function resume(stream, state) {
+    if (!state.resumeScheduled) {
+        state.resumeScheduled = true;
+        queueMicrotask(() => resume_(stream, state));
+    }
+}
+function resume_(stream, state) {
+    if (!state.reading) {
+        stream.read(0);
+    }
+    state.resumeScheduled = false;
+    stream.emit("resume");
+    flow(stream);
+    if (state.flowing && !state.reading) {
+        stream.read(0);
+    }
+}
+export function updateReadableListening(self) {
+    const state = self._readableState;
+    state.readableListening = self.listenerCount("readable") > 0;
+    if (state.resumeScheduled && state[kPaused] === false) {
+        state.flowing = true;
+    }
+    else if (self.listenerCount("data") > 0) {
+        self.resume();
+    }
+    else if (!state.readableListening) {
+        state.flowing = null;
+    }
+}
+//# sourceMappingURL=data:application/json;base64,eyJ2ZXJzaW9uIjozLCJmaWxlIjoicmVhZGFibGVfaW50ZXJuYWwuanMiLCJzb3VyY2VSb290IjoiIiwic291cmNlcyI6WyJyZWFkYWJsZV9pbnRlcm5hbC50cyJdLCJuYW1lcyI6W10sIm1hcHBpbmdzIjoiQUFDQSxPQUFPLEVBQUUsTUFBTSxFQUFFLE1BQU0sY0FBYyxDQUFDO0FBTXRDLE9BQU8sRUFBRSxPQUFPLEVBQUUsTUFBTSxjQUFjLENBQUM7QUFDdkMsT0FBTyxFQUNMLHlCQUF5QixFQUN6QixrQ0FBa0MsR0FDbkMsTUFBTSxlQUFlLENBQUM7QUFFdkIsTUFBTSxVQUFVLFFBQVEsQ0FDdEIsSUFBYyxFQUNkLEdBQWtCLEVBQ2xCLEVBQW1DO0lBRW5DLElBQUksQ0FBQyxRQUFRLENBQUMsR0FBRyxJQUFJLElBQUksRUFBRSxDQUFDLEdBQUcsRUFBRSxFQUFFO1FBQ2pDLE1BQU0sQ0FBQyxHQUFJLElBQWlCLENBQUMsY0FBYyxDQUFDO1FBRTVDLElBQUksR0FBRyxFQUFFO1lBRVAsR0FBRyxDQUFDLEtBQUssQ0FBQztZQUVWLElBQUksQ0FBQyxDQUFDLENBQUMsT0FBTyxFQUFFO2dCQUNkLENBQUMsQ0FBQyxPQUFPLEdBQUcsR0FBRyxDQUFDO2FBQ2pCO1NBQ0Y7UUFFRCxDQUFDLENBQUMsTUFBTSxHQUFHLElBQUksQ0FBQztRQUVoQixJQUFJLE9BQU8sRUFBRSxLQUFLLFVBQVUsRUFBRTtZQUM1QixFQUFFLENBQUMsR0FBRyxDQUFDLENBQUM7U0FDVDtRQUVELElBQUksR0FBRyxFQUFFO1lBQ1AsY0FBYyxDQUFDLEdBQUcsRUFBRTtnQkFDbEIsSUFBSSxDQUFDLENBQUMsQ0FBQyxZQUFZLEVBQUU7b0JBQ25CLENBQUMsQ0FBQyxZQUFZLEdBQUcsSUFBSSxDQUFDO29CQUN0QixJQUFJLENBQUMsSUFBSSxDQUFDLE9BQU8sRUFBRSxHQUFHLENBQUMsQ0FBQztpQkFDekI7Z0JBQ0QsQ0FBQyxDQUFDLFlBQVksR0FBRyxJQUFJLENBQUM7Z0JBQ3RCLElBQUksQ0FBQyxDQUFDLFNBQVMsRUFBRTtv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

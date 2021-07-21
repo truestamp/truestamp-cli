@@ -1,0 +1,24 @@
+{
+  "headers": {
+    "access-control-expose-headers": "Content-Type",
+    "x-goog-hash": "crc32c=5IYIMA==,md5=7KdJNk1RbKaJoxtxNubOZQ==",
+    "accept-ranges": "bytes",
+    "x-goog-stored-content-length": "253",
+    "x-goog-stored-content-encoding": "br",
+    "etag": "\"eca749364d516ca689a31b7136e6ce65\"",
+    "x-guploader-uploadid": "ADPycdsv5QkOoKBUswNhIPPKi-qcql1QbHIqQajXZSTeukN1wrZGx7NTV7cHf8FlMBSpti2zayH3Q4ed9NWinrmbyt0VF3DQAQ",
+    "expires": "Wed, 28 Jul 2021 22:11:09 GMT",
+    "x-goog-metageneration": "2",
+    "date": "Wed, 21 Jul 2021 22:11:09 GMT",
+    "x-goog-storage-class": "STANDARD",
+    "cache-control": "public, max-age=31536000, s-maxage=604800, immutable",
+    "last-modified": "Sat, 17 Jul 2021 09:30:49 GMT",
+    "alt-svc": "clear",
+    "x-goog-generation": "1626514249771573",
+    "content-type": "application/javascript; charset=utf-8",
+    "server": "UploadServer",
+    "access-control-allow-origin": "*",
+    "cross-origin-resource-policy": "cross-origin"
+  },
+  "url": "https://jspm.dev/npm:@aws-sdk/is-array-buffer@3.22.0!cjs"
+}

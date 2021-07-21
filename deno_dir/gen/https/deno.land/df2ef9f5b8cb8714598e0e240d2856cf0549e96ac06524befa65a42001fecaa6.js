@@ -1,0 +1,2 @@
+export const resolveMd5BodyChecksumConfig = (input) => input;
+//# sourceMappingURL=data:application/json;base64,eyJ2ZXJzaW9uIjozLCJmaWxlIjoibWQ1Q29uZmlndXJhdGlvbi5qcyIsInNvdXJjZVJvb3QiOiIiLCJzb3VyY2VzIjpbIm1kNUNvbmZpZ3VyYXRpb24udHMiXSwibmFtZXMiOltdLCJtYXBwaW5ncyI6IkFBMkJBLE1BQU0sQ0FBQyxNQUFNLDRCQUE0QixHQUFHLENBQzFDLEtBQTBELEVBQ3ZCLEVBQUUsQ0FBQyxLQUFLLENBQUMifQ==

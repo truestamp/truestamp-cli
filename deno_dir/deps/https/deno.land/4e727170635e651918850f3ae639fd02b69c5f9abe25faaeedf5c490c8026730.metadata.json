@@ -1,0 +1,23 @@
+{
+  "headers": {
+    "etag": "\"ceb829e95ad2f4953931f5de5b5020dd\"",
+    "vary": "Accept-Encoding",
+    "via": "HTTP/1.1 deploy",
+    "date": "Wed, 21 Jul 2021 22:37:30 GMT",
+    "x-amz-id-2": "DJLnW0+LZOeOLrKyJyJugQigv8woHqV7bKKpJkPCeQnEwDeHA2ahTJdgFUMiSsvegmEkgvmESVU=",
+    "content-type": "application/typescript; charset=utf-8",
+    "expect-ct": "max-age=604800, report-uri=\"https://report-uri.cloudflare.com/cdn-cgi/beacon/expect-ct\"",
+    "access-control-allow-origin": "*",
+    "last-modified": "Mon, 19 Jul 2021 09:27:21 GMT",
+    "content-length": "9351",
+    "cf-cache-status": "DYNAMIC",
+    "x-amz-request-id": "BNW19MFG4V9XZ6ME",
+    "x-amz-version-id": "x.tvz1o.lSDERp9AEnN_Nw80tW56Hopp",
+    "x-deno-ray": "us-east4-c::2123c12f65b68bb6453daa3bcecb81d8",
+    "cache-control": "public, max-age=31536000, immutable",
+    "cf-ray": "6727ea0a9a5a5c29-IAD",
+    "server": "cloudflare",
+    "alt-svc": "h3-27=\":443\"; ma=86400, h3-28=\":443\"; ma=86400, h3-29=\":443\"; ma=86400, h3=\":443\"; ma=86400"
+  },
+  "url": "https://deno.land/x/aws_sdk@v3.22.0-1/client-s3/commands/PutBucketAnalyticsConfigurationCommand.ts"
+}

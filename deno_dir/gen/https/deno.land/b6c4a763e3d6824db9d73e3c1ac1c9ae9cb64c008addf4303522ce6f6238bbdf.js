@@ -1,0 +1,8 @@
+import { notImplemented } from "../_utils.ts";
+export function access(_path, _modeOrCallback, _callback) {
+    notImplemented("Not yet available");
+}
+export function accessSync(_path, _mode) {
+    notImplemented("Not yet available");
+}
+//# sourceMappingURL=data:application/json;base64,eyJ2ZXJzaW9uIjozLCJmaWxlIjoiX2ZzX2FjY2Vzcy5qcyIsInNvdXJjZVJvb3QiOiIiLCJzb3VyY2VzIjpbIl9mc19hY2Nlc3MudHMiXSwibmFtZXMiOltdLCJtYXBwaW5ncyI6IkFBRUEsT0FBTyxFQUFFLGNBQWMsRUFBRSxNQUFNLGNBQWMsQ0FBQztBQU05QyxNQUFNLFVBQVUsTUFBTSxDQUNwQixLQUFtQixFQUNuQixlQUF3RCxFQUN4RCxTQUE2QjtJQUU3QixjQUFjLENBQUMsbUJBQW1CLENBQUMsQ0FBQztBQUN0QyxDQUFDO0FBSUQsTUFBTSxVQUFVLFVBQVUsQ0FBQyxLQUFtQixFQUFFLEtBQWM7SUFDNUQsY0FBYyxDQUFDLG1CQUFtQixDQUFDLENBQUM7QUFDdEMsQ0FBQyJ9

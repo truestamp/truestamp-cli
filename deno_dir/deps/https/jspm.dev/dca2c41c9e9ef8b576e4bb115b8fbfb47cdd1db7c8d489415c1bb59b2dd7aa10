@@ -1,6 +1,6 @@
-import "/npm:@aws-sdk/is-array-buffer@3.18.0!cjs";
+import "/npm:@aws-sdk/is-array-buffer@3.22.0!cjs";
 import "/npm:@jspm/core@2/nodelibs/buffer";
-import "/npm:@aws-sdk/util-buffer-from@3.18.0!cjs";
+import "/npm:@aws-sdk/util-buffer-from@3.22.0!cjs";
 import "/npm:@jspm/core@2/nodelibs/crypto";
-export * from "/npm:@aws-sdk/hash-node@3.18.0!cjs";
-export { default } from "/npm:@aws-sdk/hash-node@3.18.0!cjs";
+export * from "/npm:@aws-sdk/hash-node@3.22.0!cjs";
+export { default } from "/npm:@aws-sdk/hash-node@3.22.0!cjs";

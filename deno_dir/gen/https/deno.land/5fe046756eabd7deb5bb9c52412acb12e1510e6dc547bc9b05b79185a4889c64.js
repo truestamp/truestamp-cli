@@ -1,0 +1,5 @@
+import { constructStack } from "../middleware-stack/mod.ts";
+export class Command {
+    middlewareStack = constructStack();
+}
+//# sourceMappingURL=data:application/json;base64,eyJ2ZXJzaW9uIjozLCJmaWxlIjoiY29tbWFuZC5qcyIsInNvdXJjZVJvb3QiOiIiLCJzb3VyY2VzIjpbImNvbW1hbmQudHMiXSwibmFtZXMiOltdLCJtYXBwaW5ncyI6IkFBQUEsT0FBTyxFQUFFLGNBQWMsRUFBRSxNQUFNLDRCQUE0QixDQUFDO0FBRzVELE1BQU0sT0FBZ0IsT0FBTztJQVNsQixlQUFlLEdBQW9DLGNBQWMsRUFBaUIsQ0FBQztDQU03RiJ9

@@ -1,0 +1,5 @@
+import { Base } from "../base.d.ts";
+import { Token } from "./types.d.ts";
+export declare class Tokens extends Base {
+    getToken(): Promise<Token>;
+}

@@ -1,0 +1,24 @@
+{
+  "headers": {
+    "last-modified": "Thu, 27 May 2021 18:29:43 GMT",
+    "x-amz-version-id": "xS6eQDztD_QmMe510VeyX0yNSYoRhTch",
+    "x-amz-id-2": "CZd5SdxvJ0GS8+nHeSQe01oL/nU1fJc8SiNdKoWLCgU2cCxs7pE2+vbFealc2U9po6Y8YkhMHD8=",
+    "x-amz-request-id": "XPEB8EHX1TZFXS5E",
+    "cf-cache-status": "HIT",
+    "cf-ray": "65f5332b8f26e10e-IAD",
+    "etag": "\"3c6206a466c4d3617e0434105af901cc\"",
+    "content-type": "application/typescript; charset=utf-8",
+    "expect-ct": "max-age=604800, report-uri=\"https://report-uri.cloudflare.com/cdn-cgi/beacon/expect-ct\"",
+    "age": "69804",
+    "date": "Mon, 14 Jun 2021 17:15:17 GMT",
+    "alt-svc": "h3-27=\":443\"; ma=86400, h3-28=\":443\"; ma=86400, h3-29=\":443\"; ma=86400, h3=\":443\"; ma=86400",
+    "access-control-allow-origin": "*",
+    "cf-request-id": "0aad1e4f420000e10e0e2e7000000001",
+    "server": "cloudflare",
+    "cache-control": "public, max-age=31536000, immutable",
+    "accept-ranges": "bytes",
+    "content-length": "10474",
+    "vary": "Accept-Encoding"
+  },
+  "url": "https://deno.land/x/aws_sdk@v3.17.0-2/client-s3/commands/CreateBucketCommand.ts"
+}

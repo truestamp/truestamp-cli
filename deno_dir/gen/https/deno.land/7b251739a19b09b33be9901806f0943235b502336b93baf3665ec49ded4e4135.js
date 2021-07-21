@@ -1,0 +1,13 @@
+export function realpath(path, options, callback) {
+    if (typeof options === "function") {
+        callback = options;
+    }
+    if (!callback) {
+        throw new Error("No callback function supplied");
+    }
+    Deno.realPath(path).then((path) => callback(null, path), (err) => callback(err));
+}
+export function realpathSync(path) {
+    return Deno.realPathSync(path);
+}
+//# sourceMappingURL=data:application/json;base64,eyJ2ZXJzaW9uIjozLCJmaWxlIjoiX2ZzX3JlYWxwYXRoLmpzIiwic291cmNlUm9vdCI6IiIsInNvdXJjZXMiOlsiX2ZzX3JlYWxwYXRoLnRzIl0sIm5hbWVzIjpbXSwibWFwcGluZ3MiOiJBQUdBLE1BQU0sVUFBVSxRQUFRLENBQ3RCLElBQVksRUFDWixPQUE0QixFQUM1QixRQUFtQjtJQUVuQixJQUFJLE9BQU8sT0FBTyxLQUFLLFVBQVUsRUFBRTtRQUNqQyxRQUFRLEdBQUcsT0FBTyxDQUFDO0tBQ3BCO0lBQ0QsSUFBSSxDQUFDLFFBQVEsRUFBRTtRQUNiLE1BQU0sSUFBSSxLQUFLLENBQUMsK0JBQStCLENBQUMsQ0FBQztLQUNsRDtJQUNELElBQUksQ0FBQyxRQUFRLENBQUMsSUFBSSxDQUFDLENBQUMsSUFBSSxDQUN0QixDQUFDLElBQUksRUFBRSxFQUFFLENBQUMsUUFBUyxDQUFDLElBQUksRUFBRSxJQUFJLENBQUMsRUFDL0IsQ0FBQyxHQUFHLEVBQUUsRUFBRSxDQUFDLFFBQVMsQ0FBQyxHQUFHLENBQUMsQ0FDeEIsQ0FBQztBQUNKLENBQUM7QUFFRCxNQUFNLFVBQVUsWUFBWSxDQUFDLElBQVk7SUFDdkMsT0FBTyxJQUFJLENBQUMsWUFBWSxDQUFDLElBQUksQ0FBQyxDQUFDO0FBQ2pDLENBQUMifQ==

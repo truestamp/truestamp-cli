@@ -25,7 +25,7 @@ import Conf from "https://raw.githubusercontent.com/truestamp/deno-conf/v1.0.2-b
 //      : https://www.skypack.dev/view/ulid
 import { ulid } from "https://cdn.skypack.dev/ulid?dts";
 
-import { S3 } from "https://deno.land/x/aws_sdk@v3.16.0-3/client-s3/mod.ts";
+import { S3 } from "https://deno.land/x/aws_sdk@v3.22.0-1/client-s3/mod.ts";
 
 import {
   getConfigForEnv,
@@ -43,7 +43,7 @@ import {
 
 // See : https://www.skypack.dev/view/@truestamp/truestamp-js
 // See SkyPack : https://docs.skypack.dev/skypack-cdn/api-reference/lookup-urls
-import Truestamp from "https://cdn.skypack.dev/@truestamp/truestamp-js@~v0.0.46?dts";
+import Truestamp from "https://cdn.skypack.dev/@truestamp/truestamp-js@~v0.0.51?dts";
 import { createTruestampClient } from "./truestamp.ts";
 
 export {
@@ -84,4 +84,4 @@ export type {
 
 export type {
   S3ClientConfig,
-} from "https://deno.land/x/aws_sdk@v3.16.0-3/client-s3/mod.ts";
+} from "https://deno.land/x/aws_sdk@v3.22.0-1/client-s3/mod.ts";

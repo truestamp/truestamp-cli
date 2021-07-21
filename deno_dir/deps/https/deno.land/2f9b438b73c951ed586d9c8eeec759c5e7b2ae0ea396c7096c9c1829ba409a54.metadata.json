@@ -1,0 +1,23 @@
+{
+  "headers": {
+    "x-amz-version-id": "KSQ9g3hYkiOCiCL5ET_5xk_k7g3MZ9Pg",
+    "x-deno-ray": "us-east4-c::85b6c8437d8ecfdf161262ace4e9b83c",
+    "x-amz-id-2": "UDqugqTzIGhb+zWmh5s5lCWpQnaaXOuRCOeLrEu66l7POFAUTrIQ6wYEMyebsmXZpb2uW6mH4G0=",
+    "via": "HTTP/1.1 deploy",
+    "etag": "\"8f27680de654141f6bc22fb445c04ba1\"",
+    "last-modified": "Mon, 19 Jul 2021 09:27:21 GMT",
+    "date": "Wed, 21 Jul 2021 22:37:30 GMT",
+    "vary": "Accept-Encoding",
+    "access-control-allow-origin": "*",
+    "cf-ray": "6727ea0a9a655c29-IAD",
+    "cf-cache-status": "DYNAMIC",
+    "expect-ct": "max-age=604800, report-uri=\"https://report-uri.cloudflare.com/cdn-cgi/beacon/expect-ct\"",
+    "server": "cloudflare",
+    "alt-svc": "h3-27=\":443\"; ma=86400, h3-28=\":443\"; ma=86400, h3-29=\":443\"; ma=86400, h3=\":443\"; ma=86400",
+    "content-length": "7827",
+    "content-type": "application/typescript; charset=utf-8",
+    "cache-control": "public, max-age=31536000, immutable",
+    "x-amz-request-id": "BNW3432M84XKXFNK"
+  },
+  "url": "https://deno.land/x/aws_sdk@v3.22.0-1/client-s3/commands/PutBucketLoggingCommand.ts"
+}

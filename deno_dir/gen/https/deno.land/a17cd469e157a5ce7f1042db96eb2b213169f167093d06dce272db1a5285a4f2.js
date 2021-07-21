@@ -1,0 +1,3 @@
+import { EventStreamMarshaller } from "./EventStreamMarshaller.ts";
+export const eventStreamSerdeProvider = (options) => new EventStreamMarshaller(options);
+//# sourceMappingURL=data:application/json;base64,eyJ2ZXJzaW9uIjozLCJmaWxlIjoicHJvdmlkZXIuanMiLCJzb3VyY2VSb290IjoiIiwic291cmNlcyI6WyJwcm92aWRlci50cyJdLCJuYW1lcyI6W10sIm1hcHBpbmdzIjoiQUFFQSxPQUFPLEVBQUUscUJBQXFCLEVBQUUsTUFBTSw0QkFBNEIsQ0FBQztBQUduRSxNQUFNLENBQUMsTUFBTSx3QkFBd0IsR0FBNkIsQ0FBQyxPQUlsRSxFQUFFLEVBQUUsQ0FBQyxJQUFJLHFCQUFxQixDQUFDLE9BQU8sQ0FBQyxDQUFDIn0=

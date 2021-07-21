@@ -1,0 +1,23 @@
+{
+  "headers": {
+    "x-deno-ray": "us-east4-c::f552e0a8de2ddc494985f5b33ea78b9e",
+    "content-length": "4985",
+    "vary": "Accept-Encoding",
+    "cf-ray": "6727ea0a9a805c29-IAD",
+    "date": "Wed, 21 Jul 2021 22:37:30 GMT",
+    "x-amz-request-id": "BNWB049RD5C7WEB8",
+    "via": "HTTP/1.1 deploy",
+    "expect-ct": "max-age=604800, report-uri=\"https://report-uri.cloudflare.com/cdn-cgi/beacon/expect-ct\"",
+    "etag": "\"089a71ba6ba29aed1a7c139680ed6cb4\"",
+    "cf-cache-status": "DYNAMIC",
+    "access-control-allow-origin": "*",
+    "cache-control": "public, max-age=31536000, immutable",
+    "last-modified": "Mon, 19 Jul 2021 09:27:21 GMT",
+    "content-type": "application/typescript; charset=utf-8",
+    "x-amz-id-2": "wq/BCMtENtjkwR6aRFgjHwb3HWWq4io7XkQKEEyzX/N2kj35SOJGFKOnlTyqdldFpJhG9ZV/YHA=",
+    "server": "cloudflare",
+    "x-amz-version-id": "nqECWZaMsB7.blCJ8dRsYiStDFgqlX71",
+    "alt-svc": "h3-27=\":443\"; ma=86400, h3-28=\":443\"; ma=86400, h3-29=\":443\"; ma=86400, h3=\":443\"; ma=86400"
+  },
+  "url": "https://deno.land/x/aws_sdk@v3.22.0-1/client-s3/commands/DeleteBucketOwnershipControlsCommand.ts"
+}

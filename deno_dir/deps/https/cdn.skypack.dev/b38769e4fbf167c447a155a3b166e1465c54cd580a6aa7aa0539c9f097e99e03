@@ -1,0 +1,9 @@
+import { Heartbeat } from "./heartbeat.d.ts";
+import { Documents } from "./documents.d.ts";
+import { Tokens } from "./tokens.d.ts";
+import { Base } from "./base.d.ts";
+declare class Truestamp extends Base {
+}
+interface Truestamp extends Heartbeat, Documents, Tokens {
+}
+export default Truestamp;

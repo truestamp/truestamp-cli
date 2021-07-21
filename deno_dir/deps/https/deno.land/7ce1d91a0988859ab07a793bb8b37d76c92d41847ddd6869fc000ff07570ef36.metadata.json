@@ -1,0 +1,24 @@
+{
+  "headers": {
+    "etag": "\"977a6224bbf6700ce6af5b0193f71ece\"",
+    "x-amz-request-id": "XPEDM1CE0MW1E4HT",
+    "date": "Mon, 14 Jun 2021 17:15:17 GMT",
+    "cf-cache-status": "HIT",
+    "content-type": "application/typescript; charset=utf-8",
+    "cf-ray": "65f5332b8f76e10e-IAD",
+    "accept-ranges": "bytes",
+    "last-modified": "Thu, 27 May 2021 18:29:43 GMT",
+    "age": "69804",
+    "x-amz-version-id": "9PNN1Rs8PAQ9Et9ca7yNsjbUaXLn4C4o",
+    "server": "cloudflare",
+    "vary": "Accept-Encoding",
+    "content-length": "6327",
+    "expect-ct": "max-age=604800, report-uri=\"https://report-uri.cloudflare.com/cdn-cgi/beacon/expect-ct\"",
+    "cf-request-id": "0aad1e4f5a0000e10e1d841000000001",
+    "access-control-allow-origin": "*",
+    "cache-control": "public, max-age=31536000, immutable",
+    "alt-svc": "h3-27=\":443\"; ma=86400, h3-28=\":443\"; ma=86400, h3-29=\":443\"; ma=86400, h3=\":443\"; ma=86400",
+    "x-amz-id-2": "+UUWUAG10eDLyU7tNRAM3QIfBax75QFqk4p/IU5CInDSQZlLrPazwWqQFq/+JVeqFiNFAm0N0c4="
+  },
+  "url": "https://deno.land/x/aws_sdk@v3.17.0-2/client-s3/commands/DeleteBucketMetricsConfigurationCommand.ts"
+}

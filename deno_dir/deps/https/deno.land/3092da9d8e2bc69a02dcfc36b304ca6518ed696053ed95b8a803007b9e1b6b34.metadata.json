@@ -1,0 +1,23 @@
+{
+  "headers": {
+    "last-modified": "Mon, 19 Jul 2021 09:27:21 GMT",
+    "content-type": "application/typescript; charset=utf-8",
+    "content-length": "5018",
+    "x-amz-request-id": "BNW6S7S0Z4RJD1CR",
+    "access-control-allow-origin": "*",
+    "etag": "\"7cf96e5371626347a69b890aa81a6a9f\"",
+    "expect-ct": "max-age=604800, report-uri=\"https://report-uri.cloudflare.com/cdn-cgi/beacon/expect-ct\"",
+    "server": "cloudflare",
+    "cache-control": "public, max-age=31536000, immutable",
+    "vary": "Accept-Encoding",
+    "alt-svc": "h3-27=\":443\"; ma=86400, h3-28=\":443\"; ma=86400, h3-29=\":443\"; ma=86400, h3=\":443\"; ma=86400",
+    "via": "HTTP/1.1 deploy",
+    "cf-ray": "6727ea0a9ad75c29-IAD",
+    "x-amz-id-2": "XNfLRd7Q1bXc+O5tLV6SAO5T+9SmtZG5CB2WXaob8cH06qBmIczBW9n7IbLmX+dJKOxWaU+Owzg=",
+    "cf-cache-status": "DYNAMIC",
+    "x-deno-ray": "us-east4-c::1f7d24447bca921515ef447a387500c9",
+    "x-amz-version-id": "uFQhRJfS715GW1ID4rBOKn2JUhxSxk_H",
+    "date": "Wed, 21 Jul 2021 22:37:30 GMT"
+  },
+  "url": "https://deno.land/x/aws_sdk@v3.22.0-1/client-s3/commands/DeleteObjectTaggingCommand.ts"
+}
