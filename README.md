@@ -144,7 +144,8 @@ Steps for a public release:
 - Ensure the `version` in [src/cli.ts](src/cli.ts) is updated to the desired
   version.
 - Create a new `tag` (not a new Release!) where the tag name follows the form
-  `vx.x.x` where the `x` represents a semantic version number.
+  `vx.x.x` where the `x` represents a semantic version number. Example:
+  `git tag -a v0.0.5 -m "v0.0.5"` followed by `git push origin --tags`.
 - Once the `tagged-release.yml` workflow succeeds, a new release, with an
   automatic changelog will have been created.
 - One of the build artifacts is the `CHECKSUMS-SHA2-256.txt` file, which
