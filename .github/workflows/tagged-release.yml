@@ -18,12 +18,14 @@ jobs:
           deno-version: v1.x
       - name: Build RELEASE.txt
         run: echo ${{ github.sha }} > RELEASE.txt
+      - name: Log Release
+        run: cat RELEASE.txt
       - name: Build
         run: make build
       - name: Build CHECKSUMS-SHA2-256.txt
         run: find ./build -type f -exec sha256sum {} \; > CHECKSUMS-SHA2-256.txt  
-      - name: Test
-        run: cat RELEASE.txt
+      - name: Log Checksums
+        run: cat CHECKSUMS-SHA2-256.txt
       - uses: "marvinpinto/action-automatic-releases@latest"
         with:
           repo_token: "${{ secrets.GITHUB_TOKEN }}"
