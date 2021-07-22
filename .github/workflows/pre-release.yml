@@ -13,9 +13,9 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v2
       - name: Setup Deno
-        uses: denoland/setup-deno@main
+        uses: denoland/setup-deno@v1
         with:
-          deno-version: v1.12.0
+          deno-version: v1.x
       - name: Build RELEASE.txt
         run: echo ${{ github.sha }} > RELEASE.txt
       - name: Build
