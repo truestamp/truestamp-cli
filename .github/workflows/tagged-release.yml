@@ -20,6 +20,8 @@ jobs:
         run: echo ${{ github.sha }} > RELEASE.txt
       - name: Build
         run: make build
+      - name: Build CHECKSUMS-SHA2-256.txt
+        run: find ./build -type f -exec sha256sum {} \; > CHECKSUMS-SHA2-256.txt  
       - name: Test
         run: cat RELEASE.txt
       - uses: "marvinpinto/action-automatic-releases@latest"
@@ -27,6 +29,7 @@ jobs:
           repo_token: "${{ secrets.GITHUB_TOKEN }}"
           prerelease: false
           files: |
+            CHECKSUMS-SHA2-256.txt
             RELEASE.txt
             README.md
             build/*
