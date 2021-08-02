@@ -1,0 +1,24 @@
+export declare type NewOrUpdatedDocumentBody = {
+    hash: string;
+    name?: string;
+};
+export declare type GetAllDocumentsQueryParams = {
+    start?: string;
+    end?: string;
+    page?: number;
+    per_page?: number;
+};
+export declare type GetDocumentVersionsQueryParams = {
+    start?: string;
+    end?: string;
+    page?: number;
+    per_page?: number;
+};
+export declare type Document = {
+    readonly id: string;
+    readonly hashMultihash: string;
+    readonly hashHex: string;
+    readonly hashBase64: string;
+    readonly hashName: string;
+    readonly timestamp: string;
+};

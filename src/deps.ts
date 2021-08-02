@@ -43,7 +43,7 @@ import {
 
 // See : https://www.skypack.dev/view/@truestamp/truestamp-js
 // See SkyPack : https://docs.skypack.dev/skypack-cdn/api-reference/lookup-urls
-import Truestamp from "https://cdn.skypack.dev/@truestamp/truestamp-js@~v0.0.51?dts";
+import Truestamp from "https://cdn.skypack.dev/@truestamp/truestamp-js@~v0.1.0?dts";
 import { createTruestampClient } from "./truestamp.ts";
 
 export {
