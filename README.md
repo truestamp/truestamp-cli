@@ -95,12 +95,15 @@ Download and install the `windows` platform `.zip` file for your chosen
 [release](https://github.com/truestamp/truestamp-cli/releases) version.
 
 ```sh
-# PowerShell
+# PowerShell (Replace v0.0.0 in path with appropriate version)
 
-Invoke-WebRequest -OutFile truestamp-windows.exe.zip https://github.com/truestamp/truestamp-cli/releases/download/v0.0.0/truestamp-windows.exe.zip
+Invoke-WebRequest -OutFile truestamp-windows-x86_64.zip https://github.com/truestamp/truestamp-cli/releases/download/v0.0.0/truestamp-windows-x86_64.zip
 
 # Expand-Archive -LiteralPath <PathToZipFile> -DestinationPath <PathToDestination>
-Expand-Archive -LiteralPath truestamp-windows.exe.zip
+Expand-Archive -LiteralPath truestamp-windows-x86_64.zip
+
+# You should now have a `truestamp.exe` file that can be run in a command shell
+truestamp -h
 ```
 
 ## Usage
