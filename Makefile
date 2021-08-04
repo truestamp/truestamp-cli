@@ -35,7 +35,7 @@ compress-linux:
 	cd ${BUILD_DIR} && for i in truestamp-linux*; do mv $$i truestamp && tar -czf $$i.tar.gz truestamp && rm truestamp; done && cd -
 
 compress-windows:
-	cd ${BUILD_DIR} && for i in truestamp-windows*; do mv $$i truestamp && zip -r $$i.zip truestamp && rm truestamp; done  && cd -
+	cd ${BUILD_DIR} && for i in truestamp-windows*; do mv $$i truestamp.exe && zip -r truestamp-windows-x86_64.zip truestamp.exe && rm truestamp.exe; done && cd -
 
 compress: compress-darwin compress-linux compress-windows
 
