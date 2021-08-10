@@ -159,4 +159,4 @@ Steps for a public release:
 
 ## Legal
 
-© 2020-2021 Truestamp Inc. All rights reserved.
+Copyright © 2020-2021 Truestamp Inc. All rights reserved.

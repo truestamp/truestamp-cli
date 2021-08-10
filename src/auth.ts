@@ -1,4 +1,4 @@
-// © 2020-2021 Truestamp Inc. All rights reserved.
+// Copyright © 2020-2021 Truestamp Inc. All rights reserved.
 
 // See: https://github.com/truestamp/deviceflow
 // See: https://github.com/jatinvaidya/cli-authz-device-flow/blob/master/device/device.js

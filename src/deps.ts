@@ -1,4 +1,4 @@
-// © 2020-2021 Truestamp Inc. All rights reserved.
+// Copyright © 2020-2021 Truestamp Inc. All rights reserved.
 
 import { createHash } from "https://deno.land/std@0.102.0/hash/mod.ts";
 import * as path from "https://deno.land/std@0.102.0/path/mod.ts";

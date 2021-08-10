@@ -1,4 +1,5 @@
-// © 2020-2021 Truestamp Inc. All rights reserved.
+// Copyright © 2020-2021 Truestamp Inc. All rights reserved.
+
 import { getAccessTokenWithPrompts, Truestamp } from "./deps.ts";
 
 export async function createTruestampClient(apiEnv: string) {
