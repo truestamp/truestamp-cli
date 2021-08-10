@@ -222,9 +222,8 @@ const s3Upload = new Command()
 
 export const s3 = new Command()
   .description(
-    "Manage files stored in an AWS S3 bucket monitored by Truestamp.",
+    "Upload files to an AWS S3 bucket monitored by Truestamp.",
   )
-  .hidden()
   .env(
     "AWS_PROFILE=<aws_client_credentials_profile:string>",
     "The AWS client credentials profile to use.",
