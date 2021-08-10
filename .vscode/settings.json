@@ -12,5 +12,36 @@
   "deno.suggest.imports.hosts": {
     "https://deno.land/": true,
     "http://deno.land": true
-  }
+  },
+  "cSpell.ignoreWords": [
+    "aarch",
+    "cqrtz",
+    "dzx",
+    "fx",
+    "gnn",
+    "hb",
+    "hpz",
+    "ij",
+    "k",
+    "ll",
+    "lox",
+    "m",
+    "n",
+    "ny",
+    "openid",
+    "p",
+    "pd",
+    "rvqeuz",
+    "s",
+    "spctl",
+    "t",
+    "tu",
+    "u",
+    "ulid",
+    "uy",
+    "vx",
+    "x",
+    "xj",
+    "zxvf"
+  ]
 }

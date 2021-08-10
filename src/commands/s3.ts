@@ -1,7 +1,6 @@
 // Copyright © 2020-2021 Truestamp Inc. All rights reserved.
 
 import {
-  Buffer,
   Command,
   createHash,
   EnumType,
@@ -46,7 +45,7 @@ const s3ConfigSet = new Command()
   .description(`Set environment specific persistent config for AWS S3.`)
   .option(
     "-b, --bucket [bucket:string]",
-    "Set the name of the AWS S3 bucket (must exist in same region client uses. Override with ).",
+    "Set the name of the AWS S3 bucket (must exist in same region client uses).",
     {
       required: true,
     },
@@ -67,26 +66,27 @@ const s3Config = new Command()
 
 const s3Upload = new Command()
   .description(
-    `Upload a file to an AWS S3 bucket monitored by Truestamp.
+    `Upload a file to an AWS S3 bucket known to be monitored by Truestamp.
   
-    A valid AWS S3 region must be provided, and the destination bucket and
-    the monitoring function must exist in that same region.
+    Permissions to upload to the S3 bucket are required, and the credentials to
+    use can be set using 'AWS_PROFILE' or 'AWS_ACCESS_KEY_ID' and 'AWS_SECRET_ACCESS_KEY'.
+
+    A valid AWS S3 region, corresponding to the S3 bucket location,
+    must be provided with 'AWS_REGION' or '--aws-region'.
   
-    By default only the base filename of a path will be used to determine the
-    'key' the object will be stored at. This base filename can be overriden with
-    the '--key' argument. An optional '--prefix' can also be provided to store key
-    in a 'folder' in the S3 Bucket.
+    By default only the base filename of a '--path' will be used to determine the
+    S3 'key' the object will be stored at. This base filename can be overridden with
+    the '--key' argument. An optional '--prefix' can also be provided to store the file
+    with a common prefix or in a 'folder' in the S3 Bucket if the path contains forward
+    slashes '/'.
   
-    Uploading a file to a pre-existing key in a bucket will result
-    in the silent creation of a new version of the file in S3 in
-    versioned buckets.
-  
-    The use of this command assumes an existing install of
-    an appropriate Truestamp AWS S3 monitoring function. Without
-    it, uploaded files will not be observed.
+    Uploading a file to a pre-existing key in an S3 bucket will result
+    in the creation of a new version of the file in S3 in
+    S3 buckets configured to be 'versioned'.
   
     All objects uploaded have an MD5 hash checksum included to ensure
-    the end to end storage integrity of the object per AWS recommendation.
+    the end to end storage integrity of the object. MD5 is the only
+    checksum algorithm currently supported by Amazon Web Services.
   
     All objects uploaded also have the Bas64 encoded SHA2-256 hash of the
     object attached as permanent object metadata.
@@ -101,7 +101,7 @@ const s3Upload = new Command()
   )
   .option(
     "-P, --prefix [prefix:string]",
-    "The prefix that preceeds the file '--path' basename or '--key'. The prefix can emulate a folder structure with slashes '/' as the delimiter. If no prefix is provided the object will be stored in the root of the bucket.",
+    "The prefix that precedes the file '--path' basename or '--key'. The prefix can emulate a folder structure with forward slashes '/' as the delimiter. If no prefix is provided the object will be stored in the root of the S3 bucket.",
     {
       required: false,
       default: "",
@@ -109,14 +109,14 @@ const s3Upload = new Command()
   )
   .option(
     "-k, --key [key:string]",
-    "The 'key' to store the object in the AWS S3 bucket. Overrides the file basename from the '--path' option.",
+    "The 'key' (filename) to store the object under in the S3 bucket. Overrides the file basename derived from the '--path' option.",
     {
       required: false,
     },
   )
   .option(
     "-r, --aws-region [aws_region:aws_region_type]",
-    "Set the AWS S3 region the bucket exists in. Overrides `AWS_REGION` or `AMAZON_REGION` environment variables if present.",
+    "Set the S3 region the bucket exists in. Overrides `AWS_REGION` or `AMAZON_REGION` environment variables if present.",
     {
       required: false,
     },
@@ -155,6 +155,12 @@ const s3Upload = new Command()
     // required for buckets using a retention period
     // configured using Amazon S3 Object Lock.
     // https://docs.aws.amazon.com/AmazonS3/latest/API/API_PutObject.html
+    //
+    // NOTE : You cannot compare the MD5 sum of an object with its
+    // returned ETag value if the object is encrypted. But AWS will
+    // use the MD5 to ensure that the object stored is the same
+    // prior to storage.
+    // See : https://stackoverflow.com/questions/53882724/aws-s3-etag-not-matching-md5-after-kms-encryption
     const hashMD5 = createHash("md5");
     hashMD5.update(fileContents);
     const hashMD5InBase64 = hashMD5.toString("base64");
@@ -200,24 +206,7 @@ const s3Upload = new Command()
     const s3 = new S3(clientConfig);
 
     const resp = await s3.putObject(s3ObjParams);
-    console.log(resp);
-
-    // The ETag is being returned wrapped in extra quotes
-    // See : https://github.com/aws/aws-sdk-net/issues/815
-    const eTagStripped = resp.ETag ? resp.ETag.replace(/(^"|"$)/g, "") : "";
-
-    // compare() method compares two buffer objects and returns a number defining their differences
-    // https://teppen.io/2018/06/23/aws_s3_etags/
-    if (
-      Buffer.compare(
-        Buffer.from(hashMD5InBase64, "base64"),
-        Buffer.from(eTagStripped, "hex"),
-      ) != 0
-    ) {
-      throw new Error(
-        "the MD5 hash end-to-end integrity check on the submitted data and the returned ETag failed",
-      );
-    }
+    // console.log(resp);
 
     const objMeta = {
       region: options.awsRegion || Deno.env.get("AWS_REGION") ||
@@ -225,7 +214,7 @@ const s3Upload = new Command()
       bucket: awsS3Bucket,
       key: keyName,
       versionId: resp.VersionId,
-      eTag: eTagStripped,
+      eTag: resp.ETag,
       metadata: metadata,
     };
     console.log(JSON.stringify(objMeta));
