@@ -1,23 +1,23 @@
 // Copyright © 2020-2021 Truestamp Inc. All rights reserved.
 
-import { createHash } from "https://deno.land/std@0.102.0/hash/mod.ts";
-import * as path from "https://deno.land/std@0.102.0/path/mod.ts";
+import { createHash } from "https://deno.land/std@0.105.0/hash/mod.ts";
+import * as path from "https://deno.land/std@0.105.0/path/mod.ts";
 
 import { Buffer } from "https://deno.land/x/node_buffer@1.1.0/mod.ts";
 
 // FIXME : using a tag from our own fork of this lib while waiting for upstream PR to merge
 import { sleep } from "https://raw.githubusercontent.com/truestamp/sleep/v1.3.0/mod.ts";
 
-import { decode, validate } from "https://deno.land/x/djwt@v2.2/mod.ts";
+import { decode, validate } from "https://deno.land/x/djwt@v2.3/mod.ts";
 
-import { colors } from "https://deno.land/x/cliffy@v0.19.3/ansi/colors.ts";
+import { colors } from "https://deno.land/x/cliffy@v0.19.5/ansi/colors.ts";
 import {
   Command,
   EnumType,
   ValidationError,
-} from "https://deno.land/x/cliffy@v0.19.3/command/mod.ts";
-import { HelpCommand } from "https://deno.land/x/cliffy@v0.19.3/command/help/mod.ts";
-import { CompletionsCommand } from "https://deno.land/x/cliffy@v0.19.3/command/completions/mod.ts";
+} from "https://deno.land/x/cliffy@v0.19.5/command/mod.ts";
+import { HelpCommand } from "https://deno.land/x/cliffy@v0.19.5/command/help/mod.ts";
+import { CompletionsCommand } from "https://deno.land/x/cliffy@v0.19.5/command/completions/mod.ts";
 
 import Conf from "https://raw.githubusercontent.com/truestamp/deno-conf/v1.0.2-beta/mod.ts";
 
@@ -74,8 +74,8 @@ export {
   ValidationError,
 };
 
-export type { ITypeInfo } from "https://deno.land/x/cliffy@v0.19.3/flags/mod.ts";
-export type { Payload } from "https://deno.land/x/djwt@v2.2/mod.ts";
+export type { ITypeInfo } from "https://deno.land/x/cliffy@v0.19.5/flags/mod.ts";
+export type { Payload } from "https://deno.land/x/djwt@v2.3/mod.ts";
 
 export type {
   ItemType,

@@ -1,4 +1,0 @@
-export declare type HeartbeatStatus = {
-    ok: boolean;
-    timestamp: string;
-};

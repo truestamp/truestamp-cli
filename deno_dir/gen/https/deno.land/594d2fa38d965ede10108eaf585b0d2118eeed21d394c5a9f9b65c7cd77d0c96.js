@@ -1,4 +1,0 @@
-import { fromStatic as convertToProvider } from "../property-provider/mod.ts";
-const isFunction = (func) => typeof func === "function";
-export const fromStatic = (defaultValue) => isFunction(defaultValue) ? async () => defaultValue() : convertToProvider(defaultValue);
-//# sourceMappingURL=data:application/json;base64,eyJ2ZXJzaW9uIjozLCJmaWxlIjoiZnJvbVN0YXRpYy5qcyIsInNvdXJjZVJvb3QiOiIiLCJzb3VyY2VzIjpbImZyb21TdGF0aWMudHMiXSwibmFtZXMiOltdLCJtYXBwaW5ncyI6IkFBQUEsT0FBTyxFQUFFLFVBQVUsSUFBSSxpQkFBaUIsRUFBRSxNQUFNLDZCQUE2QixDQUFDO0FBSzlFLE1BQU0sVUFBVSxHQUFHLENBQUksSUFBeUIsRUFBcUIsRUFBRSxDQUFDLE9BQU8sSUFBSSxLQUFLLFVBQVUsQ0FBQztBQUVuRyxNQUFNLENBQUMsTUFBTSxVQUFVLEdBQUcsQ0FBSSxZQUFpQyxFQUFlLEVBQUUsQ0FDOUUsVUFBVSxDQUFDLFlBQVksQ0FBQyxDQUFDLENBQUMsQ0FBQyxLQUFLLElBQUksRUFBRSxDQUFDLFlBQVksRUFBRSxDQUFDLENBQUMsQ0FBQyxpQkFBaUIsQ0FBQyxZQUFZLENBQUMsQ0FBQyJ9

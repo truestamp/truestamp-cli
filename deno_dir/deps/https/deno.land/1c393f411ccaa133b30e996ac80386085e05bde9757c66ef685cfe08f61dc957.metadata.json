@@ -1,23 +1,16 @@
 {
   "headers": {
-    "alt-svc": "h3-27=\":443\"; ma=86400, h3-28=\":443\"; ma=86400, h3-29=\":443\"; ma=86400, h3=\":443\"; ma=86400",
-    "last-modified": "Mon, 19 Jul 2021 09:27:21 GMT",
-    "cf-ray": "6727ea0a9a4e5c29-IAD",
-    "date": "Wed, 21 Jul 2021 22:37:30 GMT",
-    "content-length": "4133",
-    "server": "cloudflare",
-    "via": "HTTP/1.1 deploy",
-    "cache-control": "public, max-age=31536000, immutable",
-    "x-deno-ray": "us-east4-c::a75709941fda95b17b608503c5d766f9",
     "x-amz-version-id": "P98g_iCuH.Xrd9KRqpg_R70O46pN57mh",
-    "expect-ct": "max-age=604800, report-uri=\"https://report-uri.cloudflare.com/cdn-cgi/beacon/expect-ct\"",
-    "vary": "Accept-Encoding",
-    "x-amz-request-id": "BNW5DS99JPK2F15D",
-    "access-control-allow-origin": "*",
-    "etag": "\"87275b79972e834e44625ac00c539e96\"",
+    "server": "AmazonS3",
+    "last-modified": "Mon, 19 Jul 2021 09:27:21 GMT",
+    "content-length": "4133",
+    "date": "Fri, 20 Aug 2021 15:10:14 GMT",
+    "x-amz-id-2": "la7HZcGUrsoQBFoYlfpve2MrNumUbBxjr8yYlCaWDsUPz29Y9frWjERN/kb+EsBmsp6GCad3qFc=",
     "content-type": "application/typescript; charset=utf-8",
-    "x-amz-id-2": "ehHIgz5NELGv+DYk6+bL2QsSQxKnZVdVFan6xdS8cFs8ZKOlxMleOP8ZKi15tJO8TDvUIYxQCdQ=",
-    "cf-cache-status": "DYNAMIC"
+    "cache-control": "public, max-age=31536000, immutable",
+    "etag": "\"87275b79972e834e44625ac00c539e96\"",
+    "x-amz-request-id": "7PW4DYJ7DJGMN2HJ",
+    "access-control-allow-origin": "*"
   },
   "url": "https://deno.land/x/aws_sdk@v3.22.0-1/client-s3/commands/DeleteBucketCommand.ts"
 }

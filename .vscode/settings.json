@@ -2,6 +2,11 @@
   "deno.enable": true,
   "deno.lint": true,
   "deno.unstable": true,
+  "deno.suggest.imports.hosts": {
+    "https://deno.land/": true,
+    "http://deno.land": true
+  },
+  "deno.cache": "./deno_dir",
   "editor.codeActionsOnSave": {
     "source.fixAll": true,
     "source.organizeImports": true
@@ -9,10 +14,6 @@
   "editor.defaultFormatter": "denoland.vscode-deno",
   "editor.formatOnSave": true,
   "editor.formatOnPaste": false,
-  "deno.suggest.imports.hosts": {
-    "https://deno.land/": true,
-    "http://deno.land": true
-  },
   "cSpell.ignoreWords": [
     "aarch",
     "cqrtz",

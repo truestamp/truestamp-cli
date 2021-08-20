@@ -1,0 +1,16 @@
+{
+  "headers": {
+    "x-amz-version-id": "7eIBvqq7Fl7KehMY.UOCRw6dJ2b1aTnS",
+    "x-amz-id-2": "icF8HG3+TJNs4jrNH1ZdOckaYLMd0a+WeqWiSWNcPlJdxioiVstQQg7Dz13tbVgFT/S/6IsZJNY=",
+    "etag": "\"258ba3ba8b59109a0095a2b3608725af\"",
+    "date": "Fri, 20 Aug 2021 15:10:14 GMT",
+    "content-length": "851",
+    "server": "AmazonS3",
+    "access-control-allow-origin": "*",
+    "last-modified": "Thu, 12 Aug 2021 20:51:13 GMT",
+    "cache-control": "public, max-age=31536000, immutable",
+    "content-type": "application/typescript; charset=utf-8",
+    "x-amz-request-id": "7PWAW946MHKYFPRV"
+  },
+  "url": "https://deno.land/x/cliffy@v0.19.5/command/completions/bash.ts"
+}

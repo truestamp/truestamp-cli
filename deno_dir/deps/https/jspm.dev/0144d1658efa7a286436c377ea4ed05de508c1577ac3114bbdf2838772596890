@@ -1,0 +1,271 @@
+import _xml from './maps/xml.json!cjs';
+import _entities from './maps/entities.json!cjs';
+
+var exports$1 = {};
+
+var __importDefault$1 = exports$1 && exports$1.__importDefault || function (mod) {
+  return mod && mod.__esModule ? mod : {
+    "default": mod
+  };
+};
+
+Object.defineProperty(exports$1, "__esModule", {
+  value: true
+});
+exports$1.getTrie = exports$1.encodeHTMLTrieRe = exports$1.getCodePoint = void 0;
+
+var entities_json_1$1 = __importDefault$1(_entities);
+
+function isHighSurrugate(c) {
+  return (c & 64512
+  /* Mask */
+  ) === 55296
+  /* High */
+  ;
+} // For compatibility with node < 4, we wrap `codePointAt`
+
+
+exports$1.getCodePoint = // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
+String.prototype.codePointAt != null ? function (str, index) {
+  return str.codePointAt(index);
+} : // http://mathiasbynens.be/notes/javascript-encoding#surrogate-formulae
+function (c, index) {
+  return isHighSurrugate(c.charCodeAt(index)) ? (c.charCodeAt(index) - 55296
+  /* High */
+  ) * 1024 + c.charCodeAt(index + 1) - 56320 + 65536 : c.charCodeAt(index);
+};
+var htmlTrie = getTrie(entities_json_1$1.default);
+
+function encodeHTMLTrieRe(regExp, str) {
+  var _a;
+
+  var ret = "";
+  var lastIdx = 0;
+  var match;
+
+  while ((match = regExp.exec(str)) !== null) {
+    var i = match.index;
+    var char = str.charCodeAt(i);
+    var next = htmlTrie.get(char);
+
+    if (next) {
+      if (next.next != null && i + 1 < str.length) {
+        var value = (_a = next.next.get(str.charCodeAt(i + 1))) === null || _a === void 0 ? void 0 : _a.value;
+
+        if (value != null) {
+          ret += str.substring(lastIdx, i) + value;
+          regExp.lastIndex += 1;
+          lastIdx = i + 2;
+          continue;
+        }
+      }
+
+      ret += str.substring(lastIdx, i) + next.value;
+      lastIdx = i + 1;
+    } else {
+      ret += str.substring(lastIdx, i) + "&#x" + exports$1.getCodePoint(str, i).toString(16) + ";"; // Increase by 1 if we have a surrogate pair
+
+      lastIdx = regExp.lastIndex += Number(isHighSurrugate(char));
+    }
+  }
+
+  return ret + str.substr(lastIdx);
+}
+
+exports$1.encodeHTMLTrieRe = encodeHTMLTrieRe;
+
+function getTrie(map) {
+  var _a, _b, _c, _d;
+
+  var trie = new Map();
+
+  for (var _i = 0, _e = Object.keys(map); _i < _e.length; _i++) {
+    var value = _e[_i];
+    var key = map[value]; // Resolve the key
+
+    var lastMap = trie;
+
+    for (var i = 0; i < key.length - 1; i++) {
+      var char = key.charCodeAt(i);
+      var next = (_a = lastMap.get(char)) !== null && _a !== void 0 ? _a : {};
+      lastMap.set(char, next);
+      lastMap = (_b = next.next) !== null && _b !== void 0 ? _b : next.next = new Map();
+    }
+
+    var val = (_c = lastMap.get(key.charCodeAt(key.length - 1))) !== null && _c !== void 0 ? _c : {};
+    (_d = val.value) !== null && _d !== void 0 ? _d : val.value = "&" + value + ";";
+    lastMap.set(key.charCodeAt(key.length - 1), val);
+  }
+
+  return trie;
+}
+
+exports$1.getTrie = getTrie;
+
+var exports = {};
+
+var __importDefault = exports && exports.__importDefault || function (mod) {
+  return mod && mod.__esModule ? mod : {
+    "default": mod
+  };
+};
+
+Object.defineProperty(exports, "__esModule", {
+  value: true
+});
+exports.escapeUTF8 = exports.escape = exports.encodeNonAsciiHTML = exports.encodeHTML = exports.encodeXML = void 0;
+
+var xml_json_1 = __importDefault(_xml);
+
+var encode_trie_1 = exports$1;
+
+var entities_json_1 = __importDefault(_entities);
+
+var htmlReplacer = getCharRegExp(entities_json_1.default, true);
+var xmlReplacer = getCharRegExp(xml_json_1.default, true);
+var xmlInvalidChars = getCharRegExp(xml_json_1.default, false);
+var xmlCodeMap = new Map(Object.keys(xml_json_1.default).map(function (k) {
+  return [xml_json_1.default[k].charCodeAt(0), "&" + k + ";"];
+}));
+/**
+ * Encodes all non-ASCII characters, as well as characters not valid in XML
+ * documents using XML entities.
+ *
+ * If a character has no equivalent entity, a
+ * numeric hexadecimal reference (eg. `&#xfc;`) will be used.
+ */
+
+function encodeXML(str) {
+  var ret = "";
+  var lastIdx = 0;
+  var match;
+
+  while ((match = xmlReplacer.exec(str)) !== null) {
+    var i = match.index;
+    var char = str.charCodeAt(i);
+    var next = xmlCodeMap.get(char);
+
+    if (next) {
+      ret += str.substring(lastIdx, i) + next;
+      lastIdx = i + 1;
+    } else {
+      ret += str.substring(lastIdx, i) + "&#x" + encode_trie_1.getCodePoint(str, i).toString(16) + ";"; // Increase by 1 if we have a surrogate pair
+
+      lastIdx = xmlReplacer.lastIndex += Number((char & 65408) === 55296);
+    }
+  }
+
+  return ret + str.substr(lastIdx);
+}
+
+exports.encodeXML = encodeXML;
+/**
+ * Encodes all entities and non-ASCII characters in the input.
+ *
+ * This includes characters that are valid ASCII characters in HTML documents.
+ * For example `#` will be encoded as `&num;`. To get a more compact output,
+ * consider using the `encodeNonAsciiHTML` function.
+ *
+ * If a character has no equivalent entity, a
+ * numeric hexadecimal reference (eg. `&#xfc;`) will be used.
+ */
+
+function encodeHTML(data) {
+  return encode_trie_1.encodeHTMLTrieRe(htmlReplacer, data);
+}
+
+exports.encodeHTML = encodeHTML;
+/**
+ * Encodes all non-ASCII characters, as well as characters not valid in HTML
+ * documents using HTML entities.
+ *
+ * If a character has no equivalent entity, a
+ * numeric hexadecimal reference (eg. `&#xfc;`) will be used.
+ */
+
+function encodeNonAsciiHTML(data) {
+  return encode_trie_1.encodeHTMLTrieRe(xmlReplacer, data);
+}
+
+exports.encodeNonAsciiHTML = encodeNonAsciiHTML;
+
+function getCharRegExp(map, nonAscii) {
+  // Collect the start characters of all entities
+  var chars = Object.keys(map).map(function (k) {
+    return "\\" + map[k].charAt(0);
+  }).filter(function (v) {
+    return !nonAscii || v.charCodeAt(1) < 128;
+  }).sort(function (a, b) {
+    return a.charCodeAt(1) - b.charCodeAt(1);
+  }) // Remove duplicates
+  .filter(function (v, i, a) {
+    return v !== a[i + 1];
+  }); // Add ranges to single characters.
+
+  for (var start = 0; start < chars.length - 1; start++) {
+    // Find the end of a run of characters
+    var end = start;
+
+    while (end < chars.length - 1 && chars[end].charCodeAt(1) + 1 === chars[end + 1].charCodeAt(1)) {
+      end += 1;
+    }
+
+    var count = 1 + end - start; // We want to replace at least three characters
+
+    if (count < 3) continue;
+    chars.splice(start, count, chars[start] + "-" + chars[end]);
+  }
+
+  return new RegExp("[" + chars.join("") + (nonAscii ? "\\x80-\\uFFFF" : "") + "]", "g");
+}
+/**
+ * Encodes all non-ASCII characters, as well as characters not valid in XML
+ * documents using numeric hexadecimal reference (eg. `&#xfc;`).
+ *
+ * Have a look at `escapeUTF8` if you want a more concise output at the expense
+ * of reduced transportability.
+ *
+ * @param data String to escape.
+ */
+
+
+exports.escape = encodeXML;
+/**
+ * Encodes all characters not valid in XML documents using XML entities.
+ *
+ * Note that the output will be character-set dependent.
+ *
+ * @param data String to escape.
+ */
+
+function escapeUTF8(data) {
+  var match;
+  var lastIdx = 0;
+  var result = "";
+
+  while (match = xmlInvalidChars.exec(data)) {
+    if (lastIdx !== match.index) {
+      result += data.substring(lastIdx, match.index);
+    } // We know that this chararcter will be in `inverseXML`
+
+
+    result += xmlCodeMap.get(match[0].charCodeAt(0)); // Every match will be of length 1
+
+    lastIdx = match.index + 1;
+  }
+
+  return result + data.substring(lastIdx);
+}
+
+exports.escapeUTF8 = escapeUTF8;
+const __esModule = exports.__esModule;
+const _escapeUTF = exports.escapeUTF8,
+      _escape = exports.escape,
+      _encodeNonAsciiHTML = exports.encodeNonAsciiHTML,
+      _encodeHTML = exports.encodeHTML,
+      _encodeXML = exports.encodeXML;
+
+export default exports;
+export { __esModule, _encodeHTML as encodeHTML, _encodeNonAsciiHTML as encodeNonAsciiHTML, _encodeXML as encodeXML, _escape as escape, _escapeUTF as escapeUTF8 };
+
+//# sourceMappingURL=encode!cjs.map

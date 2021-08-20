@@ -1,0 +1,16 @@
+{
+  "headers": {
+    "content-length": "801",
+    "last-modified": "Tue, 17 Aug 2021 09:39:37 GMT",
+    "cache-control": "public, max-age=31536000, immutable",
+    "server": "AmazonS3",
+    "x-amz-request-id": "7PW8M0H0XD6PF96Q",
+    "x-amz-version-id": "I5n3ZV_r4c9l9WLqIGI9yrpJVeIZZLJ9",
+    "x-amz-id-2": "AHV82gd7NZzHCXPi6yzvDTOXYP3TI1s5n6mwc1uhg4LeaJsRqs2s+JIcZGa5m+oVOlmG/Nm6FCE=",
+    "content-type": "application/typescript; charset=utf-8",
+    "etag": "\"bf9a46d08f00b59f7eb3eccaf71d5b8c\"",
+    "access-control-allow-origin": "*",
+    "date": "Fri, 20 Aug 2021 15:10:14 GMT"
+  },
+  "url": "https://deno.land/x/djwt@v2.3/signature.ts"
+}

@@ -1,0 +1,16 @@
+{
+  "headers": {
+    "content-type": "application/typescript; charset=utf-8",
+    "etag": "\"a51ef49602102c527e5322fba900c71c\"",
+    "server": "AmazonS3",
+    "access-control-allow-origin": "*",
+    "x-amz-version-id": "gSqkERLT1oC5Rf3mtZ9_o.WLQS.0oSKx",
+    "last-modified": "Thu, 12 Aug 2021 20:51:13 GMT",
+    "x-amz-request-id": "7PW5SPGHDFR3E97N",
+    "x-amz-id-2": "6xXl8vLCq57tZbYoWNizvYPB0WgN30e7rQiYth8YzGPPGSb9PIht1KicEFwF6ayaV4cGsBy5KzI=",
+    "cache-control": "public, max-age=31536000, immutable",
+    "date": "Fri, 20 Aug 2021 15:10:14 GMT",
+    "content-length": "696"
+  },
+  "url": "https://deno.land/x/cliffy@v0.19.5/_utils/distance.ts"
+}

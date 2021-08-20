@@ -1,23 +1,23 @@
 {
   "headers": {
-    "etag": "W/\"322-0oaZbN2XsPQ7VyICBO8EaAkXqDw\"",
-    "server": "cloudflare",
-    "x-vercel-cache": "HIT",
     "strict-transport-security": "max-age=63072000",
-    "date": "Mon, 14 Jun 2021 16:50:36 GMT",
-    "cf-cache-status": "DYNAMIC",
-    "alt-svc": "h3-27=\":443\"; ma=86400, h3-28=\":443\"; ma=86400, h3-29=\":443\"; ma=86400, h3=\":443\"; ma=86400",
-    "nel": "{\"report_to\":\"cf-nel\",\"max_age\":604800}",
-    "cf-ray": "65f50f04dd1759da-IAD",
-    "content-type": "application/typescript; charset=utf-8",
     "access-control-allow-origin": "*",
+    "x-vercel-cache": "HIT",
     "cache-control": "public, max-age=31536000, immutable",
-    "x-vercel-id": "iad1::sfo1::m8d6n-1623689436942-8a5d8d57628b",
-    "cf-request-id": "0aad07b709000059da5936d000000001",
-    "age": "202",
+    "expect-ct": "max-age=604800, report-uri=\"https://report-uri.cloudflare.com/cdn-cgi/beacon/expect-ct\"",
+    "cf-cache-status": "DYNAMIC",
+    "etag": "W/\"322-0oaZbN2XsPQ7VyICBO8EaAkXqDw\"",
+    "x-vercel-id": "iad1::sfo1::llp5x-1629472213633-92357cc5e4f9",
+    "content-type": "application/typescript; charset=utf-8",
+    "report-to": "{\"endpoints\":[{\"url\":\"https:\\/\\/a.nel.cloudflare.com\\/report\\/v3?s=DPye0sSICfX7QmaBk90qjtRRpVG%2B1ceqztm3XiQjIRxzumdDfD9JF9OqTC%2BkgvymWuXASqLmsq6cA0FsVuUaozcdrQ%2FzjTCVqHMJqJM%2Fy3mbQup1YMq%2FmoTvSnv%2BnCU5Kg%3D%3D\"}],\"group\":\"cf-nel\",\"max_age\":604800}",
+    "alt-svc": "h3-27=\":443\"; ma=86400, h3-28=\":443\"; ma=86400, h3-29=\":443\"; ma=86400, h3=\":443\"; ma=86400",
+    "age": "269",
     "content-length": "802",
-    "report-to": "{\"endpoints\":[{\"url\":\"https:\\/\\/a.nel.cloudflare.com\\/report\\/v2?s=LH3lIuew1wImPNSavdMtGsn0CqXSr%2BHyP9wx6qCvcdhXDSJCCQNKr5jj%2FyMYyaDnKoziaVnQLYn6h4ffGAZjGJWgZTlNab4UpE9SOU3%2FSWeyC0qxpsBS065rQN8%3D\"}],\"group\":\"cf-nel\",\"max_age\":604800}",
-    "expect-ct": "max-age=604800, report-uri=\"https://report-uri.cloudflare.com/cdn-cgi/beacon/expect-ct\""
+    "date": "Fri, 20 Aug 2021 15:10:13 GMT",
+    "connection": "keep-alive",
+    "cf-ray": "681c8c171d385ce9-IAD",
+    "nel": "{\"success_fraction\":0,\"report_to\":\"cf-nel\",\"max_age\":604800}",
+    "server": "cloudflare"
   },
   "url": "https://cdn.skypack.dev/-/ulid@v2.3.0-AsEipntPjmYMbO2O0b8l/dist=es2020,mode=types/dist/index.d.ts"
 }

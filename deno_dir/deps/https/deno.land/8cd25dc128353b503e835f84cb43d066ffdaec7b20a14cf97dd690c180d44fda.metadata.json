@@ -1,0 +1,16 @@
+{
+  "headers": {
+    "x-amz-id-2": "O7S4Hg3+PnuUraflVG5M1+we8xMsES8lzsbAoPE7T6BVnNqE7BtCH63MDfk5LL3Y8o4VuxUPAyU=",
+    "last-modified": "Thu, 12 Aug 2021 20:51:13 GMT",
+    "content-type": "application/typescript; charset=utf-8",
+    "content-length": "2253",
+    "date": "Fri, 20 Aug 2021 15:10:14 GMT",
+    "cache-control": "public, max-age=31536000, immutable",
+    "etag": "\"eeda3ffe89c85b5fae60b3bd48b86b6b\"",
+    "server": "AmazonS3",
+    "x-amz-request-id": "7PW5DPCJZDGF431C",
+    "x-amz-version-id": "i2fxc5_tcxbZeokSfjvKsnILVSoUUtBg",
+    "access-control-allow-origin": "*"
+  },
+  "url": "https://deno.land/x/cliffy@v0.19.5/ansi/colors.ts"
+}

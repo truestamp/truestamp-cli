@@ -1,23 +1,16 @@
 {
   "headers": {
-    "access-control-allow-origin": "*",
-    "x-deno-ray": "us-east4-c::6de88aa393c292a3768a91b20abff1c0",
-    "cf-cache-status": "DYNAMIC",
-    "x-amz-request-id": "BNW87HFG86EM1T50",
-    "x-amz-id-2": "xHGaQQfyip7/dSGd49jv5hsq2ZONzoOduvT49Poyyk4z09JWE+U2YKPauIqebbveJEDBy+4Cr2s=",
-    "date": "Wed, 21 Jul 2021 22:37:30 GMT",
-    "expect-ct": "max-age=604800, report-uri=\"https://report-uri.cloudflare.com/cdn-cgi/beacon/expect-ct\"",
-    "last-modified": "Mon, 19 Jul 2021 09:27:21 GMT",
-    "vary": "Accept-Encoding",
-    "alt-svc": "h3-27=\":443\"; ma=86400, h3-28=\":443\"; ma=86400, h3-29=\":443\"; ma=86400, h3=\":443\"; ma=86400",
-    "x-amz-version-id": "IEqu5ru4gmRh9mxiWNvEQW7zLcS05aHM",
-    "cf-ray": "6727ea0a9ae65c29-IAD",
-    "content-type": "application/typescript; charset=utf-8",
-    "server": "cloudflare",
-    "etag": "\"db1cb76d51bb438769a286342ac0d3f4\"",
     "cache-control": "public, max-age=31536000, immutable",
+    "content-type": "application/typescript; charset=utf-8",
+    "x-amz-version-id": "IEqu5ru4gmRh9mxiWNvEQW7zLcS05aHM",
+    "access-control-allow-origin": "*",
+    "x-amz-id-2": "oyOkgPn4FpLwratxj/gDU745gu3JTw6Or62eevjltgvpWDarzcWDFfkobaB+/tXdNX/C6knmQF4=",
+    "server": "AmazonS3",
+    "x-amz-request-id": "7PW36ZZR3XZMDDF3",
+    "date": "Fri, 20 Aug 2021 15:10:14 GMT",
     "content-length": "6420",
-    "via": "HTTP/1.1 deploy"
+    "last-modified": "Mon, 19 Jul 2021 09:27:21 GMT",
+    "etag": "\"db1cb76d51bb438769a286342ac0d3f4\""
   },
   "url": "https://deno.land/x/aws_sdk@v3.22.0-1/client-s3/commands/DeleteBucketIntelligentTieringConfigurationCommand.ts"
 }

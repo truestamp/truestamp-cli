@@ -1,5 +1,0 @@
-export * from "./bucketEndpointMiddleware.ts";
-export * from "./bucketHostname.ts";
-export * from "./configurations.ts";
-export { getArnResources, getPseudoRegion, getSuffixForArnEndpoint, validateOutpostService, validatePartition, validateAccountId, validateRegion, validateDNSHostLabel, validateNoDualstack, validateNoFIPS, } from "./bucketHostnameUtils.ts";
-//# sourceMappingURL=data:application/json;base64,eyJ2ZXJzaW9uIjozLCJmaWxlIjoibW9kLmpzIiwic291cmNlUm9vdCI6IiIsInNvdXJjZXMiOlsibW9kLnRzIl0sIm5hbWVzIjpbXSwibWFwcGluZ3MiOiJBQUFBLGNBQWMsK0JBQStCLENBQUM7QUFDOUMsY0FBYyxxQkFBcUIsQ0FBQztBQUNwQyxjQUFjLHFCQUFxQixDQUFDO0FBQ3BDLE9BQU8sRUFDTCxlQUFlLEVBQ2YsZUFBZSxFQUNmLHVCQUF1QixFQUN2QixzQkFBc0IsRUFDdEIsaUJBQWlCLEVBQ2pCLGlCQUFpQixFQUNqQixjQUFjLEVBQ2Qsb0JBQW9CLEVBQ3BCLG1CQUFtQixFQUNuQixjQUFjLEdBQ2YsTUFBTSwwQkFBMEIsQ0FBQyJ9

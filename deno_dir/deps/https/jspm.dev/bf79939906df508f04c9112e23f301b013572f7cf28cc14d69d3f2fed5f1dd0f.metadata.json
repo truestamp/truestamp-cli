@@ -1,0 +1,25 @@
+{
+  "headers": {
+    "x-goog-hash": "crc32c=f/WIFA==,md5=rpmAW2D2p7J2rk5C/2dYTw==",
+    "server": "UploadServer",
+    "x-goog-stored-content-length": "10498",
+    "content-type": "application/javascript; charset=utf-8",
+    "x-goog-generation": "1628510918244262",
+    "x-guploader-uploadid": "ADPycdvrVKzaZFqHzldWN6ubDartdAkel_TmImnWElFbJJzdXoAklBxk6Eoo_DcoAUPuTj2ZkoM80nq93xDTJ-QBjYcvesnlNQ",
+    "access-control-expose-headers": "Content-Type",
+    "x-goog-stored-content-encoding": "br",
+    "age": "270",
+    "date": "Fri, 20 Aug 2021 15:05:44 GMT",
+    "accept-ranges": "bytes",
+    "expires": "Fri, 27 Aug 2021 15:05:44 GMT",
+    "cache-control": "public, max-age=31536000, s-maxage=604800, immutable",
+    "last-modified": "Mon, 09 Aug 2021 12:08:38 GMT",
+    "etag": "\"ae99805b60f6a7b276ae4e42ff67584f\"",
+    "alt-svc": "clear",
+    "access-control-allow-origin": "*",
+    "x-goog-metageneration": "2",
+    "cross-origin-resource-policy": "cross-origin",
+    "x-goog-storage-class": "STANDARD"
+  },
+  "url": "https://jspm.dev/npm:entities@3.0.1/lib/maps/entities.json!cjs"
+}
