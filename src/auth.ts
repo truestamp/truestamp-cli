@@ -3,6 +3,9 @@
 // See: https://github.com/truestamp/deviceflow
 // See: https://github.com/jatinvaidya/cli-authz-device-flow/blob/master/device/device.js
 
+// On MacOS the config files can be found in a location like:
+// cat ~/Library/Preferences/com.truestamp.cli.development/config.json
+
 import { colors, decode, Payload, sleep, validate } from "./deps.ts";
 
 import {
@@ -197,14 +200,14 @@ function setTokensInConfig(
   tokens: {
     access_token: string;
     id_token?: string;
-    refresh_token: string;
+    refresh_token?: string;
     scope: string;
     expires_in: number;
     token_type: string;
   },
 ): void {
   try {
-    setConfigKeyForEnv(env, "auth0_refresh_token", tokens.refresh_token);
+    if (tokens.refresh_token) setConfigKeyForEnv(env, "auth0_refresh_token", tokens.refresh_token);
     setConfigKeyForEnv(env, "auth0_access_token", tokens.access_token);
     setConfigKeyForEnv(env, "auth0_expires_in", tokens.expires_in);
     setConfigKeyForEnv(env, "auth0_scope", tokens.scope);
@@ -303,7 +306,7 @@ export async function getAccessTokenWithPrompts(env: string): Promise<string> {
       deviceCodeResp.interval,
     );
 
-    if (!tokens || !tokens.access_token || !tokens.refresh_token) {
+    if (!tokens || !tokens.access_token) {
       throw new Error("retrieval of access tokens failed");
     }
 
