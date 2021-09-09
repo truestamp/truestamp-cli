@@ -1,0 +1,24 @@
+{
+  "headers": {
+    "alt-svc": "clear",
+    "x-goog-stored-content-length": "7912",
+    "access-control-expose-headers": "Content-Type",
+    "x-guploader-uploadid": "ADPycdssP91cd2k8Hn8VZKfEjwBX_NJ1mZgNLxeptvCghZBVUZLBITJk8gAIaWITely3PgTfI1KVYv_8N1huItz-fsY",
+    "cross-origin-resource-policy": "cross-origin",
+    "x-goog-metageneration": "2",
+    "access-control-allow-origin": "*",
+    "x-goog-hash": "crc32c=4uWLLA==,md5=TPhbpQQid166/dr7cZcI0g==",
+    "x-goog-generation": "1631042591995382",
+    "date": "Wed, 08 Sep 2021 21:32:50 GMT",
+    "x-goog-stored-content-encoding": "br",
+    "accept-ranges": "bytes",
+    "server": "UploadServer",
+    "x-goog-storage-class": "STANDARD",
+    "content-type": "application/javascript; charset=utf-8",
+    "last-modified": "Tue, 07 Sep 2021 19:23:12 GMT",
+    "expires": "Wed, 15 Sep 2021 21:32:50 GMT",
+    "etag": "\"4cf85ba50422775ebafddafb719708d2\"",
+    "cache-control": "public, max-age=31536000, s-maxage=604800, immutable"
+  },
+  "url": "https://jspm.dev/npm:@jspm/core@2.0.0-beta.11/_/9d858e6b.js"
+}

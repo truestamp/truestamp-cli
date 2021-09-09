@@ -1,16 +1,16 @@
 {
   "headers": {
-    "x-amz-version-id": "toGM55vtwfXoOR2befGpfkBIA9wm1ebq",
-    "date": "Fri, 20 Aug 2021 15:10:15 GMT",
-    "content-length": "648",
-    "x-amz-request-id": "274MDC7EYBQC0HS6",
     "access-control-allow-origin": "*",
-    "server": "AmazonS3",
+    "server": "deploy/us-east4-c",
+    "x-amz-version-id": "toGM55vtwfXoOR2befGpfkBIA9wm1ebq",
     "cache-control": "public, max-age=31536000, immutable",
+    "date": "Wed, 08 Sep 2021 21:32:50 GMT",
+    "x-amz-id-2": "gKjxhTzAPAbMCBvW1m+CaOdt0/Hfoso1q6iyCQ9HxsGE6eRmrkcum1esAoK1I+w/d4tB/qIIkvU=",
+    "x-amz-request-id": "G40A4QGNCHPPSEXA",
     "content-type": "application/typescript; charset=utf-8",
-    "etag": "\"8ac2825e38bcfee51679c2839e186c64\"",
     "last-modified": "Mon, 19 Jul 2021 09:27:27 GMT",
-    "x-amz-id-2": "dnFN4WA2gxB+cuu1HI4Z1tSHaHs6ULzXIF/CUSUGrb0zf+rXbquzp0INHoaCouuYbT2fSdeUetA="
+    "etag": "\"8ac2825e38bcfee51679c2839e186c64\"",
+    "content-length": "648"
   },
   "url": "https://deno.land/x/aws_sdk@v3.22.0-1/eventstream-serde-config-resolver/EventStreamSerdeConfig.ts"
 }

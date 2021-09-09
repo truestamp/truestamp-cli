@@ -1,7 +1,7 @@
 // Copyright © 2020-2021 Truestamp Inc. All rights reserved.
 
-import { createHash } from "https://deno.land/std@0.105.0/hash/mod.ts";
-import * as path from "https://deno.land/std@0.105.0/path/mod.ts";
+import { createHash } from "https://deno.land/std@0.106.0/hash/mod.ts";
+import * as path from "https://deno.land/std@0.106.0/path/mod.ts";
 
 import { Buffer } from "https://deno.land/x/node_buffer@1.1.0/mod.ts";
 
@@ -21,10 +21,6 @@ import { CompletionsCommand } from "https://deno.land/x/cliffy@v0.19.5/command/c
 
 import Conf from "https://raw.githubusercontent.com/truestamp/deno-conf/v1.0.2-beta/mod.ts";
 
-// ULID : https://github.com/ulid/javascript
-//      : https://www.skypack.dev/view/ulid
-import { ulid } from "https://cdn.skypack.dev/ulid?dts";
-
 import { S3 } from "https://deno.land/x/aws_sdk@v3.22.0-1/client-s3/mod.ts";
 
 import {
@@ -43,7 +39,7 @@ import {
 
 // See : https://www.skypack.dev/view/@truestamp/truestamp-js
 // See SkyPack : https://docs.skypack.dev/skypack-cdn/api-reference/lookup-urls
-import Truestamp from "https://cdn.skypack.dev/@truestamp/truestamp-js@~v0.1.0?dts";
+import Truestamp from "https://cdn.skypack.dev/@truestamp/truestamp-js@~v0.3.1?dts";
 import { createTruestampClient } from "./truestamp.ts";
 
 export {
@@ -69,7 +65,6 @@ export {
   setConfigKeyForEnv,
   sleep,
   Truestamp,
-  ulid,
   validate,
   ValidationError,
 };

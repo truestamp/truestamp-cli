@@ -1,16 +1,16 @@
 {
   "headers": {
-    "date": "Fri, 20 Aug 2021 15:10:14 GMT",
-    "etag": "\"8426899a5f574d64bde40f84254ba4d2\"",
-    "x-amz-version-id": "uyXmDKEwOkskBA3YwosQpqGavNpMiNVa",
-    "x-amz-id-2": "HJVfYxOC8aHtlFm6sc0NDiWlOZZ34NvgKp7oH0iXUV4ZnsOnjVn+lAtfF5PMxdUoejv+VSZyv2Y=",
-    "access-control-allow-origin": "*",
-    "cache-control": "public, max-age=31536000, immutable",
-    "content-length": "4355",
+    "x-amz-request-id": "A7CPEJJS4CDW1AD7",
     "content-type": "application/typescript; charset=utf-8",
-    "x-amz-request-id": "7PW6QKM2311HDHWR",
-    "server": "AmazonS3",
-    "last-modified": "Mon, 19 Jul 2021 09:27:21 GMT"
+    "etag": "\"8426899a5f574d64bde40f84254ba4d2\"",
+    "access-control-allow-origin": "*",
+    "content-length": "4355",
+    "date": "Wed, 08 Sep 2021 21:32:49 GMT",
+    "cache-control": "public, max-age=31536000, immutable",
+    "x-amz-version-id": "uyXmDKEwOkskBA3YwosQpqGavNpMiNVa",
+    "x-amz-id-2": "Da6Zpuw39KvLTSPBaasY0N0THwjE9VIyLNHNAz95HC0CBusCuTXTmvIWA4VpF7be4vur3iRl29M=",
+    "last-modified": "Mon, 19 Jul 2021 09:27:21 GMT",
+    "server": "deploy/us-east4-c"
   },
   "url": "https://deno.land/x/aws_sdk@v3.22.0-1/client-s3/commands/GetObjectLockConfigurationCommand.ts"
 }

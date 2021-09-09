@@ -1,16 +1,16 @@
 {
   "headers": {
-    "content-length": "4575",
-    "date": "Fri, 20 Aug 2021 15:10:14 GMT",
+    "date": "Wed, 08 Sep 2021 21:32:50 GMT",
+    "x-amz-request-id": "G405QM0SGWF6G0P2",
+    "access-control-allow-origin": "*",
+    "server": "deploy/us-east4-c",
+    "x-amz-id-2": "AdwzXRc6iGCHaUc7Y0TkIs9vE1MHwW78o24lSgRf2pAhPq+HqPHLPBbARhh0xujgoSM877wiXxo=",
     "last-modified": "Mon, 19 Jul 2021 09:27:21 GMT",
-    "etag": "\"bbd4249af9f663c01b2978ff18af6726\"",
-    "cache-control": "public, max-age=31536000, immutable",
-    "x-amz-id-2": "tw8TxmOjb629+lSKzywNby1KJkqAXOMxWvAPv0tP6e9ATnBSk+gJ3gODrb/2l6Slp7l4XEkS4ig=",
-    "x-amz-request-id": "7PWF5AFP2RYAQ1FD",
-    "server": "AmazonS3",
     "content-type": "application/typescript; charset=utf-8",
     "x-amz-version-id": "huWbgkHDKAACMm2tykG3DRjsieoTrtfV",
-    "access-control-allow-origin": "*"
+    "etag": "\"bbd4249af9f663c01b2978ff18af6726\"",
+    "cache-control": "public, max-age=31536000, immutable",
+    "content-length": "4575"
   },
   "url": "https://deno.land/x/aws_sdk@v3.22.0-1/client-s3/commands/DeleteBucketTaggingCommand.ts"
 }

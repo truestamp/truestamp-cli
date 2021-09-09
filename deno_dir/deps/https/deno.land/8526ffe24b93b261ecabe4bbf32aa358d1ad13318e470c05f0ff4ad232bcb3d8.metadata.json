@@ -1,16 +1,16 @@
 {
   "headers": {
-    "last-modified": "Mon, 19 Jul 2021 09:27:21 GMT",
-    "server": "AmazonS3",
-    "x-amz-id-2": "bE4qm+XmityniOznFvzZCOtvVV1RNkOdGD7pUuvnV4P50BcSsaYltmGP36E+BKhYEse2sSWyT+Q=",
+    "date": "Wed, 08 Sep 2021 21:32:50 GMT",
     "x-amz-version-id": "iHfVQiQOm5gklccNWwTL7HYycbitzSLP",
-    "content-length": "9274",
-    "date": "Fri, 20 Aug 2021 15:10:14 GMT",
-    "content-type": "application/typescript; charset=utf-8",
+    "x-amz-id-2": "QJ41yqFpsHOl4gnQx2X+Qb9lw+ZO6EBxsxRSn+wCcsM6vc8hSvd0hrfBiWKC9LbJbAvrOc64zdQ=",
+    "access-control-allow-origin": "*",
     "etag": "\"154004e45708c501ec758d6f20e99ae8\"",
     "cache-control": "public, max-age=31536000, immutable",
-    "access-control-allow-origin": "*",
-    "x-amz-request-id": "7PW1DJHMQ4C1HEDZ"
+    "content-length": "9274",
+    "server": "deploy/us-east4-c",
+    "x-amz-request-id": "G40EYR116B26G87T",
+    "content-type": "application/typescript; charset=utf-8",
+    "last-modified": "Mon, 19 Jul 2021 09:27:21 GMT"
   },
   "url": "https://deno.land/x/aws_sdk@v3.22.0-1/client-s3/commands/PutBucketInventoryConfigurationCommand.ts"
 }

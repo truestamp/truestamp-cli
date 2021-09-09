@@ -1,15 +1,15 @@
 {
   "headers": {
-    "last-modified": "Mon, 19 Jul 2021 09:27:25 GMT",
     "content-length": "52575",
-    "etag": "\"acf3f17981efae913f8a4241efd4a0dd\"",
-    "x-amz-request-id": "274YFTMAZVQQBDTP",
-    "date": "Fri, 20 Aug 2021 15:10:15 GMT",
+    "server": "deploy/us-east4-c",
+    "last-modified": "Mon, 19 Jul 2021 09:27:25 GMT",
+    "date": "Wed, 08 Sep 2021 21:32:50 GMT",
+    "x-amz-id-2": "PxEqAiSj/AXzro9CnvQXn0exeDi30RXG44N3HHI1U2D0RY7L2xFvn67X5sex77/YsAIO6Ry/HEQ=",
+    "x-amz-request-id": "G40EVYE1RABPTCVZ",
     "cache-control": "public, max-age=31536000, immutable",
-    "server": "AmazonS3",
-    "x-amz-id-2": "rlkYDg6gWcXFZsPZnPjU0uk4kvoUda4X9W/cN4MloCQXXgp+uTUGmLhs5YpSF/U9RFbikEELlMU=",
     "content-type": "application/typescript; charset=utf-8",
     "x-amz-version-id": "LbPnOnZIM03I0_fDHtAOWkbmUve9TSVV",
+    "etag": "\"acf3f17981efae913f8a4241efd4a0dd\"",
     "access-control-allow-origin": "*"
   },
   "url": "https://deno.land/x/aws_sdk@v3.22.0-1/client-sts/protocols/Aws_query.ts"

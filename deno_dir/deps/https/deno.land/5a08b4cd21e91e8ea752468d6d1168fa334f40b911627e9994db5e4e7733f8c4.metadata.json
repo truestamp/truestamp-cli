@@ -1,16 +1,16 @@
 {
   "headers": {
-    "date": "Fri, 20 Aug 2021 15:10:14 GMT",
     "cache-control": "public, max-age=31536000, immutable",
-    "last-modified": "Mon, 19 Jul 2021 09:27:21 GMT",
     "content-length": "4419",
     "content-type": "application/typescript; charset=utf-8",
-    "x-amz-id-2": "C5J9FEa9IDu7BJZdKfZdbBkK9kq/n6n1e6UM5gFSEku3C5AU2mEgL9ejcVwDR76JWasHhy4LCGI=",
+    "x-amz-id-2": "HicAHkxL2gClOa63AlHQLyuPF6nftW0VNclGRPRabT0YoZzO4XtK63FUxQw5CYYItcbU+W9GxBk=",
+    "x-amz-request-id": "A7CSYZGN1J196TCV",
+    "etag": "\"fe4a1a1cd1753ce8a94278d24213acef\"",
     "x-amz-version-id": "uUm9EdeK9xREjvyEcXHLn501NMIeuw2I",
-    "x-amz-request-id": "7PW4BP77TAQ439M2",
-    "server": "AmazonS3",
+    "last-modified": "Mon, 19 Jul 2021 09:27:21 GMT",
     "access-control-allow-origin": "*",
-    "etag": "\"fe4a1a1cd1753ce8a94278d24213acef\""
+    "date": "Wed, 08 Sep 2021 21:32:49 GMT",
+    "server": "deploy/us-east4-c"
   },
   "url": "https://deno.land/x/aws_sdk@v3.22.0-1/client-s3/commands/GetBucketAclCommand.ts"
 }

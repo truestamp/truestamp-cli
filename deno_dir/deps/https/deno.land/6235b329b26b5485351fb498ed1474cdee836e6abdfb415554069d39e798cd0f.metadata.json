@@ -1,16 +1,16 @@
 {
   "headers": {
+    "x-amz-request-id": "A7CXFX2TKW7C4Q44",
     "access-control-allow-origin": "*",
-    "server": "AmazonS3",
-    "date": "Fri, 20 Aug 2021 15:10:14 GMT",
-    "etag": "\"54de24b18ee7afed582779ec88e64a7d\"",
-    "content-type": "application/typescript; charset=utf-8",
-    "x-amz-id-2": "qklIOdx9RfBrOhv0HKJAb6nhH2oezHiNHolNefhUVioHnpuTjI0lU7FP1FrQWAELfIevOc/bDcE=",
-    "content-length": "5823",
-    "x-amz-request-id": "7PW9P4J0T03747AC",
     "cache-control": "public, max-age=31536000, immutable",
-    "x-amz-version-id": "uVptWcEKDhS2Xgsb4_Ci6uXGko6I_6UH",
-    "last-modified": "Mon, 19 Jul 2021 09:27:21 GMT"
+    "x-amz-id-2": "hz5wmYiV9uuDb5CQmpZF12J7o/Y99jvPii4lLP5UWyYq45GJRO3kgfzZ1qbWaYv22I5gYYkmZh0=",
+    "content-length": "5823",
+    "content-type": "application/typescript; charset=utf-8",
+    "date": "Wed, 08 Sep 2021 21:32:49 GMT",
+    "last-modified": "Mon, 19 Jul 2021 09:27:21 GMT",
+    "etag": "\"54de24b18ee7afed582779ec88e64a7d\"",
+    "server": "deploy/us-east4-c",
+    "x-amz-version-id": "uVptWcEKDhS2Xgsb4_Ci6uXGko6I_6UH"
   },
   "url": "https://deno.land/x/aws_sdk@v3.22.0-1/client-s3/commands/DeleteObjectCommand.ts"
 }

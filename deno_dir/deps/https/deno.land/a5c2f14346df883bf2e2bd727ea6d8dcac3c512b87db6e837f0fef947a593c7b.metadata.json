@@ -1,16 +1,16 @@
 {
   "headers": {
-    "access-control-allow-origin": "*",
+    "x-amz-id-2": "Tw8oZVmIfBAOgSFXP5O5yn+/s3WB8nvIIgVmY30/5tZnCZXIwL/AcISdhcnoUxKbEeXmxBGgGbg=",
+    "last-modified": "Mon, 19 Jul 2021 09:27:21 GMT",
     "content-length": "5394",
-    "etag": "\"9793aa419f82a4c47f40c3d91540f3ab\"",
-    "date": "Fri, 20 Aug 2021 15:10:14 GMT",
-    "server": "AmazonS3",
-    "cache-control": "public, max-age=31536000, immutable",
-    "x-amz-id-2": "/lr96sn8RBIS6DnbVhYZosiqcFFUIZ4iIRILnVbSEK7M7BG+ccxxZnEPJz7GtekgQBf9HCpVrUg=",
-    "x-amz-request-id": "7PW8Z2ZDG2AAY232",
     "x-amz-version-id": "z22dnQVaZHONmPu1xGuuVYzcGn3mL9uH",
+    "x-amz-request-id": "A7CZSX231WJMXC0X",
+    "cache-control": "public, max-age=31536000, immutable",
     "content-type": "application/typescript; charset=utf-8",
-    "last-modified": "Mon, 19 Jul 2021 09:27:21 GMT"
+    "date": "Wed, 08 Sep 2021 21:32:49 GMT",
+    "etag": "\"9793aa419f82a4c47f40c3d91540f3ab\"",
+    "server": "deploy/us-east4-c",
+    "access-control-allow-origin": "*"
   },
   "url": "https://deno.land/x/aws_sdk@v3.22.0-1/client-s3/commands/DeleteBucketLifecycleCommand.ts"
 }

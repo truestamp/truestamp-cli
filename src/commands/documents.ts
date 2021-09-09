@@ -29,15 +29,17 @@ const documentsNew = new Command()
   )
   .action(async (options) => {
     const ts = await createTruestampClient(options.env);
-    const d = await ts.createDocument({
-      hash: options.hash,
-      name: options.name,
-    });
-    if (d) {
-      console.log(JSON.stringify(d));
-    } else {
-      throw new Error("new document creation failed");
+    let d
+    try {
+      d = await ts.createDocument({
+        hash: options.hash,
+        name: options.name,
+      });
+    } catch (error) {
+      throw new Error(`new document creation failed : ${error.message}`);
     }
+
+    console.log(JSON.stringify(d));
   });
 
 const documentsShow = new Command()
@@ -47,12 +49,14 @@ const documentsShow = new Command()
   })
   .action(async (options) => {
     const ts = await createTruestampClient(options.env);
-    const d = await ts.getDocument(options.id);
-    if (d) {
-      console.log(JSON.stringify(d));
-    } else {
-      throw new Error("document not found");
+    let d
+    try {
+      d = await ts.getDocument(options.id);
+    } catch (error) {
+      throw new Error(`document not found : ${error.message}`);
     }
+
+    console.log(JSON.stringify(d));
   });
 
 const documentsUpdate = new Command()
@@ -85,15 +89,17 @@ const documentsUpdate = new Command()
   )
   .action(async (options) => {
     const ts = await createTruestampClient(options.env);
-    const d = await ts.updateDocument(options.id, {
-      hash: options.hash,
-      name: options.type,
-    });
-    if (d) {
-      console.log(JSON.stringify(d));
-    } else {
-      throw new Error("document not found");
+    let d
+    try {
+      d = await ts.updateDocument(options.id, {
+        hash: options.hash,
+        name: options.type,
+      });
+    } catch (error) {
+      throw new Error(`document not found : ${error.message}`);
     }
+
+    console.log(JSON.stringify(d));
   });
 
 const documentsDelete = new Command()
@@ -103,24 +109,28 @@ const documentsDelete = new Command()
   })
   .action(async (options) => {
     const ts = await createTruestampClient(options.env);
-    const d = await ts.deleteDocument(options.id);
-    if (d) {
-      console.log(JSON.stringify(d));
-    } else {
-      throw new Error("document not found");
+    let d
+    try {
+      d = await ts.deleteDocument(options.id);
+    } catch (error) {
+      throw new Error(`document not found : ${error.message}`);
     }
+
+    console.log(JSON.stringify(d));
   });
 
 const documentsList = new Command()
   .description("List all existing documents.")
   .action(async (options) => {
     const ts = await createTruestampClient(options.env);
-    const d = await ts.getAllDocuments();
-    if (d) {
-      console.log(JSON.stringify(d));
-    } else {
-      throw new Error("documents not found");
+    let d
+    try {
+      d = await ts.getAllDocuments();
+    } catch (error) {
+      throw new Error(`documents not found : ${error.message}`);
     }
+
+    console.log(JSON.stringify(d));
   });
 
 export const documents = new Command()

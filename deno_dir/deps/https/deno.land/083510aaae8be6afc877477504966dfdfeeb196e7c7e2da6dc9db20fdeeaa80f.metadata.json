@@ -1,16 +1,16 @@
 {
   "headers": {
+    "server": "deploy/us-east4-c",
     "content-type": "application/typescript; charset=utf-8",
     "etag": "\"a36f6b440a7647326404e14bce5b8e87\"",
+    "x-amz-id-2": "Xy1HIFAnCJIjFfpp/CLSWnDVd+51QHf9dMZi9q7wCDVEc154uwazz4psyG4+829WDB2WAFk9LkQ=",
     "last-modified": "Mon, 19 Jul 2021 09:27:27 GMT",
-    "x-amz-request-id": "XASWP2TDZTP41K14",
-    "access-control-allow-origin": "*",
-    "cache-control": "public, max-age=31536000, immutable",
-    "date": "Fri, 20 Aug 2021 15:10:16 GMT",
+    "date": "Wed, 08 Sep 2021 21:32:51 GMT",
+    "x-amz-request-id": "9RM75SKZ7FDZWY5F",
     "x-amz-version-id": "tyPyp1AQbBsHFwHX3aomAeCftvqiiki7",
+    "cache-control": "public, max-age=31536000, immutable",
     "content-length": "3636",
-    "server": "AmazonS3",
-    "x-amz-id-2": "Ag51iRpit04HunNeNkkaA67O3REIqAs5SaIc9UCAn0cmPpVFq3Ylio9aULTqnlAy0EPPUvRvt14="
+    "access-control-allow-origin": "*"
   },
   "url": "https://deno.land/x/aws_sdk@v3.22.0-1/eventstream-serde-universal/getChunkedStream.ts"
 }

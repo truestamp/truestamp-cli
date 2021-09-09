@@ -1,16 +1,16 @@
 {
   "headers": {
-    "date": "Fri, 20 Aug 2021 15:10:14 GMT",
-    "x-amz-id-2": "HsWmz+plqhmwqwGQ/FCfLJ0NwgC9QdPr4tFMGkMawGuz671X6uVaRsorfWPloEzJsdvhoGWKWd0=",
-    "content-type": "application/typescript; charset=utf-8",
-    "server": "AmazonS3",
-    "cache-control": "public, max-age=31536000, immutable",
-    "x-amz-request-id": "7PW4RZ9QK1R76882",
-    "access-control-allow-origin": "*",
-    "content-length": "5018",
     "x-amz-version-id": "uFQhRJfS715GW1ID4rBOKn2JUhxSxk_H",
+    "server": "deploy/us-east4-c",
+    "access-control-allow-origin": "*",
+    "x-amz-id-2": "cG35s/eAWDnZsLqDaw2WpEJv93JCn7WEjQEeDDIiUt+XHu4q2LfmEX78NNhBnbXEziIYGzKnorQ=",
+    "content-length": "5018",
+    "x-amz-request-id": "A7CMQSJPSPX2WRN4",
     "last-modified": "Mon, 19 Jul 2021 09:27:21 GMT",
-    "etag": "\"7cf96e5371626347a69b890aa81a6a9f\""
+    "etag": "\"7cf96e5371626347a69b890aa81a6a9f\"",
+    "date": "Wed, 08 Sep 2021 21:32:49 GMT",
+    "content-type": "application/typescript; charset=utf-8",
+    "cache-control": "public, max-age=31536000, immutable"
   },
   "url": "https://deno.land/x/aws_sdk@v3.22.0-1/client-s3/commands/DeleteObjectTaggingCommand.ts"
 }

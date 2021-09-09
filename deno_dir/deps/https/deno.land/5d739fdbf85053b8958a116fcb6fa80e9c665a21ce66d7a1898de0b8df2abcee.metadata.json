@@ -1,16 +1,16 @@
 {
   "headers": {
-    "x-amz-request-id": "7PW3VJYG4C4SCTZV",
-    "access-control-allow-origin": "*",
-    "date": "Fri, 20 Aug 2021 15:10:14 GMT",
-    "last-modified": "Mon, 19 Jul 2021 09:27:27 GMT",
-    "x-amz-id-2": "baZs+53ChBbdBDQMYWrAf0/7PPq8qpt/nDIGEEtwX4HOLT2cAVNrsbJTJMHtJPTFAI+gAyh3DA8=",
+    "x-amz-request-id": "G4024BDSJ3AT7AAC",
     "x-amz-version-id": "RGiOgjwAaO3TmtK8uYONRF4E53L0.iGL",
+    "server": "deploy/us-east4-c",
+    "access-control-allow-origin": "*",
+    "last-modified": "Mon, 19 Jul 2021 09:27:27 GMT",
     "cache-control": "public, max-age=31536000, immutable",
-    "server": "AmazonS3",
-    "content-type": "application/typescript; charset=utf-8",
+    "content-length": "117",
     "etag": "\"d328343dacc8308c22fa2f718fecb80f\"",
-    "content-length": "117"
+    "x-amz-id-2": "8+VF07bG9TGq0W9YkN8esO0x1J73dVIcEzOZrm0iBRZpIX46ijthe5gxbWgmjTHpdSFaLB6IX/c=",
+    "date": "Wed, 08 Sep 2021 21:32:50 GMT",
+    "content-type": "application/typescript; charset=utf-8"
   },
   "url": "https://deno.land/x/aws_sdk@v3.22.0-1/config-resolver/mod.ts"
 }

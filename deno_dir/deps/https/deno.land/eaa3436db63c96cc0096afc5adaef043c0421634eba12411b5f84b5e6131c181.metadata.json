@@ -1,16 +1,16 @@
 {
   "headers": {
-    "date": "Fri, 20 Aug 2021 15:10:15 GMT",
-    "content-length": "236",
-    "x-amz-id-2": "EEdAm11vEDwOanF47F6rcqnW72Jab+rzUKRXD4qotDMrES/yAZYD3ebr9DG/noC82CT4Iwd6vfQ=",
     "cache-control": "public, max-age=31536000, immutable",
+    "x-amz-id-2": "AvKMfGSYrB71ar/vjqKzHYTs5U63rOhdm9pkN840DnQbG5Umz6OjGsNnX1wM3kCDELqFUxua7s4=",
     "content-type": "application/typescript; charset=utf-8",
-    "etag": "\"db319f5da7ffd137fb355964c517026e\"",
+    "date": "Wed, 08 Sep 2021 21:32:50 GMT",
+    "x-amz-request-id": "G400FZC9WRCG0J63",
     "last-modified": "Mon, 19 Jul 2021 09:27:27 GMT",
-    "server": "AmazonS3",
+    "server": "deploy/us-east4-c",
     "x-amz-version-id": "YZ6HMC6YUJfY4ZtDnXs_6c23n7FXU_Tz",
-    "access-control-allow-origin": "*",
-    "x-amz-request-id": "274JP1Y76BEWWQEW"
+    "etag": "\"db319f5da7ffd137fb355964c517026e\"",
+    "content-length": "236",
+    "access-control-allow-origin": "*"
   },
   "url": "https://deno.land/x/aws_sdk@v3.22.0-1/smithy-client/get-array-if-single-item.ts"
 }

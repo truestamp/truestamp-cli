@@ -1,16 +1,16 @@
 {
   "headers": {
-    "x-amz-request-id": "274NYKQTCVFCBVJJ",
+    "x-amz-id-2": "4HLagBp4nr3tFZrjSHutnnySrYoZG97T96WfR1qSnQ6ujp1WrVklLCujXKOXBelnaCYInxJmPAE=",
+    "server": "deploy/us-east4-c",
+    "date": "Wed, 08 Sep 2021 21:32:50 GMT",
     "x-amz-version-id": "9OO2mdqDGghxGKWhrsL6HR7FJiWuu8n2",
-    "x-amz-id-2": "slFEeOhVppiZjNLcsEh58OWYuGHmzWgY18iI6Ma2UxUVzrWVSajHvk0cIivoyY261aFP60hNPEU=",
-    "server": "AmazonS3",
-    "etag": "\"ca98db0d7e9afcba2d21d041e4b4c45e\"",
+    "content-length": "38",
     "cache-control": "public, max-age=31536000, immutable",
     "content-type": "application/typescript; charset=utf-8",
-    "last-modified": "Mon, 19 Jul 2021 09:27:27 GMT",
+    "x-amz-request-id": "G405QGK6Y4XCD97Y",
+    "etag": "\"ca98db0d7e9afcba2d21d041e4b4c45e\"",
     "access-control-allow-origin": "*",
-    "content-length": "38",
-    "date": "Fri, 20 Aug 2021 15:10:15 GMT"
+    "last-modified": "Mon, 19 Jul 2021 09:27:27 GMT"
   },
   "url": "https://deno.land/x/aws_sdk@v3.22.0-1/middleware-stack/mod.ts"
 }

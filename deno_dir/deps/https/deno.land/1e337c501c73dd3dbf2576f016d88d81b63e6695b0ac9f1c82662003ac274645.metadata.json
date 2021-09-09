@@ -1,16 +1,16 @@
 {
   "headers": {
+    "content-length": "1765",
     "cache-control": "public, max-age=31536000, immutable",
-    "server": "AmazonS3",
-    "date": "Fri, 20 Aug 2021 15:10:15 GMT",
     "last-modified": "Mon, 19 Jul 2021 09:27:27 GMT",
-    "x-amz-id-2": "rQSzaxSN5yPKieY0tpudJQPCwtXx1xFhoy4wYIL+yBhI9fhxm9MtU8R/jOzZ101xmP6hLE9LBXk=",
-    "x-amz-request-id": "274VPBE77TV83C3J",
+    "x-amz-id-2": "JN6jGSfhqToAPX7DNTpsxSYoptiAt1UDl9w1IzBABu82ox+HU0bkRVgue9VumBXAQlyZ8TWa148=",
     "content-type": "application/typescript; charset=utf-8",
+    "etag": "\"ca683dcfb6cab2796995d4457720f226\"",
+    "server": "deploy/us-east4-c",
     "x-amz-version-id": "tdSkicOION.owMu.3iiaSIJYD9k.l1yJ",
     "access-control-allow-origin": "*",
-    "etag": "\"ca683dcfb6cab2796995d4457720f226\"",
-    "content-length": "1765"
+    "date": "Wed, 08 Sep 2021 21:32:51 GMT",
+    "x-amz-request-id": "9RM7S01CJ8QNGHYF"
   },
   "url": "https://deno.land/x/aws_sdk@v3.22.0-1/eventstream-serde-universal/EventStreamMarshaller.ts"
 }

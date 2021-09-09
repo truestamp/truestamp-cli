@@ -1,16 +1,16 @@
 {
   "headers": {
-    "access-control-allow-origin": "*",
-    "etag": "\"8e8c56a55ec261ed91fa74a50c82550f\"",
-    "date": "Fri, 20 Aug 2021 15:10:15 GMT",
-    "last-modified": "Mon, 19 Jul 2021 09:27:25 GMT",
-    "server": "AmazonS3",
+    "x-amz-version-id": "zWaKjOh0L6t8QUDz1tTOkdlmSH1s6TSk",
     "content-type": "application/typescript; charset=utf-8",
-    "cache-control": "public, max-age=31536000, immutable",
-    "x-amz-id-2": "MrOFflD/BcPxvJtavVGpaAjnpnqW/xUEkVRLy56IYxdr9vm9gBStrOA5eZitYM9QddqbR/SHReA=",
-    "x-amz-request-id": "274SJGN2825HD5JQ",
+    "etag": "\"8e8c56a55ec261ed91fa74a50c82550f\"",
+    "access-control-allow-origin": "*",
     "content-length": "4625",
-    "x-amz-version-id": "zWaKjOh0L6t8QUDz1tTOkdlmSH1s6TSk"
+    "date": "Wed, 08 Sep 2021 21:32:50 GMT",
+    "last-modified": "Mon, 19 Jul 2021 09:27:25 GMT",
+    "x-amz-id-2": "UWUnyIkXyZ2Vq+nHW0/cXin6qZfO4xuTFUoh1sjQh4jGcIbl/7CZiiadYTkCKGawmy3PflckZOQ=",
+    "x-amz-request-id": "G404HXAZTRBMTFBC",
+    "server": "deploy/us-east4-c",
+    "cache-control": "public, max-age=31536000, immutable"
   },
   "url": "https://deno.land/x/aws_sdk@v3.22.0-1/client-sts/commands/GetCallerIdentityCommand.ts"
 }

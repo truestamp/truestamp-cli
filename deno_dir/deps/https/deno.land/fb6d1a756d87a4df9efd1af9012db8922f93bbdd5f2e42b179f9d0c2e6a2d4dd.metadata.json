@@ -1,16 +1,16 @@
 {
   "headers": {
     "etag": "\"6943a2b01b1940fe37fa0966ac68d5c7\"",
-    "server": "AmazonS3",
-    "content-length": "94",
     "last-modified": "Mon, 12 Jul 2021 23:47:14 GMT",
-    "x-amz-id-2": "lRpgMMVHWFTgAebQM90LXvz/5gwSmWyIbBSOs209JyAyTiz1YyLMKCOM/+gxXmv89mpitKd+eEY=",
-    "access-control-allow-origin": "*",
-    "x-amz-request-id": "274GTW4KVRKKZRV3",
-    "cache-control": "public, max-age=31536000, immutable",
+    "server": "deploy/us-east4-c",
+    "x-amz-id-2": "0sUYtxje9036ISuRDC76q8k44asZExvaLi44lOKHCodGrb1VSfjeG7RFDiaYEK6/04HeTpVb/t4=",
     "x-amz-version-id": "pGMfNw9qwq07wOisv_xUxBPkS4o1ZAeT",
-    "date": "Fri, 20 Aug 2021 15:10:15 GMT",
-    "content-type": "application/typescript; charset=utf-8"
+    "content-length": "94",
+    "cache-control": "public, max-age=31536000, immutable",
+    "content-type": "application/typescript; charset=utf-8",
+    "date": "Wed, 08 Sep 2021 21:32:50 GMT",
+    "x-amz-request-id": "G40AZAJKJ3AR5E9W",
+    "access-control-allow-origin": "*"
   },
   "url": "https://deno.land/std@0.101.0/node/_fs/promises/mod.ts"
 }

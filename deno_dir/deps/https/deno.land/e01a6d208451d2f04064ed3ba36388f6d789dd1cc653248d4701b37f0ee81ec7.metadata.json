@@ -1,16 +1,16 @@
 {
   "headers": {
-    "etag": "\"7db5125245ac776ac70bfdaaa6ab3346\"",
-    "content-type": "application/typescript; charset=utf-8",
-    "date": "Fri, 20 Aug 2021 15:10:14 GMT",
-    "cache-control": "public, max-age=31536000, immutable",
-    "server": "AmazonS3",
-    "x-amz-id-2": "kuMPCZr1LHTkbvmx3ey6XsJmNs02VjwM8uC2HM9fOKAwGc136dGbQgNwulx/kptV6w4sOSVKVDw=",
+    "date": "Wed, 08 Sep 2021 21:32:49 GMT",
+    "x-amz-id-2": "V1cawiug4/HpPfjBWs9t3bWcAfN2qMmqj6RAYAOPDfXp9iByrJVSWW0eS7mwfMwiJ2TCHi4CaaA=",
+    "x-amz-version-id": "JTt7x3ba9I3yOGktBzqF4Khz4e6sWaIM",
     "access-control-allow-origin": "*",
-    "content-length": "6027",
     "last-modified": "Mon, 19 Jul 2021 09:27:21 GMT",
-    "x-amz-request-id": "7PWC3C8NSFVKC9G7",
-    "x-amz-version-id": "JTt7x3ba9I3yOGktBzqF4Khz4e6sWaIM"
+    "etag": "\"7db5125245ac776ac70bfdaaa6ab3346\"",
+    "x-amz-request-id": "A7CJW4HF4821B9W8",
+    "content-length": "6027",
+    "server": "deploy/us-east4-c",
+    "cache-control": "public, max-age=31536000, immutable",
+    "content-type": "application/typescript; charset=utf-8"
   },
   "url": "https://deno.land/x/aws_sdk@v3.22.0-1/client-s3/commands/GetBucketInventoryConfigurationCommand.ts"
 }

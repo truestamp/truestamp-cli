@@ -1,16 +1,16 @@
 {
   "headers": {
-    "etag": "\"49753f0d9c749add470ce5904420d7e9\"",
-    "cache-control": "public, max-age=31536000, immutable",
-    "access-control-allow-origin": "*",
-    "date": "Fri, 20 Aug 2021 15:10:14 GMT",
-    "server": "AmazonS3",
-    "content-length": "14619",
-    "x-amz-request-id": "7PW87FDJ80DKFAVN",
+    "x-amz-version-id": "x11e_7bO90sbOGtwqCpS7YITLEmQ9H._",
     "last-modified": "Mon, 17 May 2021 14:44:07 GMT",
-    "x-amz-id-2": "SQ+0lEB8Zce1J2LzGZ/XoDUSGd/9059x7pvQUmIUvJvYSNITVlCzdW0C3+ModhMBsuf3DHN07ac=",
+    "server": "deploy/us-east4-c",
+    "date": "Wed, 08 Sep 2021 21:32:49 GMT",
+    "etag": "\"49753f0d9c749add470ce5904420d7e9\"",
+    "x-amz-request-id": "A7CKKHH99N1AYREW",
+    "access-control-allow-origin": "*",
+    "x-amz-id-2": "ecoPk5V3iH9qmctBfh9gk1NZriFDu6D5/ZirJwqjD0HAvDs7nANhhCrTqolq0o5EkIGUk7s/VG0=",
     "content-type": "application/typescript; charset=utf-8",
-    "x-amz-version-id": "x11e_7bO90sbOGtwqCpS7YITLEmQ9H._"
+    "cache-control": "public, max-age=31536000, immutable",
+    "content-length": "14619"
   },
   "url": "https://deno.land/std@0.97.0/path/posix.ts"
 }

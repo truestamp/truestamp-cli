@@ -1,15 +1,15 @@
 {
   "headers": {
-    "x-amz-request-id": "274X0D4Z3BZ6RX51",
-    "cache-control": "public, max-age=31536000, immutable",
-    "x-amz-id-2": "iXmRLuI0IBSujBIq5KEKyWnepbcZUNv2s1NFI10cwleRNnjF8IqqkvjzmjP1q5so1EWjgpFCKb0=",
-    "last-modified": "Mon, 19 Jul 2021 09:27:27 GMT",
-    "content-type": "application/typescript; charset=utf-8",
     "content-length": "2711",
-    "date": "Fri, 20 Aug 2021 15:10:15 GMT",
+    "last-modified": "Mon, 19 Jul 2021 09:27:27 GMT",
+    "server": "deploy/us-east4-c",
+    "x-amz-id-2": "hg3xEVs/LrzPw5xomKgPoH5yv22NeXhoFHyqeiGAuJs7UP6DUVj0SwDTz88DQvABZDZn/0L9jzQ=",
+    "date": "Wed, 08 Sep 2021 21:32:50 GMT",
+    "x-amz-request-id": "G4096DSCTT6NQJ9Q",
     "x-amz-version-id": "rHZSjo.Eg051KCVqJWPxyBlrCYejF5lj",
+    "content-type": "application/typescript; charset=utf-8",
     "access-control-allow-origin": "*",
-    "server": "AmazonS3",
+    "cache-control": "public, max-age=31536000, immutable",
     "etag": "\"c1be20bd076117a56b5b0519b3d34b09\""
   },
   "url": "https://deno.land/x/aws_sdk@v3.22.0-1/middleware-sdk-s3/throw-200-exceptions.ts"

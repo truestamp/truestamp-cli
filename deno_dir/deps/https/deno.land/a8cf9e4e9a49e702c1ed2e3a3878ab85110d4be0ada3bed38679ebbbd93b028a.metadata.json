@@ -1,16 +1,16 @@
 {
   "headers": {
+    "date": "Wed, 08 Sep 2021 21:32:50 GMT",
+    "last-modified": "Mon, 12 Jul 2021 23:47:13 GMT",
     "content-type": "application/typescript; charset=utf-8",
+    "x-amz-version-id": "2GTaOMHeAj3idHHBv7GHeDWdXK7wT2gR",
+    "cache-control": "public, max-age=31536000, immutable",
+    "x-amz-id-2": "BwXeYACFzo3ilvcXXNTHcQs2+IFKieakcYvzsUEaxKeLSbOkPyAy1vbEeXKThhjln8CX48Cjk1E=",
+    "access-control-allow-origin": "*",
     "content-length": "674",
     "etag": "\"b02c0a8c7172aa93b0d947fdea0a8405\"",
-    "x-amz-id-2": "uzVeQGlFWSjbBepdg690fSSQZbXCVl1xudrkWRpLO4HHVnRWlyOHeheFlIMjyOfarSKtHZ8dPk4=",
-    "x-amz-version-id": "2GTaOMHeAj3idHHBv7GHeDWdXK7wT2gR",
-    "access-control-allow-origin": "*",
-    "last-modified": "Mon, 12 Jul 2021 23:47:13 GMT",
-    "cache-control": "public, max-age=31536000, immutable",
-    "date": "Fri, 20 Aug 2021 15:10:15 GMT",
-    "server": "AmazonS3",
-    "x-amz-request-id": "274WSE40ZBC6850Z"
+    "x-amz-request-id": "G404GN4DJZJ6EP0E",
+    "server": "deploy/us-east4-c"
   },
   "url": "https://deno.land/std@0.101.0/fs/eol.ts"
 }

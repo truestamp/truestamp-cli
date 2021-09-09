@@ -1,16 +1,16 @@
 {
   "headers": {
-    "x-amz-request-id": "7PW2V2QE5C5W8JXA",
-    "date": "Fri, 20 Aug 2021 15:10:14 GMT",
-    "server": "AmazonS3",
-    "last-modified": "Mon, 19 Jul 2021 09:27:21 GMT",
+    "x-amz-request-id": "G40FX4XS75RWHX85",
+    "date": "Wed, 08 Sep 2021 21:32:50 GMT",
     "etag": "\"da1ce161f59d8232b25cb12acf073ef3\"",
-    "content-type": "application/typescript; charset=utf-8",
+    "last-modified": "Mon, 19 Jul 2021 09:27:21 GMT",
     "content-length": "4718",
+    "server": "deploy/us-east4-c",
+    "x-amz-id-2": "eTAso3HskWHDOzZyURFGd8gZU7GFXMiKiNQa3vkPK7H319SEYbPT4b7FGl7+RIcDK/mCLapORmE=",
     "cache-control": "public, max-age=31536000, immutable",
-    "x-amz-id-2": "gFIuZvVeBAWz/N8/BCRoMRb8G2H5y9OjpVtCBtwq7yi+GLYmgUNYHOVKtYaDFGKC21Fi7/rCOw0=",
-    "access-control-allow-origin": "*",
-    "x-amz-version-id": "5A7F_QJZ8u3KZjBfI.1VTfSl8gCba3Ds"
+    "content-type": "application/typescript; charset=utf-8",
+    "x-amz-version-id": "5A7F_QJZ8u3KZjBfI.1VTfSl8gCba3Ds",
+    "access-control-allow-origin": "*"
   },
   "url": "https://deno.land/x/aws_sdk@v3.22.0-1/client-s3/commands/GetBucketLocationCommand.ts"
 }

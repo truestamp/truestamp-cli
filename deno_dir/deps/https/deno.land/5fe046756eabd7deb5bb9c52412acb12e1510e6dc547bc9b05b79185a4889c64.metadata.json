@@ -1,15 +1,15 @@
 {
   "headers": {
-    "x-amz-version-id": "2ITwqxrYNxlrjA0GBtV27lr3hQwp6oEa",
-    "server": "AmazonS3",
-    "x-amz-request-id": "274S05AHMSN0FPTY",
-    "content-type": "application/typescript; charset=utf-8",
-    "last-modified": "Mon, 19 Jul 2021 09:27:27 GMT",
-    "x-amz-id-2": "TLheywC9kqD9kXFl+WIR80UE5Mz0/wnGxnabxCR7GoMXUdhKMVhQbZUkU72t+1ajtB0u0pGwKVE=",
-    "date": "Fri, 20 Aug 2021 15:10:15 GMT",
+    "server": "deploy/us-east4-c",
     "content-length": "778",
+    "content-type": "application/typescript; charset=utf-8",
     "etag": "\"f2f3b15c5c7c67c91f28d3090cd80809\"",
+    "last-modified": "Mon, 19 Jul 2021 09:27:27 GMT",
+    "x-amz-id-2": "1ecrkoH4zNe16JRdEDblskUZMWjDPnFgVC/xrFrmL1ZfJE49WWXLbGvcJXua9DuqeYtFppytRhY=",
+    "x-amz-version-id": "2ITwqxrYNxlrjA0GBtV27lr3hQwp6oEa",
     "cache-control": "public, max-age=31536000, immutable",
+    "x-amz-request-id": "G408NJ44M5ZBZNJE",
+    "date": "Wed, 08 Sep 2021 21:32:50 GMT",
     "access-control-allow-origin": "*"
   },
   "url": "https://deno.land/x/aws_sdk@v3.22.0-1/smithy-client/command.ts"

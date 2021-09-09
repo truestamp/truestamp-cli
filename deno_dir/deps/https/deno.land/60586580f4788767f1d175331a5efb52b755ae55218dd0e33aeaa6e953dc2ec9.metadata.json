@@ -1,15 +1,15 @@
 {
   "headers": {
-    "server": "AmazonS3",
-    "x-amz-id-2": "s6x45MwpVrG8TTMLD0YaGMQIs2Tcbq22dP0h5y3ak56u03Rg3g4E2UMJAnOv6JBCBliqLl5q20E=",
     "x-amz-version-id": "y0nZEFgc71NrvJxwzXv_mVAxMtJOmom5",
-    "cache-control": "public, max-age=31536000, immutable",
-    "content-length": "1371",
     "access-control-allow-origin": "*",
-    "date": "Fri, 20 Aug 2021 15:10:15 GMT",
-    "x-amz-request-id": "274V5RGAA2532Y0P",
-    "etag": "\"5fc0c65a12fd3b054ac2d5d9fcf7b4f6\"",
     "last-modified": "Mon, 19 Jul 2021 09:27:27 GMT",
+    "x-amz-request-id": "G40DTVERNT1XAPG8",
+    "content-length": "1371",
+    "etag": "\"5fc0c65a12fd3b054ac2d5d9fcf7b4f6\"",
+    "x-amz-id-2": "i9ioV2hHpLZWwAusV+QAGTH0afXz315QNe3dSKNehkwQWSiydWoYEVrYPYlW1Pz/CANi8RbIW7U=",
+    "server": "deploy/us-east4-c",
+    "cache-control": "public, max-age=31536000, immutable",
+    "date": "Wed, 08 Sep 2021 21:32:50 GMT",
     "content-type": "application/typescript; charset=utf-8"
   },
   "url": "https://deno.land/x/aws_sdk@v3.22.0-1/types/abort.ts"

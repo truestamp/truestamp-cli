@@ -2,13 +2,13 @@
   "headers": {
     "last-modified": "Mon, 12 Jul 2021 23:47:15 GMT",
     "content-type": "application/typescript; charset=utf-8",
-    "cache-control": "public, max-age=31536000, immutable",
     "content-length": "8959",
-    "date": "Fri, 20 Aug 2021 15:10:15 GMT",
+    "server": "deploy/us-east4-c",
+    "x-amz-id-2": "Mtp7CbqM/XFe5IWT3kCCeImnIqTFZ99kpmP159R837C/qKI9uK+rsy7KGkbL7QTiz2HAqCaaJj8=",
+    "x-amz-request-id": "G40AAQQCJYBW7G07",
+    "date": "Wed, 08 Sep 2021 21:32:50 GMT",
+    "cache-control": "public, max-age=31536000, immutable",
     "etag": "\"bd1e507c1581fa5d2c32366138897dd3\"",
-    "server": "AmazonS3",
-    "x-amz-id-2": "duQzFVleOxRzD3dlSxgC1A9GB2E/qvHbkhut1iutA6gOJivlJKBgQ8z7xtyptyvn6xyY5J7kbpc=",
-    "x-amz-request-id": "274S8PTGPJK2RSYB",
     "x-amz-version-id": "mVPbeKFkhKhtI2Q3XPXsAdsDM5Wvu_RI",
     "access-control-allow-origin": "*"
   },

@@ -1,16 +1,16 @@
 {
   "headers": {
+    "x-amz-version-id": "tSYRdusqr1m0bvy5pCX70PlTIekos9za",
+    "date": "Wed, 08 Sep 2021 21:32:50 GMT",
     "etag": "\"baf7c30910de5bd992a03ea8c864d753\"",
-    "last-modified": "Mon, 19 Jul 2021 09:27:24 GMT",
     "cache-control": "public, max-age=31536000, immutable",
     "content-type": "application/typescript; charset=utf-8",
-    "date": "Fri, 20 Aug 2021 15:10:15 GMT",
-    "x-amz-id-2": "7pc7IbMs3r8d4NcAHF9AjtYt0sGO7jBM0xgbmDR5OEhQGQ0dro1zLLhI8RoXXOiQvCQZSvM9WFg=",
-    "x-amz-request-id": "274K2B1NSD49CEHC",
-    "x-amz-version-id": "tSYRdusqr1m0bvy5pCX70PlTIekos9za",
+    "last-modified": "Mon, 19 Jul 2021 09:27:24 GMT",
+    "x-amz-request-id": "G401E1BG35E1VGG2",
     "access-control-allow-origin": "*",
+    "x-amz-id-2": "P32Nc+NXZ6fSL35eeMc1oq6v5aIBblJDRnGh5GWmWrTjCfLaz5mYLfTBcSYETRRl1Ci3pbFJfBA=",
     "content-length": "3868",
-    "server": "AmazonS3"
+    "server": "deploy/us-east4-c"
   },
   "url": "https://deno.land/x/aws_sdk@v3.22.0-1/client-sso/commands/ListAccountsCommand.ts"
 }

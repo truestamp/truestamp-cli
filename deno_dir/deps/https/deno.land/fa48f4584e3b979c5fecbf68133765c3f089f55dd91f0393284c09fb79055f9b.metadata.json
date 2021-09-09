@@ -1,16 +1,16 @@
 {
   "headers": {
-    "access-control-allow-origin": "*",
-    "date": "Fri, 20 Aug 2021 15:10:14 GMT",
-    "content-length": "6362",
-    "etag": "\"dfc2fd99d23d5083ca06d56077e5cb61\"",
-    "last-modified": "Mon, 19 Jul 2021 09:27:21 GMT",
-    "x-amz-request-id": "7PWF9D7H1X4JDMVB",
-    "cache-control": "public, max-age=31536000, immutable",
-    "server": "AmazonS3",
-    "x-amz-version-id": "QmG6PHcvUwYxxaFHewUjfNs0kLOGz9u3",
+    "x-amz-id-2": "XgDN9COKTGhY02FA+Aj/B/jZeDkPHUEdOHWCALIYhmboGYlIsccv4rg3SNzf7T+UANBlxQM/KOs=",
     "content-type": "application/typescript; charset=utf-8",
-    "x-amz-id-2": "hjngdMqPpuiIO541LFeRXOBTE4cxI0x1BCnybHOKyHLXrz6P0C2O6PoZKlYM5ozIvs/H0ACafy8="
+    "last-modified": "Mon, 19 Jul 2021 09:27:21 GMT",
+    "access-control-allow-origin": "*",
+    "cache-control": "public, max-age=31536000, immutable",
+    "content-length": "6362",
+    "date": "Wed, 08 Sep 2021 21:32:49 GMT",
+    "etag": "\"dfc2fd99d23d5083ca06d56077e5cb61\"",
+    "server": "deploy/us-east4-c",
+    "x-amz-version-id": "QmG6PHcvUwYxxaFHewUjfNs0kLOGz9u3",
+    "x-amz-request-id": "A7CKPB8JBKVARMVG"
   },
   "url": "https://deno.land/x/aws_sdk@v3.22.0-1/client-s3/commands/PutBucketEncryptionCommand.ts"
 }

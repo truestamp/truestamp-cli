@@ -1,16 +1,16 @@
 {
   "headers": {
-    "etag": "\"1646263f01ece9f6bac2bfbf01642521\"",
-    "content-length": "362",
-    "x-amz-request-id": "274MRAQFRZM2K4PC",
     "access-control-allow-origin": "*",
+    "x-amz-request-id": "G40BX7F4FGKQCSRB",
     "content-type": "application/typescript; charset=utf-8",
+    "content-length": "362",
+    "etag": "\"1646263f01ece9f6bac2bfbf01642521\"",
+    "x-amz-id-2": "/eN6WmAuxUsremTRRW6k1nXW/aY+4qUB2sudPaxFTI3HsxxQtmfvJF719QMB3UPtyahyyY5Iuhw=",
     "cache-control": "public, max-age=31536000, immutable",
-    "x-amz-id-2": "v2QtkB+jvmABTAf4qaJqeSYgGgQOx+MmVDjBTzA+1ei9Q6BNUoCb9HVIX+6CRAgsamjZrU8YHcE=",
     "x-amz-version-id": "61xXZaoQs7OVqSqmE86xmQdw8dd0uz1.",
     "last-modified": "Mon, 19 Jul 2021 09:27:27 GMT",
-    "date": "Fri, 20 Aug 2021 15:10:15 GMT",
-    "server": "AmazonS3"
+    "date": "Wed, 08 Sep 2021 21:32:50 GMT",
+    "server": "deploy/us-east4-c"
   },
   "url": "https://deno.land/x/aws_sdk@v3.22.0-1/fetch-http-handler/request-timeout.ts"
 }

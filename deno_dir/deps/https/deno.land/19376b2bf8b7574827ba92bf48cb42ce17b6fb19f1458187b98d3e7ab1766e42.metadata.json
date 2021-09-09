@@ -1,15 +1,15 @@
 {
   "headers": {
-    "x-amz-id-2": "OGNm5mNnjqVqxJqln/Big4R0IMC7TSkTblHbsb9qy7DEnMWJVuzWIxSxMt+p/ErIFIYHJTb78Jc=",
-    "last-modified": "Mon, 19 Jul 2021 09:27:27 GMT",
-    "content-length": "737",
-    "date": "Fri, 20 Aug 2021 15:10:15 GMT",
-    "server": "AmazonS3",
-    "x-amz-request-id": "274R9NTNPABJQV0S",
+    "x-amz-request-id": "G40856P9GYQESG2D",
     "access-control-allow-origin": "*",
-    "content-type": "application/typescript; charset=utf-8",
-    "cache-control": "public, max-age=31536000, immutable",
+    "date": "Wed, 08 Sep 2021 21:32:50 GMT",
     "etag": "\"954cd85fbb247bc9332b7b52ffe6b0cb\"",
+    "content-type": "application/typescript; charset=utf-8",
+    "server": "deploy/us-east4-c",
+    "x-amz-id-2": "zpJufL9bQ5OXTKODGlVjApnLpiN0DNmRjQgIc6MW5OWX88l//KRcgOjrpwec9fZhwscUkAy8x/c=",
+    "content-length": "737",
+    "cache-control": "public, max-age=31536000, immutable",
+    "last-modified": "Mon, 19 Jul 2021 09:27:27 GMT",
     "x-amz-version-id": "_CnclagdXAZtwwkHQwPE9Mq9xDw7HSwC"
   },
   "url": "https://deno.land/x/aws_sdk@v3.22.0-1/credential-provider-imds/remoteProvider/RemoteProviderInit.ts"

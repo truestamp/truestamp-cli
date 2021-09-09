@@ -1,16 +1,16 @@
 {
   "headers": {
-    "etag": "\"c60836b81cc6c7f7b9f052c450c93114\"",
+    "content-type": "application/typescript; charset=utf-8",
     "cache-control": "public, max-age=31536000, immutable",
+    "x-amz-request-id": "G403SXQZK4EYT76C",
+    "date": "Wed, 08 Sep 2021 21:32:50 GMT",
     "x-amz-version-id": "CrZe5soPuqM4CjjXr35UUt2NfkrYzSk.",
     "access-control-allow-origin": "*",
-    "date": "Fri, 20 Aug 2021 15:10:15 GMT",
-    "last-modified": "Mon, 19 Jul 2021 09:27:27 GMT",
-    "x-amz-id-2": "wBBFDUzW4gwqZe3CRV4YjMVBnLTaj8ABYT46Gv6xvb//s755oXBoPg/cUQsrfdgLSmq1E/qqjJ4=",
+    "etag": "\"c60836b81cc6c7f7b9f052c450c93114\"",
+    "x-amz-id-2": "GALZHbktZ3mWh2fzjTblEk77smKDb0QzssX1s4EeOz+lESqckVhOuikfsrDxrfr9CEg+cSJ94AY=",
+    "server": "deploy/us-east4-c",
     "content-length": "1253",
-    "server": "AmazonS3",
-    "x-amz-request-id": "274PJPH8YAF7SJSS",
-    "content-type": "application/typescript; charset=utf-8"
+    "last-modified": "Mon, 19 Jul 2021 09:27:27 GMT"
   },
   "url": "https://deno.land/x/aws_sdk@v3.22.0-1/xml-builder/XmlNode.ts"
 }

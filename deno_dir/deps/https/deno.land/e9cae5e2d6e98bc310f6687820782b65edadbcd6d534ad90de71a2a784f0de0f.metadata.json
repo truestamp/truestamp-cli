@@ -1,16 +1,16 @@
 {
   "headers": {
-    "x-amz-request-id": "7PW7V4B1P6QN1KSG",
-    "server": "AmazonS3",
-    "etag": "\"1dfdcdbcb3cb9de4b41c63bbae78f541\"",
-    "content-length": "5514",
-    "date": "Fri, 20 Aug 2021 15:10:14 GMT",
-    "x-amz-id-2": "p9GINNqxfUN26sg6S3Wz2RMlaz30zZixpsWUgQqna9F+xMlnuLDxpcLNRNmV0MOBDyikHXoBWvs=",
-    "content-type": "application/typescript; charset=utf-8",
-    "cache-control": "public, max-age=31536000, immutable",
     "last-modified": "Mon, 19 Jul 2021 09:27:21 GMT",
+    "content-length": "5514",
+    "content-type": "application/typescript; charset=utf-8",
+    "date": "Wed, 08 Sep 2021 21:32:50 GMT",
+    "x-amz-request-id": "G4007FDHNMP8RDF0",
     "x-amz-version-id": "w368u8svRaThVW8kG2lXujdHgZixksVt",
-    "access-control-allow-origin": "*"
+    "access-control-allow-origin": "*",
+    "server": "deploy/us-east4-c",
+    "etag": "\"1dfdcdbcb3cb9de4b41c63bbae78f541\"",
+    "x-amz-id-2": "EFVcwPcu+3tfCB5We08T3KY73fEbFB7SkAZpaDxLUhLT4mPCWF9wBYGNc3GNWxqITTiz4WhM4E8=",
+    "cache-control": "public, max-age=31536000, immutable"
   },
   "url": "https://deno.land/x/aws_sdk@v3.22.0-1/client-s3/commands/DeletePublicAccessBlockCommand.ts"
 }

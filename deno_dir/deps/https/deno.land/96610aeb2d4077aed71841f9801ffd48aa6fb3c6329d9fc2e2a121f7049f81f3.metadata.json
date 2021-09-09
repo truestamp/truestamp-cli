@@ -1,16 +1,16 @@
 {
   "headers": {
-    "last-modified": "Mon, 19 Jul 2021 09:27:21 GMT",
-    "server": "AmazonS3",
-    "x-amz-request-id": "7PW833NFKV055KJJ",
-    "etag": "\"5ef2fd721ef7fcde4bffb44cad7ba7e3\"",
     "cache-control": "public, max-age=31536000, immutable",
-    "date": "Fri, 20 Aug 2021 15:10:14 GMT",
-    "x-amz-id-2": "i7wXkN+bz3aHhj0x511CcOBjKLuM1vtkYJGMHv9zCI6H7wMWjW8xLUB9ZHQLZvpuyaLJwBoRsy0=",
+    "server": "deploy/us-east4-c",
+    "x-amz-version-id": "3i2_c1ludQG1uoiFzvG.q1lGhN2rgpq6",
     "content-type": "application/typescript; charset=utf-8",
-    "access-control-allow-origin": "*",
+    "last-modified": "Mon, 19 Jul 2021 09:27:21 GMT",
     "content-length": "20782",
-    "x-amz-version-id": "3i2_c1ludQG1uoiFzvG.q1lGhN2rgpq6"
+    "date": "Wed, 08 Sep 2021 21:32:50 GMT",
+    "x-amz-id-2": "OV5keSLsqMMM7XHvyRZC4NpW355fPTuMhCzUqY3ZpqHiNZDhi1sruri08BU9Fs8qvmcFFU7csmg=",
+    "x-amz-request-id": "G407MK32YSF2EK7K",
+    "access-control-allow-origin": "*",
+    "etag": "\"5ef2fd721ef7fcde4bffb44cad7ba7e3\""
   },
   "url": "https://deno.land/x/aws_sdk@v3.22.0-1/client-s3/commands/CreateMultipartUploadCommand.ts"
 }

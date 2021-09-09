@@ -1,0 +1,25 @@
+{
+  "headers": {
+    "x-goog-storage-class": "STANDARD",
+    "cross-origin-resource-policy": "cross-origin",
+    "server": "UploadServer",
+    "age": "72583",
+    "x-guploader-uploadid": "ADPycdt1PDi3mShALZ2Pz8mHpN0P5wEXdrKK6BRpC1MsggdTar5U5Rw9NdB2V7kk70lVzLD6369btML1aF-CKBFJ2rVr9lAvzg",
+    "access-control-allow-origin": "*",
+    "x-goog-generation": "1631042591937830",
+    "expires": "Wed, 15 Sep 2021 01:23:07 GMT",
+    "accept-ranges": "bytes",
+    "etag": "\"817049e6d75ccbdde84f1af5779baf21\"",
+    "date": "Wed, 08 Sep 2021 01:23:07 GMT",
+    "alt-svc": "clear",
+    "x-goog-stored-content-length": "4487",
+    "last-modified": "Tue, 07 Sep 2021 19:23:11 GMT",
+    "content-type": "application/javascript; charset=utf-8",
+    "access-control-expose-headers": "Content-Length, Content-Type, Date, Server, Transfer-Encoding, X-GUploader-UploadID, X-Google-Trace",
+    "x-goog-metageneration": "2",
+    "cache-control": "public, max-age=31536000, s-maxage=604800, immutable",
+    "x-goog-hash": "crc32c=857u3A==,md5=gXBJ5tdcy93oTxr1d5uvIQ==",
+    "x-goog-stored-content-encoding": "br"
+  },
+  "url": "https://jspm.dev/npm:@jspm/core@2.0.0-beta.11/_/52ce46bd.js"
+}

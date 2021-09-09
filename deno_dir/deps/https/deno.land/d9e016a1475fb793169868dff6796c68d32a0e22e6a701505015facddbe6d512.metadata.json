@@ -1,15 +1,15 @@
 {
   "headers": {
-    "content-length": "5812",
     "last-modified": "Mon, 19 Jul 2021 09:27:21 GMT",
-    "server": "AmazonS3",
-    "x-amz-request-id": "7PW9MF01ZJZZGHTD",
-    "cache-control": "public, max-age=31536000, immutable",
-    "content-type": "application/typescript; charset=utf-8",
+    "date": "Wed, 08 Sep 2021 21:32:49 GMT",
+    "server": "deploy/us-east4-c",
+    "x-amz-request-id": "A7CYKS8YDCXHKXR7",
+    "x-amz-id-2": "RZ48vCzGqQDYCgCgFJeAwEXhZg0rn6mmTXgfhJpHB+ByxE9Orcch7AMiw/f96rPGPWrJqMGwMog=",
     "x-amz-version-id": "bmKneSSyAjff53gBaJpUWej1Qs28ZBch",
+    "content-type": "application/typescript; charset=utf-8",
     "access-control-allow-origin": "*",
-    "date": "Fri, 20 Aug 2021 15:10:14 GMT",
-    "x-amz-id-2": "2lC5gFPfXJauzE1GUDw+jlUKistWT9/l1uvSciDommPgwjRjJBgWhK4wwY4yRO5K0MJZSgEzsuo=",
+    "content-length": "5812",
+    "cache-control": "public, max-age=31536000, immutable",
     "etag": "\"f5b8929b81434413e72fd8f60cc7b7c3\""
   },
   "url": "https://deno.land/x/aws_sdk@v3.22.0-1/client-s3/commands/GetBucketReplicationCommand.ts"

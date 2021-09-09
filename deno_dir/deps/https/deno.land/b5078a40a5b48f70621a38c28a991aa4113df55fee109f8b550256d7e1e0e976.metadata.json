@@ -1,16 +1,16 @@
 {
   "headers": {
-    "last-modified": "Mon, 12 Jul 2021 23:47:14 GMT",
-    "x-amz-request-id": "274S9RJBPFC5BVZE",
-    "content-length": "424",
+    "x-amz-request-id": "G4077ADBEPA93XYQ",
     "etag": "\"b1181cc8475b7c790eb26b82eb541b1d\"",
-    "x-amz-id-2": "Poc8mx/2cWd3Uom9yVU3imh89j+r38lxc29C7pecFtnz37L0xcejQyYcLIwimIUmPyO4S8LvCzk=",
-    "cache-control": "public, max-age=31536000, immutable",
-    "server": "AmazonS3",
     "x-amz-version-id": "WBRBVqScCGWfppbVN11L45jpgj1j8l7x",
-    "access-control-allow-origin": "*",
+    "content-length": "424",
+    "last-modified": "Mon, 12 Jul 2021 23:47:14 GMT",
+    "server": "deploy/us-east4-c",
+    "date": "Wed, 08 Sep 2021 21:32:50 GMT",
     "content-type": "application/typescript; charset=utf-8",
-    "date": "Fri, 20 Aug 2021 15:10:15 GMT"
+    "x-amz-id-2": "9K2mfKug/QxLg4lV9A0YdBy651YgZPPG85gDoMfcxzRKz59fC4G4uW5qSozrwQokeKt/yPnZJWM=",
+    "access-control-allow-origin": "*",
+    "cache-control": "public, max-age=31536000, immutable"
   },
   "url": "https://deno.land/std@0.101.0/node/_fs/_fs_close.ts"
 }

@@ -1,16 +1,16 @@
 {
   "headers": {
-    "date": "Fri, 20 Aug 2021 15:10:15 GMT",
+    "date": "Wed, 08 Sep 2021 21:32:50 GMT",
     "etag": "\"0243fbc5199ce0c851ebfee86c5d6a27\"",
-    "access-control-allow-origin": "*",
-    "last-modified": "Mon, 23 Nov 2020 14:12:14 GMT",
-    "x-amz-id-2": "u6wO+wf4eW8bJRSR8jboO391r7M0KN22boGmO2my+rpVBlxm9zzyDPfpm0LhFJR8z7ZyGUCfPLo=",
-    "content-length": "5230",
-    "x-amz-request-id": "274QN0SW7NK4YJ73",
-    "content-type": "application/typescript; charset=utf-8",
+    "x-amz-id-2": "D3FHgncIqoQdi7uGRERsq5OnDTinqmbilvds5GEXuAQQArUzlgAVnY/tUaqPZdUqy9uPzbBNRog=",
     "cache-control": "public, max-age=31536000, immutable",
+    "last-modified": "Mon, 23 Nov 2020 14:12:14 GMT",
+    "access-control-allow-origin": "*",
+    "x-amz-request-id": "G405GRQJNR7QGFN9",
     "x-amz-version-id": "_t7whphSIaCJi61eGUzId_.sQKBUairl",
-    "server": "AmazonS3"
+    "content-length": "5230",
+    "content-type": "application/typescript; charset=utf-8",
+    "server": "deploy/us-east4-c"
   },
   "url": "https://deno.land/std@0.79.0/node/process.ts"
 }

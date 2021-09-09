@@ -1,15 +1,15 @@
 {
   "headers": {
-    "server": "AmazonS3",
-    "etag": "\"111ab99ccbb1aec096bb62f2f8f2133f\"",
-    "cache-control": "public, max-age=31536000, immutable",
-    "date": "Fri, 20 Aug 2021 15:10:15 GMT",
-    "last-modified": "Mon, 19 Jul 2021 09:27:24 GMT",
-    "content-type": "application/typescript; charset=utf-8",
-    "content-length": "3768",
     "x-amz-version-id": "q8dOr_.Q933XV02cyqOn_uT2_UzawXjG",
-    "x-amz-id-2": "MddC9T/ZaKdcITHtEC/G6TfR0BGRnPzlxo2705kbtKc9ec5Ok4qXQB+baBDpuT6RnOYgVetbrRc=",
-    "x-amz-request-id": "274K2B2HTJYV6RXH",
+    "date": "Wed, 08 Sep 2021 21:32:50 GMT",
+    "etag": "\"111ab99ccbb1aec096bb62f2f8f2133f\"",
+    "x-amz-id-2": "DsN9IhE5YlHg7LzK5bNVF829kq4mokwSTzoN5fjzM5mXp08iWM9AH6UeoG/N1M8vUGHG0H+WrnM=",
+    "content-type": "application/typescript; charset=utf-8",
+    "last-modified": "Mon, 19 Jul 2021 09:27:24 GMT",
+    "cache-control": "public, max-age=31536000, immutable",
+    "server": "deploy/us-east4-c",
+    "content-length": "3768",
+    "x-amz-request-id": "G404EH0PPZJD5WCM",
     "access-control-allow-origin": "*"
   },
   "url": "https://deno.land/x/aws_sdk@v3.22.0-1/client-sso/commands/GetRoleCredentialsCommand.ts"

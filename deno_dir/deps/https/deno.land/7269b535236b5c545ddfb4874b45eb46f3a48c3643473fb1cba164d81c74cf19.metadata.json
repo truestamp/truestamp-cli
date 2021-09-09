@@ -1,16 +1,16 @@
 {
   "headers": {
-    "etag": "\"da38f97e5b9a8a14c6f5edcdccdfacd9\"",
+    "date": "Wed, 08 Sep 2021 21:32:50 GMT",
     "content-type": "application/typescript; charset=utf-8",
-    "cache-control": "public, max-age=31536000, immutable",
-    "content-length": "772",
+    "last-modified": "Mon, 19 Jul 2021 09:27:27 GMT",
+    "server": "deploy/us-east4-c",
     "access-control-allow-origin": "*",
-    "date": "Fri, 20 Aug 2021 15:10:15 GMT",
-    "server": "AmazonS3",
-    "x-amz-id-2": "xIUihcEsATv0Yhk7/7Q3RICxURWB+TV9UNfUkOIjQaivBcNa1mSbClJ7XIUC6ANUNA5CwTDXGHU=",
-    "x-amz-request-id": "274RPQ0HQ999A5B6",
+    "x-amz-request-id": "G407Q0RFSDYPHDS0",
+    "x-amz-id-2": "WBBEb0MklAEcauL54+aJlf4qsXspjQKwglA0QOaZ3qxzthiK7BAvmGhXyxxc5t5kABCVr7xuGzg=",
+    "cache-control": "public, max-age=31536000, immutable",
     "x-amz-version-id": "K56PQirAWv16ATIS0KxBQBc2wufI8Q0K",
-    "last-modified": "Mon, 19 Jul 2021 09:27:27 GMT"
+    "content-length": "772",
+    "etag": "\"da38f97e5b9a8a14c6f5edcdccdfacd9\""
   },
   "url": "https://deno.land/x/aws_sdk@v3.22.0-1/middleware-serde/serializerMiddleware.ts"
 }

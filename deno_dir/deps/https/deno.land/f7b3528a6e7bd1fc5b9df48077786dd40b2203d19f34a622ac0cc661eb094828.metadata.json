@@ -1,16 +1,16 @@
 {
   "headers": {
-    "cache-control": "public, max-age=31536000, immutable",
-    "x-amz-request-id": "274N8TM7ZFHKEDRN",
-    "content-type": "application/typescript; charset=utf-8",
-    "date": "Fri, 20 Aug 2021 15:10:15 GMT",
-    "x-amz-version-id": ".0HZ_gecaii3xpqSscUx2kuWyF0Fab8l",
-    "x-amz-id-2": "LHMPPLqtB4IE7QLq0yYRqiX9MNl2+7yMJ9j301AOeRmeQB67WRl5dd9pr4eICzuUiC9ATuoqtiw=",
+    "x-amz-request-id": "G405M6Q90PGWJ1XY",
+    "server": "deploy/us-east4-c",
+    "etag": "\"f42f4330ef0d1f4834df6802fcf1656c\"",
+    "x-amz-id-2": "4oTnkY8cWBbdkj8brRRkB3zpoUhveW2BTvutbo+WRV/SMl2r5RbRRhsObjp9QytQ/7mv2SzuaMg=",
     "last-modified": "Mon, 19 Jul 2021 09:27:27 GMT",
-    "server": "AmazonS3",
-    "content-length": "4051",
+    "content-type": "application/typescript; charset=utf-8",
+    "date": "Wed, 08 Sep 2021 21:32:50 GMT",
+    "cache-control": "public, max-age=31536000, immutable",
+    "x-amz-version-id": ".0HZ_gecaii3xpqSscUx2kuWyF0Fab8l",
     "access-control-allow-origin": "*",
-    "etag": "\"f42f4330ef0d1f4834df6802fcf1656c\""
+    "content-length": "4051"
   },
   "url": "https://deno.land/x/aws_sdk@v3.22.0-1/middleware-bucket-endpoint/bucketEndpointMiddleware.ts"
 }

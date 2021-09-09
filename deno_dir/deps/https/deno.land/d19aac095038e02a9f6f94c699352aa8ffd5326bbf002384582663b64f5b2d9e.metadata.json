@@ -1,15 +1,15 @@
 {
   "headers": {
-    "x-amz-id-2": "hhJTyny+j7rBXaFwDQQGwkMpkzlnJUQK6+6ilVlk3aX+3CkoKl1BezX71H6kTPJucLifAiyv7cY=",
-    "x-amz-request-id": "7PW1C22RNN8JWNP8",
-    "access-control-allow-origin": "*",
-    "date": "Fri, 20 Aug 2021 15:10:14 GMT",
     "x-amz-version-id": "OWrJIlfEBYZHO43dPqJl9AvX.RgRN4hH",
-    "server": "AmazonS3",
-    "content-length": "9384",
     "cache-control": "public, max-age=31536000, immutable",
+    "date": "Wed, 08 Sep 2021 21:32:49 GMT",
+    "x-amz-request-id": "A7CX8KKCP7T2MBRZ",
+    "content-length": "9384",
+    "x-amz-id-2": "NaraV3lxbF8uAnW2gOhpqt1y/f3ugiTAR8fksYtmACZfk/VXwACEx1E81HMYzyHsepdR9bqB5cA=",
+    "access-control-allow-origin": "*",
     "content-type": "application/typescript; charset=utf-8",
     "last-modified": "Mon, 19 Jul 2021 09:27:21 GMT",
+    "server": "deploy/us-east4-c",
     "etag": "\"983ba0a48fbdd3c9a1f919f1e09d1ba2\""
   },
   "url": "https://deno.land/x/aws_sdk@v3.22.0-1/client-s3/commands/PutObjectCommand.ts"

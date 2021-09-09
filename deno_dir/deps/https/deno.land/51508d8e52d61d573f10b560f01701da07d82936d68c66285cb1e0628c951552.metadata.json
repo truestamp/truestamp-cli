@@ -1,16 +1,16 @@
 {
   "headers": {
-    "content-type": "application/typescript; charset=utf-8",
-    "access-control-allow-origin": "*",
-    "server": "AmazonS3",
-    "content-length": "103",
+    "x-amz-id-2": "wAxy1oWivmcmd6vooMkqeKgUAb7PqRlpWRDL59efucwOArhhyIkJBoUMS2N451PFHaFLuoluYWU=",
+    "x-amz-request-id": "G403CCBEZPQZB9N3",
     "etag": "\"bd77712f7e2de7176a4d5dcd6b2bdfbe\"",
+    "last-modified": "Mon, 19 Jul 2021 09:27:27 GMT",
     "cache-control": "public, max-age=31536000, immutable",
-    "x-amz-id-2": "dKDX5jmaVQBrsWqBDq09M0+9x1QK17GSCAACwWkydiQ/5xea0z2rnK751tsEUXZkjF49nm2Rnmk=",
     "x-amz-version-id": "BgtyAjNEuWxk0r2vAK.6gMOO6aAx2RMS",
-    "x-amz-request-id": "274TF1CEXG1TCECG",
-    "date": "Fri, 20 Aug 2021 15:10:15 GMT",
-    "last-modified": "Mon, 19 Jul 2021 09:27:27 GMT"
+    "content-length": "103",
+    "content-type": "application/typescript; charset=utf-8",
+    "date": "Wed, 08 Sep 2021 21:32:50 GMT",
+    "server": "deploy/us-east4-c",
+    "access-control-allow-origin": "*"
   },
   "url": "https://deno.land/x/aws_sdk@v3.22.0-1/eventstream-serde-browser/mod.ts"
 }

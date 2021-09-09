@@ -1,0 +1,16 @@
+{
+  "headers": {
+    "date": "Wed, 08 Sep 2021 21:32:49 GMT",
+    "x-amz-version-id": "s_cxw77bSGou07K0fuMmvjnOF2AJYM6B",
+    "access-control-allow-origin": "*",
+    "x-amz-request-id": "A7CZ5D10SSE3PE1N",
+    "server": "deploy/us-east4-c",
+    "last-modified": "Mon, 23 Aug 2021 22:19:15 GMT",
+    "cache-control": "public, max-age=31536000, immutable",
+    "x-amz-id-2": "FadejQH/uIOKjFBYglzlSIFEIHmulbV/tMZYGbjej6MaVvgHmTvUm9n/sOIHXyEvg8r4ZcYpg3E=",
+    "etag": "\"49cabf94e5bf1cea284f1df0cb1380aa\"",
+    "content-type": "application/typescript; charset=utf-8",
+    "content-length": "259"
+  },
+  "url": "https://deno.land/std@0.106.0/path/separator.ts"
+}

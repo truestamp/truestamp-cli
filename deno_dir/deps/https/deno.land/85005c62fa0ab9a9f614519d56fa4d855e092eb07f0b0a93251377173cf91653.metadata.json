@@ -1,16 +1,16 @@
 {
   "headers": {
-    "content-type": "application/typescript; charset=utf-8",
     "cache-control": "public, max-age=31536000, immutable",
-    "last-modified": "Mon, 19 Jul 2021 09:27:25 GMT",
-    "x-amz-version-id": "3egQXtXSLtNAHkGFlv3ucdxz7bobc_fc",
     "etag": "\"00b9384d9f1a06a5f6c35adb750ac9c9\"",
-    "x-amz-id-2": "QBtZDx5geHqcy6NlrwDyMLQK2sFeGGUXrm8JNCDXcocaD99gv2qlJbDJfiPvRqumAI2gFGxshN0=",
-    "content-length": "398",
-    "x-amz-request-id": "XASZGCZQW0C7KVC9",
-    "server": "AmazonS3",
+    "x-amz-request-id": "9RM9EWD929XD63PW",
+    "x-amz-version-id": "3egQXtXSLtNAHkGFlv3ucdxz7bobc_fc",
     "access-control-allow-origin": "*",
-    "date": "Fri, 20 Aug 2021 15:10:16 GMT"
+    "server": "deploy/us-east4-c",
+    "last-modified": "Mon, 19 Jul 2021 09:27:25 GMT",
+    "content-length": "398",
+    "date": "Wed, 08 Sep 2021 21:32:51 GMT",
+    "content-type": "application/typescript; charset=utf-8",
+    "x-amz-id-2": "C9Zs76af7E0x9igfjKkr7rHu6mfQIaYVoJIui+FKdL73VlZC5yJr3gV3rQ85cs0jYMWAgoEJxYE="
   },
   "url": "https://deno.land/x/aws_sdk@v3.22.0-1/client-sso/runtimeConfig.shared.ts"
 }

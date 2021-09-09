@@ -1,16 +1,16 @@
 {
   "headers": {
     "content-type": "application/typescript; charset=utf-8",
-    "x-amz-version-id": "gpSHUkrWBdRkk7ztkeHVkLF3O2t.Yekk",
-    "content-length": "5435",
-    "cache-control": "public, max-age=31536000, immutable",
-    "x-amz-id-2": "8Au9whQ2+vWHPB+E6I/n59hd6EeDgEe/RVOKdTOAHgwQAeInaYtOfLbO20RBc/p0VYc0OulC6VA=",
-    "x-amz-request-id": "7PW16GBKGBS3EA3E",
-    "date": "Fri, 20 Aug 2021 15:10:14 GMT",
+    "etag": "\"a4aeb32cdedac81b324141dc88fd7f16\"",
     "last-modified": "Mon, 19 Jul 2021 09:27:21 GMT",
-    "server": "AmazonS3",
+    "server": "deploy/us-east4-c",
+    "date": "Wed, 08 Sep 2021 21:32:49 GMT",
+    "cache-control": "public, max-age=31536000, immutable",
+    "x-amz-id-2": "d8smGvYyC3yCoqerxkl6go+dgq3zzqfeUpNqXwA6BVKWA4t764mvgDpSJbEXaDTttVp347en6x8=",
+    "x-amz-request-id": "A7CNDD0Q0457MCWS",
+    "x-amz-version-id": "gpSHUkrWBdRkk7ztkeHVkLF3O2t.Yekk",
     "access-control-allow-origin": "*",
-    "etag": "\"a4aeb32cdedac81b324141dc88fd7f16\""
+    "content-length": "5435"
   },
   "url": "https://deno.land/x/aws_sdk@v3.22.0-1/client-s3/commands/DeleteBucketEncryptionCommand.ts"
 }

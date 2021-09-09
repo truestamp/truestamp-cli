@@ -1,16 +1,16 @@
 {
   "headers": {
     "last-modified": "Mon, 19 Jul 2021 09:27:24 GMT",
-    "server": "AmazonS3",
-    "etag": "\"25d6244948ea6d7d11dc26b50a2ffb8c\"",
-    "x-amz-id-2": "nmfUXGNPe7CDuQn4etnZXeG2VYNgCiDdUd+HZGfFLTYODt5nPcN8bTApQVwgW07bk51ub5oO4Vc=",
-    "x-amz-version-id": "5Qy9kqA_UXK4POwNkncK2sVbKoRwqDdF",
-    "cache-control": "public, max-age=31536000, immutable",
-    "access-control-allow-origin": "*",
-    "date": "Fri, 20 Aug 2021 15:10:15 GMT",
-    "content-type": "application/typescript; charset=utf-8",
     "content-length": "7073",
-    "x-amz-request-id": "274WSQ6KJV9X7GV2"
+    "content-type": "application/typescript; charset=utf-8",
+    "x-amz-id-2": "kjxnRH1G7OBEnh3zb73wBgJyaY7ta+/9XbYOyAd1llWxPKt2wDvvX9ylnyYcaVZpWMKmdu54kJU=",
+    "x-amz-version-id": "5Qy9kqA_UXK4POwNkncK2sVbKoRwqDdF",
+    "date": "Wed, 08 Sep 2021 21:32:50 GMT",
+    "x-amz-request-id": "G400V4WJJ3K3WB2X",
+    "access-control-allow-origin": "*",
+    "cache-control": "public, max-age=31536000, immutable",
+    "server": "deploy/us-east4-c",
+    "etag": "\"25d6244948ea6d7d11dc26b50a2ffb8c\""
   },
   "url": "https://deno.land/x/aws_sdk@v3.22.0-1/client-sso/SSO.ts"
 }

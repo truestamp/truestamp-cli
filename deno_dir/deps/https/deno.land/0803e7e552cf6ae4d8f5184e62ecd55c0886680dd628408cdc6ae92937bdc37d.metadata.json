@@ -1,16 +1,16 @@
 {
   "headers": {
     "last-modified": "Mon, 19 Jul 2021 09:27:21 GMT",
-    "access-control-allow-origin": "*",
-    "x-amz-request-id": "7PW1H62EPC2X1VPN",
-    "date": "Fri, 20 Aug 2021 15:10:14 GMT",
-    "x-amz-id-2": "yzD/AiRrrPapLC3+NCbYnSAnfWpQKKjLHljL0uPDYHkRcFNap0rhGg4qPZPE0O1MoNHPdM8x8t0=",
     "x-amz-version-id": "zGerQ2z87gIJXTp20ROpLHsLimbtWUO7",
     "content-length": "6839",
     "content-type": "application/typescript; charset=utf-8",
+    "date": "Wed, 08 Sep 2021 21:32:50 GMT",
     "cache-control": "public, max-age=31536000, immutable",
+    "x-amz-request-id": "G406WXK0BZAMNGFA",
     "etag": "\"1a551f90d27dc3bd0a7b695d272bc1c3\"",
-    "server": "AmazonS3"
+    "access-control-allow-origin": "*",
+    "server": "deploy/us-east4-c",
+    "x-amz-id-2": "Se+YVRM6C5+tUNV+4ngjRe8Ovjz6Rsa3j24025d6GC7jGX7dEwE3jsb/7c+YVhfgTU1ZAeL4q94="
   },
   "url": "https://deno.land/x/aws_sdk@v3.22.0-1/client-s3/commands/PutBucketMetricsConfigurationCommand.ts"
 }

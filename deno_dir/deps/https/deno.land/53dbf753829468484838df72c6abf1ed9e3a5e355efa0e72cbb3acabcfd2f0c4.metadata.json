@@ -1,16 +1,16 @@
 {
   "headers": {
-    "content-length": "1656",
-    "x-amz-request-id": "274ZSQ7CE9M2H8YD",
-    "cache-control": "public, max-age=31536000, immutable",
-    "access-control-allow-origin": "*",
+    "last-modified": "Mon, 19 Jul 2021 09:27:27 GMT",
     "content-type": "application/typescript; charset=utf-8",
     "x-amz-version-id": "ihwe_Vlo5l7lkjEaLsPdsCQJvolX_.gw",
+    "content-length": "1656",
+    "date": "Wed, 08 Sep 2021 21:32:51 GMT",
+    "x-amz-request-id": "9RMFQC1QQ440YKC1",
+    "cache-control": "public, max-age=31536000, immutable",
     "etag": "\"2724113ec3576f3b7c0d4e9a0ab952ef\"",
-    "date": "Fri, 20 Aug 2021 15:10:15 GMT",
-    "last-modified": "Mon, 19 Jul 2021 09:27:27 GMT",
-    "server": "AmazonS3",
-    "x-amz-id-2": "MHcNOK6JKe2+TkHlF1b2WSUznUgLsDEKwcRZWd6ahHYMqV1AO/GkOpZ2BiYR4VMv1rdsBjrybvY="
+    "access-control-allow-origin": "*",
+    "server": "deploy/us-east4-c",
+    "x-amz-id-2": "HfAsM7f23zXueAfxOmjI0xSm3jRzeDrbQnebb0tKCphjsdHr/xOY8+W/KrPkcxsqGXCPiC8ugR4="
   },
   "url": "https://deno.land/x/aws_sdk@v3.22.0-1/signature-v4/constants.ts"
 }

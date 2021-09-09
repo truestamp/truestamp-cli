@@ -1,16 +1,16 @@
 {
   "headers": {
-    "x-amz-id-2": "qZyURD1abJcEEuAnIk2JRcXOwYu0oLKhS9+7ovWC1V3Xs4fjJFC6AtdR6NAEcU8vQGw6YPf/jcc=",
-    "x-amz-request-id": "7PW6444RT7TZHEC7",
-    "server": "AmazonS3",
-    "content-length": "13559",
-    "etag": "\"0d28ef53d211085a41f6fa0d0597bc75\"",
-    "last-modified": "Mon, 19 Jul 2021 09:27:21 GMT",
+    "x-amz-id-2": "oXAdM4Vwm3qFl4m0/4Mjmkn6DlAMBp/N6Imhp58j8CpTIOa5gkPxaWAfZoD9p6VLpSLZdcMmRf4=",
     "cache-control": "public, max-age=31536000, immutable",
+    "date": "Wed, 08 Sep 2021 21:32:50 GMT",
     "access-control-allow-origin": "*",
+    "server": "deploy/us-east4-c",
+    "last-modified": "Mon, 19 Jul 2021 09:27:21 GMT",
+    "etag": "\"0d28ef53d211085a41f6fa0d0597bc75\"",
+    "content-length": "13559",
     "x-amz-version-id": "SaNEyZaV13RgW7BeeNziqwLAV8CO86bG",
     "content-type": "application/typescript; charset=utf-8",
-    "date": "Fri, 20 Aug 2021 15:10:14 GMT"
+    "x-amz-request-id": "G408BQ7C1J0GKT77"
   },
   "url": "https://deno.land/x/aws_sdk@v3.22.0-1/client-s3/commands/GetObjectCommand.ts"
 }

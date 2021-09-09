@@ -1,16 +1,16 @@
 {
   "headers": {
-    "etag": "\"5292e16571f78abe8cfcaa86c4f9bde5\"",
     "cache-control": "public, max-age=31536000, immutable",
-    "server": "AmazonS3",
-    "x-amz-id-2": "8sUiwY/OJLJX9gufxbxwel6tfUxMoM0OnM5vJX6qTMCbUiO72XZbBIZDnEFzYSZ/elewcJh3av4=",
-    "access-control-allow-origin": "*",
-    "content-length": "2130",
-    "last-modified": "Tue, 06 Oct 2020 02:20:07 GMT",
-    "x-amz-version-id": "xADt4tvLH.870FtUSyqasCV8Qvpkn_MX",
     "content-type": "application/javascript",
-    "date": "Fri, 20 Aug 2021 15:10:15 GMT",
-    "x-amz-request-id": "274GX3SHYT1FE9W9"
+    "date": "Wed, 08 Sep 2021 21:32:50 GMT",
+    "x-amz-version-id": "xADt4tvLH.870FtUSyqasCV8Qvpkn_MX",
+    "last-modified": "Tue, 06 Oct 2020 02:20:07 GMT",
+    "x-amz-request-id": "G40FWKHB6MABXWHY",
+    "content-length": "2130",
+    "access-control-allow-origin": "*",
+    "etag": "\"5292e16571f78abe8cfcaa86c4f9bde5\"",
+    "x-amz-id-2": "ckEhU7TsfNUtS5hJ0SgNcEEQZWrYuPEZV9Ah1s/DlK8HVAVBROecm3Qr0iCcXsOucA4dcUzUPUM=",
+    "server": "deploy/us-east4-c"
   },
   "url": "https://deno.land/x/node_buffer@1.1.0/src/ieee754.js"
 }

@@ -1,16 +1,16 @@
 {
   "headers": {
-    "etag": "\"2a4c4cce546491499c62bff2dc92f708\"",
-    "x-amz-id-2": "Ttbr0iiCXxbBiuNQfGCBPohzGC40u25uGC7iNhWW67o6Q/9uXLCfOmkIXPQQW6rCVvk7skOwfak=",
+    "x-amz-request-id": "G40EWHRR9D8H54C1",
     "x-amz-version-id": "qDGtLejTin.NMA0a4l0cv9z5GdvaJMD3",
     "access-control-allow-origin": "*",
+    "date": "Wed, 08 Sep 2021 21:32:50 GMT",
     "cache-control": "public, max-age=31536000, immutable",
-    "content-type": "application/typescript; charset=utf-8",
-    "last-modified": "Mon, 19 Jul 2021 09:27:21 GMT",
-    "x-amz-request-id": "7PWDM6D0YK4TJAVT",
     "content-length": "5500",
-    "server": "AmazonS3",
-    "date": "Fri, 20 Aug 2021 15:10:14 GMT"
+    "x-amz-id-2": "bd4TXjz5Pzesmt7oqJMQQUST3YKUz40+wv5nLoGBQsqmbBFAOcLGOAMHHrv3v/i2OItjw2SSmQ8=",
+    "server": "deploy/us-east4-c",
+    "last-modified": "Mon, 19 Jul 2021 09:27:21 GMT",
+    "content-type": "application/typescript; charset=utf-8",
+    "etag": "\"2a4c4cce546491499c62bff2dc92f708\""
   },
   "url": "https://deno.land/x/aws_sdk@v3.22.0-1/client-s3/commands/DeleteBucketReplicationCommand.ts"
 }

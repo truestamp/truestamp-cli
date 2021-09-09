@@ -1,16 +1,16 @@
 {
   "headers": {
-    "cache-control": "public, max-age=31536000, immutable",
-    "date": "Fri, 20 Aug 2021 15:10:14 GMT",
-    "last-modified": "Mon, 19 Jul 2021 09:27:21 GMT",
-    "x-amz-request-id": "7PWC9R3ZZR3Y675S",
-    "content-length": "5535",
-    "x-amz-id-2": "n5pQjyO7HeONbCn1gpWW4DlhJQfGzpYiJ576PcPk87lVOV6K8wBivn6nYcI+tK3wp9E/5E0nrb8=",
-    "x-amz-version-id": "anSK7G7pSZxd1_zTLrQ8d8SdWICU12mS",
-    "access-control-allow-origin": "*",
+    "x-amz-id-2": "/LE+OKTJj3BL4PZMwFFRH0k9OdGPXJwWkxw0aOUIQQuMZSWduCEoX/1CRCbwvWt7qm3om2tonrY=",
     "content-type": "application/typescript; charset=utf-8",
+    "cache-control": "public, max-age=31536000, immutable",
+    "content-length": "5535",
     "etag": "\"2c722bbf367e143aa36135e8e1dbc1bb\"",
-    "server": "AmazonS3"
+    "x-amz-request-id": "G4057GYFRK7HV21E",
+    "x-amz-version-id": "anSK7G7pSZxd1_zTLrQ8d8SdWICU12mS",
+    "last-modified": "Mon, 19 Jul 2021 09:27:21 GMT",
+    "server": "deploy/us-east4-c",
+    "date": "Wed, 08 Sep 2021 21:32:50 GMT",
+    "access-control-allow-origin": "*"
   },
   "url": "https://deno.land/x/aws_sdk@v3.22.0-1/client-s3/commands/GetBucketEncryptionCommand.ts"
 }

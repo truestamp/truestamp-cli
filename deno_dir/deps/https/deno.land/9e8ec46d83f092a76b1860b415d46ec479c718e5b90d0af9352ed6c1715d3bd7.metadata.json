@@ -1,16 +1,16 @@
 {
   "headers": {
-    "date": "Fri, 20 Aug 2021 15:10:14 GMT",
-    "x-amz-version-id": "lJVkds9RFyi7Ej.UMnRG8WqO6naL22ie",
     "cache-control": "public, max-age=31536000, immutable",
     "content-type": "application/typescript; charset=utf-8",
+    "x-amz-id-2": "OLhxspPZBQ6zpJLgdegjZ/HWRXeq7LNS5FJTYTeoUAW+xTSTKEJ6TrdmU3ytgswTzHbc+pDlCGU=",
     "content-length": "4757",
     "etag": "\"bd7a66a871a8c4766f476c94ec4dc0ce\"",
-    "server": "AmazonS3",
-    "x-amz-request-id": "7PW55J3T8FV1J99B",
-    "x-amz-id-2": "RTO1px1PGNNJIZWtv0/xKrL4SUt8v9yzHwy9EtzjZf02NPNawrxB2UZGfhRMaoXrj/oDXOuuW5g=",
+    "x-amz-request-id": "A7CQ4SDG548HHTVZ",
+    "x-amz-version-id": "lJVkds9RFyi7Ej.UMnRG8WqO6naL22ie",
     "last-modified": "Mon, 19 Jul 2021 09:27:21 GMT",
-    "access-control-allow-origin": "*"
+    "access-control-allow-origin": "*",
+    "server": "deploy/us-east4-c",
+    "date": "Wed, 08 Sep 2021 21:32:49 GMT"
   },
   "url": "https://deno.land/x/aws_sdk@v3.22.0-1/client-s3/commands/DeleteBucketCorsCommand.ts"
 }

@@ -1,16 +1,16 @@
 {
   "headers": {
+    "access-control-allow-origin": "*",
     "x-amz-version-id": "tr2qwUHQNBTp_xLYnWCJ7OR4fMuHhO2x",
-    "x-amz-request-id": "274XQPMR4XDRN3XC",
     "last-modified": "Mon, 12 Jul 2021 23:47:13 GMT",
-    "content-length": "708",
-    "cache-control": "public, max-age=31536000, immutable",
-    "server": "AmazonS3",
-    "date": "Fri, 20 Aug 2021 15:10:15 GMT",
     "etag": "\"b5ac166d3158179ee451ecb99b4c2520\"",
-    "x-amz-id-2": "loD4KuGtTuuuFDKboTP0aKrUWxmBl8LOlBt8T8xtfZOrnYsy5em9H0qaAFgkWl2xOvfj5HN+6ec=",
+    "content-length": "708",
+    "x-amz-id-2": "FNyzFdObsGf/PnUrFMeqGjRIPhn6hEZRd/Ll6C5pGmR5tRWhURVnU8YyUQeZHmNcAnnzGlp+vds=",
     "content-type": "application/typescript; charset=utf-8",
-    "access-control-allow-origin": "*"
+    "server": "deploy/us-east4-c",
+    "cache-control": "public, max-age=31536000, immutable",
+    "x-amz-request-id": "9RM36PYPMBERAM96",
+    "date": "Wed, 08 Sep 2021 21:32:51 GMT"
   },
   "url": "https://deno.land/std@0.101.0/fs/exists.ts"
 }

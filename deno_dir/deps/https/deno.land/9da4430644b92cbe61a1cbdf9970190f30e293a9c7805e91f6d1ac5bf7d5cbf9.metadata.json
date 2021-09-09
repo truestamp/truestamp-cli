@@ -1,16 +1,16 @@
 {
   "headers": {
-    "cache-control": "public, max-age=31536000, immutable",
+    "date": "Wed, 08 Sep 2021 21:32:50 GMT",
     "content-type": "application/typescript; charset=utf-8",
-    "server": "AmazonS3",
-    "x-amz-request-id": "274P1872368MYM2H",
+    "cache-control": "public, max-age=31536000, immutable",
+    "x-amz-request-id": "G4053RS0SZ5W4GT8",
     "x-amz-version-id": "Qc82TaN5ShHXaFEweDkgZYgVftD2v0EI",
-    "content-length": "54",
-    "x-amz-id-2": "4E0dpIaKm4dksLrFqp7E/m0gcCQhUcrCqSw5IOpN4KS3GaOaxMePbv5RgtDRSiFkd89hlp9knP0=",
+    "access-control-allow-origin": "*",
+    "x-amz-id-2": "Se1Yur/68ijILiaOoKz9TnXg6FnaxL2HQyL150H8/b+3BCkzBKhiMyJkWE41IxF7IzIfAIdy9yE=",
     "etag": "\"02016b49f1ca188458209a258a377d13\"",
     "last-modified": "Mon, 19 Jul 2021 09:27:27 GMT",
-    "date": "Fri, 20 Aug 2021 15:10:15 GMT",
-    "access-control-allow-origin": "*"
+    "content-length": "54",
+    "server": "deploy/us-east4-c"
   },
   "url": "https://deno.land/x/aws_sdk@v3.22.0-1/xml-builder/stringable.ts"
 }

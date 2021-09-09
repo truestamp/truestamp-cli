@@ -1,16 +1,16 @@
 {
   "headers": {
-    "last-modified": "Mon, 19 Jul 2021 09:27:27 GMT",
-    "x-amz-version-id": "CfabJVPI6DT8eb3z9ahhFyxFqZiz01tk",
-    "etag": "\"db90b6c66fccf6e8e25a515ae6e5858c\"",
-    "cache-control": "public, max-age=31536000, immutable",
-    "server": "AmazonS3",
     "content-length": "1494",
-    "date": "Fri, 20 Aug 2021 15:10:15 GMT",
+    "access-control-allow-origin": "*",
     "content-type": "application/typescript; charset=utf-8",
-    "x-amz-id-2": "xEqeuXFXmZcLajzJRIa+q7Ml+m6R8HDYj6Jbcvk/UHYRbVo/ftSA6VDUbU9QayoVa/dACZOlo1Q=",
-    "x-amz-request-id": "274TCQ1CSECS8HAD",
-    "access-control-allow-origin": "*"
+    "x-amz-version-id": "CfabJVPI6DT8eb3z9ahhFyxFqZiz01tk",
+    "server": "deploy/us-east4-c",
+    "x-amz-request-id": "G405H9RA9QJ2EJGW",
+    "etag": "\"db90b6c66fccf6e8e25a515ae6e5858c\"",
+    "last-modified": "Mon, 19 Jul 2021 09:27:27 GMT",
+    "cache-control": "public, max-age=31536000, immutable",
+    "x-amz-id-2": "q8T7aOjCzPgzgNSpcOPkJZSPfEG3+MGKWPunprzpm7EkhYzVGbnt3VfinJuItGlJNghoElTlJF4=",
+    "date": "Wed, 08 Sep 2021 21:32:50 GMT"
   },
   "url": "https://deno.land/x/aws_sdk@v3.22.0-1/middleware-sdk-s3/use-regional-endpoint.ts"
 }

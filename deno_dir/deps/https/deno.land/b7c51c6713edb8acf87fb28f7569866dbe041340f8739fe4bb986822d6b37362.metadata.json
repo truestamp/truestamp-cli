@@ -1,16 +1,16 @@
 {
   "headers": {
-    "cache-control": "public, max-age=31536000, immutable",
-    "last-modified": "Mon, 19 Jul 2021 09:27:21 GMT",
-    "x-amz-request-id": "7PW9258HKHP5AF6J",
-    "x-amz-version-id": ".NWJV2I89XuqJzfwWToNiv7O13yP_H91",
     "content-length": "5946",
-    "content-type": "application/typescript; charset=utf-8",
+    "date": "Wed, 08 Sep 2021 21:32:50 GMT",
+    "x-amz-id-2": "/sAHNxXTTpwW+ITqBaEIb+HR008zzpx1nQozk1Ml7NqUfSGTplxWitSefLWgq83ZhoWNQajn4pg=",
+    "cache-control": "public, max-age=31536000, immutable",
+    "x-amz-version-id": ".NWJV2I89XuqJzfwWToNiv7O13yP_H91",
     "access-control-allow-origin": "*",
-    "date": "Fri, 20 Aug 2021 15:10:14 GMT",
-    "server": "AmazonS3",
-    "x-amz-id-2": "LPiDXv8N72ylSRiz/wLwpi/DvGkRlyIJANd7Gb/plUR312uquRK4CHEDV4D6dOxMEuUMkPZW1u4=",
-    "etag": "\"3addb04d48fd7f22d3afffb87c934787\""
+    "x-amz-request-id": "G40354TSCJMM2YAW",
+    "etag": "\"3addb04d48fd7f22d3afffb87c934787\"",
+    "content-type": "application/typescript; charset=utf-8",
+    "server": "deploy/us-east4-c",
+    "last-modified": "Mon, 19 Jul 2021 09:27:21 GMT"
   },
   "url": "https://deno.land/x/aws_sdk@v3.22.0-1/client-s3/commands/DeleteBucketInventoryConfigurationCommand.ts"
 }

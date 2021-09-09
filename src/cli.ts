@@ -11,7 +11,7 @@ import {
 
 import { auth } from "./commands/auth.ts";
 import { documents } from "./commands/documents.ts";
-import { heartbeat } from "./commands/heartbeat.ts";
+import { health } from "./commands/health.ts";
 import { s3 } from "./commands/s3.ts";
 
 // Top level command
@@ -42,7 +42,7 @@ const cmd = new Command()
   .command("auth", auth)
   .command("completions", new CompletionsCommand())
   .command("documents", documents)
-  .command("heartbeat", heartbeat)
+  .command("health", health)
   .command("help", new HelpCommand().global())
   .command("s3", s3);
 
@@ -58,10 +58,12 @@ try {
         ) + "\n",
       ),
     );
-  } else {
+  } else if (error instanceof Error) {
     Deno.stderr.writeSync(
       new TextEncoder().encode(
-        colors.red(`  ${colors.bold("Error")}: ${error.message}\n`) + "\n",
+        colors.red(
+          `  ${colors.bold("Error")}: ${error.message}\n`,
+        ) + "\n",
       ),
     );
   }

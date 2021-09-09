@@ -1,16 +1,16 @@
 {
   "headers": {
-    "content-length": "1966",
-    "content-type": "application/typescript; charset=utf-8",
-    "date": "Fri, 20 Aug 2021 15:10:14 GMT",
-    "last-modified": "Mon, 19 Jul 2021 09:27:27 GMT",
-    "x-amz-id-2": "987KO7Vy7sFpdDKfp4xVH2gxZKctxBuZkGx0mdBRsfnBbPvzdCs93HezoPmHg3v0G/Ci9qVvYaY=",
-    "x-amz-request-id": "7PWFFD4THNBXPEHH",
-    "x-amz-version-id": "dBMlKLsd_nfGZ75bHf4kuvutOlzi43zp",
     "cache-control": "public, max-age=31536000, immutable",
     "access-control-allow-origin": "*",
-    "server": "AmazonS3",
-    "etag": "\"b58e54b9e813c3bc8e04126e67c12071\""
+    "content-type": "application/typescript; charset=utf-8",
+    "server": "deploy/us-east4-c",
+    "etag": "\"b58e54b9e813c3bc8e04126e67c12071\"",
+    "x-amz-request-id": "G40CTHQ3ER898J3A",
+    "x-amz-version-id": "dBMlKLsd_nfGZ75bHf4kuvutOlzi43zp",
+    "x-amz-id-2": "gG15xuopn/CCgW+gsIXgarZKnuhYvwwbui7Lp5MQ6amhAOznMeMgSryT32TJhn3i5cr9+vOX6wE=",
+    "date": "Wed, 08 Sep 2021 21:32:50 GMT",
+    "content-length": "1966",
+    "last-modified": "Mon, 19 Jul 2021 09:27:27 GMT"
   },
   "url": "https://deno.land/x/aws_sdk@v3.22.0-1/middleware-host-header/mod.ts"
 }

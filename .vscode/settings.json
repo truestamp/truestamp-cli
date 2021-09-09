@@ -16,6 +16,7 @@
   "editor.formatOnPaste": false,
   "cSpell.ignoreWords": [
     "aarch",
+    "apikey",
     "cqrtz",
     "dzx",
     "fx",
@@ -45,5 +46,8 @@
     "x",
     "xj",
     "zxvf"
+  ],
+  "cSpell.words": [
+    "apikeys"
   ]
 }

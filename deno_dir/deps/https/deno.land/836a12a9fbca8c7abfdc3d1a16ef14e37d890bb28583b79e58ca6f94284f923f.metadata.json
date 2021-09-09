@@ -1,16 +1,16 @@
 {
   "headers": {
-    "date": "Fri, 20 Aug 2021 15:10:14 GMT",
-    "last-modified": "Mon, 19 Jul 2021 09:27:21 GMT",
-    "cache-control": "public, max-age=31536000, immutable",
-    "x-amz-id-2": "kVQTBHLgqS++MhN8grJs73YyMDij9JVYlmpCKDMa1ezUjJYsdMKgQBqGr0aPPgPRZacuYioipxg=",
-    "content-length": "8415",
+    "date": "Wed, 08 Sep 2021 21:32:49 GMT",
+    "x-amz-id-2": "96pJyhqybMoKi56s0WQQ5+NAcTRbD1q+3XhXvJku0vhyMJN2AYw+DTWQSTQg3sT2V3Lf+MDu2Uw=",
     "access-control-allow-origin": "*",
+    "x-amz-request-id": "A7CQM2E9MW7GM2RW",
     "content-type": "application/typescript; charset=utf-8",
-    "server": "AmazonS3",
+    "x-amz-version-id": "me.PMHLXcxoD1zPI.sR9mRGHa3VCLydr",
+    "server": "deploy/us-east4-c",
+    "cache-control": "public, max-age=31536000, immutable",
+    "content-length": "8415",
     "etag": "\"2dba147a73297a605ab3afb52fd8c5c3\"",
-    "x-amz-request-id": "7PWCT9GX2SBC1PTC",
-    "x-amz-version-id": "me.PMHLXcxoD1zPI.sR9mRGHa3VCLydr"
+    "last-modified": "Mon, 19 Jul 2021 09:27:21 GMT"
   },
   "url": "https://deno.land/x/aws_sdk@v3.22.0-1/client-s3/commands/PutBucketReplicationCommand.ts"
 }

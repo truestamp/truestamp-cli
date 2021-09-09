@@ -1,16 +1,16 @@
 {
   "headers": {
-    "content-type": "application/typescript; charset=utf-8",
-    "x-amz-version-id": "Walp9Elf5HMTsodAF_PoGfyQIQmjqUq9",
-    "date": "Fri, 20 Aug 2021 15:10:15 GMT",
-    "x-amz-id-2": "60ecK3k/Dd0KjjxKM1l9ca59Vsx7PLb1K6UAjOWdMLGP5e4PPsf3RKCs+1Srngm0ODSdyUWaj0c=",
-    "content-length": "686",
-    "access-control-allow-origin": "*",
     "cache-control": "public, max-age=31536000, immutable",
-    "etag": "\"b4933d163e985415d79a85c3ea29bb2a\"",
-    "x-amz-request-id": "274MD3EHQDBZNV4P",
+    "date": "Wed, 08 Sep 2021 21:32:50 GMT",
+    "access-control-allow-origin": "*",
+    "server": "deploy/us-east4-c",
+    "content-type": "application/typescript; charset=utf-8",
     "last-modified": "Mon, 19 Jul 2021 09:27:27 GMT",
-    "server": "AmazonS3"
+    "x-amz-id-2": "ut/Hk8PVsJaCF6QvRMP1BL4pGG9h91UT0OgO+81AwYILVSvuk3F16Epoq2evU0uqNlM7Sqwn1NM=",
+    "x-amz-request-id": "G407W59QXHYPEG4S",
+    "etag": "\"b4933d163e985415d79a85c3ea29bb2a\"",
+    "content-length": "686",
+    "x-amz-version-id": "Walp9Elf5HMTsodAF_PoGfyQIQmjqUq9"
   },
   "url": "https://deno.land/x/aws_sdk@v3.22.0-1/credential-provider-imds/remoteProvider/ImdsCredentials.ts"
 }

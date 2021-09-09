@@ -1,16 +1,16 @@
 {
   "headers": {
+    "x-amz-id-2": "QfW4iAhcSipop6ukEMOPWxWQiATmz3g4Gk/S8Mbhe9xzfsuZ7YbZgg/EJylntICkEmW4S3VyaOo=",
+    "server": "deploy/us-east4-c",
     "content-length": "874",
+    "last-modified": "Thu, 12 Aug 2021 20:51:13 GMT",
     "access-control-allow-origin": "*",
-    "x-amz-request-id": "7PWA47B6A3Y5R76W",
-    "etag": "\"e2069b2c3ea99f8e560fbf481b844919\"",
-    "x-amz-version-id": "XHrz605gsIH4x8iGInlwn7XjL4CzUuZ9",
-    "cache-control": "public, max-age=31536000, immutable",
     "content-type": "application/typescript; charset=utf-8",
-    "server": "AmazonS3",
-    "date": "Fri, 20 Aug 2021 15:10:14 GMT",
-    "x-amz-id-2": "8pG7jAlLvrJyQlzLYdZW1hJfmczxwvhCpVjXUxaM9q40Fo+UI06MrUySMghzkO/klcdXqqbt1pY=",
-    "last-modified": "Thu, 12 Aug 2021 20:51:13 GMT"
+    "x-amz-request-id": "A7CK8CCNV1DKCTH2",
+    "date": "Wed, 08 Sep 2021 21:32:49 GMT",
+    "cache-control": "public, max-age=31536000, immutable",
+    "x-amz-version-id": "XHrz605gsIH4x8iGInlwn7XjL4CzUuZ9",
+    "etag": "\"e2069b2c3ea99f8e560fbf481b844919\""
   },
   "url": "https://deno.land/x/cliffy@v0.19.5/command/completions/fish.ts"
 }

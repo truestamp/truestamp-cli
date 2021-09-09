@@ -1,16 +1,16 @@
 {
   "headers": {
-    "server": "AmazonS3",
-    "x-amz-version-id": "_8a6pFLYOn4iRlKCEJJRGN50AammWgjW",
-    "cache-control": "public, max-age=31536000, immutable",
-    "date": "Fri, 20 Aug 2021 15:10:14 GMT",
-    "access-control-allow-origin": "*",
-    "content-type": "application/typescript; charset=utf-8",
-    "content-length": "5024",
-    "x-amz-id-2": "Rsvbfk0TnOxPt5dNZmtm4XE/4CjUgovzryQzy/TRQKfr6heBzHklZT6RKakDVxorOBoP4QwsZ9M=",
-    "etag": "\"c0d3cdb5f67fe0854c7fe3908396579f\"",
+    "x-amz-request-id": "G403231082N4QWAX",
+    "server": "deploy/us-east4-c",
     "last-modified": "Mon, 19 Jul 2021 09:27:21 GMT",
-    "x-amz-request-id": "7PW72ZPVQW3GZRT3"
+    "content-type": "application/typescript; charset=utf-8",
+    "etag": "\"c0d3cdb5f67fe0854c7fe3908396579f\"",
+    "x-amz-id-2": "7tTfIiUsOFIPbqASRDkiI00acVM2l8DoLsXIDnNkfDas8Hadp7Wr/14NfzpX1oeU+e1TAa3nHdw=",
+    "content-length": "5024",
+    "cache-control": "public, max-age=31536000, immutable",
+    "x-amz-version-id": "_8a6pFLYOn4iRlKCEJJRGN50AammWgjW",
+    "access-control-allow-origin": "*",
+    "date": "Wed, 08 Sep 2021 21:32:50 GMT"
   },
   "url": "https://deno.land/x/aws_sdk@v3.22.0-1/client-s3/commands/PutBucketRequestPaymentCommand.ts"
 }

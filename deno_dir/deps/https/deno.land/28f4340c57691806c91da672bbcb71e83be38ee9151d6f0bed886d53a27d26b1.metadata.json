@@ -1,16 +1,16 @@
 {
   "headers": {
-    "content-type": "application/typescript; charset=utf-8",
-    "etag": "\"d9381b0a4271c3f2b69471c37e206735\"",
     "content-length": "1830",
+    "content-type": "application/typescript; charset=utf-8",
+    "x-amz-id-2": "n5mlaC3WuaLoXhDesfBw/5UxECV+u7Vu88LzZthHOo6tGIMM4rv6+Ykqu3tLBV2QRSnmHtOoBwg=",
     "last-modified": "Mon, 19 Jul 2021 09:27:24 GMT",
     "x-amz-version-id": "gfzCAddYoIMdQrrwwVruL2kOHALhfPmi",
-    "x-amz-id-2": "44+UVC+VC0bKxthMy9gP/heOC79IPrhJ/z7xdvEfzPMMCCyyk2LXOky3+zIT4WzVP2Kj+Wxihkw=",
-    "server": "AmazonS3",
-    "x-amz-request-id": "274HAGTDCP0Y2NHP",
     "access-control-allow-origin": "*",
-    "date": "Fri, 20 Aug 2021 15:10:15 GMT",
-    "cache-control": "public, max-age=31536000, immutable"
+    "cache-control": "public, max-age=31536000, immutable",
+    "server": "deploy/us-east4-c",
+    "x-amz-request-id": "G407RJNADTR9AMAJ",
+    "etag": "\"d9381b0a4271c3f2b69471c37e206735\"",
+    "date": "Wed, 08 Sep 2021 21:32:50 GMT"
   },
   "url": "https://deno.land/x/aws_sdk@v3.22.0-1/client-sso/pagination/ListAccountRolesPaginator.ts"
 }

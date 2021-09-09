@@ -1,15 +1,15 @@
 {
   "headers": {
-    "content-type": "application/typescript; charset=utf-8",
-    "cache-control": "public, max-age=31536000, immutable",
-    "date": "Fri, 20 Aug 2021 15:10:14 GMT",
-    "last-modified": "Mon, 19 Jul 2021 09:27:21 GMT",
-    "content-length": "8151",
-    "etag": "\"4ff63a32a83533e39745d04dfb4aa132\"",
-    "x-amz-id-2": "kzcjWH/Y7Xw3CPO4l98lNxsstaCrTEIMjPV1ygjNLRq1PjZCTLQ13ORuqleSPNWOEbclsULt7h4=",
     "x-amz-version-id": "7puQemPRH0MTf3U2oEkQB0bHlLUxr8dn",
-    "x-amz-request-id": "7PW4QD4FDHRH469Z",
-    "server": "AmazonS3",
+    "x-amz-request-id": "G4065RKAKZQNRAS6",
+    "date": "Wed, 08 Sep 2021 21:32:50 GMT",
+    "content-type": "application/typescript; charset=utf-8",
+    "last-modified": "Mon, 19 Jul 2021 09:27:21 GMT",
+    "etag": "\"4ff63a32a83533e39745d04dfb4aa132\"",
+    "server": "deploy/us-east4-c",
+    "content-length": "8151",
+    "cache-control": "public, max-age=31536000, immutable",
+    "x-amz-id-2": "z4yc755LlJbA/AfN46Y/xxhIOtyZNUw0C1PVg0buPAokbHN7c4+Hb2dzKuXC8wUfpN9Z5RFuc4M=",
     "access-control-allow-origin": "*"
   },
   "url": "https://deno.land/x/aws_sdk@v3.22.0-1/client-s3/commands/PutObjectTaggingCommand.ts"

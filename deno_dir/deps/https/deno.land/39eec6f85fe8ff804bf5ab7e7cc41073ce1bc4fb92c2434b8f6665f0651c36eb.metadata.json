@@ -1,16 +1,16 @@
 {
   "headers": {
-    "x-amz-request-id": "7PW4VW75AE6W933Q",
-    "access-control-allow-origin": "*",
-    "date": "Fri, 20 Aug 2021 15:10:14 GMT",
-    "cache-control": "public, max-age=31536000, immutable",
-    "x-amz-id-2": "Ns9tNL/AqxdGD3+bYK1ajgQQI7bbCGcHJma7mQxaRT2nmTZ7soA/4XZsBXRt+mjGAEjAtHPsgCE=",
-    "server": "AmazonS3",
-    "last-modified": "Mon, 19 Jul 2021 09:27:21 GMT",
     "content-length": "4442",
-    "x-amz-version-id": "LDlJomGkd5EJlnuKkWO3ie0RBFFOx1JO",
+    "access-control-allow-origin": "*",
+    "x-amz-request-id": "A7CKAGDV7F9BHG7J",
+    "cache-control": "public, max-age=31536000, immutable",
     "content-type": "application/typescript; charset=utf-8",
-    "etag": "\"dd821d373346dc127b5c5d33503dc99f\""
+    "etag": "\"dd821d373346dc127b5c5d33503dc99f\"",
+    "last-modified": "Mon, 19 Jul 2021 09:27:21 GMT",
+    "x-amz-id-2": "zKn3PPXwPpJxrQxxwFx9i8PBpdqtQJf60x0dmN+RzsRkkp0X6r2/BnDk/S6mM+StaBFgwLx8III=",
+    "x-amz-version-id": "LDlJomGkd5EJlnuKkWO3ie0RBFFOx1JO",
+    "date": "Wed, 08 Sep 2021 21:32:49 GMT",
+    "server": "deploy/us-east4-c"
   },
   "url": "https://deno.land/x/aws_sdk@v3.22.0-1/client-s3/commands/GetBucketLoggingCommand.ts"
 }

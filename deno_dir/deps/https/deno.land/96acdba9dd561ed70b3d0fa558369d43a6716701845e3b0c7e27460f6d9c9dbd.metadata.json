@@ -1,16 +1,16 @@
 {
   "headers": {
-    "x-amz-request-id": "XASXT8X4YFEXNBDK",
     "cache-control": "public, max-age=31536000, immutable",
-    "access-control-allow-origin": "*",
     "content-type": "application/typescript; charset=utf-8",
-    "content-length": "4251",
-    "last-modified": "Mon, 19 Jul 2021 09:27:24 GMT",
-    "x-amz-id-2": "Qt5SrU4Se+DU9ySsU1N2ZhkkDW++9ERaYZfo5QiihxWGl7xMe46f0IIju9Ar70CA2Rn+D04/n8A=",
+    "date": "Wed, 08 Sep 2021 21:32:51 GMT",
     "etag": "\"e077a16c1cbe8215e97890eb6002eb96\"",
+    "last-modified": "Mon, 19 Jul 2021 09:27:24 GMT",
+    "server": "deploy/us-east4-c",
     "x-amz-version-id": "cZmmXGkI7fOyYZHvgo4KbqPh4lPbJ4fG",
-    "date": "Fri, 20 Aug 2021 15:10:16 GMT",
-    "server": "AmazonS3"
+    "x-amz-id-2": "euoP9Nlg+IKKffBO5r1RpXjkqjfV+nNTmlHXxbFW8B5NOKHbASDqHxjSJRwbGQ5JOBq4T9kCFtw=",
+    "x-amz-request-id": "9RMEXZKQCPFQETF9",
+    "access-control-allow-origin": "*",
+    "content-length": "4251"
   },
   "url": "https://deno.land/x/aws_sdk@v3.22.0-1/client-sso/endpoints.ts"
 }

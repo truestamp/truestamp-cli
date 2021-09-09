@@ -1,16 +1,16 @@
 {
   "headers": {
-    "x-amz-request-id": "XASJZ52E0PSH9KXT",
-    "server": "AmazonS3",
-    "x-amz-id-2": "FRirNPmw72G5gfLnCazqwvqRlSI+CUpFtt7y0lZGz08B4qPSUGkAblg7mxzOY4t4isWXHyye7K0=",
-    "cache-control": "public, max-age=31536000, immutable",
-    "content-type": "application/typescript; charset=utf-8",
-    "date": "Fri, 20 Aug 2021 15:10:16 GMT",
-    "x-amz-version-id": "IHwyWVdzI4zZYrEluCVX6eD_1tKCe.EK",
+    "etag": "\"b66641f8924e7ee51a14f19573d6966e\"",
     "access-control-allow-origin": "*",
-    "last-modified": "Mon, 12 Jul 2021 23:47:14 GMT",
+    "cache-control": "public, max-age=31536000, immutable",
+    "x-amz-version-id": "IHwyWVdzI4zZYrEluCVX6eD_1tKCe.EK",
     "content-length": "99",
-    "etag": "\"b66641f8924e7ee51a14f19573d6966e\""
+    "date": "Wed, 08 Sep 2021 21:32:51 GMT",
+    "server": "deploy/us-east4-c",
+    "x-amz-id-2": "E2OmpolhROWVAXKtKDbkKxcMmHYJTWh8DZpxzNGleWSAPrj4HE4w8rXCBr4GASGtXU9PmOTtQ6M=",
+    "x-amz-request-id": "9RM0NF03BJ81W965",
+    "last-modified": "Mon, 12 Jul 2021 23:47:14 GMT",
+    "content-type": "application/typescript; charset=utf-8"
   },
   "url": "https://deno.land/std@0.101.0/node/_crypto/types.ts"
 }

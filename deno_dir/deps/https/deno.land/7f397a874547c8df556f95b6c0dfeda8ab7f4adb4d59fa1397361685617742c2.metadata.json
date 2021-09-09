@@ -1,15 +1,15 @@
 {
   "headers": {
-    "access-control-allow-origin": "*",
-    "x-amz-request-id": "7PW55J3ARVRW9YSA",
     "last-modified": "Mon, 19 Jul 2021 09:27:27 GMT",
-    "etag": "\"4250088f94eb35a621c3424a19a38b2f\"",
-    "server": "AmazonS3",
-    "content-type": "application/typescript; charset=utf-8",
     "cache-control": "public, max-age=31536000, immutable",
-    "date": "Fri, 20 Aug 2021 15:10:14 GMT",
-    "x-amz-id-2": "J8hxMQTicZ/Upf6g9slvDjMPLi8JttgS1eZM8K1ro+dTkzn7AEqlNA29nz12JlPv9jcTCktoMpY=",
+    "etag": "\"4250088f94eb35a621c3424a19a38b2f\"",
+    "server": "deploy/us-east4-c",
+    "content-type": "application/typescript; charset=utf-8",
+    "access-control-allow-origin": "*",
     "content-length": "64",
+    "x-amz-id-2": "WI+SUv0/NxGp87vGCSfu/3HHqppK+fQV5iOkIIOtpJ9KDu1GCKllsmU64WnzoptumXti1/x5Mnw=",
+    "date": "Wed, 08 Sep 2021 21:32:50 GMT",
+    "x-amz-request-id": "G407VQCT1GHCD6X2",
     "x-amz-version-id": "f3aYsQNO4PnFTqahqcBkj8TERuxRJvlH"
   },
   "url": "https://deno.land/x/aws_sdk@v3.22.0-1/util-waiter/mod.ts"

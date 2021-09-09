@@ -112,10 +112,10 @@ The CLI has its own help system and every command and sub-command can be invoked
 with `-h`, `--help`, or simply `help` to learn more.
 
 ```txt
-❯ truestamp -h
+❯ ./truestamp -h
 
   Usage:   truestamp
-  Version: v0.0.0
+  Version: 0.0.9    
 
   Description:
 
@@ -123,16 +123,17 @@ with `-h`, `--help`, or simply `help` to learn more.
 
   Options:
 
-    -h, --help     - Show this help.
-    -V, --version  - Show the version number for this program.
+    -h, --help     - Show this help.                            
+    -V, --version  - Show the version number for this program.  
 
   Commands:
 
-    auth                    - Login, logout, and show status of your authentication.
-    completions             - Generate shell completions.
-    documents               - Create, read, update, or destroy documents.
-    heartbeat               - Display results of API server heartbeat call.
-    help         [command]  - Show this help or the help of a sub-command.
+    auth                    - Login, logout, and show your current authentication status, or manage long-lived API keys.
+    completions             - Generate shell completions.                                                               
+    documents               - Create, read, update, or destroy documents.                                               
+    health                  - Display results of API server health call.                                                
+    help         [command]  - Show this help or the help of a sub-command.                                              
+    s3                      - Upload files to an AWS S3 bucket monitored by Truestamp.
 ```
 
 ## Releasing
