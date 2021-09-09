@@ -59,11 +59,11 @@ const apiKeyNew = new Command()
 
 export const apiKeys = new Command()
   .description(`Manage API keys.
-  
+
     API keys are not needed to use the CLI or web interface, and are provided as a
     convenience when using non-interactive clients like cURL or in machine-to-machine
     contexts.
-    
+
     Keys can be provided with a description or a TTL (Time To Live) value. Once the
     TTL has expired the key will be automatically destroyed.`)
   .action(() => {
