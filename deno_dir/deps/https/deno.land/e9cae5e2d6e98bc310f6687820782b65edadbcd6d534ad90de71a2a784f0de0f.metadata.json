@@ -1,16 +1,21 @@
 {
   "headers": {
-    "last-modified": "Mon, 19 Jul 2021 09:27:21 GMT",
-    "content-length": "5514",
-    "content-type": "application/typescript; charset=utf-8",
-    "date": "Wed, 08 Sep 2021 21:32:50 GMT",
-    "x-amz-request-id": "G4007FDHNMP8RDF0",
-    "x-amz-version-id": "w368u8svRaThVW8kG2lXujdHgZixksVt",
-    "access-control-allow-origin": "*",
-    "server": "deploy/us-east4-c",
+    "x-amz-id-2": "3pYQS4V5K4zz1PSz938Vwdyrb4v5tbI1pmsorqsF+zmsKEQdCM3Lb1G49a8MKZmGdS6Hlna26bQ=",
+    "expect-ct": "max-age=604800, report-uri=\"https://report-uri.cloudflare.com/cdn-cgi/beacon/expect-ct\"",
+    "cf-ray": "690d8787185b5c34-IAD",
     "etag": "\"1dfdcdbcb3cb9de4b41c63bbae78f541\"",
-    "x-amz-id-2": "EFVcwPcu+3tfCB5We08T3KY73fEbFB7SkAZpaDxLUhLT4mPCWF9wBYGNc3GNWxqITTiz4WhM4E8=",
-    "cache-control": "public, max-age=31536000, immutable"
+    "date": "Sat, 18 Sep 2021 21:04:54 GMT",
+    "access-control-allow-origin": "*",
+    "x-amz-request-id": "21XX1VZ5E0PK6FTD",
+    "last-modified": "Mon, 19 Jul 2021 09:27:21 GMT",
+    "x-amz-version-id": "w368u8svRaThVW8kG2lXujdHgZixksVt",
+    "cache-control": "public, max-age=31536000, immutable",
+    "content-type": "application/typescript; charset=utf-8",
+    "server": "cloudflare",
+    "content-length": "5514",
+    "cf-cache-status": "DYNAMIC",
+    "alt-svc": "h3=\":443\"; ma=86400, h3-29=\":443\"; ma=86400, h3-28=\":443\"; ma=86400, h3-27=\":443\"; ma=86400",
+    "connection": "keep-alive"
   },
   "url": "https://deno.land/x/aws_sdk@v3.22.0-1/client-s3/commands/DeletePublicAccessBlockCommand.ts"
 }

@@ -1,16 +1,21 @@
 {
   "headers": {
-    "content-type": "application/typescript; charset=utf-8",
     "etag": "\"a4aeb32cdedac81b324141dc88fd7f16\"",
-    "last-modified": "Mon, 19 Jul 2021 09:27:21 GMT",
-    "server": "deploy/us-east4-c",
-    "date": "Wed, 08 Sep 2021 21:32:49 GMT",
-    "cache-control": "public, max-age=31536000, immutable",
-    "x-amz-id-2": "d8smGvYyC3yCoqerxkl6go+dgq3zzqfeUpNqXwA6BVKWA4t764mvgDpSJbEXaDTttVp347en6x8=",
-    "x-amz-request-id": "A7CNDD0Q0457MCWS",
     "x-amz-version-id": "gpSHUkrWBdRkk7ztkeHVkLF3O2t.Yekk",
+    "cf-cache-status": "DYNAMIC",
+    "content-length": "5435",
+    "cf-ray": "690d878678a25a22-IAD",
+    "cache-control": "public, max-age=31536000, immutable",
+    "alt-svc": "h3=\":443\"; ma=86400, h3-29=\":443\"; ma=86400, h3-28=\":443\"; ma=86400, h3-27=\":443\"; ma=86400",
+    "content-type": "application/typescript; charset=utf-8",
+    "last-modified": "Mon, 19 Jul 2021 09:27:21 GMT",
+    "date": "Sat, 18 Sep 2021 21:04:54 GMT",
+    "x-amz-request-id": "21XPNWZSVPN6F0DD",
+    "x-amz-id-2": "irzrQEEYTtURZt5bp98IVWSC7ExTXqCrhiuZ/BrHnieqKZyZnnoDWx4yfIipT55ilbys4ztBMI4=",
+    "server": "cloudflare",
+    "connection": "keep-alive",
     "access-control-allow-origin": "*",
-    "content-length": "5435"
+    "expect-ct": "max-age=604800, report-uri=\"https://report-uri.cloudflare.com/cdn-cgi/beacon/expect-ct\""
   },
   "url": "https://deno.land/x/aws_sdk@v3.22.0-1/client-s3/commands/DeleteBucketEncryptionCommand.ts"
 }

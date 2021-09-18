@@ -1,16 +1,21 @@
 {
   "headers": {
-    "date": "Wed, 08 Sep 2021 21:32:50 GMT",
-    "server": "deploy/us-east4-c",
-    "last-modified": "Mon, 19 Jul 2021 09:27:27 GMT",
-    "etag": "\"f40d0dd9a915561b045753670af5055f\"",
+    "cf-cache-status": "DYNAMIC",
+    "cf-ray": "690d8787fde35b3a-IAD",
     "content-length": "130",
-    "content-type": "application/typescript; charset=utf-8",
-    "cache-control": "public, max-age=31536000, immutable",
-    "x-amz-id-2": "TXlx1zJ44d8MTDgxVk4seC35tKazldNzp5ROxK++L4UsG3j6j4/2e35EIs4WLFoqg0V2sg9R+oA=",
-    "x-amz-request-id": "G407HDPRXWSYFS26",
+    "access-control-allow-origin": "*",
     "x-amz-version-id": "MfOlwfvudH1wqVQR4ykwcx2uHpcfazq2",
-    "access-control-allow-origin": "*"
+    "alt-svc": "h3=\":443\"; ma=86400, h3-29=\":443\"; ma=86400, h3-28=\":443\"; ma=86400, h3-27=\":443\"; ma=86400",
+    "date": "Sat, 18 Sep 2021 21:04:55 GMT",
+    "connection": "keep-alive",
+    "expect-ct": "max-age=604800, report-uri=\"https://report-uri.cloudflare.com/cdn-cgi/beacon/expect-ct\"",
+    "server": "cloudflare",
+    "cache-control": "public, max-age=31536000, immutable",
+    "x-amz-request-id": "76GENQ655Y0PFPN3",
+    "content-type": "application/typescript; charset=utf-8",
+    "last-modified": "Mon, 19 Jul 2021 09:27:27 GMT",
+    "x-amz-id-2": "4R8h4iO0GZjR1Tvep3W/LpzWImG/NwVYcAjjhHWwJpTkIqu6bvhCJYTd0LsgGHNkFRBwer38+UQ=",
+    "etag": "\"f40d0dd9a915561b045753670af5055f\""
   },
   "url": "https://deno.land/x/aws_sdk@v3.22.0-1/middleware-sdk-s3/mod.ts"
 }

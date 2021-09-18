@@ -1,16 +1,21 @@
 {
   "headers": {
-    "x-amz-version-id": "AEmX2cXbBZc_XhW5qnO6qQAI7ssfgJ_3",
+    "x-amz-request-id": "76GADEZH3PKSV4YR",
+    "content-length": "1305",
+    "connection": "keep-alive",
+    "server": "cloudflare",
+    "expect-ct": "max-age=604800, report-uri=\"https://report-uri.cloudflare.com/cdn-cgi/beacon/expect-ct\"",
+    "x-amz-id-2": "o1abHmiBOOMoHq3bl3lU3XN7TdLLONuNq/y+QFBn0z7D/VQ7NQ31RNygqu0MLg8KRk8nWfHIvms=",
     "access-control-allow-origin": "*",
     "last-modified": "Mon, 19 Jul 2021 09:27:27 GMT",
-    "content-length": "1305",
-    "date": "Wed, 08 Sep 2021 21:32:50 GMT",
-    "content-type": "application/typescript; charset=utf-8",
+    "date": "Sat, 18 Sep 2021 21:04:55 GMT",
     "cache-control": "public, max-age=31536000, immutable",
-    "server": "deploy/us-east4-c",
-    "x-amz-id-2": "BxWorPUJEv9Smgl4w3v+H8IKFVDplWbg7+d3NoLyXjyXbWeMZBlap1Wp6MzIak5jWGNUkP5MBZY=",
     "etag": "\"ee85f68005dd3496d492d6484bef894c\"",
-    "x-amz-request-id": "G40A2ZH7AFKBVDGJ"
+    "content-type": "application/typescript; charset=utf-8",
+    "x-amz-version-id": "AEmX2cXbBZc_XhW5qnO6qQAI7ssfgJ_3",
+    "cf-ray": "690d87889e2e5772-IAD",
+    "cf-cache-status": "DYNAMIC",
+    "alt-svc": "h3=\":443\"; ma=86400, h3-29=\":443\"; ma=86400, h3-28=\":443\"; ma=86400, h3-27=\":443\"; ma=86400"
   },
   "url": "https://deno.land/x/aws_sdk@v3.22.0-1/middleware-serde/serdePlugin.ts"
 }

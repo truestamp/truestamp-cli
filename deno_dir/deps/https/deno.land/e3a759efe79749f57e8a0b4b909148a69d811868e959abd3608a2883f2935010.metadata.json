@@ -1,16 +1,21 @@
 {
   "headers": {
-    "content-type": "application/typescript; charset=utf-8",
     "content-length": "9235",
-    "access-control-allow-origin": "*",
-    "date": "Wed, 08 Sep 2021 21:32:50 GMT",
-    "x-amz-id-2": "u7ZoJxusSAPrFP0UgwneXgAEZm3Sbn8iPhVx7+0jUuL543Fb2hCFkEnR8wC0QlungKVMcbaWPFM=",
-    "x-amz-request-id": "G4068F53N2913GZD",
-    "server": "deploy/us-east4-c",
+    "cache-control": "public, max-age=31536000, immutable",
+    "alt-svc": "h3=\":443\"; ma=86400, h3-29=\":443\"; ma=86400, h3-28=\":443\"; ma=86400, h3-27=\":443\"; ma=86400",
+    "server": "cloudflare",
+    "x-amz-request-id": "76G5RZ6AWYQXRBVR",
+    "date": "Sat, 18 Sep 2021 21:04:55 GMT",
+    "cf-ray": "690d87884c47e0a6-IAD",
+    "content-type": "application/typescript; charset=utf-8",
+    "connection": "keep-alive",
     "x-amz-version-id": "TUv5f.0IuB.vpa9x7x8GGbpBMKpxfEPS",
+    "expect-ct": "max-age=604800, report-uri=\"https://report-uri.cloudflare.com/cdn-cgi/beacon/expect-ct\"",
     "last-modified": "Mon, 12 Jul 2021 23:47:14 GMT",
+    "cf-cache-status": "DYNAMIC",
     "etag": "\"fc1b2ed4822186a65d8475599700c38a\"",
-    "cache-control": "public, max-age=31536000, immutable"
+    "x-amz-id-2": "nCnR9PXTdKz1jVe9ZmZ07ejnZyIRtONEv+TNguvbtmFJKKoX2iaBYKMw8uRaXMZzyT2TmXKal5k=",
+    "access-control-allow-origin": "*"
   },
   "url": "https://deno.land/std@0.101.0/node/process.ts"
 }

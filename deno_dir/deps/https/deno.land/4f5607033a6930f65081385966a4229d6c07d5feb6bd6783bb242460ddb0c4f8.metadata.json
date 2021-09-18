@@ -1,16 +1,21 @@
 {
   "headers": {
-    "server": "deploy/us-east4-c",
-    "last-modified": "Mon, 19 Jul 2021 09:27:21 GMT",
+    "connection": "keep-alive",
+    "cache-control": "public, max-age=31536000, immutable",
+    "cf-cache-status": "DYNAMIC",
+    "etag": "\"4f152ad7392016f4f698c7ac19240a25\"",
+    "x-amz-id-2": "68prmGLY7Nt5q4+SSiCYoDnC7VRGioeIQ3jve9liLriiV5ggds8oUASiHFh8q13aoY6g8jLseTM=",
+    "date": "Sat, 18 Sep 2021 21:04:54 GMT",
     "content-type": "application/typescript; charset=utf-8",
     "x-amz-version-id": "sKL2lbUXeKky5SkvTpzgv293CIEm6mrq",
-    "date": "Wed, 08 Sep 2021 21:32:49 GMT",
+    "cf-ray": "690d8786bf25576c-IAD",
+    "server": "cloudflare",
+    "expect-ct": "max-age=604800, report-uri=\"https://report-uri.cloudflare.com/cdn-cgi/beacon/expect-ct\"",
     "access-control-allow-origin": "*",
-    "cache-control": "public, max-age=31536000, immutable",
-    "x-amz-id-2": "xBJknsdgtOE3pIwNCVB678wI7RFzsGgMuKMquBvtOpcx0xteVOeOlB9ew1YgmfQ7wAHGEc0IATQ=",
+    "alt-svc": "h3=\":443\"; ma=86400, h3-29=\":443\"; ma=86400, h3-28=\":443\"; ma=86400, h3-27=\":443\"; ma=86400",
+    "last-modified": "Mon, 19 Jul 2021 09:27:21 GMT",
     "content-length": "4961",
-    "etag": "\"4f152ad7392016f4f698c7ac19240a25\"",
-    "x-amz-request-id": "A7CKRS3D1W930664"
+    "x-amz-request-id": "21XP6DW6YH5S4N65"
   },
   "url": "https://deno.land/x/aws_sdk@v3.22.0-1/client-s3/commands/GetBucketVersioningCommand.ts"
 }

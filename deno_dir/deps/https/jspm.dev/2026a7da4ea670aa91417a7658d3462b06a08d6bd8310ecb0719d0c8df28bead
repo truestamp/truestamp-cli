@@ -1,0 +1,1 @@
+export { default } from "/npm:strnum@1.0.3!cjs";
