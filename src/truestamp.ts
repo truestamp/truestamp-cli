@@ -3,8 +3,7 @@
 import { getAccessTokenWithPrompts, Truestamp } from "./deps.ts";
 
 export async function createTruestampClient(apiEnv: string) {
-  // FIXME : https://stackoverflow.com/questions/43623461/new-expression-whose-target-lacks-a-construct-signature-in-typescript
-  const client = new (Truestamp as any)({
+  const client = new Truestamp({
     accessToken: await getAccessTokenWithPrompts(apiEnv),
     apiEnv: apiEnv,
   });

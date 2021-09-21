@@ -1,0 +1,5 @@
+import { Base } from "../base.d.ts";
+import { HealthStatus } from "./types.d.ts";
+export declare class Health extends Base {
+    getHealth(): Promise<HealthStatus>;
+}

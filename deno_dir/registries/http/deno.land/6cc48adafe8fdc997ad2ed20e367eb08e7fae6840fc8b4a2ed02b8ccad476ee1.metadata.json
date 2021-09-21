@@ -1,0 +1,15 @@
+{
+  "headers": {
+    "expires": "Tue, 21 Sep 2021 16:10:24 GMT",
+    "date": "Tue, 21 Sep 2021 15:10:24 GMT",
+    "transfer-encoding": "chunked",
+    "location": "https://deno.land/.well-known/deno-import-intellisense.json",
+    "cf-ray": "6924385bbc31cecc-IAD",
+    "alt-svc": "h3=\":443\"; ma=86400, h3-29=\":443\"; ma=86400, h3-28=\":443\"; ma=86400, h3-27=\":443\"; ma=86400",
+    "cache-control": "max-age=3600",
+    "server": "cloudflare",
+    "connection": "keep-alive",
+    "vary": "Accept-Encoding"
+  },
+  "url": "http://deno.land/.well-known/deno-import-intellisense.json"
+}

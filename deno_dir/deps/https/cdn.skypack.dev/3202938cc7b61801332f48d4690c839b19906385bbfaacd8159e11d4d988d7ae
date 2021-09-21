@@ -1,0 +1,10 @@
+import { Base } from "../base.d.ts";
+import { Document, NewOrUpdatedDocumentBody, GetAllDocumentsQueryParams, GetDocumentVersionsQueryParams } from "./types.d.ts";
+export declare class Documents extends Base {
+    createDocument(doc: NewOrUpdatedDocumentBody): Promise<Document>;
+    getAllDocuments(params?: GetAllDocumentsQueryParams): Promise<Document[]>;
+    getDocument(id: string): Promise<Document>;
+    updateDocument(id: string, doc: NewOrUpdatedDocumentBody): Promise<Document>;
+    deleteDocument(id: string): Promise<Document>;
+    getDocumentVersions(id: string, params?: GetDocumentVersionsQueryParams): Promise<Document[]>;
+}

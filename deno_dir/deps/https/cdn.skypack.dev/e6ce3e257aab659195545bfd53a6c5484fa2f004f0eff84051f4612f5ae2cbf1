@@ -1,0 +1,126 @@
+function t() {
+  return (t = Object.assign || function(t2) {
+    for (var e2 = 1; e2 < arguments.length; e2++) {
+      var n2 = arguments[e2];
+      for (var r2 in n2)
+        Object.prototype.hasOwnProperty.call(n2, r2) && (t2[r2] = n2[r2]);
+    }
+    return t2;
+  }).apply(this, arguments);
+}
+var e = {__proto__: null, default: function(t2, e2) {
+  return e2 = e2 || {}, new Promise(function(n2, r2) {
+    var o2 = new XMLHttpRequest(), s2 = [], i2 = [], u2 = {}, c2 = function() {
+      return {ok: (o2.status / 100 | 0) == 2, statusText: o2.statusText, status: o2.status, url: o2.responseURL, text: function() {
+        return Promise.resolve(o2.responseText);
+      }, json: function() {
+        return Promise.resolve(o2.responseText).then(JSON.parse);
+      }, blob: function() {
+        return Promise.resolve(new Blob([o2.response]));
+      }, clone: c2, headers: {keys: function() {
+        return s2;
+      }, entries: function() {
+        return i2;
+      }, get: function(t3) {
+        return u2[t3.toLowerCase()];
+      }, has: function(t3) {
+        return t3.toLowerCase() in u2;
+      }}};
+    };
+    for (var a in o2.open(e2.method || "get", t2, true), o2.onload = function() {
+      o2.getAllResponseHeaders().replace(/^(.*?):[^\S\n]*([\s\S]*?)$/gm, function(t3, e3, n3) {
+        s2.push(e3 = e3.toLowerCase()), i2.push([e3, n3]), u2[e3] = u2[e3] ? u2[e3] + "," + n3 : n3;
+      }), n2(c2());
+    }, o2.onerror = r2, o2.withCredentials = e2.credentials == "include", e2.headers)
+      o2.setRequestHeader(a, e2.headers[a]);
+    o2.send(e2.body || null);
+  });
+}}, n = self.fetch || (self.fetch = e.default || e);
+class r {
+  constructor(t2) {
+    this.accessToken = void 0, this.apiEnv = void 0, this.accessToken = t2.accessToken, this.apiEnv = t2.apiEnv || "production";
+  }
+  async request(e2, r3) {
+    const o2 = function(t2) {
+      const e3 = {development: "https://dev-api.truestamp.com/v1/", staging: "https://staging-api.truestamp.com/v1/", production: "https://api.truestamp.com/v1/"}[t2];
+      if (!e3)
+        throw new Error(`Unknown environment: ${t2}`);
+      return e3;
+    }(this.apiEnv) + e2, s2 = t({}, r3, {headers: {Authorization: "Bearer " + this.accessToken, "Content-type": "application/json", Accept: "application/json"}});
+    let i2 = await n(o2, s2);
+    if (i2.ok) {
+      if (i2.status === 204)
+        return new Promise((t2) => {
+          t2(JSON.parse("{}"));
+        });
+      try {
+        let t2 = await i2.json();
+        return t2.data && Array.isArray(t2.data) ? new Promise((e3) => {
+          e3(t2.data);
+        }) : new Promise((e3) => {
+          e3(t2);
+        });
+      } catch (t2) {
+        throw t2 instanceof Error ? new Error(t2.message) : new Error("Unknown Error");
+      }
+    }
+    const {message: u2} = await i2.json();
+    throw new Error(`${i2.status} : ${i2.statusText} : ${u2}`);
+  }
+}
+var o = Object.prototype.hasOwnProperty;
+function s(t2) {
+  try {
+    return encodeURIComponent(t2);
+  } catch (t3) {
+    return null;
+  }
+}
+var i, u = function(t2, e2) {
+  e2 = e2 || "";
+  var n2, r2, i2 = [];
+  for (r2 in typeof e2 != "string" && (e2 = "?"), t2)
+    if (o.call(t2, r2)) {
+      if ((n2 = t2[r2]) || n2 != null && !isNaN(n2) || (n2 = ""), r2 = s(r2), n2 = s(n2), r2 === null || n2 === null)
+        continue;
+      i2.push(r2 + "=" + n2);
+    }
+  return i2.length ? e2 + i2.join("&") : "";
+};
+class c extends r {
+}
+i = c, [class extends r {
+  getHealth() {
+    return this.request("health");
+  }
+}, class extends r {
+  createDocument(t2) {
+    return this.request("documents", {method: "POST", body: JSON.stringify(t2)});
+  }
+  getAllDocuments(t2) {
+    let e2 = "documents";
+    return t2 && (e2 += u(t2, true)), this.request(e2);
+  }
+  getDocument(t2) {
+    return this.request(`documents/${t2}`);
+  }
+  updateDocument(t2, e2) {
+    return this.request(`documents/${t2}`, {method: "PUT", body: JSON.stringify(e2)});
+  }
+  deleteDocument(t2) {
+    return this.request(`documents/${t2}`, {method: "DELETE"});
+  }
+  getDocumentVersions(t2, e2) {
+    let n2 = `documents/${t2}/versions`;
+    return e2 && (n2 += u(e2, true)), this.request(n2);
+  }
+}, class extends r {
+  createApiKey(t2) {
+    return this.request("apikeys", {method: "POST", body: JSON.stringify(t2)});
+  }
+}].forEach((t2) => {
+  Object.getOwnPropertyNames(t2.prototype).forEach((e2) => {
+    Object.defineProperty(i.prototype, e2, Object.getOwnPropertyDescriptor(t2.prototype, e2));
+  });
+});
+export default c;
