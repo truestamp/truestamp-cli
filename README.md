@@ -112,10 +112,10 @@ The CLI has its own help system and every command and sub-command can be invoked
 with `-h`, `--help`, or simply `help` to learn more.
 
 ```txt
-❯ ./truestamp -h
+$ truestamp -h
 
   Usage:   truestamp
-  Version: 0.0.9    
+  Version: 0.0.12
 
   Description:
 

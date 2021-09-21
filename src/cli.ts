@@ -18,7 +18,7 @@ import { s3 } from "./commands/s3.ts";
 const cmd = new Command()
   .throwErrors()
   .name("truestamp")
-  .version("0.0.11") // RELEASE VERSION : BUMP VERSION HERE
+  .version("0.0.12") // RELEASE VERSION : BUMP VERSION HERE
   .description("Truestamp CLI")
   .help({
     types: false,
