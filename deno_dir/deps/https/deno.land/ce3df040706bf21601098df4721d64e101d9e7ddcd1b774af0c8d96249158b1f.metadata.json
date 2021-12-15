@@ -1,0 +1,16 @@
+{
+  "headers": {
+    "etag": "\"a3a26e1ca118bf4e7ba0929119d5cf72\"",
+    "x-amz-request-id": "VJ225BP2Z6JS7K38",
+    "x-amz-version-id": "F7FmDqvsDNKZSQTIQJAl3aPKymbIN8wB",
+    "access-control-allow-origin": "*",
+    "content-type": "application/typescript; charset=utf-8",
+    "date": "Wed, 15 Dec 2021 16:53:29 GMT",
+    "x-amz-id-2": "YrqzgiCPTl5Me1QRxSAEuvnta1fbHriyp8l82IuBrXgj4LDRxn62vSLwClxYqCV6XeONhhOkiqI=",
+    "content-length": "477",
+    "server": "deploy/us-east4-c",
+    "last-modified": "Wed, 15 Dec 2021 10:42:27 GMT",
+    "cache-control": "public, max-age=31536000, immutable"
+  },
+  "url": "https://deno.land/x/sleep@v1.2.1/sleep.ts"
+}

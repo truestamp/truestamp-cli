@@ -64,4 +64,3 @@ format-watch:
 
 depsbot:
 	npx depsbot
-	

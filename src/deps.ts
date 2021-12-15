@@ -5,8 +5,7 @@ import * as path from "https://deno.land/std@0.107.0/path/mod.ts";
 
 import { Buffer } from "https://deno.land/x/node_buffer@1.1.0/mod.ts";
 
-// FIXME : using a tag from our own fork of this lib while waiting for upstream PR to merge
-import { sleep } from "https://raw.githubusercontent.com/truestamp/sleep/v1.3.0/mod.ts";
+import { sleep } from "https://deno.land/x/sleep@v1.2.1/mod.ts";
 
 import { decode, validate } from "https://deno.land/x/djwt@v2.3/mod.ts";
 

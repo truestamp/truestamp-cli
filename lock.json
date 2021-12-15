@@ -538,6 +538,8 @@
   "https://deno.land/x/node_buffer@1.1.0/src/base64.js": "685cc3c0a719c6d311b51d2502c96df491cc063107699a5e23488226a2d7eb8e",
   "https://deno.land/x/node_buffer@1.1.0/src/buffer.js": "369dacab367a209cde2675bc0be1acddff9580f38e7947215429a9a8eaafff79",
   "https://deno.land/x/node_buffer@1.1.0/src/ieee754.js": "3ef200944676f0b1f2f5661be0782b93704c2356126fac10db1605dc5e976d7e",
+  "https://deno.land/x/sleep@v1.2.1/mod.ts": "f2d3c9e1ef1fb2852f580f6960384bed36bc18a2da357c35f11a089fcca44273",
+  "https://deno.land/x/sleep@v1.2.1/sleep.ts": "2426efe5d3ce5de0b8af08bd36a8700deb5dc60e752f5f8f05d5e815a7e8cb0e",
   "https://jspm.dev/@aws-crypto/crc32": "b20b3ff51bb0d5f72fb5f3145501cd68ed504efbb1836f6e91f1c443de509514",
   "https://jspm.dev/@aws-sdk/hash-node": "1fa285cf742fcfbb4f6f67bfb8bb72a683b98f2ec50a68d5179749631e8d54f2",
   "https://jspm.dev/entities": "cc837d3e0411a116db98802513993d32ca1baeebc832a17066f47223bcd1b36b",
@@ -570,7 +572,5 @@
   "https://jspm.dev/npm:tslib@1!cjs": "12a3572364daf1eb1c7013e5952b3a53588cc5759e288a119de0b1e45dd3d780",
   "https://jspm.dev/npm:tslib@1.14.1!cjs": "5d40d5f42266f46fa5be8c30c5a5d5748ea304205f06156b5f491f979b9f747f",
   "https://raw.githubusercontent.com/truestamp/deno-app-paths/main/mod.ts": "5a4324585be0c87324eaa50130a59b7e96e3541195fd236c7d79c660d4a8a10d",
-  "https://raw.githubusercontent.com/truestamp/deno-conf/v1.0.2-beta/mod.ts": "a3bbc1b680e1d7d56dbd6ede1434c7418d9144b346acb1066aa8cf6a82d69452",
-  "https://raw.githubusercontent.com/truestamp/sleep/v1.3.0/mod.ts": "f2d3c9e1ef1fb2852f580f6960384bed36bc18a2da357c35f11a089fcca44273",
-  "https://raw.githubusercontent.com/truestamp/sleep/v1.3.0/sleep.ts": "2426efe5d3ce5de0b8af08bd36a8700deb5dc60e752f5f8f05d5e815a7e8cb0e"
+  "https://raw.githubusercontent.com/truestamp/deno-conf/v1.0.2-beta/mod.ts": "a3bbc1b680e1d7d56dbd6ede1434c7418d9144b346acb1066aa8cf6a82d69452"
 }
