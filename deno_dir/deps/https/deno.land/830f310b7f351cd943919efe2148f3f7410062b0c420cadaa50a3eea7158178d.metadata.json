@@ -1,0 +1,16 @@
+{
+  "headers": {
+    "etag": "\"c939f217272c23385be0bd4c91cf2a28\"",
+    "content-length": "5211",
+    "x-amz-id-2": "9xv9tTIBtI5bRtAEefBB8Ra8JtEry6J/mpLLlcA4BOq9gSTqr4BPSWnV9OgMV6I/TY8YHM7bnlM=",
+    "cache-control": "public, max-age=31536000, immutable",
+    "content-type": "application/typescript; charset=utf-8",
+    "date": "Wed, 15 Dec 2021 18:58:38 GMT",
+    "access-control-allow-origin": "*",
+    "last-modified": "Mon, 01 Nov 2021 15:00:29 GMT",
+    "x-amz-request-id": "87KHRP7MQNARP2HV",
+    "server": "deploy/us-east4-c",
+    "x-amz-version-id": "kU._zokPac_UDQPRiH3bW8BA1M1VhMm1"
+  },
+  "url": "https://deno.land/x/cliffy@v0.20.1/command/completions/_bash_completions_generator.ts"
+}

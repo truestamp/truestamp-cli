@@ -1,0 +1,16 @@
+{
+  "headers": {
+    "cache-control": "public, max-age=31536000, immutable",
+    "date": "Wed, 15 Dec 2021 18:58:38 GMT",
+    "etag": "\"969c80a2e35611f2b7ab6ef1849cba46\"",
+    "content-type": "application/typescript; charset=utf-8",
+    "x-amz-version-id": "SP0HovEsyW9JpdtO2s38ZlL4R1.jC_DI",
+    "content-length": "8998",
+    "x-amz-id-2": "WarhU3OiychW8Z57Dx2eRb2eo8nog+C6IX271yPGnJBzQg5vV1bxC/rgD8zTehxq5OQ0adbso64=",
+    "access-control-allow-origin": "*",
+    "server": "deploy/us-east4-c",
+    "last-modified": "Mon, 01 Nov 2021 15:00:29 GMT",
+    "x-amz-request-id": "87KMW3W7NK2SEVHJ"
+  },
+  "url": "https://deno.land/x/cliffy@v0.20.1/command/completions/_zsh_completions_generator.ts"
+}

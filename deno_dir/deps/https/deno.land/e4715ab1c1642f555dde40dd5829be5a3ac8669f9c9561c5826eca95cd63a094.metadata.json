@@ -1,0 +1,16 @@
+{
+  "headers": {
+    "content-type": "application/typescript; charset=utf-8",
+    "x-amz-request-id": "87KMVQMFZCSQCE8T",
+    "x-amz-version-id": "ogxXDX7iXSYGMHH24LO_h8j_0bWohTci",
+    "last-modified": "Mon, 01 Nov 2021 15:00:29 GMT",
+    "content-length": "5911",
+    "date": "Wed, 15 Dec 2021 18:58:38 GMT",
+    "etag": "\"1814b4d845d4436ad04872b13ade9265\"",
+    "x-amz-id-2": "Q8OgjWDcGN5tHl8RuJk5qZKhPqRh9kWFcl8f9t9o3TbCgTfygD6DpmL17tifHgugsZwpIaoJuEQ=",
+    "access-control-allow-origin": "*",
+    "cache-control": "public, max-age=31536000, immutable",
+    "server": "deploy/us-east4-c"
+  },
+  "url": "https://deno.land/x/cliffy@v0.20.1/command/_errors.ts"
+}

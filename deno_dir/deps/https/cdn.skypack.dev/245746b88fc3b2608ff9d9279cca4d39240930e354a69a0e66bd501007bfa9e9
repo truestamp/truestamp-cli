@@ -1,9 +1,0 @@
-import { Health } from "./health.d.ts";
-import { Documents } from "./documents.d.ts";
-import { Keys } from "./keys.d.ts";
-import { Base } from "./base.d.ts";
-declare class Truestamp extends Base {
-}
-interface Truestamp extends Health, Documents, Keys {
-}
-export default Truestamp;

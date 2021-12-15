@@ -1,0 +1,16 @@
+{
+  "headers": {
+    "x-amz-request-id": "87KHH8AEA807SQ7E",
+    "cache-control": "public, max-age=31536000, immutable",
+    "x-amz-version-id": "pdfRmkE47QyIwhs_RE1FFBFmy3QGzSSa",
+    "date": "Wed, 15 Dec 2021 18:58:38 GMT",
+    "etag": "\"a22b41291a123b82bd8cfe5cb4d16f3c\"",
+    "content-type": "application/typescript; charset=utf-8",
+    "x-amz-id-2": "/55iGAv90HT5jpLGtpfq0t7Exxbl/1YNa+nbgXqq/V+S2gFTjGdm49Ubv9Cea0oyB7P3x5ALSvM=",
+    "access-control-allow-origin": "*",
+    "content-length": "483",
+    "last-modified": "Mon, 01 Nov 2021 15:00:29 GMT",
+    "server": "deploy/us-east4-c"
+  },
+  "url": "https://deno.land/x/cliffy@v0.20.1/command/types/child_command.ts"
+}

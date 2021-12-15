@@ -1,26 +1,19 @@
 // Copyright © 2020-2021 Truestamp Inc. All rights reserved.
 
-import { createHash } from "https://deno.land/std@0.107.0/hash/mod.ts";
-import * as path from "https://deno.land/std@0.107.0/path/mod.ts";
-
-import { Buffer } from "https://deno.land/x/node_buffer@1.1.0/mod.ts";
-
 import { sleep } from "https://deno.land/x/sleep@v1.2.1/mod.ts";
 
-import { decode, validate } from "https://deno.land/x/djwt@v2.3/mod.ts";
+import { decode, validate } from "https://deno.land/x/djwt@v2.4/mod.ts";
 
-import { colors } from "https://deno.land/x/cliffy@v0.19.5/ansi/colors.ts";
+import { colors } from "https://deno.land/x/cliffy@v0.20.1/ansi/colors.ts";
 import {
   Command,
   EnumType,
   ValidationError,
-} from "https://deno.land/x/cliffy@v0.19.5/command/mod.ts";
-import { HelpCommand } from "https://deno.land/x/cliffy@v0.19.5/command/help/mod.ts";
-import { CompletionsCommand } from "https://deno.land/x/cliffy@v0.19.5/command/completions/mod.ts";
+} from "https://deno.land/x/cliffy@v0.20.1/command/mod.ts";
+import { HelpCommand } from "https://deno.land/x/cliffy@v0.20.1/command/help/mod.ts";
+import { CompletionsCommand } from "https://deno.land/x/cliffy@v0.20.1/command/completions/mod.ts";
 
 import Conf from "https://raw.githubusercontent.com/truestamp/deno-conf/v1.0.2-beta/mod.ts";
-
-import { S3 } from "https://deno.land/x/aws_sdk@v3.22.0-1/client-s3/mod.ts";
 
 import {
   getConfigForEnv,
@@ -42,12 +35,10 @@ import Truestamp from "https://cdn.skypack.dev/@truestamp/truestamp-js@~v0.5.1?d
 import { createTruestampClient } from "./truestamp.ts";
 
 export {
-  Buffer,
   colors,
   Command,
   CompletionsCommand,
   Conf,
-  createHash,
   createTruestampClient,
   decode,
   deleteTokensInConfig,
@@ -59,8 +50,6 @@ export {
   getConfigKeyForEnv,
   getConfigRefreshToken,
   HelpCommand,
-  path,
-  S3,
   setConfigKeyForEnv,
   sleep,
   Truestamp,
@@ -68,14 +57,10 @@ export {
   ValidationError,
 };
 
-export type { ITypeInfo } from "https://deno.land/x/cliffy@v0.19.5/flags/mod.ts";
-export type { Payload } from "https://deno.land/x/djwt@v2.3/mod.ts";
+export type { ITypeInfo } from "https://deno.land/x/cliffy@v0.20.1/flags/mod.ts";
+export type { Payload } from "https://deno.land/x/djwt@v2.4/mod.ts";
 
 export type {
   ItemType,
   StoreType,
 } from "https://raw.githubusercontent.com/truestamp/deno-conf/v1.0.2-beta/mod.ts";
-
-export type {
-  S3ClientConfig,
-} from "https://deno.land/x/aws_sdk@v3.22.0-1/client-s3/mod.ts";

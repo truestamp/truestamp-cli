@@ -1,5 +1,0 @@
-export const resolveEventStreamSerdeConfig = (input) => ({
-    ...input,
-    eventStreamMarshaller: input.eventStreamSerdeProvider(input),
-});
-//# sourceMappingURL=data:application/json;base64,eyJ2ZXJzaW9uIjozLCJmaWxlIjoiRXZlbnRTdHJlYW1TZXJkZUNvbmZpZy5qcyIsInNvdXJjZVJvb3QiOiIiLCJzb3VyY2VzIjpbIkV2ZW50U3RyZWFtU2VyZGVDb25maWcudHMiXSwibmFtZXMiOltdLCJtYXBwaW5ncyI6IkFBZ0JBLE1BQU0sQ0FBQyxNQUFNLDZCQUE2QixHQUFHLENBQzNDLEtBQTJELEVBQ3ZCLEVBQUUsQ0FBQyxDQUFDO0lBQ3hDLEdBQUcsS0FBSztJQUNSLHFCQUFxQixFQUFFLEtBQUssQ0FBQyx3QkFBd0IsQ0FBQyxLQUFLLENBQUM7Q0FDN0QsQ0FBQyxDQUFDIn0=

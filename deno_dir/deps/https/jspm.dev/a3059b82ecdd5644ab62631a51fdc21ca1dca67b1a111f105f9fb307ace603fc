@@ -1,6 +1,0 @@
-var _xml = {"amp":"&","apos":"'","gt":">","lt":"<","quot":"\""}
-;
-
-export default _xml;
-
-//# sourceMappingURL=xml.json!cjs.map

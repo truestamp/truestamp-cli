@@ -12,7 +12,6 @@ import {
 import { auth } from "./commands/auth.ts";
 import { documents } from "./commands/documents.ts";
 import { health } from "./commands/health.ts";
-import { s3 } from "./commands/s3.ts";
 
 // Top level command
 const cmd = new Command()
@@ -44,7 +43,6 @@ const cmd = new Command()
   .command("documents", documents)
   .command("health", health)
   .command("help", new HelpCommand().global())
-  .command("s3", s3);
 
 try {
   await cmd.parse(Deno.args);

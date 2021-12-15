@@ -1,0 +1,16 @@
+{
+  "headers": {
+    "content-length": "874",
+    "last-modified": "Mon, 01 Nov 2021 15:00:29 GMT",
+    "date": "Wed, 15 Dec 2021 18:58:38 GMT",
+    "server": "deploy/us-east4-c",
+    "x-amz-id-2": "PKmFrjAYxNSEEVYMnKv4kcs+1gEchULksBT8v/53lrzJvspAw7B0BilWnPFX6mwbQGCXnj1O8/4=",
+    "x-amz-request-id": "87KM0BQA2NRDW1H3",
+    "etag": "\"e2069b2c3ea99f8e560fbf481b844919\"",
+    "x-amz-version-id": "zSnromXq7ypQBbYAEXkeySVN0Iwov9eK",
+    "cache-control": "public, max-age=31536000, immutable",
+    "access-control-allow-origin": "*",
+    "content-type": "application/typescript; charset=utf-8"
+  },
+  "url": "https://deno.land/x/cliffy@v0.20.1/command/completions/fish.ts"
+}
