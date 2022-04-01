@@ -1,0 +1,14 @@
+{
+  "headers": {
+    "content-type": "application/json",
+    "date": "Fri, 01 Apr 2022 15:54:25 GMT",
+    "cache-control": "max-age=3600",
+    "server": "deploy/us-east4-c",
+    "vary": "Accept-Encoding"
+  },
+  "url": "https://deno.land/_api/x/std/",
+  "now": {
+    "secs_since_epoch": 1648828465,
+    "nanos_since_epoch": 771319000
+  }
+}

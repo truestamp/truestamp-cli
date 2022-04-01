@@ -1,5 +1,8 @@
 // Copyright © 2020-2022 Truestamp Inc. All rights reserved.
 
+import { copy, readAllSync } from "https://deno.land/std@0.133.0/streams/conversion.ts"
+import { crypto } from "https://deno.land/std@0.133.0/crypto/mod.ts";
+
 import { sleep } from "https://deno.land/x/sleep@v1.2.1/mod.ts";
 
 import { decode, validate } from "https://deno.land/x/djwt@v2.4/mod.ts";
@@ -9,6 +12,7 @@ import {
   Command,
   EnumType,
   ValidationError,
+  IEnvVarOptions
 } from "https://deno.land/x/cliffy@v0.22.2/command/mod.ts";
 import { HelpCommand } from "https://deno.land/x/cliffy@v0.22.2/command/help/mod.ts";
 import { CompletionsCommand } from "https://deno.land/x/cliffy@v0.22.2/command/completions/mod.ts";
@@ -39,7 +43,9 @@ export {
   Command,
   CompletionsCommand,
   Conf,
+  copy,
   createTruestampClient,
+  crypto,
   decode,
   deleteTokensInConfig,
   EnumType,
@@ -50,6 +56,7 @@ export {
   getConfigKeyForEnv,
   getConfigRefreshToken,
   HelpCommand,
+  readAllSync,
   setConfigKeyForEnv,
   sleep,
   Truestamp,

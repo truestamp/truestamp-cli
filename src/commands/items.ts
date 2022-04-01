@@ -1,6 +1,6 @@
 // Copyright © 2020-2022 Truestamp Inc. All rights reserved.
 
-import { Command, createTruestampClient } from "../deps.ts";
+import { Command, copy, createTruestampClient, readAllSync } from "../deps.ts";
 
 // Limit the available hash types for now to those that are supported by the browser
 // and crypto.subtle.digest
@@ -11,18 +11,11 @@ const itemsCreate = new Command()
   .description(
     `Create a new Item.
 
-Provide a '--hash' in Hex (Base16) encoding.
+A new Item represents the hash of data that is submitted to the Truestamp API. This command allows you to provide a '--hash' and '--type' option to create a new Item. Alternatively, a file can be passed by path or piped to STDIN which will be hashed and submitted for you.
 
-Hashes must be accompanied by the hash '--type' which must be one of:
+An Item Id will be returned in the response that identifies the Item and its temporal version. You *must* store this Item 'id' to enable verification of your data in the future.
 
-  ${HASH_TYPES.join("\n  ")}
-
-This command will return a JSON result by default that contains an
-'Envelope' structure that wraps the Item you submitted. The 'Envelope'
-structure contains the Item ID, and other metadata.
-
-You *must* store the Item 'id' in a secure location to be able to use
-it to verify your data later.
+See the examples section below for usage examples.
 
 `,
   )
@@ -30,16 +23,28 @@ it to verify your data later.
     "-H, --hash [hash:string]",
     "An Item hash encoded as a Hex (Base16) string.",
     {
-      required: true,
+      required: false,
+      conflicts: ["stdin"],
+      depends: ["type"],
     },
   )
   .option(
     "-t, --type [type:string]",
-    "A hash function type from the SHA, or SHA2 families. The byte length of the hash will be validated against the type.",
+    `A hash function type. Hash byte length is validated against type. Accepts ${HASH_TYPES.join(", ")}.`,
     {
-      required: true,
+      required: false,
+      conflicts: ["stdin"],
+      depends: ["hash"],
     },
   )
+  .option(
+    "--stdin",
+    "Read data from STDIN, hash it with sha-256, and submit new Item",
+    {
+      conflicts: ["hash", "type"],
+    }
+  )
+  .arguments("[path]")
   .example(
     "SHA-256 : openssl",
     `Generate the hash of the text 'Hello World' using openssl
@@ -101,7 +106,7 @@ is a pretty simple to use example:
 `,
   )
   .example(
-    "Submit an Item",
+    "Submit from hash",
     `A new Item requires at least a 'hash' and 'type' to be provided.
 
 Using the SHA-256 hash from the examples above:
@@ -110,13 +115,68 @@ Using the SHA-256 hash from the examples above:
 
   `,
   )
-  .action(async (options) => {
-    const ts = await createTruestampClient(options.env, options.apiKey);
+  .example(
+    "Submit from STDIN",
+    `Pass a file from STDIN to the 'items create' command:
 
+Pipe content to the 'items create' command using the '--stdin' option or the '-' path:
+
+  $ echo -n 'Hello World' | truestamp items create -
+  $ echo -n "Hello World" | truestamp items create --stdin
+
+  $ cat /tmp/hello.txt | truestamp items create -
+  $ cat /tmp/hello.txt | truestamp items create --stdin
+
+  `,
+  )
+  .example(
+    "Submit from FILE",
+    `Pass a file path to the 'items create' command as the first argument:
+
+  $ truestamp items create /tmp/hello.txt
+
+  `,
+  )
+  .action(async ({ env, apiKey, hash, type, stdin }, path: string) => {
+    const ts = await createTruestampClient(env, apiKey);
+
+    // If the user provided STDIN using the '--stdin' flag or the '-' argument, read the contents
+    // of STDIN and hash it with SHA-256. If instead the user provided a path, read the contents
+    // of the file and hash it with SHA-256.
+    // See : https://github.com/c4spar/deno-cliffy/discussions/180
+    let stdinHash, stdinType
+    if (stdin || path === "-") {
+      // await copy(Deno.stdin, Deno.stdout);
+
+      const data = await readAllSync(Deno.stdin);
+      const hash = new Uint8Array(await crypto.subtle.digest("SHA-256", data))
+      const hashHex = Array.from(hash, (byte) => byte.toString(16).padStart(2, "0")).join("")
+      // console.log(`SHA-256(stdin) = ${hashHex}`)
+      stdinHash = hashHex
+      stdinType = "sha-256"
+    } else if (path) {
+      const file = await Deno.open(path, { read: true, write: false });
+      // await copy(file, Deno.stdout);
+
+      const data = await readAllSync(file);
+      const hash = new Uint8Array(await crypto.subtle.digest("SHA-256", data))
+      const hashHex = Array.from(hash, (byte) => byte.toString(16).padStart(2, "0")).join("")
+      // console.log(`SHA-256(stdin) = ${hashHex}`)
+      stdinHash = hashHex
+      stdinType = "sha-256"
+
+      file.close();
+    }
+
+    // If the user provided a hash and a type, validate the hash and type
+    // and create the Item. If the user did not provide a hash or a type,
+    // but instead had provided the '--stdin' flag or the '-' path argument,
+    // or an actual path, create the Item with the hash and type from the
+    // STDIN or file.
     try {
       const item = await ts.createItem({
-        hash: options.hash,
-        hashType: options.type,
+        hash: hash ?? stdinHash,
+        hashType: type ?? stdinType,
       });
 
       console.log(JSON.stringify(item));
@@ -205,20 +265,9 @@ Updates are always non-destructive. Older versions are preserved and can be retr
 
 Any Item attributes that existed on an older version which are not provided again will be removed from the new version.
 
-Provide an Item '--id' to identify the specific Item you are authorized to update.
+An *new* Item Id will be returned in the response that identifies the Item and its new temporal version. You *must* store this Item 'id' to enable verification of your data in the future. The Id provided as an argument remains valid and it's content unchanged.
 
-Provide an Item '--hash' in Hex (Base16) encoding.
-
-Hash digests must be accompanied by the hash '--type' which must be one of:
-
-    ${HASH_TYPES.join("\n  ")}
-
-This command will return a JSON result by default that contains an
-'Envelope' structure that wraps the Item you submitted. The 'Envelope'
-structure contains the Item ID, and other metadata.
-
-You *must* store the Item ID in a secure location to be able to use
-it to verify your data later.
+See the examples section below for usage examples.
 
 `
   )
@@ -229,35 +278,98 @@ it to verify your data later.
     "-H, --hash [hash:string]",
     "An Item hash encoded as a Hex (Base16) string.",
     {
-      required: true,
+      required: false,
+      conflicts: ["stdin"],
+      depends: ["type"],
     },
   )
   .option(
     "-t, --type [type:string]",
-    "The hash function type used for 'hash'. Must be from the SHA, or SHA2 families. The hash byte length will be validated for type.",
+    `A hash function type. Hash byte length is validated against type. Accepts ${HASH_TYPES.join(", ")}.`,
     {
-      required: true,
+      required: false,
+      conflicts: ["stdin"],
+      depends: ["hash"],
     },
   )
+  .option(
+    "--stdin",
+    "Read data from STDIN, hash it with sha-256, and submit new Item",
+    {
+      conflicts: ["hash", "type"],
+    }
+  )
+  .arguments("[path]")
   .example(
     "Update an Item",
-    `Using a previously generated test ID:
+    `Using a previously generated test Id, and a new hash:
 
   $ echo -n 'Hello World Again' | sha256sum
   63df103e8ebcabdf86d8f13e98a02063fef1da8065335ec0dd978378951534d6  -
 
-  $ truestamp items update --id T11_01FZGTTP1JRQ40PD99GGJK07YS_1648758708880000_A523F596217460983B658A78B5E7AACF --hash a591a6d40bf420404a011733cfb7b190d62c65bf0bcda32b57b277d9ad9f146e --type sha-256
+  $ truestamp items update --id T11_01FZGTTP1JRQ40PD99GGJK07YS_1648758708880000_A523F596217460983B658A78B5E7AACF --hash 63df103e8ebcabdf86d8f13e98a02063fef1da8065335ec0dd978378951534d6 --type sha-256
 
   `,
   )
-  .action(async (options) => {
-    const ts = await createTruestampClient(options.env, options.apiKey);
+  .example(
+    "Update from STDIN",
+    `Pass a file from STDIN to the 'items update' command:
+
+Pipe content to the 'items update' command using the '--stdin' option or the '-' path:
+
+  $ echo -n 'Hello World' | truestamp items update --id T11_01FZGTTP1JRQ40PD99GGJK07YS_1648758708880000_A523F596217460983B658A78B5E7AACF -
+  $ echo -n "Hello World" | truestamp items update --stdin --id T11_01FZGTTP1JRQ40PD99GGJK07YS_1648758708880000_A523F596217460983B658A78B5E7AACF
+
+  $ cat /tmp/hello.txt | truestamp items update --id T11_01FZGTTP1JRQ40PD99GGJK07YS_1648758708880000_A523F596217460983B658A78B5E7AACF -
+  $ cat /tmp/hello.txt | truestamp items update --stdin --id T11_01FZGTTP1JRQ40PD99GGJK07YS_1648758708880000_A523F596217460983B658A78B5E7AACF
+
+  `,
+  )
+  .example(
+    "Update from FILE",
+    `Pass an '--id' and a file path to the 'items update' command:
+
+  $ truestamp items update --id T11_01FZGTTP1JRQ40PD99GGJK07YS_1648758708880000_A523F596217460983B658A78B5E7AACF /tmp/hello.txt
+
+  `,
+  )
+  .action(async ({ env, apiKey, id, hash, type, stdin }, path: string) => {
+    const ts = await createTruestampClient(env, apiKey);
+
+    // If the user provided STDIN using the '--stdin' flag or the '-' argument, read the contents
+    // of STDIN and hash it with SHA-256. If instead the user provided a path, read the contents
+    // of the file and hash it with SHA-256.
+    // See : https://github.com/c4spar/deno-cliffy/discussions/180
+    let stdinHash, stdinType
+    if (stdin || path === "-") {
+      // await copy(Deno.stdin, Deno.stdout);
+
+      const data = await readAllSync(Deno.stdin);
+      const hash = new Uint8Array(await crypto.subtle.digest("SHA-256", data))
+      const hashHex = Array.from(hash, (byte) => byte.toString(16).padStart(2, "0")).join("")
+      // console.log(`SHA-256(stdin) = ${hashHex}`)
+      stdinHash = hashHex
+      stdinType = "sha-256"
+    } else if (path) {
+      const file = await Deno.open(path, { read: true, write: false });
+      // await copy(file, Deno.stdout);
+
+      const data = await readAllSync(file);
+      const hash = new Uint8Array(await crypto.subtle.digest("SHA-256", data))
+      const hashHex = Array.from(hash, (byte) => byte.toString(16).padStart(2, "0")).join("")
+      // console.log(`SHA-256(stdin) = ${hashHex}`)
+      stdinHash = hashHex
+      stdinType = "sha-256"
+
+      file.close();
+    }
 
     try {
-      const item = await ts.updateItem(options.id, {
-        hash: options.hash,
-        hashType: options.type,
+      const item = await ts.updateItem(id, {
+        hash: hash ?? stdinHash,
+        hashType: type ?? stdinType,
       });
+
       console.log(JSON.stringify(item));
     } catch (error) {
       // throw new Error(`Item update error : ${error.message}`);

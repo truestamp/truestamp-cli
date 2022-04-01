@@ -59,7 +59,7 @@ const cmd = new Command()
   )
   .option<{ apiKey: string }>(
     "-A, --api-key [apiKey:string]",
-    "Force use of API key for authentication. Overrides 'TRUESTAMP_API_KEY' env var.",
+    "Use API key for authentication. Overrides 'TRUESTAMP_API_KEY' env var.",
     {
       hidden: false,
       global: true,
