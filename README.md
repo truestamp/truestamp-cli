@@ -1,31 +1,33 @@
 # Truestamp CLI
 
-A Truestamp Command Line Interface (CLI) that utilizes the
-[truestamp-js](https://github.com/truestamp/truestamp-js) library, written in
-Typescript.
+A Truestamp Command Line Interface (CLI), written in Typescript, that utilizes
+the [truestamp-js](https://github.com/truestamp/truestamp-js) library to
+communicate with the [Truestamp API](https://docs.truestamp.com/api/intro).
 
-This CLI is compiled from Typescript using [Deno](https://deno.land/). The
-platforms we support are determined by the set that Deno currently supports.
+This CLI is built using [Deno](https://deno.land/). The platforms we support are
+determined by the set that Deno
+[currently supports](https://deno.land/manual@v1.20.3/tools/compiler#cross-compilation)
+for cross-compilation.
 
-Deno provides the benefits of a single-file binary download, with no
-pre-requisites or dependencies. Additionally Deno is security limited to allow
-contact with only the limited set of internet addresses, environment variables,
-and files it requires and has been configured to access at compile time.
+Deno creates a single-file binary that makes download and installation easy. The
+binaries have no pre-requisites that need to be installed ahead of time.
+
+Deno is also security limited to allow contact with only the limited set of
+internet addresses, environment variables, and files it requires and has been
+given permission to access.
 
 ## Install
 
-If you are using macOS it is recommended you install this client using
-[Homebrew](https://brew.sh/).
-
 For manual installation please be sure to specify the current stable release
 version in the release URL for pre-compiled binaries. Version `v0.0.0` is used
-in these examples. The latest stable release versions can be found on the
-[releases](https://github.com/truestamp/truestamp-cli/releases) page.
-
-You will see a `lite` version of each released build. This should be
-functionally identical but may have a somewhat smaller download footprint.
+in these examples and must be replaced. The latest stable release versions can
+be found on the [releases](https://github.com/truestamp/truestamp-cli/releases)
+page.
 
 ### macOS
+
+If you are using macOS it is recommended you install the client using
+[Homebrew](https://brew.sh/).
 
 #### Homebrew install
 
@@ -53,7 +55,7 @@ mv ./truestamp /usr/local/bin
 spctl --add  /usr/local/bin/truestamp
 ```
 
-#### Manual install - Apple Silicon (M1) Macs
+#### Manual install - Apple Silicon Macs
 
 Download and install the `darwin` platform `aarch64` arch `.tar.gz` file for
 your chosen [release](https://github.com/truestamp/truestamp-cli/releases)
@@ -89,7 +91,7 @@ tar -zxvf truestamp-linux-x86_64.tar.gz
 mv ./truestamp /usr/local/bin
 ```
 
-#### Manual install - Windows x86 64 bit
+#### Manual install - Windows x86 64 bit [EXPERIMENTAL]
 
 Download and install the `windows` platform `.zip` file for your chosen
 [release](https://github.com/truestamp/truestamp-cli/releases) version.
@@ -115,7 +117,7 @@ with `-h`, `--help`, or simply `help` to learn more.
 $ ./truestamp -h
 
   Usage:   truestamp
-  Version: 0.0.12
+  Version: 0.0.13
 
   Description:
 
@@ -123,20 +125,35 @@ $ ./truestamp -h
 
   Options:
 
-    -h, --help     - Show this help.
-    -V, --version  - Show the version number for this program.
+    -h, --help               - Show this help.
+    -V, --version            - Show the version number for this program.
+    -E, --env      [env]     - Override API endpoint. Overrides 'TRUESTAMP_ENV' env var.                        (Values: "development", "staging", "production")
+    -A, --api-key  [apiKey]  - Force use of API key for authentication. Overrides 'TRUESTAMP_API_KEY' env var.
 
   Commands:
 
-    auth                    - Login, logout, and show your current authentication status, or manage long-lived
-                              API keys.
+    auth                    - Login, logout, or check login status. Create API keys.
     completions             - Generate shell completions.
-    documents               - Create, read, update, or destroy documents.
-    health                  - Display results of API server health call.
+    items                   - Create, read, or update Items.
     help         [command]  - Show this help or the help of a sub-command.
+
+  Environment variables:
+
+    TRUESTAMP_ENV      <env>     - Override API endpoint.
+    TRUESTAMP_API_KEY  <apiKey>  - Force use of API key for authentication.
 ```
 
-## Releasing
+## Build and Release
+
+For developers who want to build their own copy of the CLI.
+
+Additional commands are available in the `Makefile`.
+
+### Local
+
+`make build-local`
+
+### Shared
 
 All new commits to `main` will trigger a pre-release build of all binary assets
 and store them in a new Github
@@ -160,4 +177,4 @@ Steps for a public release:
 
 ## Legal
 
-Copyright © 2020-2021 Truestamp Inc. All rights reserved.
+Copyright © 2020-2022 Truestamp Inc. All rights reserved.

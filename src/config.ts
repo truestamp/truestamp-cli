@@ -1,4 +1,4 @@
-// Copyright © 2020-2021 Truestamp Inc. All rights reserved.
+// Copyright © 2020-2022 Truestamp Inc. All rights reserved.
 
 import { Conf, ItemType } from "./deps.ts";
 

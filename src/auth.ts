@@ -1,4 +1,4 @@
-// Copyright © 2020-2021 Truestamp Inc. All rights reserved.
+// Copyright © 2020-2022 Truestamp Inc. All rights reserved.
 
 // See: https://github.com/truestamp/deviceflow
 // See: https://github.com/jatinvaidya/cli-authz-device-flow/blob/master/device/device.js
@@ -17,15 +17,15 @@ import {
 const AUTH0_SCOPES = "openid profile email offline_access";
 
 const AUTH0_DOMAIN_DEVELOPMENT = "truestamp-dev.auth0.com";
-const AUTH0_AUDIENCE_DEVELOPMENT = "https://dev-api.truestamp.com/";
+const AUTH0_AUDIENCE_DEVELOPMENT = "https://db.fauna.com/db/ytijhfregydfy";
 const AUTH0_CLIENT_ID_DEVELOPMENT = "8djbT1Ys078OZImR1uRr4jhu2Wb6d05B";
 
 const AUTH0_DOMAIN_STAGING = "truestamp-staging.auth0.com";
-const AUTH0_AUDIENCE_STAGING = "https://staging-api.truestamp.com/";
+const AUTH0_AUDIENCE_STAGING = "https://db.fauna.com/db/ytijhdrceybfy";
 const AUTH0_CLIENT_ID_STAGING = "T0dzxGnnIj3TU0HpzCQRTZ5fx9N5Hb5m";
 
 const AUTH0_DOMAIN_PRODUCTION = "login.truestamp.com";
-const AUTH0_AUDIENCE_PRODUCTION = "https://api.truestamp.com/";
+const AUTH0_AUDIENCE_PRODUCTION = "https://db.fauna.com/db/ytij595b6yffy";
 const AUTH0_CLIENT_ID_PRODUCTION = "pS5kRvqeuz4XLoxNPd6VX2LlUyNyU7Xj";
 
 function getAuth0DomainForEnv(env: string): string {

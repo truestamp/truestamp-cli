@@ -1,3 +1,5 @@
+// Copyright © 2020-2022 Truestamp Inc. All rights reserved.
+
 import {
   Command,
   createTruestampClient,
@@ -7,11 +9,11 @@ import {
 
 const MAX_DESCRIPTION_LENGTH = 256;
 
-const apiKeyNew = new Command()
+const apiKeyCreate = new Command()
   .description("Create a new API key.")
   .option(
     "-d, --description [description:string]",
-    `A description to be stored in the key's metadata. (max length: ${MAX_DESCRIPTION_LENGTH})`,
+    `A description of the key. (max length: ${MAX_DESCRIPTION_LENGTH})`,
     {
       required: false,
       default: ""
@@ -45,13 +47,13 @@ const apiKeyNew = new Command()
       );
     }
 
-    const ts = await createTruestampClient(options.env);
+    const ts = await createTruestampClient(options.env, options.apiKey);
 
     let keyResp
     try {
       keyResp = await ts.createApiKey({ refreshToken: refreshToken, description: options.description, ttl: options.ttl });
     } catch (error) {
-      throw new Error(`auth key creation failed : ${error.message}`);
+      throw new Error(`api key creation failed : ${error.message}`);
     }
 
     console.log(JSON.stringify(keyResp));
@@ -60,13 +62,13 @@ const apiKeyNew = new Command()
 export const apiKeys = new Command()
   .description(`Manage API keys.
 
-    API keys are not needed to use the CLI or web interface, and are provided as a
-    convenience when using non-interactive clients like cURL or in machine-to-machine
+    API keys are not needed to use the CLI or web interface. They're provided as a
+    convenience for using non-interactive clients like 'cURL' or in machine-to-machine
     contexts.
 
-    Keys can be provided with a description or a TTL (Time To Live) value. Once the
-    TTL has expired the key will be automatically destroyed.`)
+    Keys can be created with a description or a TTL (Time To Live) value. Once the
+    TTL has expired the key will be automatically invalidated.`)
   .action(() => {
     apiKeys.showHelp();
   })
-  .command("new", apiKeyNew)
+  .command("create", apiKeyCreate)
