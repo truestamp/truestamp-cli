@@ -11,72 +11,77 @@ import {
 
 import { apiKeys } from "./apikeys/apikeys.ts";
 
+import { getEnv } from "../utils.ts";
+
 const authLogin = new Command()
   .description("Login.")
   .action(async (options) => {
     if (options.apiKey !== undefined) {
-      console.log("apiKey:", options.apiKey);
+      // console.log("apiKey:", options.apiKey);
       throw new Error(`login is not permitted when an API key is provided as an option`);
     }
 
     // Do not pass in apiKey, this is the standard JWT access/refresh token login.
-    const ts = await createTruestampClient(options.env);
+    const ts = await createTruestampClient(getEnv(options));
 
     try {
       await ts.getHealth();
     } catch (error) {
       throw new Error(`health check failed : ${error.message}`);
     }
+
+    console.log(`logged in [${getEnv(options)}]`);
   });
 
 const authLogout = new Command()
   .description("Logout.")
   .action((options) => {
-    deleteTokensInConfig(options.env);
-    console.log("logout complete");
+    deleteTokensInConfig(getEnv(options));
+    console.log("logged out");
   });
 
 const authStatus = new Command()
   .description("Check login status.")
   .action(async (options) => {
 
-    // try simple validation with provided API key
+    // try simple validation with a provided API key (not JWT token)
     if (options.apiKey !== undefined) {
       try {
-        const ts = await createTruestampClient(options.env, options.apiKey);
+        const ts = await createTruestampClient(getEnv(options), options.apiKey);
         await ts.getHealth();
         console.log(
-          `confirmed access to '${options.env}' environment with API key`,
+          `confirmed access to '${getEnv(options)}' environment with API key`,
         );
       } catch (error) {
-        throw new Error(`health check failed : ${error.message}`);
+        throw new Error(`logged out : API key health check failed : ${error.message}`);
       }
     }
 
     // try simple validation with access/refresh tokens in config
     if (options.apiKey === undefined) {
       if (
-        !getConfigAccessToken(options.env) ||
-        !getConfigRefreshToken(options.env)
+        !getConfigAccessToken(getEnv(options)) ||
+        !getConfigRefreshToken(getEnv(options))
       ) {
-        console.error("you appear to be logged out");
-        Deno.exit(1);
+        throw new Error(`logged out : no access/refresh tokens found`);
       }
 
       try {
-        const ts = await createTruestampClient(options.env);
+        const ts = await createTruestampClient(getEnv(options));
         await ts.getHealth();
       } catch (error) {
-        throw new Error(`health check failed : ${error.message}`);
+        throw new Error(`logged out : access check failed : ${error.message}`);
       }
 
-      const payload = getConfigIdTokenPayload(options.env);
+      // throws if token in config is invalid
+      const payload = getConfigIdTokenPayload(getEnv(options));
+
       if (payload) {
         console.log(
-          `confirmed access to '${options.env}' environment as '${payload.name} (${payload.email})'`,
+          `logged in : ${payload.email} [${getEnv(options)}]`,
         );
       } else {
-        throw new Error("id token missing or invalid");
+        throw new Error(`logged out : no id token found`);
       }
     }
   });

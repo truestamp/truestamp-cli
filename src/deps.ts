@@ -11,8 +11,7 @@ import { colors } from "https://deno.land/x/cliffy@v0.22.2/ansi/colors.ts";
 import {
   Command,
   EnumType,
-  ValidationError,
-  IEnvVarOptions
+  ValidationError
 } from "https://deno.land/x/cliffy@v0.22.2/command/mod.ts";
 import { HelpCommand } from "https://deno.land/x/cliffy@v0.22.2/command/help/mod.ts";
 import { CompletionsCommand } from "https://deno.land/x/cliffy@v0.22.2/command/completions/mod.ts";

@@ -7,6 +7,8 @@ import {
   ValidationError
 } from "../../deps.ts";
 
+import { getEnv } from "../../utils.ts";
+
 const MAX_DESCRIPTION_LENGTH = 256;
 
 const apiKeyCreate = new Command()
@@ -28,7 +30,7 @@ const apiKeyCreate = new Command()
     },
   )
   .action(async (options) => {
-    const refreshToken = getConfigRefreshToken(options.env);
+    const refreshToken = getConfigRefreshToken(getEnv(options));
 
     if (!refreshToken) {
       console.error("logged out, you need to 'truestamp auth login' first");
@@ -47,7 +49,7 @@ const apiKeyCreate = new Command()
       );
     }
 
-    const ts = await createTruestampClient(options.env, options.apiKey);
+    const ts = await createTruestampClient(getEnv(options), options.apiKey);
 
     let keyResp
     try {

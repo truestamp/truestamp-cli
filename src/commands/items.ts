@@ -2,6 +2,8 @@
 
 import { Command, copy, createTruestampClient, readAllSync } from "../deps.ts";
 
+import { getEnv } from "../utils.ts";
+
 // Limit the available hash types for now to those that are supported by the browser
 // and crypto.subtle.digest
 // https://developer.mozilla.org/en-US/docs/Web/API/SubtleCrypto/digest#syntax
@@ -280,7 +282,7 @@ const itemsRead = new Command()
 `,
   )
   .action(async (options) => {
-    const ts = await createTruestampClient(options.env, options.apiKey);
+    const ts = await createTruestampClient(getEnv(options), options.apiKey);
 
     try {
       const item = await ts.getItem(options.id);
@@ -523,7 +525,7 @@ Pipe JSON content to the 'items update' command using '--json' plus the '--stdin
 //     required: true,
 //   })
 //   .action(async (options) => {
-//     const ts = await createTruestampClient(options.env, options.apiKey);
+//     const ts = await createTruestampClient(getEnv(options), options.apiKey);
 //     let d;
 //     try {
 //       d = await ts.deleteDocument(options.id);
@@ -537,7 +539,7 @@ Pipe JSON content to the 'items update' command using '--json' plus the '--stdin
 // const itemsList = new Command()
 //   .description("List all existing documents.")
 //   .action(async (options) => {
-//     const ts = await createTruestampClient(options.env, options.apiKey);
+//     const ts = await createTruestampClient(getEnv(options), options.apiKey);
 //     let d;
 //     try {
 //       d = await ts.getAllDocuments();

@@ -174,24 +174,31 @@ async function getNewTokensWithRefreshToken(env: string) {
   }
 }
 
-export function getConfigAccessToken(env: string): string | undefined {
+export function getConfigAccessToken(env = "production"): string | undefined {
   const t = getConfigKeyForEnv(env, "auth0_access_token") as string;
   return t ? t : undefined;
 }
 
-export function getConfigRefreshToken(env: string): string | undefined {
+export function getConfigRefreshToken(env = "production"): string | undefined {
   const t = getConfigKeyForEnv(env, "auth0_refresh_token") as string;
   return t ? t : undefined;
 }
 
-export function getConfigIdTokenPayload(env: string): Payload | undefined {
-  const t = getConfigKeyForEnv(env, "auth0_id_token") as string;
+export function getConfigIdTokenPayload(env = "production"): Payload | undefined {
+  let idToken
+  try {
+    idToken = getConfigKeyForEnv(env, "auth0_id_token") as string;
+  } catch (error) {
+    throw new Error(`no id token found in config : ${error.message}`)
+  }
 
-  if (t) {
-    const { payload } = validate(decode(t));
+  if (!idToken) { return undefined }
+
+  try {
+    const { payload } = validate(decode(idToken));
     return payload;
-  } else {
-    return undefined;
+  } catch (error) {
+    throw new Error(`invalid id token : ${error.message}`);
   }
 }
 
@@ -222,7 +229,7 @@ function setTokensInConfig(
 }
 
 // this is how we "logout"
-export function deleteTokensInConfig(env: string) {
+export function deleteTokensInConfig(env = "production") {
   deleteConfigKeyForEnv(env, "auth0_refresh_token");
   deleteConfigKeyForEnv(env, "auth0_access_token");
   deleteConfigKeyForEnv(env, "auth0_expires_in");
@@ -231,7 +238,7 @@ export function deleteTokensInConfig(env: string) {
   deleteConfigKeyForEnv(env, "auth0_id_token");
 }
 
-export async function getAccessTokenWithPrompts(env: string): Promise<string> {
+export async function getAccessTokenWithPrompts(env = "production"): Promise<string> {
   var deviceCodeResp;
 
   try {
