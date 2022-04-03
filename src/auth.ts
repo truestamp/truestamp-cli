@@ -239,7 +239,7 @@ export function deleteTokensInConfig(env = "production") {
 }
 
 export async function getAccessTokenWithPrompts(env = "production"): Promise<string> {
-  var deviceCodeResp;
+  let deviceCodeResp;
 
   try {
     const accessToken = getConfigAccessToken(env);
