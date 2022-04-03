@@ -15,6 +15,14 @@ import { getEnv, logSelectedOutputFormat } from "../utils.ts";
 
 const authLogin = new Command()
   .description("Login.")
+  .example(
+    "Login",
+    `Login to the current environment.
+
+  $ truestamp auth login
+
+  `,
+  )
   .action(async (options) => {
     if (options.apiKey !== undefined) {
       // console.log("apiKey:", options.apiKey);
@@ -35,6 +43,14 @@ const authLogin = new Command()
 
 const authLogout = new Command()
   .description("Logout.")
+  .example(
+    "Logout",
+    `Logout of the current environment.
+
+  $ truestamp auth logout
+
+  `,
+  )
   .action((options) => {
     deleteTokensInConfig(getEnv(options));
     logSelectedOutputFormat(options, { text: `logged out [${getEnv(options)}]`, json: { command: 'logout', status: 'ok', environment: getEnv(options) } });
@@ -42,6 +58,14 @@ const authLogout = new Command()
 
 const authStatus = new Command()
   .description("Check login status.")
+  .example(
+    "Status",
+    `Check login status for the current environment.
+
+  $ truestamp auth status
+
+  `,
+  )
   .action(async (options) => {
 
     // try simple validation with a provided API key (not JWT token)

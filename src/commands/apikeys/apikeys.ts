@@ -29,6 +29,16 @@ const apiKeyCreate = new Command()
       default: 0
     },
   )
+  .example(
+    "New API Key",
+    `Create a new expiring API key for the current environment with optional expiry and description.
+
+  # expires in one hour.
+  $ truestamp auth keys create -o text -d "a description" -t 3600
+  01FZPNTMAQZZCH170999999999_8djbT1Ys078OZImR1uRr4jh999999999 [production]
+
+  `,
+  )
   .action(async (options) => {
     const refreshToken = getConfigRefreshToken(getEnv(options));
 
@@ -68,7 +78,7 @@ export const apiKeys = new Command()
     convenience for using non-interactive clients like 'cURL' or in machine-to-machine
     contexts.
 
-    Keys can be created with a description or a TTL (Time To Live) value. Once the
+    Keys can be created with an optional description or a TTL (Time To Live) value. Once the
     TTL has expired the key will be automatically invalidated.`)
   .action(() => {
     apiKeys.showHelp();
