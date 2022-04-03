@@ -1,5 +1,7 @@
 // Copyright © 2020-2022 Truestamp Inc. All rights reserved.
 
+// deno-lint-ignore-file no-explicit-any
+
 interface OutputWrapper {
   text: string
   json: Record<string, any>

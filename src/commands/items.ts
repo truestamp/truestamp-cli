@@ -1,6 +1,6 @@
 // Copyright © 2020-2022 Truestamp Inc. All rights reserved.
 
-import { Command, copy, createTruestampClient, readAllSync } from "../deps.ts";
+import { Command, createTruestampClient, readAllSync } from "../deps.ts";
 
 import { getEnv, logSelectedOutputFormat } from "../utils.ts";
 
