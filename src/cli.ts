@@ -12,9 +12,6 @@ import {
 import { auth } from "./commands/auth.ts";
 import { items } from "./commands/items.ts";
 
-// FIXME : add --pretty-json and --quiet flags to regulate output of commands?
-// FIXME : add --json flag to output json instead of text?
-
 // FIXME : the following bug has been filed related to TRUESTAMP_ENV handling:
 // https://github.com/c4spar/deno-cliffy/issues/340
 
@@ -29,6 +26,9 @@ const cmd = new Command()
     hints: true,
   })
   .type("environment", new EnumType(["development", "staging", "production"]), {
+    global: true,
+  })
+  .type("output", new EnumType(["silent", "text", "json"]), {
     global: true,
   })
   .env<{ env: string }>(
@@ -60,6 +60,23 @@ const cmd = new Command()
   .option<{ apiKey: string }>(
     "-A, --api-key [apiKey:string]",
     "Use API key for authentication. Overrides 'TRUESTAMP_API_KEY' env var.",
+    {
+      hidden: false,
+      global: true,
+    },
+  )
+  .env<{ outputVar: string }>(
+    "TRUESTAMP_OUTPUT=<outputVar:output>",
+    "Preferred output format.",
+    {
+      global: true,
+      required: false,
+      prefix: "TRUESTAMP_" // prefix will be ignored when converting to option name.
+    },
+  )
+  .option<{ output: string }>(
+    "-o, --output [output:output]",
+    "Output format. Overrides 'TRUESTAMP_OUTPUT' env var.",
     {
       hidden: false,
       global: true,

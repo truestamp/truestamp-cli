@@ -1,0 +1,7 @@
+import { Base } from "../base.d.ts";
+import { ItemRequest, EnvelopeResponse } from "../superstruct.d.ts";
+export declare class Items extends Base {
+    createItem(item: ItemRequest): Promise<EnvelopeResponse>;
+    getItem(id: string): Promise<EnvelopeResponse>;
+    updateItem(id: string, item: ItemRequest): Promise<EnvelopeResponse>;
+}

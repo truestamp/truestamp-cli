@@ -1,0 +1,10 @@
+export declare type NewOrUpdatedApiKeyBody = {
+    refreshToken: string;
+    description?: string;
+    ttl?: number;
+};
+export declare type ApiKey = {
+    apiKey: string;
+    expiration: string;
+    description: string;
+};

@@ -2,7 +2,7 @@
 
 import { Command, copy, createTruestampClient, readAllSync } from "../deps.ts";
 
-import { getEnv } from "../utils.ts";
+import { getEnv, logSelectedOutputFormat } from "../utils.ts";
 
 // Limit the available hash types for now to those that are supported by the browser
 // and crypto.subtle.digest
@@ -173,18 +173,18 @@ Pipe JSON content to the 'items create' command using '--json' plus the '--stdin
 
   `,
   )
-  .action(async ({ env, apiKey, hash, type, json, stdin }, path: string) => {
-    const ts = await createTruestampClient(env, apiKey);
+  .action(async (options, path: string) => {
+    const ts = await createTruestampClient(options.env, options.apiKey);
 
     let jsonItem, altHash, altType
 
     // If the user provided JSON STDIN using the '--json' and '--stdin' options or the '-' or a file path argument, parse
     // the contents of STDIN and pass it directly to the Truestamp client as a complete Item object.
-    if (json && (stdin || path === "-")) {
+    if (options.json && (options.stdin || path === "-")) {
       const data = await readAllSync(Deno.stdin);
       const decoder = new TextDecoder();
       jsonItem = JSON.parse(decoder.decode(data));
-    } else if (json && path) {
+    } else if (options.json && path) {
       const file = await Deno.open(path, { read: true, write: false });
       // await copy(file, Deno.stdout);
 
@@ -199,7 +199,7 @@ Pipe JSON content to the 'items create' command using '--json' plus the '--stdin
     // of STDIN and hash it with SHA-256. If instead the user provided a path, read the contents
     // of the file and hash it with SHA-256.
     // See : https://github.com/c4spar/deno-cliffy/discussions/180
-    if (!json && (stdin || path === "-")) {
+    if (!options.json && (options.stdin || path === "-")) {
       // await copy(Deno.stdin, Deno.stdout);
 
       const data = await readAllSync(Deno.stdin);
@@ -208,7 +208,7 @@ Pipe JSON content to the 'items create' command using '--json' plus the '--stdin
       // console.log(`SHA-256(stdin) = ${hashHex}`)
       altHash = hashHex
       altType = "sha-256"
-    } else if (!json && path) {
+    } else if (!options.json && path) {
       const file = await Deno.open(path, { read: true, write: false });
       // await copy(file, Deno.stdout);
 
@@ -232,15 +232,15 @@ Pipe JSON content to the 'items create' command using '--json' plus the '--stdin
 
       if (jsonItem) {
         itemResp = await ts.createItem(jsonItem);
-      } else if (hash && type) {
-        itemResp = await ts.createItem({ hash: hash, hashType: type });
+      } else if (options.hash && options.type) {
+        itemResp = await ts.createItem({ hash: options.hash, hashType: options.type });
       } else if (altHash && altType) {
         itemResp = await ts.createItem({ hash: altHash, hashType: altType });
       } else {
         throw new Error("No hash or hashType provided");
       }
 
-      console.log(JSON.stringify(itemResp));
+      logSelectedOutputFormat(options, { text: itemResp.id, json: { id: itemResp.id } });
     } catch (error) {
       const { key, value, type, response } = error
 
@@ -286,7 +286,8 @@ const itemsRead = new Command()
 
     try {
       const item = await ts.getItem(options.id);
-      console.log(JSON.stringify(item));
+
+      logSelectedOutputFormat(options, { text: JSON.stringify(item, null, 2), json: item });
     } catch (error) {
       // throw new Error(`Item not found : ${error.message}`);
       const { key, value, type, response } = error
@@ -428,18 +429,18 @@ Pipe JSON content to the 'items update' command using '--json' plus the '--stdin
 
   `,
   )
-  .action(async ({ env, apiKey, id, hash, type, json, stdin }, path: string) => {
-    const ts = await createTruestampClient(env, apiKey);
+  .action(async (options, path: string) => {
+    const ts = await createTruestampClient(options.env, options.apiKey);
 
     let jsonItem, altHash, altType
 
     // If the user provided JSON STDIN using the '--json' and '--stdin' options or the '-' or a file path argument, parse
     // the contents of STDIN and pass it directly to the Truestamp client as a complete Item object.
-    if (json && (stdin || path === "-")) {
+    if (options.json && (options.stdin || path === "-")) {
       const data = await readAllSync(Deno.stdin);
       const decoder = new TextDecoder();
       jsonItem = JSON.parse(decoder.decode(data));
-    } else if (json && path) {
+    } else if (options.json && path) {
       const file = await Deno.open(path, { read: true, write: false });
       // await copy(file, Deno.stdout);
 
@@ -454,7 +455,7 @@ Pipe JSON content to the 'items update' command using '--json' plus the '--stdin
     // of STDIN and hash it with SHA-256. If instead the user provided a path, read the contents
     // of the file and hash it with SHA-256.
     // See : https://github.com/c4spar/deno-cliffy/discussions/180
-    if (!json && (stdin || path === "-")) {
+    if (!options.json && (options.stdin || path === "-")) {
       // await copy(Deno.stdin, Deno.stdout);
 
       const data = await readAllSync(Deno.stdin);
@@ -463,7 +464,7 @@ Pipe JSON content to the 'items update' command using '--json' plus the '--stdin
       // console.log(`SHA-256(stdin) = ${hashHex}`)
       altHash = hashHex
       altType = "sha-256"
-    } else if (!json && path) {
+    } else if (!options.json && path) {
       const file = await Deno.open(path, { read: true, write: false });
       // await copy(file, Deno.stdout);
 
@@ -481,16 +482,16 @@ Pipe JSON content to the 'items update' command using '--json' plus the '--stdin
       let itemResp
 
       if (jsonItem) {
-        itemResp = await ts.updateItem(id, jsonItem);
-      } else if (hash && type) {
-        itemResp = await ts.updateItem(id, { hash: hash, hashType: type });
+        itemResp = await ts.updateItem(options.id, jsonItem);
+      } else if (options.hash && options.type) {
+        itemResp = await ts.updateItem(options.id, { hash: options.hash, hashType: options.type });
       } else if (altHash && altType) {
-        itemResp = await ts.updateItem(id, { hash: altHash, hashType: altType });
+        itemResp = await ts.updateItem(options.id, { hash: altHash, hashType: altType });
       } else {
         throw new Error("No hash or hashType provided");
       }
 
-      console.log(JSON.stringify(itemResp));
+      logSelectedOutputFormat(options, { text: itemResp.id, json: { id: itemResp.id } });
     } catch (error) {
       // throw new Error(`Item update error : ${error.message}`);
       const { key, value, type, response } = error

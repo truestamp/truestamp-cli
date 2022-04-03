@@ -7,7 +7,7 @@ import {
   ValidationError
 } from "../../deps.ts";
 
-import { getEnv } from "../../utils.ts";
+import { getEnv, logSelectedOutputFormat } from "../../utils.ts";
 
 const MAX_DESCRIPTION_LENGTH = 256;
 
@@ -58,7 +58,7 @@ const apiKeyCreate = new Command()
       throw new Error(`api key creation failed : ${error.message}`);
     }
 
-    console.log(JSON.stringify(keyResp));
+    logSelectedOutputFormat(options, { text: `${keyResp.apiKey} [${getEnv(options)}]`, json: { command: 'apikey', status: 'ok', environment: getEnv(options), key: keyResp } });
   })
 
 export const apiKeys = new Command()

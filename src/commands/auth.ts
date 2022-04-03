@@ -11,7 +11,7 @@ import {
 
 import { apiKeys } from "./apikeys/apikeys.ts";
 
-import { getEnv } from "../utils.ts";
+import { getEnv, logSelectedOutputFormat } from "../utils.ts";
 
 const authLogin = new Command()
   .description("Login.")
@@ -30,14 +30,14 @@ const authLogin = new Command()
       throw new Error(`health check failed : ${error.message}`);
     }
 
-    console.log(`logged in [${getEnv(options)}]`);
+    logSelectedOutputFormat(options, { text: `logged in [${getEnv(options)}]`, json: { command: 'login', status: 'ok', environment: getEnv(options) } });
   });
 
 const authLogout = new Command()
   .description("Logout.")
   .action((options) => {
     deleteTokensInConfig(getEnv(options));
-    console.log("logged out");
+    logSelectedOutputFormat(options, { text: `logged out [${getEnv(options)}]`, json: { command: 'logout', status: 'ok', environment: getEnv(options) } });
   });
 
 const authStatus = new Command()
@@ -49,9 +49,7 @@ const authStatus = new Command()
       try {
         const ts = await createTruestampClient(getEnv(options), options.apiKey);
         await ts.getHealth();
-        console.log(
-          `confirmed access to '${getEnv(options)}' environment with API key`,
-        );
+        logSelectedOutputFormat(options, { text: `logged in (with API Key) [${getEnv(options)}]`, json: { command: 'status', status: 'ok', environment: getEnv(options) } });
       } catch (error) {
         throw new Error(`logged out : API key health check failed : ${error.message}`);
       }
@@ -77,9 +75,7 @@ const authStatus = new Command()
       const payload = getConfigIdTokenPayload(getEnv(options));
 
       if (payload) {
-        console.log(
-          `logged in : ${payload.email} [${getEnv(options)}]`,
-        );
+        logSelectedOutputFormat(options, { text: `logged in : ${payload.email} [${getEnv(options)}]`, json: { command: 'status', status: 'ok', environment: getEnv(options), idToken: payload } });
       } else {
         throw new Error(`logged out : no id token found`);
       }
