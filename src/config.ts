@@ -1,6 +1,6 @@
 // Copyright © 2020-2022 Truestamp Inc. All rights reserved.
 
-import { Conf, ItemType } from "./deps.ts";
+import { Conf, Json } from "./deps.ts";
 
 function getConfigProjectNameForEnv(env: string): string {
   return `com.truestamp.cli.${env}`;
@@ -20,7 +20,7 @@ export function getConfigForEnv(
 export function getConfigKeyForEnv(
   env: string,
   key: string,
-): ItemType | null {
+): Json | null {
   const config = getConfigForEnv(env);
   return config.get(key);
 }
@@ -28,7 +28,7 @@ export function getConfigKeyForEnv(
 export function setConfigKeyForEnv(
   env: string,
   key: string,
-  value: ItemType,
+  value: Json,
 ): void {
   const config = getConfigForEnv(env);
   config.set(key, value);

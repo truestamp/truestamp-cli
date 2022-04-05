@@ -1,25 +1,25 @@
 {
   "headers": {
-    "location": "/-/@truestamp/truestamp-js@v0.9.4-1ClT521yX887OMQqGucX/dist=es2019,mode=types/dist/health/index.d.ts",
-    "nel": "{\"success_fraction\":0,\"report_to\":\"cf-nel\",\"max_age\":604800}",
+    "date": "Tue, 05 Apr 2022 01:11:08 GMT",
     "cache-control": "public, max-age=0, must-revalidate",
-    "vary": "Accept-Encoding",
+    "location": "/-/@truestamp/truestamp-js@v0.9.4-1ClT521yX887OMQqGucX/dist=es2019,mode=types/dist/health/index.d.ts",
+    "content-length": "0",
     "access-control-allow-origin": "*",
-    "server": "cloudflare",
-    "cf-cache-status": "MISS",
-    "date": "Sun, 03 Apr 2022 02:44:03 GMT",
     "x-vercel-cache": "MISS",
-    "expect-ct": "max-age=604800, report-uri=\"https://report-uri.cloudflare.com/cdn-cgi/beacon/expect-ct\"",
-    "report-to": "{\"endpoints\":[{\"url\":\"https:\\/\\/a.nel.cloudflare.com\\/report\\/v3?s=gnJUC4wo6tchOVsgVcM%2Fv%2B8KUCS%2FtW%2FkN%2ByCUpbn9FvbFxM8hdgr%2BKO9j7oUtSqq6lyR5NjWdterhIlkQZoWwuy6M6s41xmGKCfI0nX%2BJLw2cFZrgt3urE2lANwFCKFODQ%3D%3D\"}],\"group\":\"cf-nel\",\"max_age\":604800}",
-    "strict-transport-security": "max-age=63072000",
-    "cf-ray": "6f5e75ccfa63594f-IAD",
-    "x-vercel-id": "iad1::sfo1::qqt7r-1648953842740-cdc2cd1b910f",
+    "vary": "Accept-Encoding",
+    "x-vercel-id": "iad1::sfo1::j2nts-1649121068034-5981fbc99820",
+    "report-to": "{\"endpoints\":[{\"url\":\"https:\\/\\/a.nel.cloudflare.com\\/report\\/v3?s=emcAXP0ElOkXNRlwzwVCnsIXbrlodO7gCxLqtSV8X%2Fuhnw%2FQOdElhFmRizSbNfVJv9OgK6xMOqBtMxtLN0xLaReSopXiw2qUoe20xd2bGhxVqDgoEGQO91Kin3ZT4zeqqA%3D%3D\"}],\"group\":\"cf-nel\",\"max_age\":604800}",
+    "nel": "{\"success_fraction\":0,\"report_to\":\"cf-nel\",\"max_age\":604800}",
+    "server": "cloudflare",
+    "cf-ray": "6f6e68730cfb5a4b-IAD",
     "alt-svc": "h3=\":443\"; ma=86400, h3-29=\":443\"; ma=86400",
-    "content-length": "0"
+    "strict-transport-security": "max-age=63072000",
+    "expect-ct": "max-age=604800, report-uri=\"https://report-uri.cloudflare.com/cdn-cgi/beacon/expect-ct\"",
+    "cf-cache-status": "EXPIRED"
   },
   "url": "https://cdn.skypack.dev/-/@truestamp/truestamp-js@v0.9.4-1ClT521yX887OMQqGucX/dist=es2019,mode=types/dist/health.d.ts",
   "now": {
-    "secs_since_epoch": 1648953843,
-    "nanos_since_epoch": 86478000
+    "secs_since_epoch": 1649121068,
+    "nanos_since_epoch": 478917000
   }
 }

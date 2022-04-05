@@ -1,26 +1,27 @@
 {
   "headers": {
-    "access-control-allow-origin": "*",
-    "x-vercel-id": "iad1::sfo1::55bpv-1648953842367-2c178ab241d6",
-    "x-vercel-cache": "HIT",
-    "cf-ray": "6f5e75cab827594f-IAD",
-    "alt-svc": "h3=\":443\"; ma=86400, h3-29=\":443\"; ma=86400",
-    "cache-control": "public, max-age=31536000, immutable",
-    "strict-transport-security": "max-age=63072000",
-    "report-to": "{\"endpoints\":[{\"url\":\"https:\\/\\/a.nel.cloudflare.com\\/report\\/v3?s=nm0FKyZTEaFezEn7aoVPjfjF%2BlQbUnmOxdG92y0t0rZtPc5CqyxYT%2FmsZoh2VIfzI5kjPS7k0V%2FFacpX62QegJin6ZzdPhxSzvIe3O%2Fd%2BF1WNp84AIQkIr4Cdc9Y6qqzlg%3D%3D\"}],\"group\":\"cf-nel\",\"max_age\":604800}",
-    "date": "Sun, 03 Apr 2022 02:44:02 GMT",
+    "report-to": "{\"endpoints\":[{\"url\":\"https:\\/\\/a.nel.cloudflare.com\\/report\\/v3?s=ztHwtc8yW6k98i94lQMujw%2B4OaGp%2BZzZSzoF1nV4UZNvh6co9ZCCQ%2FQoamE2nkhjYoJ1JQ3S7xYw67j5I3QlsD0759FdFYsdTflf3yAbJYJDhxnFvsPK1wvG4WzJbv4AgA%3D%3D\"}],\"group\":\"cf-nel\",\"max_age\":604800}",
     "vary": "Accept-Encoding",
-    "etag": "W/\"24385-JixOFBLRU7TUynRmKc+9eXjOM10\"",
+    "cf-ray": "6f6e686ddd055a4b-IAD",
+    "x-vercel-id": "iad1::sfo1::fv6p9-1649105018600-c6e3e3d2088c",
+    "cf-cache-status": "HIT",
+    "age": "16048",
+    "date": "Tue, 05 Apr 2022 01:11:07 GMT",
+    "access-control-allow-origin": "*",
     "server": "cloudflare",
-    "access-control-expose-headers": "Content-Length, X-Imports",
     "expect-ct": "max-age=604800, report-uri=\"https://report-uri.cloudflare.com/cdn-cgi/beacon/expect-ct\"",
-    "nel": "{\"success_fraction\":0,\"report_to\":\"cf-nel\",\"max_age\":604800}",
+    "x-vercel-cache": "MISS",
+    "etag": "W/\"24385-JixOFBLRU7TUynRmKc+9eXjOM10\"",
+    "cache-control": "public, max-age=31536000, immutable",
+    "alt-svc": "h3=\":443\"; ma=86400, h3-29=\":443\"; ma=86400",
+    "strict-transport-security": "max-age=63072000",
     "content-type": "application/javascript; charset=utf-8",
-    "cf-cache-status": "MISS"
+    "access-control-expose-headers": "Content-Length, X-Imports",
+    "nel": "{\"success_fraction\":0,\"report_to\":\"cf-nel\",\"max_age\":604800}"
   },
   "url": "https://cdn.skypack.dev/-/@truestamp/truestamp-js@v0.9.4-1ClT521yX887OMQqGucX/dist=es2019,mode=imports/optimized/@truestamp/truestamp-js.js",
   "now": {
-    "secs_since_epoch": 1648953842,
-    "nanos_since_epoch": 315676000
+    "secs_since_epoch": 1649121067,
+    "nanos_since_epoch": 137705000
   }
 }

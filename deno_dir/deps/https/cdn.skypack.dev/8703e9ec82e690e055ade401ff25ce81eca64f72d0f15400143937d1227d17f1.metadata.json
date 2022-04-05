@@ -1,28 +1,28 @@
 {
   "headers": {
-    "alt-svc": "h3=\":443\"; ma=86400, h3-29=\":443\"; ma=86400",
-    "content-type": "application/typescript; charset=utf-8",
-    "accept-ranges": "bytes",
-    "server": "cloudflare",
-    "age": "12858",
-    "vary": "Accept-Encoding",
-    "x-vercel-cache": "MISS",
-    "nel": "{\"success_fraction\":0,\"report_to\":\"cf-nel\",\"max_age\":604800}",
-    "cf-cache-status": "HIT",
-    "expect-ct": "max-age=604800, report-uri=\"https://report-uri.cloudflare.com/cdn-cgi/beacon/expect-ct\"",
-    "report-to": "{\"endpoints\":[{\"url\":\"https:\\/\\/a.nel.cloudflare.com\\/report\\/v3?s=sLJ3g8LaBFhSsSYDPMhiTv5FL1BsdK%2FGXKEm7%2Fkh7vvIIFbirrR0Qn%2Fra8fuOMJ5PhZiCtU5ObZaJ09I4CJA0WEsH4Mq564iaR3Ar2gxruRfBO1CKG3F5PPqfT6tVv%2FhQw%3D%3D\"}],\"group\":\"cf-nel\",\"max_age\":604800}",
     "access-control-allow-origin": "*",
     "cache-control": "public, max-age=31536000, immutable",
-    "etag": "W/\"106-oYkuruhK5odboQxeZGABBEhW8CA\"",
-    "date": "Wed, 30 Mar 2022 22:25:15 GMT",
-    "x-vercel-id": "iad1::sfo1::7ttcv-1648666257575-556b129c4071",
+    "age": "16051",
+    "server": "cloudflare",
     "content-length": "262",
+    "expect-ct": "max-age=604800, report-uri=\"https://report-uri.cloudflare.com/cdn-cgi/beacon/expect-ct\"",
+    "cf-ray": "6f6e6875690a5a4b-IAD",
+    "alt-svc": "h3=\":443\"; ma=86400, h3-29=\":443\"; ma=86400",
+    "x-vercel-id": "iad1::sfo1::pxrl5-1649105016724-fd078561a84c",
+    "report-to": "{\"endpoints\":[{\"url\":\"https:\\/\\/a.nel.cloudflare.com\\/report\\/v3?s=XsJnJM2UsABGtqB3a36qsGxTCDSb8andotD3nuSvZDTq4loTK880EdbXT67%2B%2F%2B9lYjuRrrdc0%2BB%2FZLcScgyZNkN3v99o2%2BS6i5QWm7oC5uQyT%2F4hWdzZM1k464p%2Bt89G2g%3D%3D\"}],\"group\":\"cf-nel\",\"max_age\":604800}",
+    "vary": "Accept-Encoding",
+    "nel": "{\"success_fraction\":0,\"report_to\":\"cf-nel\",\"max_age\":604800}",
+    "date": "Tue, 05 Apr 2022 01:11:08 GMT",
+    "content-type": "application/typescript; charset=utf-8",
+    "accept-ranges": "bytes",
+    "cf-cache-status": "HIT",
     "strict-transport-security": "max-age=63072000",
-    "cf-ray": "6f444299ae0681e1-IAD"
+    "etag": "W/\"106-oYkuruhK5odboQxeZGABBEhW8CA\"",
+    "x-vercel-cache": "MISS"
   },
   "url": "https://cdn.skypack.dev/-/superstruct@v0.15.4-ilrv3kmiz34HFzddRYNC/dist=es2019,mode=types/lib/index.d.ts",
   "now": {
-    "secs_since_epoch": 1648679115,
-    "nanos_since_epoch": 677846000
+    "secs_since_epoch": 1649121068,
+    "nanos_since_epoch": 340747000
   }
 }

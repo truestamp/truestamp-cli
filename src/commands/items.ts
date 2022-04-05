@@ -1,8 +1,10 @@
 // Copyright © 2020-2022 Truestamp Inc. All rights reserved.
 
-import { Command, createTruestampClient, readAllSync } from "../deps.ts";
+import { Command, createTruestampClient, readAllSync, EnumType, ValidationError } from "../deps.ts";
 
 import { getEnv, logSelectedOutputFormat } from "../utils.ts";
+
+import { writeItemToDb, getItemHashById } from "../db.ts";
 
 // Limit the available hash types for now to those that are supported by the browser
 // and crypto.subtle.digest
@@ -13,13 +15,13 @@ const itemsCreate = new Command()
   .description(
     `Create a new Item.
 
-A new Item represents the hash of data that is submitted to the Truestamp API. This command allows you to provide a '--hash' and '--type' option to create a new Item. Alternatively, a file can be passed by path or piped to STDIN which will be hashed and submitted for you.
+A new Item represents the hash of data that is submitted to the Truestamp API. This command allows you to provide a '--hash' and '--hash-type' option to create a new Item. Alternatively, a file can be passed by path or piped to STDIN which will be hashed and submitted for you.
 
-Significantly more complex Items with provenance info, metadata, digital signatures, etc. can be provided as JSON passed into the STDIN or from a file path using the '--json' option.
+Significantly more complex Items with provenance info, metadata, digital signatures, etc. can be provided as JSON passed into the STDIN or from a file path using the '--input json' option.
 
-An Item Id will be returned in the response that identifies the Item and its temporal version. You *must* store this Item 'id' to enable verification of your data in the future.
+An Item Id will be returned in the response that identifies the Item and its temporal version. This Id will be stored in a local database for convenience, but you may also store this Item 'id' elsewhere to enable verification of your data in the future.
 
-See the examples section below for usage examples.
+See the example sections below for detailed usage examples.
 
 `,
   )
@@ -28,16 +30,16 @@ See the examples section below for usage examples.
     "An Item hash encoded as a Hex (Base16) string.",
     {
       required: false,
-      conflicts: ["stdin"],
-      depends: ["type"],
+      conflicts: ["stdin", "input"],
+      depends: ["hash-type"],
     },
   )
   .option(
-    "-t, --type [type:string]",
+    "-t, --hash-type [hashType:string]",
     `A hash function type. Hash byte length is validated against type. Accepts ${HASH_TYPES.join(", ")}.`,
     {
       required: false,
-      conflicts: ["stdin"],
+      conflicts: ["stdin", "input"],
       depends: ["hash"],
     },
   )
@@ -45,15 +47,17 @@ See the examples section below for usage examples.
     "-s, --stdin",
     "Read data from STDIN and submit new Item. Will be hashed unless '--json' is provided.",
     {
-      conflicts: ["hash", "type"],
+      conflicts: ["hash", "hash-type"],
+      depends: ["input"],
     }
   )
-  .option(
-    "-j, --json",
-    "Flag to indicate STDIN or file path argument contains a JSON object with full Item data. Allows submission of arbitrarily complex Items.",
+  .type("input", new EnumType(["binary", "json"]))
+  .option<{ input: string }>(
+    "-i, --input [input:input]",
+    "Input format. If 'binary' is provided the file will be hashed and a new Item constructed and submitted. If 'json' is provided the file not be hashed and will be submitted as-is. JSON content must match the structure expected by the API in all cases. If submitting arbitrary JSON files that are not of the shape the API expects, use 'binary'.",
     {
-      conflicts: ["hash", "type"],
-    }
+      conflicts: ["hash", "hash-type"]
+    },
   )
   .arguments("[path]")
   .example(
@@ -122,7 +126,7 @@ is a pretty simple to use example:
 
 Using the SHA-256 hash from the examples above:
 
-  $ truestamp items create --hash a591a6d40bf420404a011733cfb7b190d62c65bf0bcda32b57b277d9ad9f146e --type sha-256
+  $ truestamp items create --hash a591a6d40bf420404a011733cfb7b190d62c65bf0bcda32b57b277d9ad9f146e --hash-type sha-256
 
   `,
   )
@@ -130,13 +134,13 @@ Using the SHA-256 hash from the examples above:
     "STDIN File",
     `Pass a file to STDIN of the 'items create' command:
 
-Pipe content to the 'items create' command using the '--stdin' option or the '-' path:
+Pipe content to the 'items create' command using '--input binary' plus the '--stdin' option or the '-' path:
 
-  $ echo -n 'Hello World' | truestamp items create -
-  $ echo -n "Hello World" | truestamp items create --stdin
+  $ echo -n 'Hello World' | truestamp items create --input binary -
+  $ echo -n "Hello World" | truestamp items create --input binary --stdin
 
-  $ cat /tmp/hello.txt | truestamp items create -
-  $ cat /tmp/hello.txt | truestamp items create --stdin
+  $ cat hello.txt | truestamp items create --input binary -
+  $ cat hello.txt | truestamp items create --input binary --stdin
 
   `,
   )
@@ -144,7 +148,7 @@ Pipe content to the 'items create' command using the '--stdin' option or the '-'
     "FILE Path",
     `Pass a file path to the 'items create' command as the first argument:
 
-  $ truestamp items create /tmp/hello.txt
+  $ truestamp items create --input binary hello.txt
 
   `,
   )
@@ -152,39 +156,47 @@ Pipe content to the 'items create' command using the '--stdin' option or the '-'
     "JSON STDIN",
     `Pass raw JSON to STDIN of the 'items create' command:
 
-Pipe JSON content to the 'items create' command using '--json' plus the '--stdin' option or the '-' path:
+Pipe JSON content to the 'items create' command using '--input json' plus the '--stdin' option or the '-' path:
 
-  $ echo -n '{"hash": "63df103e8ebcabdf86d8f13e98a02063fef1da8065335ec0dd978378951534d6", "hashType": "sha-256"}' | truestamp items create --json -
-  $ echo -n '{"hash": "63df103e8ebcabdf86d8f13e98a02063fef1da8065335ec0dd978378951534d6", "hashType": "sha-256"}' | truestamp items create --json --stdin
+  $ echo -n '{"hash": "63df103e8ebcabdf86d8f13e98a02063fef1da8065335ec0dd978378951534d6", "hashType": "sha-256"}' | truestamp items create --input json -
+  $ echo -n '{"hash": "63df103e8ebcabdf86d8f13e98a02063fef1da8065335ec0dd978378951534d6", "hashType": "sha-256"}' | truestamp items create --input json --stdin
 
   # Can be full complexity JSON Item data
   $ echo -n '{"hash": "63df103e8ebcabdf86d8f13e98a02063fef1da8065335ec0dd978378951534d6", "hashType": "sha-256"}' > hello.json
 
-  $ cat /tmp/hello.json | truestamp items create --json -
-  $ cat /tmp/hello.json | truestamp items create --json --stdin
+  $ cat hello.json | truestamp items create --input json -
+  $ cat hello.json | truestamp items create --input json --stdin
 
   `,
   )
   .example(
     "JSON FILE Path",
-    `Pass the '--json' option and a file path argument to the 'items create' command:
+    `Pass the '--input json' option and a file path argument to the 'items create' command:
 
-  $ truestamp items create --json /tmp/hello.json
+  $ truestamp items create --input json hello.json
 
   `,
   )
   .action(async (options, path: string) => {
     const ts = await createTruestampClient(options.env, options.apiKey);
 
-    let jsonItem, altHash, altType
+    if (!options.input && options.stdin) {
+      throw new ValidationError('Option "--stdin" depends on option "--input".');
+    }
+
+    if (!options.input && path) {
+      throw new ValidationError('Argument "path" depends on option "--input".');
+    }
+
+    let jsonItem, altHash, altHashType
 
     // If the user provided JSON STDIN using the '--json' and '--stdin' options or the '-' or a file path argument, parse
     // the contents of STDIN and pass it directly to the Truestamp client as a complete Item object.
-    if (options.json && (options.stdin || path === "-")) {
+    if (options.input === 'json' && (options.stdin || path === "-")) {
       const data = await readAllSync(Deno.stdin);
       const decoder = new TextDecoder();
       jsonItem = JSON.parse(decoder.decode(data));
-    } else if (options.json && path) {
+    } else if (options.input === 'json' && path) {
       const file = await Deno.open(path, { read: true, write: false });
       // await copy(file, Deno.stdout);
 
@@ -199,7 +211,7 @@ Pipe JSON content to the 'items create' command using '--json' plus the '--stdin
     // of STDIN and hash it with SHA-256. If instead the user provided a path, read the contents
     // of the file and hash it with SHA-256.
     // See : https://github.com/c4spar/deno-cliffy/discussions/180
-    if (!options.json && (options.stdin || path === "-")) {
+    if (options.input === 'binary' && (options.stdin || path === "-")) {
       // await copy(Deno.stdin, Deno.stdout);
 
       const data = await readAllSync(Deno.stdin);
@@ -207,8 +219,8 @@ Pipe JSON content to the 'items create' command using '--json' plus the '--stdin
       const hashHex = Array.from(hash, (byte) => byte.toString(16).padStart(2, "0")).join("")
       // console.log(`SHA-256(stdin) = ${hashHex}`)
       altHash = hashHex
-      altType = "sha-256"
-    } else if (!options.json && path) {
+      altHashType = "sha-256"
+    } else if (options.input === 'binary' && path) {
       const file = await Deno.open(path, { read: true, write: false });
       // await copy(file, Deno.stdout);
 
@@ -217,28 +229,35 @@ Pipe JSON content to the 'items create' command using '--json' plus the '--stdin
       const hashHex = Array.from(hash, (byte) => byte.toString(16).padStart(2, "0")).join("")
       // console.log(`SHA-256(stdin) = ${hashHex}`)
       altHash = hashHex
-      altType = "sha-256"
+      altHashType = "sha-256"
 
       file.close();
     }
 
-    // If the user provided a hash and a type, validate the hash and type
-    // and create the Item. If the user did not provide a hash or a type,
+    // If the user provided a hash and a hash-type, validate the hash and hash-type
+    // and create the Item. If the user did not provide a hash or a hash-type,
     // but instead had provided the '--stdin' flag or the '-' path argument,
-    // or an actual path, create the Item with the hash and type from the
+    // or an actual path, create the Item with the hash and hash-type from the
     // STDIN or file.
     try {
       let itemResp
 
       if (jsonItem) {
         itemResp = await ts.createItem(jsonItem);
-      } else if (options.hash && options.type) {
-        itemResp = await ts.createItem({ hash: options.hash, hashType: options.type });
-      } else if (altHash && altType) {
-        itemResp = await ts.createItem({ hash: altHash, hashType: altType });
+      } else if (options.hash && options.hashType) {
+        itemResp = await ts.createItem({ hash: options.hash, hashType: options.hashType });
+      } else if (altHash && altHashType) {
+        itemResp = await ts.createItem({ hash: altHash, hashType: altHashType });
       } else {
-        throw new Error("No hash or hashType provided");
+        throw new Error("No hash or hash-type provided");
       }
+
+      // console.log(JSON.stringify(itemResp, null, 2));
+
+      // store the item in the local database
+      writeItemToDb(getEnv(options), itemResp.id, itemResp);
+
+      // console.log(getItemHashById(getEnv(options), itemResp.id));
 
       logSelectedOutputFormat(options, { text: itemResp.id, json: { id: itemResp.id } });
     } catch (error) {
@@ -323,15 +342,15 @@ const itemsUpdate = new Command()
 
 Updating an Item returns an updated Id to reflect the update time.
 
-Significantly more complex Items with provenance info, metadata, digital signatures, etc. can be provided as JSON passed into the STDIN or from a file path using the '--json' option.
+Significantly more complex Items with provenance info, metadata, digital signatures, etc. can be provided as JSON passed into the STDIN or from a file path using the '--input json' option.
 
 Updates are always non-destructive. Older versions are preserved and can be retrieved with their Id.
 
 Any Item attributes that existed on an older version which are not provided again will be removed from the new version.
 
-An *new* Item Id will be returned in the response that identifies the Item and its new temporal version. You *must* store this Item 'id' to enable verification of your data in the future. The Id provided as an argument remains valid and it's content unchanged.
+An Item Id will be returned in the response that identifies the Item and its temporal version. This Id will be stored in a local database for convenience, but you may also store this Item 'id' elsewhere to enable verification of your data in the future.
 
-See the examples section below for usage examples.
+See the example sections below for detailed usage examples.
 
 `
   )
@@ -343,32 +362,34 @@ See the examples section below for usage examples.
     "An Item hash encoded as a Hex (Base16) string.",
     {
       required: false,
-      conflicts: ["stdin"],
-      depends: ["type"],
+      conflicts: ["stdin", "input"],
+      depends: ["hash-type"],
     },
   )
   .option(
-    "-t, --type [type:string]",
+    "-t, --hash-type [hashType:string]",
     `A hash function type. Hash byte length is validated against type. Accepts ${HASH_TYPES.join(", ")}.`,
     {
       required: false,
-      conflicts: ["stdin"],
+      conflicts: ["stdin", "input"],
       depends: ["hash"],
     },
   )
   .option(
     "-s, --stdin",
-    "Read data from STDIN and submit updated Item. Will be hashed unless '--json' is provided.",
+    "Read data from STDIN and submit new Item. Will be hashed unless '--json' is provided.",
     {
-      conflicts: ["hash", "type"],
+      conflicts: ["hash", "hash-type"],
+      depends: ["input"],
     }
   )
-  .option(
-    "-j, --json",
-    "Flag to indicate STDIN or file path argument contains a JSON object with full Item data. Allows update with arbitrarily complex Items.",
+  .type("input", new EnumType(["binary", "json"]))
+  .option<{ input: string }>(
+    "-i, --input [input:input]",
+    "Input format. If 'binary' is provided the file will be hashed and a new Item constructed and submitted. If 'json' is provided the file not be hashed and will be submitted as-is. JSON content must match the structure expected by the API in all cases. If submitting arbitrary JSON files that are not of the shape the API expects, use 'binary'.",
     {
-      conflicts: ["hash", "type"],
-    }
+      conflicts: ["hash", "hash-type"]
+    },
   )
   .arguments("[path]")
   .example(
@@ -378,7 +399,7 @@ See the examples section below for usage examples.
   $ echo -n 'Hello World Again' | sha256sum
   63df103e8ebcabdf86d8f13e98a02063fef1da8065335ec0dd978378951534d6  -
 
-  $ truestamp items update --id T11_01FZGTTP1JRQ40PD99GGJK07YS_1648758708880000_A523F596217460983B658A78B5E7AACF --hash 63df103e8ebcabdf86d8f13e98a02063fef1da8065335ec0dd978378951534d6 --type sha-256
+  $ truestamp items update --id T11_01FZGTTP1JRQ40PD99GGJK07YS_1648758708880000_A523F596217460983B658A78B5E7AACF --hash 63df103e8ebcabdf86d8f13e98a02063fef1da8065335ec0dd978378951534d6 --hash-type sha-256
 
   `,
   )
@@ -388,11 +409,11 @@ See the examples section below for usage examples.
 
 Pipe content to the 'items update' command using the '--stdin' option or the '-' path:
 
-  $ echo -n 'Hello World' | truestamp items update --id T11_01FZGTTP1JRQ40PD99GGJK07YS_1648758708880000_A523F596217460983B658A78B5E7AACF -
-  $ echo -n "Hello World" | truestamp items update --stdin --id T11_01FZGTTP1JRQ40PD99GGJK07YS_1648758708880000_A523F596217460983B658A78B5E7AACF
+  $ echo -n 'Hello World' | truestamp items update --id T11_01FZGTTP1JRQ40PD99GGJK07YS_1648758708880000_A523F596217460983B658A78B5E7AACF --input binary -
+  $ echo -n "Hello World" | truestamp items update --stdin --input binary --id T11_01FZGTTP1JRQ40PD99GGJK07YS_1648758708880000_A523F596217460983B658A78B5E7AACF
 
-  $ cat /tmp/hello.txt | truestamp items update --id T11_01FZGTTP1JRQ40PD99GGJK07YS_1648758708880000_A523F596217460983B658A78B5E7AACF -
-  $ cat /tmp/hello.txt | truestamp items update --stdin --id T11_01FZGTTP1JRQ40PD99GGJK07YS_1648758708880000_A523F596217460983B658A78B5E7AACF
+  $ cat hello.txt | truestamp items update --id T11_01FZGTTP1JRQ40PD99GGJK07YS_1648758708880000_A523F596217460983B658A78B5E7AACF --input binary -
+  $ cat hello.txt | truestamp items update --stdin --input binary --id T11_01FZGTTP1JRQ40PD99GGJK07YS_1648758708880000_A523F596217460983B658A78B5E7AACF
 
   `,
   )
@@ -400,7 +421,7 @@ Pipe content to the 'items update' command using the '--stdin' option or the '-'
     "FILE Path",
     `Pass an '--id' and a file path to the 'items update' command:
 
-  $ truestamp items update --id T11_01FZGTTP1JRQ40PD99GGJK07YS_1648758708880000_A523F596217460983B658A78B5E7AACF /tmp/hello.txt
+  $ truestamp items update --id T11_01FZGTTP1JRQ40PD99GGJK07YS_1648758708880000_A523F596217460983B658A78B5E7AACF --input binary hello.txt
 
   `,
   )
@@ -408,39 +429,47 @@ Pipe content to the 'items update' command using the '--stdin' option or the '-'
     "JSON STDIN",
     `Pass raw JSON to STDIN of the 'items update' command:
 
-Pipe JSON content to the 'items update' command using '--json' plus the '--stdin' option or the '-' path:
+Pipe JSON content to the 'items update' command using '--input json' plus the '--stdin' option or the '-' path:
 
-  $ echo -n '{"hash": "63df103e8ebcabdf86d8f13e98a02063fef1da8065335ec0dd978378951534d6", "hashType": "sha-256"}' | truestamp items update --json --id T11_01FZGTTP1JRQ40PD99GGJK07YS_1648758708880000_A523F596217460983B658A78B5E7AACF -
-  $ echo -n '{"hash": "63df103e8ebcabdf86d8f13e98a02063fef1da8065335ec0dd978378951534d6", "hashType": "sha-256"}' | truestamp items update --json --stdin --id T11_01FZGTTP1JRQ40PD99GGJK07YS_1648758708880000_A523F596217460983B658A78B5E7AACF
+  $ echo -n '{"hash": "63df103e8ebcabdf86d8f13e98a02063fef1da8065335ec0dd978378951534d6", "hashType": "sha-256"}' | truestamp items update --input json --id T11_01FZGTTP1JRQ40PD99GGJK07YS_1648758708880000_A523F596217460983B658A78B5E7AACF -
+  $ echo -n '{"hash": "63df103e8ebcabdf86d8f13e98a02063fef1da8065335ec0dd978378951534d6", "hashType": "sha-256"}' | truestamp items update --input json --stdin --id T11_01FZGTTP1JRQ40PD99GGJK07YS_1648758708880000_A523F596217460983B658A78B5E7AACF
 
   # Can be full complexity JSON Item data
   $ echo -n '{"hash": "63df103e8ebcabdf86d8f13e98a02063fef1da8065335ec0dd978378951534d6", "hashType": "sha-256"}' > hello.json
 
-  $ cat /tmp/hello.json | truestamp items update --json --id T11_01FZGTTP1JRQ40PD99GGJK07YS_1648758708880000_A523F596217460983B658A78B5E7AACF -
-  $ cat /tmp/hello.json | truestamp items update --json --stdin --id T11_01FZGTTP1JRQ40PD99GGJK07YS_1648758708880000_A523F596217460983B658A78B5E7AACF
+  $ cat hello.json | truestamp items update --input json --id T11_01FZGTTP1JRQ40PD99GGJK07YS_1648758708880000_A523F596217460983B658A78B5E7AACF -
+  $ cat hello.json | truestamp items update --input json --stdin --id T11_01FZGTTP1JRQ40PD99GGJK07YS_1648758708880000_A523F596217460983B658A78B5E7AACF
 
   `,
   )
   .example(
     "JSON FILE Path",
-    `Pass the '--json' option and a file path argument to the 'items update' command:
+    `Pass the '--input json' option and a file path argument to the 'items update' command:
 
-  $ truestamp items update --json --id T11_01FZGTTP1JRQ40PD99GGJK07YS_1648758708880000_A523F596217460983B658A78B5E7AACF /tmp/hello.json
+  $ truestamp items update --input json --id T11_01FZGTTP1JRQ40PD99GGJK07YS_1648758708880000_A523F596217460983B658A78B5E7AACF hello.json
 
   `,
   )
   .action(async (options, path: string) => {
     const ts = await createTruestampClient(options.env, options.apiKey);
 
-    let jsonItem, altHash, altType
+    if (!options.input && options.stdin) {
+      throw new ValidationError('Option "--stdin" depends on option "--input".');
+    }
+
+    if (!options.input && path) {
+      throw new ValidationError('Argument "path" depends on option "--input".');
+    }
+
+    let jsonItem, altHash, altHashType
 
     // If the user provided JSON STDIN using the '--json' and '--stdin' options or the '-' or a file path argument, parse
     // the contents of STDIN and pass it directly to the Truestamp client as a complete Item object.
-    if (options.json && (options.stdin || path === "-")) {
+    if (options.input === 'json' && (options.stdin || path === "-")) {
       const data = await readAllSync(Deno.stdin);
       const decoder = new TextDecoder();
       jsonItem = JSON.parse(decoder.decode(data));
-    } else if (options.json && path) {
+    } else if (options.input === 'json' && path) {
       const file = await Deno.open(path, { read: true, write: false });
       // await copy(file, Deno.stdout);
 
@@ -455,7 +484,7 @@ Pipe JSON content to the 'items update' command using '--json' plus the '--stdin
     // of STDIN and hash it with SHA-256. If instead the user provided a path, read the contents
     // of the file and hash it with SHA-256.
     // See : https://github.com/c4spar/deno-cliffy/discussions/180
-    if (!options.json && (options.stdin || path === "-")) {
+    if (options.input === 'binary' && (options.stdin || path === "-")) {
       // await copy(Deno.stdin, Deno.stdout);
 
       const data = await readAllSync(Deno.stdin);
@@ -463,8 +492,8 @@ Pipe JSON content to the 'items update' command using '--json' plus the '--stdin
       const hashHex = Array.from(hash, (byte) => byte.toString(16).padStart(2, "0")).join("")
       // console.log(`SHA-256(stdin) = ${hashHex}`)
       altHash = hashHex
-      altType = "sha-256"
-    } else if (!options.json && path) {
+      altHashType = "sha-256"
+    } else if (options.input === 'binary' && path) {
       const file = await Deno.open(path, { read: true, write: false });
       // await copy(file, Deno.stdout);
 
@@ -473,7 +502,7 @@ Pipe JSON content to the 'items update' command using '--json' plus the '--stdin
       const hashHex = Array.from(hash, (byte) => byte.toString(16).padStart(2, "0")).join("")
       // console.log(`SHA-256(stdin) = ${hashHex}`)
       altHash = hashHex
-      altType = "sha-256"
+      altHashType = "sha-256"
 
       file.close();
     }
@@ -483,13 +512,16 @@ Pipe JSON content to the 'items update' command using '--json' plus the '--stdin
 
       if (jsonItem) {
         itemResp = await ts.updateItem(options.id, jsonItem);
-      } else if (options.hash && options.type) {
-        itemResp = await ts.updateItem(options.id, { hash: options.hash, hashType: options.type });
-      } else if (altHash && altType) {
-        itemResp = await ts.updateItem(options.id, { hash: altHash, hashType: altType });
+      } else if (options.hash && options.hashType) {
+        itemResp = await ts.updateItem(options.id, { hash: options.hash, hashType: options.hashType });
+      } else if (altHash && altHashType) {
+        itemResp = await ts.updateItem(options.id, { hash: altHash, hashType: altHashType });
       } else {
         throw new Error("No hash or hashType provided");
       }
+
+      // store the item in the local database
+      writeItemToDb(getEnv(options), itemResp.id, itemResp);
 
       logSelectedOutputFormat(options, { text: itemResp.id, json: { id: itemResp.id } });
     } catch (error) {

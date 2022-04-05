@@ -1,28 +1,28 @@
 {
   "headers": {
-    "strict-transport-security": "max-age=63072000",
-    "cf-ray": "6f444299be3881e1-IAD",
-    "date": "Wed, 30 Mar 2022 22:25:15 GMT",
     "content-type": "application/typescript; charset=utf-8",
-    "alt-svc": "h3=\":443\"; ma=86400, h3-29=\":443\"; ma=86400",
-    "report-to": "{\"endpoints\":[{\"url\":\"https:\\/\\/a.nel.cloudflare.com\\/report\\/v3?s=5XnjN9XeXabjKcCdFCwveDB0S%2Fm4cnDw2JqWcYoxEk0Ltncj4OPx8pvWgRhjpd9sXvg6SymyJKzexOpDmq41RdJB9SOx%2BGr%2BjNVi0v9EH6j9hMJeLoS8pJaA4ZWksIupzg%3D%3D\"}],\"group\":\"cf-nel\",\"max_age\":604800}",
-    "accept-ranges": "bytes",
-    "vary": "Accept-Encoding",
-    "access-control-allow-origin": "*",
-    "cache-control": "public, max-age=31536000, immutable",
-    "age": "12857",
-    "content-length": "3992",
-    "server": "cloudflare",
-    "x-vercel-id": "iad1::sfo1::94hqs-1648666258030-70d4602f2d33",
-    "nel": "{\"success_fraction\":0,\"report_to\":\"cf-nel\",\"max_age\":604800}",
-    "expect-ct": "max-age=604800, report-uri=\"https://report-uri.cloudflare.com/cdn-cgi/beacon/expect-ct\"",
-    "etag": "W/\"f98-M56Ziz/hcJW2fmp6vvODmMMKQJ0\"",
+    "date": "Tue, 05 Apr 2022 01:11:08 GMT",
+    "report-to": "{\"endpoints\":[{\"url\":\"https:\\/\\/a.nel.cloudflare.com\\/report\\/v3?s=qB2o%2BK298euQj4hq9Aab2uitD8rbQrQl7kqHmnrGY2HvpokwsbWYNnbOfR28QTJFINd90epTljgwOipuM%2BXmpdlrNHiTAa0Sp70dSAv6tLQRpSN81s%2FXWG4w0tAdCvUFrw%3D%3D\"}],\"group\":\"cf-nel\",\"max_age\":604800}",
     "cf-cache-status": "HIT",
-    "x-vercel-cache": "MISS"
+    "age": "16051",
+    "expect-ct": "max-age=604800, report-uri=\"https://report-uri.cloudflare.com/cdn-cgi/beacon/expect-ct\"",
+    "server": "cloudflare",
+    "etag": "W/\"f98-M56Ziz/hcJW2fmp6vvODmMMKQJ0\"",
+    "cache-control": "public, max-age=31536000, immutable",
+    "access-control-allow-origin": "*",
+    "x-vercel-cache": "MISS",
+    "accept-ranges": "bytes",
+    "nel": "{\"success_fraction\":0,\"report_to\":\"cf-nel\",\"max_age\":604800}",
+    "strict-transport-security": "max-age=63072000",
+    "vary": "Accept-Encoding",
+    "content-length": "3992",
+    "cf-ray": "6f6e687589405a4b-IAD",
+    "alt-svc": "h3=\":443\"; ma=86400, h3-29=\":443\"; ma=86400",
+    "x-vercel-id": "iad1::sfo1::579k4-1649105017215-4dd1e8b36f22"
   },
   "url": "https://cdn.skypack.dev/-/superstruct@v0.15.4-ilrv3kmiz34HFzddRYNC/dist=es2019,mode=types/lib/structs/utilities.d.ts",
   "now": {
-    "secs_since_epoch": 1648679115,
-    "nanos_since_epoch": 698034000
+    "secs_since_epoch": 1649121068,
+    "nanos_since_epoch": 366541000
   }
 }
