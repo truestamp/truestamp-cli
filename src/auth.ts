@@ -184,7 +184,7 @@ export function getConfigRefreshToken(env = "production"): string | undefined {
   return t ? t : undefined;
 }
 
-export function getConfigIdTokenPayload(env = "production"): Payload | undefined {
+export function getConfigIdTokenPayload(env = "production"): Payload {
   let idToken
   try {
     idToken = getConfigKeyForEnv(env, "auth0_id_token") as string;
@@ -192,7 +192,7 @@ export function getConfigIdTokenPayload(env = "production"): Payload | undefined
     throw new Error(`no id token found in config : ${error.message}`)
   }
 
-  if (!idToken) { return undefined }
+  if (!idToken) { throw new Error(`missing id token`); }
 
   try {
     const { payload } = validate(decode(idToken));

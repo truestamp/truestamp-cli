@@ -95,13 +95,15 @@ const authStatus = new Command()
         throw new Error(`logged out : access check failed : ${error.message}`);
       }
 
-      // throws if token in config is invalid
-      const payload = getConfigIdTokenPayload(getEnv(options));
-
-      if (payload) {
+      try {
+        // throws if token in config is invalid
+        const payload = getConfigIdTokenPayload(getEnv(options));
         logSelectedOutputFormat(options, { text: `logged in : ${payload.email} [${getEnv(options)}]`, json: { command: 'status', status: 'ok', environment: getEnv(options), idToken: payload } });
-      } else {
-        throw new Error(`logged out : no id token found`);
+      } catch (_error) {
+        // ID token in config is invalid or expired
+        // handle gracefully since this is the only place ID token is used and
+        // we're already proven the access token is valid.
+        logSelectedOutputFormat(options, { text: `logged in : [${getEnv(options)}]`, json: { command: 'status', status: 'ok', environment: getEnv(options) } });
       }
     }
   });
