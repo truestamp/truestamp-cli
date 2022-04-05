@@ -1,28 +1,27 @@
 {
   "headers": {
-    "date": "Tue, 05 Apr 2022 01:11:08 GMT",
-    "age": "16051",
-    "cf-cache-status": "HIT",
-    "content-type": "application/typescript; charset=utf-8",
-    "expect-ct": "max-age=604800, report-uri=\"https://report-uri.cloudflare.com/cdn-cgi/beacon/expect-ct\"",
-    "cache-control": "public, max-age=31536000, immutable",
+    "strict-transport-security": "max-age=63072000",
+    "accept-ranges": "bytes",
     "vary": "Accept-Encoding",
     "content-length": "535",
-    "alt-svc": "h3=\":443\"; ma=86400, h3-29=\":443\"; ma=86400",
-    "x-vercel-cache": "MISS",
-    "access-control-allow-origin": "*",
-    "accept-ranges": "bytes",
     "nel": "{\"success_fraction\":0,\"report_to\":\"cf-nel\",\"max_age\":604800}",
+    "cf-ray": "6f6f56a2bbd5cefc-IAD",
+    "cf-cache-status": "MISS",
+    "report-to": "{\"endpoints\":[{\"url\":\"https:\\/\\/a.nel.cloudflare.com\\/report\\/v3?s=HTzjvUq4xc%2BnsNgYknjwshKYptEIH4cHzOWkaek915ldXi%2B3f93dOlBoK2QYBc9Zlg2sPzYqap5r5wQSbJECeg3nMS6MxCV5pj2A8lUgiiJvKzmTY%2BqmZ7I93YmJW1tjBg%3D%3D\"}],\"group\":\"cf-nel\",\"max_age\":604800}",
+    "x-vercel-cache": "MISS",
+    "cache-control": "public, max-age=31536000, immutable",
+    "date": "Tue, 05 Apr 2022 03:53:44 GMT",
+    "x-vercel-id": "iad1::sfo1::pq2fr-1649130824131-85730acd4612",
+    "expect-ct": "max-age=604800, report-uri=\"https://report-uri.cloudflare.com/cdn-cgi/beacon/expect-ct\"",
+    "content-type": "application/typescript; charset=utf-8",
     "server": "cloudflare",
-    "cf-ray": "6f6e68730cf95a4b-IAD",
     "etag": "W/\"217-ngWD3FgI58sCXtgcHKkD6hon1Dg\"",
-    "x-vercel-id": "iad1::sfo1::9vm7n-1649105016782-8f0920d35b0f",
-    "strict-transport-security": "max-age=63072000",
-    "report-to": "{\"endpoints\":[{\"url\":\"https:\\/\\/a.nel.cloudflare.com\\/report\\/v3?s=ilUTcHszHN5TPdH1KrP4FH4h7xQcWRA9O1zoFlJ0hdHfk9iuNTY9x6EsAOv%2BEC7oQmo7OttwyTXJRoM664gvhl4vZGMxXIuAKxN0ko8sWW0y%2BJEC%2Bn%2B%2FExCmtm3wBHxnPg%3D%3D\"}],\"group\":\"cf-nel\",\"max_age\":604800}"
+    "alt-svc": "h3=\":443\"; ma=86400, h3-29=\":443\"; ma=86400",
+    "access-control-allow-origin": "*"
   },
   "url": "https://cdn.skypack.dev/-/@truestamp/truestamp-js@v0.9.4-1ClT521yX887OMQqGucX/dist=es2019,mode=types/dist/base.d.ts",
   "now": {
-    "secs_since_epoch": 1649121067,
-    "nanos_since_epoch": 954690000
+    "secs_since_epoch": 1649130824,
+    "nanos_since_epoch": 387902000
   }
 }

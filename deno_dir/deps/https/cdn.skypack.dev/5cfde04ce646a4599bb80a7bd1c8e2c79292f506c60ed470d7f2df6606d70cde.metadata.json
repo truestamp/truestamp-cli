@@ -1,25 +1,25 @@
 {
   "headers": {
-    "cf-ray": "6f6e68730cfe5a4b-IAD",
-    "date": "Tue, 05 Apr 2022 01:11:08 GMT",
-    "report-to": "{\"endpoints\":[{\"url\":\"https:\\/\\/a.nel.cloudflare.com\\/report\\/v3?s=cC6yvGisk8DJDh2to216bULkQv%2BZAmAtmfWczxm7lldqK5vasX0u%2BnkFUIn0KcA%2FH5VX%2BJQ0utXn75XlJ5%2Bndc2QD8Fp3tG9G2HkxrwtIFWVPsfV46ydQnJ3sMgSFbizPQ%3D%3D\"}],\"group\":\"cf-nel\",\"max_age\":604800}",
-    "nel": "{\"success_fraction\":0,\"report_to\":\"cf-nel\",\"max_age\":604800}",
-    "server": "cloudflare",
-    "location": "/-/@truestamp/truestamp-js@v0.9.4-1ClT521yX887OMQqGucX/dist=es2019,mode=types/dist/keys/index.d.ts",
-    "access-control-allow-origin": "*",
-    "strict-transport-security": "max-age=63072000",
-    "expect-ct": "max-age=604800, report-uri=\"https://report-uri.cloudflare.com/cdn-cgi/beacon/expect-ct\"",
-    "x-vercel-id": "iad1::sfo1::xgs98-1649121068028-f2194be2e8db",
+    "cf-ray": "6f6f56a2bbd9cefc-IAD",
     "content-length": "0",
+    "report-to": "{\"endpoints\":[{\"url\":\"https:\\/\\/a.nel.cloudflare.com\\/report\\/v3?s=Cng%2BSb3R6WtgcCumEz6GLIu8CqKoFsoI2HmV%2Bktn%2BQ4tojX5fxkaXc8OWcqFK1AZgTpFAlPfF5Fd%2B9aafLvFgUygPHQJHOEk%2FairEsMJ6SDRnDmS0syc4u%2BfDnbdtpM%2FIQ%3D%3D\"}],\"group\":\"cf-nel\",\"max_age\":604800}",
+    "expect-ct": "max-age=604800, report-uri=\"https://report-uri.cloudflare.com/cdn-cgi/beacon/expect-ct\"",
+    "server": "cloudflare",
+    "cf-cache-status": "MISS",
+    "date": "Tue, 05 Apr 2022 03:53:44 GMT",
+    "strict-transport-security": "max-age=63072000",
+    "x-vercel-id": "iad1::sfo1::m7hm6-1649130824132-fd65a011a95a",
+    "location": "/-/@truestamp/truestamp-js@v0.9.4-1ClT521yX887OMQqGucX/dist=es2019,mode=types/dist/keys/index.d.ts",
+    "nel": "{\"success_fraction\":0,\"report_to\":\"cf-nel\",\"max_age\":604800}",
+    "access-control-allow-origin": "*",
+    "cache-control": "public, max-age=0, must-revalidate",
     "vary": "Accept-Encoding",
     "alt-svc": "h3=\":443\"; ma=86400, h3-29=\":443\"; ma=86400",
-    "x-vercel-cache": "MISS",
-    "cf-cache-status": "EXPIRED",
-    "cache-control": "public, max-age=0, must-revalidate"
+    "x-vercel-cache": "MISS"
   },
   "url": "https://cdn.skypack.dev/-/@truestamp/truestamp-js@v0.9.4-1ClT521yX887OMQqGucX/dist=es2019,mode=types/dist/keys.d.ts",
   "now": {
-    "secs_since_epoch": 1649121068,
-    "nanos_since_epoch": 433165000
+    "secs_since_epoch": 1649130824,
+    "nanos_since_epoch": 565294000
   }
 }

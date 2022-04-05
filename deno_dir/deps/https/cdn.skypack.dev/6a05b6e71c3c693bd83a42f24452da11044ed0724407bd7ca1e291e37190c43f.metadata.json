@@ -1,25 +1,25 @@
 {
   "headers": {
-    "strict-transport-security": "max-age=63072000",
-    "x-vercel-id": "iad1::sfo1::fv97b-1649121068021-b282e24f49ab",
-    "x-vercel-cache": "MISS",
-    "date": "Tue, 05 Apr 2022 01:11:08 GMT",
-    "report-to": "{\"endpoints\":[{\"url\":\"https:\\/\\/a.nel.cloudflare.com\\/report\\/v3?s=Tj0i%2B4QjBCHj%2Bs2c4KWoci17dW6%2FPd0NIe6Xj1DFoIGUkCVvrNRZkUjmwg10F2PkcfjrzgFspgi7oxkx5CsUCOz9zOCQGSDF8rLXmMAKkURiGkWysIk1rdotA2iCx%2BzSUg%3D%3D\"}],\"group\":\"cf-nel\",\"max_age\":604800}",
-    "vary": "Accept-Encoding",
+    "cf-ray": "6f6f56a2bbd8cefc-IAD",
     "location": "/-/@truestamp/truestamp-js@v0.9.4-1ClT521yX887OMQqGucX/dist=es2019,mode=types/dist/items/index.d.ts",
+    "strict-transport-security": "max-age=63072000",
     "alt-svc": "h3=\":443\"; ma=86400, h3-29=\":443\"; ma=86400",
-    "access-control-allow-origin": "*",
+    "x-vercel-id": "iad1::sfo1::lmncr-1649130824134-0662c948774e",
+    "vary": "Accept-Encoding",
+    "x-vercel-cache": "MISS",
     "cache-control": "public, max-age=0, must-revalidate",
-    "nel": "{\"success_fraction\":0,\"report_to\":\"cf-nel\",\"max_age\":604800}",
-    "cf-cache-status": "EXPIRED",
-    "expect-ct": "max-age=604800, report-uri=\"https://report-uri.cloudflare.com/cdn-cgi/beacon/expect-ct\"",
+    "content-length": "0",
     "server": "cloudflare",
-    "cf-ray": "6f6e68730cfd5a4b-IAD",
-    "content-length": "0"
+    "date": "Tue, 05 Apr 2022 03:53:44 GMT",
+    "report-to": "{\"endpoints\":[{\"url\":\"https:\\/\\/a.nel.cloudflare.com\\/report\\/v3?s=Rbe3eFfTon%2BVljDzlFy%2BL8M6DC6OUuERJUEZN7BIHCMWWgVEKvnfWAzC7clSMWsJpS85DpD5rxOvBYU2%2B6e2AWGRg9bujHLMkIKaFDQKXG2gJueRyK9CtWQOmCduvQCS7w%3D%3D\"}],\"group\":\"cf-nel\",\"max_age\":604800}",
+    "cf-cache-status": "MISS",
+    "access-control-allow-origin": "*",
+    "nel": "{\"success_fraction\":0,\"report_to\":\"cf-nel\",\"max_age\":604800}",
+    "expect-ct": "max-age=604800, report-uri=\"https://report-uri.cloudflare.com/cdn-cgi/beacon/expect-ct\""
   },
   "url": "https://cdn.skypack.dev/-/@truestamp/truestamp-js@v0.9.4-1ClT521yX887OMQqGucX/dist=es2019,mode=types/dist/items.d.ts",
   "now": {
-    "secs_since_epoch": 1649121068,
-    "nanos_since_epoch": 484677000
+    "secs_since_epoch": 1649130824,
+    "nanos_since_epoch": 591622000
   }
 }

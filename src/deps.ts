@@ -2,6 +2,7 @@
 
 import { copy, readAllSync } from "https://deno.land/std@0.133.0/streams/conversion.ts"
 import { crypto } from "https://deno.land/std@0.133.0/crypto/mod.ts";
+import { parse } from "https://deno.land/std@0.133.0/path/mod.ts";
 
 import { sleep } from "https://deno.land/x/sleep@v1.2.1/mod.ts";
 
@@ -72,6 +73,7 @@ export {
   getConfigKeyForEnv,
   getConfigRefreshToken,
   HelpCommand,
+  parse,
   readAllSync,
   setConfigKeyForEnv,
   sleep,

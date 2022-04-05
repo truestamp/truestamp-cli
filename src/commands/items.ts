@@ -1,10 +1,10 @@
 // Copyright © 2020-2022 Truestamp Inc. All rights reserved.
 
-import { Command, createTruestampClient, readAllSync, EnumType, ValidationError } from "../deps.ts";
+import { Command, createTruestampClient, readAllSync, EnumType, ValidationError, parse as pathParse } from "../deps.ts";
 
 import { getEnv, logSelectedOutputFormat } from "../utils.ts";
 
-import { writeItemToDb, getItemHashById } from "../db.ts";
+import { writeItemToDb, createDataDir } from "../db.ts";
 
 // Limit the available hash types for now to those that are supported by the browser
 // and crypto.subtle.digest
@@ -45,7 +45,7 @@ See the example sections below for detailed usage examples.
   )
   .option(
     "-s, --stdin",
-    "Read data from STDIN and submit new Item. Will be hashed unless '--json' is provided.",
+    "Read data from STDIN and submit new Item. Will be hashed unless '--input json' is provided.",
     {
       conflicts: ["hash", "hash-type"],
       depends: ["input"],
@@ -188,14 +188,14 @@ Pipe JSON content to the 'items create' command using '--input json' plus the '-
       throw new ValidationError('Argument "path" depends on option "--input".');
     }
 
-    let jsonItem, altHash, altHashType
+    let jsonItem, altHash, altHashType, stdInData
 
-    // If the user provided JSON STDIN using the '--json' and '--stdin' options or the '-' or a file path argument, parse
+    // If the user provided JSON STDIN using the '--input json' and '--stdin' options or the '-' or a file path argument, parse
     // the contents of STDIN and pass it directly to the Truestamp client as a complete Item object.
     if (options.input === 'json' && (options.stdin || path === "-")) {
-      const data = await readAllSync(Deno.stdin);
+      stdInData = await readAllSync(Deno.stdin);
       const decoder = new TextDecoder();
-      jsonItem = JSON.parse(decoder.decode(data));
+      jsonItem = JSON.parse(decoder.decode(stdInData));
     } else if (options.input === 'json' && path) {
       const file = await Deno.open(path, { read: true, write: false });
       // await copy(file, Deno.stdout);
@@ -214,8 +214,8 @@ Pipe JSON content to the 'items create' command using '--input json' plus the '-
     if (options.input === 'binary' && (options.stdin || path === "-")) {
       // await copy(Deno.stdin, Deno.stdout);
 
-      const data = await readAllSync(Deno.stdin);
-      const hash = new Uint8Array(await crypto.subtle.digest("SHA-256", data))
+      stdInData = await readAllSync(Deno.stdin);
+      const hash = new Uint8Array(await crypto.subtle.digest("SHA-256", stdInData))
       const hashHex = Array.from(hash, (byte) => byte.toString(16).padStart(2, "0")).join("")
       // console.log(`SHA-256(stdin) = ${hashHex}`)
       altHash = hashHex
@@ -258,6 +258,31 @@ Pipe JSON content to the 'items create' command using '--input json' plus the '-
       writeItemToDb(getEnv(options), itemResp.id, itemResp);
 
       // console.log(getItemHashById(getEnv(options), itemResp.id));
+
+      // If a path or STDIN was provided it is helpful to archive the contents of the file
+      // and tightly associate it with the returned Item Id/envelope.
+      // Copy the binary or JSON file to the common data directory.
+      // Name it with the Item Id concatenated with its original name or use 'stdin'.
+      if (options.input && (options.stdin || path === "-")) {
+        // Copy the data passed as STDIN to the common data directory for archival purposes
+        const dataDir = createDataDir(getEnv(options));
+        const fileDir = `${dataDir}/files`
+        await Deno.mkdir(fileDir, { recursive: true });
+        const filePath = `${fileDir}/${itemResp.id}--stdin`
+
+        if (stdInData) {
+          await Deno.writeFile(filePath, stdInData);
+          // console.log(filePath)
+        }
+      } else if (options.input && path) {
+        // Copy the data passed as a file path to the common data directory for archival purposes
+        const dataDir = createDataDir(getEnv(options));
+        const fileDir = `${dataDir}/files`
+        await Deno.mkdir(fileDir, { recursive: true });
+        const filePath = `${fileDir}/${itemResp.id}--${pathParse(path).base}`
+        // console.log(filePath)
+        await Deno.copyFile(path, filePath);
+      }
 
       logSelectedOutputFormat(options, { text: itemResp.id, json: { id: itemResp.id } });
     } catch (error) {
@@ -377,7 +402,7 @@ See the example sections below for detailed usage examples.
   )
   .option(
     "-s, --stdin",
-    "Read data from STDIN and submit new Item. Will be hashed unless '--json' is provided.",
+    "Read data from STDIN and submit new Item. Will be hashed unless '--input json' is provided.",
     {
       conflicts: ["hash", "hash-type"],
       depends: ["input"],
@@ -463,7 +488,7 @@ Pipe JSON content to the 'items update' command using '--input json' plus the '-
 
     let jsonItem, altHash, altHashType
 
-    // If the user provided JSON STDIN using the '--json' and '--stdin' options or the '-' or a file path argument, parse
+    // If the user provided JSON STDIN using the '--input json' and '--stdin' options or the '-' or a file path argument, parse
     // the contents of STDIN and pass it directly to the Truestamp client as a complete Item object.
     if (options.input === 'json' && (options.stdin || path === "-")) {
       const data = await readAllSync(Deno.stdin);

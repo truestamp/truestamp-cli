@@ -3,15 +3,15 @@
 import { DB, Row, decodeUnsafely, appPaths } from "./deps.ts"
 
 // e.g.  sqlite3 "/Users/glenn/Library/Application Support/com.truestamp.cli.development/db.sqlite3"
-export function createDbDir(env: string): string {
-  const dbDir = appPaths(`com.truestamp.cli.${env}`);
-  Deno.mkdirSync(dbDir.data, { recursive: true });
-  return dbDir.data;
+export function createDataDir(env: string): string {
+  const appDir = appPaths(`com.truestamp.cli.${env}`);
+  Deno.mkdirSync(appDir.data, { recursive: true });
+  return appDir.data;
 }
 
 // deno-lint-ignore no-explicit-any
 export function writeItemToDb(env: string, id: string, envelope: Record<string, any>): void {
-  const dbDir = createDbDir(env);
+  const dbDir = createDataDir(env);
   // console.log(`${dbDir}/db.sqlite3`)
   const db = new DB(`${dbDir}/db.sqlite3`);
 
@@ -47,7 +47,7 @@ CREATE TABLE IF NOT EXISTS items (
 // 72ef467524c22a2d17607ad7a818c30ce17d21d51b8a8ef0b36c0f2c4e2b679b
 
 export function getItemEnvelopesByUlid(env: string, ulid: string): Row[] {
-  const dbDir = createDbDir(env);
+  const dbDir = createDataDir(env);
   const db = new DB(`${dbDir}/db.sqlite3`);
   const result = db.query("SELECT envelope_json FROM items WHERE json_extract(id_json, '$.ulid') IS ?", [ulid]);
   db.close();
@@ -55,7 +55,7 @@ export function getItemEnvelopesByUlid(env: string, ulid: string): Row[] {
 }
 
 export function getItemHashById(env: string, id: string): Row[] {
-  const dbDir = createDbDir(env);
+  const dbDir = createDataDir(env);
   const db = new DB(`${dbDir}/db.sqlite3`);
   const result = db.query("SELECT json_extract(items.envelope_json, '$.data.hash') FROM items WHERE id IS ?;", [id]);
   db.close();

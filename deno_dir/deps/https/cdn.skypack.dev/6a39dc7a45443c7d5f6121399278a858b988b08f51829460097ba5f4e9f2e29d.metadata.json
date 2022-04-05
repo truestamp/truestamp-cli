@@ -1,27 +1,27 @@
 {
   "headers": {
-    "date": "Tue, 05 Apr 2022 01:11:08 GMT",
-    "alt-svc": "h3=\":443\"; ma=86400, h3-29=\":443\"; ma=86400",
-    "nel": "{\"success_fraction\":0,\"report_to\":\"cf-nel\",\"max_age\":604800}",
-    "x-vercel-id": "iad1::sfo1::rqhnk-1649121068578-06ff72c810f6",
-    "access-control-allow-origin": "*",
-    "vary": "Accept-Encoding",
     "accept-ranges": "bytes",
-    "server": "cloudflare",
-    "strict-transport-security": "max-age=63072000",
-    "expect-ct": "max-age=604800, report-uri=\"https://report-uri.cloudflare.com/cdn-cgi/beacon/expect-ct\"",
-    "content-length": "345",
-    "cf-ray": "6f6e68767ab05a4b-IAD",
-    "cf-cache-status": "MISS",
-    "report-to": "{\"endpoints\":[{\"url\":\"https:\\/\\/a.nel.cloudflare.com\\/report\\/v3?s=3INT1Rf1kMYd%2B1sTkBHQhYBTzUhptb0vBs3Y23RWSD76RSfeoQoCvKMZxDWKbHNx1r0yqqakerwVSWyzZg5PQglSvhSG8ybhm%2F3z7vXbM7%2FEIrD5cWwjy1RlDkAL0q7e3Q%3D%3D\"}],\"group\":\"cf-nel\",\"max_age\":604800}",
-    "etag": "W/\"159-BHY+jtW8JDjQU8RaLa6wX4W74Ao\"",
     "x-vercel-cache": "MISS",
-    "cache-control": "public, max-age=31536000, immutable",
-    "content-type": "application/typescript; charset=utf-8"
+    "x-vercel-id": "iad1::sfo1::fph64-1649130824759-3cbaf90b9de2",
+    "cf-ray": "6f6f56a69e37cefc-IAD",
+    "date": "Tue, 05 Apr 2022 03:53:45 GMT",
+    "strict-transport-security": "max-age=63072000",
+    "alt-svc": "h3=\":443\"; ma=86400, h3-29=\":443\"; ma=86400",
+    "vary": "Accept-Encoding",
+    "etag": "W/\"159-BHY+jtW8JDjQU8RaLa6wX4W74Ao\"",
+    "content-length": "345",
+    "access-control-allow-origin": "*",
+    "cf-cache-status": "MISS",
+    "content-type": "application/typescript; charset=utf-8",
+    "server": "cloudflare",
+    "expect-ct": "max-age=604800, report-uri=\"https://report-uri.cloudflare.com/cdn-cgi/beacon/expect-ct\"",
+    "report-to": "{\"endpoints\":[{\"url\":\"https:\\/\\/a.nel.cloudflare.com\\/report\\/v3?s=bF9s6mlokr4Xm0XYFTEYJ6gqsofoqFKgWODRnSkZ4PvjXLsRiE5kkNcgj5Mq%2FsM6NkNEqN8SO1IRDTUm0lkqtSG5w%2F44gFY%2Fqg2q4Ru5T3j2KakeSnIgwxyj7my3lmhq9Q%3D%3D\"}],\"group\":\"cf-nel\",\"max_age\":604800}",
+    "nel": "{\"success_fraction\":0,\"report_to\":\"cf-nel\",\"max_age\":604800}",
+    "cache-control": "public, max-age=31536000, immutable"
   },
   "url": "https://cdn.skypack.dev/-/@truestamp/truestamp-js@v0.9.4-1ClT521yX887OMQqGucX/dist=es2019,mode=types/dist/items/index.d.ts",
   "now": {
-    "secs_since_epoch": 1649121068,
-    "nanos_since_epoch": 893856000
+    "secs_since_epoch": 1649130824,
+    "nanos_since_epoch": 927820000
   }
 }
