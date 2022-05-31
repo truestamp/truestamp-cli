@@ -1,18 +1,18 @@
 // Copyright © 2020-2022 Truestamp Inc. All rights reserved.
 
-import { copy, readAllSync } from "https://deno.land/std@0.133.0/streams/conversion.ts"
-import { crypto } from "https://deno.land/std@0.133.0/crypto/mod.ts";
-import { parse } from "https://deno.land/std@0.133.0/path/mod.ts";
+import { copy, readAllSync } from "https://deno.land/std@0.141.0/streams/conversion.ts"
+import { crypto } from "https://deno.land/std@0.141.0/crypto/mod.ts";
+import { parse } from "https://deno.land/std@0.141.0/path/mod.ts";
 
 import { sleep } from "https://deno.land/x/sleep@v1.2.1/mod.ts";
 
 import { decode, validate } from "https://deno.land/x/djwt@v2.4/mod.ts";
 export type { Payload } from "https://deno.land/x/djwt@v2.4/mod.ts";
 
-import { DB } from "https://deno.land/x/sqlite@v3.3.0/mod.ts";
+import { DB } from "https://deno.land/x/sqlite@v3.4.0/mod.ts";
 export type {
   Row,
-} from "https://deno.land/x/sqlite@v3.3.0/mod.ts";
+} from "https://deno.land/x/sqlite@v3.4.0/mod.ts";
 
 
 import { colors } from "https://deno.land/x/cliffy@v0.22.2/ansi/colors.ts";
@@ -49,9 +49,9 @@ import {
 
 // See : https://www.skypack.dev/view/@truestamp/truestamp-js
 // See SkyPack : https://docs.skypack.dev/skypack-cdn/api-reference/lookup-urls
-import Truestamp from "https://cdn.skypack.dev/@truestamp/truestamp-js@~v0.9.4?dts";
+import Truestamp from "https://cdn.skypack.dev/@truestamp/truestamp-js@~v0.10.1?dts";
 import { createTruestampClient } from "./truestamp.ts";
-import { decodeUnsafely } from "https://cdn.skypack.dev/@truestamp/truestamp-id@~v1.1.2?dts";
+import { decodeUnsafely } from "https://cdn.skypack.dev/@truestamp/id@~v1.1.7?dts";
 
 export {
   colors,

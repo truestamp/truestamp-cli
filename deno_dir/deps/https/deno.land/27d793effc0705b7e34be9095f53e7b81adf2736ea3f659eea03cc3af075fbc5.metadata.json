@@ -1,20 +1,21 @@
 {
   "headers": {
-    "cache-control": "public, max-age=31536000, immutable",
-    "content-type": "application/typescript; charset=utf-8",
-    "last-modified": "Wed, 16 Mar 2022 22:57:34 GMT",
-    "etag": "\"c7a96920c815420ce83b020d18622c8a\"",
-    "x-amz-id-2": "vbJehavXSLU1Qm4+K3qJJQMjUpRgoqtMrS3MFUf2m4ULZrL6B/y1pnSj+ZnG52aEOvaO/t4LJPI=",
+    "x-amz-id-2": "keKnKsnOeKRYwpERr85U7muaRptOp4Im/ypJG/4VtVC1r9D8uyOmzzEb2Kxi2DNozke9G/aCgU8=",
+    "vary": "Accept-Encoding",
     "x-amz-version-id": "Pl.cZWALdF4kpZ0TQamI4ImEbL1T6WI9",
-    "server": "deploy/us-east4-c",
-    "date": "Tue, 05 Apr 2022 03:53:43 GMT",
+    "date": "Tue, 31 May 2022 16:55:35 GMT",
+    "x-amz-request-id": "V279HAD1WSWSXV5A",
+    "access-control-allow-origin": "*",
+    "content-type": "application/typescript; charset=utf-8",
     "content-length": "310",
-    "x-amz-request-id": "5DV2NM7GFRXBWJ50",
-    "access-control-allow-origin": "*"
+    "etag": "\"c7a96920c815420ce83b020d18622c8a\"",
+    "cache-control": "public, max-age=31536000, immutable",
+    "last-modified": "Wed, 16 Mar 2022 22:57:34 GMT",
+    "server": "deno/us-east4-c"
   },
   "url": "https://deno.land/x/cliffy@v0.22.2/command/types/integer.ts",
   "now": {
-    "secs_since_epoch": 1649130822,
-    "nanos_since_epoch": 881782000
+    "secs_since_epoch": 1654016135,
+    "nanos_since_epoch": 79306000
   }
 }

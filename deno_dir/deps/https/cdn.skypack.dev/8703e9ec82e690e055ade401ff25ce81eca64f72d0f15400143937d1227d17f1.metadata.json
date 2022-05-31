@@ -1,27 +1,27 @@
 {
   "headers": {
     "x-vercel-cache": "MISS",
-    "server": "cloudflare",
-    "strict-transport-security": "max-age=63072000",
-    "nel": "{\"success_fraction\":0,\"report_to\":\"cf-nel\",\"max_age\":604800}",
-    "date": "Tue, 05 Apr 2022 03:53:45 GMT",
     "accept-ranges": "bytes",
-    "expect-ct": "max-age=604800, report-uri=\"https://report-uri.cloudflare.com/cdn-cgi/beacon/expect-ct\"",
-    "report-to": "{\"endpoints\":[{\"url\":\"https:\\/\\/a.nel.cloudflare.com\\/report\\/v3?s=LnVWXu1p1sttsEKJD617gbXCDUU4mff82H%2FZpgGbWRI427l3Uouewyes77NVyIbnOgGa5SETULDwPrs7W%2BNGenVyACeX1nej3FQNN4dzQNlevvJ6gn5uLLKkdHy%2BKfGVew%3D%3D\"}],\"group\":\"cf-nel\",\"max_age\":604800}",
-    "alt-svc": "h3=\":443\"; ma=86400, h3-29=\":443\"; ma=86400",
-    "etag": "W/\"106-oYkuruhK5odboQxeZGABBEhW8CA\"",
+    "cf-ray": "71413cec2b165890-IAD",
+    "x-vercel-id": "iad1::sfo1::ghjj7-1654016135076-0a4c0e5ae300",
     "access-control-allow-origin": "*",
-    "x-vercel-id": "iad1::sfo1::rqhnk-1649130825018-50477d07ebc8",
-    "cf-ray": "6f6f56a83eeccefc-IAD",
-    "content-length": "262",
-    "cache-control": "public, max-age=31536000, immutable",
-    "vary": "Accept-Encoding",
     "cf-cache-status": "MISS",
+    "etag": "W/\"106-oYkuruhK5odboQxeZGABBEhW8CA\"",
+    "report-to": "{\"endpoints\":[{\"url\":\"https:\\/\\/a.nel.cloudflare.com\\/report\\/v3?s=gwcJDVN8FO1NL6u8vuobUYmvQrjl2meJMUuxJr%2FXHYaPUuuKnj7xHG1IiXXLwAqzR2TpxDk8gDlgiSJ2y57e5xFarCMx9CnM2%2F5rflaEoXzqpzKYdDnfalXiSsfaa%2B%2BK5Q%3D%3D\"}],\"group\":\"cf-nel\",\"max_age\":604800}",
+    "vary": "Accept-Encoding",
+    "server": "cloudflare",
+    "cache-control": "public, max-age=31536000, immutable",
+    "alt-svc": "h3=\":443\"; ma=86400, h3-29=\":443\"; ma=86400",
+    "date": "Tue, 31 May 2022 16:55:35 GMT",
+    "nel": "{\"success_fraction\":0,\"report_to\":\"cf-nel\",\"max_age\":604800}",
+    "strict-transport-security": "max-age=63072000",
+    "expect-ct": "max-age=604800, report-uri=\"https://report-uri.cloudflare.com/cdn-cgi/beacon/expect-ct\"",
+    "content-length": "262",
     "content-type": "application/typescript; charset=utf-8"
   },
   "url": "https://cdn.skypack.dev/-/superstruct@v0.15.4-ilrv3kmiz34HFzddRYNC/dist=es2019,mode=types/lib/index.d.ts",
   "now": {
-    "secs_since_epoch": 1649130825,
-    "nanos_since_epoch": 304828000
+    "secs_since_epoch": 1654016135,
+    "nanos_since_epoch": 694671000
   }
 }

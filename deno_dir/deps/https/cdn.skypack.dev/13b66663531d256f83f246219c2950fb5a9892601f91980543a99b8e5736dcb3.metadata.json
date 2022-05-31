@@ -1,27 +1,27 @@
 {
   "headers": {
-    "cache-control": "public, max-age=31536000, immutable",
-    "etag": "W/\"169f-UsF/oeaLEhzlWe/RcFk6E3XSU0c\"",
-    "access-control-allow-origin": "*",
-    "nel": "{\"success_fraction\":0,\"report_to\":\"cf-nel\",\"max_age\":604800}",
-    "server": "cloudflare",
-    "report-to": "{\"endpoints\":[{\"url\":\"https:\\/\\/a.nel.cloudflare.com\\/report\\/v3?s=nprxz8vaT6Y4rD0QcoFshyy2NQQdnR76TAKiuIup6d48FxbHSW1KTQNs9Datt1Mv3w5kKZ7Bm7OF8FPr1fXQ85PG2qX8b0nFP5fO%2FlIjulJ7J1tQnUMtlvK6kPfzBCdkrg%3D%3D\"}],\"group\":\"cf-nel\",\"max_age\":604800}",
-    "content-type": "application/typescript; charset=utf-8",
-    "strict-transport-security": "max-age=63072000",
     "vary": "Accept-Encoding",
+    "cf-ray": "71413cf2cfa55890-IAD",
     "expect-ct": "max-age=604800, report-uri=\"https://report-uri.cloudflare.com/cdn-cgi/beacon/expect-ct\"",
-    "cf-cache-status": "MISS",
-    "date": "Tue, 05 Apr 2022 03:53:46 GMT",
-    "x-vercel-id": "iad1::sfo1::ng5zg-1649130825813-5fef805301b7",
-    "x-vercel-cache": "MISS",
-    "accept-ranges": "bytes",
     "alt-svc": "h3=\":443\"; ma=86400, h3-29=\":443\"; ma=86400",
-    "cf-ray": "6f6f56ad398fcefc-IAD",
-    "content-length": "5791"
+    "date": "Tue, 31 May 2022 16:55:36 GMT",
+    "cache-control": "public, max-age=31536000, immutable",
+    "content-length": "5791",
+    "nel": "{\"success_fraction\":0,\"report_to\":\"cf-nel\",\"max_age\":604800}",
+    "cf-cache-status": "MISS",
+    "content-type": "application/typescript; charset=utf-8",
+    "x-vercel-cache": "MISS",
+    "etag": "W/\"169f-UsF/oeaLEhzlWe/RcFk6E3XSU0c\"",
+    "report-to": "{\"endpoints\":[{\"url\":\"https:\\/\\/a.nel.cloudflare.com\\/report\\/v3?s=1DA3gyYO9QDq%2B6oNyuz16sMkD8BUA2oDp1CkuwJXeOoINlTwfDcNL4pbT6eNahE1PJ3IFlULiAcmA%2F8Z3YcYruxNzuPK0Mmj%2FDHwrhTNSVCYr76DJclChYq8QrYwFOIK%2Bg%3D%3D\"}],\"group\":\"cf-nel\",\"max_age\":604800}",
+    "access-control-allow-origin": "*",
+    "accept-ranges": "bytes",
+    "server": "cloudflare",
+    "x-vercel-id": "iad1::sfo1::8c4z4-1654016136142-1e3ecaa24155",
+    "strict-transport-security": "max-age=63072000"
   },
   "url": "https://cdn.skypack.dev/-/superstruct@v0.15.4-ilrv3kmiz34HFzddRYNC/dist=es2019,mode=types/lib/utils.d.ts",
   "now": {
-    "secs_since_epoch": 1649130825,
-    "nanos_since_epoch": 978732000
+    "secs_since_epoch": 1654016136,
+    "nanos_since_epoch": 738101000
   }
 }

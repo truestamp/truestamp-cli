@@ -1,0 +1,209 @@
+import { Infer } from '/-/superstruct@v0.15.4-ilrv3kmiz34HFzddRYNC/dist=es2019,mode=types/index.d.ts';
+export declare const IdV1Struct: import("/-/superstruct@v0.15.4-ilrv3kmiz34HFzddRYNC/dist=es2019,mode=types/index.d.ts").Struct<{
+    id: string;
+    prefix: string;
+    version: number;
+    test: boolean;
+    ulid: string;
+    timestamp: number;
+    envelopeHash: string;
+    hmacKey: string;
+    hmac: string;
+}, {
+    prefix: import("/-/superstruct@v0.15.4-ilrv3kmiz34HFzddRYNC/dist=es2019,mode=types/index.d.ts").Struct<string, {
+        [x: string]: string;
+    }>;
+    version: import("/-/superstruct@v0.15.4-ilrv3kmiz34HFzddRYNC/dist=es2019,mode=types/index.d.ts").Struct<number, null>;
+    test: import("/-/superstruct@v0.15.4-ilrv3kmiz34HFzddRYNC/dist=es2019,mode=types/index.d.ts").Struct<boolean, null>;
+    ulid: import("/-/superstruct@v0.15.4-ilrv3kmiz34HFzddRYNC/dist=es2019,mode=types/index.d.ts").Struct<string, null>;
+    timestamp: import("/-/superstruct@v0.15.4-ilrv3kmiz34HFzddRYNC/dist=es2019,mode=types/index.d.ts").Struct<number, null>;
+    envelopeHash: import("/-/superstruct@v0.15.4-ilrv3kmiz34HFzddRYNC/dist=es2019,mode=types/index.d.ts").Struct<string, null>;
+    hmacKey: import("/-/superstruct@v0.15.4-ilrv3kmiz34HFzddRYNC/dist=es2019,mode=types/index.d.ts").Struct<string, null>;
+    hmac: import("/-/superstruct@v0.15.4-ilrv3kmiz34HFzddRYNC/dist=es2019,mode=types/index.d.ts").Struct<string, null>;
+    id: import("/-/superstruct@v0.15.4-ilrv3kmiz34HFzddRYNC/dist=es2019,mode=types/index.d.ts").Struct<string, null>;
+}>;
+export declare const IdV1ParseArgsStruct: import("/-/superstruct@v0.15.4-ilrv3kmiz34HFzddRYNC/dist=es2019,mode=types/index.d.ts").Struct<{
+    id: string;
+}, Pick<{
+    prefix: import("/-/superstruct@v0.15.4-ilrv3kmiz34HFzddRYNC/dist=es2019,mode=types/index.d.ts").Struct<string, {
+        [x: string]: string;
+    }>;
+    version: import("/-/superstruct@v0.15.4-ilrv3kmiz34HFzddRYNC/dist=es2019,mode=types/index.d.ts").Struct<number, null>;
+    test: import("/-/superstruct@v0.15.4-ilrv3kmiz34HFzddRYNC/dist=es2019,mode=types/index.d.ts").Struct<boolean, null>;
+    ulid: import("/-/superstruct@v0.15.4-ilrv3kmiz34HFzddRYNC/dist=es2019,mode=types/index.d.ts").Struct<string, null>;
+    timestamp: import("/-/superstruct@v0.15.4-ilrv3kmiz34HFzddRYNC/dist=es2019,mode=types/index.d.ts").Struct<number, null>;
+    envelopeHash: import("/-/superstruct@v0.15.4-ilrv3kmiz34HFzddRYNC/dist=es2019,mode=types/index.d.ts").Struct<string, null>;
+    hmacKey: import("/-/superstruct@v0.15.4-ilrv3kmiz34HFzddRYNC/dist=es2019,mode=types/index.d.ts").Struct<string, null>;
+    hmac: import("/-/superstruct@v0.15.4-ilrv3kmiz34HFzddRYNC/dist=es2019,mode=types/index.d.ts").Struct<string, null>;
+    id: import("/-/superstruct@v0.15.4-ilrv3kmiz34HFzddRYNC/dist=es2019,mode=types/index.d.ts").Struct<string, null>;
+}, "id">>;
+export declare type IdV1ParseArgs = Infer<typeof IdV1ParseArgsStruct>;
+/**
+ * The subset of IdV1Struct parsed from a decoded Id
+ */
+export declare const IdV1ParsedStruct: import("/-/superstruct@v0.15.4-ilrv3kmiz34HFzddRYNC/dist=es2019,mode=types/index.d.ts").Struct<{
+    prefix: string;
+    version: number;
+    test: boolean;
+    ulid: string;
+    timestamp: number;
+    hmac: string;
+}, Pick<{
+    prefix: import("/-/superstruct@v0.15.4-ilrv3kmiz34HFzddRYNC/dist=es2019,mode=types/index.d.ts").Struct<string, {
+        [x: string]: string;
+    }>;
+    version: import("/-/superstruct@v0.15.4-ilrv3kmiz34HFzddRYNC/dist=es2019,mode=types/index.d.ts").Struct<number, null>;
+    test: import("/-/superstruct@v0.15.4-ilrv3kmiz34HFzddRYNC/dist=es2019,mode=types/index.d.ts").Struct<boolean, null>;
+    ulid: import("/-/superstruct@v0.15.4-ilrv3kmiz34HFzddRYNC/dist=es2019,mode=types/index.d.ts").Struct<string, null>;
+    timestamp: import("/-/superstruct@v0.15.4-ilrv3kmiz34HFzddRYNC/dist=es2019,mode=types/index.d.ts").Struct<number, null>;
+    envelopeHash: import("/-/superstruct@v0.15.4-ilrv3kmiz34HFzddRYNC/dist=es2019,mode=types/index.d.ts").Struct<string, null>;
+    hmacKey: import("/-/superstruct@v0.15.4-ilrv3kmiz34HFzddRYNC/dist=es2019,mode=types/index.d.ts").Struct<string, null>;
+    hmac: import("/-/superstruct@v0.15.4-ilrv3kmiz34HFzddRYNC/dist=es2019,mode=types/index.d.ts").Struct<string, null>;
+    id: import("/-/superstruct@v0.15.4-ilrv3kmiz34HFzddRYNC/dist=es2019,mode=types/index.d.ts").Struct<string, null>;
+}, "prefix" | "version" | "test" | "ulid" | "timestamp" | "hmac">>;
+export declare type IdV1Parsed = Infer<typeof IdV1ParsedStruct>;
+/**
+ * The subset of IdV1Struct needed to encode a new Id
+ */
+export declare const IdV1EncodeArgsStruct: import("/-/superstruct@v0.15.4-ilrv3kmiz34HFzddRYNC/dist=es2019,mode=types/index.d.ts").Struct<{
+    version: number;
+    test: boolean;
+    ulid: string;
+    timestamp: number;
+    envelopeHash: string;
+    hmacKey: string;
+}, Pick<{
+    prefix: import("/-/superstruct@v0.15.4-ilrv3kmiz34HFzddRYNC/dist=es2019,mode=types/index.d.ts").Struct<string, {
+        [x: string]: string;
+    }>;
+    version: import("/-/superstruct@v0.15.4-ilrv3kmiz34HFzddRYNC/dist=es2019,mode=types/index.d.ts").Struct<number, null>;
+    test: import("/-/superstruct@v0.15.4-ilrv3kmiz34HFzddRYNC/dist=es2019,mode=types/index.d.ts").Struct<boolean, null>;
+    ulid: import("/-/superstruct@v0.15.4-ilrv3kmiz34HFzddRYNC/dist=es2019,mode=types/index.d.ts").Struct<string, null>;
+    timestamp: import("/-/superstruct@v0.15.4-ilrv3kmiz34HFzddRYNC/dist=es2019,mode=types/index.d.ts").Struct<number, null>;
+    envelopeHash: import("/-/superstruct@v0.15.4-ilrv3kmiz34HFzddRYNC/dist=es2019,mode=types/index.d.ts").Struct<string, null>;
+    hmacKey: import("/-/superstruct@v0.15.4-ilrv3kmiz34HFzddRYNC/dist=es2019,mode=types/index.d.ts").Struct<string, null>;
+    hmac: import("/-/superstruct@v0.15.4-ilrv3kmiz34HFzddRYNC/dist=es2019,mode=types/index.d.ts").Struct<string, null>;
+    id: import("/-/superstruct@v0.15.4-ilrv3kmiz34HFzddRYNC/dist=es2019,mode=types/index.d.ts").Struct<string, null>;
+}, "version" | "test" | "ulid" | "timestamp" | "envelopeHash" | "hmacKey">>;
+export declare type IdV1EncodeArgs = Infer<typeof IdV1EncodeArgsStruct>;
+/**
+ * The subset of IdV1Struct needed to decode a new Id
+ */
+export declare const IdV1DecodeArgsStruct: import("/-/superstruct@v0.15.4-ilrv3kmiz34HFzddRYNC/dist=es2019,mode=types/index.d.ts").Struct<{
+    id: string;
+    envelopeHash: string;
+    hmacKey: string;
+}, Pick<{
+    prefix: import("/-/superstruct@v0.15.4-ilrv3kmiz34HFzddRYNC/dist=es2019,mode=types/index.d.ts").Struct<string, {
+        [x: string]: string;
+    }>;
+    version: import("/-/superstruct@v0.15.4-ilrv3kmiz34HFzddRYNC/dist=es2019,mode=types/index.d.ts").Struct<number, null>;
+    test: import("/-/superstruct@v0.15.4-ilrv3kmiz34HFzddRYNC/dist=es2019,mode=types/index.d.ts").Struct<boolean, null>;
+    ulid: import("/-/superstruct@v0.15.4-ilrv3kmiz34HFzddRYNC/dist=es2019,mode=types/index.d.ts").Struct<string, null>;
+    timestamp: import("/-/superstruct@v0.15.4-ilrv3kmiz34HFzddRYNC/dist=es2019,mode=types/index.d.ts").Struct<number, null>;
+    envelopeHash: import("/-/superstruct@v0.15.4-ilrv3kmiz34HFzddRYNC/dist=es2019,mode=types/index.d.ts").Struct<string, null>;
+    hmacKey: import("/-/superstruct@v0.15.4-ilrv3kmiz34HFzddRYNC/dist=es2019,mode=types/index.d.ts").Struct<string, null>;
+    hmac: import("/-/superstruct@v0.15.4-ilrv3kmiz34HFzddRYNC/dist=es2019,mode=types/index.d.ts").Struct<string, null>;
+    id: import("/-/superstruct@v0.15.4-ilrv3kmiz34HFzddRYNC/dist=es2019,mode=types/index.d.ts").Struct<string, null>;
+}, "id" | "envelopeHash" | "hmacKey">>;
+export declare type IdV1DecodeArgs = Infer<typeof IdV1DecodeArgsStruct>;
+/**
+ * The subset of IdV1Struct returned from a decoded Id
+ */
+export declare const IdV1DecodeStruct: import("/-/superstruct@v0.15.4-ilrv3kmiz34HFzddRYNC/dist=es2019,mode=types/index.d.ts").Struct<{
+    version: number;
+    test: boolean;
+    ulid: string;
+    timestamp: number;
+    envelopeHash: string;
+}, Pick<{
+    prefix: import("/-/superstruct@v0.15.4-ilrv3kmiz34HFzddRYNC/dist=es2019,mode=types/index.d.ts").Struct<string, {
+        [x: string]: string;
+    }>;
+    version: import("/-/superstruct@v0.15.4-ilrv3kmiz34HFzddRYNC/dist=es2019,mode=types/index.d.ts").Struct<number, null>;
+    test: import("/-/superstruct@v0.15.4-ilrv3kmiz34HFzddRYNC/dist=es2019,mode=types/index.d.ts").Struct<boolean, null>;
+    ulid: import("/-/superstruct@v0.15.4-ilrv3kmiz34HFzddRYNC/dist=es2019,mode=types/index.d.ts").Struct<string, null>;
+    timestamp: import("/-/superstruct@v0.15.4-ilrv3kmiz34HFzddRYNC/dist=es2019,mode=types/index.d.ts").Struct<number, null>;
+    envelopeHash: import("/-/superstruct@v0.15.4-ilrv3kmiz34HFzddRYNC/dist=es2019,mode=types/index.d.ts").Struct<string, null>;
+    hmacKey: import("/-/superstruct@v0.15.4-ilrv3kmiz34HFzddRYNC/dist=es2019,mode=types/index.d.ts").Struct<string, null>;
+    hmac: import("/-/superstruct@v0.15.4-ilrv3kmiz34HFzddRYNC/dist=es2019,mode=types/index.d.ts").Struct<string, null>;
+    id: import("/-/superstruct@v0.15.4-ilrv3kmiz34HFzddRYNC/dist=es2019,mode=types/index.d.ts").Struct<string, null>;
+}, "version" | "test" | "ulid" | "timestamp" | "envelopeHash">>;
+export declare type IdV1Decode = Infer<typeof IdV1DecodeStruct>;
+/**
+ * The subset of IdV1Struct returned from a decoded unsafely Id
+ */
+export declare const IdV1DecodeUnsafelyStruct: import("/-/superstruct@v0.15.4-ilrv3kmiz34HFzddRYNC/dist=es2019,mode=types/index.d.ts").Struct<{
+    version: number;
+    test: boolean;
+    ulid: string;
+    timestamp: number;
+}, Pick<{
+    prefix: import("/-/superstruct@v0.15.4-ilrv3kmiz34HFzddRYNC/dist=es2019,mode=types/index.d.ts").Struct<string, {
+        [x: string]: string;
+    }>;
+    version: import("/-/superstruct@v0.15.4-ilrv3kmiz34HFzddRYNC/dist=es2019,mode=types/index.d.ts").Struct<number, null>;
+    test: import("/-/superstruct@v0.15.4-ilrv3kmiz34HFzddRYNC/dist=es2019,mode=types/index.d.ts").Struct<boolean, null>;
+    ulid: import("/-/superstruct@v0.15.4-ilrv3kmiz34HFzddRYNC/dist=es2019,mode=types/index.d.ts").Struct<string, null>;
+    timestamp: import("/-/superstruct@v0.15.4-ilrv3kmiz34HFzddRYNC/dist=es2019,mode=types/index.d.ts").Struct<number, null>;
+    envelopeHash: import("/-/superstruct@v0.15.4-ilrv3kmiz34HFzddRYNC/dist=es2019,mode=types/index.d.ts").Struct<string, null>;
+    hmacKey: import("/-/superstruct@v0.15.4-ilrv3kmiz34HFzddRYNC/dist=es2019,mode=types/index.d.ts").Struct<string, null>;
+    hmac: import("/-/superstruct@v0.15.4-ilrv3kmiz34HFzddRYNC/dist=es2019,mode=types/index.d.ts").Struct<string, null>;
+    id: import("/-/superstruct@v0.15.4-ilrv3kmiz34HFzddRYNC/dist=es2019,mode=types/index.d.ts").Struct<string, null>;
+}, "version" | "test" | "ulid" | "timestamp">>;
+export declare type IdV1DecodeUnsafely = Infer<typeof IdV1DecodeUnsafelyStruct>;
+/**
+ * Encodes args into a string Truestamp Id. Throws an error if any of the
+ * args are invalid.
+ *
+ * @param args.version - The Id version
+ * @param args.test - Whether the Id is a test Id
+ * @param args.ulid - The ULID of the Id
+ * @param args.timestamp - The timestamp of the Id
+ * @param args.envelopeHash - The hash of the envelope
+ * @param args.hmacKey - The HMAC key
+ * @return - A Truestamp Id string.
+ */
+export declare const encode: (args: IdV1EncodeArgs) => string;
+/**
+ * Decodes a Truestamp Id string into an Id object with HMAC-SHA256 verification.
+ * Throws an error if the ID is invalid.
+ *
+ * @param args.id - A Truestamp Id string.
+ * @param args.envelopeHash - The top-level hash in the Item Envelope that this Id commits to with an HMAC-SHA256.
+ * @param args.hmacKey - The secret key used to verify the HMAC-SHA256.
+ * @return - A decoded Id object.
+ */
+export declare const decode: (args: IdV1DecodeArgs) => IdV1Decode;
+/**
+ * Validates and decodes a Truestamp Id string unsafely with NO HMAC verification. Not recommended
+ * for normal use. Indicates only that the Id has a valid structure. Throws an 'Error' if the Id
+ * has an invalid structure.
+ *
+ * @param args.id - A Truestamp Id string.
+ * @return - Id Object with no HMAC verification.
+ */
+export declare const decodeUnsafely: ({ id }: {
+    id: string;
+}) => IdV1DecodeUnsafely;
+/**
+ * Validates a Truestamp Id string with HMAC verification. Does not indicate if the content
+ * pointed to by the Id exists, only that it has a valid structure and HMAC. Returns false
+ * if the Id is invalid (does not throw).
+ *
+ * @param args.id - A Truestamp Id string.
+ * @param args.envelopeHash - The top-level hash in the Item Envelope that this Id commits to with an HMAC-SHA256.
+ * @param args.hmacKey - A Hex key used to verify the HMAC-SHA256.
+ * @return - Is the Truestamp Id structure valid?
+ */
+export declare const isValid: (args: IdV1DecodeArgs) => boolean;
+/**
+ * Validates a Truestamp Id string unsafely with NO HMAC verification. Not recommended for
+ * normal use. Indicates only that the Id has a valid structure. Returns false if the Id
+ * is invalid (does not throw).
+ * @param args.id - A Truestamp Id string.
+ * @return - Is the Truestamp Id structure valid?
+ */
+export declare const isValidUnsafely: ({ id }: {
+    id: string;
+}) => boolean;

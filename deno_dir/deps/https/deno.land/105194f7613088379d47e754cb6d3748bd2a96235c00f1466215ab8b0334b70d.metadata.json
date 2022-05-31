@@ -1,20 +1,21 @@
 {
   "headers": {
-    "x-amz-request-id": "5DVA0JMJR98AY3CH",
     "x-amz-version-id": "l2OLnP4AbvLqqCMwY4yazm9UUVr6J7wa",
+    "vary": "Accept-Encoding",
     "content-type": "application/typescript; charset=utf-8",
-    "x-amz-id-2": "Dt9/liWQLauFE7lgIRj+1eQ8+njRBQu2sEPrGP611mg5O2nmCoExhUsUfbc8ZQXTHVmVuLnzp98=",
-    "content-length": "29800",
-    "access-control-allow-origin": "*",
     "etag": "\"5c53f8ac94177d4716f05c2db99d41a8\"",
-    "server": "deploy/us-east4-c",
-    "last-modified": "Thu, 31 Mar 2022 15:56:37 GMT",
+    "x-amz-request-id": "V27CAQY5TA8GC2YN",
+    "access-control-allow-origin": "*",
+    "date": "Tue, 31 May 2022 16:55:35 GMT",
     "cache-control": "public, max-age=31536000, immutable",
-    "date": "Tue, 05 Apr 2022 03:53:43 GMT"
+    "x-amz-id-2": "rx8JnkVcSyGMYF+hyQZNTQUeNuIeA6HKfyt8dcUNAoJiTQ9ZeS7W0Au7Iy1rfcVn7ROwsS7QC0U=",
+    "content-length": "29800",
+    "server": "deno/us-east4-c",
+    "last-modified": "Thu, 31 Mar 2022 15:56:37 GMT"
   },
   "url": "https://deno.land/std@0.133.0/path/win32.ts",
   "now": {
-    "secs_since_epoch": 1649130822,
-    "nanos_since_epoch": 882553000
+    "secs_since_epoch": 1654016135,
+    "nanos_since_epoch": 46165000
   }
 }

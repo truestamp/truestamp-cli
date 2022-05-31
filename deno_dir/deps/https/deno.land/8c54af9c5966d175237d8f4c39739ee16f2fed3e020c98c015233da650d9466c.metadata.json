@@ -1,20 +1,21 @@
 {
   "headers": {
-    "content-length": "483",
-    "cache-control": "public, max-age=31536000, immutable",
+    "x-amz-request-id": "V276PXEV5ZDZGVZ9",
+    "last-modified": "Wed, 16 Mar 2022 22:57:34 GMT",
+    "access-control-allow-origin": "*",
     "content-type": "application/typescript; charset=utf-8",
     "etag": "\"d4d103e90fa7b863271ae6c9d80daded\"",
-    "x-amz-request-id": "5DV2RT5J4TYT66CA",
-    "last-modified": "Wed, 16 Mar 2022 22:57:34 GMT",
-    "date": "Tue, 05 Apr 2022 03:53:43 GMT",
-    "access-control-allow-origin": "*",
-    "server": "deploy/us-east4-c",
-    "x-amz-id-2": "e8209qDz581HovImMAjWnu14CKoGeutE1OopaezHPYIRkcy9Jzd5R+b1HXj/O2CTo3s+MvYzoS0=",
-    "x-amz-version-id": "kIEUBtQS2gMGM7yd1jKZsbgp0sB8DD9o"
+    "vary": "Accept-Encoding",
+    "cache-control": "public, max-age=31536000, immutable",
+    "x-amz-version-id": "kIEUBtQS2gMGM7yd1jKZsbgp0sB8DD9o",
+    "x-amz-id-2": "AcZtTbTHuI9EKrmIb6qd7oWA+n7Cm7sspr6YIISntLvTrAHUOiV6jYicG49KQ1BrYDFswb4TgBE=",
+    "server": "deno/us-east4-c",
+    "content-length": "483",
+    "date": "Tue, 31 May 2022 16:55:35 GMT"
   },
   "url": "https://deno.land/x/cliffy@v0.22.2/command/mod.ts",
   "now": {
-    "secs_since_epoch": 1649130822,
-    "nanos_since_epoch": 788571000
+    "secs_since_epoch": 1654016134,
+    "nanos_since_epoch": 657872000
   }
 }

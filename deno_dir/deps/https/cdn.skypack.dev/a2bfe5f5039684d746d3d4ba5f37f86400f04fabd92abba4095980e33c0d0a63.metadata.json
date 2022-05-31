@@ -1,0 +1,30 @@
+{
+  "headers": {
+    "access-control-allow-origin": "*",
+    "x-pinned-url": "/pin/@truestamp/id@v1.1.7-nnXFTnxvADSqaO8FKAXY/mode=imports/optimized/@truestamp/id.js",
+    "access-control-expose-headers": "X-Import-Status, X-Import-Url, X-Pinned-Url, X-TypeScript-Types, Content-Length",
+    "cf-cache-status": "MISS",
+    "content-type": "application/javascript; charset=utf-8",
+    "x-import-status": "SUCCESS",
+    "cache-control": "public, max-age=300",
+    "server": "cloudflare",
+    "alt-svc": "h3=\":443\"; ma=86400, h3-29=\":443\"; ma=86400",
+    "nel": "{\"success_fraction\":0,\"report_to\":\"cf-nel\",\"max_age\":604800}",
+    "vary": "Accept-Encoding",
+    "report-to": "{\"endpoints\":[{\"url\":\"https:\\/\\/a.nel.cloudflare.com\\/report\\/v3?s=XneAukZRyjxVmqACY3NLUIjunivId7wD2lz%2BXWN1QkAz7WeVUs6xhKL8ydB9sTkVSm%2BhMVIg2kB5%2FiuSgqfUVIKuBT2XcnSQvYiNCUs3469E6bjjeKwnE%2FyvRYHB4c07iw%3D%3D\"}],\"group\":\"cf-nel\",\"max_age\":604800}",
+    "etag": "W/\"345-XhVA8HXXerV/UJmbI1w0ZQTdxRw\"",
+    "expect-ct": "max-age=604800, report-uri=\"https://report-uri.cloudflare.com/cdn-cgi/beacon/expect-ct\"",
+    "x-vercel-id": "iad1::sfo1::zf9lc-1654016134407-d8a9b22990ee",
+    "date": "Tue, 31 May 2022 16:55:34 GMT",
+    "strict-transport-security": "max-age=63072000",
+    "x-import-url": "/-/@truestamp/id@v1.1.7-nnXFTnxvADSqaO8FKAXY/dist=es2019,mode=imports/optimized/@truestamp/id.js",
+    "x-vercel-cache": "HIT",
+    "cf-ray": "71413ce7ea3f5890-IAD",
+    "x-typescript-types": "/-/@truestamp/id@v1.1.7-nnXFTnxvADSqaO8FKAXY/dist=es2019,mode=types/lib/index.d.ts"
+  },
+  "url": "https://cdn.skypack.dev/@truestamp/id@~v1.1.7?dts",
+  "now": {
+    "secs_since_epoch": 1654016134,
+    "nanos_since_epoch": 644499000
+  }
+}

@@ -1,0 +1,20 @@
+{
+  "headers": {
+    "x-amz-version-id": "aFNcFKfgwcOlB4OgACdelEE0xTBv6oUp",
+    "access-control-allow-origin": "*",
+    "last-modified": "Sat, 30 Apr 2022 16:50:18 GMT",
+    "vary": "Accept-Encoding",
+    "cache-control": "public, max-age=31536000, immutable",
+    "etag": "W/\"1058a54cf102f882a5f1ea92c6c9ddee\"",
+    "date": "Tue, 31 May 2022 16:55:35 GMT",
+    "content-type": "application/javascript",
+    "server": "deno/us-east4-c",
+    "x-amz-request-id": "V27BRRRBSX5ATRKX",
+    "x-amz-id-2": "ryIpnwydzdT8+95eoimBVpGU3vOm8/fplrB707zV7VNO0/dLH/qW3Q0hq2rphKqHhvz4Yi9s9OI="
+  },
+  "url": "https://deno.land/x/sqlite@v3.4.0/build/sqlite.js",
+  "now": {
+    "secs_since_epoch": 1654016135,
+    "nanos_since_epoch": 100375000
+  }
+}
