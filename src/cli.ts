@@ -10,6 +10,7 @@ import {
 } from "./deps.ts";
 
 import { auth } from "./commands/auth.ts";
+import { commitments } from "./commands/commitments.ts";
 import { items } from "./commands/items.ts";
 
 // FIXME : the following bug has been filed related to TRUESTAMP_ENV handling:
@@ -86,6 +87,7 @@ const cmd = new Command()
     cmd.showHelp();
   })
   .command("auth", auth)
+  .command("commitments", commitments)
   .command("completions", new CompletionsCommand())
   .command("items", items)
   .command("help", new HelpCommand().global())
