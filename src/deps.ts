@@ -52,6 +52,7 @@ import {
 import Truestamp from "https://cdn.skypack.dev/@truestamp/truestamp-js@~v0.10.1?dts";
 import { createTruestampClient } from "./truestamp.ts";
 import { decodeUnsafely } from "https://cdn.skypack.dev/@truestamp/id@~v1.1.7?dts";
+import { verify } from "https://cdn.skypack.dev/@truestamp/verify@~v0.0.14?dts";
 
 export {
   colors,
@@ -81,4 +82,5 @@ export {
   decodeUnsafely,
   validate,
   ValidationError,
+  verify
 };

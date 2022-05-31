@@ -14,6 +14,7 @@
   "https://cdn.skypack.dev/-/@truestamp/verify@v0.0.13-4ZaSVAgTuDQlvT5RlyUa/dist=es2019,mode=types/lib/index.d.ts": "f18de946a8418f569d96cf91d4d472e63c027af0a622e923e391bf44d70435d2",
   "https://cdn.skypack.dev/-/@truestamp/verify@v0.0.13-4ZaSVAgTuDQlvT5RlyUa/dist=es2019,mode=types/lib/modules/types.d.ts": "138ab1f44a3ab92da89dbae2ba628ab377b7d7e0cefc879598d834c30fb3d01b",
   "https://cdn.skypack.dev/-/@truestamp/verify@v0.0.13-4ZaSVAgTuDQlvT5RlyUa/dist=es2019,mode=types/lib/modules/verify.d.ts": "c41c6f489966e099a661717389b9981966f3ac7fae60463d1f3bb392e9875e7b",
+  "https://cdn.skypack.dev/-/@truestamp/verify@v0.0.14-dqoBnR67VzSvKbBzrdrM/dist=es2019,mode=imports/optimized/@truestamp/verify.js": "c7c9428e89646c725b55307feaac7211df57988923006e8e37e4e343fbdc2032",
   "https://cdn.skypack.dev/-/superstruct@v0.15.4-ilrv3kmiz34HFzddRYNC/dist=es2019,mode=types/lib/error.d.ts": "51c7e7813dd1c1e7b5144ebff587c97bf8022bb2d6e12c6b3c4e3597686b8bd8",
   "https://cdn.skypack.dev/-/superstruct@v0.15.4-ilrv3kmiz34HFzddRYNC/dist=es2019,mode=types/lib/index.d.ts": "658a506f6eca9d7b7bdab2907ed8d688fb8509d1ea915bccb4430055920ef7d0",
   "https://cdn.skypack.dev/-/superstruct@v0.15.4-ilrv3kmiz34HFzddRYNC/dist=es2019,mode=types/lib/struct.d.ts": "5fb9f92e5045a5ed24483853f8cc970e68d5eae261bc54f36cd6868e01ec73d9",
