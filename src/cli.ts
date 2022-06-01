@@ -36,7 +36,7 @@ const cmd = new Command()
     "Override API endpoint.",
     {
       required: false,
-      prefix: "TRUESTAMP_" // prefix will be ignored when converting to option name. e.g. TRUESTAMP_ENV becomes 'env'
+      prefix: "TRUESTAMP_", // prefix will be ignored when converting to option name. e.g. TRUESTAMP_ENV becomes 'env'
     },
   )
   .globalOption(
@@ -52,7 +52,7 @@ const cmd = new Command()
     "Force use of API key for authentication.",
     {
       required: false,
-      prefix: "TRUESTAMP_"
+      prefix: "TRUESTAMP_",
     },
   )
   .globalOption(

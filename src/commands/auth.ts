@@ -141,7 +141,9 @@ const authStatus = new Command<
         !getConfigAccessToken(options.env) ||
         !getConfigRefreshToken(options.env)
       ) {
-        throw new Error(`logged out [${options.env}] : no access/refresh tokens found`);
+        throw new Error(
+          `logged out [${options.env}] : no access/refresh tokens found`,
+        );
       }
 
       try {

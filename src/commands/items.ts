@@ -53,7 +53,8 @@ See the example sections below for detailed usage examples.
   )
   .option(
     "-t, --hash-type <hashType:string>",
-    `A hash function type. Hash byte length is validated against type. Accepts ${HASH_TYPES.join(", ")
+    `A hash function type. Hash byte length is validated against type. Accepts ${
+      HASH_TYPES.join(", ")
     }.`,
     {
       required: false,
@@ -450,7 +451,8 @@ See the example sections below for detailed usage examples.
   )
   .option(
     "-t, --hash-type <hashType:string>",
-    `A hash function type. Hash byte length is validated against type. Accepts ${HASH_TYPES.join(", ")
+    `A hash function type. Hash byte length is validated against type. Accepts ${
+      HASH_TYPES.join(", ")
     }.`,
     {
       required: false,

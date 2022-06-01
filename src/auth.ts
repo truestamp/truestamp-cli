@@ -185,14 +185,14 @@ export function getConfigRefreshToken(env: string): string | undefined {
 }
 
 export function getConfigIdTokenPayload(env: string): Payload {
-  let idToken
+  let idToken;
   try {
     idToken = getConfigKeyForEnv(env, "auth0_id_token") as string;
   } catch (error) {
-    throw new Error(`no id token found in config : ${error.message}`)
+    throw new Error(`no id token found in config : ${error.message}`);
   }
 
-  if (!idToken) { throw new Error(`missing id token`); }
+  if (!idToken) throw new Error(`missing id token`);
 
   try {
     const { payload } = validate(decode(idToken));
@@ -214,7 +214,9 @@ function setTokensInConfig(
   },
 ): void {
   try {
-    if (tokens.refresh_token) setConfigKeyForEnv(env, "auth0_refresh_token", tokens.refresh_token);
+    if (tokens.refresh_token) {
+      setConfigKeyForEnv(env, "auth0_refresh_token", tokens.refresh_token);
+    }
     setConfigKeyForEnv(env, "auth0_access_token", tokens.access_token);
     setConfigKeyForEnv(env, "auth0_expires_in", tokens.expires_in);
     setConfigKeyForEnv(env, "auth0_scope", tokens.scope);

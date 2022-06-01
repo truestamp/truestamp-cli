@@ -1,12 +1,15 @@
 // Copyright © 2020-2022 Truestamp Inc. All rights reserved.
 
 interface OutputWrapper {
-  text: string
+  text: string;
   // deno-lint-ignore no-explicit-any
-  json: Record<string, any>
+  json: Record<string, any>;
 }
 
-export function logSelectedOutputFormat(data: OutputWrapper, outputFormat: string): void {
+export function logSelectedOutputFormat(
+  data: OutputWrapper,
+  outputFormat: string,
+): void {
   switch (outputFormat) {
     case "text":
       console.log(data.text);

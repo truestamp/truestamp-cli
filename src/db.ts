@@ -1,6 +1,6 @@
 // Copyright © 2020-2022 Truestamp Inc. All rights reserved.
 
-import { DB, Row, decodeUnsafely, appPaths } from "./deps.ts"
+import { appPaths, DB, decodeUnsafely, Row } from "./deps.ts";
 
 // e.g.  sqlite3 "/Users/glenn/Library/Application Support/com.truestamp.cli.development/db.sqlite3"
 export function createDataDir(env: string): string {
@@ -10,7 +10,11 @@ export function createDataDir(env: string): string {
 }
 
 // deno-lint-ignore no-explicit-any
-export function writeItemToDb(env: string, id: string, envelope: Record<string, any>): void {
+export function writeItemToDb(
+  env: string,
+  id: string,
+  envelope: Record<string, any>,
+): void {
   const dbDir = createDataDir(env);
   // console.log(`${dbDir}/db.sqlite3`)
   const db = new DB(`${dbDir}/db.sqlite3`);
@@ -25,7 +29,10 @@ CREATE TABLE IF NOT EXISTS items (
 
   const decodedId = decodeUnsafely({ id });
 
-  db.query("INSERT INTO items (id, id_json, envelope_json) VALUES (?, json(?), json(?))", [id, JSON.stringify(decodedId), JSON.stringify(envelope)]);
+  db.query(
+    "INSERT INTO items (id, id_json, envelope_json) VALUES (?, json(?), json(?))",
+    [id, JSON.stringify(decodedId), JSON.stringify(envelope)],
+  );
 
   // // Print out data in table
   // for (const [id] of db.query("SELECT id FROM items")) {
@@ -49,7 +56,10 @@ CREATE TABLE IF NOT EXISTS items (
 export function getItemEnvelopesByUlid(env: string, ulid: string): Row[] {
   const dbDir = createDataDir(env);
   const db = new DB(`${dbDir}/db.sqlite3`);
-  const result = db.query("SELECT envelope_json FROM items WHERE json_extract(id_json, '$.ulid') IS ?", [ulid]);
+  const result = db.query(
+    "SELECT envelope_json FROM items WHERE json_extract(id_json, '$.ulid') IS ?",
+    [ulid],
+  );
   db.close();
   return result;
 }
@@ -57,7 +67,10 @@ export function getItemEnvelopesByUlid(env: string, ulid: string): Row[] {
 export function getItemHashById(env: string, id: string): Row[] {
   const dbDir = createDataDir(env);
   const db = new DB(`${dbDir}/db.sqlite3`);
-  const result = db.query("SELECT json_extract(items.envelope_json, '$.data.hash') FROM items WHERE id IS ?;", [id]);
+  const result = db.query(
+    "SELECT json_extract(items.envelope_json, '$.data.hash') FROM items WHERE id IS ?;",
+    [id],
+  );
   db.close();
   return result;
 }

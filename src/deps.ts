@@ -1,6 +1,9 @@
 // Copyright © 2020-2022 Truestamp Inc. All rights reserved.
 
-import { copy, readAllSync } from "https://deno.land/std@0.141.0/streams/conversion.ts"
+import {
+  copy,
+  readAllSync,
+} from "https://deno.land/std@0.141.0/streams/conversion.ts";
 import { crypto } from "https://deno.land/std@0.141.0/crypto/mod.ts";
 import { parse } from "https://deno.land/std@0.141.0/path/mod.ts";
 
@@ -10,16 +13,13 @@ import { decode, validate } from "https://deno.land/x/djwt@v2.4/mod.ts";
 export type { Payload } from "https://deno.land/x/djwt@v2.4/mod.ts";
 
 import { DB } from "https://deno.land/x/sqlite@v3.4.0/mod.ts";
-export type {
-  Row,
-} from "https://deno.land/x/sqlite@v3.4.0/mod.ts";
-
+export type { Row } from "https://deno.land/x/sqlite@v3.4.0/mod.ts";
 
 import { colors } from "https://deno.land/x/cliffy@v0.24.2/ansi/colors.ts";
 import {
   Command,
   EnumType,
-  ValidationError
+  ValidationError,
 } from "https://deno.land/x/cliffy@v0.24.2/command/mod.ts";
 import { HelpCommand } from "https://deno.land/x/cliffy@v0.24.2/command/help/mod.ts";
 import { CompletionsCommand } from "https://deno.land/x/cliffy@v0.24.2/command/completions/mod.ts";
@@ -55,6 +55,7 @@ import { decodeUnsafely } from "https://cdn.skypack.dev/@truestamp/id@~v1.1.7?dt
 import { verify } from "https://cdn.skypack.dev/@truestamp/verify@~v0.0.14?dts";
 
 export {
+  appPaths,
   colors,
   Command,
   CompletionsCommand,
@@ -64,8 +65,8 @@ export {
   crypto,
   DB,
   decode,
+  decodeUnsafely,
   deleteTokensInConfig,
-  appPaths,
   EnumType,
   getAccessTokenWithPrompts,
   getConfigAccessToken,
@@ -79,8 +80,7 @@ export {
   setConfigKeyForEnv,
   sleep,
   Truestamp,
-  decodeUnsafely,
   validate,
   ValidationError,
-  verify
+  verify,
 };
