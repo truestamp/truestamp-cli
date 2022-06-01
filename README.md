@@ -117,7 +117,7 @@ with `-h`, `--help`, or simply `help` to learn more.
 $ ./truestamp -h
 
   Usage:   truestamp
-  Version: 0.0.14
+  Version: 0.0.16
 
   Description:
 
@@ -127,22 +127,24 @@ $ ./truestamp -h
 
     -h, --help               - Show this help.
     -V, --version            - Show the version number for this program.
-    -E, --env      [env]     - Override API endpoint. Overrides 'TRUESTAMP_ENV' env var.               (Values: "development", "staging", "production")
-    -A, --api-key  [apiKey]  - Use API key for authentication. Overrides 'TRUESTAMP_API_KEY' env var.
-    -o, --output   [output]  - Output format. Overrides 'TRUESTAMP_OUTPUT' env var.                    (Values: "silent", "text", "json")
+    -E, --env      <env>     - Override API endpoint. Overrides 'TRUESTAMP_ENV' env var.               (Default: "production", Values: "development", "staging",
+                                                                                                       "production")
+    -A, --api-key  <apiKey>  - Use API key for authentication. Overrides 'TRUESTAMP_API_KEY' env var.
+    -o, --output   <output>  - Output format. Overrides 'TRUESTAMP_OUTPUT' env var.                    (Default: "text", Values: "silent", "text", "json")
 
   Commands:
 
     auth                    - Login, logout, or check login status. Create API keys.
-    completions             - Generate shell completions.
+    commitments             - Read or verify Commitments for Items.
     items                   - Create, read, or update Items.
+    completions             - Generate shell completions.
     help         [command]  - Show this help or the help of a sub-command.
 
   Environment variables:
 
-    TRUESTAMP_ENV      <env>        - Override API endpoint.
-    TRUESTAMP_API_KEY  <apiKey>     - Force use of API key for authentication.
-    TRUESTAMP_OUTPUT   <outputVar>  - Preferred output format.
+    TRUESTAMP_ENV      <env>     - Override API endpoint.
+    TRUESTAMP_API_KEY  <apiKey>  - Force use of API key for authentication.
+    TRUESTAMP_OUTPUT   <output>  - Preferred output format.
 ```
 
 ## Build and Release
