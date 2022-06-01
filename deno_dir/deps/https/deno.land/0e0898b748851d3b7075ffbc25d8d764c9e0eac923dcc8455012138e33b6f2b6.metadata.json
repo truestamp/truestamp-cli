@@ -1,21 +1,21 @@
 {
   "headers": {
+    "x-amz-version-id": "KsR69GjVKTdTwad.ULU0X7UA_eZXFVWe",
     "server": "deno/us-east4-c",
     "etag": "\"2b29d0bd4bf1d09b27ddce0b1a12e7b1\"",
-    "access-control-allow-origin": "*",
     "last-modified": "Sat, 30 Apr 2022 16:50:18 GMT",
-    "content-length": "9928",
-    "x-amz-request-id": "V27F5HBTAMG217XP",
+    "access-control-allow-origin": "*",
     "content-type": "application/typescript; charset=utf-8",
-    "x-amz-version-id": "KsR69GjVKTdTwad.ULU0X7UA_eZXFVWe",
+    "date": "Wed, 01 Jun 2022 03:55:29 GMT",
     "cache-control": "public, max-age=31536000, immutable",
     "vary": "Accept-Encoding",
-    "date": "Tue, 31 May 2022 16:55:35 GMT",
-    "x-amz-id-2": "z1W4X+VnBjAnRMafrPhibC82akTtaqqB7g9y2VEcvKDv7pHzbLnGaAKq6/q4SKyKqJclUSm+j+Q="
+    "x-amz-request-id": "B9KPD46X4EZJVKKS",
+    "content-length": "9928",
+    "x-amz-id-2": "XKpkETyxSEZJ1uRC2QYCE9AWPIRT12EhgaJhF2/y3BTH9IfY1WV3UgkAqsXWhQ/h5GKS3wxzLmc="
   },
   "url": "https://deno.land/x/sqlite@v3.4.0/src/db.ts",
   "now": {
-    "secs_since_epoch": 1654016134,
-    "nanos_since_epoch": 935477000
+    "secs_since_epoch": 1654055728,
+    "nanos_since_epoch": 259968000
   }
 }

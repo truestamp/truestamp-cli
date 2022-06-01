@@ -15,15 +15,15 @@ export type {
 } from "https://deno.land/x/sqlite@v3.4.0/mod.ts";
 
 
-import { colors } from "https://deno.land/x/cliffy@v0.22.2/ansi/colors.ts";
+import { colors } from "https://deno.land/x/cliffy@v0.24.2/ansi/colors.ts";
 import {
   Command,
   EnumType,
   ValidationError
-} from "https://deno.land/x/cliffy@v0.22.2/command/mod.ts";
-import { HelpCommand } from "https://deno.land/x/cliffy@v0.22.2/command/help/mod.ts";
-import { CompletionsCommand } from "https://deno.land/x/cliffy@v0.22.2/command/completions/mod.ts";
-export type { ITypeInfo } from "https://deno.land/x/cliffy@v0.22.2/flags/mod.ts";
+} from "https://deno.land/x/cliffy@v0.24.2/command/mod.ts";
+import { HelpCommand } from "https://deno.land/x/cliffy@v0.24.2/command/help/mod.ts";
+import { CompletionsCommand } from "https://deno.land/x/cliffy@v0.24.2/command/completions/mod.ts";
+export type { ITypeInfo } from "https://deno.land/x/cliffy@v0.24.2/flags/mod.ts";
 
 import Conf from "https://raw.githubusercontent.com/truestamp/deno-conf/v1.0.5-beta/mod.ts";
 export type {

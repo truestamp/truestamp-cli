@@ -174,17 +174,17 @@ async function getNewTokensWithRefreshToken(env: string) {
   }
 }
 
-export function getConfigAccessToken(env = "production"): string | undefined {
+export function getConfigAccessToken(env: string): string | undefined {
   const t = getConfigKeyForEnv(env, "auth0_access_token") as string;
   return t ? t : undefined;
 }
 
-export function getConfigRefreshToken(env = "production"): string | undefined {
+export function getConfigRefreshToken(env: string): string | undefined {
   const t = getConfigKeyForEnv(env, "auth0_refresh_token") as string;
   return t ? t : undefined;
 }
 
-export function getConfigIdTokenPayload(env = "production"): Payload {
+export function getConfigIdTokenPayload(env: string): Payload {
   let idToken
   try {
     idToken = getConfigKeyForEnv(env, "auth0_id_token") as string;
@@ -229,7 +229,7 @@ function setTokensInConfig(
 }
 
 // this is how we "logout"
-export function deleteTokensInConfig(env = "production") {
+export function deleteTokensInConfig(env: string): void {
   deleteConfigKeyForEnv(env, "auth0_refresh_token");
   deleteConfigKeyForEnv(env, "auth0_access_token");
   deleteConfigKeyForEnv(env, "auth0_expires_in");
@@ -238,7 +238,7 @@ export function deleteTokensInConfig(env = "production") {
   deleteConfigKeyForEnv(env, "auth0_id_token");
 }
 
-export async function getAccessTokenWithPrompts(env = "production"): Promise<string> {
+export async function getAccessTokenWithPrompts(env: string): Promise<string> {
   let deviceCodeResp;
 
   try {

@@ -1,28 +1,28 @@
 {
   "headers": {
-    "content-type": "application/typescript; charset=utf-8",
-    "accept-ranges": "bytes",
-    "x-imports": "/-/superstruct@v0.15.4-ilrv3kmiz34HFzddRYNC/dist=es2019,mode=types/index.d.ts",
-    "content-length": "495681",
-    "x-vercel-id": "iad1::sfo1::lxhcw-1654016135302-2b8b620dd2cc",
     "expect-ct": "max-age=604800, report-uri=\"https://report-uri.cloudflare.com/cdn-cgi/beacon/expect-ct\"",
-    "date": "Tue, 31 May 2022 16:55:35 GMT",
-    "cf-cache-status": "MISS",
-    "report-to": "{\"endpoints\":[{\"url\":\"https:\\/\\/a.nel.cloudflare.com\\/report\\/v3?s=c1aO7zm15RLDgJMdFC%2BBzyOEynTjc17dDt88fMFP%2FfotE8a5e1hBLcoxigxuba%2Bw44mI8K5XFnbpyoHB6LKfyQOj3oxjOAlCDtPs7CYCu0ywp75Ae9MKeUcsiqlKohnb5Q%3D%3D\"}],\"group\":\"cf-nel\",\"max_age\":604800}",
-    "etag": "W/\"79041-QsNE3158fv/dxfnIC97a4V97FNQ\"",
-    "alt-svc": "h3=\":443\"; ma=86400, h3-29=\":443\"; ma=86400",
     "vary": "Accept-Encoding",
-    "nel": "{\"success_fraction\":0,\"report_to\":\"cf-nel\",\"max_age\":604800}",
-    "x-vercel-cache": "HIT",
-    "access-control-allow-origin": "*",
+    "x-vercel-cache": "MISS",
+    "cache-control": "public, max-age=31536000, immutable",
+    "content-length": "495681",
+    "report-to": "{\"endpoints\":[{\"url\":\"https:\\/\\/a.nel.cloudflare.com\\/report\\/v3?s=K3N6IpsLSCKSK644f2jCa%2FRXvxsBx0GCD%2Fvquhl4P8dhVQ%2FkY1JvMPBUZ%2BdxqYVe5%2F34%2BpUTtoYohQDqXXYFtmVIBk2whZMh%2Bfo45UwpqCQL3J4kjMwDJOcuSjbTd5fbrg%3D%3D\"}],\"group\":\"cf-nel\",\"max_age\":604800}",
+    "cf-cache-status": "MISS",
+    "accept-ranges": "bytes",
     "server": "cloudflare",
+    "cf-ray": "71450397b9bc82ba-IAD",
+    "content-type": "application/typescript; charset=utf-8",
+    "alt-svc": "h3=\":443\"; ma=86400, h3-29=\":443\"; ma=86400",
+    "access-control-allow-origin": "*",
+    "date": "Wed, 01 Jun 2022 03:55:36 GMT",
     "strict-transport-security": "max-age=63072000",
-    "cf-ray": "71413ced8d885890-IAD",
-    "cache-control": "public, max-age=31536000, immutable"
+    "x-vercel-id": "iad1::sfo1::69886-1654055729877-9b1c46fc199e",
+    "nel": "{\"success_fraction\":0,\"report_to\":\"cf-nel\",\"max_age\":604800}",
+    "etag": "W/\"79041-QsNE3158fv/dxfnIC97a4V97FNQ\"",
+    "x-imports": "/-/superstruct@v0.15.4-ilrv3kmiz34HFzddRYNC/dist=es2019,mode=types/index.d.ts"
   },
   "url": "https://cdn.skypack.dev/-/@truestamp/truestamp-js@v0.10.1-eImQtzfjfMQJB1vrjTA8/dist=es2019,mode=types/dist/superstruct.d.ts",
   "now": {
-    "secs_since_epoch": 1654016135,
-    "nanos_since_epoch": 350543000
+    "secs_since_epoch": 1654055736,
+    "nanos_since_epoch": 752907000
   }
 }

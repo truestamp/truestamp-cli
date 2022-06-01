@@ -2,10 +2,10 @@
 
 import { getAccessTokenWithPrompts, Truestamp } from "./deps.ts";
 
-export async function createTruestampClient(apiEnv: string, apiKey?: string): Promise<Truestamp> {
+export async function createTruestampClient(env: string, apiKey?: string): Promise<Truestamp> {
   const client = new Truestamp({
-    apiKey: apiKey ?? await getAccessTokenWithPrompts(apiEnv),
-    apiEnv: apiEnv ?? "production",
+    apiKey: apiKey ?? await getAccessTokenWithPrompts(env),
+    apiEnv: env,
   });
 
   return client;

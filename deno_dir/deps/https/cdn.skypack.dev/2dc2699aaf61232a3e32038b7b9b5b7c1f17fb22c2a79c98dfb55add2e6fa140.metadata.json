@@ -1,27 +1,27 @@
 {
   "headers": {
-    "x-vercel-id": "iad1::sfo1::dz6zx-1654016134667-7b3cd95c850a",
-    "access-control-allow-origin": "*",
-    "server": "cloudflare",
+    "cache-control": "public, max-age=31536000, immutable",
+    "x-vercel-cache": "MISS",
     "cf-cache-status": "MISS",
-    "vary": "Accept-Encoding",
+    "accept-ranges": "bytes",
     "expect-ct": "max-age=604800, report-uri=\"https://report-uri.cloudflare.com/cdn-cgi/beacon/expect-ct\"",
     "nel": "{\"success_fraction\":0,\"report_to\":\"cf-nel\",\"max_age\":604800}",
     "etag": "W/\"17d-+vvMk9VsW0b9oKvxqC+9PDbWJnE\"",
-    "x-vercel-cache": "HIT",
-    "alt-svc": "h3=\":443\"; ma=86400, h3-29=\":443\"; ma=86400",
+    "vary": "Accept-Encoding",
+    "content-length": "381",
+    "cf-ray": "7145038e5b9882ba-IAD",
+    "x-vercel-id": "iad1::sfo1::8ggvt-1654055728386-d7ee0391a100",
     "strict-transport-security": "max-age=63072000",
-    "report-to": "{\"endpoints\":[{\"url\":\"https:\\/\\/a.nel.cloudflare.com\\/report\\/v3?s=yH%2BqiicWAsfoguWS9092b%2B6g9MVUMcs7%2B6TjFMq%2F%2Fplwxp%2FfUG7Af9%2Bv5mpSuntdKc8k5Ff3J3d4GJqeGdZ%2BWGWWBzZx4Z%2BY0fTDR4pnHUPgMzKzv%2BSScHhz3UuIKaA7VA%3D%3D\"}],\"group\":\"cf-nel\",\"max_age\":604800}",
-    "date": "Tue, 31 May 2022 16:55:34 GMT",
+    "access-control-allow-origin": "*",
+    "report-to": "{\"endpoints\":[{\"url\":\"https:\\/\\/a.nel.cloudflare.com\\/report\\/v3?s=2DRTwdb4909QPo3Ymm9Dy3Qib8XOSeeFs9TYf9nZ5THb7hZBldkR0QNUzQzyBAvwYdDrZ2ZVktpqlSeiwf6eJ8OUlYghfuu%2FljMhHUT6iZknA3SjOAx0kVyj0SOKgDvd7A%3D%3D\"}],\"group\":\"cf-nel\",\"max_age\":604800}",
+    "server": "cloudflare",
+    "date": "Wed, 01 Jun 2022 03:55:28 GMT",
     "content-type": "application/typescript; charset=utf-8",
-    "accept-ranges": "bytes",
-    "cf-ray": "71413ce98db95890-IAD",
-    "cache-control": "public, max-age=31536000, immutable",
-    "content-length": "381"
+    "alt-svc": "h3=\":443\"; ma=86400, h3-29=\":443\"; ma=86400"
   },
   "url": "https://cdn.skypack.dev/-/@truestamp/truestamp-js@v0.10.1-eImQtzfjfMQJB1vrjTA8/dist=es2019,mode=types/dist/index.d.ts",
   "now": {
-    "secs_since_epoch": 1654016134,
-    "nanos_since_epoch": 697095000
+    "secs_since_epoch": 1654055728,
+    "nanos_since_epoch": 940804000
   }
 }

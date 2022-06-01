@@ -1,27 +1,27 @@
 {
   "headers": {
-    "cf-cache-status": "MISS",
-    "x-vercel-id": "iad1::sfo1::pxnwf-1654016135696-001cd98ac000",
-    "etag": "W/\"fd7-QT7FUkW4Ah59BCQ9dNIkDCz6t5c\"",
-    "server": "cloudflare",
-    "cf-ray": "71413cf00a805890-IAD",
-    "vary": "Accept-Encoding",
     "nel": "{\"success_fraction\":0,\"report_to\":\"cf-nel\",\"max_age\":604800}",
-    "expect-ct": "max-age=604800, report-uri=\"https://report-uri.cloudflare.com/cdn-cgi/beacon/expect-ct\"",
-    "content-type": "application/typescript; charset=utf-8",
-    "content-length": "4055",
+    "alt-svc": "h3=\":443\"; ma=86400, h3-29=\":443\"; ma=86400",
+    "server": "cloudflare",
+    "vary": "Accept-Encoding",
     "strict-transport-security": "max-age=63072000",
-    "access-control-allow-origin": "*",
-    "x-vercel-cache": "MISS",
-    "cache-control": "public, max-age=31536000, immutable",
-    "date": "Tue, 31 May 2022 16:55:36 GMT",
-    "report-to": "{\"endpoints\":[{\"url\":\"https:\\/\\/a.nel.cloudflare.com\\/report\\/v3?s=s5nB5kNpz1hcKMyQM98oQw%2F%2BHJdIkkqD209GcQxZJUrctLdjAWHU7D1GWDwb4djrzV8okT1QCOwT4M6pPa8cuGmUiIwRB6DKfjVTf84EtJ98vMesk3GnufuMZvapWHRRow%3D%3D\"}],\"group\":\"cf-nel\",\"max_age\":604800}",
+    "cf-cache-status": "MISS",
     "accept-ranges": "bytes",
-    "alt-svc": "h3=\":443\"; ma=86400, h3-29=\":443\"; ma=86400"
+    "content-length": "4055",
+    "content-type": "application/typescript; charset=utf-8",
+    "date": "Wed, 01 Jun 2022 03:55:30 GMT",
+    "x-vercel-cache": "MISS",
+    "etag": "W/\"fd7-QT7FUkW4Ah59BCQ9dNIkDCz6t5c\"",
+    "x-vercel-id": "iad1::sfo1::6ldl7-1654055730395-2a7cb5b23d16",
+    "cf-ray": "7145039aeef082ba-IAD",
+    "cache-control": "public, max-age=31536000, immutable",
+    "report-to": "{\"endpoints\":[{\"url\":\"https:\\/\\/a.nel.cloudflare.com\\/report\\/v3?s=N2w3fYLf%2BJS0jbq7RO7h6jPHOy9PI2fPz9HapLYAGic%2Bmv9EsMZhriB5aZSb7ZkYLCc98SnyRVtvzu2FVB7RU%2BuFeXWiaq9o7%2FYaUmKYqHRUOFj%2FlVfEcNm9aok4NidfJA%3D%3D\"}],\"group\":\"cf-nel\",\"max_age\":604800}",
+    "access-control-allow-origin": "*",
+    "expect-ct": "max-age=604800, report-uri=\"https://report-uri.cloudflare.com/cdn-cgi/beacon/expect-ct\""
   },
   "url": "https://cdn.skypack.dev/-/superstruct@v0.15.4-ilrv3kmiz34HFzddRYNC/dist=es2019,mode=types/lib/struct.d.ts",
   "now": {
-    "secs_since_epoch": 1654016136,
-    "nanos_since_epoch": 388207000
+    "secs_since_epoch": 1654055730,
+    "nanos_since_epoch": 913722000
   }
 }

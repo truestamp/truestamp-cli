@@ -13,8 +13,12 @@ import { auth } from "./commands/auth.ts";
 import { commitments } from "./commands/commitments.ts";
 import { items } from "./commands/items.ts";
 
-// FIXME : the following bug has been filed related to TRUESTAMP_ENV handling:
-// https://github.com/c4spar/deno-cliffy/issues/340
+export const environmentType = new EnumType([
+  "development",
+  "staging",
+  "production",
+]);
+export const outputType = new EnumType(["silent", "text", "json"]);
 
 // Top level command
 const cmd = new Command()
@@ -26,71 +30,59 @@ const cmd = new Command()
     types: false,
     hints: true,
   })
-  .type("environment", new EnumType(["development", "staging", "production"]), {
-    global: true,
-  })
-  .type("output", new EnumType(["silent", "text", "json"]), {
-    global: true,
-  })
-  .env<{ env: string }>(
+  .globalType("environment", environmentType)
+  .globalEnv(
     "TRUESTAMP_ENV=<env:environment>",
     "Override API endpoint.",
     {
-      global: true,
       required: false,
       prefix: "TRUESTAMP_" // prefix will be ignored when converting to option name. e.g. TRUESTAMP_ENV becomes 'env'
     },
   )
-  .option<{ env: string }>(
-    "-E, --env [env:environment]",
+  .globalOption(
+    "-E, --env <env:environment>",
     "Override API endpoint. Overrides 'TRUESTAMP_ENV' env var.",
     {
-      hidden: false,
-      global: true,
+      required: false,
+      default: "production",
     },
   )
-  .env<{ apiKey: string }>(
+  .globalEnv(
     "TRUESTAMP_API_KEY=<apiKey:string>",
     "Force use of API key for authentication.",
     {
-      global: true,
       required: false,
-      prefix: "TRUESTAMP_" // prefix will be ignored when converting to option name.
+      prefix: "TRUESTAMP_"
     },
   )
-  .option<{ apiKey: string }>(
-    "-A, --api-key [apiKey:string]",
+  .globalOption(
+    "-A, --api-key <apiKey:string>",
     "Use API key for authentication. Overrides 'TRUESTAMP_API_KEY' env var.",
-    {
-      hidden: false,
-      global: true,
-    },
   )
-  .env<{ outputVar: string }>(
-    "TRUESTAMP_OUTPUT=<outputVar:output>",
+  .globalType("output", outputType)
+  .globalEnv(
+    "TRUESTAMP_OUTPUT=<output:output>",
     "Preferred output format.",
     {
-      global: true,
       required: false,
-      prefix: "TRUESTAMP_" // prefix will be ignored when converting to option name.
+      prefix: "TRUESTAMP_",
     },
   )
-  .option<{ output: string }>(
-    "-o, --output [output:output]",
+  .globalOption(
+    "-o, --output <output:output>",
     "Output format. Overrides 'TRUESTAMP_OUTPUT' env var.",
     {
-      hidden: false,
-      global: true,
+      default: "text",
     },
   )
   .action(() => {
     cmd.showHelp();
   })
-  .command("auth", auth)
+  .command("auth", auth.reset())
   .command("commitments", commitments)
-  .command("completions", new CompletionsCommand())
   .command("items", items)
-  .command("help", new HelpCommand().global())
+  .command("completions", new CompletionsCommand())
+  .command("help", new HelpCommand().global());
 
 try {
   await cmd.parse(Deno.args);

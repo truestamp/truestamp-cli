@@ -1,17 +1,34 @@
 // Copyright © 2020-2022 Truestamp Inc. All rights reserved.
 
-import { Command, createTruestampClient, readAllSync, EnumType, ValidationError, parse as pathParse } from "../deps.ts";
+import {
+  Command,
+  createTruestampClient,
+  EnumType,
+  parse as pathParse,
+  readAllSync,
+  ValidationError,
+} from "../deps.ts";
 
-import { getEnv, logSelectedOutputFormat } from "../utils.ts";
+import { logSelectedOutputFormat } from "../utils.ts";
 
-import { writeItemToDb, createDataDir } from "../db.ts";
+import { createDataDir, writeItemToDb } from "../db.ts";
+
+import { environmentType, outputType } from "../cli.ts";
+
+export const inputType = new EnumType(["binary", "json"]);
 
 // Limit the available hash types for now to those that are supported by the browser
 // and crypto.subtle.digest
 // https://developer.mozilla.org/en-US/docs/Web/API/SubtleCrypto/digest#syntax
-const HASH_TYPES = ['sha-1', 'sha-256', 'sha-384', 'sha-512'];
+const HASH_TYPES = ["sha-1", "sha-256", "sha-384", "sha-512"];
 
-const itemsCreate = new Command()
+const itemsCreate = new Command<
+  {
+    env: typeof environmentType;
+    apiKey?: string;
+    output: typeof outputType;
+  }
+>()
   .description(
     `Create a new Item.
 
@@ -26,7 +43,7 @@ See the example sections below for detailed usage examples.
 `,
   )
   .option(
-    "-H, --hash [hash:string]",
+    "-H, --hash <hash:string>",
     "An Item hash encoded as a Hex (Base16) string.",
     {
       required: false,
@@ -35,8 +52,9 @@ See the example sections below for detailed usage examples.
     },
   )
   .option(
-    "-t, --hash-type [hashType:string]",
-    `A hash function type. Hash byte length is validated against type. Accepts ${HASH_TYPES.join(", ")}.`,
+    "-t, --hash-type <hashType:string>",
+    `A hash function type. Hash byte length is validated against type. Accepts ${HASH_TYPES.join(", ")
+    }.`,
     {
       required: false,
       conflicts: ["stdin", "input"],
@@ -49,14 +67,14 @@ See the example sections below for detailed usage examples.
     {
       conflicts: ["hash", "hash-type"],
       depends: ["input"],
-    }
+    },
   )
-  .type("input", new EnumType(["binary", "json"]))
-  .option<{ input: string }>(
-    "-i, --input [input:input]",
+  .type("input", inputType)
+  .option(
+    "-i, --input <input:input>",
     "Input format. If 'binary' is provided the file will be hashed and a new Item constructed and submitted. If 'json' is provided the file not be hashed and will be submitted as-is. JSON content must match the structure expected by the API in all cases. If submitting arbitrary JSON files that are not of the shape the API expects, use 'binary'.",
     {
-      conflicts: ["hash", "hash-type"]
+      conflicts: ["hash", "hash-type"],
     },
   )
   .arguments("[path]")
@@ -177,26 +195,28 @@ Pipe JSON content to the 'items create' command using '--input json' plus the '-
 
   `,
   )
-  .action(async (options, path: string) => {
+  .action(async (options, path?: string) => {
     const ts = await createTruestampClient(options.env, options.apiKey);
 
     if (!options.input && options.stdin) {
-      throw new ValidationError('Option "--stdin" depends on option "--input".');
+      throw new ValidationError(
+        'Option "--stdin" depends on option "--input".',
+      );
     }
 
     if (!options.input && path) {
       throw new ValidationError('Argument "path" depends on option "--input".');
     }
 
-    let jsonItem, altHash, altHashType, stdInData
+    let jsonItem, altHash, altHashType, stdInData;
 
     // If the user provided JSON STDIN using the '--input json' and '--stdin' options or the '-' or a file path argument, parse
     // the contents of STDIN and pass it directly to the Truestamp client as a complete Item object.
-    if (options.input === 'json' && (options.stdin || path === "-")) {
+    if (options.input === "json" && (options.stdin || path === "-")) {
       stdInData = await readAllSync(Deno.stdin);
       const decoder = new TextDecoder();
       jsonItem = JSON.parse(decoder.decode(stdInData));
-    } else if (options.input === 'json' && path) {
+    } else if (options.input === "json" && path) {
       const file = await Deno.open(path, { read: true, write: false });
       // await copy(file, Deno.stdout);
 
@@ -211,25 +231,33 @@ Pipe JSON content to the 'items create' command using '--input json' plus the '-
     // of STDIN and hash it with SHA-256. If instead the user provided a path, read the contents
     // of the file and hash it with SHA-256.
     // See : https://github.com/c4spar/deno-cliffy/discussions/180
-    if (options.input === 'binary' && (options.stdin || path === "-")) {
+    if (options.input === "binary" && (options.stdin || path === "-")) {
       // await copy(Deno.stdin, Deno.stdout);
 
       stdInData = await readAllSync(Deno.stdin);
-      const hash = new Uint8Array(await crypto.subtle.digest("SHA-256", stdInData))
-      const hashHex = Array.from(hash, (byte) => byte.toString(16).padStart(2, "0")).join("")
+      const hash = new Uint8Array(
+        await crypto.subtle.digest("SHA-256", stdInData),
+      );
+      const hashHex = Array.from(
+        hash,
+        (byte) => byte.toString(16).padStart(2, "0"),
+      ).join("");
       // console.log(`SHA-256(stdin) = ${hashHex}`)
-      altHash = hashHex
-      altHashType = "sha-256"
-    } else if (options.input === 'binary' && path) {
+      altHash = hashHex;
+      altHashType = "sha-256";
+    } else if (options.input === "binary" && path) {
       const file = await Deno.open(path, { read: true, write: false });
       // await copy(file, Deno.stdout);
 
       const data = await readAllSync(file);
-      const hash = new Uint8Array(await crypto.subtle.digest("SHA-256", data))
-      const hashHex = Array.from(hash, (byte) => byte.toString(16).padStart(2, "0")).join("")
+      const hash = new Uint8Array(await crypto.subtle.digest("SHA-256", data));
+      const hashHex = Array.from(
+        hash,
+        (byte) => byte.toString(16).padStart(2, "0"),
+      ).join("");
       // console.log(`SHA-256(stdin) = ${hashHex}`)
-      altHash = hashHex
-      altHashType = "sha-256"
+      altHash = hashHex;
+      altHashType = "sha-256";
 
       file.close();
     }
@@ -240,14 +268,20 @@ Pipe JSON content to the 'items create' command using '--input json' plus the '-
     // or an actual path, create the Item with the hash and hash-type from the
     // STDIN or file.
     try {
-      let itemResp
+      let itemResp;
 
       if (jsonItem) {
         itemResp = await ts.createItem(jsonItem);
       } else if (options.hash && options.hashType) {
-        itemResp = await ts.createItem({ hash: options.hash, hashType: options.hashType });
+        itemResp = await ts.createItem({
+          hash: options.hash,
+          hashType: options.hashType,
+        });
       } else if (altHash && altHashType) {
-        itemResp = await ts.createItem({ hash: altHash, hashType: altHashType });
+        itemResp = await ts.createItem({
+          hash: altHash,
+          hashType: altHashType,
+        });
       } else {
         throw new Error("No hash or hash-type provided");
       }
@@ -255,7 +289,7 @@ Pipe JSON content to the 'items create' command using '--input json' plus the '-
       // console.log(JSON.stringify(itemResp, null, 2));
 
       // store the item in the local database
-      writeItemToDb(getEnv(options), itemResp.id, itemResp);
+      writeItemToDb(options.env, itemResp.id, itemResp);
 
       // console.log(getItemHashById(getEnv(options), itemResp.id));
 
@@ -265,10 +299,10 @@ Pipe JSON content to the 'items create' command using '--input json' plus the '-
       // Name it with the Item Id concatenated with its original name or use 'stdin'.
       if (options.input && (options.stdin || path === "-")) {
         // Copy the data passed as STDIN to the common data directory for archival purposes
-        const dataDir = createDataDir(getEnv(options));
-        const fileDir = `${dataDir}/files`
+        const dataDir = createDataDir(options.env);
+        const fileDir = `${dataDir}/files`;
         await Deno.mkdir(fileDir, { recursive: true });
-        const filePath = `${fileDir}/${itemResp.id}--stdin`
+        const filePath = `${fileDir}/${itemResp.id}--stdin`;
 
         if (stdInData) {
           await Deno.writeFile(filePath, stdInData);
@@ -276,26 +310,32 @@ Pipe JSON content to the 'items create' command using '--input json' plus the '-
         }
       } else if (options.input && path) {
         // Copy the data passed as a file path to the common data directory for archival purposes
-        const dataDir = createDataDir(getEnv(options));
-        const fileDir = `${dataDir}/files`
+        const dataDir = createDataDir(options.env);
+        const fileDir = `${dataDir}/files`;
         await Deno.mkdir(fileDir, { recursive: true });
-        const filePath = `${fileDir}/${itemResp.id}--${pathParse(path).base}`
+        const filePath = `${fileDir}/${itemResp.id}--${pathParse(path).base}`;
         // console.log(filePath)
         await Deno.copyFile(path, filePath);
       }
 
-      logSelectedOutputFormat(options, { text: itemResp.id, json: { id: itemResp.id } });
+      logSelectedOutputFormat(
+        {
+          text: itemResp.id,
+          json: { id: itemResp.id },
+        },
+        options.output,
+      );
     } catch (error) {
-      const { key, value, type, response } = error
+      const { key, value, type, response } = error;
 
       if (key || value || type) {
         // is a StructError
         if (value === undefined) {
-          throw new Error(`attribute ${key} is required`)
-        } else if (type === 'never') {
-          throw new Error(`attribute ${key} is unknown`)
+          throw new Error(`attribute ${key} is required`);
+        } else if (type === "never") {
+          throw new Error(`attribute ${key} is unknown`);
         } else {
-          throw new Error(`${key} ${value} is invalid`)
+          throw new Error(`${key} ${value} is invalid`);
         }
       } else if (response) {
         // is a HTTPResponseError
@@ -303,18 +343,24 @@ Pipe JSON content to the 'items create' command using '--input json' plus the '-
         // has a 'response' property which can be awaited to get the full
         // HTTP response, including body with error info.
         // https://developer.mozilla.org/en-US/docs/Web/API/Fetch_API/Using_Fetch#body
-        const { status, code, description } = await response.json()
-        throw new Error(`${status} : ${code} : ${description}`)
+        const { status, code, description } = await response.json();
+        throw new Error(`${status} : ${code} : ${description}`);
       } else {
         // is a generic Error
-        throw error
+        throw error;
       }
     }
   });
 
-const itemsRead = new Command()
+const itemsRead = new Command<
+  {
+    env: typeof environmentType;
+    apiKey?: string;
+    output: typeof outputType;
+  }
+>()
   .description("Read an existing Item.")
-  .option("-i, --id [id:string]", "An Item Id.", {
+  .option("-i, --id <id:string>", "An Item Id.", {
     required: true,
   })
   .example(
@@ -326,24 +372,30 @@ const itemsRead = new Command()
 `,
   )
   .action(async (options) => {
-    const ts = await createTruestampClient(getEnv(options), options.apiKey);
+    const ts = await createTruestampClient(options.env, options.apiKey);
 
     try {
       const item = await ts.getItem(options.id);
 
-      logSelectedOutputFormat(options, { text: JSON.stringify(item, null, 2), json: item });
+      logSelectedOutputFormat(
+        {
+          text: JSON.stringify(item, null, 2),
+          json: item,
+        },
+        options.output,
+      );
     } catch (error) {
       // throw new Error(`Item not found : ${error.message}`);
-      const { key, value, type, response } = error
+      const { key, value, type, response } = error;
 
       if (key || value || type) {
         // is a StructError
         if (value === undefined) {
-          throw new Error(`attribute ${key} is required`)
-        } else if (type === 'never') {
-          throw new Error(`attribute ${key} is unknown`)
+          throw new Error(`attribute ${key} is required`);
+        } else if (type === "never") {
+          throw new Error(`attribute ${key} is unknown`);
         } else {
-          throw new Error(`${key} ${value} is invalid`)
+          throw new Error(`${key} ${value} is invalid`);
         }
       } else if (response) {
         // is a HTTPResponseError
@@ -351,17 +403,22 @@ const itemsRead = new Command()
         // has a 'response' property which can be awaited to get the full
         // HTTP response, including body with error info.
         // https://developer.mozilla.org/en-US/docs/Web/API/Fetch_API/Using_Fetch#body
-        const { status, code, description } = await response.json()
-        throw new Error(`${status} : ${code} : ${description}`)
+        const { status, code, description } = await response.json();
+        throw new Error(`${status} : ${code} : ${description}`);
       } else {
         // is a generic Error
-        throw error
+        throw error;
       }
     }
-
   });
 
-const itemsUpdate = new Command()
+const itemsUpdate = new Command<
+  {
+    env: typeof environmentType;
+    apiKey?: string;
+    output: typeof outputType;
+  }
+>()
   .description(
     `Update an existing Item by replacing it with a new one.
 
@@ -377,13 +434,13 @@ An Item Id will be returned in the response that identifies the Item and its tem
 
 See the example sections below for detailed usage examples.
 
-`
+`,
   )
-  .option("-i, --id [id:string]", "An Item Id to update.", {
+  .option("-i, --id <id:string>", "An Item Id to update.", {
     required: true,
   })
   .option(
-    "-H, --hash [hash:string]",
+    "-H, --hash <hash:string>",
     "An Item hash encoded as a Hex (Base16) string.",
     {
       required: false,
@@ -392,8 +449,9 @@ See the example sections below for detailed usage examples.
     },
   )
   .option(
-    "-t, --hash-type [hashType:string]",
-    `A hash function type. Hash byte length is validated against type. Accepts ${HASH_TYPES.join(", ")}.`,
+    "-t, --hash-type <hashType:string>",
+    `A hash function type. Hash byte length is validated against type. Accepts ${HASH_TYPES.join(", ")
+    }.`,
     {
       required: false,
       conflicts: ["stdin", "input"],
@@ -406,14 +464,14 @@ See the example sections below for detailed usage examples.
     {
       conflicts: ["hash", "hash-type"],
       depends: ["input"],
-    }
+    },
   )
-  .type("input", new EnumType(["binary", "json"]))
-  .option<{ input: string }>(
-    "-i, --input [input:input]",
+  .type("input", inputType)
+  .option(
+    "-i, --input <input:input>",
     "Input format. If 'binary' is provided the file will be hashed and a new Item constructed and submitted. If 'json' is provided the file not be hashed and will be submitted as-is. JSON content must match the structure expected by the API in all cases. If submitting arbitrary JSON files that are not of the shape the API expects, use 'binary'.",
     {
-      conflicts: ["hash", "hash-type"]
+      conflicts: ["hash", "hash-type"],
     },
   )
   .arguments("[path]")
@@ -475,146 +533,151 @@ Pipe JSON content to the 'items update' command using '--input json' plus the '-
 
   `,
   )
-  .action(async (options, path: string) => {
-    const ts = await createTruestampClient(options.env, options.apiKey);
+  .action(
+    async (options, path) => {
+      const ts = await createTruestampClient(
+        options.env,
+        options.apiKey,
+      );
 
-    if (!options.input && options.stdin) {
-      throw new ValidationError('Option "--stdin" depends on option "--input".');
-    }
-
-    if (!options.input && path) {
-      throw new ValidationError('Argument "path" depends on option "--input".');
-    }
-
-    let jsonItem, altHash, altHashType
-
-    // If the user provided JSON STDIN using the '--input json' and '--stdin' options or the '-' or a file path argument, parse
-    // the contents of STDIN and pass it directly to the Truestamp client as a complete Item object.
-    if (options.input === 'json' && (options.stdin || path === "-")) {
-      const data = await readAllSync(Deno.stdin);
-      const decoder = new TextDecoder();
-      jsonItem = JSON.parse(decoder.decode(data));
-    } else if (options.input === 'json' && path) {
-      const file = await Deno.open(path, { read: true, write: false });
-      // await copy(file, Deno.stdout);
-
-      const data = await readAllSync(file);
-      const decoder = new TextDecoder();
-      jsonItem = JSON.parse(decoder.decode(data));
-
-      file.close();
-    }
-
-    // If the user provided non-JSON STDIN using the '--stdin' flag or the '-' argument, read the contents
-    // of STDIN and hash it with SHA-256. If instead the user provided a path, read the contents
-    // of the file and hash it with SHA-256.
-    // See : https://github.com/c4spar/deno-cliffy/discussions/180
-    if (options.input === 'binary' && (options.stdin || path === "-")) {
-      // await copy(Deno.stdin, Deno.stdout);
-
-      const data = await readAllSync(Deno.stdin);
-      const hash = new Uint8Array(await crypto.subtle.digest("SHA-256", data))
-      const hashHex = Array.from(hash, (byte) => byte.toString(16).padStart(2, "0")).join("")
-      // console.log(`SHA-256(stdin) = ${hashHex}`)
-      altHash = hashHex
-      altHashType = "sha-256"
-    } else if (options.input === 'binary' && path) {
-      const file = await Deno.open(path, { read: true, write: false });
-      // await copy(file, Deno.stdout);
-
-      const data = await readAllSync(file);
-      const hash = new Uint8Array(await crypto.subtle.digest("SHA-256", data))
-      const hashHex = Array.from(hash, (byte) => byte.toString(16).padStart(2, "0")).join("")
-      // console.log(`SHA-256(stdin) = ${hashHex}`)
-      altHash = hashHex
-      altHashType = "sha-256"
-
-      file.close();
-    }
-
-    try {
-      let itemResp
-
-      if (jsonItem) {
-        itemResp = await ts.updateItem(options.id, jsonItem);
-      } else if (options.hash && options.hashType) {
-        itemResp = await ts.updateItem(options.id, { hash: options.hash, hashType: options.hashType });
-      } else if (altHash && altHashType) {
-        itemResp = await ts.updateItem(options.id, { hash: altHash, hashType: altHashType });
-      } else {
-        throw new Error("No hash or hashType provided");
+      if (!options.input && options.stdin) {
+        throw new ValidationError(
+          'Option "--stdin" depends on option "--input".',
+        );
       }
 
-      // store the item in the local database
-      writeItemToDb(getEnv(options), itemResp.id, itemResp);
+      if (!options.input && path) {
+        throw new ValidationError(
+          'Argument "path" depends on option "--input".',
+        );
+      }
 
-      logSelectedOutputFormat(options, { text: itemResp.id, json: { id: itemResp.id } });
-    } catch (error) {
-      // throw new Error(`Item update error : ${error.message}`);
-      const { key, value, type, response } = error
+      let jsonItem, altHash, altHashType;
 
-      if (key || value || type) {
-        // is a StructError
-        if (value === undefined) {
-          throw new Error(`attribute ${key} is required`)
-        } else if (type === 'never') {
-          throw new Error(`attribute ${key} is unknown`)
+      // If the user provided JSON STDIN using the '--input json' and '--stdin' options or the '-' or a file path argument, parse
+      // the contents of STDIN and pass it directly to the Truestamp client as a complete Item object.
+      if (options.input === "json" && (options.stdin || path === "-")) {
+        const data = await readAllSync(Deno.stdin);
+        const decoder = new TextDecoder();
+        jsonItem = JSON.parse(decoder.decode(data));
+      } else if (options.input === "json" && path) {
+        const file = await Deno.open(path, { read: true, write: false });
+        // await copy(file, Deno.stdout);
+
+        const data = await readAllSync(file);
+        const decoder = new TextDecoder();
+        jsonItem = JSON.parse(decoder.decode(data));
+
+        file.close();
+      }
+
+      // If the user provided non-JSON STDIN using the '--stdin' flag or the '-' argument, read the contents
+      // of STDIN and hash it with SHA-256. If instead the user provided a path, read the contents
+      // of the file and hash it with SHA-256.
+      // See : https://github.com/c4spar/deno-cliffy/discussions/180
+      if (options.input === "binary" && (options.stdin || path === "-")) {
+        // await copy(Deno.stdin, Deno.stdout);
+
+        const data = await readAllSync(Deno.stdin);
+        const hash = new Uint8Array(
+          await crypto.subtle.digest("SHA-256", data),
+        );
+        const hashHex = Array.from(
+          hash,
+          (byte) => byte.toString(16).padStart(2, "0"),
+        ).join("");
+        // console.log(`SHA-256(stdin) = ${hashHex}`)
+        altHash = hashHex;
+        altHashType = "sha-256";
+      } else if (options.input === "binary" && path) {
+        const file = await Deno.open(path, { read: true, write: false });
+        // await copy(file, Deno.stdout);
+
+        const data = await readAllSync(file);
+        const hash = new Uint8Array(
+          await crypto.subtle.digest("SHA-256", data),
+        );
+        const hashHex = Array.from(
+          hash,
+          (byte) => byte.toString(16).padStart(2, "0"),
+        ).join("");
+        // console.log(`SHA-256(stdin) = ${hashHex}`)
+        altHash = hashHex;
+        altHashType = "sha-256";
+
+        file.close();
+      }
+
+      try {
+        let itemResp;
+
+        if (jsonItem) {
+          itemResp = await ts.updateItem(options.id, jsonItem);
+        } else if (options.hash && options.hashType) {
+          itemResp = await ts.updateItem(options.id, {
+            hash: options.hash,
+            hashType: options.hashType,
+          });
+        } else if (altHash && altHashType) {
+          itemResp = await ts.updateItem(options.id, {
+            hash: altHash,
+            hashType: altHashType,
+          });
         } else {
-          throw new Error(`${key} ${value} is invalid`)
+          throw new Error("No hash or hashType provided");
         }
-      } else if (response) {
-        // is a HTTPResponseError
-        // This is a custom error type thrown by truestamp-js and
-        // has a 'response' property which can be awaited to get the full
-        // HTTP response, including body with error info.
-        // https://developer.mozilla.org/en-US/docs/Web/API/Fetch_API/Using_Fetch#body
-        const { status, code, description } = await response.json()
-        throw new Error(`${status} : ${code} : ${description}`)
-      } else {
-        // is a generic Error
-        throw error
+
+        // store the item in the local database
+        writeItemToDb(
+          options.env,
+          itemResp.id,
+          itemResp,
+        );
+
+        logSelectedOutputFormat(
+          { text: itemResp.id, json: { id: itemResp.id } },
+          options.output,
+        );
+      } catch (error) {
+        // throw new Error(`Item update error : ${error.message}`);
+        const { key, value, type, response } = error;
+
+        if (key || value || type) {
+          // is a StructError
+          if (value === undefined) {
+            throw new Error(`attribute ${key} is required`);
+          } else if (type === "never") {
+            throw new Error(`attribute ${key} is unknown`);
+          } else {
+            throw new Error(`${key} ${value} is invalid`);
+          }
+        } else if (response) {
+          // is a HTTPResponseError
+          // This is a custom error type thrown by truestamp-js and
+          // has a 'response' property which can be awaited to get the full
+          // HTTP response, including body with error info.
+          // https://developer.mozilla.org/en-US/docs/Web/API/Fetch_API/Using_Fetch#body
+          const { status, code, description } = await response.json();
+          throw new Error(`${status} : ${code} : ${description}`);
+        } else {
+          // is a generic Error
+          throw error;
+        }
       }
-    }
-  });
+    },
+  );
 
-// const itemsDelete = new Command()
-//   .description("Delete an existing document.")
-//   .option("-i, --id [id:string]", "A document ID.", {
-//     required: true,
-//   })
-//   .action(async (options) => {
-//     const ts = await createTruestampClient(getEnv(options), options.apiKey);
-//     let d;
-//     try {
-//       d = await ts.deleteDocument(options.id);
-//     } catch (error) {
-//       throw new Error(`document not found : ${error.message}`);
-//     }
-
-//     console.log(JSON.stringify(d));
-//   });
-
-// const itemsList = new Command()
-//   .description("List all existing documents.")
-//   .action(async (options) => {
-//     const ts = await createTruestampClient(getEnv(options), options.apiKey);
-//     let d;
-//     try {
-//       d = await ts.getAllDocuments();
-//     } catch (error) {
-//       throw new Error(`documents not found : ${error.message}`);
-//     }
-
-//     console.log(JSON.stringify(d));
-//   });
-
-export const items = new Command()
+export const items = new Command<
+  {
+    env: typeof environmentType;
+    apiKey?: string;
+    output: typeof outputType;
+  }
+>()
   .description("Create, read, or update Items.")
   .action(() => {
     items.showHelp();
   })
   .command("create", itemsCreate)
   .command("read", itemsRead)
-  .command("update", itemsUpdate)
-  // .command("delete", itemsDelete)
-  // .command("list", itemsList);
+  .command("update", itemsUpdate);

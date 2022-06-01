@@ -1,20 +1,20 @@
 {
   "headers": {
-    "x-amz-version-id": "aFNcFKfgwcOlB4OgACdelEE0xTBv6oUp",
-    "access-control-allow-origin": "*",
-    "last-modified": "Sat, 30 Apr 2022 16:50:18 GMT",
-    "vary": "Accept-Encoding",
     "cache-control": "public, max-age=31536000, immutable",
-    "etag": "W/\"1058a54cf102f882a5f1ea92c6c9ddee\"",
-    "date": "Tue, 31 May 2022 16:55:35 GMT",
     "content-type": "application/javascript",
+    "date": "Wed, 01 Jun 2022 03:55:29 GMT",
+    "x-amz-request-id": "B9KRXR33XYQGPWHF",
+    "access-control-allow-origin": "*",
     "server": "deno/us-east4-c",
-    "x-amz-request-id": "V27BRRRBSX5ATRKX",
-    "x-amz-id-2": "ryIpnwydzdT8+95eoimBVpGU3vOm8/fplrB707zV7VNO0/dLH/qW3Q0hq2rphKqHhvz4Yi9s9OI="
+    "last-modified": "Sat, 30 Apr 2022 16:50:18 GMT",
+    "x-amz-id-2": "pla2LPu3qrWRSuj9PPueAuR279HA6QehR5xDXxI4nPAnUuVXJwKBO5KJ399IRs6gE9J1XebVpqA=",
+    "x-amz-version-id": "aFNcFKfgwcOlB4OgACdelEE0xTBv6oUp",
+    "vary": "Accept-Encoding",
+    "etag": "W/\"1058a54cf102f882a5f1ea92c6c9ddee\""
   },
   "url": "https://deno.land/x/sqlite@v3.4.0/build/sqlite.js",
   "now": {
-    "secs_since_epoch": 1654016135,
-    "nanos_since_epoch": 100375000
+    "secs_since_epoch": 1654055728,
+    "nanos_since_epoch": 617889000
   }
 }

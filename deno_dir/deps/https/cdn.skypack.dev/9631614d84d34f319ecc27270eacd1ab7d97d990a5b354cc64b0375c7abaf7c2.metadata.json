@@ -1,25 +1,25 @@
 {
   "headers": {
-    "access-control-allow-origin": "*",
-    "location": "/-/superstruct@v0.15.4-ilrv3kmiz34HFzddRYNC/dist=es2019,mode=types/lib/index.d.ts",
-    "server": "cloudflare",
-    "cf-ray": "71413ce9be195890-IAD",
-    "x-vercel-cache": "MISS",
-    "alt-svc": "h3=\":443\"; ma=86400, h3-29=\":443\"; ma=86400",
-    "content-length": "0",
-    "x-vercel-id": "iad1::sfo1::69886-1654016134688-eae495f741b1",
-    "cf-cache-status": "MISS",
-    "nel": "{\"success_fraction\":0,\"report_to\":\"cf-nel\",\"max_age\":604800}",
-    "expect-ct": "max-age=604800, report-uri=\"https://report-uri.cloudflare.com/cdn-cgi/beacon/expect-ct\"",
     "vary": "Accept-Encoding",
-    "date": "Tue, 31 May 2022 16:55:35 GMT",
-    "cache-control": "public, max-age=0, must-revalidate",
+    "access-control-allow-origin": "*",
     "strict-transport-security": "max-age=63072000",
-    "report-to": "{\"endpoints\":[{\"url\":\"https:\\/\\/a.nel.cloudflare.com\\/report\\/v3?s=8Eg2XwWg%2B%2Frsi%2B6INiupgbrNIu0FjY0%2FrBb%2FwqvkeScIFVCTrdMGaa%2FfFcrvjktHrpn1yGUcfQs%2Fbk3FKYmb5jYxhKbvP08uHpws3Oj1ayrQSLo7foO7lo5IYCWYa2pK7g%3D%3D\"}],\"group\":\"cf-nel\",\"max_age\":604800}"
+    "content-length": "0",
+    "x-vercel-cache": "MISS",
+    "expect-ct": "max-age=604800, report-uri=\"https://report-uri.cloudflare.com/cdn-cgi/beacon/expect-ct\"",
+    "alt-svc": "h3=\":443\"; ma=86400, h3-29=\":443\"; ma=86400",
+    "x-vercel-id": "iad1::sfo1::n7px6-1654055729666-49750d0a6317",
+    "server": "cloudflare",
+    "date": "Wed, 01 Jun 2022 03:55:29 GMT",
+    "cf-ray": "714503965fb882ba-IAD",
+    "location": "/-/superstruct@v0.15.4-ilrv3kmiz34HFzddRYNC/dist=es2019,mode=types/lib/index.d.ts",
+    "cf-cache-status": "MISS",
+    "cache-control": "public, max-age=0, must-revalidate",
+    "report-to": "{\"endpoints\":[{\"url\":\"https:\\/\\/a.nel.cloudflare.com\\/report\\/v3?s=xCr16gd8Zz%2BLF7uFGUzfVXgXm2ij7PoLKVV6%2FglCO0zAcHEPKvh4CGaPXJdIxdUfAcJ9bstg9H%2B1kJ1zJmilZYecV8NMhgYHtEaFXVZsoSGAjweXA9%2BYEc%2FrPYfYqqHBFw%3D%3D\"}],\"group\":\"cf-nel\",\"max_age\":604800}",
+    "nel": "{\"success_fraction\":0,\"report_to\":\"cf-nel\",\"max_age\":604800}"
   },
   "url": "https://cdn.skypack.dev/-/superstruct@v0.15.4-ilrv3kmiz34HFzddRYNC/dist=es2019,mode=types/index.d.ts",
   "now": {
-    "secs_since_epoch": 1654016135,
-    "nanos_since_epoch": 74857000
+    "secs_since_epoch": 1654055729,
+    "nanos_since_epoch": 863319000
   }
 }

@@ -4,29 +4,37 @@ import {
   Command,
   createTruestampClient,
   getConfigRefreshToken,
-  ValidationError
+  ValidationError,
 } from "../../deps.ts";
 
-import { getEnv, logSelectedOutputFormat } from "../../utils.ts";
+import { logSelectedOutputFormat } from "../../utils.ts";
+
+import { environmentType, outputType } from "../../cli.ts";
 
 const MAX_DESCRIPTION_LENGTH = 256;
 
-const apiKeyCreate = new Command()
+const apiKeyCreate = new Command<
+  {
+    env: typeof environmentType;
+    apiKey?: string;
+    output: typeof outputType;
+  }
+>()
   .description("Create a new API key.")
   .option(
-    "-d, --description [description:string]",
+    "-d, --description <description:string>",
     `A description of the key. (max length: ${MAX_DESCRIPTION_LENGTH})`,
     {
       required: false,
-      default: ""
+      default: "",
     },
   )
   .option(
-    "-t, --ttl [ttl:integer]",
+    "-t, --ttl <ttl:integer>",
     "Key Time To Live value (seconds). (min: 60s, 0 for no expiration)",
     {
       required: false,
-      default: 0
+      default: 0,
     },
   )
   .example(
@@ -40,7 +48,7 @@ const apiKeyCreate = new Command()
   `,
   )
   .action(async (options) => {
-    const refreshToken = getConfigRefreshToken(getEnv(options));
+    const refreshToken = getConfigRefreshToken(options.env);
 
     if (!refreshToken) {
       console.error("logged out, you need to 'truestamp auth login' first");
@@ -59,19 +67,40 @@ const apiKeyCreate = new Command()
       );
     }
 
-    const ts = await createTruestampClient(getEnv(options), options.apiKey);
+    const ts = await createTruestampClient(options.env, options.apiKey);
 
-    let keyResp
+    let keyResp;
     try {
-      keyResp = await ts.createApiKey({ refreshToken: refreshToken, description: options.description, ttl: options.ttl });
+      keyResp = await ts.createApiKey({
+        refreshToken: refreshToken,
+        description: options.description,
+        ttl: options.ttl,
+      });
     } catch (error) {
       throw new Error(`api key creation failed : ${error.message}`);
     }
 
-    logSelectedOutputFormat(options, { text: `${keyResp.apiKey} [${getEnv(options)}]`, json: { command: 'apikey', status: 'ok', environment: getEnv(options), key: keyResp } });
-  })
+    logSelectedOutputFormat(
+      {
+        text: `${keyResp.apiKey} [${options.env}]`,
+        json: {
+          command: "apikey",
+          status: "ok",
+          environment: options.env,
+          key: keyResp,
+        },
+      },
+      options.output,
+    );
+  });
 
-export const apiKeys = new Command()
+export const apiKeys = new Command<
+  {
+    env: typeof environmentType;
+    apiKey?: string;
+    output: typeof outputType;
+  }
+>()
   .description(`Manage API keys.
 
     API keys are not needed to use the CLI or web interface. They're provided as a
@@ -83,4 +112,4 @@ export const apiKeys = new Command()
   .action(() => {
     apiKeys.showHelp();
   })
-  .command("create", apiKeyCreate)
+  .command("create", apiKeyCreate);

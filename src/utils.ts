@@ -1,28 +1,21 @@
 // Copyright © 2020-2022 Truestamp Inc. All rights reserved.
 
-// deno-lint-ignore-file no-explicit-any
-
 interface OutputWrapper {
   text: string
+  // deno-lint-ignore no-explicit-any
   json: Record<string, any>
 }
 
-export function getEnv(options: any): string {
-  return options?.env ?? "production";
-}
-
-export function logSelectedOutputFormat(options: any, data: OutputWrapper): void {
-  // --output overrides TRUESTAMP_OUTPUT env var
-  // Defaults to 'text'
-  const choice = options.output ?? options.outputVar ?? "text";
-
-  // console.log(choice)
-
-  if (choice === "text") {
-    console.log(data.text);
-  } else if (choice === "json") {
-    console.log(JSON.stringify(data.json, null, 2));
-  } else {
-    // silent
+export function logSelectedOutputFormat(data: OutputWrapper, outputFormat: string): void {
+  switch (outputFormat) {
+    case "text":
+      console.log(data.text);
+      break;
+    case "json":
+      console.log(JSON.stringify(data.json, null, 2));
+      break;
+    case "silent":
+      // no-op : silent
+      break;
   }
 }

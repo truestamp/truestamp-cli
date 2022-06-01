@@ -2,12 +2,20 @@
 
 import { Command, createTruestampClient, verify } from "../deps.ts";
 
-import { getEnv, logSelectedOutputFormat } from "../utils.ts";
+import { logSelectedOutputFormat } from "../utils.ts";
 
-const commitmentsRead = new Command()
+import { environmentType, outputType } from "../cli.ts";
+
+const commitmentsRead = new Command<
+  {
+    env: typeof environmentType;
+    apiKey?: string;
+    output: typeof outputType;
+  }
+>()
   .description("Read an existing Commitment for an Item.")
   .option(
-    "-i, --id [id:string]",
+    "-i, --id <id:string>",
     "An Item Id to retrieve the Commitment for.",
     {
       required: true,
@@ -22,15 +30,18 @@ $ truestamp commitments read --id T11_01G43NSA31APN5B04AYWMMNH6Q_165368592341300
 `,
   )
   .action(async (options) => {
-    const ts = await createTruestampClient(getEnv(options), options.apiKey);
+    const ts = await createTruestampClient(options.env, options.apiKey);
 
     try {
       const commitment = await ts.getCommitment(options.id);
 
-      logSelectedOutputFormat(options, {
-        text: JSON.stringify(commitment, null, 2),
-        json: commitment,
-      });
+      logSelectedOutputFormat(
+        {
+          text: JSON.stringify(commitment, null, 2),
+          json: commitment,
+        },
+        options.output,
+      );
     } catch (error) {
       // throw new Error(`Commitment not found : ${error.message}`);
       const { key, value, type, response } = error;
@@ -59,10 +70,16 @@ $ truestamp commitments read --id T11_01G43NSA31APN5B04AYWMMNH6Q_165368592341300
     }
   });
 
-const commitmentsVerify = new Command()
+const commitmentsVerify = new Command<
+  {
+    env: typeof environmentType;
+    apiKey?: string;
+    output: typeof outputType;
+  }
+>()
   .description("Verify an existing Commitment for an Item.")
   .option(
-    "-i, --id [id:string]",
+    "-i, --id <id:string>",
     "An Item Id to retrieve the Commitment for.",
     {
       required: true,
@@ -98,7 +115,7 @@ HTTP request to third-party blockchain API servers will originate from this loca
 `,
   )
   .action(async (options) => {
-    const ts = await createTruestampClient(getEnv(options), options.apiKey);
+    const ts = await createTruestampClient(options.env, options.apiKey);
 
     let verification;
     try {
@@ -109,12 +126,15 @@ HTTP request to third-party blockchain API servers will originate from this loca
         verification = await ts.getCommitmentVerification(options.id);
       }
 
-      logSelectedOutputFormat(options, {
-        text: verification.ok
-          ? `Verification : OK : ${options.id}`
-          : `Verification : FAILED : ${options.id} : (run command with --output=json for failure details)`,
-        json: verification,
-      });
+      logSelectedOutputFormat(
+        {
+          text: verification.ok
+            ? `Verification : OK : ${options.id}`
+            : `Verification : FAILED : ${options.id} : (run command with --output=json for failure details)`,
+          json: verification,
+        },
+        options.output,
+      );
     } catch (error) {
       // throw new Error(`Commitment verification not found : ${error.message}`);
       const { key, value, type, response } = error;
@@ -143,7 +163,13 @@ HTTP request to third-party blockchain API servers will originate from this loca
     }
   });
 
-export const commitments = new Command()
+export const commitments = new Command<
+  {
+    env: typeof environmentType;
+    apiKey?: string;
+    output: typeof outputType;
+  }
+>()
   .description("Read or verify Commitments for Items.")
   .action(() => {
     commitments.showHelp();

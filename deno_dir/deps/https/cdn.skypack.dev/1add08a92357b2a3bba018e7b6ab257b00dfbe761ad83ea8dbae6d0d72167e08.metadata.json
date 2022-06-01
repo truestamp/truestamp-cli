@@ -1,25 +1,25 @@
 {
   "headers": {
-    "expect-ct": "max-age=604800, report-uri=\"https://report-uri.cloudflare.com/cdn-cgi/beacon/expect-ct\"",
-    "cf-ray": "71413ce9ce5c5890-IAD",
-    "cf-cache-status": "MISS",
-    "nel": "{\"success_fraction\":0,\"report_to\":\"cf-nel\",\"max_age\":604800}",
+    "cache-control": "public, max-age=0, must-revalidate",
     "strict-transport-security": "max-age=63072000",
-    "x-vercel-id": "iad1::sfo1::s9sbb-1654016134720-db237f1247b2",
+    "report-to": "{\"endpoints\":[{\"url\":\"https:\\/\\/a.nel.cloudflare.com\\/report\\/v3?s=vxmzazj7NWV6v9OuuZde2HfBo0VuDct1TPZjdxDobBOMoHAFpHbTPC2wF79reQk0KWSLG7FIUcpVUvmttuXczqvIYpLsUnwpMr9PlAwE0IvWVvQjWABfUKnnnPBqml5gtg%3D%3D\"}],\"group\":\"cf-nel\",\"max_age\":604800}",
+    "cf-cache-status": "MISS",
+    "expect-ct": "max-age=604800, report-uri=\"https://report-uri.cloudflare.com/cdn-cgi/beacon/expect-ct\"",
+    "access-control-allow-origin": "*",
+    "location": "/-/@truestamp/truestamp-js@v0.10.1-eImQtzfjfMQJB1vrjTA8/dist=es2019,mode=types/dist/items/index.d.ts",
     "content-length": "0",
     "x-vercel-cache": "MISS",
-    "date": "Tue, 31 May 2022 16:55:35 GMT",
-    "location": "/-/@truestamp/truestamp-js@v0.10.1-eImQtzfjfMQJB1vrjTA8/dist=es2019,mode=types/dist/items/index.d.ts",
-    "alt-svc": "h3=\":443\"; ma=86400, h3-29=\":443\"; ma=86400",
-    "access-control-allow-origin": "*",
+    "date": "Wed, 01 Jun 2022 03:55:29 GMT",
+    "nel": "{\"success_fraction\":0,\"report_to\":\"cf-nel\",\"max_age\":604800}",
+    "cf-ray": "71450391d8f782ba-IAD",
+    "x-vercel-id": "iad1::sfo1::q5dzx-1654055728948-e9497cbc5829",
     "vary": "Accept-Encoding",
-    "server": "cloudflare",
-    "cache-control": "public, max-age=0, must-revalidate",
-    "report-to": "{\"endpoints\":[{\"url\":\"https:\\/\\/a.nel.cloudflare.com\\/report\\/v3?s=a38KuLs%2Bf3aEzR0mf3R5KUYFILFK8dXU8bg7uC7kig7yCp98Lw4HxUFgM3AWiFt7rF%2F4vos1L%2BZopVUIC4aekB4fijcsGblPqFhput6YKxzidV73eyHxjHgAZ7pui76SRQ%3D%3D\"}],\"group\":\"cf-nel\",\"max_age\":604800}"
+    "alt-svc": "h3=\":443\"; ma=86400, h3-29=\":443\"; ma=86400",
+    "server": "cloudflare"
   },
   "url": "https://cdn.skypack.dev/-/@truestamp/truestamp-js@v0.10.1-eImQtzfjfMQJB1vrjTA8/dist=es2019,mode=types/dist/items.d.ts",
   "now": {
-    "secs_since_epoch": 1654016135,
-    "nanos_since_epoch": 192245000
+    "secs_since_epoch": 1654055729,
+    "nanos_since_epoch": 456927000
   }
 }
