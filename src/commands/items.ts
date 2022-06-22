@@ -53,8 +53,7 @@ See the example sections below for detailed usage examples.
   )
   .option(
     "-t, --hash-type <hashType:string>",
-    `A hash function type. Hash byte length is validated against type. Accepts ${
-      HASH_TYPES.join(", ")
+    `A hash function type. Hash byte length is validated against type. Accepts ${HASH_TYPES.join(", ")
     }.`,
     {
       required: false,
@@ -275,13 +274,17 @@ Pipe JSON content to the 'items create' command using '--input json' plus the '-
         itemResp = await ts.createItem(jsonItem);
       } else if (options.hash && options.hashType) {
         itemResp = await ts.createItem({
-          hash: options.hash,
-          hashType: options.hashType,
+          itemData: [{
+            hash: options.hash,
+            hashType: options.hashType,
+          }]
         });
       } else if (altHash && altHashType) {
         itemResp = await ts.createItem({
-          hash: altHash,
-          hashType: altHashType,
+          itemData: [{
+            hash: altHash,
+            hashType: altHashType,
+          }]
         });
       } else {
         throw new Error("No hash or hash-type provided");
@@ -353,65 +356,65 @@ Pipe JSON content to the 'items create' command using '--input json' plus the '-
     }
   });
 
-const itemsRead = new Command<
-  {
-    env: typeof environmentType;
-    apiKey?: string;
-    output: typeof outputType;
-  }
->()
-  .description("Read an existing Item.")
-  .option("-i, --id <id:string>", "An Item Id.", {
-    required: true,
-  })
-  .example(
-    "Read an Item",
-    `Using a previously generated test ID:
+// const itemsRead = new Command<
+//   {
+//     env: typeof environmentType;
+//     apiKey?: string;
+//     output: typeof outputType;
+//   }
+// >()
+//   .description("Read an existing Item.")
+//   .option("-i, --id <id:string>", "An Item Id.", {
+//     required: true,
+//   })
+//   .example(
+//     "Read an Item",
+//     `Using a previously generated test ID:
 
-  $ truestamp items read --id T11_01FZGTTP1JRQ40PD99GGJK07YS_1648758708880000_A523F596217460983B658A78B5E7AACF
+//   $ truestamp items read --id T11_01G63SEXZ9E06KD8277907PRRQ_1655837260423000_058E13C09D233B1DA8649E46362A3226
 
-`,
-  )
-  .action(async (options) => {
-    const ts = await createTruestampClient(options.env, options.apiKey);
+// `,
+//   )
+//   .action(async (options) => {
+//     const ts = await createTruestampClient(options.env, options.apiKey);
 
-    try {
-      const item = await ts.getItem(options.id);
+//     try {
+//       const item = await ts.getItem(options.id);
 
-      logSelectedOutputFormat(
-        {
-          text: JSON.stringify(item, null, 2),
-          json: item,
-        },
-        options.output,
-      );
-    } catch (error) {
-      // throw new Error(`Item not found : ${error.message}`);
-      const { key, value, type, response } = error;
+//       logSelectedOutputFormat(
+//         {
+//           text: JSON.stringify(item, null, 2),
+//           json: item,
+//         },
+//         options.output,
+//       );
+//     } catch (error) {
+//       // throw new Error(`Item not found : ${error.message}`);
+//       const { key, value, type, response } = error;
 
-      if (key || value || type) {
-        // is a StructError
-        if (value === undefined) {
-          throw new Error(`attribute ${key} is required`);
-        } else if (type === "never") {
-          throw new Error(`attribute ${key} is unknown`);
-        } else {
-          throw new Error(`${key} ${value} is invalid`);
-        }
-      } else if (response) {
-        // is a HTTPResponseError
-        // This is a custom error type thrown by truestamp-js and
-        // has a 'response' property which can be awaited to get the full
-        // HTTP response, including body with error info.
-        // https://developer.mozilla.org/en-US/docs/Web/API/Fetch_API/Using_Fetch#body
-        const { status, code, description } = await response.json();
-        throw new Error(`${status} : ${code} : ${description}`);
-      } else {
-        // is a generic Error
-        throw error;
-      }
-    }
-  });
+//       if (key || value || type) {
+//         // is a StructError
+//         if (value === undefined) {
+//           throw new Error(`attribute ${key} is required`);
+//         } else if (type === "never") {
+//           throw new Error(`attribute ${key} is unknown`);
+//         } else {
+//           throw new Error(`${key} ${value} is invalid`);
+//         }
+//       } else if (response) {
+//         // is a HTTPResponseError
+//         // This is a custom error type thrown by truestamp-js and
+//         // has a 'response' property which can be awaited to get the full
+//         // HTTP response, including body with error info.
+//         // https://developer.mozilla.org/en-US/docs/Web/API/Fetch_API/Using_Fetch#body
+//         const { status, code, description } = await response.json();
+//         throw new Error(`${status} : ${code} : ${description}`);
+//       } else {
+//         // is a generic Error
+//         throw error;
+//       }
+//     }
+//   });
 
 const itemsUpdate = new Command<
   {
@@ -451,8 +454,7 @@ See the example sections below for detailed usage examples.
   )
   .option(
     "-t, --hash-type <hashType:string>",
-    `A hash function type. Hash byte length is validated against type. Accepts ${
-      HASH_TYPES.join(", ")
+    `A hash function type. Hash byte length is validated against type. Accepts ${HASH_TYPES.join(", ")
     }.`,
     {
       required: false,
@@ -484,7 +486,7 @@ See the example sections below for detailed usage examples.
   $ echo -n 'Hello World Again' | sha256sum
   63df103e8ebcabdf86d8f13e98a02063fef1da8065335ec0dd978378951534d6  -
 
-  $ truestamp items update --id T11_01FZGTTP1JRQ40PD99GGJK07YS_1648758708880000_A523F596217460983B658A78B5E7AACF --hash 63df103e8ebcabdf86d8f13e98a02063fef1da8065335ec0dd978378951534d6 --hash-type sha-256
+  $ truestamp items update --id T11_01G63SEXZ9E06KD8277907PRRQ_1655837260423000_058E13C09D233B1DA8649E46362A3226 --hash 63df103e8ebcabdf86d8f13e98a02063fef1da8065335ec0dd978378951534d6 --hash-type sha-256
 
   `,
   )
@@ -494,11 +496,11 @@ See the example sections below for detailed usage examples.
 
 Pipe content to the 'items update' command using the '--stdin' option or the '-' path:
 
-  $ echo -n 'Hello World' | truestamp items update --id T11_01FZGTTP1JRQ40PD99GGJK07YS_1648758708880000_A523F596217460983B658A78B5E7AACF --input binary -
-  $ echo -n "Hello World" | truestamp items update --stdin --input binary --id T11_01FZGTTP1JRQ40PD99GGJK07YS_1648758708880000_A523F596217460983B658A78B5E7AACF
+  $ echo -n 'Hello World' | truestamp items update --id T11_01G63SEXZ9E06KD8277907PRRQ_1655837260423000_058E13C09D233B1DA8649E46362A3226 --input binary -
+  $ echo -n "Hello World" | truestamp items update --stdin --input binary --id T11_01G63SEXZ9E06KD8277907PRRQ_1655837260423000_058E13C09D233B1DA8649E46362A3226
 
-  $ cat hello.txt | truestamp items update --id T11_01FZGTTP1JRQ40PD99GGJK07YS_1648758708880000_A523F596217460983B658A78B5E7AACF --input binary -
-  $ cat hello.txt | truestamp items update --stdin --input binary --id T11_01FZGTTP1JRQ40PD99GGJK07YS_1648758708880000_A523F596217460983B658A78B5E7AACF
+  $ cat hello.txt | truestamp items update --id T11_01G63SEXZ9E06KD8277907PRRQ_1655837260423000_058E13C09D233B1DA8649E46362A3226 --input binary -
+  $ cat hello.txt | truestamp items update --stdin --input binary --id T11_01G63SEXZ9E06KD8277907PRRQ_1655837260423000_058E13C09D233B1DA8649E46362A3226
 
   `,
   )
@@ -506,7 +508,7 @@ Pipe content to the 'items update' command using the '--stdin' option or the '-'
     "FILE Path",
     `Pass an '--id' and a file path to the 'items update' command:
 
-  $ truestamp items update --id T11_01FZGTTP1JRQ40PD99GGJK07YS_1648758708880000_A523F596217460983B658A78B5E7AACF --input binary hello.txt
+  $ truestamp items update --id T11_01G63SEXZ9E06KD8277907PRRQ_1655837260423000_058E13C09D233B1DA8649E46362A3226 --input binary hello.txt
 
   `,
   )
@@ -516,14 +518,14 @@ Pipe content to the 'items update' command using the '--stdin' option or the '-'
 
 Pipe JSON content to the 'items update' command using '--input json' plus the '--stdin' option or the '-' path:
 
-  $ echo -n '{"hash": "63df103e8ebcabdf86d8f13e98a02063fef1da8065335ec0dd978378951534d6", "hashType": "sha-256"}' | truestamp items update --input json --id T11_01FZGTTP1JRQ40PD99GGJK07YS_1648758708880000_A523F596217460983B658A78B5E7AACF -
-  $ echo -n '{"hash": "63df103e8ebcabdf86d8f13e98a02063fef1da8065335ec0dd978378951534d6", "hashType": "sha-256"}' | truestamp items update --input json --stdin --id T11_01FZGTTP1JRQ40PD99GGJK07YS_1648758708880000_A523F596217460983B658A78B5E7AACF
+  $ echo -n '{"hash": "63df103e8ebcabdf86d8f13e98a02063fef1da8065335ec0dd978378951534d6", "hashType": "sha-256"}' | truestamp items update --input json --id T11_01G63SEXZ9E06KD8277907PRRQ_1655837260423000_058E13C09D233B1DA8649E46362A3226 -
+  $ echo -n '{"hash": "63df103e8ebcabdf86d8f13e98a02063fef1da8065335ec0dd978378951534d6", "hashType": "sha-256"}' | truestamp items update --input json --stdin --id T11_01G63SEXZ9E06KD8277907PRRQ_1655837260423000_058E13C09D233B1DA8649E46362A3226
 
   # Can be full complexity JSON Item data
   $ echo -n '{"hash": "63df103e8ebcabdf86d8f13e98a02063fef1da8065335ec0dd978378951534d6", "hashType": "sha-256"}' > hello.json
 
-  $ cat hello.json | truestamp items update --input json --id T11_01FZGTTP1JRQ40PD99GGJK07YS_1648758708880000_A523F596217460983B658A78B5E7AACF -
-  $ cat hello.json | truestamp items update --input json --stdin --id T11_01FZGTTP1JRQ40PD99GGJK07YS_1648758708880000_A523F596217460983B658A78B5E7AACF
+  $ cat hello.json | truestamp items update --input json --id T11_01G63SEXZ9E06KD8277907PRRQ_1655837260423000_058E13C09D233B1DA8649E46362A3226 -
+  $ cat hello.json | truestamp items update --input json --stdin --id T11_01G63SEXZ9E06KD8277907PRRQ_1655837260423000_058E13C09D233B1DA8649E46362A3226
 
   `,
   )
@@ -531,7 +533,7 @@ Pipe JSON content to the 'items update' command using '--input json' plus the '-
     "JSON FILE Path",
     `Pass the '--input json' option and a file path argument to the 'items update' command:
 
-  $ truestamp items update --input json --id T11_01FZGTTP1JRQ40PD99GGJK07YS_1648758708880000_A523F596217460983B658A78B5E7AACF hello.json
+  $ truestamp items update --input json --id T11_01G63SEXZ9E06KD8277907PRRQ_1655837260423000_058E13C09D233B1DA8649E46362A3226 hello.json
 
   `,
   )
@@ -617,13 +619,17 @@ Pipe JSON content to the 'items update' command using '--input json' plus the '-
           itemResp = await ts.updateItem(options.id, jsonItem);
         } else if (options.hash && options.hashType) {
           itemResp = await ts.updateItem(options.id, {
-            hash: options.hash,
-            hashType: options.hashType,
+            itemData: [{
+              hash: options.hash,
+              hashType: options.hashType,
+            }]
           });
         } else if (altHash && altHashType) {
           itemResp = await ts.updateItem(options.id, {
-            hash: altHash,
-            hashType: altHashType,
+            itemData: [{
+              hash: altHash,
+              hashType: altHashType,
+            }]
           });
         } else {
           throw new Error("No hash or hashType provided");
@@ -676,10 +682,10 @@ export const items = new Command<
     output: typeof outputType;
   }
 >()
-  .description("Create, read, or update Items.")
+  .description("Create or update Items.")
   .action(() => {
     items.showHelp();
   })
   .command("create", itemsCreate)
-  .command("read", itemsRead)
+  // .command("read", itemsRead)
   .command("update", itemsUpdate);

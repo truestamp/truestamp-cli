@@ -25,7 +25,7 @@ const commitmentsRead = new Command<
     "Read a Commitment",
     `Using a previously generated test Item ID:
 
-$ truestamp commitments read --id T11_01G43NSA31APN5B04AYWMMNH6Q_1653685923413000_C8A56C8E32F434382ACFC1398275D505
+$ truestamp commitments read --id T11_01G63SEXZ9E06KD8277907PRRQ_1655837260423000_058E13C09D233B1DA8649E46362A3226
 
 `,
   )
@@ -96,7 +96,7 @@ const commitmentsVerify = new Command<
 
 All cryptographic operations, and on-chain verifications, performed on API server by default:
 
-  $ truestamp commitments verify --id T11_01G43NSA31APN5B04AYWMMNH6Q_1653685923413000_C8A56C8E32F434382ACFC1398275D505
+  $ truestamp commitments verify --id T11_01G63SEXZ9E06KD8277907PRRQ_1655837260423000_058E13C09D233B1DA8649E46362A3226
 
 `,
   )
@@ -110,7 +110,7 @@ Verified public keys will be retrieved from https://keys.truestamp.com.
 
 HTTP request to third-party blockchain API servers will originate from this local client.
 
-  $ truestamp commitments verify --local --id T11_01G43NSA31APN5B04AYWMMNH6Q_1653685923413000_C8A56C8E32F434382ACFC1398275D505
+  $ truestamp commitments verify --local --id T11_01G63SEXZ9E06KD8277907PRRQ_1655837260423000_058E13C09D233B1DA8649E46362A3226
 
 `,
   )

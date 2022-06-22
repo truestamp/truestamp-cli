@@ -1,26 +1,27 @@
 {
   "headers": {
-    "x-vercel-cache": "MISS",
-    "alt-svc": "h3=\":443\"; ma=86400, h3-29=\":443\"; ma=86400",
-    "access-control-allow-origin": "*",
-    "date": "Wed, 01 Jun 2022 03:55:28 GMT",
-    "cf-cache-status": "MISS",
-    "strict-transport-security": "max-age=63072000",
-    "nel": "{\"success_fraction\":0,\"report_to\":\"cf-nel\",\"max_age\":604800}",
-    "cache-control": "public, max-age=31536000, immutable",
-    "expect-ct": "max-age=604800, report-uri=\"https://report-uri.cloudflare.com/cdn-cgi/beacon/expect-ct\"",
-    "x-vercel-id": "iad1::sfo1::djhhp-1654055728354-4d99c1ca39e2",
-    "cf-ray": "7145038e1b2182ba-IAD",
-    "access-control-expose-headers": "Content-Length, X-Imports",
+    "date": "Wed, 22 Jun 2022 15:36:39 GMT",
+    "vary": "Accept-Encoding",
     "content-type": "application/javascript; charset=utf-8",
-    "etag": "W/\"6402-iTw1SWGh+XQKJ6fRkY+nrGqywBk\"",
-    "report-to": "{\"endpoints\":[{\"url\":\"https:\\/\\/a.nel.cloudflare.com\\/report\\/v3?s=0Jnf3gwEdNJWO0ES4XsNtCZw6KsHc0oXri91USuu3Di5FxJ4z9SaUuJCZPU4evVPT30gesidMLMeJALHttEDnzafAXshnk8pbwfr6M%2FfBPc9U5YgmOxqTMYXpI%2Fdgy%2BmUQ%3D%3D\"}],\"group\":\"cf-nel\",\"max_age\":604800}",
+    "alt-svc": "h3=\":443\"; ma=86400, h3-29=\":443\"; ma=86400",
+    "report-to": "{\"endpoints\":[{\"url\":\"https:\\/\\/a.nel.cloudflare.com\\/report\\/v3?s=g8Y3Jr5N4cEmxGs%2FRVmBJG8An82jS5cbOJVoSs%2Fm3N78L7pgP3u2TcSqeaMcTr96H76D9mq2Fzw1jENK6qpgj0v7il3ug3DNrJgqKPDDrRHz67NTeofk7DLvNw9%2BeNyShQ%3D%3D\"}],\"group\":\"cf-nel\",\"max_age\":604800}",
     "server": "cloudflare",
-    "vary": "Accept-Encoding"
+    "age": "855",
+    "cf-ray": "71f60f8fde818242-IAD",
+    "strict-transport-security": "max-age=63072000",
+    "access-control-expose-headers": "Content-Length, X-Imports",
+    "x-vercel-id": "iad1::sfo1::9w5w7-1655911344264-31f18bd3b94a",
+    "nel": "{\"success_fraction\":0,\"report_to\":\"cf-nel\",\"max_age\":604800}",
+    "expect-ct": "max-age=604800, report-uri=\"https://report-uri.cloudflare.com/cdn-cgi/beacon/expect-ct\"",
+    "cf-cache-status": "HIT",
+    "etag": "W/\"6402-iTw1SWGh+XQKJ6fRkY+nrGqywBk\"",
+    "cache-control": "public, max-age=31536000, immutable",
+    "access-control-allow-origin": "*",
+    "x-vercel-cache": "HIT"
   },
   "url": "https://cdn.skypack.dev/-/@truestamp/id@v1.1.7-nnXFTnxvADSqaO8FKAXY/dist=es2019,mode=imports/optimized/@truestamp/id.js",
   "now": {
-    "secs_since_epoch": 1654055728,
-    "nanos_since_epoch": 821927000
+    "secs_since_epoch": 1655912199,
+    "nanos_since_epoch": 738781000
   }
 }

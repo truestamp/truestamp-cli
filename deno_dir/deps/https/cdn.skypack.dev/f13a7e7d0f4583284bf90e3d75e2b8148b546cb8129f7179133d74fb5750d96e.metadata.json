@@ -1,27 +1,28 @@
 {
   "headers": {
+    "cf-cache-status": "HIT",
+    "report-to": "{\"endpoints\":[{\"url\":\"https:\\/\\/a.nel.cloudflare.com\\/report\\/v3?s=ST7JV1i6uexlzLqY2wqXrtFTK99dSNMGYTMvgjEn8a%2FEiJMzcwG%2FaRxHApscixiF2%2F6ogblVaKFjzRy2Yz%2FT6Rt7pg2WjTASZjaKX%2F4aPuDkNE0S4akqI4xiQanS3an0vQ%3D%3D\"}],\"group\":\"cf-nel\",\"max_age\":604800}",
     "cache-control": "public, max-age=31536000, immutable",
-    "strict-transport-security": "max-age=63072000",
-    "access-control-allow-origin": "*",
-    "x-vercel-cache": "MISS",
-    "vary": "Accept-Encoding",
-    "cf-ray": "7145039aeef282ba-IAD",
-    "content-length": "1283",
-    "nel": "{\"success_fraction\":0,\"report_to\":\"cf-nel\",\"max_age\":604800}",
-    "date": "Wed, 01 Jun 2022 03:55:30 GMT",
+    "x-vercel-cache": "HIT",
     "content-type": "application/typescript; charset=utf-8",
-    "accept-ranges": "bytes",
-    "server": "cloudflare",
-    "cf-cache-status": "MISS",
     "alt-svc": "h3=\":443\"; ma=86400, h3-29=\":443\"; ma=86400",
+    "strict-transport-security": "max-age=63072000",
+    "age": "855",
+    "access-control-allow-origin": "*",
+    "server": "cloudflare",
     "etag": "W/\"503-nxQFaf+Sh5NijMO9jaBbippMSIM\"",
+    "x-vercel-id": "iad1::sfo1::bj9bn-1655911344615-fa710ce1fccc",
+    "cf-ray": "71f60f91ba3a8242-IAD",
+    "nel": "{\"success_fraction\":0,\"report_to\":\"cf-nel\",\"max_age\":604800}",
     "expect-ct": "max-age=604800, report-uri=\"https://report-uri.cloudflare.com/cdn-cgi/beacon/expect-ct\"",
-    "x-vercel-id": "iad1::sfo1::w4vsd-1654055730399-c4c45f6ce913",
-    "report-to": "{\"endpoints\":[{\"url\":\"https:\\/\\/a.nel.cloudflare.com\\/report\\/v3?s=kS%2By%2FdsyK%2BOFa%2FYq57ypeSCvJkcvAhinH4x7jQE19ksJPze%2BrG5r%2FCRFE9sZTrqpRF3TZa2MbHBIf4S3IeNEpY%2FmMia6OHfP4RNLo%2BQ3s8%2Fx%2F%2FR44Z0tMThhHNnl1aTUdQ%3D%3D\"}],\"group\":\"cf-nel\",\"max_age\":604800}"
+    "accept-ranges": "bytes",
+    "content-length": "1283",
+    "vary": "Accept-Encoding",
+    "date": "Wed, 22 Jun 2022 15:36:39 GMT"
   },
   "url": "https://cdn.skypack.dev/-/superstruct@v0.15.4-ilrv3kmiz34HFzddRYNC/dist=es2019,mode=types/lib/structs/coercions.d.ts",
   "now": {
-    "secs_since_epoch": 1654055730,
-    "nanos_since_epoch": 915963000
+    "secs_since_epoch": 1655912199,
+    "nanos_since_epoch": 980493000
   }
 }

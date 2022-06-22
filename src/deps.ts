@@ -3,14 +3,14 @@
 import {
   copy,
   readAllSync,
-} from "https://deno.land/std@0.141.0/streams/conversion.ts";
-import { crypto } from "https://deno.land/std@0.141.0/crypto/mod.ts";
-import { parse } from "https://deno.land/std@0.141.0/path/mod.ts";
+} from "https://deno.land/std@0.144.0/streams/conversion.ts";
+import { crypto } from "https://deno.land/std@0.144.0/crypto/mod.ts";
+import { parse } from "https://deno.land/std@0.144.0/path/mod.ts";
 
 import { sleep } from "https://deno.land/x/sleep@v1.2.1/mod.ts";
 
-import { decode, validate } from "https://deno.land/x/djwt@v2.4/mod.ts";
-export type { Payload } from "https://deno.land/x/djwt@v2.4/mod.ts";
+import { decode, validate } from "https://deno.land/x/djwt@v2.7/mod.ts";
+export type { Payload } from "https://deno.land/x/djwt@v2.7/mod.ts";
 
 import { DB } from "https://deno.land/x/sqlite@v3.4.0/mod.ts";
 export type { Row } from "https://deno.land/x/sqlite@v3.4.0/mod.ts";
@@ -25,13 +25,13 @@ import { HelpCommand } from "https://deno.land/x/cliffy@v0.24.2/command/help/mod
 import { CompletionsCommand } from "https://deno.land/x/cliffy@v0.24.2/command/completions/mod.ts";
 export type { ITypeInfo } from "https://deno.land/x/cliffy@v0.24.2/flags/mod.ts";
 
-import Conf from "https://raw.githubusercontent.com/truestamp/deno-conf/v1.0.5-beta/mod.ts";
+import Conf from "https://raw.githubusercontent.com/truestamp/deno-conf/v1.0.6/mod.ts";
 export type {
   Json,
   StoreType,
-} from "https://raw.githubusercontent.com/truestamp/deno-conf/v1.0.5-beta/mod.ts";
+} from "https://raw.githubusercontent.com/truestamp/deno-conf/v1.0.6/mod.ts";
 
-import appPaths from "https://raw.githubusercontent.com/truestamp/deno-app-paths/v1.0.1/mod.ts";
+import { appPaths } from "https://raw.githubusercontent.com/truestamp/deno-app-paths/v1.1.0/mod.ts";
 
 import {
   getConfigForEnv,
@@ -49,10 +49,10 @@ import {
 
 // See : https://www.skypack.dev/view/@truestamp/truestamp-js
 // See SkyPack : https://docs.skypack.dev/skypack-cdn/api-reference/lookup-urls
-import Truestamp from "https://cdn.skypack.dev/@truestamp/truestamp-js@~v0.10.1?dts";
+import Truestamp from "https://cdn.skypack.dev/@truestamp/truestamp-js@~v0.11.0?dts";
 import { createTruestampClient } from "./truestamp.ts";
 import { decodeUnsafely } from "https://cdn.skypack.dev/@truestamp/id@~v1.1.7?dts";
-import { verify } from "https://cdn.skypack.dev/@truestamp/verify@~v0.0.14?dts";
+import { verify } from "https://cdn.skypack.dev/@truestamp/verify@~v0.0.16?dts";
 
 export {
   appPaths,

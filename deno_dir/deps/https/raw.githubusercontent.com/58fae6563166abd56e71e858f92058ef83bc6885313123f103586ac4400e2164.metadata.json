@@ -1,0 +1,30 @@
+{
+  "headers": {
+    "cache-control": "max-age=300",
+    "strict-transport-security": "max-age=31536000",
+    "x-timer": "S1655912199.997779,VS0,VE1",
+    "x-xss-protection": "1; mode=block",
+    "x-cache-hits": "1",
+    "expires": "Wed, 22 Jun 2022 15:41:38 GMT",
+    "content-security-policy": "default-src 'none'; style-src 'unsafe-inline'; sandbox",
+    "date": "Wed, 22 Jun 2022 15:36:38 GMT",
+    "via": "1.1 varnish",
+    "x-frame-options": "deny",
+    "accept-ranges": "bytes",
+    "x-github-request-id": "C35E:5692:CB62D:154859:62B336EE",
+    "vary": "Authorization,Accept-Encoding,Origin",
+    "x-content-type-options": "nosniff",
+    "etag": "W/\"8228d4cb852579978ef87d5b465b5c07aef0dff526f4c463700a8236e4b5c6ce\"",
+    "x-served-by": "cache-iad-kiad7000090-IAD",
+    "access-control-allow-origin": "*",
+    "x-cache": "HIT",
+    "x-fastly-request-id": "d35518e2a1b035fa9045292605f66970198bb40e",
+    "content-type": "text/plain; charset=utf-8",
+    "source-age": "24"
+  },
+  "url": "https://raw.githubusercontent.com/truestamp/deno-conf/v1.0.6/mod.ts",
+  "now": {
+    "secs_since_epoch": 1655912199,
+    "nanos_since_epoch": 11585000
+  }
+}

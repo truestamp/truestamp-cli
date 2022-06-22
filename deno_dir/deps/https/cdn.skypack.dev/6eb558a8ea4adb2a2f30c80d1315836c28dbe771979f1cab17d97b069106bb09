@@ -1,7 +1,0 @@
-import { CommitmentVerification } from '/-/@truestamp/verify@v0.0.13-4ZaSVAgTuDQlvT5RlyUa/dist=es2019,mode=types/index.d.ts';
-import { Base } from "../base.d.ts";
-import { Commitment } from "../superstruct.d.ts";
-export declare class Commitments extends Base {
-    getCommitment(id: string): Promise<Commitment>;
-    getCommitmentVerification(id: string): Promise<CommitmentVerification>;
-}

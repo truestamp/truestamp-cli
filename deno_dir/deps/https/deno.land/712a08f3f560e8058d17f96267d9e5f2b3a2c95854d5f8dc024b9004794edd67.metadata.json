@@ -1,0 +1,20 @@
+{
+  "headers": {
+    "etag": "W/\"380b3844a55a5313b9bd926575bf976b\"",
+    "vary": "Accept-Encoding",
+    "date": "Wed, 22 Jun 2022 15:36:40 GMT",
+    "x-amz-id-2": "Krvm6AONjrF18UPhEH6hDhWYKK75723693Nr4hokK1/o7pBUk/zSQ8ezmR9FJuxxMvalsD+Vg90=",
+    "access-control-allow-origin": "*",
+    "last-modified": "Wed, 15 Jun 2022 22:08:03 GMT",
+    "content-type": "application/javascript",
+    "server": "deno/us-east4-c",
+    "cache-control": "public, max-age=31536000, immutable",
+    "x-amz-request-id": "CV6K7F8GC8S7TFR3",
+    "x-amz-version-id": "Sye62ckTDm1ZSD3qLvjbCy15B8Cb29WR"
+  },
+  "url": "https://deno.land/std@0.144.0/_wasm_crypto/lib/deno_std_wasm_crypto.generated.mjs",
+  "now": {
+    "secs_since_epoch": 1655912199,
+    "nanos_since_epoch": 485506000
+  }
+}

@@ -1,0 +1,21 @@
+{
+  "headers": {
+    "x-amz-request-id": "CV6H62NWW02DE43B",
+    "etag": "\"47ad65b5d81681376c076fea23e73a81\"",
+    "x-amz-id-2": "IFqbrLYatZt+YDWUYwKaV2yHHs2YJ5t11/rr3rtIzBHqKId/KUaKfdBVPKE9feWHi8p5lSPousU=",
+    "content-type": "application/typescript; charset=utf-8",
+    "server": "deno/us-east4-c",
+    "vary": "Accept-Encoding",
+    "cache-control": "public, max-age=31536000, immutable",
+    "last-modified": "Wed, 15 Jun 2022 22:08:04 GMT",
+    "access-control-allow-origin": "*",
+    "date": "Wed, 22 Jun 2022 15:36:40 GMT",
+    "x-amz-version-id": "KG8sh5CZz1P61_wuPUFozNBDzQgokip1",
+    "content-length": "636"
+  },
+  "url": "https://deno.land/std@0.144.0/crypto/_fnv/index.ts",
+  "now": {
+    "secs_since_epoch": 1655912199,
+    "nanos_since_epoch": 300439000
+  }
+}
