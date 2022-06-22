@@ -64,3 +64,6 @@ format-watch:
 
 depsbot:
 	npx depsbot
+
+info:
+	deno info src/cli.ts
