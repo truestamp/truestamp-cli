@@ -9,7 +9,6 @@ export function createDataDir(env: string): string {
   return appDir.data;
 }
 
-// deno-lint-ignore no-explicit-any
 export function writeItemToDb(
   env: string,
   id: string,
