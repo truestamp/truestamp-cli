@@ -1,0 +1,11 @@
+import { Base } from "./base.d.ts";
+import { Commitments } from "./commitments.d.ts";
+import { Health } from "./health.d.ts";
+import { Items } from "./items.d.ts";
+import { Keys } from "./keys.d.ts";
+export type { Config } from "./base";
+declare class Truestamp extends Base {
+}
+interface Truestamp extends Commitments, Health, Items, Keys {
+}
+export default Truestamp;

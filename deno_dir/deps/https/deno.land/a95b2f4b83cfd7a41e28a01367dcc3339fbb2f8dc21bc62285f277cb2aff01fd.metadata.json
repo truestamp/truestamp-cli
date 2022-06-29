@@ -1,20 +1,20 @@
 {
   "headers": {
-    "vary": "Accept-Encoding",
+    "x-amz-id-2": "rANoXtzx/c53No58b2ozCY/NDnfpMO8AeDV2Vx29Zzzue40LpcWAgUZ9aX1wDjJg5KcxWzgL0DQ=",
     "last-modified": "Thu, 23 Jun 2022 18:07:03 GMT",
     "server": "deno/us-east4-c",
-    "etag": "W/\"a48b231e0d882fc24b8c2a6ed6a8db08\"",
-    "x-amz-id-2": "vqu/kODXl4FwtT46Y6KgLKWn6WatoRWo2t+2C4on8dKa4ZZmE7ljjXKL5pJh6C0kd3byqXX8qvw=",
-    "x-amz-request-id": "VN2E83024XCD4N9E",
-    "access-control-allow-origin": "*",
-    "date": "Wed, 29 Jun 2022 17:04:25 GMT",
-    "x-amz-version-id": "p3Au40ZVePrvpFKpx855AFHae2Lw2nBM",
+    "content-type": "application/javascript",
     "cache-control": "public, max-age=31536000, immutable",
-    "content-type": "application/javascript"
+    "vary": "Accept-Encoding",
+    "date": "Wed, 29 Jun 2022 19:13:41 GMT",
+    "etag": "W/\"a48b231e0d882fc24b8c2a6ed6a8db08\"",
+    "x-amz-request-id": "25Q50J4Q61J8A110",
+    "x-amz-version-id": "p3Au40ZVePrvpFKpx855AFHae2Lw2nBM",
+    "access-control-allow-origin": "*"
   },
   "url": "https://deno.land/std@0.145.0/_wasm_crypto/lib/deno_std_wasm_crypto.generated.mjs",
   "now": {
-    "secs_since_epoch": 1656522264,
-    "nanos_since_epoch": 644917000
+    "secs_since_epoch": 1656530020,
+    "nanos_since_epoch": 881751000
   }
 }

@@ -1,25 +1,25 @@
 {
   "headers": {
     "content-length": "0",
-    "cache-control": "public, max-age=0, must-revalidate",
-    "date": "Wed, 29 Jun 2022 17:04:24 GMT",
+    "vary": "Accept-Encoding",
     "x-vercel-cache": "MISS",
-    "report-to": "{\"endpoints\":[{\"url\":\"https:\\/\\/a.nel.cloudflare.com\\/report\\/v3?s=YuJ3xBycac0zZW7KP4gu4AhXBBxOLmAuq5VeaqFfVcUUzUeQ6ZQuHSfne78IN2lTZz5WccBkVUH8%2F6qItKro9booW9LfZNwdxag3tRt9SfxqNMXs%2BXduWKP4fF1C1yzXVA%3D%3D\"}],\"group\":\"cf-nel\",\"max_age\":604800}",
-    "server": "cloudflare",
+    "expect-ct": "max-age=604800, report-uri=\"https://report-uri.cloudflare.com/cdn-cgi/beacon/expect-ct\"",
     "alt-svc": "h3=\":443\"; ma=86400, h3-29=\":443\"; ma=86400",
     "access-control-allow-origin": "*",
-    "x-vercel-id": "iad1::sfo1::sv6ts-1656522264366-7b9548b68409",
+    "server": "cloudflare",
     "nel": "{\"success_fraction\":0,\"report_to\":\"cf-nel\",\"max_age\":604800}",
     "location": "/-/zod@v3.17.3-ZZrwL3NCqVAeQ85pd2x7/dist=es2019,mode=types/lib/index.d.ts",
-    "vary": "Accept-Encoding",
-    "expect-ct": "max-age=604800, report-uri=\"https://report-uri.cloudflare.com/cdn-cgi/beacon/expect-ct\"",
-    "cf-ray": "72303db829ba8278-IAD",
+    "cache-control": "public, max-age=0, must-revalidate",
+    "report-to": "{\"endpoints\":[{\"url\":\"https:\\/\\/a.nel.cloudflare.com\\/report\\/v3?s=99%2B16YvqIEF%2FZhxeFkUpRcPmqVw9FNGD5CdFB3JdEUGcZqPVJTlUHCwzmJAsf1pN2BOPS%2BRHWMrCnCxYCxetP7%2Fg5teS2ftWOEYZByqOO41oOFwH3%2F081zjnY2YQfmgj9g%3D%3D\"}],\"group\":\"cf-nel\",\"max_age\":604800}",
+    "x-vercel-id": "iad1::sfo1::jln2m-1656530020564-dc68fb5736d1",
+    "cf-ray": "7230fb145f4281d9-IAD",
+    "strict-transport-security": "max-age=63072000",
     "cf-cache-status": "EXPIRED",
-    "strict-transport-security": "max-age=63072000"
+    "date": "Wed, 29 Jun 2022 19:13:41 GMT"
   },
   "url": "https://cdn.skypack.dev/-/zod@v3.17.3-ZZrwL3NCqVAeQ85pd2x7/dist=es2019,mode=types/lib.d.ts",
   "now": {
-    "secs_since_epoch": 1656522264,
-    "nanos_since_epoch": 879394000
+    "secs_since_epoch": 1656530021,
+    "nanos_since_epoch": 20885000
   }
 }

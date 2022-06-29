@@ -1,21 +1,21 @@
 {
   "headers": {
-    "content-length": "1043",
-    "x-amz-request-id": "VN23F5W6XZADK6PR",
-    "last-modified": "Thu, 23 Jun 2022 18:07:03 GMT",
-    "server": "deno/us-east4-c",
+    "date": "Wed, 29 Jun 2022 19:13:41 GMT",
     "cache-control": "public, max-age=31536000, immutable",
-    "date": "Wed, 29 Jun 2022 17:04:25 GMT",
-    "content-type": "application/typescript; charset=utf-8",
     "etag": "\"2ae527b035087335f501aa7857b684a3\"",
+    "server": "deno/us-east4-c",
+    "x-amz-id-2": "islC0s/yK/F/UNmqhPiYKyJGEQPXE09bhwVTDH0pofK5XA9uXsizXv2+L5j0JZ9RbNGu2UKhmPI=",
+    "last-modified": "Thu, 23 Jun 2022 18:07:03 GMT",
+    "content-type": "application/typescript; charset=utf-8",
     "x-amz-version-id": "4NsuDfcozmHDUee8YUEN_fE2ZGZ4NSTX",
     "access-control-allow-origin": "*",
-    "x-amz-id-2": "BJituCW18qE6V/ndQiBqhQcuz+/7QKiVS++vArIxSeUDnCIL+40meUmW/N8Ut/2Yw6N0JACsc/U=",
-    "vary": "Accept-Encoding"
+    "vary": "Accept-Encoding",
+    "content-length": "1043",
+    "x-amz-request-id": "25Q6E5MVA740E3MC"
   },
   "url": "https://deno.land/std@0.145.0/crypto/_fnv/fnv64.ts",
   "now": {
-    "secs_since_epoch": 1656522264,
-    "nanos_since_epoch": 602477000
+    "secs_since_epoch": 1656530020,
+    "nanos_since_epoch": 764048000
   }
 }

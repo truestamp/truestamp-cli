@@ -81,7 +81,7 @@ import {
 // See : https://www.skypack.dev/view/@truestamp/truestamp-js
 // See SkyPack : https://docs.skypack.dev/skypack-cdn/api-reference/lookup-urls
 import { decodeUnsafely } from "https://cdn.skypack.dev/@truestamp/id@~v1.2.0?dts";
-import Truestamp from "https://cdn.skypack.dev/@truestamp/truestamp-js@~v0.12.1?dts";
-import { verify } from "https://cdn.skypack.dev/@truestamp/verify@~v0.2.2?dts";
+import Truestamp from "https://cdn.skypack.dev/@truestamp/truestamp-js@~v0.12.2?dts";
+import { verify } from "https://cdn.skypack.dev/@truestamp/verify@~v0.2.3?dts";
 import { createTruestampClient } from "./truestamp.ts";
 

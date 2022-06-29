@@ -1,0 +1,15 @@
+import { Base } from "../base.d.ts";
+declare type NewOrUpdatedApiKeyBody = {
+    refreshToken: string;
+    description?: string;
+    ttl?: number;
+};
+declare type ApiKey = {
+    apiKey: string;
+    expiration: string;
+    description: string;
+};
+export declare class Keys extends Base {
+    createApiKey(key: NewOrUpdatedApiKeyBody): Promise<ApiKey>;
+}
+export {};
