@@ -1,0 +1,4 @@
+import * as mod from "./external.d.ts";
+export * from "./external.d.ts";
+export { mod as z };
+export default mod;

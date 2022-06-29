@@ -1,0 +1,15 @@
+{
+  "headers": {
+    "cache-control": "private",
+    "content-type": "text/html; charset=UTF-8",
+    "referrer-policy": "no-referrer",
+    "location": "https://deno.land:443/.well-known/deno-import-intellisense.json",
+    "date": "Wed, 29 Jun 2022 04:54:46 GMT",
+    "content-length": "445"
+  },
+  "url": "http://deno.land/.well-known/deno-import-intellisense.json",
+  "now": {
+    "secs_since_epoch": 1656478486,
+    "nanos_since_epoch": 760188000
+  }
+}

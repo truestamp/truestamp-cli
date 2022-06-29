@@ -1,0 +1,236 @@
+import { z } from '/-/zod@v3.17.3-ZZrwL3NCqVAeQ85pd2x7/dist=es2019,mode=types/index.d.ts';
+export declare const IdV1: z.ZodObject<{
+    prefix: z.ZodDefault<z.ZodEnum<["T"]>>;
+    version: z.ZodDefault<z.ZodLiteral<1>>;
+    test: z.ZodDefault<z.ZodBoolean>;
+    ulid: z.ZodString;
+    timestamp: z.ZodNumber;
+    envelopeHash: z.ZodString;
+    hmacKey: z.ZodString;
+    hmac: z.ZodString;
+    id: z.ZodString;
+}, "strip", z.ZodTypeAny, {
+    id: string;
+    prefix: "T";
+    version: 1;
+    test: boolean;
+    ulid: string;
+    timestamp: number;
+    envelopeHash: string;
+    hmacKey: string;
+    hmac: string;
+}, {
+    prefix?: "T" | undefined;
+    version?: 1 | undefined;
+    test?: boolean | undefined;
+    id: string;
+    ulid: string;
+    timestamp: number;
+    envelopeHash: string;
+    hmacKey: string;
+    hmac: string;
+}>;
+export declare const IdV1ParseArgs: z.ZodObject<Pick<{
+    prefix: z.ZodDefault<z.ZodEnum<["T"]>>;
+    version: z.ZodDefault<z.ZodLiteral<1>>;
+    test: z.ZodDefault<z.ZodBoolean>;
+    ulid: z.ZodString;
+    timestamp: z.ZodNumber;
+    envelopeHash: z.ZodString;
+    hmacKey: z.ZodString;
+    hmac: z.ZodString;
+    id: z.ZodString;
+}, "id">, "strip", z.ZodTypeAny, {
+    id: string;
+}, {
+    id: string;
+}>;
+export declare type IdV1ParseArgs = z.infer<typeof IdV1ParseArgs>;
+/**
+ * The subset of IdV1 parsed from a decoded Id
+ */
+export declare const IdV1Parsed: z.ZodObject<Pick<{
+    prefix: z.ZodDefault<z.ZodEnum<["T"]>>;
+    version: z.ZodDefault<z.ZodLiteral<1>>;
+    test: z.ZodDefault<z.ZodBoolean>;
+    ulid: z.ZodString;
+    timestamp: z.ZodNumber;
+    envelopeHash: z.ZodString;
+    hmacKey: z.ZodString;
+    hmac: z.ZodString;
+    id: z.ZodString;
+}, "prefix" | "version" | "test" | "ulid" | "timestamp" | "hmac">, "strip", z.ZodTypeAny, {
+    prefix: "T";
+    version: 1;
+    test: boolean;
+    ulid: string;
+    timestamp: number;
+    hmac: string;
+}, {
+    prefix?: "T" | undefined;
+    version?: 1 | undefined;
+    test?: boolean | undefined;
+    ulid: string;
+    timestamp: number;
+    hmac: string;
+}>;
+export declare type IdV1Parsed = z.infer<typeof IdV1Parsed>;
+/**
+ * The subset of IdV1 needed to encode a new Id
+ */
+export declare const IdV1EncodeArgs: z.ZodObject<Pick<{
+    prefix: z.ZodDefault<z.ZodEnum<["T"]>>;
+    version: z.ZodDefault<z.ZodLiteral<1>>;
+    test: z.ZodDefault<z.ZodBoolean>;
+    ulid: z.ZodString;
+    timestamp: z.ZodNumber;
+    envelopeHash: z.ZodString;
+    hmacKey: z.ZodString;
+    hmac: z.ZodString;
+    id: z.ZodString;
+}, "version" | "test" | "ulid" | "timestamp" | "envelopeHash" | "hmacKey">, "strip", z.ZodTypeAny, {
+    version: 1;
+    test: boolean;
+    ulid: string;
+    timestamp: number;
+    envelopeHash: string;
+    hmacKey: string;
+}, {
+    version?: 1 | undefined;
+    test?: boolean | undefined;
+    ulid: string;
+    timestamp: number;
+    envelopeHash: string;
+    hmacKey: string;
+}>;
+export declare type IdV1EncodeArgs = z.infer<typeof IdV1EncodeArgs>;
+/**
+ * The subset of IdV1 needed to decode a new Id
+ */
+export declare const IdV1DecodeArgs: z.ZodObject<Pick<{
+    prefix: z.ZodDefault<z.ZodEnum<["T"]>>;
+    version: z.ZodDefault<z.ZodLiteral<1>>;
+    test: z.ZodDefault<z.ZodBoolean>;
+    ulid: z.ZodString;
+    timestamp: z.ZodNumber;
+    envelopeHash: z.ZodString;
+    hmacKey: z.ZodString;
+    hmac: z.ZodString;
+    id: z.ZodString;
+}, "id" | "envelopeHash" | "hmacKey">, "strip", z.ZodTypeAny, {
+    id: string;
+    envelopeHash: string;
+    hmacKey: string;
+}, {
+    id: string;
+    envelopeHash: string;
+    hmacKey: string;
+}>;
+export declare type IdV1DecodeArgs = z.infer<typeof IdV1DecodeArgs>;
+/**
+ * The subset of IdV1 returned from a decoded Id
+ */
+export declare const IdV1Decode: z.ZodObject<Pick<{
+    prefix: z.ZodDefault<z.ZodEnum<["T"]>>;
+    version: z.ZodDefault<z.ZodLiteral<1>>;
+    test: z.ZodDefault<z.ZodBoolean>;
+    ulid: z.ZodString;
+    timestamp: z.ZodNumber;
+    envelopeHash: z.ZodString;
+    hmacKey: z.ZodString;
+    hmac: z.ZodString;
+    id: z.ZodString;
+}, "version" | "test" | "ulid" | "timestamp" | "envelopeHash">, "strip", z.ZodTypeAny, {
+    version: 1;
+    test: boolean;
+    ulid: string;
+    timestamp: number;
+    envelopeHash: string;
+}, {
+    version?: 1 | undefined;
+    test?: boolean | undefined;
+    ulid: string;
+    timestamp: number;
+    envelopeHash: string;
+}>;
+export declare type IdV1Decode = z.infer<typeof IdV1Decode>;
+/**
+ * The subset of IdV1 returned from a decoded unsafely Id
+ */
+export declare const IdV1DecodeUnsafely: z.ZodObject<Pick<{
+    prefix: z.ZodDefault<z.ZodEnum<["T"]>>;
+    version: z.ZodDefault<z.ZodLiteral<1>>;
+    test: z.ZodDefault<z.ZodBoolean>;
+    ulid: z.ZodString;
+    timestamp: z.ZodNumber;
+    envelopeHash: z.ZodString;
+    hmacKey: z.ZodString;
+    hmac: z.ZodString;
+    id: z.ZodString;
+}, "version" | "test" | "ulid" | "timestamp">, "strip", z.ZodTypeAny, {
+    version: 1;
+    test: boolean;
+    ulid: string;
+    timestamp: number;
+}, {
+    version?: 1 | undefined;
+    test?: boolean | undefined;
+    ulid: string;
+    timestamp: number;
+}>;
+export declare type IdV1DecodeUnsafely = z.infer<typeof IdV1DecodeUnsafely>;
+/**
+ * Encodes args into a string Truestamp Id. Throws an error if any of the
+ * args are invalid.
+ *
+ * @param args.version - The Id version
+ * @param args.test - Whether the Id is a test Id
+ * @param args.ulid - The ULID of the Id
+ * @param args.timestamp - The timestamp of the Id
+ * @param args.envelopeHash - The hash of the envelope
+ * @param args.hmacKey - The HMAC key
+ * @return - A Truestamp Id string.
+ */
+export declare const encode: (args: IdV1EncodeArgs) => string;
+/**
+ * Decodes a Truestamp Id string into an Id object with HMAC-SHA256 verification.
+ * Throws an error if the ID is invalid.
+ *
+ * @param args.id - A Truestamp Id string.
+ * @param args.envelopeHash - The top-level hash in the Item Envelope that this Id commits to with an HMAC-SHA256.
+ * @param args.hmacKey - The secret key used to verify the HMAC-SHA256.
+ * @return - A decoded Id object.
+ */
+export declare const decode: (args: IdV1DecodeArgs) => IdV1Decode;
+/**
+ * Validates and decodes a Truestamp Id string unsafely with NO HMAC verification. Not recommended
+ * for normal use. Indicates only that the Id has a valid structure. Throws an 'Error' if the Id
+ * has an invalid structure.
+ *
+ * @param args.id - A Truestamp Id string.
+ * @return - Id Object with no HMAC verification.
+ */
+export declare const decodeUnsafely: ({ id }: {
+    id: string;
+}) => IdV1DecodeUnsafely;
+/**
+ * Validates a Truestamp Id string with HMAC verification. Does not indicate if the content
+ * pointed to by the Id exists, only that it has a valid structure and HMAC. Returns false
+ * if the Id is invalid (does not throw).
+ *
+ * @param args.id - A Truestamp Id string.
+ * @param args.envelopeHash - The top-level hash in the Item Envelope that this Id commits to with an HMAC-SHA256.
+ * @param args.hmacKey - A Hex key used to verify the HMAC-SHA256.
+ * @return - Is the Truestamp Id structure valid?
+ */
+export declare const isValid: (args: IdV1DecodeArgs) => boolean;
+/**
+ * Validates a Truestamp Id string unsafely with NO HMAC verification. Not recommended for
+ * normal use. Indicates only that the Id has a valid structure. Returns false if the Id
+ * is invalid (does not throw).
+ * @param args.id - A Truestamp Id string.
+ * @return - Is the Truestamp Id structure valid?
+ */
+export declare const isValidUnsafely: ({ id }: {
+    id: string;
+}) => boolean;

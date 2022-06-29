@@ -6,7 +6,6 @@ export DENO_DIR=./deno_dir && deno compile --target=x86_64-apple-darwin --output
 export DENO_DIR=./deno_dir && deno compile --target=aarch64-apple-darwin --output=./build/truestamp-darwin-aarch64 --unstable --allow-env --allow-net --allow-read --allow-write --lock=lock.json --cached-only src/cli.ts
 export DENO_DIR=./deno_dir && deno compile --target=x86_64-pc-windows-msvc --output=./build/truestamp-windows --unstable --allow-env --allow-net --allow-read --allow-write --lock=lock.json --cached-only src/cli.ts
 export DENO_DIR=./deno_dir && deno compile --target=x86_64-unknown-linux-gnu --output=./build/truestamp-linux-x86_64 --unstable --allow-env --allow-net --allow-read --allow-write --lock=lock.json --cached-only src/cli.ts
- 
 cd ./build && for i in truestamp-darwin*; do mv $i truestamp && tar -czf $i.tar.gz truestamp && rm truestamp; done && cd -
 cd ./build && for i in truestamp-linux*; do mv $i truestamp && tar -czf $i.tar.gz truestamp && rm truestamp; done && cd -
 cd ./build && for i in truestamp-windows*; do mv $i truestamp.exe && zip -r truestamp-windows-x86_64.zip truestamp.exe && rm truestamp.exe; done && cd -

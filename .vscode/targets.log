@@ -10,14 +10,13 @@ make all --print-data-base --no-builtin-variables --no-builtin-rules --question
 make: *** No rule to make target `all'.  Stop.
 
 
-# Make data base, printed on Tue Jun 21 23:45:20 2022
+# Make data base, printed on Wed Jun 29 00:54:46 2022
 
 # Variables
 
 # automatic
 <D = $(patsubst %/,%,$(dir $<))
 # automatic
- 
 ?F = $(notdir $?)
 # environment
 ELECTRON_NO_ATTACH_CONSOLE = 1
@@ -52,7 +51,7 @@ __CFBundleIdentifier = com.microsoft.VSCode
 # environment
 FNM_NODE_DIST_MIRROR = https://nodejs.org/dist
 # environment
-VSCODE_IPC_HOOK_EXTHOST = /var/folders/cg/q568zb_17fv6qx4r2lpl3g0w0000gn/T/vscode-ipc-42f754c8-0ac5-410a-a23b-bf8e5642cdb8.sock
+VSCODE_IPC_HOOK_EXTHOST = /var/folders/cg/q568zb_17fv6qx4r2lpl3g0w0000gn/T/vscode-ipc-555c41d8-72ae-4410-9a41-558ddddc79cc.sock
 # environment
 VSCODE_CWD = /Users/glenn/src/github.com/truestamp/truestamp-cli
 # environment
@@ -80,6 +79,7 @@ SSH_AUTH_SOCK = /private/tmp/com.apple.launchd.yPiO5f6hcm/Listeners
 # makefile (from `Makefile', line 5)
 LOCK := lock.json
 # environment
+ 
 VSCODE_PIPE_LOGGING = true
 # environment
 PWD = /Users/glenn/src/github.com/truestamp/truestamp-cli
@@ -154,7 +154,7 @@ TERM_PROGRAM_VERSION = 3.4.15
 # environment
 FNM_VERSION_FILE_STRATEGY = local
 # environment
-XPC_SERVICE_NAME = application.com.microsoft.VSCode.535785176.535785182.DAF801F6-1EBF-4BC7-971D-EB76C72BB29C
+XPC_SERVICE_NAME = application.com.microsoft.VSCode.535785176.535785182.90951A06-EF0C-4D80-AE6A-B35721A98D99
 # environment
 LC_TERMINAL_VERSION = 3.4.15
 # automatic
@@ -210,7 +210,6 @@ VSCODE_PID = 7403
 # environment
 STARSHIP_SHELL = zsh
 # variable set hash-table stats:
- 
 # Load=97/1024=9%, Rehash=0, Collisions=10/122=8%
 
 # Pattern-specific Variable Values
@@ -303,7 +302,7 @@ cache-system:
 # Not a target:
 Makefile:
 #  Implicit rule search has been done.
-#  Last modified 2022-04-04 16:47:08
+#  Last modified 2022-06-22 10:24:39
 #  File has been updated.
 #  Successfully updated.
 # variable set hash-table stats:
@@ -340,6 +339,7 @@ depsbot:
 
 build-local:
 #  Implicit rule search has not been done.
+ 
 #  Modification time never checked.
 #  File has not been updated.
 #  commands to execute (from `Makefile', line 13):
@@ -413,8 +413,16 @@ lock:
 	export DENO_DIR=${DENO_DIR} && deno cache --unstable --lock=${LOCK} --lock-write ${DEPS}
 	
 
+info:
+#  Implicit rule search has not been done.
+#  Modification time never checked.
+#  File has not been updated.
+#  commands to execute (from `Makefile', line 69):
+	deno info src/cli.ts
+	
+
 # files hash-table stats:
-# Load=24/1024=2%, Rehash=0, Collisions=0/46=0%
+# Load=25/1024=2%, Rehash=0, Collisions=0/47=0%
 # VPATH Search Paths
 
 # No `vpath' search paths.
@@ -426,6 +434,6 @@ lock:
 # strcache size: total = 4096 / max = 4096 / min = 4096 / avg = 4096
 # strcache free: total = 4087 / max = 4087 / min = 4087 / avg = 4087
 
-# Finished Make data base on Tue Jun 21 23:45:20 2022
+# Finished Make data base on Wed Jun 29 00:54:46 2022
 
  

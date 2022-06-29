@@ -128,7 +128,7 @@ HTTP request to third-party blockchain API servers will originate from this loca
 
       logSelectedOutputFormat(
         {
-          text: verification.ok
+          text: verification.success
             ? `Verification : OK : ${options.id}`
             : `Verification : FAILED : ${options.id} : (run command with --output=json for failure details)`,
           json: verification,

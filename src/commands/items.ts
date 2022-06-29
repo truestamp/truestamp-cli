@@ -6,7 +6,7 @@ import {
   EnumType,
   parse as pathParse,
   readAllSync,
-  ValidationError,
+  ValidationError
 } from "../deps.ts";
 
 import { logSelectedOutputFormat } from "../utils.ts";
@@ -21,6 +21,8 @@ export const inputType = new EnumType(["binary", "json"]);
 // and crypto.subtle.digest
 // https://developer.mozilla.org/en-US/docs/Web/API/SubtleCrypto/digest#syntax
 const HASH_TYPES = ["sha-1", "sha-256", "sha-384", "sha-512"];
+
+type HashTypes = "sha1" | "sha-256" | "sha-384" | "sha-512";
 
 const itemsCreate = new Command<
   {
@@ -276,14 +278,14 @@ Pipe JSON content to the 'items create' command using '--input json' plus the '-
         itemResp = await ts.createItem({
           itemData: [{
             hash: options.hash,
-            hashType: options.hashType,
+            hashType: <HashTypes>options.hashType,
           }]
         });
       } else if (altHash && altHashType) {
         itemResp = await ts.createItem({
           itemData: [{
             hash: altHash,
-            hashType: altHashType,
+            hashType: <HashTypes>altHashType,
           }]
         });
       } else {
@@ -621,14 +623,14 @@ Pipe JSON content to the 'items update' command using '--input json' plus the '-
           itemResp = await ts.updateItem(options.id, {
             itemData: [{
               hash: options.hash,
-              hashType: options.hashType,
+              hashType: <HashTypes>options.hashType,
             }]
           });
         } else if (altHash && altHashType) {
           itemResp = await ts.updateItem(options.id, {
             itemData: [{
               hash: altHash,
-              hashType: altHashType,
+              hashType: <HashTypes>altHashType,
             }]
           });
         } else {

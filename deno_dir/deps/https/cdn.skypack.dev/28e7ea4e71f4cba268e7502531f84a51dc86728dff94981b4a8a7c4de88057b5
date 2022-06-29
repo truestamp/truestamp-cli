@@ -1,0 +1,2 @@
+export * from "./lib.d.ts";
+export as namespace Zod;

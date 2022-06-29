@@ -1,20 +1,20 @@
 {
   "headers": {
     "x-amz-version-id": "gCgSCRF1SWatpo_ACmwuhwC4JJWN2iCl",
-    "date": "Wed, 22 Jun 2022 15:36:40 GMT",
     "last-modified": "Sat, 30 Apr 2022 16:50:18 GMT",
     "server": "deno/us-east4-c",
     "vary": "Accept-Encoding",
-    "access-control-allow-origin": "*",
-    "cache-control": "public, max-age=31536000, immutable",
+    "x-amz-id-2": "4s3Hsuo7YapQ+5TLzKxRnaii6rOJvjj9QP6Tl934SPsk4es0PNNPTnYL1f4GKdlnIoZJi54E+n0=",
     "content-type": "application/javascript",
+    "access-control-allow-origin": "*",
+    "date": "Wed, 29 Jun 2022 17:04:25 GMT",
     "etag": "W/\"2097d93f72e2b820f555ec1c463c04b3\"",
-    "x-amz-id-2": "MqhShXmimMJOHJhbQOOA+JnczPLNOpqVbFPFej0rokM1NnK4v41vcBQltmWKkw30jZpTO2cq6As=",
-    "x-amz-request-id": "CV6ZSQVVTJ1HZWC6"
+    "cache-control": "public, max-age=31536000, immutable",
+    "x-amz-request-id": "VN28Z469ZGMV36R9"
   },
   "url": "https://deno.land/x/sqlite@v3.4.0/build/vfs.js",
   "now": {
-    "secs_since_epoch": 1655912199,
-    "nanos_since_epoch": 560520000
+    "secs_since_epoch": 1656522264,
+    "nanos_since_epoch": 725778000
   }
 }

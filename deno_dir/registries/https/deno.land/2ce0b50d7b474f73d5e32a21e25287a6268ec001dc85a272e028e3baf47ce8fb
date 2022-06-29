@@ -1,0 +1,1 @@
+{"kind":"markdown","value":"**streams**\n\nUtilities for working with Deno `Reader`/`Writer` interfaces and web streams\n\n[docs](https://doc.deno.land/https://deno.land/std@0.145.0/streams/conversion.ts) | [code](https://deno.land/std@0.145.0/streams/conversion.ts) | size: 17.4 kB\n"}

@@ -1,0 +1,14 @@
+{
+  "headers": {
+    "vary": "Accept-Encoding",
+    "cache-control": "max-age=2628000, immutable",
+    "content-type": "application/json",
+    "server": "deno/us-east4-c",
+    "date": "Wed, 29 Jun 2022 04:53:55 GMT"
+  },
+  "url": "https://deno.land/_api/details/std/0.145.0/path/mod.ts",
+  "now": {
+    "secs_since_epoch": 1656478436,
+    "nanos_since_epoch": 1778000
+  }
+}
