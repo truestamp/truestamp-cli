@@ -1,6 +1,6 @@
 // Copyright © 2020-2022 Truestamp Inc. All rights reserved.
 
-import { Command, createTruestampClient, verify } from "../deps.ts";
+import { Command, createTruestampClient, Table, verify } from "../deps.ts";
 
 import { logSelectedOutputFormat } from "../utils.ts";
 
@@ -25,7 +25,7 @@ const commitmentsRead = new Command<
     "Read a Commitment",
     `Using a previously generated test Item ID:
 
-$ truestamp commitments read --id T11_01G63SEXZ9E06KD8277907PRRQ_1655837260423000_058E13C09D233B1DA8649E46362A3226
+$ truestamp commitments read --id truestamp-2SF5JQLhBHmtRC35G6z4M7bjhcnJrGs99nEg6reqW61ThzXLx1pzk3VXjNQsw
 
 `,
   )
@@ -43,20 +43,10 @@ $ truestamp commitments read --id T11_01G63SEXZ9E06KD8277907PRRQ_165583726042300
         options.output,
       );
     } catch (error) {
-      // throw new Error(`Commitment not found : ${error.message}`);
-      const { key, value, type, response } = error;
+      const { response } = error;
 
-      if (key || value || type) {
-        // is a StructError
-        if (value === undefined) {
-          throw new Error(`attribute ${key} is required`);
-        } else if (type === "never") {
-          throw new Error(`attribute ${key} is unknown`);
-        } else {
-          throw new Error(`${key} ${value} is invalid`);
-        }
-      } else if (response) {
-        // is a HTTPResponseError
+      if (response) {
+        // HTTPResponseError
         // This is a custom error type thrown by truestamp-js and
         // has a 'response' property which can be awaited to get the full
         // HTTP response, including body with error info.
@@ -77,7 +67,7 @@ const commitmentsVerify = new Command<
     output: typeof outputType;
   }
 >()
-  .description("Verify an existing Commitment for an Item.")
+  .description("Verify a Commitment for an Item.")
   .option(
     "-i, --id <id:string>",
     "An Item Id to retrieve the Commitment for.",
@@ -87,16 +77,16 @@ const commitmentsVerify = new Command<
   )
   .option(
     "-l, --local [local:boolean]",
-    "Verify cryptographic operations, on-chain verifications, locally.",
+    "Locally verify cryptographic operations, and on-chain verifications.",
     { default: false },
   )
   .example(
     "Verify a Commitment",
     `Using a previously generated test Item ID:
 
-All cryptographic operations, and on-chain verifications, performed on API server by default:
+All cryptographic operations, and on-chain verifications, performed via API server by default:
 
-  $ truestamp commitments verify --id T11_01G63SEXZ9E06KD8277907PRRQ_1655837260423000_058E13C09D233B1DA8649E46362A3226
+  $ truestamp commitments verify --id truestamp-2SF5JQLhBHmtRC35G6z4M7bjhcnJrGs99nEg6reqW61ThzXLx1pzk3VXjNQsw
 
 `,
   )
@@ -104,13 +94,13 @@ All cryptographic operations, and on-chain verifications, performed on API serve
     "Verify a Commitment Locally",
     `Using a previously generated test Item ID:
 
-All cryptographic operations, and on-chain verifications, performed from this local client.
+All cryptographic operations, and on-chain verifications, are performed from this local client.
 
 Verified public keys will be retrieved from https://keys.truestamp.com.
 
 HTTP request to third-party blockchain API servers will originate from this local client.
 
-  $ truestamp commitments verify --local --id T11_01G63SEXZ9E06KD8277907PRRQ_1655837260423000_058E13C09D233B1DA8649E46362A3226
+  $ truestamp commitments verify --local --id truestamp-2SF5JQLhBHmtRC35G6z4M7bjhcnJrGs99nEg6reqW61ThzXLx1pzk3VXjNQsw
 
 `,
   )
@@ -126,30 +116,97 @@ HTTP request to third-party blockchain API servers will originate from this loca
         verification = await ts.getCommitmentVerification(options.id);
       }
 
-      logSelectedOutputFormat(
-        {
-          text: verification.success
-            ? `Verification : OK : ${options.id}`
-            : `Verification : FAILED : ${options.id} : (run command with --output=json for failure details)`,
-          json: verification,
-        },
-        options.output,
-      );
-    } catch (error) {
-      // throw new Error(`Commitment verification not found : ${error.message}`);
-      const { key, value, type, response } = error;
+      if (verification.verified) {
+        logSelectedOutputFormat(
+          {
+            text: 'Verification Results \n',
+            json: verification,
+          },
+          options.output,
+        );
 
-      if (key || value || type) {
-        // is a StructError
-        if (value === undefined) {
-          throw new Error(`attribute ${key} is required`);
-        } else if (type === "never") {
-          throw new Error(`attribute ${key} is unknown`);
-        } else {
-          throw new Error(`${key} ${value} is invalid`);
+        if (options.output === "text") {
+          const table: Table = Table.from([]);
+          table.push(["Verified?", "Yes"]);
+
+          let verifyUrlBase
+          switch (options.env) {
+            case "development":
+              verifyUrlBase = "http://localhost:3000";
+              break;
+            case "staging":
+              verifyUrlBase = "https://staging-verify.truestamp.com";
+              break;
+            case "production":
+              verifyUrlBase = "https://verify.truestamp.com";
+              break;
+            default:
+              throw new Error(`Unknown environment: ${options.env}`);
+          }
+
+          table.push(["Verify URL", `${verifyUrlBase}/${options.id.replace("truestamp-", "")}`]);
+
+          table.push(["ID", options.id]);
+
+          if (verification.commitsTo?.timestamps.submittedAfter) {
+            table.push([
+              "Submitted After",
+              verification.commitsTo.timestamps.submittedAfter,
+            ]);
+          }
+
+          if (verification.commitsTo?.timestamps.submittedAt) {
+            table.push([
+              "Submitted At",
+              verification.commitsTo.timestamps.submittedAt,
+            ]);
+          }
+
+          if (verification.commitsTo?.timestamps.submittedBefore) {
+            table.push([
+              "Submitted Before",
+              verification.commitsTo.timestamps.submittedBefore.join('\n'),
+            ]);
+          }
+
+          if (verification.commitsTo?.timestamps.submitWindowMilliseconds) {
+            table.push([
+              "Submitted Window (ms)",
+              verification.commitsTo.timestamps.submitWindowMilliseconds,
+            ]);
+          }
+
+          if (verification.commitsTo?.observableEntropy) {
+            table.push([
+              "Observable Entropy Hash",
+              verification.commitsTo.observableEntropy,
+            ]);
+          }
+
+          if (verification.commitsTo?.hashes) {
+            table.push([
+              "Hashes",
+              verification.commitsTo.hashes.map((t) => `${t.hash} [${t.hashType}]`).join('\n'),
+            ]);
+          }
+
+          table.indent(2)
+          table.render();
         }
-      } else if (response) {
-        // is a HTTPResponseError
+      } else {
+        logSelectedOutputFormat(
+          {
+            text: `Verification : FAILED : ${verification.error}`,
+            json: verification,
+          },
+          options.output,
+        );
+      }
+    } catch (error) {
+      const { response } = error;
+
+      if (response) {
+        // HTTPResponseError
         // This is a custom error type thrown by truestamp-js and
         // has a 'response' property which can be awaited to get the full
         // HTTP response, including body with error info.

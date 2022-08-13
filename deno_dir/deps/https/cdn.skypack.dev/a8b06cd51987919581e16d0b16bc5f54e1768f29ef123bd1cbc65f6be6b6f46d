@@ -1,2 +1,0 @@
-export { Commitment, CommitmentVerification, SignedKey, SignedKeys } from './modules/types.d.ts';
-export { verify, verifyUnsafelyOffline, isVerified, isVerifiedUnsafelyOffline, assertVerified, assertVerifiedUnsafelyOffline } from './modules/verify.d.ts';

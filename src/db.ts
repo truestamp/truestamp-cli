@@ -26,7 +26,7 @@ CREATE TABLE IF NOT EXISTS items (
 )
 `);
 
-  const decodedId = decodeUnsafely({ id });
+  const decodedId = decodeUnsafely(id);
 
   db.query(
     "INSERT INTO items (id, id_json, envelope_json) VALUES (?, json(?), json(?))",
@@ -43,10 +43,10 @@ CREATE TABLE IF NOT EXISTS items (
 
 // See : https://stackoverflow.com/questions/33432421/sqlite-json1-example-for-json-extract-set
 // sqlite> select json_extract(items.id_json, '$.ulid') from items;
-// 01FZV53XYHS0AWTHT8G8STSB93
+// 01GABY7BPZTMW0J7SA8DGR2JAZ
 
-// sqlite> select i.* from items i where json_extract(id_json, '$.ulid') LIKE '01FZV53XYHS0AWTHT8G8STSB93';
-// T11_01FZV53XYHS0AWTHT8G8STSB93_1649105041590000_3B3F3607558F8590ABA6AE6B9D579E8F|{"version":1,"test":true,"ulid":"01FZV53XYHS0AWTHT8G8STSB93","timestamp":1649105041590000}|{"hash":"47ccf5f773af45059af050cfdfafcbc36ca9b4a81ad5fafc516334b199804299","hashType":"sha-256","data":{"hash":"72ef467524c22a2d17607ad7a818c30ce17d21d51b8a8ef0b36c0f2c4e2b679b","hashType":"sha-256","type":"item","request":{"type":"item_req_props","asn":701,"colo":"IAD","country":"US","city":"Ashburn","continent":"NA","latitude":"39.01800","longitude":"-77.53900","postalCode":"20147","metroCode":"511","region":"Virginia","regionCode":"VA","timezone":"America/New_York"},"observableEntropy":"bc137c5569cdd1910dd227a574a38d30689c9806d9ca9af740f7a387c1e1a96d"},"signatures":[{"type":"signature","publicKey":"Qrx1usC1HsvSNNuod9HM7eVc93p9n5Zt9Rd_v1YnBr0=","signature":"qTN_IWnaw_6G0AsB_W68BUntk_hfvdJWTPILndOhUAUo-m5_yYdwpgXJnYHFR57LQbflELQH0iNjjt5TPy8WDQ==","signatureType":"ed25519","signer":{"type":"person","organizationName":"Truestamp Inc.","email":"support@truestamp.com","uri":"https://www.truestamp.com"}}],"id":"T11_01FZV53XYHS0AWTHT8G8STSB93_1649105041590000_3B3F3607558F8590ABA6AE6B9D579E8F","timestamp":"2022-04-04T20:44:01.590+00:00","type":"envelope"}
+// sqlite> select i.* from items i where json_extract(id_json, '$.ulid') LIKE '01GABY7BPZTMW0J7SA8DGR2JAZ';
+// truestamp-2SF5JQLhBHmtRC35G6z4M7bjhcnJrGs99nEg6reqW61ThzXLx1pzk3VXjNQsw|{"test":true,"ulid":"01FZV53XYHS0AWTHT8G8STSB93","timestamp":1649105041590000}|{"hash":"47ccf5f773af45059af050cfdfafcbc36ca9b4a81ad5fafc516334b199804299","hashType":"sha-256","data":{"hash":"72ef467524c22a2d17607ad7a818c30ce17d21d51b8a8ef0b36c0f2c4e2b679b","hashType":"sha-256","type":"item","request":{"type":"item_req_props","asn":701,"colo":"IAD","country":"US","city":"Ashburn","continent":"NA","latitude":"39.01800","longitude":"-77.53900","postalCode":"20147","metroCode":"511","region":"Virginia","regionCode":"VA","timezone":"America/New_York"},"observableEntropy":"bc137c5569cdd1910dd227a574a38d30689c9806d9ca9af740f7a387c1e1a96d"},"signatures":[{"type":"signature","publicKey":"Qrx1usC1HsvSNNuod9HM7eVc93p9n5Zt9Rd_v1YnBr0=","signature":"qTN_IWnaw_6G0AsB_W68BUntk_hfvdJWTPILndOhUAUo-m5_yYdwpgXJnYHFR57LQbflELQH0iNjjt5TPy8WDQ==","signatureType":"ed25519","signer":{"type":"person","organizationName":"Truestamp Inc.","email":"support@truestamp.com","uri":"https://www.truestamp.com"}}],"id":"T11_01FZV53XYHS0AWTHT8G8STSB93_1649105041590000_3B3F3607558F8590ABA6AE6B9D579E8F","timestamp":"2022-04-04T20:44:01.590+00:00","type":"envelope"}
 
 // sqlite> SELECT json_extract(items.envelope_json, '$.data.hash') FROM items WHERE json_extract(id_json, '$.ulid') LIKE '01FZV53XYHS0AWTHT8G8STSB93';
 // 72ef467524c22a2d17607ad7a818c30ce17d21d51b8a8ef0b36c0f2c4e2b679b

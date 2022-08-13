@@ -1,0 +1,15 @@
+/*
+ * Skypack CDN - @truestamp/verify@0.3.0
+ *
+ * Learn more:
+ *   📙 Package Documentation: https://www.skypack.dev/view/@truestamp/verify
+ *   📘 Skypack Documentation: https://www.skypack.dev/docs
+ *
+ * Pinned URL: (Optimized for Production)
+ *   ▶️ Normal: https://cdn.skypack.dev/pin/@truestamp/verify@v0.3.0-clDDGWV3dbJ6LCwmJATQ/mode=imports/optimized/@truestamp/verify.js
+ *   ⏩ Minified: https://cdn.skypack.dev/pin/@truestamp/verify@v0.3.0-clDDGWV3dbJ6LCwmJATQ/mode=imports,min/optimized/@truestamp/verify.js
+ *
+ */ // Browser-Optimized Imports (Don't directly import the URLs below in your application!)
+export * from '/-/@truestamp/verify@v0.3.0-clDDGWV3dbJ6LCwmJATQ/dist=es2019,mode=imports/optimized/@truestamp/verify.js';
+export { default } from '/-/@truestamp/verify@v0.3.0-clDDGWV3dbJ6LCwmJATQ/dist=es2019,mode=imports/optimized/@truestamp/verify.js';
+//# sourceMappingURL=data:application/json;base64,eyJ2ZXJzaW9uIjozLCJzb3VyY2VzIjpbImh0dHBzOi8vY2RuLnNreXBhY2suZGV2L0B0cnVlc3RhbXAvdmVyaWZ5QH52MC4zLjA/ZHRzIl0sInNvdXJjZXNDb250ZW50IjpbIi8qXG4gKiBTa3lwYWNrIENETiAtIEB0cnVlc3RhbXAvdmVyaWZ5QDAuMy4wXG4gKlxuICogTGVhcm4gbW9yZTpcbiAqICAg8J+TmSBQYWNrYWdlIERvY3VtZW50YXRpb246IGh0dHBzOi8vd3d3LnNreXBhY2suZGV2L3ZpZXcvQHRydWVzdGFtcC92ZXJpZnlcbiAqICAg8J+TmCBTa3lwYWNrIERvY3VtZW50YXRpb246IGh0dHBzOi8vd3d3LnNreXBhY2suZGV2L2RvY3NcbiAqXG4gKiBQaW5uZWQgVVJMOiAoT3B0aW1pemVkIGZvciBQcm9kdWN0aW9uKVxuICogICDilrbvuI8gTm9ybWFsOiBodHRwczovL2Nkbi5za3lwYWNrLmRldi9waW4vQHRydWVzdGFtcC92ZXJpZnlAdjAuMy4wLWNsRERHV1YzZGJKNkxDd21KQVRRL21vZGU9aW1wb3J0cy9vcHRpbWl6ZWQvQHRydWVzdGFtcC92ZXJpZnkuanNcbiAqICAg4o+pIE1pbmlmaWVkOiBodHRwczovL2Nkbi5za3lwYWNrLmRldi9waW4vQHRydWVzdGFtcC92ZXJpZnlAdjAuMy4wLWNsRERHV1YzZGJKNkxDd21KQVRRL21vZGU9aW1wb3J0cyxtaW4vb3B0aW1pemVkL0B0cnVlc3RhbXAvdmVyaWZ5LmpzXG4gKlxuICovXG5cbi8vIEJyb3dzZXItT3B0aW1pemVkIEltcG9ydHMgKERvbid0IGRpcmVjdGx5IGltcG9ydCB0aGUgVVJMcyBiZWxvdyBpbiB5b3VyIGFwcGxpY2F0aW9uISlcbmV4cG9ydCAqIGZyb20gJy8tL0B0cnVlc3RhbXAvdmVyaWZ5QHYwLjMuMC1jbERER1dWM2RiSjZMQ3dtSkFUUS9kaXN0PWVzMjAxOSxtb2RlPWltcG9ydHMvb3B0aW1pemVkL0B0cnVlc3RhbXAvdmVyaWZ5LmpzJztcbmV4cG9ydCB7ZGVmYXVsdH0gZnJvbSAnLy0vQHRydWVzdGFtcC92ZXJpZnlAdjAuMy4wLWNsRERHV1YzZGJKNkxDd21KQVRRL2Rpc3Q9ZXMyMDE5LG1vZGU9aW1wb3J0cy9vcHRpbWl6ZWQvQHRydWVzdGFtcC92ZXJpZnkuanMnO1xuIl0sIm5hbWVzIjpbXSwibWFwcGluZ3MiOiJBQUFBOzs7Ozs7Ozs7OztHQVdHLENBRUgsd0ZBQXdGO0FBQ3hGLGNBQWMsMEdBQTBHLENBQUM7QUFDekgsU0FBUSxPQUFPLFFBQU8sMEdBQTBHLENBQUMifQ==

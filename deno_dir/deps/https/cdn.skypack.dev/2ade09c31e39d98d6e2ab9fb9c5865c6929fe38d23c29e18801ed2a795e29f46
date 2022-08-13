@@ -1,0 +1,16 @@
+/*
+ * Skypack CDN - @truestamp/verify@0.3.0
+ *
+ * Learn more:
+ *   📙 Package Documentation: https://www.skypack.dev/view/@truestamp/verify
+ *   📘 Skypack Documentation: https://www.skypack.dev/docs
+ *
+ * Pinned URL: (Optimized for Production)
+ *   ▶️ Normal: https://cdn.skypack.dev/pin/@truestamp/verify@v0.3.0-clDDGWV3dbJ6LCwmJATQ/mode=imports/optimized/@truestamp/verify.js
+ *   ⏩ Minified: https://cdn.skypack.dev/pin/@truestamp/verify@v0.3.0-clDDGWV3dbJ6LCwmJATQ/mode=imports,min/optimized/@truestamp/verify.js
+ *
+ */
+
+// Browser-Optimized Imports (Don't directly import the URLs below in your application!)
+export * from '/-/@truestamp/verify@v0.3.0-clDDGWV3dbJ6LCwmJATQ/dist=es2019,mode=imports/optimized/@truestamp/verify.js';
+export {default} from '/-/@truestamp/verify@v0.3.0-clDDGWV3dbJ6LCwmJATQ/dist=es2019,mode=imports/optimized/@truestamp/verify.js';

@@ -1,0 +1,6 @@
+import { Base } from "../base.d.ts";
+import { Commitment, CommitmentVerification } from "../types.d.ts";
+export declare class Commitments extends Base {
+    getCommitment(id: string): Promise<Commitment>;
+    getCommitmentVerification(id: string): Promise<CommitmentVerification>;
+}

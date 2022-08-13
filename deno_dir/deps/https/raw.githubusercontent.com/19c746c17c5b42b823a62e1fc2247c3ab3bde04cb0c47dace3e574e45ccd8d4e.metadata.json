@@ -1,30 +1,30 @@
 {
   "headers": {
-    "x-fastly-request-id": "dedc53cfe728facf185e24d117b47843f0c3806c",
-    "content-security-policy": "default-src 'none'; style-src 'unsafe-inline'; sandbox",
-    "x-github-request-id": "802E:5692:C8B80:14FBF5:62B33154",
-    "date": "Wed, 22 Jun 2022 15:36:38 GMT",
+    "accept-ranges": "bytes",
+    "date": "Sat, 13 Aug 2022 18:54:44 GMT",
     "via": "1.1 varnish",
-    "x-frame-options": "deny",
     "etag": "W/\"584ee676b29e515752926bcd1a6cbb7f693c35fd10864796948992be9008ed72\"",
+    "cache-control": "max-age=300",
+    "vary": "Authorization,Accept-Encoding,Origin",
+    "access-control-allow-origin": "*",
     "x-content-type-options": "nosniff",
     "x-cache-hits": "1",
-    "expires": "Wed, 22 Jun 2022 15:41:38 GMT",
     "content-type": "text/plain; charset=utf-8",
-    "cache-control": "max-age=300",
-    "x-timer": "S1655912199.997800,VS0,VE1",
+    "x-fastly-request-id": "56f66747cdef8e416dfd867b696821302dbfb426",
+    "expires": "Sat, 13 Aug 2022 18:59:44 GMT",
     "strict-transport-security": "max-age=31536000",
-    "access-control-allow-origin": "*",
-    "x-xss-protection": "1; mode=block",
-    "source-age": "233",
-    "vary": "Authorization,Accept-Encoding,Origin",
-    "accept-ranges": "bytes",
-    "x-served-by": "cache-iad-kiad7000090-IAD",
-    "x-cache": "HIT"
+    "content-security-policy": "default-src 'none'; style-src 'unsafe-inline'; sandbox",
+    "x-timer": "S1660416885.801992,VS0,VE77",
+    "source-age": "0",
+    "x-frame-options": "deny",
+    "x-served-by": "cache-iad-kiad7000168-IAD",
+    "x-github-request-id": "C710:988C:29036D:37E32A:62F7DFEB",
+    "x-cache": "HIT",
+    "x-xss-protection": "1; mode=block"
   },
   "url": "https://raw.githubusercontent.com/truestamp/deno-app-paths/v1.1.0/mod.ts",
   "now": {
-    "secs_since_epoch": 1655912199,
-    "nanos_since_epoch": 10609000
+    "secs_since_epoch": 1660417162,
+    "nanos_since_epoch": 151453000
   }
 }

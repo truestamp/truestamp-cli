@@ -1,5 +1,0 @@
-import * as mod from "./external.ts";
-export * from "./external.ts";
-export { mod as z };
-export default mod;
-//# sourceMappingURL=data:application/json;base64,eyJ2ZXJzaW9uIjozLCJzb3VyY2VzIjpbImh0dHBzOi8vZGVuby5sYW5kL3gvem9kQHYzLjE3LjMvaW5kZXgudHMiXSwic291cmNlc0NvbnRlbnQiOlsiaW1wb3J0ICogYXMgbW9kIGZyb20gXCIuL2V4dGVybmFsLnRzXCI7XG5leHBvcnQgKiBmcm9tIFwiLi9leHRlcm5hbC50c1wiO1xuZXhwb3J0IHsgbW9kIGFzIHogfTtcbmV4cG9ydCBkZWZhdWx0IG1vZDtcbiJdLCJuYW1lcyI6W10sIm1hcHBpbmdzIjoiQUFBQSxZQUFZLEdBQUcsTUFBTSxlQUFlLENBQUM7QUFDckMsY0FBYyxlQUFlLENBQUM7QUFDOUIsU0FBUyxHQUFHLElBQUksQ0FBQyxHQUFHO0FBQ3BCLGVBQWUsR0FBRyxDQUFDIn0=
