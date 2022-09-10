@@ -6,7 +6,7 @@ import {
   EnumType,
   parse as pathParse,
   readAllSync,
-  ValidationError
+  ValidationError,
 } from "../deps.ts";
 
 import { logSelectedOutputFormat } from "../utils.ts";
@@ -55,7 +55,8 @@ See the example sections below for detailed usage examples.
   )
   .option(
     "-t, --hash-type <hashType:string>",
-    `A hash function type. Hash byte length is validated against type. Accepts ${HASH_TYPES.join(", ")
+    `A hash function type. Hash byte length is validated against type. Accepts ${
+      HASH_TYPES.join(", ")
     }.`,
     {
       required: false,
@@ -73,7 +74,7 @@ See the example sections below for detailed usage examples.
   )
   .type("input", inputType)
   .option(
-    "-i, --input <input:input>",
+    "--input <input:input>",
     "Input format. If 'binary' is provided the file will be hashed and a new Item constructed and submitted. If 'json' is provided the file not be hashed and will be submitted as-is. JSON content must match the structure expected by the API in all cases. If submitting arbitrary JSON files that are not of the shape the API expects, use 'binary'.",
     {
       conflicts: ["hash", "hash-type"],
@@ -278,14 +279,14 @@ Pipe JSON content to the 'items create' command using '--input json' plus the '-
         itemResp = await ts.createItem({
           itemData: [{
             hash: options.hash,
-            hashType: <HashTypes>options.hashType,
+            hashType: <HashTypes> options.hashType,
           }],
         });
       } else if (altHash && altHashType) {
         itemResp = await ts.createItem({
           itemData: [{
             hash: altHash,
-            hashType: <HashTypes>altHashType,
+            hashType: <HashTypes> altHashType,
           }],
         });
       } else {
@@ -373,9 +374,13 @@ See the example sections below for detailed usage examples.
 
 `,
   )
-  .option("-i, --id <id:string>", "An Item Id to update.", {
-    required: true,
-  })
+  .option(
+    "-i, --id <id:string>",
+    "An Item Id to update.",
+    {
+      required: true, // BUG : https://github.com/c4spar/deno-cliffy/issues/436
+    },
+  )
   .option(
     "-H, --hash <hash:string>",
     "An Item hash encoded as a Hex (Base16) string.",
@@ -387,7 +392,8 @@ See the example sections below for detailed usage examples.
   )
   .option(
     "-t, --hash-type <hashType:string>",
-    `A hash function type. Hash byte length is validated against type. Accepts ${HASH_TYPES.join(", ")
+    `A hash function type. Hash byte length is validated against type. Accepts ${
+      HASH_TYPES.join(", ")
     }.`,
     {
       required: false,
@@ -397,7 +403,7 @@ See the example sections below for detailed usage examples.
   )
   .option(
     "-s, --stdin",
-    "Read data from STDIN and submit new Item. Will be hashed unless '--input json' is provided.",
+    "Read data from STDIN and submit updated Item. Will be hashed unless '--input json' is provided.",
     {
       conflicts: ["hash", "hash-type"],
       depends: ["input"],
@@ -405,8 +411,8 @@ See the example sections below for detailed usage examples.
   )
   .type("input", inputType)
   .option(
-    "-i, --input <input:input>",
-    "Input format. If 'binary' is provided the file will be hashed and a new Item constructed and submitted. If 'json' is provided the file not be hashed and will be submitted as-is. JSON content must match the structure expected by the API in all cases. If submitting arbitrary JSON files that are not of the shape the API expects, use 'binary'.",
+    "--input <input:input>",
+    "Input format. If 'binary' is provided the file will be hashed and an updated Item constructed and submitted. If 'json' is provided the file not be hashed and will be submitted as-is. JSON content must match the structure expected by the API in all cases. If submitting arbitrary JSON files that are not of the shape the API expects, use 'binary'.",
     {
       conflicts: ["hash", "hash-type"],
     },
@@ -554,14 +560,14 @@ Pipe JSON content to the 'items update' command using '--input json' plus the '-
           itemResp = await ts.updateItem(options.id, {
             itemData: [{
               hash: options.hash,
-              hashType: <HashTypes>options.hashType,
+              hashType: <HashTypes> options.hashType,
             }],
           });
         } else if (altHash && altHashType) {
           itemResp = await ts.updateItem(options.id, {
             itemData: [{
               hash: altHash,
-              hashType: <HashTypes>altHashType,
+              hashType: <HashTypes> altHashType,
             }],
           });
         } else {

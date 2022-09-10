@@ -1,0 +1,27 @@
+{
+  "headers": {
+    "content-type": "application/typescript; charset=utf-8",
+    "x-cache": "Hit from cloudfront",
+    "via": "1.1 9c90b41a9e5ac2856624d29ed4da4234.cloudfront.net (CloudFront)",
+    "access-control-allow-origin": "*",
+    "x-amz-cf-pop": "IAD89-C3",
+    "vary": "Accept-Encoding, Origin",
+    "server": "deno/us-east4-c",
+    "cache-control": "public, max-age=31536000, immutable",
+    "content-security-policy": "default-src 'none'; style-src 'unsafe-inline'; sandbox",
+    "age": "26536",
+    "etag": "\"5357152b0ae94c8d4f9fe8a761a8190f\"",
+    "date": "Sat, 10 Sep 2022 12:16:02 GMT",
+    "x-amz-version-id": "fZTNpi7HnL9HMGx9mDUMaqsfXTEZnciz",
+    "accept-ranges": "bytes",
+    "last-modified": "Sat, 03 Sep 2022 13:28:26 GMT",
+    "content-length": "2253",
+    "x-amz-cf-id": "XJluPdIwkGLfIoyqgA9Z0XoyDLysYe5K6HcwsfMFf7QoeMINKvFofQ==",
+    "x-amz-replication-status": "FAILED"
+  },
+  "url": "https://deno.land/x/cliffy@v0.25.0/ansi/colors.ts",
+  "now": {
+    "secs_since_epoch": 1662838697,
+    "nanos_since_epoch": 926556000
+  }
+}

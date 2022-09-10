@@ -1,28 +1,26 @@
 {
   "headers": {
-    "nel": "{\"success_fraction\":0,\"report_to\":\"cf-nel\",\"max_age\":604800}",
-    "server": "cloudflare",
-    "etag": "W/\"17b-ZgQrRXrC1/+XYEQ35R90n1mYHuQ\"",
+    "report-to": "{\"endpoints\":[{\"url\":\"https:\\/\\/a.nel.cloudflare.com\\/report\\/v3?s=tHmCZS96sAlqfNhvZY620xRthLEukArQdyiK9NvUPB%2FBJe%2FwCVYqUxJFIVSMcV6OUAdkQSulkY1mxjUKCa3M1DdEJ1VKuWru0v5XE411Ctg5sCdsQoSM9xwpXUlrarlN%2Bw%3D%3D\"}],\"group\":\"cf-nel\",\"max_age\":604800}",
     "accept-ranges": "bytes",
-    "expect-ct": "max-age=604800, report-uri=\"https://report-uri.cloudflare.com/cdn-cgi/beacon/expect-ct\"",
-    "x-vercel-id": "iad1::sfo1::cn8lf-1660404845534-7a3334b49fb3",
-    "content-type": "application/typescript; charset=utf-8",
-    "x-vercel-cache": "HIT",
-    "date": "Sat, 13 Aug 2022 18:54:45 GMT",
-    "cache-control": "public, max-age=31536000, immutable",
     "access-control-allow-origin": "*",
-    "strict-transport-security": "max-age=63072000",
-    "age": "12040",
+    "x-vercel-cache": "MISS",
+    "content-type": "application/typescript; charset=utf-8",
+    "x-vercel-id": "iad1::sfo1::jljlk-1662838699748-a32bdda553d5",
+    "server": "cloudflare",
     "vary": "Accept-Encoding",
-    "cf-ray": "73a3a941694c6fcd-IAD",
-    "alt-svc": "h3=\":443\"; ma=86400, h3-29=\":443\"; ma=86400",
-    "cf-cache-status": "HIT",
+    "cache-control": "public, max-age=31536000, immutable",
+    "etag": "W/\"17b-ZgQrRXrC1/+XYEQ35R90n1mYHuQ\"",
+    "strict-transport-security": "max-age=63072000",
     "content-length": "379",
-    "report-to": "{\"endpoints\":[{\"url\":\"https:\\/\\/a.nel.cloudflare.com\\/report\\/v3?s=Emv3i7XD6RiJqkEydnoufOwn5Eg901MyDKJ%2Beawwgi42OSRQsiSXZU9TkQ%2BrOukdcB5U4tgJN1g5aJb8QpjOePy%2F3XGxczc2Y2ICZ3M8idh1R9O0f06GbI4MjoETyXzOSA%3D%3D\"}],\"group\":\"cf-nel\",\"max_age\":604800}"
+    "cf-cache-status": "MISS",
+    "nel": "{\"success_fraction\":0,\"report_to\":\"cf-nel\",\"max_age\":604800}",
+    "alt-svc": "h3=\":443\"; ma=86400, h3-29=\":443\"; ma=86400",
+    "cf-ray": "748a9f9159087f9e-IAD",
+    "date": "Sat, 10 Sep 2022 19:38:20 GMT"
   },
   "url": "https://cdn.skypack.dev/-/@truestamp/truestamp-js@v0.13.1-rQ2b4iVmfg4KZw4enqpI/dist=es2019,mode=types/dist/keys/index.d.ts",
   "now": {
-    "secs_since_epoch": 1660417163,
-    "nanos_since_epoch": 261442000
+    "secs_since_epoch": 1662838700,
+    "nanos_since_epoch": 58895000
   }
 }

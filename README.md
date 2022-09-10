@@ -6,7 +6,7 @@ communicate with the [Truestamp API](https://docs.truestamp.com/api/intro).
 
 This CLI is built using [Deno](https://deno.land/). The platforms we support are
 determined by the set that Deno
-[currently supports](https://deno.land/manual@v1.20.3/tools/compiler#cross-compilation)
+[currently supports](https://deno.land/manual@v1.25.2/tools/compiler
 for cross-compilation.
 
 Deno creates a single-file binary that makes download and installation easy. The

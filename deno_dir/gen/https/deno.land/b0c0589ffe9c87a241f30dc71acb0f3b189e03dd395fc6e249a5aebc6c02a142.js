@@ -1,2 +1,0 @@
-export { stripColor } from "https://deno.land/std@0.138.0/fmt/colors.ts";
-//# sourceMappingURL=data:application/json;base64,eyJ2ZXJzaW9uIjozLCJzb3VyY2VzIjpbImh0dHBzOi8vZGVuby5sYW5kL3gvY2xpZmZ5QHYwLjI0LjIvdGFibGUvZGVwcy50cyJdLCJzb3VyY2VzQ29udGVudCI6WyJleHBvcnQgeyBzdHJpcENvbG9yIH0gZnJvbSBcImh0dHBzOi8vZGVuby5sYW5kL3N0ZEAwLjEzOC4wL2ZtdC9jb2xvcnMudHNcIjtcbiJdLCJuYW1lcyI6W10sIm1hcHBpbmdzIjoiQUFBQSxTQUFTLFVBQVUsUUFBUSw2Q0FBNkMsQ0FBQyJ9

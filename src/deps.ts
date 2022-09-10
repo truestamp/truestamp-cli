@@ -1,21 +1,21 @@
 // Copyright © 2020-2022 Truestamp Inc. All rights reserved.
 
-import { crypto } from "https://deno.land/std@0.145.0/crypto/mod.ts";
-import { parse } from "https://deno.land/std@0.145.0/path/mod.ts";
+import { crypto } from "https://deno.land/std@0.155.0/crypto/mod.ts";
+import { parse } from "https://deno.land/std@0.155.0/path/mod.ts";
 import {
   copy,
-  readAllSync
-} from "https://deno.land/std@0.145.0/streams/conversion.ts";
+  readAllSync,
+} from "https://deno.land/std@0.155.0/streams/conversion.ts";
 
 import { sleep } from "https://deno.land/x/sleep@v1.2.1/mod.ts";
 
 import { decode, validate } from "https://deno.land/x/djwt@v2.7/mod.ts";
-export type { ITypeInfo } from "https://deno.land/x/cliffy@v0.24.2/flags/mod.ts";
+export type { ITypeInfo } from "https://deno.land/x/cliffy@v0.25.0/flags/mod.ts";
 export type { Payload } from "https://deno.land/x/djwt@v2.7/mod.ts";
-export type { Row } from "https://deno.land/x/sqlite@v3.4.0/mod.ts";
+export type { Row } from "https://deno.land/x/sqlite@v3.4.1/mod.ts";
 export type {
   Json,
-  StoreType
+  StoreType,
 } from "https://raw.githubusercontent.com/truestamp/deno-conf/v1.0.6/mod.ts";
 export {
   appPaths,
@@ -42,24 +42,23 @@ export {
   readAllSync,
   setConfigKeyForEnv,
   sleep,
+  Table,
   Truestamp,
   validate,
   ValidationError,
   verify,
-  Table,
 };
 
+import { DB } from "https://deno.land/x/sqlite@v3.4.1/mod.ts";
 
-import { DB } from "https://deno.land/x/sqlite@v3.4.0/mod.ts";
-
-import { colors } from "https://deno.land/x/cliffy@v0.24.2/ansi/colors.ts";
-import { CompletionsCommand } from "https://deno.land/x/cliffy@v0.24.2/command/completions/mod.ts";
-import { HelpCommand } from "https://deno.land/x/cliffy@v0.24.2/command/help/mod.ts";
+import { colors } from "https://deno.land/x/cliffy@v0.25.0/ansi/colors.ts";
+import { CompletionsCommand } from "https://deno.land/x/cliffy@v0.25.0/command/completions/mod.ts";
+import { HelpCommand } from "https://deno.land/x/cliffy@v0.25.0/command/help/mod.ts";
 import {
   Command,
   EnumType,
-  ValidationError
-} from "https://deno.land/x/cliffy@v0.24.2/command/mod.ts";
+  ValidationError,
+} from "https://deno.land/x/cliffy@v0.25.0/command/mod.ts";
 
 import Conf from "https://raw.githubusercontent.com/truestamp/deno-conf/v1.0.6/mod.ts";
 
@@ -68,7 +67,7 @@ import { appPaths } from "https://raw.githubusercontent.com/truestamp/deno-app-p
 import {
   getConfigForEnv,
   getConfigKeyForEnv,
-  setConfigKeyForEnv
+  setConfigKeyForEnv,
 } from "./config.ts";
 
 import {
@@ -76,7 +75,7 @@ import {
   getAccessTokenWithPrompts,
   getConfigAccessToken,
   getConfigIdTokenPayload,
-  getConfigRefreshToken
+  getConfigRefreshToken,
 } from "./auth.ts";
 
 // See : https://www.skypack.dev/view/@truestamp/truestamp-js
@@ -86,4 +85,4 @@ import Truestamp from "https://cdn.skypack.dev/@truestamp/truestamp-js@~v0.13.1?
 import { verify } from "https://cdn.skypack.dev/@truestamp/verify@~v0.3.0?dts";
 import { createTruestampClient } from "./truestamp.ts";
 
-import { Table } from "https://deno.land/x/cliffy@v0.24.2/table/mod.ts";
+import { Table } from "https://deno.land/x/cliffy@v0.25.0/table/mod.ts";

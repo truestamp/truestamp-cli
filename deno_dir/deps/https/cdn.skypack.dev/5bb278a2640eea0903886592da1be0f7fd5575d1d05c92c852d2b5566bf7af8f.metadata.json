@@ -1,28 +1,26 @@
 {
   "headers": {
-    "content-length": "2787",
-    "cf-cache-status": "HIT",
-    "x-vercel-id": "iad1::sfo1::4lfhj-1660404845103-8a59994888bb",
-    "report-to": "{\"endpoints\":[{\"url\":\"https:\\/\\/a.nel.cloudflare.com\\/report\\/v3?s=JE07NGrp64q19drokgDbkdZO85kMiT2aXWLlGYtkR%2BrDrKhtaXNivsrWB3QE42nMzeoP7Xhk0OAEJgkMCC4hWWfYGyPVIoWsLK7yZOu0uzdjiFa9eBLCHXk46TQuavOPlg%3D%3D\"}],\"group\":\"cf-nel\",\"max_age\":604800}",
-    "alt-svc": "h3=\":443\"; ma=86400, h3-29=\":443\"; ma=86400",
-    "x-vercel-cache": "HIT",
-    "access-control-allow-origin": "*",
-    "cache-control": "public, max-age=31536000, immutable",
+    "x-vercel-cache": "MISS",
     "nel": "{\"success_fraction\":0,\"report_to\":\"cf-nel\",\"max_age\":604800}",
-    "strict-transport-security": "max-age=63072000",
-    "expect-ct": "max-age=604800, report-uri=\"https://report-uri.cloudflare.com/cdn-cgi/beacon/expect-ct\"",
-    "server": "cloudflare",
     "content-type": "application/typescript; charset=utf-8",
-    "date": "Sat, 13 Aug 2022 18:54:45 GMT",
-    "etag": "W/\"ae3-vohaMETd88RGKNybvPy5MJU9xNU\"",
-    "cf-ray": "73a3a93e1c1d6fcd-IAD",
-    "age": "12040",
+    "cf-cache-status": "MISS",
+    "report-to": "{\"endpoints\":[{\"url\":\"https:\\/\\/a.nel.cloudflare.com\\/report\\/v3?s=ZBAUWyIRvlelJpvdfrlCphehzy%2FIQwXFY7nK11De43VZyonnyfzykNimb27QV%2BSVG%2BiJ1p6PfuGn7ttaNLM%2BylopRdU4id4cIeYCdxqvK%2B4QD%2FbuG4QlnKAJDt9W9SbjSw%3D%3D\"}],\"group\":\"cf-nel\",\"max_age\":604800}",
+    "server": "cloudflare",
+    "x-vercel-id": "iad1::sfo1::6dfqg-1662838699021-95334bc06a8d",
+    "date": "Sat, 10 Sep 2022 19:38:19 GMT",
+    "strict-transport-security": "max-age=63072000",
     "accept-ranges": "bytes",
+    "access-control-allow-origin": "*",
+    "cf-ray": "748a9f8c3fa57f9e-IAD",
+    "cache-control": "public, max-age=31536000, immutable",
+    "content-length": "2787",
+    "etag": "W/\"ae3-vohaMETd88RGKNybvPy5MJU9xNU\"",
+    "alt-svc": "h3=\":443\"; ma=86400, h3-29=\":443\"; ma=86400",
     "vary": "Accept-Encoding"
   },
   "url": "https://cdn.skypack.dev/-/@truestamp/verify@v0.3.0-clDDGWV3dbJ6LCwmJATQ/dist=es2019,mode=types/lib/modules/verify.d.ts",
   "now": {
-    "secs_since_epoch": 1660417162,
-    "nanos_since_epoch": 819689000
+    "secs_since_epoch": 1662838699,
+    "nanos_since_epoch": 468454000
   }
 }

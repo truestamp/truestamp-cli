@@ -10,7 +10,7 @@ ARGS := --unstable --allow-env --allow-net --allow-read --allow-write --lock=${L
 build: clean prep build-darwin-x86 build-darwin-aarch64 build-windows build-linux compress
 
 build-local:
-	export DENO_DIR=${DENO_DIR} && deno compile --output=truestamp ${ARGS} ${SRC}
+	rm -f ./truestamp && export DENO_DIR=${DENO_DIR} && deno compile --output=./truestamp ${ARGS} ${SRC}
 
 build-darwin-x86:
 	export DENO_DIR=${DENO_DIR} && deno compile --target=x86_64-apple-darwin --output=${BUILD_DIR}/truestamp-darwin-x86_64 ${ARGS} ${SRC}
@@ -62,8 +62,13 @@ format:
 format-watch:
 	export DENO_DIR=${DENO_DIR} && deno fmt --unstable --watch src
 
-depsbot:
-	npx depsbot
+# https://github.com/hayd/deno-udd
+outdated-update:
+	 udd src/deps.ts
+
+# https://github.com/hayd/deno-udd
+outdated-check:
+	 udd --dry-run src/deps.ts
 
 info:
 	deno info src/cli.ts

@@ -1,28 +1,26 @@
 {
   "headers": {
-    "cf-ray": "73a3a93cba096fcd-IAD",
-    "etag": "W/\"35-N4CclvlhVG2aOn9mfGmFpifng7k\"",
-    "vary": "Accept-Encoding",
-    "nel": "{\"success_fraction\":0,\"report_to\":\"cf-nel\",\"max_age\":604800}",
     "access-control-allow-origin": "*",
     "content-length": "53",
-    "cache-control": "public, max-age=31536000, immutable",
     "strict-transport-security": "max-age=63072000",
-    "accept-ranges": "bytes",
-    "alt-svc": "h3=\":443\"; ma=86400, h3-29=\":443\"; ma=86400",
-    "x-vercel-id": "iad1::sfo1::sjvdm-1660404845044-39a4a69f054e",
-    "cf-cache-status": "HIT",
-    "date": "Sat, 13 Aug 2022 18:54:45 GMT",
-    "x-vercel-cache": "HIT",
+    "vary": "Accept-Encoding",
+    "etag": "W/\"35-N4CclvlhVG2aOn9mfGmFpifng7k\"",
     "server": "cloudflare",
-    "age": "12040",
-    "report-to": "{\"endpoints\":[{\"url\":\"https:\\/\\/a.nel.cloudflare.com\\/report\\/v3?s=Z8Y%2FC10RXgvwu6kJovaSN4h9ERS9zdmZqNqAHouOtxBHMCN2HHzuQoE2O9JBt7GCFHnQuu%2BdNhVW9X8kC43VJRkxdWzs0LCsR5OmE9fwSdmtm0%2FRJ0U0LMHqGNO4qgpJLQ%3D%3D\"}],\"group\":\"cf-nel\",\"max_age\":604800}",
+    "alt-svc": "h3=\":443\"; ma=86400, h3-29=\":443\"; ma=86400",
+    "report-to": "{\"endpoints\":[{\"url\":\"https:\\/\\/a.nel.cloudflare.com\\/report\\/v3?s=n%2B77r9XwPQKmipcgiz5YND2jpSh80nwcMW6P3N1xvCCIbYnWbqmK1jI3esqFIUfifxLJsXC7uXfAPARTj5TUTLySkAMGymNcmFmSEJi4WR%2BOrxSknugQfDQfR%2F2mr4S3YQ%3D%3D\"}],\"group\":\"cf-nel\",\"max_age\":604800}",
     "content-type": "application/typescript; charset=utf-8",
-    "expect-ct": "max-age=604800, report-uri=\"https://report-uri.cloudflare.com/cdn-cgi/beacon/expect-ct\""
+    "cf-ray": "748a9f8f8d877f9e-IAD",
+    "date": "Sat, 10 Sep 2022 19:38:19 GMT",
+    "nel": "{\"success_fraction\":0,\"report_to\":\"cf-nel\",\"max_age\":604800}",
+    "accept-ranges": "bytes",
+    "x-vercel-cache": "MISS",
+    "cache-control": "public, max-age=31536000, immutable",
+    "x-vercel-id": "iad1::sfo1::zmcsb-1662838699465-ee21c7775340",
+    "cf-cache-status": "MISS"
   },
   "url": "https://cdn.skypack.dev/-/zod@v3.18.0-o9af7JvHQqkesyIUExjW/dist=es2019,mode=types/index.d.ts",
   "now": {
-    "secs_since_epoch": 1660417162,
-    "nanos_since_epoch": 529783000
+    "secs_since_epoch": 1662838699,
+    "nanos_since_epoch": 804018000
   }
 }

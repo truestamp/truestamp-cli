@@ -1,25 +1,24 @@
 {
   "headers": {
-    "vary": "Accept-Encoding",
-    "report-to": "{\"endpoints\":[{\"url\":\"https:\\/\\/a.nel.cloudflare.com\\/report\\/v3?s=%2Bo7Y8AKMrVMekPpVxTFdPEsR3l3CYu%2Frnqm17cfShoCCm1mHMPB7N0iJjl5fMSu5RF1BFpWIRN00IYFU3W3EztPzHyPxIs4HPWberMXqlmiL4almg1XWWdB0ka5hrMELYg%3D%3D\"}],\"group\":\"cf-nel\",\"max_age\":604800}",
-    "location": "/-/@truestamp/truestamp-js@v0.13.1-rQ2b4iVmfg4KZw4enqpI/dist=es2019,mode=types/dist/health/index.d.ts",
-    "strict-transport-security": "max-age=63072000",
-    "server": "cloudflare",
-    "content-length": "0",
-    "date": "Sat, 13 Aug 2022 18:54:45 GMT",
+    "cf-cache-status": "MISS",
+    "x-vercel-id": "iad1::sfo1::rh2rq-1662838699159-dbd4710c04cd",
     "access-control-allow-origin": "*",
     "x-vercel-cache": "MISS",
-    "cf-ray": "73a3a93d5b036fcd-IAD",
-    "cf-cache-status": "EXPIRED",
     "nel": "{\"success_fraction\":0,\"report_to\":\"cf-nel\",\"max_age\":604800}",
-    "alt-svc": "h3=\":443\"; ma=86400, h3-29=\":443\"; ma=86400",
+    "vary": "Accept-Encoding",
     "cache-control": "public, max-age=0, must-revalidate",
-    "expect-ct": "max-age=604800, report-uri=\"https://report-uri.cloudflare.com/cdn-cgi/beacon/expect-ct\"",
-    "x-vercel-id": "iad1::sfo1::ft6h5-1660416885361-4c9f83b2bfb1"
+    "strict-transport-security": "max-age=63072000",
+    "date": "Sat, 10 Sep 2022 19:38:19 GMT",
+    "location": "/-/@truestamp/truestamp-js@v0.13.1-rQ2b4iVmfg4KZw4enqpI/dist=es2019,mode=types/dist/health/index.d.ts",
+    "alt-svc": "h3=\":443\"; ma=86400, h3-29=\":443\"; ma=86400",
+    "content-length": "0",
+    "server": "cloudflare",
+    "cf-ray": "748a9f8daa197f9e-IAD",
+    "report-to": "{\"endpoints\":[{\"url\":\"https:\\/\\/a.nel.cloudflare.com\\/report\\/v3?s=0Q%2BZCWtvl%2Bsp%2FnPSj6kcdXhrGZrC73Bx5IXC0t37Se59WKbub2zjMRmoLD0RLAhjPxJqbeNsuWRa7SzwalXpeTaGIgvzvcu69v9LK8WK%2BNoDdlJi%2BsV1Qv2XqFZj7l0Uew%3D%3D\"}],\"group\":\"cf-nel\",\"max_age\":604800}"
   },
   "url": "https://cdn.skypack.dev/-/@truestamp/truestamp-js@v0.13.1-rQ2b4iVmfg4KZw4enqpI/dist=es2019,mode=types/dist/health.d.ts",
   "now": {
-    "secs_since_epoch": 1660417163,
-    "nanos_since_epoch": 256599000
+    "secs_since_epoch": 1662838699,
+    "nanos_since_epoch": 692614000
   }
 }

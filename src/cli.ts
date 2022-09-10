@@ -6,7 +6,7 @@ import {
   CompletionsCommand,
   EnumType,
   HelpCommand,
-  ValidationError
+  ValidationError,
 } from "./deps.ts";
 
 import { auth } from "./commands/auth.ts";
@@ -26,6 +26,9 @@ const cmd = new Command()
   .name("truestamp")
   .version("0.0.18") // RELEASE VERSION : BUMP VERSION HERE
   .description("Truestamp CLI")
+  .meta("deno", Deno.version.deno)
+  .meta("v8", Deno.version.v8)
+  .meta("typescript", Deno.version.typescript)
   .help({
     types: false,
     hints: true,
@@ -78,7 +81,7 @@ const cmd = new Command()
   .action(() => {
     cmd.showHelp();
   })
-  .command("auth", auth.reset())
+  .command("auth", auth)
   .command("commitments", commitments)
   .command("items", items)
   .command("completions", new CompletionsCommand())

@@ -1,28 +1,26 @@
 {
   "headers": {
-    "expect-ct": "max-age=604800, report-uri=\"https://report-uri.cloudflare.com/cdn-cgi/beacon/expect-ct\"",
-    "strict-transport-security": "max-age=63072000",
     "access-control-allow-origin": "*",
-    "nel": "{\"success_fraction\":0,\"report_to\":\"cf-nel\",\"max_age\":604800}",
-    "x-vercel-cache": "HIT",
+    "strict-transport-security": "max-age=63072000",
     "content-type": "application/typescript; charset=utf-8",
-    "cf-cache-status": "HIT",
-    "etag": "W/\"261-WNX0Mt31IFv1QSY2G8K9yTi6XNA\"",
-    "cache-control": "public, max-age=31536000, immutable",
-    "vary": "Accept-Encoding",
-    "cf-ray": "73a3a941d9fc6fcd-IAD",
-    "alt-svc": "h3=\":443\"; ma=86400, h3-29=\":443\"; ma=86400",
-    "age": "12041",
-    "date": "Sat, 13 Aug 2022 18:54:46 GMT",
-    "report-to": "{\"endpoints\":[{\"url\":\"https:\\/\\/a.nel.cloudflare.com\\/report\\/v3?s=qdPtb2nLY8CvAVXaJIL%2B95MOF1BdMv2ltmU1W62tKNlD5OMJRbgT5DlZ4U2d1jW3%2FddTCJhWn%2ByyLos5AKlrUzPF3F%2BdcN6jwa9XLBo5qHXNLg7UaLaStGiL0l8h1zfxhQ%3D%3D\"}],\"group\":\"cf-nel\",\"max_age\":604800}",
+    "report-to": "{\"endpoints\":[{\"url\":\"https:\\/\\/a.nel.cloudflare.com\\/report\\/v3?s=QqtFrgv0%2BRVa%2F2Lmqm%2FacDrX0psLUFo5UMrsLaRTAsZkUFPcbz24ua%2FdioPDISr6ciGrjN9EcuEsP6eHopO%2FVTqjc1OBX%2FfE0iTGSitWX%2BzoZvVlmuak7K456eZPYld7Nw%3D%3D\"}],\"group\":\"cf-nel\",\"max_age\":604800}",
     "server": "cloudflare",
+    "content-length": "609",
+    "x-vercel-id": "iad1::sfo1::x8rdx-1662838701753-2e03edbd451a",
+    "x-vercel-cache": "MISS",
+    "vary": "Accept-Encoding",
+    "date": "Sat, 10 Sep 2022 19:38:22 GMT",
+    "cache-control": "public, max-age=31536000, immutable",
     "accept-ranges": "bytes",
-    "x-vercel-id": "iad1::sfo1::p8b25-1660404845713-96dbcbc88a65",
-    "content-length": "609"
+    "cf-cache-status": "MISS",
+    "nel": "{\"success_fraction\":0,\"report_to\":\"cf-nel\",\"max_age\":604800}",
+    "alt-svc": "h3=\":443\"; ma=86400, h3-29=\":443\"; ma=86400",
+    "etag": "W/\"261-WNX0Mt31IFv1QSY2G8K9yTi6XNA\"",
+    "cf-ray": "748a9f9dd8f47f9e-IAD"
   },
   "url": "https://cdn.skypack.dev/-/zod@v3.18.0-o9af7JvHQqkesyIUExjW/dist=es2019,mode=types/lib/helpers/enumUtil.d.ts",
   "now": {
-    "secs_since_epoch": 1660417163,
-    "nanos_since_epoch": 323007000
+    "secs_since_epoch": 1662838702,
+    "nanos_since_epoch": 167707000
   }
 }

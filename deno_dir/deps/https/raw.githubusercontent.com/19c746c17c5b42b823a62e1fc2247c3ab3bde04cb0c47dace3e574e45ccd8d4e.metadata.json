@@ -1,30 +1,30 @@
 {
   "headers": {
-    "accept-ranges": "bytes",
-    "date": "Sat, 13 Aug 2022 18:54:44 GMT",
-    "via": "1.1 varnish",
+    "date": "Sat, 10 Sep 2022 19:38:17 GMT",
+    "x-fastly-request-id": "4a1b554ed4c167101ec8c2619c10577188759b0c",
+    "x-cache": "MISS",
     "etag": "W/\"584ee676b29e515752926bcd1a6cbb7f693c35fd10864796948992be9008ed72\"",
-    "cache-control": "max-age=300",
-    "vary": "Authorization,Accept-Encoding,Origin",
-    "access-control-allow-origin": "*",
-    "x-content-type-options": "nosniff",
-    "x-cache-hits": "1",
-    "content-type": "text/plain; charset=utf-8",
-    "x-fastly-request-id": "56f66747cdef8e416dfd867b696821302dbfb426",
-    "expires": "Sat, 13 Aug 2022 18:59:44 GMT",
-    "strict-transport-security": "max-age=31536000",
-    "content-security-policy": "default-src 'none'; style-src 'unsafe-inline'; sandbox",
-    "x-timer": "S1660416885.801992,VS0,VE77",
-    "source-age": "0",
     "x-frame-options": "deny",
-    "x-served-by": "cache-iad-kiad7000168-IAD",
-    "x-github-request-id": "C710:988C:29036D:37E32A:62F7DFEB",
-    "x-cache": "HIT",
-    "x-xss-protection": "1; mode=block"
+    "x-xss-protection": "1; mode=block",
+    "source-age": "0",
+    "content-type": "text/plain; charset=utf-8",
+    "x-cache-hits": "0",
+    "x-timer": "S1662838698.892446,VS0,VE86",
+    "access-control-allow-origin": "*",
+    "cache-control": "max-age=300",
+    "content-security-policy": "default-src 'none'; style-src 'unsafe-inline'; sandbox",
+    "x-content-type-options": "nosniff",
+    "x-github-request-id": "85E2:80CE:1837AE:29CE56:631CE7A9",
+    "expires": "Sat, 10 Sep 2022 19:43:17 GMT",
+    "strict-transport-security": "max-age=31536000",
+    "x-served-by": "cache-iad-kiad7000105-IAD",
+    "via": "1.1 varnish",
+    "vary": "Authorization,Accept-Encoding,Origin",
+    "accept-ranges": "bytes"
   },
   "url": "https://raw.githubusercontent.com/truestamp/deno-app-paths/v1.1.0/mod.ts",
   "now": {
-    "secs_since_epoch": 1660417162,
-    "nanos_since_epoch": 151453000
+    "secs_since_epoch": 1662838697,
+    "nanos_since_epoch": 984666000
   }
 }

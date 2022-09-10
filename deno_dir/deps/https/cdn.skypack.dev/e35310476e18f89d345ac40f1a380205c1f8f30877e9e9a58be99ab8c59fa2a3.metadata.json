@@ -1,28 +1,26 @@
 {
   "headers": {
-    "nel": "{\"success_fraction\":0,\"report_to\":\"cf-nel\",\"max_age\":604800}",
-    "access-control-allow-origin": "*",
-    "strict-transport-security": "max-age=63072000",
-    "vary": "Accept-Encoding",
-    "cf-cache-status": "HIT",
-    "date": "Sat, 13 Aug 2022 18:54:46 GMT",
-    "alt-svc": "h3=\":443\"; ma=86400, h3-29=\":443\"; ma=86400",
-    "etag": "W/\"117-HxvDmJdGEFGBkUwEy0Q8fU/UOFg\"",
-    "x-vercel-cache": "HIT",
+    "cf-cache-status": "MISS",
     "content-length": "279",
-    "content-type": "application/typescript; charset=utf-8",
     "accept-ranges": "bytes",
-    "cache-control": "public, max-age=31536000, immutable",
-    "age": "12041",
+    "report-to": "{\"endpoints\":[{\"url\":\"https:\\/\\/a.nel.cloudflare.com\\/report\\/v3?s=n%2BS7RjPdhDktlbW5w7lR4tAtaZs9iDwTXj7rT2JjSenTPIwxb4Yu1WfamRLqmSkXb5bH1gKy3Go%2BwYJmwh5UX0sNJRx0j2NCHmK3PH8HFB1yCno28Gg0Y2A2aooL9zgL5w%3D%3D\"}],\"group\":\"cf-nel\",\"max_age\":604800}",
+    "vary": "Accept-Encoding",
+    "access-control-allow-origin": "*",
+    "x-vercel-cache": "MISS",
+    "alt-svc": "h3=\":443\"; ma=86400, h3-29=\":443\"; ma=86400",
     "server": "cloudflare",
-    "x-vercel-id": "iad1::sfo1::h65gt-1660404845468-54edb5487476",
-    "cf-ray": "73a3a941797a6fcd-IAD",
-    "report-to": "{\"endpoints\":[{\"url\":\"https:\\/\\/a.nel.cloudflare.com\\/report\\/v3?s=9vTBJgiSZgZH75QgWLixWiFp3R3lpmK72%2B12%2FLV77HToBrx%2F6q7ovYaJiwpqx2Jd1fepfhKwfxLwl%2B5Dg0erMvi4p%2BONS3GfFqoVCK5EG3MscFHYLrivG2Tnzy%2BgvTU5Sw%3D%3D\"}],\"group\":\"cf-nel\",\"max_age\":604800}",
-    "expect-ct": "max-age=604800, report-uri=\"https://report-uri.cloudflare.com/cdn-cgi/beacon/expect-ct\""
+    "cache-control": "public, max-age=31536000, immutable",
+    "x-vercel-id": "iad1::sfo1::5h7q6-1662838699712-8292b3602538",
+    "date": "Sat, 10 Sep 2022 19:38:20 GMT",
+    "strict-transport-security": "max-age=63072000",
+    "cf-ray": "748a9f9118887f9e-IAD",
+    "etag": "W/\"117-HxvDmJdGEFGBkUwEy0Q8fU/UOFg\"",
+    "nel": "{\"success_fraction\":0,\"report_to\":\"cf-nel\",\"max_age\":604800}",
+    "content-type": "application/typescript; charset=utf-8"
   },
   "url": "https://cdn.skypack.dev/-/@truestamp/truestamp-js@v0.13.1-rQ2b4iVmfg4KZw4enqpI/dist=es2019,mode=types/dist/health/index.d.ts",
   "now": {
-    "secs_since_epoch": 1660417163,
-    "nanos_since_epoch": 276109000
+    "secs_since_epoch": 1662838700,
+    "nanos_since_epoch": 68873000
   }
 }

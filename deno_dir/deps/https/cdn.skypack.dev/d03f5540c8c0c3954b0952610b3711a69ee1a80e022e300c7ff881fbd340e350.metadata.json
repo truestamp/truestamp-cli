@@ -1,28 +1,26 @@
 {
   "headers": {
+    "x-vercel-cache": "MISS",
     "etag": "W/\"217-ngWD3FgI58sCXtgcHKkD6hon1Dg\"",
-    "access-control-allow-origin": "*",
     "cache-control": "public, max-age=31536000, immutable",
-    "content-length": "535",
-    "expect-ct": "max-age=604800, report-uri=\"https://report-uri.cloudflare.com/cdn-cgi/beacon/expect-ct\"",
-    "strict-transport-security": "max-age=63072000",
     "nel": "{\"success_fraction\":0,\"report_to\":\"cf-nel\",\"max_age\":604800}",
-    "report-to": "{\"endpoints\":[{\"url\":\"https:\\/\\/a.nel.cloudflare.com\\/report\\/v3?s=S33cXZhUXKi9W5BOHfRxG6COAGqFO9nNWLEKBjO3mEikUl8thl6xwILS9m0lvSBSF1WNDBOASNOcTcPZFH6G6aVnRlFxPutAvAwUkVjvQ60aZow%2BOw46doE0Yho9KxCq8w%3D%3D\"}],\"group\":\"cf-nel\",\"max_age\":604800}",
-    "cf-cache-status": "HIT",
-    "alt-svc": "h3=\":443\"; ma=86400, h3-29=\":443\"; ma=86400",
-    "date": "Sat, 13 Aug 2022 18:54:45 GMT",
-    "vary": "Accept-Encoding",
-    "cf-ray": "73a3a93d5aff6fcd-IAD",
-    "x-vercel-cache": "HIT",
-    "age": "12040",
+    "strict-transport-security": "max-age=63072000",
+    "cf-cache-status": "MISS",
+    "content-length": "535",
     "content-type": "application/typescript; charset=utf-8",
-    "x-vercel-id": "iad1::sfo1::d6xtb-1660404845051-c567be3ad9bd",
     "server": "cloudflare",
-    "accept-ranges": "bytes"
+    "accept-ranges": "bytes",
+    "access-control-allow-origin": "*",
+    "x-vercel-id": "iad1::sfo1::w9cdg-1662838699158-b9287957530f",
+    "vary": "Accept-Encoding",
+    "report-to": "{\"endpoints\":[{\"url\":\"https:\\/\\/a.nel.cloudflare.com\\/report\\/v3?s=vJNVpiq19LnQQPiVjpjekWpRdjFcYDs8JkdGcR8Uwt%2FZXn%2FUhwU55HYm6sefRTbs4cCokvAZunkl9DiHN5%2Boegeks%2BGfAqCerWr0Qrhg45tlJWKKliqAZQHW3zRcrb7WYg%3D%3D\"}],\"group\":\"cf-nel\",\"max_age\":604800}",
+    "cf-ray": "748a9f8daa167f9e-IAD",
+    "date": "Sat, 10 Sep 2022 19:38:19 GMT",
+    "alt-svc": "h3=\":443\"; ma=86400, h3-29=\":443\"; ma=86400"
   },
   "url": "https://cdn.skypack.dev/-/@truestamp/truestamp-js@v0.13.1-rQ2b4iVmfg4KZw4enqpI/dist=es2019,mode=types/dist/base.d.ts",
   "now": {
-    "secs_since_epoch": 1660417162,
-    "nanos_since_epoch": 690455000
+    "secs_since_epoch": 1662838699,
+    "nanos_since_epoch": 482710000
   }
 }

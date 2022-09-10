@@ -119,7 +119,7 @@ HTTP request to third-party blockchain API servers will originate from this loca
       if (verification.verified) {
         logSelectedOutputFormat(
           {
-            text: 'Verification Results \n',
+            text: "Verification Results \n",
             json: verification,
           },
           options.output,
@@ -129,7 +129,7 @@ HTTP request to third-party blockchain API servers will originate from this loca
           const table: Table = Table.from([]);
           table.push(["Verified?", "Yes"]);
 
-          let verifyUrlBase
+          let verifyUrlBase;
           switch (options.env) {
             case "development":
               verifyUrlBase = "http://localhost:3000";
@@ -144,7 +144,10 @@ HTTP request to third-party blockchain API servers will originate from this loca
               throw new Error(`Unknown environment: ${options.env}`);
           }
 
-          table.push(["Verify URL", `${verifyUrlBase}/${options.id.replace("truestamp-", "")}`]);
+          table.push([
+            "Verify URL",
+            `${verifyUrlBase}/${options.id.replace("truestamp-", "")}`,
+          ]);
 
           table.push(["ID", options.id]);
 
@@ -165,7 +168,7 @@ HTTP request to third-party blockchain API servers will originate from this loca
           if (verification.commitsTo?.timestamps.submittedBefore) {
             table.push([
               "Submitted Before",
-              verification.commitsTo.timestamps.submittedBefore.join('\n'),
+              verification.commitsTo.timestamps.submittedBefore.join("\n"),
             ]);
           }
 
@@ -186,11 +189,13 @@ HTTP request to third-party blockchain API servers will originate from this loca
           if (verification.commitsTo?.hashes) {
             table.push([
               "Hashes",
-              verification.commitsTo.hashes.map((t) => `${t.hash} [${t.hashType}]`).join('\n'),
+              verification.commitsTo.hashes.map((t) =>
+                `${t.hash} [${t.hashType}]`
+              ).join("\n"),
             ]);
           }
 
-          table.indent(2)
+          table.indent(2);
           table.render();
         }
       } else {

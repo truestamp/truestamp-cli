@@ -1,27 +1,25 @@
 {
   "headers": {
-    "expect-ct": "max-age=604800, report-uri=\"https://report-uri.cloudflare.com/cdn-cgi/beacon/expect-ct\"",
-    "server": "cloudflare",
-    "etag": "W/\"3c06b-Zdw2YgGF7wqhTjIVqQPEAK7TsFM\"",
-    "access-control-allow-origin": "*",
-    "access-control-expose-headers": "Content-Length, X-Imports",
-    "cache-control": "public, max-age=31536000, immutable",
-    "cf-cache-status": "HIT",
-    "nel": "{\"success_fraction\":0,\"report_to\":\"cf-nel\",\"max_age\":604800}",
-    "strict-transport-security": "max-age=63072000",
-    "date": "Sat, 13 Aug 2022 18:54:45 GMT",
-    "report-to": "{\"endpoints\":[{\"url\":\"https:\\/\\/a.nel.cloudflare.com\\/report\\/v3?s=LTdPavquMLAu0LTmXOWxgU3zGtFa9sKAHjlpsFgCBPO2hSb%2Bgs%2FPpahMl7CuG87IIRh3DvHbnPDe%2Bwll2lHtwz3u8PYpxqEXwyEBxpY5Msq7AYHuH2Qd2rwy5ztkNaQX9g%3D%3D\"}],\"group\":\"cf-nel\",\"max_age\":604800}",
-    "x-vercel-cache": "MISS",
-    "age": "12320",
-    "alt-svc": "h3=\":443\"; ma=86400, h3-29=\":443\"; ma=86400",
     "content-type": "application/javascript; charset=utf-8",
+    "cf-cache-status": "MISS",
+    "access-control-expose-headers": "Content-Length, X-Imports",
+    "report-to": "{\"endpoints\":[{\"url\":\"https:\\/\\/a.nel.cloudflare.com\\/report\\/v3?s=PDxVyzDVIEDhn5i9d5mFZjUHo%2BSrnPDMthiEmyB3i8OO5N3GE3WZ3wmSAhmIXPQ1EHf%2BC%2BSaSEwp23GdBUNR1DoltTAO7OlYYQPjz8NDP90ZQSMao4m4quFrY4CQJTQbCA%3D%3D\"}],\"group\":\"cf-nel\",\"max_age\":604800}",
+    "etag": "W/\"3c06b-Zdw2YgGF7wqhTjIVqQPEAK7TsFM\"",
+    "server": "cloudflare",
+    "alt-svc": "h3=\":443\"; ma=86400, h3-29=\":443\"; ma=86400",
+    "strict-transport-security": "max-age=63072000",
+    "cache-control": "public, max-age=31536000, immutable",
+    "date": "Sat, 10 Sep 2022 19:38:19 GMT",
+    "x-vercel-cache": "MISS",
+    "nel": "{\"success_fraction\":0,\"report_to\":\"cf-nel\",\"max_age\":604800}",
     "vary": "Accept-Encoding",
-    "x-vercel-id": "iad1::sfo1::698jp-1660404565044-99824dadcd76",
-    "cf-ray": "73a3a93d3ac86fcd-IAD"
+    "cf-ray": "748a9f8aad147f9e-IAD",
+    "access-control-allow-origin": "*",
+    "x-vercel-id": "iad1::sfo1::p4wg6-1662838698685-ac04c4fde962"
   },
   "url": "https://cdn.skypack.dev/-/@truestamp/truestamp-js@v0.13.1-rQ2b4iVmfg4KZw4enqpI/dist=es2019,mode=imports/optimized/@truestamp/truestamp-js.js",
   "now": {
-    "secs_since_epoch": 1660417162,
-    "nanos_since_epoch": 613151000
+    "secs_since_epoch": 1662838699,
+    "nanos_since_epoch": 396260000
   }
 }
