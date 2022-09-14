@@ -98,17 +98,20 @@ async function callTokenEndpoint(
   env: string,
   deviceCode: string,
 ): Promise<Response> {
-  const resp = await fetch(`https://${getAuth0DomainForEnv(env)}/oauth/token`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
+  const resp = await fetch(
+    `https://${getAuth0DomainForEnv(env)}/oauth/token`,
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        client_id: getAuth0ClientIdForEnv(env),
+        device_code: deviceCode,
+        grant_type: "urn:ietf:params:oauth:grant-type:device_code",
+      }),
     },
-    body: JSON.stringify({
-      client_id: getAuth0ClientIdForEnv(env),
-      device_code: deviceCode,
-      grant_type: "urn:ietf:params:oauth:grant-type:device_code",
-    }),
-  });
+  );
   return resp;
 }
 
@@ -215,7 +218,11 @@ function setTokensInConfig(
 ): void {
   try {
     if (tokens.refresh_token) {
-      setConfigKeyForEnv(env, "auth0_refresh_token", tokens.refresh_token);
+      setConfigKeyForEnv(
+        env,
+        "auth0_refresh_token",
+        tokens.refresh_token,
+      );
     }
     setConfigKeyForEnv(env, "auth0_access_token", tokens.access_token);
     setConfigKeyForEnv(env, "auth0_expires_in", tokens.expires_in);
@@ -300,7 +307,9 @@ export async function getAccessTokenWithPrompts(env: string): Promise<string> {
       ),
     );
     console.log(
-      colors.bold.underline.blue(deviceCodeResp.verification_uri_complete),
+      colors.bold.underline.blue(
+        deviceCodeResp.verification_uri_complete,
+      ),
     );
     console.log("");
   } else {

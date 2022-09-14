@@ -1,7 +1,8 @@
 {
   "deno.enable": true,
   "deno.lint": true,
-  "deno.unstable": true,
+  "deno.unstable": false,
+  "deno.importMap": "./import_map.json",
   "deno.suggest.imports.hosts": {
     "https://deno.land/": true,
     "http://deno.land": true
@@ -11,6 +12,9 @@
     "source.fixAll": true,
     "source.organizeImports": true
   },
+  "deno.codeLens.implementations": true,
+  "deno.codeLens.references": true,
+  "deno.codeLens.referencesAllFunctions": true,
   "editor.defaultFormatter": "denoland.vscode-deno",
   "editor.formatOnSave": true,
   "editor.formatOnPaste": false,

@@ -5,9 +5,9 @@ the [truestamp-js](https://github.com/truestamp/truestamp-js) library to
 communicate with the [Truestamp API](https://docs.truestamp.com/api/intro).
 
 This CLI is built using [Deno](https://deno.land/). The platforms we support are
-determined by the set that Deno
-[currently supports](https://deno.land/manual@v1.25.2/tools/compiler
-for cross-compilation.
+determined by the set that Deno [currently
+supports](<https://deno.land/manual@v1.25.2/tools/compiler> for
+cross-compilation.
 
 Deno creates a single-file binary that makes download and installation easy. The
 binaries have no pre-requisites that need to be installed ahead of time.
@@ -117,7 +117,11 @@ with `-h`, `--help`, or simply `help` to learn more.
 $ ./truestamp -h
 
   Usage:   truestamp
-  Version: 0.0.16
+  Version: 0.0.19
+
+  deno: 1.25.2
+  v8: 10.6.194.5
+  typescript: 4.7.4
 
   Description:
 
@@ -136,7 +140,7 @@ $ ./truestamp -h
 
     auth                    - Login, logout, or check login status. Create API keys.
     commitments             - Read or verify Commitments for Items.
-    items                   - Create, read, or update Items.
+    items                   - Create or update Items.
     completions             - Generate shell completions.
     help         [command]  - Show this help or the help of a sub-command.
 
@@ -151,11 +155,11 @@ $ ./truestamp -h
 
 For developers who want to build their own copy of the CLI.
 
-Additional commands are available in the `Makefile`.
+Additional task are available in the `deno.json`.
 
 ### Local
 
-`make build-local`
+`deno task build-local`
 
 ### Shared
 

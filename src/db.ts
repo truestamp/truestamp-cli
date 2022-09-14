@@ -1,6 +1,8 @@
 // Copyright © 2020-2022 Truestamp Inc. All rights reserved.
 
-import { appPaths, DB, decodeUnsafely, Row } from "./deps.ts";
+import { appPaths, DB, Row } from "./deps.ts";
+
+import { decodeUnsafely } from "@truestamp/id";
 
 // e.g.  sqlite3 "/Users/glenn/Library/Application Support/com.truestamp.cli.development/db.sqlite3"
 export function createDataDir(env: string): string {
@@ -12,6 +14,7 @@ export function createDataDir(env: string): string {
 export function writeItemToDb(
   env: string,
   id: string,
+  // deno-lint-ignore no-explicit-any
   envelope: Record<string, any>,
 ): void {
   const dbDir = createDataDir(env);

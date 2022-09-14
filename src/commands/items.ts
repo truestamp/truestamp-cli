@@ -208,7 +208,9 @@ Pipe JSON content to the 'items create' command using '--input json' plus the '-
     }
 
     if (!options.input && path) {
-      throw new ValidationError('Argument "path" depends on option "--input".');
+      throw new ValidationError(
+        'Argument "path" depends on option "--input".',
+      );
     }
 
     let jsonItem, altHash, altHashType, stdInData;
@@ -253,7 +255,9 @@ Pipe JSON content to the 'items create' command using '--input json' plus the '-
       // await copy(file, Deno.stdout);
 
       const data = await readAllSync(file);
-      const hash = new Uint8Array(await crypto.subtle.digest("SHA-256", data));
+      const hash = new Uint8Array(
+        await crypto.subtle.digest("SHA-256", data),
+      );
       const hashHex = Array.from(
         hash,
         (byte) => byte.toString(16).padStart(2, "0"),
@@ -504,7 +508,10 @@ Pipe JSON content to the 'items update' command using '--input json' plus the '-
         const decoder = new TextDecoder();
         jsonItem = JSON.parse(decoder.decode(data));
       } else if (options.input === "json" && path) {
-        const file = await Deno.open(path, { read: true, write: false });
+        const file = await Deno.open(path, {
+          read: true,
+          write: false,
+        });
         // await copy(file, Deno.stdout);
 
         const data = await readAllSync(file);
@@ -533,7 +540,10 @@ Pipe JSON content to the 'items update' command using '--input json' plus the '-
         altHash = hashHex;
         altHashType = "sha-256";
       } else if (options.input === "binary" && path) {
-        const file = await Deno.open(path, { read: true, write: false });
+        const file = await Deno.open(path, {
+          read: true,
+          write: false,
+        });
         // await copy(file, Deno.stdout);
 
         const data = await readAllSync(file);

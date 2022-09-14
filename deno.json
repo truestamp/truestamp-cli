@@ -1,0 +1,84 @@
+{
+  "compilerOptions": {
+    "allowJs": true,
+    "allowUnreachableCode": false,
+    "allowUnusedLabels": false,
+    "alwaysStrict": true,
+    "checkJs": false,
+    "lib": ["deno.window"],
+    "noFallthroughCasesInSwitch": true,
+    "noImplicitAny": true,
+    "noImplicitOverride": false,
+    "noImplicitReturns": true,
+    "noImplicitThis": true,
+    "noStrictGenericChecks": false,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "noUncheckedIndexedAccess": false,
+    "strict": true,
+    "strictBindCallApply": true,
+    "strictFunctionTypes": true,
+    "strictPropertyInitialization": true,
+    "strictNullChecks": true,
+    "suppressExcessPropertyErrors": false,
+    "suppressImplicitAnyIndexErrors": false
+  },
+  "importMap": "import_map.json",
+  "lint": {
+    "files": {
+      "include": ["src/"],
+      "exclude": ["src/testdata/"]
+    },
+    "rules": {
+      "tags": ["recommended"],
+      "include": ["ban-untagged-todo"],
+      "exclude": ["no-unused-vars"]
+    }
+  },
+  "fmt": {
+    "files": {
+      "include": ["src/"],
+      "exclude": ["src/testdata/"]
+    },
+    "options": {
+      "useTabs": false,
+      "lineWidth": 80,
+      "indentWidth": 2,
+      "singleQuote": false,
+      "proseWrap": "always"
+    }
+  },
+  "tasks": {
+    "npm:add": "deno run -A https://esm.sh/v94 add",
+    "npm:update": "deno run -A https://esm.sh/v94 update",
+    "npm:remove": "deno run -A https://esm.sh/v94 remove",
+    "clean": "rm -f ./truestamp && rm -rf ./build",
+    "build-local": "rm -f ./truestamp && export DENO_DIR=./deno_dir && deno compile --output=./truestamp --allow-env --allow-net --allow-read --allow-write --import-map ./import_map.json src/cli.ts",
+    "build-darwin-x86": "rm -f ./build/truestamp-darwin-x86_64 && export DENO_DIR=./deno_dir && deno compile --target=x86_64-apple-darwin --output=./build/truestamp-darwin-x86_64 --allow-env --allow-net --allow-read --allow-write --import-map ./import_map.json src/cli.ts",
+    "build-darwin-aarch64": "rm -f ./build/truestamp-darwin-aarch64 && export DENO_DIR=./deno_dir && deno compile --target=aarch64-apple-darwin --output=./build/truestamp-darwin-aarch64 --allow-env --allow-net --allow-read --allow-write --import-map ./import_map.json src/cli.ts",
+    "build-linux-x86": "rm -f ./build/truestamp-linux-x86_64 && export DENO_DIR=./deno_dir && deno compile --target=x86_64-unknown-linux-gnu --output=./build/truestamp-linux-x86_64 --allow-env --allow-net --allow-read --allow-write --import-map ./import_map.json src/cli.ts",
+    "build-windows": "rm -f ./build/truestamp-windows && export DENO_DIR=./deno_dir && deno compile --target=x86_64-pc-windows-msvc --output=./build/truestamp-windows --allow-env --allow-net --allow-read --allow-write --import-map ./import_map.json src/cli.ts",
+    "build": "mkdir -p ./build && deno task build-local && deno task build-darwin-x86 && deno task build-darwin-aarch64 && deno task build-linux-x86 && deno task build-windows && deno task compress",
+    "compress-darwin": "make compress-darwin",
+    "compress-linux": "make compress-linux",
+    "compress-windows": "make compress-windows",
+    "compress": "deno task compress-darwin && deno task compress-linux && deno task compress-windows",
+    "test": "deno test --allow-env --allow-net --allow-read --allow-write --import-map ./import_map.json src/test.ts",
+    "format": "deno fmt src/",
+    "format-watch": "deno fmt --watch src/",
+    "lint": "deno lint src/",
+    "check": "deno task lint && deno task format && deno task test",
+    "info": "deno info --import-map ./import_map.json src/cli.ts",
+    "run": "deno run --allow-env --allow-net --allow-read --allow-write --import-map ./import_map.json src/cli.ts",
+    "run-help": "deno run --allow-env --allow-net --allow-read --allow-write --import-map ./import_map.json src/cli.ts --help",
+    "run-version": "deno run --allow-env --allow-net --allow-read --allow-write --import-map ./import_map.json src/cli.ts --version",
+    "outdated": "udd --dry-run src/deps.ts",
+    "upgrade": "udd src/deps.ts"
+  },
+  "test": {
+    "files": {
+      "include": ["src/"],
+      "exclude": ["src/testdata/"]
+    }
+  }
+}

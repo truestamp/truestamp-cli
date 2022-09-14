@@ -1,6 +1,8 @@
 // Copyright © 2020-2022 Truestamp Inc. All rights reserved.
 
-import { getAccessTokenWithPrompts, Truestamp } from "./deps.ts";
+import { getAccessTokenWithPrompts } from "./deps.ts";
+
+import Truestamp from "@truestamp/truestamp-js";
 
 export async function createTruestampClient(
   env: string,

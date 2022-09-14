@@ -150,7 +150,9 @@ const authStatus = new Command<
         const ts = await createTruestampClient(options.env);
         await ts.getHealth();
       } catch (error) {
-        throw new Error(`logged out : access check failed : ${error.message}`);
+        throw new Error(
+          `logged out : access check failed : ${error.message}`,
+        );
       }
 
       try {

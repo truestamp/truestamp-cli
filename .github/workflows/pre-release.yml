@@ -15,13 +15,13 @@ jobs:
       - name: Setup Deno
         uses: denoland/setup-deno@v1
         with:
-          deno-version: v1.22.x
+          deno-version: v1.25.x
       - name: Build RELEASE.txt
         run: echo ${{ github.sha }} > RELEASE.txt
       - name: Log Release
         run: cat RELEASE.txt
       - name: Build
-        run: make build
+        run: deno task build
       - name: Build CHECKSUMS-SHA2-256.txt
         run: find ./build -type f -exec sha256sum {} \; > CHECKSUMS-SHA2-256.txt
       - name: Log Checksums

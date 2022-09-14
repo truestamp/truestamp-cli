@@ -1,6 +1,0 @@
-import { Base } from "../base.d.ts";
-import { ItemResponse, ItemRequest } from "../types.d.ts";
-export declare class Items extends Base {
-    createItem(item: ItemRequest): Promise<ItemResponse>;
-    updateItem(id: string, item: ItemRequest): Promise<ItemResponse>;
-}

@@ -1,10 +1,12 @@
 // Copyright © 2020-2022 Truestamp Inc. All rights reserved.
 
-import { Command, createTruestampClient, Table, verify } from "../deps.ts";
+import { Command, createTruestampClient, Table } from "../deps.ts";
 
 import { logSelectedOutputFormat } from "../utils.ts";
 
 import { environmentType, outputType } from "../cli.ts";
+
+import { verify } from "@truestamp/verify";
 
 const commitmentsRead = new Command<
   {
@@ -141,7 +143,9 @@ HTTP request to third-party blockchain API servers will originate from this loca
               verifyUrlBase = "https://verify.truestamp.com";
               break;
             default:
-              throw new Error(`Unknown environment: ${options.env}`);
+              throw new Error(
+                `Unknown environment: ${options.env}`,
+              );
           }
 
           table.push([
@@ -168,14 +172,19 @@ HTTP request to third-party blockchain API servers will originate from this loca
           if (verification.commitsTo?.timestamps.submittedBefore) {
             table.push([
               "Submitted Before",
-              verification.commitsTo.timestamps.submittedBefore.join("\n"),
+              verification.commitsTo.timestamps.submittedBefore
+                .join("\n"),
             ]);
           }
 
-          if (verification.commitsTo?.timestamps.submitWindowMilliseconds) {
+          if (
+            verification.commitsTo?.timestamps
+              .submitWindowMilliseconds
+          ) {
             table.push([
               "Submitted Window (ms)",
-              verification.commitsTo.timestamps.submitWindowMilliseconds,
+              verification.commitsTo.timestamps
+                .submitWindowMilliseconds,
             ]);
           }
 
@@ -189,9 +198,9 @@ HTTP request to third-party blockchain API servers will originate from this loca
           if (verification.commitsTo?.hashes) {
             table.push([
               "Hashes",
-              verification.commitsTo.hashes.map((t) =>
-                `${t.hash} [${t.hashType}]`
-              ).join("\n"),
+              verification.commitsTo.hashes.map((
+                t: Record<string, string>,
+              ) => `${t.hash} [${t.hashType}]`).join("\n"),
             ]);
           }
 

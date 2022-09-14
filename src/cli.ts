@@ -6,7 +6,7 @@ import {
   CompletionsCommand,
   EnumType,
   HelpCommand,
-  ValidationError
+  ValidationError,
 } from "./deps.ts";
 
 import { auth } from "./commands/auth.ts";

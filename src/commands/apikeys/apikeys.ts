@@ -51,7 +51,9 @@ const apiKeyCreate = new Command<
     const refreshToken = getConfigRefreshToken(options.env);
 
     if (!refreshToken) {
-      console.error("logged out, you need to 'truestamp auth login' first");
+      console.error(
+        "logged out, you need to 'truestamp auth login' first",
+      );
       Deno.exit(1);
     }
 
