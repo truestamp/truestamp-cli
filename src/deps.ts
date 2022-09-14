@@ -4,7 +4,7 @@ import { crypto } from "https://deno.land/std@0.155.0/crypto/mod.ts";
 import { parse } from "https://deno.land/std@0.155.0/path/mod.ts";
 import {
   copy,
-  readAllSync
+  readAllSync,
 } from "https://deno.land/std@0.155.0/streams/conversion.ts";
 
 import { sleep } from "https://deno.land/x/sleep@v1.2.1/mod.ts";
@@ -19,7 +19,7 @@ import { HelpCommand } from "https://deno.land/x/cliffy@v0.25.1/command/help/mod
 import {
   Command,
   EnumType,
-  ValidationError
+  ValidationError,
 } from "https://deno.land/x/cliffy@v0.25.1/command/mod.ts";
 
 import Conf from "https://raw.githubusercontent.com/truestamp/deno-conf/v1.0.6/mod.ts";
@@ -29,7 +29,7 @@ import { appPaths } from "https://raw.githubusercontent.com/truestamp/deno-app-p
 import {
   getConfigForEnv,
   getConfigKeyForEnv,
-  setConfigKeyForEnv
+  setConfigKeyForEnv,
 } from "./config.ts";
 
 import {
@@ -37,7 +37,7 @@ import {
   getAccessTokenWithPrompts,
   getConfigAccessToken,
   getConfigIdTokenPayload,
-  getConfigRefreshToken
+  getConfigRefreshToken,
 } from "./auth.ts";
 
 import { createTruestampClient } from "./truestamp.ts";
@@ -49,7 +49,7 @@ export type { Payload } from "https://deno.land/x/djwt@v2.7/mod.ts";
 export type { Row } from "https://deno.land/x/sqlite@v3.5.0/mod.ts";
 export type {
   Json,
-  StoreType
+  StoreType,
 } from "https://raw.githubusercontent.com/truestamp/deno-conf/v1.0.6/mod.ts";
 export {
   appPaths,
@@ -79,4 +79,3 @@ export {
   validate,
   ValidationError,
 };
-

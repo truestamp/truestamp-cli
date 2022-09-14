@@ -80,6 +80,14 @@ See the example sections below for detailed usage examples.
       conflicts: ["hash", "hash-type"],
     },
   )
+  .option(
+    "--no-net-metadata",
+    "disable recording edge network request metadata signals.",
+  )
+  .option(
+    "--no-observable-entropy",
+    "disable recording observable entropy signals.",
+  )
   .arguments("[path]")
   .example(
     "SHA-256 : openssl",
@@ -278,13 +286,19 @@ Pipe JSON content to the 'items create' command using '--input json' plus the '-
       let itemResp;
 
       if (jsonItem) {
-        itemResp = await ts.createItem(jsonItem);
+        itemResp = await ts.createItem(jsonItem, {
+          skipCF: !options.netMetadata,
+          skipOE: !options.observableEntropy,
+        });
       } else if (options.hash && options.hashType) {
         itemResp = await ts.createItem({
           itemData: [{
             hash: options.hash,
             hashType: <HashTypes> options.hashType,
           }],
+        }, {
+          skipCF: !options.netMetadata,
+          skipOE: !options.observableEntropy,
         });
       } else if (altHash && altHashType) {
         itemResp = await ts.createItem({
@@ -292,6 +306,9 @@ Pipe JSON content to the 'items create' command using '--input json' plus the '-
             hash: altHash,
             hashType: <HashTypes> altHashType,
           }],
+        }, {
+          skipCF: !options.netMetadata,
+          skipOE: !options.observableEntropy,
         });
       } else {
         throw new Error("No hash or hash-type provided");
@@ -420,6 +437,14 @@ See the example sections below for detailed usage examples.
     {
       conflicts: ["hash", "hash-type"],
     },
+  )
+  .option(
+    "--no-net-metadata",
+    "disable recording edge network request metadata signals.",
+  )
+  .option(
+    "--no-observable-entropy",
+    "disable recording observable entropy signals.",
   )
   .arguments("[path]")
   .example(
@@ -565,13 +590,19 @@ Pipe JSON content to the 'items update' command using '--input json' plus the '-
         let itemResp;
 
         if (jsonItem) {
-          itemResp = await ts.updateItem(options.id, jsonItem);
+          itemResp = await ts.updateItem(options.id, jsonItem, {
+            skipCF: !options.netMetadata,
+            skipOE: !options.observableEntropy,
+          });
         } else if (options.hash && options.hashType) {
           itemResp = await ts.updateItem(options.id, {
             itemData: [{
               hash: options.hash,
               hashType: <HashTypes> options.hashType,
             }],
+          }, {
+            skipCF: !options.netMetadata,
+            skipOE: !options.observableEntropy,
           });
         } else if (altHash && altHashType) {
           itemResp = await ts.updateItem(options.id, {
@@ -579,6 +610,9 @@ Pipe JSON content to the 'items update' command using '--input json' plus the '-
               hash: altHash,
               hashType: <HashTypes> altHashType,
             }],
+          }, {
+            skipCF: !options.netMetadata,
+            skipOE: !options.observableEntropy,
           });
         } else {
           throw new Error("No hash or hashType provided");
