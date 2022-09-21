@@ -1,25 +1,25 @@
 // Copyright © 2020-2022 Truestamp Inc. All rights reserved.
 
-import { appPaths, DB, Row } from "./deps.ts";
+import { appPaths, DB, Row } from "./deps.ts"
 
-import { decodeUnsafely } from "@truestamp/id";
+import { decodeUnsafely } from "@truestamp/id"
 
 // e.g.  sqlite3 "/Users/glenn/Library/Application Support/com.truestamp.cli.development/db.sqlite3"
 export function createDataDir(env: string): string {
-  const appDir = appPaths(`com.truestamp.cli.${env}`);
-  Deno.mkdirSync(appDir.data, { recursive: true });
-  return appDir.data;
+  const appDir = appPaths(`com.truestamp.cli.${env}`)
+  Deno.mkdirSync(appDir.data, { recursive: true })
+  return appDir.data
 }
 
 export function writeItemToDb(
   env: string,
   id: string,
   // deno-lint-ignore no-explicit-any
-  envelope: Record<string, any>,
+  envelope: Record<string, any>
 ): void {
-  const dbDir = createDataDir(env);
+  const dbDir = createDataDir(env)
   // console.log(`${dbDir}/db.sqlite3`)
-  const db = new DB(`${dbDir}/db.sqlite3`);
+  const db = new DB(`${dbDir}/db.sqlite3`)
 
   db.query(`
 CREATE TABLE IF NOT EXISTS items (
@@ -27,21 +27,21 @@ CREATE TABLE IF NOT EXISTS items (
   id_json TEXT NOT NULL,
   envelope_json TEXT NOT NULL
 )
-`);
+`)
 
-  const decodedId = decodeUnsafely(id);
+  const decodedId = decodeUnsafely(id)
 
   db.query(
     "INSERT INTO items (id, id_json, envelope_json) VALUES (?, json(?), json(?))",
-    [id, JSON.stringify(decodedId), JSON.stringify(envelope)],
-  );
+    [id, JSON.stringify(decodedId), JSON.stringify(envelope)]
+  )
 
   // // Print out data in table
   // for (const [id] of db.query("SELECT id FROM items")) {
   //   console.log(id);
   // }
 
-  db.close();
+  db.close()
 }
 
 // See : https://stackoverflow.com/questions/33432421/sqlite-json1-example-for-json-extract-set
@@ -56,23 +56,23 @@ CREATE TABLE IF NOT EXISTS items (
 // 72ef467524c22a2d17607ad7a818c30ce17d21d51b8a8ef0b36c0f2c4e2b679b
 
 export function getItemEnvelopesByUlid(env: string, ulid: string): Row[] {
-  const dbDir = createDataDir(env);
-  const db = new DB(`${dbDir}/db.sqlite3`);
+  const dbDir = createDataDir(env)
+  const db = new DB(`${dbDir}/db.sqlite3`)
   const result = db.query(
     "SELECT envelope_json FROM items WHERE json_extract(id_json, '$.ulid') IS ?",
-    [ulid],
-  );
-  db.close();
-  return result;
+    [ulid]
+  )
+  db.close()
+  return result
 }
 
 export function getItemHashById(env: string, id: string): Row[] {
-  const dbDir = createDataDir(env);
-  const db = new DB(`${dbDir}/db.sqlite3`);
+  const dbDir = createDataDir(env)
+  const db = new DB(`${dbDir}/db.sqlite3`)
   const result = db.query(
     "SELECT json_extract(items.envelope_json, '$.data.hash') FROM items WHERE id IS ?;",
-    [id],
-  );
-  db.close();
-  return result;
+    [id]
+  )
+  db.close()
+  return result
 }

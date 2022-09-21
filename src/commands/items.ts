@@ -7,30 +7,32 @@ import {
   parse as pathParse,
   readAllSync,
   ValidationError,
-} from "../deps.ts";
+} from "../deps.ts"
 
-import { logSelectedOutputFormat } from "../utils.ts";
+import {
+  logSelectedOutputFormat,
+  RFC7807ErrorSchema,
+  throwApiError,
+} from "../utils.ts"
 
-import { createDataDir, writeItemToDb } from "../db.ts";
+import { createDataDir, writeItemToDb } from "../db.ts"
 
-import { environmentType, outputType } from "../cli.ts";
+import { environmentType, outputType } from "../cli.ts"
 
-export const inputType = new EnumType(["binary", "json"]);
+export const inputType = new EnumType(["binary", "json"])
 
 // Limit the available hash types for now to those that are supported by the browser
 // and crypto.subtle.digest
 // https://developer.mozilla.org/en-US/docs/Web/API/SubtleCrypto/digest#syntax
-const HASH_TYPES = ["sha-1", "sha-256", "sha-384", "sha-512"];
+const HASH_TYPES = ["sha-1", "sha-256", "sha-384", "sha-512"]
 
-type HashTypes = "sha1" | "sha-256" | "sha-384" | "sha-512";
+type HashTypes = "sha1" | "sha-256" | "sha-384" | "sha-512"
 
-const itemsCreate = new Command<
-  {
-    env: typeof environmentType;
-    apiKey?: string;
-    output: typeof outputType;
-  }
->()
+const itemsCreate = new Command<{
+  env: typeof environmentType
+  apiKey?: string
+  output: typeof outputType
+}>()
   .description(
     `Create a new Item.
 
@@ -42,7 +44,7 @@ An Item Id will be returned in the response that identifies the Item and its tem
 
 See the example sections below for detailed usage examples.
 
-`,
+`
   )
   .option(
     "-H, --hash <hash:string>",
@@ -51,18 +53,18 @@ See the example sections below for detailed usage examples.
       required: false,
       conflicts: ["stdin", "input"],
       depends: ["hash-type"],
-    },
+    }
   )
   .option(
     "-t, --hash-type <hashType:string>",
-    `A hash function type. Hash byte length is validated against type. Accepts ${
-      HASH_TYPES.join(", ")
-    }.`,
+    `A hash function type. Hash byte length is validated against type. Accepts ${HASH_TYPES.join(
+      ", "
+    )}.`,
     {
       required: false,
       conflicts: ["stdin", "input"],
       depends: ["hash"],
-    },
+    }
   )
   .option(
     "-s, --stdin",
@@ -70,7 +72,7 @@ See the example sections below for detailed usage examples.
     {
       conflicts: ["hash", "hash-type"],
       depends: ["input"],
-    },
+    }
   )
   .type("input", inputType)
   .option(
@@ -78,15 +80,15 @@ See the example sections below for detailed usage examples.
     "Input format. If 'binary' is provided the file will be hashed and a new Item constructed and submitted. If 'json' is provided the file not be hashed and will be submitted as-is. JSON content must match the structure expected by the API in all cases. If submitting arbitrary JSON files that are not of the shape the API expects, use 'binary'.",
     {
       conflicts: ["hash", "hash-type"],
-    },
+    }
   )
   .option(
     "--no-net-metadata",
-    "disable recording edge network request metadata signals.",
+    "disable recording edge network request metadata signals."
   )
   .option(
     "--no-observable-entropy",
-    "disable recording observable entropy signals.",
+    "disable recording observable entropy signals."
   )
   .arguments("[path]")
   .example(
@@ -107,7 +109,7 @@ get the hash of a string of text or file (note single quotes) using:
   $ echo -n 'Hello World' | openssl dgst -sha256 -hex
   a591a6d40bf420404a011733cfb7b190d62c65bf0bcda32b57b277d9ad9f146e
 
-`,
+`
   )
   .example(
     "SHA-256 : sha256sum",
@@ -132,7 +134,7 @@ You can install the sha256sum command on macOS with Homebrew:
   # Install : https://brew.sh/
   $ brew install coreutils
 
-`,
+`
   )
   .example(
     "SHA-256 : browser",
@@ -147,7 +149,7 @@ is a pretty simple to use example:
   # Drag and drop a file:
   https://emn178.github.io/online-tools/sha256_checksum.html
 
-`,
+`
   )
   .example(
     "Submit from hash",
@@ -157,7 +159,7 @@ Using the SHA-256 hash from the examples above:
 
   $ truestamp items create --hash a591a6d40bf420404a011733cfb7b190d62c65bf0bcda32b57b277d9ad9f146e --hash-type sha-256
 
-  `,
+  `
   )
   .example(
     "STDIN File",
@@ -171,7 +173,7 @@ Pipe content to the 'items create' command using '--input binary' plus the '--st
   $ cat hello.txt | truestamp items create --input binary -
   $ cat hello.txt | truestamp items create --input binary --stdin
 
-  `,
+  `
   )
   .example(
     "FILE Path",
@@ -179,7 +181,7 @@ Pipe content to the 'items create' command using '--input binary' plus the '--st
 
   $ truestamp items create --input binary hello.txt
 
-  `,
+  `
   )
   .example(
     "JSON STDIN",
@@ -196,7 +198,7 @@ Pipe JSON content to the 'items create' command using '--input json' plus the '-
   $ cat hello.json | truestamp items create --input json -
   $ cat hello.json | truestamp items create --input json --stdin
 
-  `,
+  `
   )
   .example(
     "JSON FILE Path",
@@ -204,40 +206,36 @@ Pipe JSON content to the 'items create' command using '--input json' plus the '-
 
   $ truestamp items create --input json hello.json
 
-  `,
+  `
   )
   .action(async (options, path?: string) => {
-    const ts = await createTruestampClient(options.env, options.apiKey);
+    const truestamp = await createTruestampClient(options.env, options.apiKey)
 
     if (!options.input && options.stdin) {
-      throw new ValidationError(
-        'Option "--stdin" depends on option "--input".',
-      );
+      throw new ValidationError('Option "--stdin" depends on option "--input".')
     }
 
     if (!options.input && path) {
-      throw new ValidationError(
-        'Argument "path" depends on option "--input".',
-      );
+      throw new ValidationError('Argument "path" depends on option "--input".')
     }
 
-    let jsonItem, altHash, altHashType, stdInData;
+    let jsonItem, altHash, altHashType, stdInData
 
     // If the user provided JSON STDIN using the '--input json' and '--stdin' options or the '-' or a file path argument, parse
     // the contents of STDIN and pass it directly to the Truestamp client as a complete Item object.
     if (options.input === "json" && (options.stdin || path === "-")) {
-      stdInData = await readAllSync(Deno.stdin);
-      const decoder = new TextDecoder();
-      jsonItem = JSON.parse(decoder.decode(stdInData));
+      stdInData = await readAllSync(Deno.stdin)
+      const decoder = new TextDecoder()
+      jsonItem = JSON.parse(decoder.decode(stdInData))
     } else if (options.input === "json" && path) {
-      const file = await Deno.open(path, { read: true, write: false });
+      const file = await Deno.open(path, { read: true, write: false })
       // await copy(file, Deno.stdout);
 
-      const data = await readAllSync(file);
-      const decoder = new TextDecoder();
-      jsonItem = JSON.parse(decoder.decode(data));
+      const data = await readAllSync(file)
+      const decoder = new TextDecoder()
+      jsonItem = JSON.parse(decoder.decode(data))
 
-      file.close();
+      file.close()
     }
 
     // If the user provided non-JSON STDIN using the '--stdin' flag or the '-' argument, read the contents
@@ -247,34 +245,30 @@ Pipe JSON content to the 'items create' command using '--input json' plus the '-
     if (options.input === "binary" && (options.stdin || path === "-")) {
       // await copy(Deno.stdin, Deno.stdout);
 
-      stdInData = await readAllSync(Deno.stdin);
+      stdInData = await readAllSync(Deno.stdin)
       const hash = new Uint8Array(
-        await crypto.subtle.digest("SHA-256", stdInData),
-      );
-      const hashHex = Array.from(
-        hash,
-        (byte) => byte.toString(16).padStart(2, "0"),
-      ).join("");
+        await crypto.subtle.digest("SHA-256", stdInData)
+      )
+      const hashHex = Array.from(hash, (byte) =>
+        byte.toString(16).padStart(2, "0")
+      ).join("")
       // console.log(`SHA-256(stdin) = ${hashHex}`)
-      altHash = hashHex;
-      altHashType = "sha-256";
+      altHash = hashHex
+      altHashType = "sha-256"
     } else if (options.input === "binary" && path) {
-      const file = await Deno.open(path, { read: true, write: false });
+      const file = await Deno.open(path, { read: true, write: false })
       // await copy(file, Deno.stdout);
 
-      const data = await readAllSync(file);
-      const hash = new Uint8Array(
-        await crypto.subtle.digest("SHA-256", data),
-      );
-      const hashHex = Array.from(
-        hash,
-        (byte) => byte.toString(16).padStart(2, "0"),
-      ).join("");
+      const data = await readAllSync(file)
+      const hash = new Uint8Array(await crypto.subtle.digest("SHA-256", data))
+      const hashHex = Array.from(hash, (byte) =>
+        byte.toString(16).padStart(2, "0")
+      ).join("")
       // console.log(`SHA-256(stdin) = ${hashHex}`)
-      altHash = hashHex;
-      altHashType = "sha-256";
+      altHash = hashHex
+      altHashType = "sha-256"
 
-      file.close();
+      file.close()
     }
 
     // If the user provided a hash and a hash-type, validate the hash and hash-type
@@ -282,102 +276,102 @@ Pipe JSON content to the 'items create' command using '--input json' plus the '-
     // but instead had provided the '--stdin' flag or the '-' path argument,
     // or an actual path, create the Item with the hash and hash-type from the
     // STDIN or file.
-    try {
-      let itemResp;
+    let itemResp
 
-      if (jsonItem) {
-        itemResp = await ts.createItem(jsonItem, {
-          skipCF: !options.netMetadata,
-          skipOE: !options.observableEntropy,
-        });
-      } else if (options.hash && options.hashType) {
-        itemResp = await ts.createItem({
-          itemData: [{
-            hash: options.hash,
-            hashType: <HashTypes> options.hashType,
-          }],
-        }, {
-          skipCF: !options.netMetadata,
-          skipOE: !options.observableEntropy,
-        });
-      } else if (altHash && altHashType) {
-        itemResp = await ts.createItem({
-          itemData: [{
-            hash: altHash,
-            hashType: <HashTypes> altHashType,
-          }],
-        }, {
-          skipCF: !options.netMetadata,
-          skipOE: !options.observableEntropy,
-        });
-      } else {
-        throw new Error("No hash or hash-type provided");
-      }
-
-      // console.log(JSON.stringify(itemResp, null, 2));
-
-      // store the item in the local database
-      writeItemToDb(options.env, itemResp.id, itemResp);
-
-      // console.log(getItemHashById(getEnv(options), itemResp.id));
-
-      // If a path or STDIN was provided it is helpful to archive the contents of the file
-      // and tightly associate it with the returned Item Id/envelope.
-      // Copy the binary or JSON file to the common data directory.
-      // Name it with the Item Id concatenated with its original name or use 'stdin'.
-      if (options.input && (options.stdin || path === "-")) {
-        // Copy the data passed as STDIN to the common data directory for archival purposes
-        const dataDir = createDataDir(options.env);
-        const fileDir = `${dataDir}/files`;
-        await Deno.mkdir(fileDir, { recursive: true });
-        const filePath = `${fileDir}/${itemResp.id}--stdin`;
-
-        if (stdInData) {
-          await Deno.writeFile(filePath, stdInData);
-          // console.log(filePath)
-        }
-      } else if (options.input && path) {
-        // Copy the data passed as a file path to the common data directory for archival purposes
-        const dataDir = createDataDir(options.env);
-        const fileDir = `${dataDir}/files`;
-        await Deno.mkdir(fileDir, { recursive: true });
-        const filePath = `${fileDir}/${itemResp.id}--${pathParse(path).base}`;
-        // console.log(filePath)
-        await Deno.copyFile(path, filePath);
-      }
-
-      logSelectedOutputFormat(
+    if (jsonItem) {
+      itemResp = await truestamp.createItem(jsonItem, {
+        skipCF: !options.netMetadata,
+        skipOE: !options.observableEntropy,
+      })
+    } else if (options.hash && options.hashType) {
+      itemResp = await truestamp.createItem(
         {
-          text: itemResp.id,
-          json: { id: itemResp.id },
+          itemData: [
+            {
+              hash: options.hash,
+              hashType: <HashTypes>options.hashType,
+            },
+          ],
         },
-        options.output,
-      );
-    } catch (error) {
-      const { response } = error;
-
-      if (response) {
-        // HTTPResponseError
-        // This is a custom error type thrown by truestamp-js and
-        // has a 'response' property which can be awaited to get the full
-        // HTTP response, including body with error info.
-        // https://developer.mozilla.org/en-US/docs/Web/API/Fetch_API/Using_Fetch#body
-        const { status, code, description } = await response.json();
-        throw new Error(`${status} : ${code} : ${description}`);
-      } else {
-        // is a generic Error
-        throw error;
-      }
+        {
+          skipCF: !options.netMetadata,
+          skipOE: !options.observableEntropy,
+        }
+      )
+    } else if (altHash && altHashType) {
+      itemResp = await truestamp.createItem(
+        {
+          itemData: [
+            {
+              hash: altHash,
+              hashType: <HashTypes>altHashType,
+            },
+          ],
+        },
+        {
+          skipCF: !options.netMetadata,
+          skipOE: !options.observableEntropy,
+        }
+      )
+    } else {
+      throw new Error("No hash or hash-type provided")
     }
-  });
 
-const itemsUpdate = new Command<
-  {
-    env: typeof environmentType;
-    apiKey?: string;
-    output: typeof outputType;
-  }
->()
+    if (!itemResp.success) {
+      const parseResult = RFC7807ErrorSchema.safeParse(itemResp.data)
+      throwApiError(
+        "item creation error",
+        parseResult.success ? parseResult.data : undefined
+      )
+    }
+
+    const { data } = itemResp
+    const { id } = data
+
+    // store the item in the local database
+    writeItemToDb(options.env, id, itemResp)
+
+    // console.log(getItemHashById(getEnv(options), itemResp.id));
+
+    // If a path or STDIN was provided it is helpful to archive the contents of the file
+    // and tightly associate it with the returned Item Id/envelope.
+    // Copy the binary or JSON file to the common data directory.
+    // Name it with the Item Id concatenated with its original name or use 'stdin'.
+    if (options.input && (options.stdin || path === "-")) {
+      // Copy the data passed as STDIN to the common data directory for archival purposes
+      const dataDir = createDataDir(options.env)
+      const fileDir = `${dataDir}/files`
+      await Deno.mkdir(fileDir, { recursive: true })
+      const filePath = `${fileDir}/${id}--stdin`
+
+      if (stdInData) {
+        await Deno.writeFile(filePath, stdInData)
+        // console.log(filePath)
+      }
+    } else if (options.input && path) {
+      // Copy the data passed as a file path to the common data directory for archival purposes
+      const dataDir = createDataDir(options.env)
+      const fileDir = `${dataDir}/files`
+      await Deno.mkdir(fileDir, { recursive: true })
+      const filePath = `${fileDir}/${id}--${pathParse(path).base}`
+      // console.log(filePath)
+      await Deno.copyFile(path, filePath)
+    }
+
+    logSelectedOutputFormat(
+      {
+        text: id,
+        json: { id: id },
+      },
+      options.output
+    )
+  })
+
+const itemsUpdate = new Command<{
+  env: typeof environmentType
+  apiKey?: string
+  output: typeof outputType
+}>()
   .description(
     `Update an existing Item by replacing it with a new one.
 
@@ -393,15 +387,11 @@ An Item Id will be returned in the response that identifies the Item and its tem
 
 See the example sections below for detailed usage examples.
 
-`,
+`
   )
-  .option(
-    "-i, --id <id:string>",
-    "An Item Id to update.",
-    {
-      required: true, // BUG : https://github.com/c4spar/deno-cliffy/issues/436
-    },
-  )
+  .option("-i, --id <id:string>", "An Item Id to update.", {
+    required: true, // BUG : https://github.com/c4spar/deno-cliffy/issues/436
+  })
   .option(
     "-H, --hash <hash:string>",
     "An Item hash encoded as a Hex (Base16) string.",
@@ -409,18 +399,18 @@ See the example sections below for detailed usage examples.
       required: false,
       conflicts: ["stdin", "input"],
       depends: ["hash-type"],
-    },
+    }
   )
   .option(
     "-t, --hash-type <hashType:string>",
-    `A hash function type. Hash byte length is validated against type. Accepts ${
-      HASH_TYPES.join(", ")
-    }.`,
+    `A hash function type. Hash byte length is validated against type. Accepts ${HASH_TYPES.join(
+      ", "
+    )}.`,
     {
       required: false,
       conflicts: ["stdin", "input"],
       depends: ["hash"],
-    },
+    }
   )
   .option(
     "-s, --stdin",
@@ -428,7 +418,7 @@ See the example sections below for detailed usage examples.
     {
       conflicts: ["hash", "hash-type"],
       depends: ["input"],
-    },
+    }
   )
   .type("input", inputType)
   .option(
@@ -436,15 +426,15 @@ See the example sections below for detailed usage examples.
     "Input format. If 'binary' is provided the file will be hashed and an updated Item constructed and submitted. If 'json' is provided the file not be hashed and will be submitted as-is. JSON content must match the structure expected by the API in all cases. If submitting arbitrary JSON files that are not of the shape the API expects, use 'binary'.",
     {
       conflicts: ["hash", "hash-type"],
-    },
+    }
   )
   .option(
     "--no-net-metadata",
-    "disable recording edge network request metadata signals.",
+    "disable recording edge network request metadata signals."
   )
   .option(
     "--no-observable-entropy",
-    "disable recording observable entropy signals.",
+    "disable recording observable entropy signals."
   )
   .arguments("[path]")
   .example(
@@ -456,7 +446,7 @@ See the example sections below for detailed usage examples.
 
   $ truestamp items update --id truestamp-2SF5JQLhBHmtRC35G6z4M7bjhcnJrGs99nEg6reqW61ThzXLx1pzk3VXjNQsw --hash 63df103e8ebcabdf86d8f13e98a02063fef1da8065335ec0dd978378951534d6 --hash-type sha-256
 
-  `,
+  `
   )
   .example(
     "STDIN File",
@@ -470,7 +460,7 @@ Pipe content to the 'items update' command using the '--stdin' option or the '-'
   $ cat hello.txt | truestamp items update --id truestamp-2SF5JQLhBHmtRC35G6z4M7bjhcnJrGs99nEg6reqW61ThzXLx1pzk3VXjNQsw --input binary -
   $ cat hello.txt | truestamp items update --stdin --input binary --id truestamp-2SF5JQLhBHmtRC35G6z4M7bjhcnJrGs99nEg6reqW61ThzXLx1pzk3VXjNQsw
 
-  `,
+  `
   )
   .example(
     "FILE Path",
@@ -478,7 +468,7 @@ Pipe content to the 'items update' command using the '--stdin' option or the '-'
 
   $ truestamp items update --id truestamp-2SF5JQLhBHmtRC35G6z4M7bjhcnJrGs99nEg6reqW61ThzXLx1pzk3VXjNQsw --input binary hello.txt
 
-  `,
+  `
   )
   .example(
     "JSON STDIN",
@@ -495,7 +485,7 @@ Pipe JSON content to the 'items update' command using '--input json' plus the '-
   $ cat hello.json | truestamp items update --input json --id truestamp-2SF5JQLhBHmtRC35G6z4M7bjhcnJrGs99nEg6reqW61ThzXLx1pzk3VXjNQsw -
   $ cat hello.json | truestamp items update --input json --stdin --id truestamp-2SF5JQLhBHmtRC35G6z4M7bjhcnJrGs99nEg6reqW61ThzXLx1pzk3VXjNQsw
 
-  `,
+  `
   )
   .example(
     "JSON FILE Path",
@@ -503,162 +493,144 @@ Pipe JSON content to the 'items update' command using '--input json' plus the '-
 
   $ truestamp items update --input json --id truestamp-2SF5JQLhBHmtRC35G6z4M7bjhcnJrGs99nEg6reqW61ThzXLx1pzk3VXjNQsw hello.json
 
-  `,
+  `
   )
-  .action(
-    async (options, path) => {
-      const ts = await createTruestampClient(
-        options.env,
-        options.apiKey,
-      );
+  .action(async (options, path) => {
+    const truestamp = await createTruestampClient(options.env, options.apiKey)
 
-      if (!options.input && options.stdin) {
-        throw new ValidationError(
-          'Option "--stdin" depends on option "--input".',
-        );
-      }
+    if (!options.input && options.stdin) {
+      throw new ValidationError('Option "--stdin" depends on option "--input".')
+    }
 
-      if (!options.input && path) {
-        throw new ValidationError(
-          'Argument "path" depends on option "--input".',
-        );
-      }
+    if (!options.input && path) {
+      throw new ValidationError('Argument "path" depends on option "--input".')
+    }
 
-      let jsonItem, altHash, altHashType;
+    let jsonItem, altHash, altHashType
 
-      // If the user provided JSON STDIN using the '--input json' and '--stdin' options or the '-' or a file path argument, parse
-      // the contents of STDIN and pass it directly to the Truestamp client as a complete Item object.
-      if (options.input === "json" && (options.stdin || path === "-")) {
-        const data = await readAllSync(Deno.stdin);
-        const decoder = new TextDecoder();
-        jsonItem = JSON.parse(decoder.decode(data));
-      } else if (options.input === "json" && path) {
-        const file = await Deno.open(path, {
-          read: true,
-          write: false,
-        });
-        // await copy(file, Deno.stdout);
+    // If the user provided JSON STDIN using the '--input json' and '--stdin' options or the '-' or a file path argument, parse
+    // the contents of STDIN and pass it directly to the Truestamp client as a complete Item object.
+    if (options.input === "json" && (options.stdin || path === "-")) {
+      const data = await readAllSync(Deno.stdin)
+      const decoder = new TextDecoder()
+      jsonItem = JSON.parse(decoder.decode(data))
+    } else if (options.input === "json" && path) {
+      const file = await Deno.open(path, {
+        read: true,
+        write: false,
+      })
+      // await copy(file, Deno.stdout);
 
-        const data = await readAllSync(file);
-        const decoder = new TextDecoder();
-        jsonItem = JSON.parse(decoder.decode(data));
+      const data = await readAllSync(file)
+      const decoder = new TextDecoder()
+      jsonItem = JSON.parse(decoder.decode(data))
 
-        file.close();
-      }
+      file.close()
+    }
 
-      // If the user provided non-JSON STDIN using the '--stdin' flag or the '-' argument, read the contents
-      // of STDIN and hash it with SHA-256. If instead the user provided a path, read the contents
-      // of the file and hash it with SHA-256.
-      // See : https://github.com/c4spar/deno-cliffy/discussions/180
-      if (options.input === "binary" && (options.stdin || path === "-")) {
-        // await copy(Deno.stdin, Deno.stdout);
+    // If the user provided non-JSON STDIN using the '--stdin' flag or the '-' argument, read the contents
+    // of STDIN and hash it with SHA-256. If instead the user provided a path, read the contents
+    // of the file and hash it with SHA-256.
+    // See : https://github.com/c4spar/deno-cliffy/discussions/180
+    if (options.input === "binary" && (options.stdin || path === "-")) {
+      // await copy(Deno.stdin, Deno.stdout);
 
-        const data = await readAllSync(Deno.stdin);
-        const hash = new Uint8Array(
-          await crypto.subtle.digest("SHA-256", data),
-        );
-        const hashHex = Array.from(
-          hash,
-          (byte) => byte.toString(16).padStart(2, "0"),
-        ).join("");
-        // console.log(`SHA-256(stdin) = ${hashHex}`)
-        altHash = hashHex;
-        altHashType = "sha-256";
-      } else if (options.input === "binary" && path) {
-        const file = await Deno.open(path, {
-          read: true,
-          write: false,
-        });
-        // await copy(file, Deno.stdout);
+      const data = await readAllSync(Deno.stdin)
+      const hash = new Uint8Array(await crypto.subtle.digest("SHA-256", data))
+      const hashHex = Array.from(hash, (byte) =>
+        byte.toString(16).padStart(2, "0")
+      ).join("")
+      // console.log(`SHA-256(stdin) = ${hashHex}`)
+      altHash = hashHex
+      altHashType = "sha-256"
+    } else if (options.input === "binary" && path) {
+      const file = await Deno.open(path, {
+        read: true,
+        write: false,
+      })
+      // await copy(file, Deno.stdout);
 
-        const data = await readAllSync(file);
-        const hash = new Uint8Array(
-          await crypto.subtle.digest("SHA-256", data),
-        );
-        const hashHex = Array.from(
-          hash,
-          (byte) => byte.toString(16).padStart(2, "0"),
-        ).join("");
-        // console.log(`SHA-256(stdin) = ${hashHex}`)
-        altHash = hashHex;
-        altHashType = "sha-256";
+      const data = await readAllSync(file)
+      const hash = new Uint8Array(await crypto.subtle.digest("SHA-256", data))
+      const hashHex = Array.from(hash, (byte) =>
+        byte.toString(16).padStart(2, "0")
+      ).join("")
+      // console.log(`SHA-256(stdin) = ${hashHex}`)
+      altHash = hashHex
+      altHashType = "sha-256"
 
-        file.close();
-      }
+      file.close()
+    }
 
-      try {
-        let itemResp;
+    let itemResp
 
-        if (jsonItem) {
-          itemResp = await ts.updateItem(options.id, jsonItem, {
-            skipCF: !options.netMetadata,
-            skipOE: !options.observableEntropy,
-          });
-        } else if (options.hash && options.hashType) {
-          itemResp = await ts.updateItem(options.id, {
-            itemData: [{
+    if (jsonItem) {
+      itemResp = await truestamp.updateItem(options.id, jsonItem, {
+        skipCF: !options.netMetadata,
+        skipOE: !options.observableEntropy,
+      })
+    } else if (options.hash && options.hashType) {
+      itemResp = await truestamp.updateItem(
+        options.id,
+        {
+          itemData: [
+            {
               hash: options.hash,
-              hashType: <HashTypes> options.hashType,
-            }],
-          }, {
-            skipCF: !options.netMetadata,
-            skipOE: !options.observableEntropy,
-          });
-        } else if (altHash && altHashType) {
-          itemResp = await ts.updateItem(options.id, {
-            itemData: [{
+              hashType: <HashTypes>options.hashType,
+            },
+          ],
+        },
+        {
+          skipCF: !options.netMetadata,
+          skipOE: !options.observableEntropy,
+        }
+      )
+    } else if (altHash && altHashType) {
+      itemResp = await truestamp.updateItem(
+        options.id,
+        {
+          itemData: [
+            {
               hash: altHash,
-              hashType: <HashTypes> altHashType,
-            }],
-          }, {
-            skipCF: !options.netMetadata,
-            skipOE: !options.observableEntropy,
-          });
-        } else {
-          throw new Error("No hash or hashType provided");
+              hashType: <HashTypes>altHashType,
+            },
+          ],
+        },
+        {
+          skipCF: !options.netMetadata,
+          skipOE: !options.observableEntropy,
         }
+      )
+    } else {
+      throw new Error("No hash or hashType provided")
+    }
 
-        // store the item in the local database
-        writeItemToDb(
-          options.env,
-          itemResp.id,
-          itemResp,
-        );
+    if (!itemResp.success) {
+      const parseResult = RFC7807ErrorSchema.safeParse(itemResp.data)
+      throwApiError(
+        "item update error",
+        parseResult.success ? parseResult.data : undefined
+      )
+    }
 
-        logSelectedOutputFormat(
-          { text: itemResp.id, json: { id: itemResp.id } },
-          options.output,
-        );
-      } catch (error) {
-        const { response } = error;
+    const { data } = itemResp
+    const { id } = data
 
-        if (response) {
-          // HTTPResponseError
-          // This is a custom error type thrown by truestamp-js and
-          // has a 'response' property which can be awaited to get the full
-          // HTTP response, including body with error info.
-          // https://developer.mozilla.org/en-US/docs/Web/API/Fetch_API/Using_Fetch#body
-          const { status, code, description } = await response.json();
-          throw new Error(`${status} : ${code} : ${description}`);
-        } else {
-          // is a generic Error
-          throw error;
-        }
-      }
-    },
-  );
+    // store the item in the local database
+    writeItemToDb(options.env, id, itemResp)
 
-export const items = new Command<
-  {
-    env: typeof environmentType;
-    apiKey?: string;
-    output: typeof outputType;
-  }
->()
+    logSelectedOutputFormat({ text: id, json: { id: id } }, options.output)
+  })
+
+export const items = new Command<{
+  env: typeof environmentType
+  apiKey?: string
+  output: typeof outputType
+}>()
   .description("Create or update Items.")
   .action(() => {
-    items.showHelp();
+    items.showHelp()
   })
   .command("create", itemsCreate)
   // .command("read", itemsRead)
-  .command("update", itemsUpdate);
+  .command("update", itemsUpdate)
