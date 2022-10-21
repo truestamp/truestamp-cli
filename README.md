@@ -114,14 +114,14 @@ The CLI has its own help system and every command and sub-command can be invoked
 with `-h`, `--help`, or simply `help` to learn more.
 
 ```txt
-$ ./truestamp -h
+❯ ./truestamp -h
 
   Usage:   truestamp
-  Version: 0.0.19
+  Version: 0.0.22
 
-  deno: 1.25.2
-  v8: 10.6.194.5
-  typescript: 4.7.4
+  deno: 1.26.2
+  v8: 10.7.193.16
+  typescript: 4.8.3
 
   Description:
 
