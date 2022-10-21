@@ -1,11 +1,11 @@
 // Copyright © 2020-2022 Truestamp Inc. All rights reserved.
 
-import { crypto } from "https://deno.land/std@0.155.0/crypto/mod.ts"
-import { parse } from "https://deno.land/std@0.155.0/path/mod.ts"
+import { crypto } from "https://deno.land/std@0.160.0/crypto/mod.ts"
+import { parse } from "https://deno.land/std@0.160.0/path/mod.ts"
 import {
   copy,
   readAllSync,
-} from "https://deno.land/std@0.155.0/streams/conversion.ts"
+} from "https://deno.land/std@0.160.0/streams/conversion.ts"
 
 import { sleep } from "https://deno.land/x/sleep@v1.2.1/mod.ts"
 
@@ -13,14 +13,14 @@ import { decode, validate } from "https://deno.land/x/djwt@v2.7/mod.ts"
 
 import { DB } from "https://deno.land/x/sqlite@v3.5.0/mod.ts"
 
-import { colors } from "https://deno.land/x/cliffy@v0.25.1/ansi/colors.ts"
-import { CompletionsCommand } from "https://deno.land/x/cliffy@v0.25.1/command/completions/mod.ts"
-import { HelpCommand } from "https://deno.land/x/cliffy@v0.25.1/command/help/mod.ts"
+import { colors } from "https://deno.land/x/cliffy@v0.25.2/ansi/colors.ts"
+import { CompletionsCommand } from "https://deno.land/x/cliffy@v0.25.2/command/completions/mod.ts"
+import { HelpCommand } from "https://deno.land/x/cliffy@v0.25.2/command/help/mod.ts"
 import {
   Command,
   EnumType,
   ValidationError,
-} from "https://deno.land/x/cliffy@v0.25.1/command/mod.ts"
+} from "https://deno.land/x/cliffy@v0.25.2/command/mod.ts"
 
 import Conf from "https://raw.githubusercontent.com/truestamp/deno-conf/v1.0.6/mod.ts"
 
@@ -42,9 +42,9 @@ import {
 
 import { createTruestampClient } from "./truestamp.ts"
 
-import { Table } from "https://deno.land/x/cliffy@v0.25.1/table/mod.ts"
+import { Table } from "https://deno.land/x/cliffy@v0.25.2/table/mod.ts"
 
-export type { ITypeInfo } from "https://deno.land/x/cliffy@v0.25.1/flags/mod.ts"
+export type { ITypeInfo } from "https://deno.land/x/cliffy@v0.25.2/flags/mod.ts"
 export type { Payload } from "https://deno.land/x/djwt@v2.7/mod.ts"
 export type { Row } from "https://deno.land/x/sqlite@v3.5.0/mod.ts"
 export type {

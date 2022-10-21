@@ -329,9 +329,7 @@ Pipe JSON content to the 'items create' command using '--input json' plus the '-
     const { id } = data
 
     // store the item in the local database
-    writeItemToDb(options.env, id, itemResp)
-
-    // console.log(getItemHashById(getEnv(options), itemResp.id));
+    writeItemToDb(options.env, id)
 
     // If a path or STDIN was provided it is helpful to archive the contents of the file
     // and tightly associate it with the returned Item Id/envelope.
@@ -444,7 +442,7 @@ See the example sections below for detailed usage examples.
   $ echo -n 'Hello World Again' | sha256sum
   63df103e8ebcabdf86d8f13e98a02063fef1da8065335ec0dd978378951534d6  -
 
-  $ truestamp items update --id truestamp-2SF5JQLhBHmtRC35G6z4M7bjhcnJrGs99nEg6reqW61ThzXLx1pzk3VXjNQsw --hash 63df103e8ebcabdf86d8f13e98a02063fef1da8065335ec0dd978378951534d6 --hash-type sha-256
+  $ truestamp items update --id ts_11SHyexF6pqKpTgvnxu5UvHveboF763B41JsZCYcjveSNgqXnL2k7K4LrUuy --hash 63df103e8ebcabdf86d8f13e98a02063fef1da8065335ec0dd978378951534d6 --hash-type sha-256
 
   `
   )
@@ -454,11 +452,11 @@ See the example sections below for detailed usage examples.
 
 Pipe content to the 'items update' command using the '--stdin' option or the '-' path:
 
-  $ echo -n 'Hello World' | truestamp items update --id truestamp-2SF5JQLhBHmtRC35G6z4M7bjhcnJrGs99nEg6reqW61ThzXLx1pzk3VXjNQsw --input binary -
-  $ echo -n "Hello World" | truestamp items update --stdin --input binary --id truestamp-2SF5JQLhBHmtRC35G6z4M7bjhcnJrGs99nEg6reqW61ThzXLx1pzk3VXjNQsw
+  $ echo -n 'Hello World' | truestamp items update --id ts_11SHyexF6pqKpTgvnxu5UvHveboF763B41JsZCYcjveSNgqXnL2k7K4LrUuy --input binary -
+  $ echo -n "Hello World" | truestamp items update --stdin --input binary --id ts_11SHyexF6pqKpTgvnxu5UvHveboF763B41JsZCYcjveSNgqXnL2k7K4LrUuy
 
-  $ cat hello.txt | truestamp items update --id truestamp-2SF5JQLhBHmtRC35G6z4M7bjhcnJrGs99nEg6reqW61ThzXLx1pzk3VXjNQsw --input binary -
-  $ cat hello.txt | truestamp items update --stdin --input binary --id truestamp-2SF5JQLhBHmtRC35G6z4M7bjhcnJrGs99nEg6reqW61ThzXLx1pzk3VXjNQsw
+  $ cat hello.txt | truestamp items update --id ts_11SHyexF6pqKpTgvnxu5UvHveboF763B41JsZCYcjveSNgqXnL2k7K4LrUuy --input binary -
+  $ cat hello.txt | truestamp items update --stdin --input binary --id ts_11SHyexF6pqKpTgvnxu5UvHveboF763B41JsZCYcjveSNgqXnL2k7K4LrUuy
 
   `
   )
@@ -466,7 +464,7 @@ Pipe content to the 'items update' command using the '--stdin' option or the '-'
     "FILE Path",
     `Pass an '--id' and a file path to the 'items update' command:
 
-  $ truestamp items update --id truestamp-2SF5JQLhBHmtRC35G6z4M7bjhcnJrGs99nEg6reqW61ThzXLx1pzk3VXjNQsw --input binary hello.txt
+  $ truestamp items update --id ts_11SHyexF6pqKpTgvnxu5UvHveboF763B41JsZCYcjveSNgqXnL2k7K4LrUuy --input binary hello.txt
 
   `
   )
@@ -476,14 +474,14 @@ Pipe content to the 'items update' command using the '--stdin' option or the '-'
 
 Pipe JSON content to the 'items update' command using '--input json' plus the '--stdin' option or the '-' path:
 
-  $ echo -n '{"hash": "63df103e8ebcabdf86d8f13e98a02063fef1da8065335ec0dd978378951534d6", "hashType": "sha-256"}' | truestamp items update --input json --id truestamp-2SF5JQLhBHmtRC35G6z4M7bjhcnJrGs99nEg6reqW61ThzXLx1pzk3VXjNQsw -
-  $ echo -n '{"hash": "63df103e8ebcabdf86d8f13e98a02063fef1da8065335ec0dd978378951534d6", "hashType": "sha-256"}' | truestamp items update --input json --stdin --id truestamp-2SF5JQLhBHmtRC35G6z4M7bjhcnJrGs99nEg6reqW61ThzXLx1pzk3VXjNQsw
+  $ echo -n '{"hash": "63df103e8ebcabdf86d8f13e98a02063fef1da8065335ec0dd978378951534d6", "hashType": "sha-256"}' | truestamp items update --input json --id ts_11SHyexF6pqKpTgvnxu5UvHveboF763B41JsZCYcjveSNgqXnL2k7K4LrUuy -
+  $ echo -n '{"hash": "63df103e8ebcabdf86d8f13e98a02063fef1da8065335ec0dd978378951534d6", "hashType": "sha-256"}' | truestamp items update --input json --stdin --id ts_11SHyexF6pqKpTgvnxu5UvHveboF763B41JsZCYcjveSNgqXnL2k7K4LrUuy
 
   # Can be full complexity JSON Item data
   $ echo -n '{"hash": "63df103e8ebcabdf86d8f13e98a02063fef1da8065335ec0dd978378951534d6", "hashType": "sha-256"}' > hello.json
 
-  $ cat hello.json | truestamp items update --input json --id truestamp-2SF5JQLhBHmtRC35G6z4M7bjhcnJrGs99nEg6reqW61ThzXLx1pzk3VXjNQsw -
-  $ cat hello.json | truestamp items update --input json --stdin --id truestamp-2SF5JQLhBHmtRC35G6z4M7bjhcnJrGs99nEg6reqW61ThzXLx1pzk3VXjNQsw
+  $ cat hello.json | truestamp items update --input json --id ts_11SHyexF6pqKpTgvnxu5UvHveboF763B41JsZCYcjveSNgqXnL2k7K4LrUuy -
+  $ cat hello.json | truestamp items update --input json --stdin --id ts_11SHyexF6pqKpTgvnxu5UvHveboF763B41JsZCYcjveSNgqXnL2k7K4LrUuy
 
   `
   )
@@ -491,7 +489,7 @@ Pipe JSON content to the 'items update' command using '--input json' plus the '-
     "JSON FILE Path",
     `Pass the '--input json' option and a file path argument to the 'items update' command:
 
-  $ truestamp items update --input json --id truestamp-2SF5JQLhBHmtRC35G6z4M7bjhcnJrGs99nEg6reqW61ThzXLx1pzk3VXjNQsw hello.json
+  $ truestamp items update --input json --id ts_11SHyexF6pqKpTgvnxu5UvHveboF763B41JsZCYcjveSNgqXnL2k7K4LrUuy hello.json
 
   `
   )
@@ -617,7 +615,7 @@ Pipe JSON content to the 'items update' command using '--input json' plus the '-
     const { id } = data
 
     // store the item in the local database
-    writeItemToDb(options.env, id, itemResp)
+    writeItemToDb(options.env, id)
 
     logSelectedOutputFormat({ text: id, json: { id: id } }, options.output)
   })
