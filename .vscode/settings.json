@@ -71,5 +71,8 @@
     "XYHS",
     "Ydwpg",
     "YHFR"
-  ]
+  ],
+  "[typescript]": {
+    "editor.defaultFormatter": "denoland.vscode-deno"
+  }
 }

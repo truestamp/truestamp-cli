@@ -5,22 +5,22 @@ import {
   createTruestampClient,
   getConfigRefreshToken,
   ValidationError,
-} from "../../deps.ts"
+} from "../../deps.ts";
 
 import {
   logSelectedOutputFormat,
   RFC7807ErrorSchema,
   throwApiError,
-} from "../../utils.ts"
+} from "../../utils.ts";
 
-import { environmentType, outputType } from "../../cli.ts"
+import { environmentType, outputType } from "../../cli.ts";
 
-const MAX_DESCRIPTION_LENGTH = 256
+const MAX_DESCRIPTION_LENGTH = 256;
 
 const apiKeyCreate = new Command<{
-  env: typeof environmentType
-  apiKey?: string
-  output: typeof outputType
+  env: typeof environmentType;
+  apiKey?: string;
+  output: typeof outputType;
 }>()
   .description("Create a new API key.")
   .option(
@@ -29,7 +29,7 @@ const apiKeyCreate = new Command<{
     {
       required: false,
       default: "",
-    }
+    },
   )
   .option(
     "-t, --ttl <ttl:integer>",
@@ -37,7 +37,7 @@ const apiKeyCreate = new Command<{
     {
       required: false,
       default: 0,
-    }
+    },
   )
   .example(
     "New API Key",
@@ -47,41 +47,41 @@ const apiKeyCreate = new Command<{
   $ truestamp auth keys create -o text -d "a description" -t 3600
   01FZPNTMAQZZCH170999999999_8djbT1Ys078OZImR1uRr4jh999999999 [production]
 
-  `
+  `,
   )
   .action(async (options) => {
-    const refreshToken = getConfigRefreshToken(options.env)
+    const refreshToken = getConfigRefreshToken(options.env);
 
     if (!refreshToken) {
-      console.error("logged out, you need to 'truestamp auth login' first")
-      Deno.exit(1)
+      console.error("logged out, you need to 'truestamp auth login' first");
+      Deno.exit(1);
     }
 
     if (options.description.length > MAX_DESCRIPTION_LENGTH) {
       throw new ValidationError(
-        `key description max length of ${MAX_DESCRIPTION_LENGTH} characters exceeded`
-      )
+        `key description max length of ${MAX_DESCRIPTION_LENGTH} characters exceeded`,
+      );
     }
 
     if (options.ttl !== 0 && options.ttl < 60) {
       throw new ValidationError(
-        `key TTL must be at least 60 seconds (or '0' for no expiration)`
-      )
+        `key TTL must be at least 60 seconds (or '0' for no expiration)`,
+      );
     }
 
-    const truestamp = await createTruestampClient(options.env, options.apiKey)
+    const truestamp = await createTruestampClient(options.env, options.apiKey);
     const keyResp = await truestamp.createApiKey({
       refreshToken: refreshToken,
       description: options.description,
       ttl: options.ttl,
-    })
+    });
 
     if (!keyResp.success) {
-      const parseResult = RFC7807ErrorSchema.safeParse(keyResp.data)
+      const parseResult = RFC7807ErrorSchema.safeParse(keyResp.data);
       throwApiError(
         "key creation error",
-        parseResult.success ? parseResult.data : undefined
-      )
+        parseResult.success ? parseResult.data : undefined,
+      );
     }
 
     logSelectedOutputFormat(
@@ -94,14 +94,14 @@ const apiKeyCreate = new Command<{
           key: keyResp.data.apiKey,
         },
       },
-      options.output
-    )
-  })
+      options.output,
+    );
+  });
 
 export const apiKeys = new Command<{
-  env: typeof environmentType
-  apiKey?: string
-  output: typeof outputType
+  env: typeof environmentType;
+  apiKey?: string;
+  output: typeof outputType;
 }>()
   .description(
     `Manage API keys.
@@ -111,9 +111,9 @@ export const apiKeys = new Command<{
     contexts.
 
     Keys can be created with an optional description or a TTL (Time To Live) value. Once the
-    TTL has expired the key will be automatically invalidated.`
+    TTL has expired the key will be automatically invalidated.`,
   )
   .action(() => {
-    apiKeys.showHelp()
+    apiKeys.showHelp();
   })
-  .command("create", apiKeyCreate)
+  .command("create", apiKeyCreate);

@@ -7,19 +7,19 @@ import {
   EnumType,
   HelpCommand,
   ValidationError,
-} from "./deps.ts"
+} from "./deps.ts";
 
-import { auth } from "./commands/auth.ts"
-import { commitments } from "./commands/commitments.ts"
-import { entropyCommand } from "./commands/entropy.ts"
-import { items } from "./commands/items.ts"
+import { auth } from "./commands/auth.ts";
+import { commitments } from "./commands/commitments.ts";
+import { entropyCommand } from "./commands/entropy.ts";
+import { items } from "./commands/items.ts";
 
 export const environmentType = new EnumType([
   "development",
   "staging",
   "production",
-])
-export const outputType = new EnumType(["silent", "text", "json"])
+]);
+export const outputType = new EnumType(["silent", "text", "json"]);
 
 // Top level command
 const cmd = new Command()
@@ -45,7 +45,7 @@ const cmd = new Command()
     {
       required: false,
       default: "production",
-    }
+    },
   )
   .globalEnv(
     "TRUESTAMP_API_KEY=<apiKey:string>",
@@ -53,11 +53,11 @@ const cmd = new Command()
     {
       required: false,
       prefix: "TRUESTAMP_",
-    }
+    },
   )
   .globalOption(
     "-A, --api-key <apiKey:string>",
-    "Use API key for authentication. Overrides 'TRUESTAMP_API_KEY' env var."
+    "Use API key for authentication. Overrides 'TRUESTAMP_API_KEY' env var.",
   )
   .globalType("output", outputType)
   .globalEnv("TRUESTAMP_OUTPUT=<output:output>", "Preferred output format.", {
@@ -69,36 +69,36 @@ const cmd = new Command()
     "Output format. Overrides 'TRUESTAMP_OUTPUT' env var.",
     {
       default: "text",
-    }
+    },
   )
   .action(() => {
-    cmd.showHelp()
+    cmd.showHelp();
   })
   .command("auth", auth)
   .command("commitments", commitments)
   .command("items", items)
   .command("entropy", entropyCommand)
   .command("completions", new CompletionsCommand())
-  .command("help", new HelpCommand().global())
+  .command("help", new HelpCommand().global());
 
 try {
-  await cmd.parse(Deno.args)
+  await cmd.parse(Deno.args);
 } catch (error) {
   if (error instanceof ValidationError) {
-    cmd.showHelp()
+    cmd.showHelp();
     Deno.stderr.writeSync(
       new TextEncoder().encode(
         colors.yellow(
-          `  ${colors.bold("Validation Error")}: ${error.message}\n`
-        ) + "\n"
-      )
-    )
+          `  ${colors.bold("Validation Error")}: ${error.message}\n`,
+        ) + "\n",
+      ),
+    );
   } else if (error instanceof Error) {
     Deno.stderr.writeSync(
       new TextEncoder().encode(
-        colors.red(`  ${colors.bold("Error")}: ${error.message}\n`) + "\n"
-      )
-    )
+        colors.red(`  ${colors.bold("Error")}: ${error.message}\n`) + "\n",
+      ),
+    );
   }
-  Deno.exit(error instanceof ValidationError ? error.exitCode : 1)
+  Deno.exit(error instanceof ValidationError ? error.exitCode : 1);
 }

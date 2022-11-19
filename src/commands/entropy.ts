@@ -1,89 +1,91 @@
-import { Command, decodeBase64, encodeBase64 } from "../deps.ts"
+import { Command, decodeBase64, encodeBase64 } from "../deps.ts";
 
-import { verify as verifyEd25519 } from "@stablelib/ed25519"
-import { encode as encodeHex } from "@stablelib/hex"
-import { hash } from "@stablelib/sha256"
-import { canonify } from "@truestamp/canonify"
+import { verify as verifyEd25519 } from "@stablelib/ed25519";
+import { encode as encodeHex } from "@stablelib/hex";
+import { hash } from "@stablelib/sha256";
+import { canonify } from "@truestamp/canonify";
 
-import { digestMessage, get, logSelectedOutputFormat } from "../utils.ts"
+import { digestMessage, get, logSelectedOutputFormat } from "../utils.ts";
 
-import { EntropyResponse, SignedKey } from "../types.ts"
+import { EntropyResponse, SignedKey } from "../types.ts";
 
-import { environmentType, outputType } from "../cli.ts"
+import { environmentType, outputType } from "../cli.ts";
 
-const ENTROPY_BASE_URL = "https://entropy-v2.truestamp.com"
-const PUBLIC_KEYS_BASE_URL = "https://keys.truestamp.com"
+const ENTROPY_BASE_URL = "https://entropy-v2.truestamp.com";
+const PUBLIC_KEYS_BASE_URL = "https://keys.truestamp.com";
 
 function generatePublicKeyHandle(publickey: Uint8Array): string {
-  return encodeHex(hash(publickey)).slice(0, 8).toLowerCase()
+  return encodeHex(hash(publickey)).slice(0, 8).toLowerCase();
 }
 
 async function verifyPublicKey(publickey: Uint8Array): Promise<boolean> {
   try {
-    const handle = generatePublicKeyHandle(publickey)
-    const keyObj = await get<SignedKey>(`${PUBLIC_KEYS_BASE_URL}/${handle}`)
+    const handle = generatePublicKeyHandle(publickey);
+    const keyObj = await get<SignedKey>(`${PUBLIC_KEYS_BASE_URL}/${handle}`);
 
     if (!keyObj) {
-      return false
+      return false;
     }
 
-    SignedKey.parse(keyObj)
+    SignedKey.parse(keyObj);
 
-    const { publicKey: foundPublicKey } = keyObj
+    const { publicKey: foundPublicKey } = keyObj;
     if (foundPublicKey !== encodeBase64(publickey)) {
-      return false
+      return false;
     }
 
     // OK
-    return true
+    return true;
   } catch (error) {
-    console.error(error.message)
-    return false
+    console.error(error.message);
+    return false;
   }
 }
 
 async function verifyEntropy(entropy: EntropyResponse): Promise<boolean> {
-  const { data, hash, publicKey, signature } = entropy
+  const { data, hash, publicKey, signature } = entropy;
 
-  const publicKeyBytes = decodeBase64(publicKey)
+  const publicKeyBytes = decodeBase64(publicKey);
 
-  const isValidRemotePublicKey = await verifyPublicKey(publicKeyBytes)
+  const isValidRemotePublicKey = await verifyPublicKey(publicKeyBytes);
 
   if (!isValidRemotePublicKey) {
-    throw new Error("signature : public key fetch from remote keyserver failed")
+    throw new Error(
+      "signature : public key fetch from remote keyserver failed",
+    );
   }
 
-  const canonicalData = await canonify(data)
+  const canonicalData = await canonify(data);
 
   if (!canonicalData) {
-    throw new Error("signature : invalid canonical data")
+    throw new Error("signature : invalid canonical data");
   }
 
-  const canonicalDataHash = await digestMessage(canonicalData)
+  const canonicalDataHash = await digestMessage(canonicalData);
 
   if (hash !== encodeHex(canonicalDataHash, true)) {
-    throw new Error("signature : entropy hash mismatch")
+    throw new Error("signature : entropy hash mismatch");
   }
 
-  const signatureBytes = decodeBase64(signature)
+  const signatureBytes = decodeBase64(signature);
 
   const isValid = verifyEd25519(
     publicKeyBytes,
     canonicalDataHash,
-    signatureBytes
-  )
+    signatureBytes,
+  );
 
   if (!isValid) {
-    throw new Error("signature : invalid signature")
+    throw new Error("signature : invalid signature");
   }
 
-  return true
+  return true;
 }
 
 export const entropyCommand = new Command<{
-  env: typeof environmentType
-  apiKey?: string
-  output: typeof outputType
+  env: typeof environmentType;
+  apiKey?: string;
+  output: typeof outputType;
 }>()
   .description(
     `Fetch and verify the latest, or historical, observable entropy.
@@ -91,7 +93,7 @@ export const entropyCommand = new Command<{
     Learn more about the observable entropy project at:
     https://github.com/truestamp/observable-entropy-worker-v2
 
-    `
+    `,
   )
   .example(
     "Fetch latest",
@@ -109,7 +111,7 @@ ab84d4760579bef4ecebe2d2e50e7a42d57e2650894bfbd5749e5e2551892e2e [2022-11-19T19:
 You can call this with the '--output json' option to get the full entropy object:
 
 $ truestamp entropy --output json
-`
+`,
   )
   .example(
     "Fetch by hash",
@@ -122,16 +124,16 @@ The entropy signature is always verified.
 You can call this with the '--output json' option to get the full entropy object:
 
 $ truestamp entropy ab84d4760579bef4ecebe2d2e50e7a42d57e2650894bfbd5749e5e2551892e2e --output json
-`
+`,
   )
   .arguments("[entropy-hash] [hash:string]")
   .action(async (options, hash?: string) => {
     const entropy: EntropyResponse = await get<EntropyResponse>(
-      `${ENTROPY_BASE_URL}/${hash ?? "latest"}`
-    )
+      `${ENTROPY_BASE_URL}/${hash ?? "latest"}`,
+    );
 
     // throws if invalid
-    await verifyEntropy(EntropyResponse.parse(entropy))
+    await verifyEntropy(EntropyResponse.parse(entropy));
 
     if (entropy) {
       logSelectedOutputFormat(
@@ -139,7 +141,7 @@ $ truestamp entropy ab84d4760579bef4ecebe2d2e50e7a42d57e2650894bfbd5749e5e255189
           text: `${entropy.hash} [${entropy.data.timestamp.capturedAt}]`,
           json: entropy,
         },
-        options.output
-      )
+        options.output,
+      );
     }
-  })
+  });

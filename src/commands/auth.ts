@@ -7,18 +7,18 @@ import {
   getConfigAccessToken,
   getConfigIdTokenPayload,
   getConfigRefreshToken,
-} from "../deps.ts"
+} from "../deps.ts";
 
-import { apiKeys } from "./apikeys/apikeys.ts"
+import { apiKeys } from "./apikeys/apikeys.ts";
 
-import { logSelectedOutputFormat } from "../utils.ts"
+import { logSelectedOutputFormat } from "../utils.ts";
 
-import { environmentType, outputType } from "../cli.ts"
+import { environmentType, outputType } from "../cli.ts";
 
 const authLogin = new Command<{
-  env: typeof environmentType
-  apiKey?: string
-  output: typeof outputType
+  env: typeof environmentType;
+  apiKey?: string;
+  output: typeof outputType;
 }>()
   .description("Login.")
   .example(
@@ -27,23 +27,23 @@ const authLogin = new Command<{
 
   $ truestamp auth login
 
-  `
+  `,
   )
   .action(async (options) => {
     if (options.apiKey !== undefined) {
       // console.log("apiKey:", options.apiKey);
       throw new Error(
-        `login is not permitted when an API key is provided as an option`
-      )
+        `login is not permitted when an API key is provided as an option`,
+      );
     }
 
     // Do not pass in apiKey, this is the standard JWT access/refresh token login.
-    const ts = await createTruestampClient(options.env)
+    const ts = await createTruestampClient(options.env);
 
     try {
-      await ts.getHealth()
+      await ts.getHealth();
     } catch (error) {
-      throw new Error(`health check failed : ${error.message}`)
+      throw new Error(`health check failed : ${error.message}`);
     }
 
     logSelectedOutputFormat(
@@ -55,14 +55,14 @@ const authLogin = new Command<{
           environment: options.env,
         },
       },
-      options.output
-    )
-  })
+      options.output,
+    );
+  });
 
 const authLogout = new Command<{
-  env: typeof environmentType
-  apiKey?: string
-  output: typeof outputType
+  env: typeof environmentType;
+  apiKey?: string;
+  output: typeof outputType;
 }>()
   .description("Logout.")
   .example(
@@ -71,10 +71,10 @@ const authLogout = new Command<{
 
   $ truestamp auth logout
 
-  `
+  `,
   )
   .action((options) => {
-    deleteTokensInConfig(options.env)
+    deleteTokensInConfig(options.env);
     logSelectedOutputFormat(
       {
         text: `logged out [${options.env}]`,
@@ -84,14 +84,14 @@ const authLogout = new Command<{
           environment: options.env,
         },
       },
-      options.output
-    )
-  })
+      options.output,
+    );
+  });
 
 const authStatus = new Command<{
-  env: typeof environmentType
-  apiKey?: string
-  output: typeof outputType
+  env: typeof environmentType;
+  apiKey?: string;
+  output: typeof outputType;
 }>()
   .description("Check login status.")
   .example(
@@ -100,14 +100,14 @@ const authStatus = new Command<{
 
   $ truestamp auth status
 
-  `
+  `,
   )
   .action(async (options) => {
     // try simple validation with a provided API key (not JWT token)
     if (options.apiKey !== undefined) {
       try {
-        const ts = await createTruestampClient(options.env, options.apiKey)
-        await ts.getHealth()
+        const ts = await createTruestampClient(options.env, options.apiKey);
+        await ts.getHealth();
         logSelectedOutputFormat(
           {
             text: `logged in (with API Key) [${options.env}]`,
@@ -117,12 +117,12 @@ const authStatus = new Command<{
               environment: options.env,
             },
           },
-          options.output
-        )
+          options.output,
+        );
       } catch (error) {
         throw new Error(
-          `logged out : API key health check failed : ${error.message}`
-        )
+          `logged out : API key health check failed : ${error.message}`,
+        );
       }
     }
 
@@ -133,20 +133,20 @@ const authStatus = new Command<{
         !getConfigRefreshToken(options.env)
       ) {
         throw new Error(
-          `logged out [${options.env}] : no access/refresh tokens found`
-        )
+          `logged out [${options.env}] : no access/refresh tokens found`,
+        );
       }
 
       try {
-        const ts = await createTruestampClient(options.env)
-        await ts.getHealth()
+        const ts = await createTruestampClient(options.env);
+        await ts.getHealth();
       } catch (error) {
-        throw new Error(`logged out : access check failed : ${error.message}`)
+        throw new Error(`logged out : access check failed : ${error.message}`);
       }
 
       try {
         // throws if token in config is invalid
-        const payload = getConfigIdTokenPayload(options.env)
+        const payload = getConfigIdTokenPayload(options.env);
         logSelectedOutputFormat(
           {
             text: `logged in : ${payload.email} [${options.env}]`,
@@ -157,8 +157,8 @@ const authStatus = new Command<{
               idToken: payload,
             },
           },
-          options.output
-        )
+          options.output,
+        );
       } catch (_error) {
         // ID token in config is invalid or expired
         // handle gracefully since this is the only place ID token is used and
@@ -172,22 +172,22 @@ const authStatus = new Command<{
               environment: options.env,
             },
           },
-          options.output
-        )
+          options.output,
+        );
       }
     }
-  })
+  });
 
 export const auth = new Command<{
-  env: typeof environmentType
-  apiKey?: string
-  output: typeof outputType
+  env: typeof environmentType;
+  apiKey?: string;
+  output: typeof outputType;
 }>()
   .description("Login, logout, or check login status. Create API keys.")
   .action(() => {
-    auth.showHelp()
+    auth.showHelp();
   })
   .command("login", authLogin)
   .command("logout", authLogout)
   .command("status", authStatus)
-  .command("keys", apiKeys)
+  .command("keys", apiKeys);

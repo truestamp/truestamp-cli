@@ -25,7 +25,6 @@
   },
   "fmt": {
     "files": {
-      "exclude": ["src/testdata/"],
       "include": ["src/"]
     },
     "options": {
@@ -39,7 +38,6 @@
   "importMap": "import_map.json",
   "lint": {
     "files": {
-      "exclude": ["src/testdata/"],
       "include": ["src/"]
     },
     "rules": {
@@ -55,7 +53,6 @@
     "build-linux-x86": "rm -f ./build/truestamp-linux-x86_64 && export DENO_DIR=./deno_dir && deno compile --target=x86_64-unknown-linux-gnu --output=./build/truestamp-linux-x86_64 --allow-env --allow-net --allow-read --allow-write --import-map ./import_map.json src/cli.ts",
     "build-local": "rm -f ./truestamp && export DENO_DIR=./deno_dir && deno compile --output=./truestamp --allow-env --allow-net --allow-read --allow-write --import-map ./import_map.json src/cli.ts",
     "build-windows": "rm -f ./build/truestamp-windows && export DENO_DIR=./deno_dir && deno compile --target=x86_64-pc-windows-msvc --output=./build/truestamp-windows --allow-env --allow-net --allow-read --allow-write --import-map ./import_map.json src/cli.ts",
-    "check": "deno task lint && deno task format && deno task test",
     "clean": "rm -f ./truestamp && rm -rf ./build",
     "compress": "deno task compress-darwin && deno task compress-linux && deno task compress-windows",
     "compress-darwin": "make compress-darwin",
@@ -72,7 +69,6 @@
     "run": "deno run --allow-env --allow-net --allow-read --allow-write --import-map ./import_map.json src/cli.ts",
     "run-help": "deno run --allow-env --allow-net --allow-read --allow-write --import-map ./import_map.json src/cli.ts --help",
     "run-version": "deno run --allow-env --allow-net --allow-read --allow-write --import-map ./import_map.json src/cli.ts --version",
-    "test": "deno test --allow-env --allow-net --allow-read --allow-write --import-map ./import_map.json src/test.ts",
     "upgrade": "udd src/deps.ts"
   },
   "test": {
