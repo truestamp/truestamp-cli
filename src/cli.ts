@@ -11,6 +11,7 @@ import {
 
 import { auth } from "./commands/auth.ts"
 import { commitments } from "./commands/commitments.ts"
+import { entropyCommand } from "./commands/entropy.ts"
 import { items } from "./commands/items.ts"
 
 export const environmentType = new EnumType([
@@ -76,6 +77,7 @@ const cmd = new Command()
   .command("auth", auth)
   .command("commitments", commitments)
   .command("items", items)
+  .command("entropy", entropyCommand)
   .command("completions", new CompletionsCommand())
   .command("help", new HelpCommand().global())
 

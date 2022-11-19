@@ -1,16 +1,27 @@
 {
   "imports": {
+    "@stablelib/base64": "https://esm.sh/v94/@stablelib/base64@1.0.1",
+    "@stablelib/binary": "https://esm.sh/v94/*@stablelib/binary@1.0.1",
+    "@stablelib/ed25519": "https://esm.sh/v94/*@stablelib/ed25519@1.0.3",
+    "@stablelib/hash": "https://esm.sh/v94/@stablelib/hash@1.0.1",
+    "@stablelib/hex": "https://esm.sh/v94/@stablelib/hex@1.0.1",
+    "@stablelib/int": "https://esm.sh/v94/@stablelib/int@1.0.1",
+    "@stablelib/random": "https://esm.sh/v94/*@stablelib/random@1.0.2",
+    "@stablelib/sha256": "https://esm.sh/v94/*@stablelib/sha256@1.0.1",
+    "@stablelib/sha512": "https://esm.sh/v94/*@stablelib/sha512@1.0.1",
+    "@stablelib/wipe": "https://esm.sh/v94/@stablelib/wipe@1.0.1",
+    "@truestamp/canonify": "https://esm.sh/v94/@truestamp/canonify@1.1.1",
     "@truestamp/id": "https://esm.sh/v94/@truestamp/id@1.4.1",
     "@truestamp/truestamp-js": "https://esm.sh/v94/@truestamp/truestamp-js@0.17.0",
-    "@truestamp/verify": "https://esm.sh/v94/@truestamp/verify@0.3.1",
-    "dotenv": "https://esm.sh/v94/dotenv@16.0.3",
-    "dotenv/": "https://esm.sh/v94/dotenv@16.0.3/",
-    "dotenv/@16.0": "https://esm.sh/v94/dotenv@16.0.3/@16.0",
+    "@truestamp/verify": "https://esm.sh/v94/@truestamp/verify@0.4.0",
+    "iso-3166-ts": "https://esm.sh/v94/iso-3166-ts@2.2.0",
+    "luxon": "https://esm.sh/v94/luxon@3.1.0",
     "zod": "https://esm.sh/v94/zod@3.19.1",
     "zod/": "https://esm.sh/v94/zod@3.19.1/",
     "zod/@3.19": "https://esm.sh/v94/zod@3.19.1/@3.19"
   },
   "scopes": {
+    "iso-3166-ts": {},
     "zod": {},
     "zod/": {}
   }
