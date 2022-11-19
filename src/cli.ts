@@ -25,7 +25,7 @@ export const outputType = new EnumType(["silent", "text", "json"])
 const cmd = new Command()
   .throwErrors()
   .name("truestamp")
-  .version("0.0.22") // RELEASE VERSION : BUMP VERSION HERE
+  .version("0.0.23") // RELEASE VERSION : BUMP VERSION HERE
   .description("Truestamp CLI")
   .meta("deno", Deno.version.deno)
   .meta("v8", Deno.version.v8)
