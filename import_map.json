@@ -9,6 +9,7 @@
     "@stablelib/random": "https://esm.sh/v94/*@stablelib/random@1.0.2",
     "@stablelib/sha256": "https://esm.sh/v94/*@stablelib/sha256@1.0.1",
     "@stablelib/sha512": "https://esm.sh/v94/*@stablelib/sha512@1.0.1",
+    "@stablelib/utf8": "https://esm.sh/v94/@stablelib/utf8@1.0.1",
     "@stablelib/wipe": "https://esm.sh/v94/@stablelib/wipe@1.0.1",
     "@truestamp/canonify": "https://esm.sh/v94/@truestamp/canonify@1.1.1",
     "@truestamp/id": "https://esm.sh/v94/@truestamp/id@1.4.1",

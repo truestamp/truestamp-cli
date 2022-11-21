@@ -2,10 +2,11 @@ import { Command, decodeBase64, encodeBase64 } from "../deps.ts";
 
 import { verify as verifyEd25519 } from "@stablelib/ed25519";
 import { encode as encodeHex } from "@stablelib/hex";
-import { hash } from "@stablelib/sha256";
+import { hash as sha256 } from "@stablelib/sha256";
+import { encode as encodeUtf8 } from "@stablelib/utf8";
 import { canonify } from "@truestamp/canonify";
 
-import { digestMessage, get, logSelectedOutputFormat } from "../utils.ts";
+import { get, logSelectedOutputFormat } from "../utils.ts";
 
 import { EntropyResponse, SignedKey } from "../types.ts";
 
@@ -15,7 +16,7 @@ const ENTROPY_BASE_URL = "https://entropy-v2.truestamp.com";
 const PUBLIC_KEYS_BASE_URL = "https://keys.truestamp.com";
 
 function generatePublicKeyHandle(publickey: Uint8Array): string {
-  return encodeHex(hash(publickey)).slice(0, 8).toLowerCase();
+  return encodeHex(sha256(publickey)).slice(0, 8).toLowerCase();
 }
 
 async function verifyPublicKey(publickey: Uint8Array): Promise<boolean> {
@@ -58,13 +59,13 @@ async function verifyEntropy(entropy: EntropyResponse): Promise<boolean> {
   const canonicalData = await canonify(data);
 
   if (!canonicalData) {
-    throw new Error("signature : invalid canonical data");
+    throw new Error("signature : undefined canonical data");
   }
 
-  const canonicalDataHash = await digestMessage(canonicalData);
+  const canonicalDataHash = sha256(encodeUtf8(canonicalData));
 
   if (hash !== encodeHex(canonicalDataHash, true)) {
-    throw new Error("signature : entropy hash mismatch");
+    throw new Error("signature : entropy data hash mismatch");
   }
 
   const signatureBytes = decodeBase64(signature);
@@ -133,7 +134,9 @@ $ truestamp entropy ab84d4760579bef4ecebe2d2e50e7a42d57e2650894bfbd5749e5e255189
     );
 
     // throws if invalid
-    await verifyEntropy(EntropyResponse.parse(entropy));
+    EntropyResponse.parse(entropy);
+
+    await verifyEntropy(entropy);
 
     if (entropy) {
       logSelectedOutputFormat(
