@@ -56,6 +56,8 @@ export type {
   Json,
   StoreType,
 } from "https://raw.githubusercontent.com/truestamp/deno-conf/v1.0.6/mod.ts";
+export { ZodError } from "zod";
+export { fromZodError } from "zod-validation-error";
 export {
   appPaths,
   colors,

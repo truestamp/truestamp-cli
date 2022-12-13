@@ -2,15 +2,28 @@
 
 import { getAccessTokenWithPrompts } from "./deps.ts";
 
-import Truestamp from "@truestamp/truestamp-js";
+import { TruestampClient } from "@truestamp/client";
+
+function getApiBaseUrlFromEnv(env?: string): string {
+  switch (env) {
+    case "development":
+      return "https://dev-api.truestamp.com";
+
+    case "staging":
+      return "https://staging-api.truestamp.com";
+
+    default:
+      return "https://api.truestamp.com";
+  }
+}
 
 export async function createTruestampClient(
   env: string,
   apiKey?: string,
-): Promise<Truestamp> {
-  const client = new Truestamp({
+): Promise<TruestampClient> {
+  const client = new TruestampClient({
+    apiBaseUrl: getApiBaseUrlFromEnv(env),
     apiKey: apiKey ?? (await getAccessTokenWithPrompts(env)),
-    apiEnv: env,
   });
 
   return client;

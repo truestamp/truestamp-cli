@@ -5,8 +5,10 @@ import {
   Command,
   CompletionsCommand,
   EnumType,
+  fromZodError,
   HelpCommand,
   ValidationError,
+  ZodError,
 } from "./deps.ts";
 
 import { auth } from "./commands/auth.ts";
@@ -91,6 +93,13 @@ try {
         colors.yellow(
           `  ${colors.bold("Validation Error")}: ${error.message}\n`,
         ) + "\n",
+      ),
+    );
+  } else if (error instanceof ZodError) {
+    const validationError = fromZodError(error);
+    Deno.stderr.writeSync(
+      new TextEncoder().encode(
+        colors.red(`  ${colors.bold("Error")}: ${validationError}\n`) + "\n",
       ),
     );
   } else if (error instanceof Error) {

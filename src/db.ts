@@ -2,8 +2,6 @@
 
 import { appPaths, DB } from "./deps.ts";
 
-import { decodeUnsafely } from "@truestamp/id";
-
 // e.g.  sqlite3 "/Users/glenn/Library/Application Support/com.truestamp.cli.development/db.sqlite3"
 export function createDataDir(env: string): string {
   const appDir = appPaths(`com.truestamp.cli.${env}`);
@@ -18,25 +16,43 @@ export function writeItemToDb(env: string, id: string): void {
 
   db.query(`
 CREATE TABLE IF NOT EXISTS items (
-  id TEXT NOT NULL UNIQUE PRIMARY KEY,
-  id_json TEXT NOT NULL
+  id TEXT NOT NULL UNIQUE PRIMARY KEY
 )
 `);
 
-  const decodedId = decodeUnsafely(id);
-
-  db.query("INSERT INTO items (id, id_json) VALUES (?, json(?))", [
+  db.query("INSERT INTO items (id) VALUES (?)", [
     id,
-    JSON.stringify(decodedId),
   ]);
-
-  // // Print out data in table
-  // for (const [id] of db.query("SELECT id FROM items")) {
-  //   console.log(id);
-  // }
 
   db.close();
 }
+
+// export function writeItemToDb(env: string, id: string): void {
+//   const dbDir = createDataDir(env);
+//   // console.log(`${dbDir}/db.sqlite3`)
+//   const db = new DB(`${dbDir}/db.sqlite3`);
+
+//   db.query(`
+// CREATE TABLE IF NOT EXISTS items (
+//   id TEXT NOT NULL UNIQUE PRIMARY KEY,
+//   id_json TEXT NOT NULL
+// )
+// `);
+
+//   const decodedId = decodeUnsafely(id);
+
+//   db.query("INSERT INTO items (id, id_json) VALUES (?, json(?))", [
+//     id,
+//     JSON.stringify(decodedId),
+//   ]);
+
+//   // // Print out data in table
+//   // for (const [id] of db.query("SELECT id FROM items")) {
+//   //   console.log(id);
+//   // }
+
+//   db.close();
+// }
 
 // See : https://stackoverflow.com/questions/33432421/sqlite-json1-example-for-json-extract-set
 // e.g.  sqlite3 "/Users/glenn/Library/Application Support/com.truestamp.cli.development/db.sqlite3"

@@ -3,7 +3,6 @@
 import { z } from "zod";
 
 import { decode as base64Decode } from "@stablelib/base64";
-import { isValidUnsafely } from "@truestamp/id";
 import { isIso3166Alpha2Code } from "iso-3166-ts";
 import { DateTime } from "luxon";
 
@@ -27,6 +26,8 @@ export const REGEX_HASH_HEX_20_64 = /^(([a-f0-9]{2}){20,64})$/i;
 
 export const HashHex20to64 = z.string().regex(REGEX_HASH_HEX_20_64);
 export type HashHex20to64 = z.infer<typeof HashHex20to64>;
+
+const DEFAULT_REFRESH_TOKEN_EXPIRATION_TTL = 60 * 60 * 24 * 365 * 5; // 5 years
 
 // ULID String Type
 const REGEX_ULID = /^[0123456789ABCDEFGHJKMNPQRSTVWXYZ]{26}$/;
@@ -109,8 +110,10 @@ export const HASH_TYPES: HashTypes = {
 // A valid Truestamp Id string
 export const TruestampId = z.string().refine(
   (val: string): boolean => {
+    const base58CheckPlusUnderscoreEncoding =
+      /^[123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz_]+$/;
     try {
-      return isValidUnsafely(val);
+      return base58CheckPlusUnderscoreEncoding.test(val);
     } catch (error) {
       return false;
     }
@@ -369,17 +372,17 @@ export type Item = z.infer<typeof Item>;
 
 // A subset of Item, used to validate user provided input. These are the only
 // properties that are allowed to be set by the user.
-export const ItemRequest = Item.pick({
+export const ItemRequestSchema = Item.pick({
   itemData: true,
   itemDataSignatures: true,
 });
 
-export type ItemRequest = z.infer<typeof ItemRequest>;
+export type ItemRequest = z.infer<typeof ItemRequestSchema>;
 
 // The response from the API when submitting an Item to the API
-export const ItemResponse = z.object({ id: TruestampId });
+export const ItemResponseSchema = z.object({ id: TruestampId });
 
-export type ItemResponse = z.infer<typeof ItemResponse>;
+export type ItemResponse = z.infer<typeof ItemResponseSchema>;
 
 // An ItemEnvelope is a wrapper around an Item
 export const ItemEnvelope = z.object({
@@ -389,6 +392,41 @@ export const ItemEnvelope = z.object({
 });
 
 export type ItemEnvelope = z.infer<typeof ItemEnvelope>;
+
+export const HealthResponseSchema = z.object({
+  status: z.union([z.literal("pass"), z.literal("fail")]),
+  description: z.string().optional(),
+  checks: z
+    .object({
+      uptime: z
+        .array(
+          z.object({
+            status: z.literal("pass"),
+            componentType: z.string(),
+            time: z.string(),
+          }),
+        )
+        .optional(),
+    })
+    .optional(),
+  links: z.array(z.string().url()).optional(),
+});
+
+export type HealthResponse = z.infer<typeof HealthResponseSchema>;
+
+export const ApiKeyBodySchema = z.object({
+  refreshToken: z.string(),
+  description: z.string().max(256).optional(),
+  ttl: z.number().min(0).max(DEFAULT_REFRESH_TOKEN_EXPIRATION_TTL).optional(),
+});
+export type ApiKeyBody = z.infer<typeof ApiKeyBodySchema>;
+
+export const ApiKeyResponseSchema = z.object({
+  apiKey: z.string(),
+  expiration: z.string().max(256),
+  description: z.string().max(256),
+});
+export type ApiKeyResponse = z.infer<typeof ApiKeyResponseSchema>;
 
 export const SNSTopicMessage = z.object({
   owner: z.optional(z.string().min(1)),
@@ -642,9 +680,11 @@ export const EntropyDrandBeaconChainInfo = z.object({
   genesis_time: z.number().int(),
   groupHash: HashHex,
   hash: HashHex,
-  metadata: z.object({
-    beaconID: z.string(),
-  }).optional(),
+  metadata: z
+    .object({
+      beaconID: z.string(),
+    })
+    .optional(),
   period: z.number().int(),
   public_key: HashHex,
   schemeID: z.string().optional(),
@@ -727,22 +767,24 @@ export const EntropyTimestamp = z.object({
 
 export type EntropyTimestamp = z.infer<typeof EntropyTimestamp>;
 
-export const EntropyResponse = z.object({
-  data: z.object({
-    bitcoin: EntropyBitcoin.strict().optional(),
-    "drand-beacon": EntropyDrandBeacon.strict().optional(),
-    ethereum: EntropyEthereum.strict().optional(),
-    "hacker-news": EntropyHackerNews.strict().optional(),
-    "nist-beacon": EntropyNistBeacon.strict().optional(),
-    previous: EntropyPrevious.strict().optional(),
-    stellar: EntropyStellar.strict().optional(),
-    timestamp: EntropyTimestamp.strict(),
-  }),
-  hash: HashHex32,
-  hashType: z.literal("sha-256"),
-  publicKey: Base64,
-  signature: Base64,
-  signatureType: z.literal("ed25519"),
-}).strict();
+export const EntropyResponse = z
+  .object({
+    data: z.object({
+      bitcoin: EntropyBitcoin.strict().optional(),
+      "drand-beacon": EntropyDrandBeacon.strict().optional(),
+      ethereum: EntropyEthereum.strict().optional(),
+      "hacker-news": EntropyHackerNews.strict().optional(),
+      "nist-beacon": EntropyNistBeacon.strict().optional(),
+      previous: EntropyPrevious.strict().optional(),
+      stellar: EntropyStellar.strict().optional(),
+      timestamp: EntropyTimestamp.strict(),
+    }),
+    hash: HashHex32,
+    hashType: z.literal("sha-256"),
+    publicKey: Base64,
+    signature: Base64,
+    signatureType: z.literal("ed25519"),
+  })
+  .strict();
 
 export type EntropyResponse = z.infer<typeof EntropyResponse>;

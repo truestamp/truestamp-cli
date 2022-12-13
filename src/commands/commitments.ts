@@ -2,15 +2,11 @@
 
 import { Command, createTruestampClient, Table } from "../deps.ts";
 
-import {
-  logSelectedOutputFormat,
-  RFC7807ErrorSchema,
-  throwApiError,
-} from "../utils.ts";
+import { logSelectedOutputFormat, throwApiError } from "../utils.ts";
 
 import { environmentType, outputType } from "../cli.ts";
 
-import { Commitment, CommitmentVerification, verify } from "@truestamp/verify";
+import { verify } from "@truestamp/verify";
 
 const commitmentsRead = new Command<{
   env: typeof environmentType;
@@ -35,25 +31,23 @@ $ truestamp commitments read --id ts_11SHyexF6pqKpTgvnxu5UvHveboF763B41JsZCYcjve
   )
   .action(async (options) => {
     const truestamp = await createTruestampClient(options.env, options.apiKey);
-    const commitmentResp = await truestamp.getCommitment(options.id);
 
-    if (!commitmentResp.success) {
-      const parseResult = RFC7807ErrorSchema.safeParse(commitmentResp.data);
+    try {
+      const getCommitmentResp = await truestamp.getCommitment(options.id);
+
+      logSelectedOutputFormat(
+        {
+          text: JSON.stringify(getCommitmentResp, null, 2),
+          json: getCommitmentResp,
+        },
+        options.output,
+      );
+    } catch (error) {
       throwApiError(
         "get commitment error",
-        parseResult.success ? parseResult.data : undefined,
+        error.message,
       );
     }
-
-    const { data } = commitmentResp;
-
-    logSelectedOutputFormat(
-      {
-        text: JSON.stringify(data, null, 2),
-        json: data,
-      },
-      options.output,
-    );
   });
 
 const commitmentsVerify = new Command<{
@@ -101,37 +95,32 @@ HTTP request to third-party blockchain API servers will originate from this loca
   .action(async (options) => {
     const truestamp = await createTruestampClient(options.env, options.apiKey);
 
-    let verification: CommitmentVerification;
+    let verification;
     if (options.local) {
-      const commitmentResp = await truestamp.getCommitment(options.id);
-      if (!commitmentResp.success) {
-        const parseResult = RFC7807ErrorSchema.safeParse(commitmentResp.data);
+      try {
+        const commitmentResp = await truestamp.getCommitment(options.id);
+        verification = await verify(commitmentResp);
+      } catch (error) {
         throwApiError(
           "get commitment verification error",
-          parseResult.success ? parseResult.data : undefined,
+          error.message,
         );
       }
-
-      const { data } = commitmentResp;
-
-      verification = await verify(data as Commitment);
     } else {
-      const verificationResp = await truestamp.getCommitmentVerification(
-        options.id,
-      );
-      if (!verificationResp.success) {
-        const parseResult = RFC7807ErrorSchema.safeParse(verificationResp.data);
+      try {
+        const verificationResp = await truestamp.getCommitmentVerification(
+          options.id,
+        );
+        verification = verificationResp;
+      } catch (error) {
         throwApiError(
           "get commitment verification error",
-          parseResult.success ? parseResult.data : undefined,
+          error.message,
         );
       }
-
-      const { data } = verificationResp;
-      verification = data as CommitmentVerification;
     }
 
-    if (verification.verified) {
+    if (verification?.verified) {
       logSelectedOutputFormat(
         {
           text: "Verification Results \n",
@@ -211,8 +200,8 @@ HTTP request to third-party blockchain API servers will originate from this loca
     } else {
       logSelectedOutputFormat(
         {
-          text: `verification error : ${verification.error}`,
-          json: verification,
+          text: `verification failed : ${verification?.error}`,
+          json: verification ?? { error: "verification failed" },
         },
         options.output,
       );

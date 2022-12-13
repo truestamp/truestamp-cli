@@ -7,11 +7,7 @@ import {
   ValidationError,
 } from "../../deps.ts";
 
-import {
-  logSelectedOutputFormat,
-  RFC7807ErrorSchema,
-  throwApiError,
-} from "../../utils.ts";
+import { logSelectedOutputFormat, throwApiError } from "../../utils.ts";
 
 import { environmentType, outputType } from "../../cli.ts";
 
@@ -70,32 +66,32 @@ const apiKeyCreate = new Command<{
     }
 
     const truestamp = await createTruestampClient(options.env, options.apiKey);
-    const keyResp = await truestamp.createApiKey({
-      refreshToken: refreshToken,
-      description: options.description,
-      ttl: options.ttl,
-    });
 
-    if (!keyResp.success) {
-      const parseResult = RFC7807ErrorSchema.safeParse(keyResp.data);
+    try {
+      const keyResp = await truestamp.createApiKey({
+        refreshToken: refreshToken,
+        description: options.description,
+        ttl: options.ttl,
+      });
+
+      logSelectedOutputFormat(
+        {
+          text: `${keyResp.apiKey} [${options.env}]`,
+          json: {
+            command: "apikey",
+            status: "ok",
+            environment: options.env,
+            key: keyResp.apiKey,
+          },
+        },
+        options.output,
+      );
+    } catch (error) {
       throwApiError(
         "key creation error",
-        parseResult.success ? parseResult.data : undefined,
+        error.message,
       );
     }
-
-    logSelectedOutputFormat(
-      {
-        text: `${keyResp.data.apiKey} [${options.env}]`,
-        json: {
-          command: "apikey",
-          status: "ok",
-          environment: options.env,
-          key: keyResp.data.apiKey,
-        },
-      },
-      options.output,
-    );
   });
 
 export const apiKeys = new Command<{

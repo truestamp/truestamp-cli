@@ -9,11 +9,7 @@ import {
   ValidationError,
 } from "../deps.ts";
 
-import {
-  logSelectedOutputFormat,
-  RFC7807ErrorSchema,
-  throwApiError,
-} from "../utils.ts";
+import { logSelectedOutputFormat, throwApiError } from "../utils.ts";
 
 import { createDataDir, writeItemToDb } from "../db.ts";
 
@@ -282,93 +278,91 @@ Pipe JSON content to the 'items create' command using '--input json' plus the '-
     // but instead had provided the '--stdin' flag or the '-' path argument,
     // or an actual path, create the Item with the hash and hash-type from the
     // STDIN or file.
-    let itemResp;
+    try {
+      let itemResp;
 
-    if (jsonItem) {
-      itemResp = await truestamp.createItem(jsonItem, {
-        skipCF: !options.netMetadata,
-        skipOE: !options.observableEntropy,
-      });
-    } else if (options.hash && options.hashType) {
-      itemResp = await truestamp.createItem(
-        {
-          itemData: [
-            {
-              hash: options.hash,
-              hashType: <HashTypes> options.hashType,
-            },
-          ],
-        },
-        {
+      if (jsonItem) {
+        itemResp = await truestamp.createItem(jsonItem, {
           skipCF: !options.netMetadata,
           skipOE: !options.observableEntropy,
-        },
-      );
-    } else if (altHash && altHashType) {
-      itemResp = await truestamp.createItem(
-        {
-          itemData: [
-            {
-              hash: altHash,
-              hashType: <HashTypes> altHashType,
-            },
-          ],
-        },
-        {
-          skipCF: !options.netMetadata,
-          skipOE: !options.observableEntropy,
-        },
-      );
-    } else {
-      throw new Error("No hash or hash-type provided");
-    }
+        });
+      } else if (options.hash && options.hashType) {
+        itemResp = await truestamp.createItem(
+          {
+            itemData: [
+              {
+                hash: options.hash,
+                hashType: <HashTypes> options.hashType,
+              },
+            ],
+          },
+          {
+            skipCF: !options.netMetadata,
+            skipOE: !options.observableEntropy,
+          },
+        );
+      } else if (altHash && altHashType) {
+        itemResp = await truestamp.createItem(
+          {
+            itemData: [
+              {
+                hash: altHash,
+                hashType: <HashTypes> altHashType,
+              },
+            ],
+          },
+          {
+            skipCF: !options.netMetadata,
+            skipOE: !options.observableEntropy,
+          },
+        );
+      } else {
+        throw new Error("No hash or hash-type provided");
+      }
 
-    if (!itemResp.success) {
-      const parseResult = RFC7807ErrorSchema.safeParse(itemResp.data);
+      const { id } = itemResp;
+
+      // store the item in the local database
+      writeItemToDb(options.env, id);
+
+      // If a path or STDIN was provided it is helpful to archive the contents of the file
+      // and tightly associate it with the returned Item Id/envelope.
+      // Copy the binary or JSON file to the common data directory.
+      // Name it with the Item Id concatenated with its original name or use 'stdin'.
+      if (options.input && (options.stdin || path === "-")) {
+        // Copy the data passed as STDIN to the common data directory for archival purposes
+        const dataDir = createDataDir(options.env);
+        const fileDir = `${dataDir}/files`;
+        await Deno.mkdir(fileDir, { recursive: true });
+        const filePath = `${fileDir}/${id}--stdin`;
+
+        if (stdInData) {
+          await Deno.writeFile(filePath, stdInData);
+          // console.log(filePath)
+        }
+      } else if (options.input && path) {
+        // Copy the data passed as a file path to the common data directory for archival purposes
+        const dataDir = createDataDir(options.env);
+        const fileDir = `${dataDir}/files`;
+        await Deno.mkdir(fileDir, { recursive: true });
+        const filePath = `${fileDir}/${id}--${pathParse(path).base}`;
+        // console.log(filePath)
+        await Deno.copyFile(path, filePath);
+      }
+
+      logSelectedOutputFormat(
+        {
+          text: id,
+          json: { id: id },
+        },
+        options.output,
+      );
+    } catch (error) {
       throwApiError(
         "item creation error",
-        parseResult.success ? parseResult.data : undefined,
+        error.message,
       );
     }
-
-    const { data } = itemResp;
-    const { id } = data;
-
-    // store the item in the local database
-    writeItemToDb(options.env, id);
-
-    // If a path or STDIN was provided it is helpful to archive the contents of the file
-    // and tightly associate it with the returned Item Id/envelope.
-    // Copy the binary or JSON file to the common data directory.
-    // Name it with the Item Id concatenated with its original name or use 'stdin'.
-    if (options.input && (options.stdin || path === "-")) {
-      // Copy the data passed as STDIN to the common data directory for archival purposes
-      const dataDir = createDataDir(options.env);
-      const fileDir = `${dataDir}/files`;
-      await Deno.mkdir(fileDir, { recursive: true });
-      const filePath = `${fileDir}/${id}--stdin`;
-
-      if (stdInData) {
-        await Deno.writeFile(filePath, stdInData);
-        // console.log(filePath)
-      }
-    } else if (options.input && path) {
-      // Copy the data passed as a file path to the common data directory for archival purposes
-      const dataDir = createDataDir(options.env);
-      const fileDir = `${dataDir}/files`;
-      await Deno.mkdir(fileDir, { recursive: true });
-      const filePath = `${fileDir}/${id}--${pathParse(path).base}`;
-      // console.log(filePath)
-      await Deno.copyFile(path, filePath);
-    }
-
-    logSelectedOutputFormat(
-      {
-        text: id,
-        json: { id: id },
-      },
-      options.output,
-    );
   });
 
 const itemsUpdate = new Command<{
@@ -572,64 +566,62 @@ Pipe JSON content to the 'items update' command using '--input json' plus the '-
       file.close();
     }
 
-    let itemResp;
+    try {
+      let itemResp;
 
-    if (jsonItem) {
-      itemResp = await truestamp.updateItem(options.id, jsonItem, {
-        skipCF: !options.netMetadata,
-        skipOE: !options.observableEntropy,
-      });
-    } else if (options.hash && options.hashType) {
-      itemResp = await truestamp.updateItem(
-        options.id,
-        {
-          itemData: [
-            {
-              hash: options.hash,
-              hashType: <HashTypes> options.hashType,
-            },
-          ],
-        },
-        {
+      if (jsonItem) {
+        itemResp = await truestamp.updateItem(options.id, jsonItem, {
           skipCF: !options.netMetadata,
           skipOE: !options.observableEntropy,
-        },
-      );
-    } else if (altHash && altHashType) {
-      itemResp = await truestamp.updateItem(
-        options.id,
-        {
-          itemData: [
-            {
-              hash: altHash,
-              hashType: <HashTypes> altHashType,
-            },
-          ],
-        },
-        {
-          skipCF: !options.netMetadata,
-          skipOE: !options.observableEntropy,
-        },
-      );
-    } else {
-      throw new Error("No hash or hashType provided");
-    }
+        });
+      } else if (options.hash && options.hashType) {
+        itemResp = await truestamp.updateItem(
+          options.id,
+          {
+            itemData: [
+              {
+                hash: options.hash,
+                hashType: <HashTypes> options.hashType,
+              },
+            ],
+          },
+          {
+            skipCF: !options.netMetadata,
+            skipOE: !options.observableEntropy,
+          },
+        );
+      } else if (altHash && altHashType) {
+        itemResp = await truestamp.updateItem(
+          options.id,
+          {
+            itemData: [
+              {
+                hash: altHash,
+                hashType: <HashTypes> altHashType,
+              },
+            ],
+          },
+          {
+            skipCF: !options.netMetadata,
+            skipOE: !options.observableEntropy,
+          },
+        );
+      } else {
+        throw new Error("No hash or hashType provided");
+      }
 
-    if (!itemResp.success) {
-      const parseResult = RFC7807ErrorSchema.safeParse(itemResp.data);
+      const { id } = itemResp;
+
+      // store the item in the local database
+      writeItemToDb(options.env, id);
+
+      logSelectedOutputFormat({ text: id, json: { id: id } }, options.output);
+    } catch (error) {
       throwApiError(
         "item update error",
-        parseResult.success ? parseResult.data : undefined,
+        error.message,
       );
     }
-
-    const { data } = itemResp;
-    const { id } = data;
-
-    // store the item in the local database
-    writeItemToDb(options.env, id);
-
-    logSelectedOutputFormat({ text: id, json: { id: id } }, options.output);
   });
 
 export const items = new Command<{

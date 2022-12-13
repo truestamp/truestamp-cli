@@ -26,41 +26,56 @@ export function logSelectedOutputFormat(
   }
 }
 
-export const RFC7807ErrorSchema = z.object({
-  status: z.number(),
-  type: z.optional(z.string().url()),
-  title: z.optional(z.string()),
-  detail: z.optional(z.string()),
-  instance: z.optional(z.string().url()),
-});
+// export const RFC7807ErrorSchema = z.object({
+//   status: z.number(),
+//   type: z.optional(z.string().url()),
+//   title: z.optional(z.string()),
+//   detail: z.optional(z.string()),
+//   instance: z.optional(z.string().url()),
+// });
 
-export type RFC7807Error = z.infer<typeof RFC7807ErrorSchema>;
+// export type RFC7807Error = z.infer<typeof RFC7807ErrorSchema>;
 
-// RFC7807 Problem Details for HTTP APIs
-// See : https://github.com/PDMLab/http-problem-details
+// // RFC7807 Problem Details for HTTP APIs
+// // See : https://github.com/PDMLab/http-problem-details
+// export function throwApiError(
+//   errorMsgPrefix: string,
+//   errorData?: RFC7807Error,
+// ): void {
+//   const result = RFC7807ErrorSchema.safeParse(errorData);
+
+//   // Unknown/missing error format
+//   if (!result.success) {
+//     throw new Error(
+//       `${errorMsgPrefix} : invalid error response :\n${
+//         JSON.stringify(
+//           errorData,
+//           null,
+//           2,
+//         )
+//       }`,
+//     );
+//   }
+
+//   // RFC7807 error
+//   const { title, detail, status, type, instance } = result.data;
+//   throw new Error(
+//     `${errorMsgPrefix} : ${title} ${detail} [${status}, ${type}, ${instance}]`,
+//   );
+// }
+
 export function throwApiError(
   errorMsgPrefix: string,
-  errorData?: RFC7807Error,
+  errorData?: any,
 ): void {
-  const result = RFC7807ErrorSchema.safeParse(errorData);
-
-  // Unknown/missing error format
-  if (!result.success) {
-    throw new Error(
-      `${errorMsgPrefix} : invalid error response :\n${
-        JSON.stringify(
-          errorData,
-          null,
-          2,
-        )
-      }`,
-    );
-  }
-
-  // RFC7807 error
-  const { title, detail, status, type, instance } = result.data;
   throw new Error(
-    `${errorMsgPrefix} : ${title} ${detail} [${status}, ${type}, ${instance}]`,
+    `${errorMsgPrefix} : invalid error response :\n${
+      JSON.stringify(
+        errorData,
+        null,
+        2,
+      )
+    }`,
   );
 }
 
