@@ -9,7 +9,7 @@ import {
   getConfigRefreshToken,
 } from "../deps.ts";
 
-import { apiKeys } from "./apikeys/apikeys.ts";
+import { apiKeys } from "./apikeys.ts";
 
 import { logSelectedOutputFormat } from "../utils.ts";
 

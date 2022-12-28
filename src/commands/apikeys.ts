@@ -5,11 +5,11 @@ import {
   createTruestampClient,
   getConfigRefreshToken,
   ValidationError,
-} from "../../deps.ts";
+} from "../deps.ts";
 
-import { logSelectedOutputFormat, throwApiError } from "../../utils.ts";
+import { logSelectedOutputFormat, throwApiError } from "../utils.ts";
 
-import { environmentType, outputType } from "../../cli.ts";
+import { environmentType, outputType } from "../cli.ts";
 
 const MAX_DESCRIPTION_LENGTH = 256;
 
