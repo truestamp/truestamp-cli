@@ -187,8 +187,8 @@ Pipe content to the 'items create' command using '--input binary' plus the '--st
 
 Pipe JSON content to the 'items create' command using '--input json' plus the '--stdin' option or the '-' path:
 
-  $ echo -n '{"hash": "63df103e8ebcabdf86d8f13e98a02063fef1da8065335ec0dd978378951534d6", "hashType": "sha-256"}' | truestamp items create --input json -
-  $ echo -n '{"hash": "63df103e8ebcabdf86d8f13e98a02063fef1da8065335ec0dd978378951534d6", "hashType": "sha-256"}' | truestamp items create --input json --stdin
+  $ echo -n '{"itemData": [{"hash": "63df103e8ebcabdf86d8f13e98a02063fef1da8065335ec0dd978378951534d6", "hashType": "sha-256"}]}' | truestamp items create --input json -
+  $ echo -n '{"itemData": [{"hash": "63df103e8ebcabdf86d8f13e98a02063fef1da8065335ec0dd978378951534d6", "hashType": "sha-256"}]}' | truestamp items create --input json --stdin
 
   # Can be full complexity JSON Item data
   $ echo -n '{"hash": "63df103e8ebcabdf86d8f13e98a02063fef1da8065335ec0dd978378951534d6", "hashType": "sha-256"}' > hello.json
@@ -476,11 +476,11 @@ Pipe content to the 'items update' command using the '--stdin' option or the '-'
 
 Pipe JSON content to the 'items update' command using '--input json' plus the '--stdin' option or the '-' path:
 
-  $ echo -n '{"hash": "63df103e8ebcabdf86d8f13e98a02063fef1da8065335ec0dd978378951534d6", "hashType": "sha-256"}' | truestamp items update --input json --id ts_11SHyexF6pqKpTgvnxu5UvHveboF763B41JsZCYcjveSNgqXnL2k7K4LrUuy -
-  $ echo -n '{"hash": "63df103e8ebcabdf86d8f13e98a02063fef1da8065335ec0dd978378951534d6", "hashType": "sha-256"}' | truestamp items update --input json --stdin --id ts_11SHyexF6pqKpTgvnxu5UvHveboF763B41JsZCYcjveSNgqXnL2k7K4LrUuy
+  $ echo -n '{"itemData": [{"hash": "63df103e8ebcabdf86d8f13e98a02063fef1da8065335ec0dd978378951534d6", "hashType": "sha-256"}]}' | truestamp items update --input json --id ts_11SHyexF6pqKpTgvnxu5UvHveboF763B41JsZCYcjveSNgqXnL2k7K4LrUuy -
+  $ echo -n '{"itemData": [{"hash": "63df103e8ebcabdf86d8f13e98a02063fef1da8065335ec0dd978378951534d6", "hashType": "sha-256"}]}' | truestamp items update --input json --stdin --id ts_11SHyexF6pqKpTgvnxu5UvHveboF763B41JsZCYcjveSNgqXnL2k7K4LrUuy
 
   # Can be full complexity JSON Item data
-  $ echo -n '{"hash": "63df103e8ebcabdf86d8f13e98a02063fef1da8065335ec0dd978378951534d6", "hashType": "sha-256"}' > hello.json
+  $ echo -n '{"itemData": [{"hash": "63df103e8ebcabdf86d8f13e98a02063fef1da8065335ec0dd978378951534d6", "hashType": "sha-256"}]}' > hello.json
 
   $ cat hello.json | truestamp items update --input json --id ts_11SHyexF6pqKpTgvnxu5UvHveboF763B41JsZCYcjveSNgqXnL2k7K4LrUuy -
   $ cat hello.json | truestamp items update --input json --stdin --id ts_11SHyexF6pqKpTgvnxu5UvHveboF763B41JsZCYcjveSNgqXnL2k7K4LrUuy
