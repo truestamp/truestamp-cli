@@ -10,6 +10,7 @@ import {
 } from "../deps.ts";
 
 import {
+  getSigningSecretKeyForEnv,
   logSelectedOutputFormat,
   signItemData,
   throwApiError,
@@ -34,7 +35,7 @@ const itemsCreate = new Command<{
   env: typeof environmentType;
   apiKey?: string;
   output: typeof outputType;
-  signingKeySeed?: string;
+  signingSecretKey?: string;
 }>()
   .description(
     `Create a new Item.
@@ -293,14 +294,17 @@ Pipe JSON content to the 'items create' command using '--input json' plus the '-
         skipOE: !options.observableEntropy,
       };
 
+      const signingSecretKeyFromConfig = getSigningSecretKeyForEnv(options.env);
+
       if (jsonItem) {
         const itemRequest: ItemRequest = ItemRequestSchema.parse(jsonItem);
 
-        itemRequest.itemDataSignatures = options.signingKeySeed
-          ? signItemData(itemRequest, options.signingKeySeed)
+        // Signing Secret Key provided as an option or env var overrides a key stored in the config file.
+        itemRequest.itemDataSignatures = options.signingSecretKey
+          ? signItemData(itemRequest, options.signingSecretKey)
+          : signingSecretKeyFromConfig
+          ? signItemData(itemRequest, signingSecretKeyFromConfig)
           : undefined;
-
-        console.log("itemRequest", JSON.stringify(itemRequest, null, 2));
 
         itemResp = await truestamp.createItem(itemRequest, createItemArgs);
       } else if (options.hash && options.hashType) {
@@ -313,11 +317,12 @@ Pipe JSON content to the 'items create' command using '--input json' plus the '-
           ],
         };
 
-        itemRequest.itemDataSignatures = options.signingKeySeed
-          ? signItemData(itemRequest, options.signingKeySeed)
+        // Signing Secret Key provided as an option or env var overrides a key stored in the config file.
+        itemRequest.itemDataSignatures = options.signingSecretKey
+          ? signItemData(itemRequest, options.signingSecretKey)
+          : signingSecretKeyFromConfig
+          ? signItemData(itemRequest, signingSecretKeyFromConfig)
           : undefined;
-
-        // console.log("itemRequest", JSON.stringify(itemRequest, null, 2));
 
         itemResp = await truestamp.createItem(
           itemRequest,
@@ -333,11 +338,12 @@ Pipe JSON content to the 'items create' command using '--input json' plus the '-
           ],
         };
 
-        itemRequest.itemDataSignatures = options.signingKeySeed
-          ? signItemData(itemRequest, options.signingKeySeed)
+        // Signing Secret Key provided as an option or env var overrides a key stored in the config file.
+        itemRequest.itemDataSignatures = options.signingSecretKey
+          ? signItemData(itemRequest, options.signingSecretKey)
+          : signingSecretKeyFromConfig
+          ? signItemData(itemRequest, signingSecretKeyFromConfig)
           : undefined;
-
-        // console.log("itemRequest", JSON.stringify(itemRequest, null, 2));
 
         itemResp = await truestamp.createItem(
           itemRequest,
@@ -396,7 +402,7 @@ const itemsUpdate = new Command<{
   env: typeof environmentType;
   apiKey?: string;
   output: typeof outputType;
-  signingKeySeed?: string;
+  signingSecretKey?: string;
 }>()
   .description(
     `Update an existing Item by replacing it with a new one.
@@ -602,14 +608,17 @@ Pipe JSON content to the 'items update' command using '--input json' plus the '-
         skipOE: !options.observableEntropy,
       };
 
+      const signingSecretKeyFromConfig = getSigningSecretKeyForEnv(options.env);
+
       if (jsonItem) {
         const itemRequest: ItemRequest = ItemRequestSchema.parse(jsonItem);
 
-        itemRequest.itemDataSignatures = options.signingKeySeed
-          ? signItemData(itemRequest, options.signingKeySeed)
+        // Signing Secret Key provided as an option or env var overrides a key stored in the config file.
+        itemRequest.itemDataSignatures = options.signingSecretKey
+          ? signItemData(itemRequest, options.signingSecretKey)
+          : signingSecretKeyFromConfig
+          ? signItemData(itemRequest, signingSecretKeyFromConfig)
           : undefined;
-
-        console.log("itemRequest", JSON.stringify(itemRequest, null, 2));
 
         itemResp = await truestamp.updateItem(
           options.id,
@@ -626,11 +635,12 @@ Pipe JSON content to the 'items update' command using '--input json' plus the '-
           ],
         };
 
-        itemRequest.itemDataSignatures = options.signingKeySeed
-          ? signItemData(itemRequest, options.signingKeySeed)
+        // Signing Secret Key provided as an option or env var overrides a key stored in the config file.
+        itemRequest.itemDataSignatures = options.signingSecretKey
+          ? signItemData(itemRequest, options.signingSecretKey)
+          : signingSecretKeyFromConfig
+          ? signItemData(itemRequest, signingSecretKeyFromConfig)
           : undefined;
-
-        // console.log("itemRequest", JSON.stringify(itemRequest, null, 2));
 
         itemResp = await truestamp.updateItem(
           options.id,
@@ -647,11 +657,12 @@ Pipe JSON content to the 'items update' command using '--input json' plus the '-
           ],
         };
 
-        itemRequest.itemDataSignatures = options.signingKeySeed
-          ? signItemData(itemRequest, options.signingKeySeed)
+        // Signing Secret Key provided as an option or env var overrides a key stored in the config file.
+        itemRequest.itemDataSignatures = options.signingSecretKey
+          ? signItemData(itemRequest, options.signingSecretKey)
+          : signingSecretKeyFromConfig
+          ? signItemData(itemRequest, signingSecretKeyFromConfig)
           : undefined;
-
-        // console.log("itemRequest", JSON.stringify(itemRequest, null, 2));
 
         itemResp = await truestamp.updateItem(
           options.id,
@@ -680,7 +691,7 @@ export const items = new Command<{
   env: typeof environmentType;
   apiKey?: string;
   output: typeof outputType;
-  signingKeySeed?: string;
+  signingSecretKey?: string;
 }>()
   .description("Create or update Items.")
   .action(() => {

@@ -2,6 +2,8 @@
 
 import { Conf, Json } from "./deps.ts";
 
+// e.g.  cat "/Users/glenn/Library/Preferences/com.truestamp.cli.development/config.json"
+
 function getConfigProjectNameForEnv(env: string): string {
   return `com.truestamp.cli.${env}`;
 }

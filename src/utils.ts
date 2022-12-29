@@ -1,6 +1,10 @@
 // Copyright © 2020-2022 Truestamp Inc. All rights reserved.
 
-import { generateKeyPairFromSeed, sign } from "@stablelib/ed25519";
+import {
+  extractPublicKeyFromSecretKey,
+  generateKeyPair,
+  sign,
+} from "@stablelib/ed25519";
 import { hash as sha256 } from "@stablelib/sha256";
 import { z } from "zod";
 
@@ -10,6 +14,8 @@ import {
   decode as base64Decode,
   encode as base64Encode,
 } from "@stablelib/base64";
+
+import { getConfigKeyForEnv, setConfigKeyForEnv } from "./config.ts";
 
 const OutputWrapper = z.object({
   text: z.string(),
@@ -163,26 +169,57 @@ export async function put<T, U>(
 
 export function signItemData(
   itemRequest: ItemRequest,
-  signingKeySeed: Uint8Array | string,
+  secretKey: Uint8Array | string,
 ): Signature[] {
-  if (typeof signingKeySeed === "string") {
-    signingKeySeed = base64Decode(signingKeySeed);
+  if (typeof secretKey === "string") {
+    secretKey = base64Decode(secretKey);
   }
 
-  const signingKeyPair = generateKeyPairFromSeed(signingKeySeed);
+  const publicKey = extractPublicKeyFromSecretKey(secretKey);
+
   const canonicalData = canonify(itemRequest.itemData);
   const canonicalDataUint8Array = new TextEncoder().encode(canonicalData);
   const canonicalDataHash = sha256(canonicalDataUint8Array);
+
   const canonicalDataHashSignature = sign(
-    signingKeyPair.secretKey,
+    secretKey,
     canonicalDataHash,
   );
 
   return [
     {
-      publicKey: base64Encode(signingKeyPair.publicKey),
+      publicKey: base64Encode(publicKey),
       signature: base64Encode(canonicalDataHashSignature),
       signatureType: "ed25519",
     },
   ];
+}
+
+export function getSigningSecretKeyForEnv(env: string): Uint8Array {
+  const configSecretKeyPropertyName = "signing_secret_key";
+  const configPublicKeyPropertyName = "signing_public_key";
+
+  const secretKey = getConfigKeyForEnv(
+    env,
+    configSecretKeyPropertyName,
+  );
+
+  if (secretKey) {
+    return base64Decode(secretKey as string);
+  } else {
+    // Initialize and save a new KeyPair to config
+    const keyPair = generateKeyPair();
+    setConfigKeyForEnv(
+      env,
+      configSecretKeyPropertyName,
+      base64Encode(keyPair.secretKey),
+    );
+    setConfigKeyForEnv(
+      env,
+      configPublicKeyPropertyName,
+      base64Encode(keyPair.publicKey),
+    );
+
+    return keyPair.secretKey;
+  }
 }
