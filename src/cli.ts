@@ -73,6 +73,18 @@ const cmd = new Command()
       default: "text",
     },
   )
+  .globalEnv(
+    "TRUESTAMP_SIGNING_KEY_SEED=<signingKeySeed:string>",
+    "A Base64 encoded 32 byte random seed used to create an ed25519 signing keypair.",
+    {
+      required: false,
+      prefix: "TRUESTAMP_",
+    },
+  )
+  .globalOption(
+    "-S, --signing-key-seed <signingKeySeed:string>",
+    "A Base64 encoded 32 byte random seed used to create an ed25519 signing keypair. Overrides 'TRUESTAMP_SIGNING_KEY_SEED' env var.",
+  )
   .action(() => {
     cmd.showHelp();
   })

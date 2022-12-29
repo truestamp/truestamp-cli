@@ -1,11 +1,22 @@
 // Copyright © 2020-2022 Truestamp Inc. All rights reserved.
 
+import { generateKeyPairFromSeed, sign } from "@stablelib/ed25519";
+import { hash as sha256 } from "@stablelib/sha256";
 import { z } from "zod";
+
+import { canonify } from "@truestamp/canonify";
+
+import {
+  decode as base64Decode,
+  encode as base64Encode,
+} from "@stablelib/base64";
 
 const OutputWrapper = z.object({
   text: z.string(),
   json: z.record(z.string().min(1), z.any()),
 });
+
+import type { ItemRequest, Signature } from "./types.ts";
 
 export type OutputWrapper = z.infer<typeof OutputWrapper>;
 
@@ -148,4 +159,30 @@ export async function put<T, U>(
     ...config,
   };
   return await http<U>(path, init);
+}
+
+export function signItemData(
+  itemRequest: ItemRequest,
+  signingKeySeed: Uint8Array | string,
+): Signature[] {
+  if (typeof signingKeySeed === "string") {
+    signingKeySeed = base64Decode(signingKeySeed);
+  }
+
+  const signingKeyPair = generateKeyPairFromSeed(signingKeySeed);
+  const canonicalData = canonify(itemRequest.itemData);
+  const canonicalDataUint8Array = new TextEncoder().encode(canonicalData);
+  const canonicalDataHash = sha256(canonicalDataUint8Array);
+  const canonicalDataHashSignature = sign(
+    signingKeyPair.secretKey,
+    canonicalDataHash,
+  );
+
+  return [
+    {
+      publicKey: base64Encode(signingKeyPair.publicKey),
+      signature: base64Encode(canonicalDataHashSignature),
+      signatureType: "ed25519",
+    },
+  ];
 }

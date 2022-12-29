@@ -9,11 +9,17 @@ import {
   ValidationError,
 } from "../deps.ts";
 
-import { logSelectedOutputFormat, throwApiError } from "../utils.ts";
+import {
+  logSelectedOutputFormat,
+  signItemData,
+  throwApiError,
+} from "../utils.ts";
 
 import { createDataDir, writeItemToDb } from "../db.ts";
 
 import { environmentType, outputType } from "../cli.ts";
+
+import { ItemRequest, ItemRequestSchema } from "../types.ts";
 
 export const inputType = new EnumType(["binary", "json"]);
 
@@ -28,6 +34,7 @@ const itemsCreate = new Command<{
   env: typeof environmentType;
   apiKey?: string;
   output: typeof outputType;
+  signingKeySeed?: string;
 }>()
   .description(
     `Create a new Item.
@@ -281,40 +288,60 @@ Pipe JSON content to the 'items create' command using '--input json' plus the '-
     try {
       let itemResp;
 
+      const createItemArgs = {
+        skipCF: !options.netMetadata,
+        skipOE: !options.observableEntropy,
+      };
+
       if (jsonItem) {
-        itemResp = await truestamp.createItem(jsonItem, {
-          skipCF: !options.netMetadata,
-          skipOE: !options.observableEntropy,
-        });
+        const itemRequest: ItemRequest = ItemRequestSchema.parse(jsonItem);
+
+        itemRequest.itemDataSignatures = options.signingKeySeed
+          ? signItemData(itemRequest, options.signingKeySeed)
+          : undefined;
+
+        console.log("itemRequest", JSON.stringify(itemRequest, null, 2));
+
+        itemResp = await truestamp.createItem(itemRequest, createItemArgs);
       } else if (options.hash && options.hashType) {
+        const itemRequest: ItemRequest = {
+          itemData: [
+            {
+              hash: options.hash,
+              hashType: <HashTypes> options.hashType,
+            },
+          ],
+        };
+
+        itemRequest.itemDataSignatures = options.signingKeySeed
+          ? signItemData(itemRequest, options.signingKeySeed)
+          : undefined;
+
+        // console.log("itemRequest", JSON.stringify(itemRequest, null, 2));
+
         itemResp = await truestamp.createItem(
-          {
-            itemData: [
-              {
-                hash: options.hash,
-                hashType: <HashTypes> options.hashType,
-              },
-            ],
-          },
-          {
-            skipCF: !options.netMetadata,
-            skipOE: !options.observableEntropy,
-          },
+          itemRequest,
+          createItemArgs,
         );
       } else if (altHash && altHashType) {
+        const itemRequest: ItemRequest = {
+          itemData: [
+            {
+              hash: altHash,
+              hashType: <HashTypes> altHashType,
+            },
+          ],
+        };
+
+        itemRequest.itemDataSignatures = options.signingKeySeed
+          ? signItemData(itemRequest, options.signingKeySeed)
+          : undefined;
+
+        // console.log("itemRequest", JSON.stringify(itemRequest, null, 2));
+
         itemResp = await truestamp.createItem(
-          {
-            itemData: [
-              {
-                hash: altHash,
-                hashType: <HashTypes> altHashType,
-              },
-            ],
-          },
-          {
-            skipCF: !options.netMetadata,
-            skipOE: !options.observableEntropy,
-          },
+          itemRequest,
+          createItemArgs,
         );
       } else {
         throw new Error("No hash or hash-type provided");
@@ -369,6 +396,7 @@ const itemsUpdate = new Command<{
   env: typeof environmentType;
   apiKey?: string;
   output: typeof outputType;
+  signingKeySeed?: string;
 }>()
   .description(
     `Update an existing Item by replacing it with a new one.
@@ -569,45 +597,69 @@ Pipe JSON content to the 'items update' command using '--input json' plus the '-
     try {
       let itemResp;
 
+      const updateItemsArgs = {
+        skipCF: !options.netMetadata,
+        skipOE: !options.observableEntropy,
+      };
+
       if (jsonItem) {
-        itemResp = await truestamp.updateItem(options.id, jsonItem, {
-          skipCF: !options.netMetadata,
-          skipOE: !options.observableEntropy,
-        });
-      } else if (options.hash && options.hashType) {
+        const itemRequest: ItemRequest = ItemRequestSchema.parse(jsonItem);
+
+        itemRequest.itemDataSignatures = options.signingKeySeed
+          ? signItemData(itemRequest, options.signingKeySeed)
+          : undefined;
+
+        console.log("itemRequest", JSON.stringify(itemRequest, null, 2));
+
         itemResp = await truestamp.updateItem(
           options.id,
-          {
-            itemData: [
-              {
-                hash: options.hash,
-                hashType: <HashTypes> options.hashType,
-              },
-            ],
-          },
-          {
-            skipCF: !options.netMetadata,
-            skipOE: !options.observableEntropy,
-          },
+          itemRequest,
+          updateItemsArgs,
+        );
+      } else if (options.hash && options.hashType) {
+        const itemRequest: ItemRequest = {
+          itemData: [
+            {
+              hash: options.hash,
+              hashType: <HashTypes> options.hashType,
+            },
+          ],
+        };
+
+        itemRequest.itemDataSignatures = options.signingKeySeed
+          ? signItemData(itemRequest, options.signingKeySeed)
+          : undefined;
+
+        // console.log("itemRequest", JSON.stringify(itemRequest, null, 2));
+
+        itemResp = await truestamp.updateItem(
+          options.id,
+          itemRequest,
+          updateItemsArgs,
         );
       } else if (altHash && altHashType) {
+        const itemRequest: ItemRequest = {
+          itemData: [
+            {
+              hash: altHash,
+              hashType: <HashTypes> altHashType,
+            },
+          ],
+        };
+
+        itemRequest.itemDataSignatures = options.signingKeySeed
+          ? signItemData(itemRequest, options.signingKeySeed)
+          : undefined;
+
+        // console.log("itemRequest", JSON.stringify(itemRequest, null, 2));
+
         itemResp = await truestamp.updateItem(
           options.id,
-          {
-            itemData: [
-              {
-                hash: altHash,
-                hashType: <HashTypes> altHashType,
-              },
-            ],
-          },
-          {
-            skipCF: !options.netMetadata,
-            skipOE: !options.observableEntropy,
-          },
+          itemRequest,
+          updateItemsArgs,
         );
       } else {
-        throw new Error("No hash or hashType provided");
+        throw new Error("No hash or hash-type provided");
       }
 
       const { id } = itemResp;
@@ -628,6 +680,7 @@ export const items = new Command<{
   env: typeof environmentType;
   apiKey?: string;
   output: typeof outputType;
+  signingKeySeed?: string;
 }>()
   .description("Create or update Items.")
   .action(() => {
