@@ -116,7 +116,7 @@ export const TruestampId = z.string().refine(
       /^[123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz_]+$/
     try {
       return base58CheckPlusUnderscoreEncoding.test(val)
-    } catch (error) {
+    } catch {
       return false
     }
   },
@@ -134,7 +134,7 @@ export const Base64 = z.string().refine(
       // if it safely decodes, then it is base64
       base64Decode(val)
       return true
-    } catch (error) {
+    } catch {
       return false
     }
   },
@@ -150,7 +150,7 @@ export const ISO8601 = z.string().refine(
   (val: string): boolean => {
     try {
       return DateTime.fromISO(val).isValid
-    } catch (error) {
+    } catch {
       return false
     }
   },
@@ -171,7 +171,7 @@ export const ISO8601UTC = z.string().refine(
 
       const d = DateTime.fromISO(val, { zone: 'utc' })
       return d.isValid && d.offsetNameShort === 'UTC'
-    } catch (error) {
+    } catch {
       return false
     }
   },
@@ -192,7 +192,7 @@ export const ISO3166Alpha2 = z
     (val: string): boolean => {
       try {
         return isIso3166Alpha2Code(val)
-      } catch (error) {
+      } catch {
         return false
       }
     },
@@ -228,7 +228,7 @@ export const Latitude = z.string().refine(
       }
       const valFloat = parseFloat(val)
       return valFloat >= -90 && valFloat <= 90 ? true : false
-    } catch (error) {
+    } catch {
       return false
     }
   },
@@ -248,7 +248,7 @@ export const Longitude = z.string().refine(
       }
       const valFloat = parseFloat(val)
       return valFloat >= -180 && valFloat <= 180 ? true : false
-    } catch (error) {
+    } catch {
       return false
     }
   },
