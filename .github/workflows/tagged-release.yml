@@ -15,7 +15,7 @@ jobs:
       - name: Setup Deno
         uses: denoland/setup-deno@v1
         with:
-          deno-version: v1.28.1
+          deno-version: v1.29.4
       - name: Build RELEASE.txt
         run: echo ${{ github.sha }} > RELEASE.txt
       - name: Log Release
@@ -26,7 +26,7 @@ jobs:
         run: find ./build -type f -exec sha256sum {} \; > CHECKSUMS-SHA2-256.txt
       - name: Log Checksums
         run: cat CHECKSUMS-SHA2-256.txt
-      - uses: "marvinpinto/action-automatic-releases@latest"
+      - uses: "Shinerising/action-automatic-releases@latest"
         with:
           repo_token: "${{ secrets.GITHUB_TOKEN }}"
           prerelease: false
