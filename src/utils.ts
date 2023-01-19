@@ -1,4 +1,4 @@
-// Copyright © 2020-2022 Truestamp Inc. All rights reserved.
+// Copyright © 2020-2023 Truestamp Inc. All rights reserved.
 
 import {
   extractPublicKeyFromSecretKey,
@@ -83,6 +83,7 @@ export function logSelectedOutputFormat(
 
 export function throwApiError(
   errorMsgPrefix: string,
+  // deno-lint-ignore no-explicit-any
   errorData?: any,
 ): void {
   throw new Error(

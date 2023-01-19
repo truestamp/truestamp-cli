@@ -11,9 +11,9 @@
     "@stablelib/sha512": "https://esm.sh/v94/*@stablelib/sha512@1.0.1",
     "@stablelib/utf8": "https://esm.sh/v94/@stablelib/utf8@1.0.1",
     "@stablelib/wipe": "https://esm.sh/v94/@stablelib/wipe@1.0.1",
-    "@truestamp/canonify": "https://esm.sh/v94/@truestamp/canonify@2.0.3",
-    "@truestamp/client": "https://esm.sh/v94/@truestamp/client@2.0.2",
-    "@truestamp/verify": "https://esm.sh/v94/@truestamp/verify@2.0.2",
+    "@truestamp/canonify": "https://esm.sh/v94/@truestamp/canonify@2.1.0",
+    "@truestamp/client": "https://esm.sh/v94/*@truestamp/client@2.1.0",
+    "@truestamp/verify": "https://esm.sh/v94/*@truestamp/verify@2.1.0",
     "iso-3166-ts": "https://esm.sh/v94/iso-3166-ts@2.2.0",
     "luxon": "https://esm.sh/v94/luxon@3.1.1",
     "zod": "https://esm.sh/v94/zod@3.20.2",
@@ -21,6 +21,12 @@
     "zod/": "https://esm.sh/v94/zod@3.20.2/"
   },
   "scopes": {
+    "@truestamp/client": {
+      "dotenv-mono": "https://esm.sh/v94/dotenv-mono@1.3.9"
+    },
+    "@truestamp/verify": {
+      "dotenv-mono": "https://esm.sh/v94/dotenv-mono@1.3.9"
+    },
     "iso-3166-ts": {},
     "zod": {},
     "zod-validation-error": {

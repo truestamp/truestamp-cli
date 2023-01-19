@@ -5,7 +5,9 @@
     "allowUnusedLabels": false,
     "alwaysStrict": true,
     "checkJs": false,
-    "lib": ["deno.window"],
+    "lib": [
+      "deno.window"
+    ],
     "noFallthroughCasesInSwitch": true,
     "noImplicitAny": true,
     "noImplicitOverride": false,
@@ -25,7 +27,9 @@
   },
   "fmt": {
     "files": {
-      "include": ["src/"]
+      "include": [
+        "src/"
+      ]
     },
     "options": {
       "indentWidth": 2,
@@ -38,12 +42,20 @@
   "importMap": "import_map.json",
   "lint": {
     "files": {
-      "include": ["src/"]
+      "include": [
+        "src/"
+      ]
     },
     "rules": {
-      "exclude": ["no-unused-vars"],
-      "include": ["ban-untagged-todo"],
-      "tags": ["recommended"]
+      "exclude": [
+        "no-unused-vars"
+      ],
+      "include": [
+        "ban-untagged-todo"
+      ],
+      "tags": [
+        "recommended"
+      ]
     }
   },
   "tasks": {
@@ -69,12 +81,17 @@
     "run": "deno run --allow-env --allow-net --allow-read --allow-write --import-map ./import_map.json src/cli.ts",
     "run-help": "deno run --allow-env --allow-net --allow-read --allow-write --import-map ./import_map.json src/cli.ts --help",
     "run-version": "deno run --allow-env --allow-net --allow-read --allow-write --import-map ./import_map.json src/cli.ts --version",
+    "update-types": "cp ../truestamp-monorepo/packages/types/src/index.ts ./src/types.ts",
     "upgrade": "udd src/deps.ts"
   },
   "test": {
     "files": {
-      "exclude": ["src/testdata/"],
-      "include": ["src/"]
+      "exclude": [
+        "src/testdata/"
+      ],
+      "include": [
+        "src/"
+      ]
     }
   }
 }
