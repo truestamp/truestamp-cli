@@ -106,16 +106,14 @@ homebrew_casks:
     commit_author:
       name: truestamp-bot
       email: bot@truestamp.com
-    # Generate shell completions at install time. The `cobra` shell
-    # parameter format already produces `bin/truestamp completion <shell>`
-    # — do not also pass `completion` via args or Brew will call it twice.
-    generate_completions_from_executable:
-      # The archive has `truestamp` at its root, so the path Brew runs
-      # inside the staged cask is `./truestamp`, not `bin/truestamp`.
-      executable: "./truestamp"
-      base_name: truestamp
-      shell_parameter_format: cobra
-      shells:
-        - bash
-        - zsh
-        - fish
+    # NOTE: shell completions are intentionally not generated at install
+    # time. The cask binary is not yet signed/notarised, so macOS
+    # Gatekeeper kills the binary when Brew tries to run
+    # `truestamp completion <shell>`. Users can generate completions
+    # manually once (Gatekeeper clears the quarantine bit after the first
+    # successful run):
+    #   truestamp completion bash > $(brew --prefix)/etc/bash_completion.d/truestamp
+    #   truestamp completion zsh  > "${fpath[1]}/_truestamp"
+    #   truestamp completion fish > ~/.config/fish/completions/truestamp.fish
+    # Re-enable generate_completions_from_executable here once the binary
+    # is signed and notarised.
