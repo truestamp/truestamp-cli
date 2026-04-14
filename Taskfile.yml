@@ -20,7 +20,11 @@ tasks:
     desc: Build the CLI binary for the current platform
     vars:
       VERSION:
-        sh: cat VERSION | tr -d '[:space:]'
+        # Derive from the nearest git tag. `--dirty` flags uncommitted
+        # changes, `--always` falls back to a short SHA if no tag exists.
+        # Leading `v` is stripped so local builds match GoReleaser's
+        # {{.Version}} format.
+        sh: git describe --tags --always --dirty 2>/dev/null | sed 's/^v//' | tr -d '[:space:]' || echo dev
       GIT_COMMIT:
         sh: git rev-parse --short HEAD 2>/dev/null || echo unknown
       BUILD_DATE:
@@ -35,7 +39,6 @@ tasks:
       - "**/*.go"
       - go.mod
       - go.sum
-      - VERSION
     generates:
       - "build/{{.BINARY}}"
 
@@ -45,7 +48,7 @@ tasks:
       - build
     vars:
       VERSION:
-        sh: cat VERSION | tr -d '[:space:]'
+        sh: git describe --tags --always --dirty 2>/dev/null | sed 's/^v//' | tr -d '[:space:]' || echo dev
       GIT_COMMIT:
         sh: git rev-parse --short HEAD 2>/dev/null || echo unknown
       BUILD_DATE:
