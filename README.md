@@ -26,10 +26,12 @@ brew upgrade truestamp/tap/truestamp-cli
 ### Go install
 
 ```sh
-go install github.com/truestamp/truestamp-cli@latest
+go install github.com/truestamp/truestamp-cli/cmd/truestamp@latest
 ```
 
-Produces a binary at `$GOBIN` (default `~/go/bin/truestamp`). Requires Go 1.22 or newer.
+Produces a binary at `$GOBIN/truestamp` (default `~/go/bin/truestamp`). Requires Go 1.22 or newer.
+
+The `/cmd/truestamp` suffix is required so the `go` toolchain names the binary `truestamp` rather than `truestamp-cli` (Go derives the binary name from the package path's last element).
 
 ### Direct download
 

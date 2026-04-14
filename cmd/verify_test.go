@@ -30,7 +30,7 @@ func TestMain(m *testing.M) {
 		panic("cannot find module root: " + err.Error())
 	}
 
-	cmd := exec.Command("go", "build", "-o", binaryPath, ".")
+	cmd := exec.Command("go", "build", "-o", binaryPath, "./cmd/truestamp")
 	cmd.Dir = modRoot
 	if out, err := cmd.CombinedOutput(); err != nil {
 		panic("failed to build binary: " + err.Error() + "\n" + string(out))

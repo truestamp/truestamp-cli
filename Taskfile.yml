@@ -30,7 +30,7 @@ tasks:
       LDFLAGS: -s -w -X {{.MODULE}}/internal/version.Version={{.VERSION}} -X {{.MODULE}}/internal/version.GitCommit={{.GIT_COMMIT}} -X {{.MODULE}}/internal/version.BuildDate={{.BUILD_DATE}} -X {{.MODULE}}/internal/version.BuildYear={{.BUILD_YEAR}}
     cmds:
       - mkdir -p build
-      - go build -ldflags "{{.LDFLAGS}}" -o build/{{.BINARY}} .
+      - go build -ldflags "{{.LDFLAGS}}" -o build/{{.BINARY}} ./cmd/truestamp
     sources:
       - "**/*.go"
       - go.mod
@@ -55,12 +55,12 @@ tasks:
       LDFLAGS: -s -w -X {{.MODULE}}/internal/version.Version={{.VERSION}} -X {{.MODULE}}/internal/version.GitCommit={{.GIT_COMMIT}} -X {{.MODULE}}/internal/version.BuildDate={{.BUILD_DATE}} -X {{.MODULE}}/internal/version.BuildYear={{.BUILD_YEAR}}
     cmds:
       - mkdir -p build
-      - GOOS=darwin GOARCH=arm64 go build -ldflags "{{.LDFLAGS}}" -o build/{{.BINARY}}-{{.VERSION}}-darwin-arm64 .
-      - GOOS=darwin GOARCH=amd64 go build -ldflags "{{.LDFLAGS}}" -o build/{{.BINARY}}-{{.VERSION}}-darwin-amd64 .
-      - GOOS=linux GOARCH=amd64 go build -ldflags "{{.LDFLAGS}}" -o build/{{.BINARY}}-{{.VERSION}}-linux-amd64 .
-      - GOOS=linux GOARCH=arm64 go build -ldflags "{{.LDFLAGS}}" -o build/{{.BINARY}}-{{.VERSION}}-linux-arm64 .
-      - GOOS=windows GOARCH=amd64 go build -ldflags "{{.LDFLAGS}}" -o build/{{.BINARY}}-{{.VERSION}}-windows-amd64.exe .
-      - GOOS=windows GOARCH=arm64 go build -ldflags "{{.LDFLAGS}}" -o build/{{.BINARY}}-{{.VERSION}}-windows-arm64.exe .
+      - GOOS=darwin GOARCH=arm64 go build -ldflags "{{.LDFLAGS}}" -o build/{{.BINARY}}-{{.VERSION}}-darwin-arm64 ./cmd/truestamp
+      - GOOS=darwin GOARCH=amd64 go build -ldflags "{{.LDFLAGS}}" -o build/{{.BINARY}}-{{.VERSION}}-darwin-amd64 ./cmd/truestamp
+      - GOOS=linux GOARCH=amd64 go build -ldflags "{{.LDFLAGS}}" -o build/{{.BINARY}}-{{.VERSION}}-linux-amd64 ./cmd/truestamp
+      - GOOS=linux GOARCH=arm64 go build -ldflags "{{.LDFLAGS}}" -o build/{{.BINARY}}-{{.VERSION}}-linux-arm64 ./cmd/truestamp
+      - GOOS=windows GOARCH=amd64 go build -ldflags "{{.LDFLAGS}}" -o build/{{.BINARY}}-{{.VERSION}}-windows-amd64.exe ./cmd/truestamp
+      - GOOS=windows GOARCH=arm64 go build -ldflags "{{.LDFLAGS}}" -o build/{{.BINARY}}-{{.VERSION}}-windows-arm64.exe ./cmd/truestamp
       - echo "Built v{{.VERSION}} binaries in build/"
 
   # =============================================================================
@@ -70,7 +70,7 @@ tasks:
   run:
     desc: "Run verify without building (usage: task run -- proof.json [--verbose] [--skip-external])"
     cmds:
-      - go run . verify {{.CLI_ARGS}}
+      - go run ./cmd/truestamp verify {{.CLI_ARGS}}
 
   # =============================================================================
   # Test & Quality

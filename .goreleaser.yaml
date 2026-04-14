@@ -23,7 +23,7 @@ before:
 
 builds:
   - id: truestamp
-    main: .
+    main: ./cmd/truestamp
     binary: truestamp
     env:
       - CGO_ENABLED=0
@@ -87,7 +87,7 @@ release:
     Install:
 
     ```
-    go install github.com/truestamp/truestamp-cli@{{ .Tag }}
+    go install github.com/truestamp/truestamp-cli/cmd/truestamp@{{ .Tag }}
     brew install truestamp/tap/truestamp-cli
     ```
 
