@@ -106,6 +106,15 @@ homebrew_casks:
     commit_author:
       name: truestamp-bot
       email: bot@truestamp.com
+    caveats: |
+      The truestamp binary is not yet signed with an Apple Developer ID,
+      so macOS Gatekeeper will block it on first run ("truestamp" Not
+      Opened). Clear the quarantine attribute once after install or
+      upgrade to avoid the prompt:
+
+        xattr -cr #{staged_path}
+
+      (Signed and notarised builds are on the roadmap.)
     # NOTE: shell completions are intentionally not generated at install
     # time. The cask binary is not yet signed/notarised, so macOS
     # Gatekeeper kills the binary when Brew tries to run
