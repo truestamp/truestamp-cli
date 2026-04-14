@@ -54,24 +54,23 @@ Requires --api-key to be set (via flag, env, or config file).`,
 	SilenceUsage:  true,
 	SilenceErrors: true,
 	RunE: func(cmd *cobra.Command, args []string) error {
-		cfg := appConfig
-
-		if cfg.APIKey == "" {
-			return fmt.Errorf("API key required (use --api-key or set TRUESTAMP_API_KEY)")
-		}
-
-		jsonOutput, _ := cmd.Flags().GetBool("json")
-
-		// Resolve claims from input sources
+		// Resolve claims from input sources first so `truestamp create`
+		// with no args shows help without requiring an API key.
 		claims, err := resolveCreateInput(cmd, args)
 		if err != nil {
 			return err
 		}
 		if claims == nil {
-			// No input provided - show help
 			cmd.Help()
 			return nil
 		}
+
+		cfg := appConfig
+		if cfg.APIKey == "" {
+			return fmt.Errorf("API key required (use --api-key or set TRUESTAMP_API_KEY)")
+		}
+
+		jsonOutput, _ := cmd.Flags().GetBool("json")
 
 		// Overlay flag values onto claims
 		if err := overlayFlags(cmd, claims); err != nil {
