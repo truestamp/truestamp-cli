@@ -23,6 +23,14 @@ Upgrades:
 brew upgrade truestamp/tap/truestamp-cli
 ```
 
+> **macOS Gatekeeper note.** The binary is not yet signed with an Apple Developer ID, so the first time you run `truestamp` after a `brew install` or `brew upgrade` macOS will show a dialog titled _"truestamp" Not Opened_ and kill the process. Clear the quarantine attribute once per install to avoid it:
+>
+> ```sh
+> xattr -cr "$(brew --caskroom)/truestamp-cli"
+> ```
+>
+> The same instruction is printed by `brew` as a caveat on install. Signed and notarized builds are on the roadmap; once they ship this step will not be needed.
+
 ### Go install
 
 ```sh
