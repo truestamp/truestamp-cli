@@ -1,0 +1,48 @@
+{
+  "b": {
+    "id": "019d6a32-13e6-72b0-97e5-3779231ea97b",
+    "kid": "4ceefa4a",
+    "mh": "14fe55ee4ce3cdbc8118a0a28e5a80a44f1f8a24d73d9949c0ecd91ee582ebe1",
+    "mr": "81e72c2e078a285fea29df276fd1b9af516d1c5720701248d9412c1a101326cc",
+    "ph": "b378d36599ad3f1646c0f8dd9b9354fb77ff7be1e91be58048cbb997e8c1cfbc"
+  },
+  "cx": [
+    {
+      "bmr": "d3a07cba1d6c0ff172bbc7bbbb52635a721664a0015b89907dbf007f562b4b3e",
+      "ep": "BAp5tenpblmnrepBwYrWrhYAgj_cVsTfXefUTzy7uB8fjftybAqDY7jaIEfsWTnfRpO--_57jqVryBFg5SDCqGQ3wGUTZbVmBHGxgHdKAJSG_3iFDng9CjoJjjRsKTzumfko9HM-SsBk8OWXz5zguLnDti3jSbC8Kraul4fgeJ1LYw",
+      "h": 10848,
+      "net": "regtest",
+      "op": "309cb8bc7c5493b0275b754b92a61bd877f33d56c8f0a780ad300995898ffbdf",
+      "rtx": "020000000001028fe1d5b4f19484c0150ae9dffa89ade8a28010c4b031a86929f07a905f16870a0000000000fdffffffa1b0c3b2389381ec10468f4758acda9b8d122146428ed67b2e2209dfd22523f50100000000fdffffff020000000000000000226a20309cb8bc7c5493b0275b754b92a61bd877f33d56c8f0a780ad300995898ffbdf61c3000000000000225120d2972046141d369b5eb51ad6fd4efd463c3458e9eb416ecccb521eb5ef38188d014050de3a0a755919f365dc9bf15bd056b772eb87d71ee90a35b405d1987c9c2ee79cb37e33fae1851702f0629de94ae8ae3b38e0e0037caa4ef945a7ca23d035560140540ef25c07e1be6b4a0d09e9452a0c34d73f76724ab3d970bd1ecdab671dfbb45f29f3af764d0eae204f9db0215b4fbe1c0a71132b42b0a7df6ce6a02e6741d200000000",
+      "t": "bitcoin",
+      "ts": "2026-04-07T23:15:01Z",
+      "tx": "e5f13c9472f123302bb24f130d99674ccd1f401d99db658d3f9bc9754c06aece",
+      "txp": "000000203f9b114c953f5013001d1d010038b1904f9245108f4780e833d49f6c813b97183e4b2b567f00bf7d90895b01a06416725a6352bbbbc7bb72f10f6c1dba7ca0d3f58fd569ffff7f200100000002000000020ae2c4d1afd05969065e8abcdbbfd2ece14e39ecf71fc0267b0b43f7eda73fd9ceae064c75c99b3f8d65db991d401fcd4c67990d134fb22b3023f172943cf1e50105"
+    },
+    {
+      "ep": "Awcsf3oMXH3vlO9MGckSdjYcy_PCCDCXosPChNg2CixMf3PoxbNbGrUmQaOW5TICjQ8cwxpqrgNz7ZsPsxrnoXnIRYpj7KAac_qR75k6IYayaxZ1pezHoFjoH6epr68VLXY",
+      "l": 1920002,
+      "memo": "e404c18be1deefed066870ddd17707f28ee5393eab25d9b2fbb8356a17187584",
+      "net": "testnet",
+      "t": "stellar",
+      "ts": "2026-04-07T23:10:05Z",
+      "tx": "2f9776ee45a7cd08b15bd4e4c022db4c4f4c62ccb6d636767d5f040729e44a2e"
+    }
+  ],
+  "ip": "BAKbGnC2S9wB-uoc-ipZtm3XQi4yTfzoJ104AWSYH_qt6Dr1KQpjCQnFZZQ3Cl1T8frYIxF5l4vtsIQQs0hHXAF2PSRdVsGXyGOzNQoz-R9QS2Gq7X30GQ8jAK3EJz1qgWHLUIBht8G0Sdl2Z7NFP-7KPCtcMMUawPiQCmvjVLQn_g",
+  "pk": "CTwMqDZnPd/QTLSq8aTeSD3a+j2DQxKcGfhhIYJQ65Y=",
+  "s": {
+    "d": {
+      "hash": "e08764deac64ca9a1046901c5b23674941f1e86f0e2d0429ee07c5e311a15ce7",
+      "hash_type": "sha256",
+      "name": "truestamp-item-01KNMCBS34PVMZS3AGCXE1RQV0.json"
+    },
+    "id": "01KNN33GX5E470CB9TRWAYF9DD",
+    "kid": "4ceefa4a",
+    "mh": "33c864910a1bb97821fb6d171173b55f351b1cbfb3e585ca5454cc6aab1ee151",
+    "src": "item"
+  },
+  "sig": "BKvSfNCsx0twIB0BMEg8/X8dCZ4x0ogKxH4eZL0ddpRoqrxtRuB5YLk/KZnVpcyshRjiUBG0njRfeb1GnxuYAQ==",
+  "ts": "2026-04-08T01:09:10Z",
+  "v": 1
+}

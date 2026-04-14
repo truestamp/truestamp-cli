@@ -1,0 +1,15 @@
+# Test proof files (root level only, not testdata fixtures)
+/*.json
+
+# Build output
+build/
+
+# GoReleaser output
+dist/
+
+# Coverage artifacts
+coverage.out
+coverage.html
+
+# Task runner cache
+.task/

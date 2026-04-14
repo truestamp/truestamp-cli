@@ -1,0 +1,120 @@
+# GoReleaser configuration for truestamp-cli.
+# Reference: https://goreleaser.com/customization/
+#
+# This config is designed for the future standalone public repo at
+# github.com/truestamp/truestamp-cli. It mirrors the Taskfile `build-all`
+# matrix and the existing -ldflags injection so that ldflag-based build
+# info is preserved for released artifacts.
+#
+# Prerequisites for a real release (run from CI on the new repo):
+#   - GITHUB_TOKEN           (provided automatically by actions/checkout)
+#   - HOMEBREW_TAP_GITHUB_TOKEN  (PAT with `repo` on truestamp/homebrew-tap)
+#
+# Local dry-run (no publish, no network):
+#   goreleaser release --snapshot --clean
+
+version: 2
+
+project_name: truestamp-cli
+
+before:
+  hooks:
+    - go mod tidy
+
+builds:
+  - id: truestamp
+    main: .
+    binary: truestamp
+    env:
+      - CGO_ENABLED=0
+    goos:
+      - darwin
+      - linux
+      - windows
+    goarch:
+      - amd64
+      - arm64
+    flags:
+      - -trimpath
+    ldflags:
+      - -s -w
+      - -X github.com/truestamp/truestamp-cli/internal/version.Version={{.Version}}
+      - -X github.com/truestamp/truestamp-cli/internal/version.GitCommit={{.ShortCommit}}
+      - -X github.com/truestamp/truestamp-cli/internal/version.BuildDate={{.Date}}
+      - -X github.com/truestamp/truestamp-cli/internal/version.BuildYear={{.Now.Format "2006"}}
+
+archives:
+  - id: default
+    name_template: >-
+      {{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}
+    formats: ["tar.gz"]
+    format_overrides:
+      - goos: windows
+        formats: ["zip"]
+    files:
+      - README*
+      - LICENSE*
+      - CHANGELOG*
+
+checksum:
+  name_template: "checksums.txt"
+  algorithm: sha256
+
+snapshot:
+  version_template: "{{ .Version }}-SNAPSHOT-{{ .ShortCommit }}"
+
+changelog:
+  sort: asc
+  use: github
+  filters:
+    exclude:
+      - "^docs:"
+      - "^test:"
+      - "^ci:"
+      - "^chore:"
+      - "Merge pull request"
+
+release:
+  github:
+    owner: truestamp
+    name: truestamp-cli
+  draft: false
+  prerelease: auto
+  mode: replace
+  header: |
+    ## truestamp-cli {{ .Version }}
+
+    Install:
+
+    ```
+    go install github.com/truestamp/truestamp-cli@{{ .Tag }}
+    brew install truestamp/tap/truestamp-cli
+    ```
+
+homebrew_casks:
+  - name: truestamp-cli
+    binaries:
+      - truestamp
+    repository:
+      owner: truestamp
+      name: homebrew-tap
+      branch: main
+      token: "{{ .Env.HOMEBREW_TAP_GITHUB_TOKEN }}"
+    directory: Casks
+    homepage: https://truestamp.com
+    description: "Truestamp CLI — tools for cryptographic timestamping"
+    commit_author:
+      name: truestamp-bot
+      email: bot@truestamp.com
+    # Generate shell completions at install time. Cobra produces them
+    # via `truestamp completion <shell>`.
+    generate_completions_from_executable:
+      executable: "bin/truestamp"
+      args:
+        - completion
+      base_name: truestamp
+      shell_parameter_format: cobra
+      shells:
+        - bash
+        - zsh
+        - fish

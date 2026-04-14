@@ -1,0 +1,51 @@
+# Truestamp CLI Configuration
+#
+# Location:
+#   macOS/Linux: ~/.config/truestamp/config.toml
+#   Windows:     %APPDATA%\truestamp\config.toml
+#
+# Override order (highest priority last):
+#   1. This config file
+#   2. Environment variables (TRUESTAMP_ prefix)
+#   3. Command-line flags
+
+# Base URL of the Truestamp API
+# Env: TRUESTAMP_API_URL
+api_url = "https://www.truestamp.com/api/json"
+
+# API key for authenticating with the Truestamp API
+# Env: TRUESTAMP_API_KEY
+api_key = ""
+
+# Team ID for multi-tenant API operations (defaults to personal team if empty)
+# Env: TRUESTAMP_TEAM
+team = ""
+
+# URL of the Truestamp keyring endpoint
+# Env: TRUESTAMP_KEYRING_URL
+keyring_url = "https://www.truestamp.com/.well-known/keyring.json"
+
+# HTTP timeout for external API calls (Go duration: "10s", "30s", "1m")
+# Env: TRUESTAMP_HTTP_TIMEOUT
+http_timeout = "10s"
+
+[verify]
+# No output, exit code only
+# Env: TRUESTAMP_VERIFY_SILENT
+silent = false
+
+# Output results as JSON
+# Env: TRUESTAMP_VERIFY_JSON
+json = false
+
+# Skip all external API verification (keyring, Stellar, Bitcoin)
+# Env: TRUESTAMP_VERIFY_SKIP_EXTERNAL
+skip_external = false
+
+# Skip signing key and signature verification
+# Env: TRUESTAMP_VERIFY_SKIP_SIGNATURES
+skip_signatures = false
+
+# Verify via server API instead of local computation (requires api_key)
+# Env: TRUESTAMP_VERIFY_REMOTE
+remote = false

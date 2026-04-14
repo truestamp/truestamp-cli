@@ -1,0 +1,36 @@
+{
+  "b": {
+    "id": "019d6533-1610-7304-a6f7-765503f2f4fe",
+    "kid": "4ceefa4a",
+    "mh": "14fe55ee4ce3cdbc8118a0a28e5a80a44f1f8a24d73d9949c0ecd91ee582ebe1",
+    "mr": "840735ff503f72489be4e7caa7fea864fa68de21ac6c7fa353c76bfbc7dad890",
+    "ph": "7802e87f2201a16cade75f14ac73bb72de41de5996a5876bb563b5f929e3e073"
+  },
+  "cx": [
+    {
+      "ep": "AwO2UtcKoHtUwMnT1IPLh32PrIHBlYr4O8NsFRjKauGx3Dr1KQpjCQnFZZQ3Cl1T8frYIxF5l4vtsIQQs0hHXAF2DvyL0hmwxJ-M1HUIrVsnlSN3czoHdZ6afY2-Q3NunZk",
+      "l": 1903225,
+      "memo": "441499fd0dda53244157f027418c6b69f17241bae8ce20c63fd362e968e4ab00",
+      "net": "testnet",
+      "t": "stellar",
+      "ts": "2026-04-06T23:50:03Z",
+      "tx": "d11dec8515e6528492887339d2370e8ba6d7fef7524f91095752103244e4f8ff"
+    }
+  ],
+  "ip": "BALrTDGODOFcHGnjirWov-gmogda0So1ib7-fjnOg5oS8zr1KQpjCQnFZZQ3Cl1T8frYIxF5l4vtsIQQs0hHXAF2Q2JnZkX6S22brBIBaqTbJW3LmIGTIrJPTxtAnUfp4gD8vHjXbautwzaABTW8-aP9lHqUCjYVAZ4aIrOQvYeIuA",
+  "pk": "CTwMqDZnPd/QTLSq8aTeSD3a+j2DQxKcGfhhIYJQ65Y=",
+  "s": {
+    "d": {
+      "name": "Lolgato.dmg",
+      "hash": "954cc947850440a42e197c5daf3a63a78b4506c96766bc9425de9375063be3c7",
+      "hash_type": "sha256"
+    },
+    "id": "01KNJK4QS89RJYJCF7W2KNQQC8",
+    "kid": "4ceefa4a",
+    "mh": "ef0037de91898fa8afb20337027d0e182978bf46cb441a824dfec783f61a121e",
+    "src": "item"
+  },
+  "sig": "PVXFS7Rd+ssLWsiEI9tcxTz1lxsWCHhSF7mfWbfwdwhk7rBqVg9mJhDUv+NhzP8iUEEnQAVave/A9FnLdVaRCA==",
+  "ts": "2026-04-06T23:50:26Z",
+  "v": 1
+}

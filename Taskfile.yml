@@ -1,0 +1,168 @@
+# https://taskfile.dev
+
+version: "3"
+
+vars:
+  BINARY: truestamp
+  MODULE: github.com/truestamp/truestamp-cli
+
+tasks:
+  default:
+    desc: List all available tasks
+    cmds:
+      - task --list-all
+
+  # =============================================================================
+  # Build
+  # =============================================================================
+
+  build:
+    desc: Build the CLI binary for the current platform
+    vars:
+      VERSION:
+        sh: cat VERSION | tr -d '[:space:]'
+      GIT_COMMIT:
+        sh: git rev-parse --short HEAD 2>/dev/null || echo unknown
+      BUILD_DATE:
+        sh: date -u +%Y-%m-%dT%H:%M:%SZ
+      BUILD_YEAR:
+        sh: date -u +%Y
+      LDFLAGS: -s -w -X {{.MODULE}}/internal/version.Version={{.VERSION}} -X {{.MODULE}}/internal/version.GitCommit={{.GIT_COMMIT}} -X {{.MODULE}}/internal/version.BuildDate={{.BUILD_DATE}} -X {{.MODULE}}/internal/version.BuildYear={{.BUILD_YEAR}}
+    cmds:
+      - mkdir -p build
+      - go build -ldflags "{{.LDFLAGS}}" -o build/{{.BINARY}} .
+    sources:
+      - "**/*.go"
+      - go.mod
+      - go.sum
+      - VERSION
+    generates:
+      - "build/{{.BINARY}}"
+
+  build-all:
+    desc: Cross-compile for all supported platforms
+    deps:
+      - build
+    vars:
+      VERSION:
+        sh: cat VERSION | tr -d '[:space:]'
+      GIT_COMMIT:
+        sh: git rev-parse --short HEAD 2>/dev/null || echo unknown
+      BUILD_DATE:
+        sh: date -u +%Y-%m-%dT%H:%M:%SZ
+      BUILD_YEAR:
+        sh: date -u +%Y
+      LDFLAGS: -s -w -X {{.MODULE}}/internal/version.Version={{.VERSION}} -X {{.MODULE}}/internal/version.GitCommit={{.GIT_COMMIT}} -X {{.MODULE}}/internal/version.BuildDate={{.BUILD_DATE}} -X {{.MODULE}}/internal/version.BuildYear={{.BUILD_YEAR}}
+    cmds:
+      - mkdir -p build
+      - GOOS=darwin GOARCH=arm64 go build -ldflags "{{.LDFLAGS}}" -o build/{{.BINARY}}-{{.VERSION}}-darwin-arm64 .
+      - GOOS=darwin GOARCH=amd64 go build -ldflags "{{.LDFLAGS}}" -o build/{{.BINARY}}-{{.VERSION}}-darwin-amd64 .
+      - GOOS=linux GOARCH=amd64 go build -ldflags "{{.LDFLAGS}}" -o build/{{.BINARY}}-{{.VERSION}}-linux-amd64 .
+      - GOOS=linux GOARCH=arm64 go build -ldflags "{{.LDFLAGS}}" -o build/{{.BINARY}}-{{.VERSION}}-linux-arm64 .
+      - GOOS=windows GOARCH=amd64 go build -ldflags "{{.LDFLAGS}}" -o build/{{.BINARY}}-{{.VERSION}}-windows-amd64.exe .
+      - GOOS=windows GOARCH=arm64 go build -ldflags "{{.LDFLAGS}}" -o build/{{.BINARY}}-{{.VERSION}}-windows-arm64.exe .
+      - echo "Built v{{.VERSION}} binaries in build/"
+
+  # =============================================================================
+  # Run
+  # =============================================================================
+
+  run:
+    desc: "Run verify without building (usage: task run -- proof.json [--verbose] [--skip-external])"
+    cmds:
+      - go run . verify {{.CLI_ARGS}}
+
+  # =============================================================================
+  # Test & Quality
+  # =============================================================================
+
+  test:
+    desc: Run all Go tests
+    cmds:
+      - go test ./...
+
+  test-verbose:
+    desc: Run all Go tests with verbose output
+    cmds:
+      - go test -v ./...
+
+  test-coverage:
+    desc: Run tests with coverage summary
+    cmds:
+      - go test -cover ./...
+
+  test-coverage-report:
+    desc: Generate HTML coverage report and open in browser
+    cmds:
+      - go test -coverprofile=coverage.out ./...
+      - go tool cover -html=coverage.out -o coverage.html
+      - open coverage.html
+      - echo "Coverage report written to coverage.html"
+
+  vet:
+    desc: Run go vet static analysis
+    cmds:
+      - go vet ./...
+
+  fmt:
+    desc: Format all Go source files
+    cmds:
+      - gofmt -w .
+
+  fmt-check:
+    desc: Check formatting without modifying files
+    cmds:
+      - test -z "$(gofmt -l .)" || (echo "Files need formatting:" && gofmt -l . && exit 1)
+
+  lint:
+    desc: Run all quality checks (vet + fmt-check)
+    deps: [vet, fmt-check]
+
+  precommit:
+    desc: Run all pre-commit checks (fmt, vet, test, build)
+    cmds:
+      - task: fmt
+      - task: vet
+      - task: test
+      - task: build-all
+
+  # =============================================================================
+  # Release (GoReleaser)
+  # =============================================================================
+
+  release-check:
+    desc: Validate .goreleaser.yaml syntax and configuration
+    cmds:
+      - mise exec -- goreleaser check
+
+  release-snapshot:
+    desc: Build a local snapshot release into dist/ (no publishing, no network)
+    cmds:
+      - mise exec -- goreleaser release --snapshot --clean
+      - 'echo "✅ Snapshot artifacts in dist/"'
+
+  # =============================================================================
+  # Dependencies
+  # =============================================================================
+
+  deps:
+    desc: Download and tidy module dependencies
+    cmds:
+      - go mod tidy
+      - go mod download
+
+  deps-update:
+    desc: Update all dependencies to latest versions
+    cmds:
+      - go get -u ./...
+      - go mod tidy
+
+  # =============================================================================
+  # Cleanup
+  # =============================================================================
+
+  clean:
+    desc: Remove build directory and artifacts
+    cmds:
+      - rm -rf build/
+      - echo "Cleaned build artifacts"

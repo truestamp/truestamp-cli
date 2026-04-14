@@ -1,0 +1,58 @@
+name: Bug Report
+description: Report a problem with the Truestamp CLI
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to file a report. Please include the output of
+        `truestamp version` and the exact command you ran.
+
+  - type: textarea
+    id: version
+    attributes:
+      label: Version output
+      description: Paste the full output of `truestamp version`.
+      render: shell
+    validations:
+      required: true
+
+  - type: textarea
+    id: command
+    attributes:
+      label: Command
+      description: The exact command invocation that triggered the issue.
+      render: shell
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+    validations:
+      required: true
+
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual behavior
+      description: Include the full output. Use `--output debug` for verbose detail.
+      render: shell
+    validations:
+      required: true
+
+  - type: input
+    id: install-method
+    attributes:
+      label: Install method
+      description: brew / go install / direct download / task build
+      placeholder: "brew install truestamp/tap/truestamp-cli"
+    validations:
+      required: true
+
+  - type: textarea
+    id: additional
+    attributes:
+      label: Additional context
+      description: Proof file characteristics, network environment, relevant config.

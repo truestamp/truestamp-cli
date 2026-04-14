@@ -1,0 +1,60 @@
+package external
+
+import (
+	"encoding/hex"
+	"encoding/json"
+	"fmt"
+	"time"
+
+	"github.com/truestamp/truestamp-cli/internal/httpclient"
+)
+
+type blockstreamBlock struct {
+	Height    int   `json:"height"`
+	Timestamp int64 `json:"timestamp"`
+}
+
+// BitcoinResult holds the verification result from the Blockstream API.
+type BitcoinResult struct {
+	Height    int
+	Timestamp string // ISO 8601 block timestamp from Blockstream
+}
+
+// VerifyBitcoinBlock checks the Blockstream API to confirm a Bitcoin block exists.
+// Returns the block height and timestamp, or an error. For regtest, returns a skip indicator.
+func VerifyBitcoinBlock(blockHash, network string) (*BitcoinResult, bool, error) {
+	var baseURL string
+	switch network {
+	case "mainnet":
+		baseURL = "https://blockstream.info/api"
+	case "testnet":
+		baseURL = "https://blockstream.info/testnet/api"
+	default:
+		return nil, true, nil // skipped
+	}
+
+	if _, err := hex.DecodeString(blockHash); err != nil || len(blockHash) != 64 {
+		return nil, false, fmt.Errorf("invalid block hash format")
+	}
+
+	url := fmt.Sprintf("%s/block/%s", baseURL, blockHash)
+	body, err := httpclient.GetJSON(url)
+	if err != nil {
+		return nil, false, fmt.Errorf("fetching Bitcoin block: %w", err)
+	}
+
+	var block blockstreamBlock
+	if err := json.Unmarshal(body, &block); err != nil {
+		return nil, false, fmt.Errorf("parsing Blockstream response: %w", err)
+	}
+
+	var ts string
+	if block.Timestamp > 0 {
+		ts = time.Unix(block.Timestamp, 0).UTC().Format(time.RFC3339)
+	}
+
+	return &BitcoinResult{
+		Height:    block.Height,
+		Timestamp: ts,
+	}, false, nil
+}
