@@ -106,12 +106,11 @@ homebrew_casks:
     commit_author:
       name: truestamp-bot
       email: bot@truestamp.com
-    # Generate shell completions at install time. Cobra produces them
-    # via `truestamp completion <shell>`.
+    # Generate shell completions at install time. The `cobra` shell
+    # parameter format already produces `bin/truestamp completion <shell>`
+    # — do not also pass `completion` via args or Brew will call it twice.
     generate_completions_from_executable:
       executable: "bin/truestamp"
-      args:
-        - completion
       base_name: truestamp
       shell_parameter_format: cobra
       shells:
