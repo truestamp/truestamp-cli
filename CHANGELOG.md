@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.0] — 2026-04-15
+
 ### Added
 - Curl-bash installer hosted at `https://get.truestamp.com/install.sh` for
   macOS and Linux, amd64 and arm64. Detects OS/architecture, resolves the
@@ -17,6 +19,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Terminal-themed landing page at `https://get.truestamp.com` with plain
   green-on-black monospace install instructions.
 - `shellcheck` step in CI to keep `docs/install.sh` portable POSIX sh.
+- SPDX-style `Copyright (c) 2021-2026 Truestamp, Inc.` +
+  `SPDX-License-Identifier: MIT` header on all 48 Go source files under
+  `cmd/` and `internal/`.
+- Copyright footer in `README.md` and the `get.truestamp.com` landing
+  page.
+
+### Changed
+- Updated `truestamp --help` footer copyright start year from 2019 to
+  2021 to match the repository LICENSE file.
 
 ## [0.1.0] — 2026-04-14
 
@@ -44,5 +55,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   v0.1.0 is the first release of a standalone Go codebase; the two share
   nothing beyond the repository name.
 
-[Unreleased]: https://github.com/truestamp/truestamp-cli/compare/v0.1.0...HEAD
+[Unreleased]: https://github.com/truestamp/truestamp-cli/compare/v0.2.0...HEAD
+[0.2.0]: https://github.com/truestamp/truestamp-cli/releases/tag/v0.2.0
 [0.1.0]: https://github.com/truestamp/truestamp-cli/releases/tag/v0.1.0
