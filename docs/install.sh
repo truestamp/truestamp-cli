@@ -336,16 +336,39 @@ verify_installed() {
             ;;
     esac
 
-    # Shadow check: the install dir is on $PATH, but another truestamp
-    # earlier on $PATH (stale `go install`, Homebrew copy, etc.) may take
-    # precedence. Warn instead of silently running the wrong binary.
-    _resolved="$(command -v "${BINARY}" 2>/dev/null || true)"
-    if [ -n "${_resolved}" ] && [ "${_resolved}" != "${_dest}" ]; then
+    # Shadow check: the install dir is on $PATH, but other truestamp
+    # binaries earlier on $PATH (stale `go install`, Homebrew copy, etc.)
+    # may take precedence. Walk every $PATH entry and collect matches so
+    # the user sees the complete picture, not just the first shadow.
+    _shadows=""
+    _seen_dest=0
+    _oldIFS="${IFS}"
+    IFS=":"
+    for _dir in ${PATH}; do
+        [ -z "${_dir}" ] && continue
+        _candidate="${_dir}/${BINARY}"
+        [ -x "${_candidate}" ] || continue
+        # Canonicalize via cd/pwd so symlinks and //-prefixes collapse.
+        _canon="$(cd "${_dir}" 2>/dev/null && pwd)/${BINARY}" || continue
+        if [ "${_canon}" = "${_dest}" ]; then
+            _seen_dest=1
+            continue
+        fi
+        _shadows="${_shadows}    ${_canon}
+"
+    done
+    IFS="${_oldIFS}"
+
+    if [ -n "${_shadows}" ]; then
         log ""
-        log "note: another '${BINARY}' on your \$PATH shadows this install:"
-        log "    in use:    ${_resolved}"
-        log "    installed: ${_dest}"
-        log "  remove the shadowing binary or put ${INSTALL_DIR} earlier in \$PATH."
+        if [ "${_seen_dest}" = "1" ]; then
+            log "note: other '${BINARY}' binaries on your \$PATH shadow this install:"
+        else
+            log "warning: other '${BINARY}' binaries on \$PATH are NOT this install:"
+        fi
+        printf '%s' "${_shadows}" >&2
+        log "  installed: ${_dest}"
+        log "  remove the shadowing binaries or put ${INSTALL_DIR} earlier in \$PATH."
     fi
 }
 
