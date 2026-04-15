@@ -1,3 +1,6 @@
+// Copyright (c) 2021-2026 Truestamp, Inc.
+// SPDX-License-Identifier: MIT
+
 // Package items provides API operations for Truestamp items.
 package items
 

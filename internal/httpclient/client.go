@@ -1,3 +1,6 @@
+// Copyright (c) 2021-2026 Truestamp, Inc.
+// SPDX-License-Identifier: MIT
+
 // Package httpclient provides a shared HTTP client for all external API calls.
 // The client is safe for concurrent use and reuses connections.
 // Call Init once during startup to set the timeout; the default is 10s.

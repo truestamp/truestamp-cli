@@ -1,3 +1,6 @@
+// Copyright (c) 2021-2026 Truestamp, Inc.
+// SPDX-License-Identifier: MIT
+
 // Package ui provides shared styling for the Truestamp CLI using lipgloss v2.
 // Colors are sourced from the Catppuccin palette (Latte for light terminals,
 // Mocha for dark). The same palette is used for both static lipgloss output

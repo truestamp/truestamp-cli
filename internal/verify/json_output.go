@@ -1,3 +1,6 @@
+// Copyright (c) 2021-2026 Truestamp, Inc.
+// SPDX-License-Identifier: MIT
+
 package verify
 
 // JSONOutput is the structured output for --json mode.

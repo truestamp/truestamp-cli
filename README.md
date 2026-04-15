@@ -300,3 +300,5 @@ Do **not** re-tag a version that's already propagated to `proxy.golang.org` — 
 ## License
 
 MIT. See [LICENSE](./LICENSE).
+
+Copyright (c) 2021-2026 [Truestamp, Inc.](https://truestamp.com) All rights reserved.
