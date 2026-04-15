@@ -22,7 +22,7 @@ The script detects your OS/architecture (darwin/linux × amd64/arm64), resolves 
 Pin a specific version:
 
 ```sh
-curl -fsSL https://get.truestamp.com/install.sh | TRUESTAMP_VERSION=v0.3.0 sh
+curl -fsSL https://get.truestamp.com/install.sh | TRUESTAMP_VERSION=vX.Y.Z sh
 ```
 
 Install to a custom directory:

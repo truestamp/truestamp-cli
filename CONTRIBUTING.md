@@ -84,7 +84,7 @@ Move entries from `## [Unreleased]` into a new section for the version you're ab
 ```md
 ## [Unreleased]
 
-## [0.3.0] — 2026-04-20
+## [X.Y.Z] — YYYY-MM-DD
 
 ### Added
 - ...
@@ -95,7 +95,7 @@ Move entries from `## [Unreleased]` into a new section for the version you're ab
 This repo is a jj colocated workspace. Commit the CHANGELOG edit as a normal change and advance `main`:
 
 ```sh
-jj describe -m "Prep release v0.3.0"
+jj describe -m "Prep release vX.Y.Z"
 jj bookmark move main --to @
 jj git push --bookmark main
 ```
@@ -105,8 +105,8 @@ jj git push --bookmark main
 jj does not create annotated tags itself — use the git CLI in the same working copy (the jj repo is colocated with `.git/`):
 
 ```sh
-git tag -a v0.3.0 -m "v0.3.0 - one-line summary of the headline change"
-git push origin v0.3.0
+git tag -a vX.Y.Z -m "vX.Y.Z - one-line summary of the headline change"
+git push origin vX.Y.Z
 ```
 
 The tag must point at the exact commit that `main` now holds, and must start with `v` so GoReleaser's trigger (`push: tags: ['v*']`) fires.
@@ -118,7 +118,7 @@ run_id=$(gh run list --workflow=release.yml --limit 1 --json databaseId -q '.[].
 gh run watch "$run_id" --exit-status
 
 # Verify artifacts landed.
-gh release view v0.3.0 --json tagName,assets -q '{tag: .tagName, assets: (.assets | length)}'
+gh release view vX.Y.Z --json tagName,assets -q '{tag: .tagName, assets: (.assets | length)}'
 
 # Confirm the tap cask updated.
 gh api repos/truestamp/homebrew-tap/contents/Casks/truestamp-cli.rb -q '.content' | base64 -d | head
@@ -138,13 +138,13 @@ xattr -cr "$(brew --caskroom)/truestamp-cli"   # macOS Gatekeeper, first run onl
 truestamp version
 
 # Go install.
-go install github.com/truestamp/truestamp-cli/cmd/truestamp@v0.3.0
+go install github.com/truestamp/truestamp-cli/cmd/truestamp@vX.Y.Z
 truestamp version
 
 # Direct tarball.
 os=$(uname -s | tr A-Z a-z)
 arch=$(uname -m | sed 's/x86_64/amd64/;s/aarch64/arm64/')
-curl -sSL "https://github.com/truestamp/truestamp-cli/releases/download/v0.3.0/truestamp-cli_0.3.0_${os}_${arch}.tar.gz" | tar -xz
+curl -sSL "https://github.com/truestamp/truestamp-cli/releases/download/vX.Y.Z/truestamp-cli_X.Y.Z_${os}_${arch}.tar.gz" | tar -xz
 ./truestamp version
 ```
 
@@ -153,13 +153,13 @@ curl -sSL "https://github.com/truestamp/truestamp-cli/releases/download/v0.3.0/t
 GoReleaser is mostly idempotent, but a partial failure (for example a tap push rejected) leaves the GitHub Release in place while the tap cask is out of date. To redo cleanly:
 
 ```sh
-gh release delete v0.3.0 -y
-git push origin :refs/tags/v0.3.0
-git tag -d v0.3.0
+gh release delete vX.Y.Z -y
+git push origin :refs/tags/vX.Y.Z
+git tag -d vX.Y.Z
 
 # Fix the problem in a new commit, push to main, then retag from the fixed commit.
-git tag -a v0.3.0 -m "v0.3.0 - ..."
-git push origin v0.3.0
+git tag -a vX.Y.Z -m "vX.Y.Z - ..."
+git push origin vX.Y.Z
 ```
 
-Do **not** re-tag a version that has already propagated to `proxy.golang.org` — the proxy caches tagged module versions forever. Bump the patch version (`v0.2.1`) instead.
+Do **not** re-tag a version that has already propagated to `proxy.golang.org` — the proxy caches tagged module versions forever. Bump the patch version (e.g. `vX.Y.Z+1`) instead.

@@ -29,13 +29,29 @@ Install (macOS or Linux; amd64 or arm64):
 
 Pin a specific version:
 
-    curl -fsSL https://get.truestamp.com/install.sh | TRUESTAMP_VERSION=v0.1.6 sh
+    curl -fsSL https://get.truestamp.com/install.sh | TRUESTAMP_VERSION=vX.Y.Z sh
 
 Install to a custom directory:
 
     curl -fsSL https://get.truestamp.com/install.sh | TRUESTAMP_INSTALL_DIR=~/bin sh
 
 Upgrade: re-run the command.
+
+
+Signature verification (macOS and Linux):
+
+    install.sh verifies the SHA-256 checksum of every download. If
+    <a href="https://github.com/sigstore/cosign">cosign</a> is on your PATH, it will additionally verify the cosign
+    signature of the checksums file (keyless, via Sigstore). When cosign
+    is not installed this step is skipped silently.
+
+    Install cosign:
+
+        brew install cosign
+
+    Require cosign verification (refuse to install without it):
+
+        curl -fsSL https://get.truestamp.com/install.sh | TRUESTAMP_REQUIRE_COSIGN=1 sh
 
 
 Other install channels:

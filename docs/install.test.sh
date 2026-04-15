@@ -8,7 +8,7 @@
 #
 # Usage:
 #   sh docs/install.test.sh            # uses the default pinned version
-#   TRUESTAMP_TEST_VERSION=v0.2.0 sh docs/install.test.sh
+#   TRUESTAMP_TEST_VERSION=vX.Y.Z sh docs/install.test.sh
 #
 # Exit code 0 on success, 1 on any failure.
 

@@ -8,7 +8,7 @@
 #   curl -fsSL https://get.truestamp.com/install.sh | sh
 #
 # Environment variables (all optional):
-#   TRUESTAMP_VERSION         Tag to install, e.g. v0.3.0. Defaults to latest.
+#   TRUESTAMP_VERSION         Tag to install, e.g. vX.Y.Z. Defaults to latest.
 #   TRUESTAMP_INSTALL_DIR     Install target dir. Defaults to /usr/local/bin
 #                             or ~/.local/bin.
 #   TRUESTAMP_SKIP_CHECKSUM   Set to 1 to skip SHA-256 verification. Debug only.
@@ -53,7 +53,7 @@ Usage:
     curl -fsSL https://get.truestamp.com/install.sh | sh -s -- --help
 
 Environment variables (all optional):
-    TRUESTAMP_VERSION         Tag to install, e.g. v0.3.0. Defaults to latest.
+    TRUESTAMP_VERSION         Tag to install, e.g. vX.Y.Z. Defaults to latest.
     TRUESTAMP_INSTALL_DIR     Install target dir. Defaults to /usr/local/bin
                               or ~/.local/bin.
     TRUESTAMP_SKIP_CHECKSUM   Set to 1 to skip SHA-256 verification. Debug only.
