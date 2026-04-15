@@ -73,13 +73,14 @@ signs:
   - id: checksums
     cmd: cosign
     artifacts: checksum
-    signature: "${artifact}.sig"
-    certificate: "${artifact}.pem"
+    # cosign v3 switched to a bundled signature+certificate format. The
+    # resulting .sigstore file is what the installer (docs/install.sh)
+    # hands to `cosign verify-blob --bundle`.
+    signature: "${artifact}.sigstore"
     args:
       - sign-blob
       - "--yes"
-      - "--output-signature=${signature}"
-      - "--output-certificate=${certificate}"
+      - "--bundle=${signature}"
       - "${artifact}"
 
 snapshot:

@@ -191,8 +191,7 @@ download_and_verify() {
     _base_url="https://github.com/${REPO}/releases/download/${VERSION}"
     ARCHIVE_URL="${_base_url}/${ARCHIVE_NAME}"
     CHECKSUM_URL="${_base_url}/checksums.txt"
-    CHECKSUM_SIG_URL="${_base_url}/checksums.txt.sig"
-    CHECKSUM_PEM_URL="${_base_url}/checksums.txt.pem"
+    CHECKSUM_BUNDLE_URL="${_base_url}/checksums.txt.sigstore"
 
     info "downloading ${ARCHIVE_NAME}..."
     fetch "${ARCHIVE_URL}" "${TMPDIR_INSTALL}/${ARCHIVE_NAME}" \
@@ -240,15 +239,14 @@ verify_cosign_signature() {
         return
     fi
 
-    # If the .sig / .pem aren't published for this release (e.g. a legacy
-    # release from before cosign signing landed), soft-fail: in best-effort
-    # mode we skip with a warning, in require mode we refuse.
-    if ! fetch "${CHECKSUM_SIG_URL}" "${TMPDIR_INSTALL}/checksums.txt.sig" 2>/dev/null \
-        || ! fetch "${CHECKSUM_PEM_URL}" "${TMPDIR_INSTALL}/checksums.txt.pem" 2>/dev/null; then
+    # If the signature bundle isn't published for this release (e.g. a
+    # legacy release from before cosign signing landed), soft-fail: in
+    # best-effort mode we skip with a warning, in require mode we refuse.
+    if ! fetch "${CHECKSUM_BUNDLE_URL}" "${TMPDIR_INSTALL}/checksums.txt.sigstore" 2>/dev/null; then
         if [ "${TRUESTAMP_REQUIRE_COSIGN:-}" = "1" ]; then
-            die "TRUESTAMP_REQUIRE_COSIGN=1 but cosign signature artifacts are not published for ${VERSION}"
+            die "TRUESTAMP_REQUIRE_COSIGN=1 but cosign signature bundle is not published for ${VERSION}"
         fi
-        warn "cosign signature artifacts not found for ${VERSION}; skipping signature verification"
+        warn "cosign signature bundle not found for ${VERSION}; skipping signature verification"
         return
     fi
 
@@ -256,8 +254,7 @@ verify_cosign_signature() {
 
     # Identity: the release workflow file in this repo. OIDC issuer: GitHub Actions.
     cosign verify-blob \
-        --certificate "${TMPDIR_INSTALL}/checksums.txt.pem" \
-        --signature "${TMPDIR_INSTALL}/checksums.txt.sig" \
+        --bundle "${TMPDIR_INSTALL}/checksums.txt.sigstore" \
         --certificate-identity-regexp "^https://github\\.com/${REPO}/\\.github/workflows/release\\.yml@" \
         --certificate-oidc-issuer "https://token.actions.githubusercontent.com" \
         "${_checksums}" >/dev/null 2>&1 \
