@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- Curl-bash installer hosted at `https://get.truestamp.com/install.sh` for
+  macOS and Linux, amd64 and arm64. Detects OS/architecture, resolves the
+  latest GitHub release (or a pinned tag via `TRUESTAMP_VERSION=vX.Y.Z`),
+  verifies SHA-256 against the release `checksums.txt`, installs to
+  `/usr/local/bin` or `$HOME/.local/bin`, and clears the macOS quarantine
+  attribute so the binary runs without a Gatekeeper dialog.
+- Terminal-themed landing page at `https://get.truestamp.com` with plain
+  green-on-black monospace install instructions.
+- `shellcheck` step in CI to keep `docs/install.sh` portable POSIX sh.
+
 ## [0.1.0] — 2026-04-14
 
 ### Added

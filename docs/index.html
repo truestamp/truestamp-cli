@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>get.truestamp.com</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="Install the Truestamp CLI.">
+  <style>
+    html, body { margin: 0; padding: 0; background: #000; color: #33ff33; }
+    pre        { margin: 0; padding: 2rem 1rem; font: 14px/1.4 ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; overflow-x: auto; }
+    a          { color: inherit; text-decoration: underline; }
+  </style>
+</head>
+<body>
+<pre>
+ _____ ____  _   _ _____ ____ _____  _    __  __ ____
+|_   _|  _ \| | | | ____/ ___|_   _|/ \  |  \/  |  _ \
+  | | | |_) | | | |  _| \___ \ | | / _ \ | |\/| | |_) |
+  | | |  _ &lt;| |_| | |___ ___) || |/ ___ \| |  | |  __/
+  |_| |_| \_\\___/|_____|____/ |_/_/   \_\_|  |_|_|
+
+
+Cryptographic timestamping, from the terminal.
+
+
+Install (macOS or Linux; amd64 or arm64):
+
+    curl -fsSL https://get.truestamp.com/install.sh | sh
+
+Pin a specific version:
+
+    curl -fsSL https://get.truestamp.com/install.sh | TRUESTAMP_VERSION=v0.1.6 sh
+
+Install to a custom directory:
+
+    curl -fsSL https://get.truestamp.com/install.sh | TRUESTAMP_INSTALL_DIR=~/bin sh
+
+Upgrade: re-run the command.
+
+
+Other install channels:
+
+    Homebrew    brew install truestamp/tap/truestamp-cli
+    Go install  go install github.com/truestamp/truestamp-cli/cmd/truestamp@latest
+
+
+Source      <a href="https://github.com/truestamp/truestamp-cli">github.com/truestamp/truestamp-cli</a>
+Releases    <a href="https://github.com/truestamp/truestamp-cli/releases">github.com/truestamp/truestamp-cli/releases</a>
+Script      <a href="https://get.truestamp.com/install.sh">get.truestamp.com/install.sh</a>
+License     MIT
+</pre>
+</body>
+</html>

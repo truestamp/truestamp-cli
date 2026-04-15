@@ -26,6 +26,9 @@ jobs:
       - name: Download modules
         run: go mod download
 
+      - name: Lint install.sh
+        run: shellcheck -s sh docs/install.sh
+
       - name: gofmt
         run: |
           unformatted=$(gofmt -l .)

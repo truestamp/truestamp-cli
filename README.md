@@ -11,6 +11,28 @@ Ships as a single static binary. No runtime required.
 
 ## Install
 
+### Install script (macOS, Linux)
+
+```sh
+curl -fsSL https://get.truestamp.com/install.sh | sh
+```
+
+The script detects your OS/architecture (darwin/linux × amd64/arm64), resolves the latest release, verifies the SHA-256 checksum, installs the binary to `/usr/local/bin` (or `~/.local/bin` if the former isn't writable), and clears the macOS quarantine attribute so the binary runs without a Gatekeeper prompt. Upgrade by re-running the same command.
+
+Pin a specific version:
+
+```sh
+curl -fsSL https://get.truestamp.com/install.sh | TRUESTAMP_VERSION=v0.1.6 sh
+```
+
+Install to a custom directory:
+
+```sh
+curl -fsSL https://get.truestamp.com/install.sh | TRUESTAMP_INSTALL_DIR=~/bin sh
+```
+
+Landing page with these same instructions: [get.truestamp.com](https://get.truestamp.com).
+
 ### Homebrew (macOS and Linux)
 
 ```sh
