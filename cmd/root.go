@@ -1,9 +1,14 @@
 // Copyright (c) 2021-2026 Truestamp, Inc.
 // SPDX-License-Identifier: MIT
 
+// Package cmd wires up the cobra command tree for the Truestamp CLI. The
+// main entrypoint (cmd/truestamp/main.go) calls [Execute]; everything else
+// here registers subcommands, flags, and the shared PersistentPreRunE that
+// loads the resolved configuration into [appConfig].
 package cmd
 
 import (
+	"errors"
 	"fmt"
 	"os"
 
@@ -13,6 +18,11 @@ import (
 	"github.com/truestamp/truestamp-cli/internal/ui"
 	"github.com/truestamp/truestamp-cli/internal/version"
 )
+
+// errSilentFail signals a failure that should exit non-zero without any
+// output. Commands use it for modes like `verify --silent` where the user
+// has explicitly asked for no output.
+var errSilentFail = errors.New("silent failure")
 
 // appConfig holds the resolved configuration, available to all subcommands.
 var appConfig *config.Config
@@ -62,11 +72,17 @@ func init() {
 	rootCmd.PersistentFlags().Bool("no-color", false, "Disable color output")
 }
 
-// Execute runs the root command.
+// Execute runs the root command. Commands set SilenceErrors so cobra does
+// not print their errors; Execute is the single place errors reach stderr.
+// A command that needs silent-on-error UX (e.g. `verify --silent`) returns
+// errSilentFail instead of the real error to opt out of printing.
 func Execute() error {
-	if err := rootCmd.Execute(); err != nil {
-		fmt.Fprintln(os.Stderr, err)
-		return err
+	err := rootCmd.Execute()
+	if err == nil {
+		return nil
 	}
-	return nil
+	if !errors.Is(err, errSilentFail) {
+		fmt.Fprintln(os.Stderr, err)
+	}
+	return err
 }

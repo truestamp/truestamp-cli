@@ -1,6 +1,10 @@
 // Copyright (c) 2021-2026 Truestamp, Inc.
 // SPDX-License-Identifier: MIT
 
+// Package tscrypto implements the Truestamp-specific cryptographic
+// primitives used by proofs: SHA-256 with one-byte domain-separation
+// prefixes (see docs/CRYPTOGRAPHY.md in truestamp-v2 for the prefix
+// registry) and Ed25519 signature verification.
 package tscrypto
 
 import (

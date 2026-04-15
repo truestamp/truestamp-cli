@@ -62,7 +62,7 @@ Requires --api-key to be set (via flag, env, or config file).`,
 		}
 
 		// Download the proof
-		data, err := proof.Generate(cfg.APIURL, cfg.APIKey, cfg.Team, id, format)
+		data, err := proof.GenerateCtx(cmd.Context(), cfg.APIURL, cfg.APIKey, cfg.Team, id, format)
 		if err != nil {
 			return err
 		}
@@ -98,7 +98,7 @@ func presentDownload(filename, format, id string, idType proof.IDType, size int)
 
 	tbl := table.New().
 		Border(lipgloss.HiddenBorder()).
-		StyleFunc(downloadStyleFunc).
+		StyleFunc(ui.LabelValueStyleFunc()).
 		Row("File", filename).
 		Row("Format", fmt.Sprintf("%s (%s bytes)", formatDisplay, formatSize(size))).
 		Row("ID", id).
@@ -108,17 +108,6 @@ func presentDownload(filename, format, id string, idType proof.IDType, size int)
 		header, "",
 		tbl.String(),
 	))
-}
-
-func downloadStyleFunc(row, col int) lipgloss.Style {
-	if col == 0 {
-		return lipgloss.NewStyle().
-			Foreground(ui.Label).
-			PaddingLeft(2).
-			Align(lipgloss.Right).
-			PaddingRight(1)
-	}
-	return lipgloss.NewStyle().Foreground(ui.Value)
 }
 
 func formatSize(size int) string {

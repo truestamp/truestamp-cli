@@ -1,6 +1,9 @@
 // Copyright (c) 2021-2026 Truestamp, Inc.
 // SPDX-License-Identifier: MIT
 
+// Package external fetches supplementary data from public blockchains (Stellar
+// Horizon, Bitcoin block explorers) to corroborate proofs against real-world
+// public records.
 package external
 
 import (

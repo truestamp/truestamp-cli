@@ -1,17 +1,19 @@
 # GoReleaser configuration for truestamp-cli.
 # Reference: https://goreleaser.com/customization/
 #
-# This config is designed for the future standalone public repo at
-# github.com/truestamp/truestamp-cli. It mirrors the Taskfile `build-all`
-# matrix and the existing -ldflags injection so that ldflag-based build
-# info is preserved for released artifacts.
+# Prerequisites for a real release (run from CI):
+#   - GITHUB_TOKEN               Automatically provided to actions/checkout.
+#   - HOMEBREW_TAP_GITHUB_TOKEN  Fine-grained PAT scoped to truestamp/homebrew-tap
+#                                only, with `Contents: Read and write`. Do NOT use
+#                                a classic `repo`-scoped PAT — the release pipeline
+#                                only needs to push one file to one repo.
+#   - OIDC token                 For keyless cosign signing. The release workflow
+#                                must grant `id-token: write` permission so
+#                                GoReleaser can mint one via the GitHub OIDC
+#                                provider (`https://token.actions.githubusercontent.com`).
 #
-# Prerequisites for a real release (run from CI on the new repo):
-#   - GITHUB_TOKEN           (provided automatically by actions/checkout)
-#   - HOMEBREW_TAP_GITHUB_TOKEN  (PAT with `repo` on truestamp/homebrew-tap)
-#
-# Local dry-run (no publish, no network):
-#   goreleaser release --snapshot --clean
+# Local dry-run (no publish, no network, signing skipped):
+#   goreleaser release --snapshot --clean --skip=sign,publish
 
 version: 2
 
@@ -36,6 +38,7 @@ builds:
       - arm64
     flags:
       - -trimpath
+      - -buildvcs=true
     ldflags:
       - -s -w
       - -X github.com/truestamp/truestamp-cli/internal/version.Version={{.Version}}
@@ -59,6 +62,25 @@ archives:
 checksum:
   name_template: "checksums.txt"
   algorithm: sha256
+
+sboms:
+  - id: archive
+    artifacts: archive
+    documents:
+      - "${artifact}.sbom.json"
+
+signs:
+  - id: checksums
+    cmd: cosign
+    artifacts: checksum
+    signature: "${artifact}.sig"
+    certificate: "${artifact}.pem"
+    args:
+      - sign-blob
+      - "--yes"
+      - "--output-signature=${signature}"
+      - "--output-certificate=${certificate}"
+      - "${artifact}"
 
 snapshot:
   version_template: "{{ .Version }}-SNAPSHOT-{{ .ShortCommit }}"
@@ -98,8 +120,12 @@ homebrew_casks:
     repository:
       owner: truestamp
       name: homebrew-tap
-      branch: main
+      branch: goreleaser-{{ .Version }}
       token: "{{ .Env.HOMEBREW_TAP_GITHUB_TOKEN }}"
+      pull_request:
+        enabled: true
+        base:
+          branch: main
     directory: Casks
     homepage: https://truestamp.com
     description: "Truestamp CLI — tools for cryptographic timestamping"

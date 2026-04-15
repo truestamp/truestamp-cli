@@ -6,6 +6,7 @@ package items
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -28,10 +29,15 @@ type CreateItemResponse struct {
 	HashType   string
 }
 
-// CreateItem sends a JSON:API POST request to create a new item.
-// claims is the nested claims map (hash, hash_type, name, etc.).
-// visibility and tags are top-level item attributes.
+// CreateItem calls [CreateItemCtx] with [context.Background].
 func CreateItem(apiURL, apiKey, team string, claims map[string]any, visibility string, tags []string) (*CreateItemResponse, error) {
+	return CreateItemCtx(context.Background(), apiURL, apiKey, team, claims, visibility, tags)
+}
+
+// CreateItemCtx sends a JSON:API POST request to create a new item. claims
+// is the nested claims map (hash, hash_type, name, etc.); visibility and
+// tags are top-level item attributes. ctx cancels the in-flight request.
+func CreateItemCtx(ctx context.Context, apiURL, apiKey, team string, claims map[string]any, visibility string, tags []string) (*CreateItemResponse, error) {
 	// Build JSON:API envelope
 	attributes := map[string]any{
 		"claims": claims,
@@ -56,7 +62,7 @@ func CreateItem(apiURL, apiKey, team string, claims map[string]any, visibility s
 	}
 
 	reqURL := apiURL + "/items"
-	req, err := http.NewRequest("POST", reqURL, bytes.NewReader(bodyBytes))
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, reqURL, bytes.NewReader(bodyBytes))
 	if err != nil {
 		return nil, fmt.Errorf("creating request: %w", err)
 	}

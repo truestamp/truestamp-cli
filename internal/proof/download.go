@@ -5,6 +5,7 @@ package proof
 
 import (
 	"bytes"
+	"context"
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
@@ -15,9 +16,15 @@ import (
 	"github.com/truestamp/truestamp-cli/internal/httpclient"
 )
 
-// Download fetches a proof bundle from a URL and validates its basic structure.
-// Returns the raw bytes suitable for passing to ParseBytes.
+// Download fetches a proof bundle from a URL using [context.Background].
+// Prefer [DownloadCtx] when a cancellable context is available.
 func Download(rawURL string) ([]byte, error) {
+	return DownloadCtx(context.Background(), rawURL)
+}
+
+// DownloadCtx is the context-aware variant of [Download]. Honours ctx for
+// cancellation (e.g. Ctrl-C while a proof is streaming).
+func DownloadCtx(ctx context.Context, rawURL string) ([]byte, error) {
 	u, err := url.Parse(rawURL)
 	if err != nil {
 		return nil, fmt.Errorf("invalid URL: %w", err)
@@ -29,7 +36,7 @@ func Download(rawURL string) ([]byte, error) {
 		return nil, fmt.Errorf("URL must include a host")
 	}
 
-	data, err := httpclient.GetJSON(rawURL)
+	data, err := httpclient.GetJSONCtx(ctx, rawURL)
 	if err != nil {
 		return nil, fmt.Errorf("downloading proof: %w", err)
 	}
@@ -52,11 +59,17 @@ func Download(rawURL string) ([]byte, error) {
 	return data, nil
 }
 
-// Generate requests a proof bundle from the Truestamp API for the given subject ID.
-// The server auto-detects item (ULID) vs entropy (UUIDv7) from the ID format.
-// format should be "json" or "cbor".
-// Returns raw bytes ready to write to a file (pretty JSON or decoded CBOR binary).
+// Generate calls [GenerateCtx] with [context.Background].
 func Generate(apiURL, apiKey, team, id, format string) ([]byte, error) {
+	return GenerateCtx(context.Background(), apiURL, apiKey, team, id, format)
+}
+
+// GenerateCtx requests a proof bundle from the Truestamp API for the given
+// subject ID. The server auto-detects item (ULID) vs entropy (UUIDv7) from
+// the ID format. format should be "json" or "cbor". Returns raw bytes ready
+// to write to a file (pretty JSON or decoded CBOR binary). ctx cancels the
+// in-flight request.
+func GenerateCtx(ctx context.Context, apiURL, apiKey, team, id, format string) ([]byte, error) {
 	dataFields := map[string]string{"id": id}
 	if format != "" && format != "json" {
 		dataFields["format"] = format
@@ -68,7 +81,7 @@ func Generate(apiURL, apiKey, team, id, format string) ([]byte, error) {
 	}
 
 	reqURL := apiURL + "/proof/generate"
-	req, err := http.NewRequest("POST", reqURL, bytes.NewReader(bodyBytes))
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, reqURL, bytes.NewReader(bodyBytes))
 	if err != nil {
 		return nil, fmt.Errorf("creating request: %w", err)
 	}

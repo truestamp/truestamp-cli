@@ -1,6 +1,10 @@
 // Copyright (c) 2021-2026 Truestamp, Inc.
 // SPDX-License-Identifier: MIT
 
+// Package proof parses, downloads, and generates Truestamp proof bundles in
+// both JSON and CBOR wire formats. Proofs are the self-contained artefacts
+// consumers receive from the API; this package handles only serialization
+// and I/O — cryptographic verification lives in internal/verify.
 package proof
 
 import (
@@ -19,13 +23,10 @@ func IsCBORProof(data []byte) bool {
 
 // cborDecMode is a lenient CBOR decode mode that accepts invalid UTF-8 in
 // text strings. Some CBOR encoders may encode binary data as text strings.
-var cborDecMode = func() cbor.DecMode {
-	dm, err := cbor.DecOptions{UTF8: cbor.UTF8DecodeInvalid}.DecMode()
-	if err != nil {
-		panic("failed to create CBOR decode mode: " + err.Error())
-	}
-	return dm
-}()
+//
+// DecMode() can only fail for invalid option combinations; this one is
+// statically valid, so we discard the error.
+var cborDecMode, _ = cbor.DecOptions{UTF8: cbor.UTF8DecodeInvalid}.DecMode()
 
 // ParseCBOR decodes a CBOR proof bundle into a ProofBundle.
 // The output is structurally identical to what ParseBytes produces from JSON.

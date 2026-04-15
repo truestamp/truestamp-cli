@@ -1,2 +1,5 @@
 go latest
 goreleaser latest
+cosign latest
+shellcheck latest
+syft latest

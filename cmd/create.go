@@ -13,8 +13,8 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"time"
 
-	"charm.land/huh/v2"
 	lipgloss "charm.land/lipgloss/v2"
 	"charm.land/lipgloss/v2/table"
 	"github.com/spf13/cobra"
@@ -22,9 +22,11 @@ import (
 	"github.com/truestamp/truestamp-cli/internal/ui"
 )
 
+// Sentinels for flags passed without a value (via NoOptDefVal). See
+// the equivalent block in verify.go for the rationale behind NUL bytes.
 const (
-	claimsFlagPick     = ":pick"
-	fileFlagPickCreate = ":pick"
+	claimsFlagPick     = "\x00pick"
+	fileFlagPickCreate = "\x00pick"
 )
 
 var createCmd = &cobra.Command{
@@ -108,7 +110,7 @@ Requires --api-key to be set (via flag, env, or config file).`,
 		}
 
 		// Create the item
-		resp, err := items.CreateItem(cfg.APIURL, cfg.APIKey, cfg.Team, claims, visibility, tags)
+		resp, err := items.CreateItemCtx(cmd.Context(), cfg.APIURL, cfg.APIKey, cfg.Team, claims, visibility, tags)
 		if err != nil {
 			return err
 		}
@@ -259,67 +261,37 @@ func readClaimsStdin() (map[string]any, error) {
 
 // pickAnyFile launches an interactive file picker for any file type.
 func pickAnyFile() (string, error) {
-	cwd, err := os.Getwd()
-	if err != nil {
-		return "", fmt.Errorf("getting working directory: %w", err)
-	}
-
-	var path string
-	err = huh.NewForm(
-		huh.NewGroup(
-			huh.NewFilePicker().
-				Title("Select file to hash").
-				Description("up/down move  right/enter open  left/backspace back  enter select").
-				CurrentDirectory(cwd).
-				FileAllowed(true).
-				DirAllowed(false).
-				ShowSize(true).
-				ShowPermissions(false).
-				Picking(true).
-				Height(20).
-				Value(&path),
-		),
-	).WithTheme(ui.HuhTheme()).Run()
-	if err != nil {
-		return "", fmt.Errorf("file selection: %w", err)
-	}
-	if path == "" {
-		return "", fmt.Errorf("no file selected")
-	}
-	return path, nil
+	return ui.PickFile(ui.PickFileOptions{Title: "Select file to hash"})
 }
 
 // pickClaimsFile launches an interactive file picker for claims JSON.
 func pickClaimsFile() (string, error) {
-	cwd, err := os.Getwd()
-	if err != nil {
-		return "", fmt.Errorf("getting working directory: %w", err)
-	}
+	return ui.PickFile(ui.PickFileOptions{
+		Title:        "Select claims JSON file",
+		AllowedTypes: []string{".json"},
+	})
+}
 
-	var path string
-	err = huh.NewForm(
-		huh.NewGroup(
-			huh.NewFilePicker().
-				Title("Select claims JSON file").
-				Description("up/down move  right/enter open  left/backspace back  enter select").
-				CurrentDirectory(cwd).
-				AllowedTypes([]string{".json"}).
-				FileAllowed(true).
-				DirAllowed(false).
-				ShowSize(true).
-				ShowPermissions(false).
-				Picking(true).
-				Height(20).
-				Value(&path),
-		),
-	).WithTheme(ui.HuhTheme()).Run()
-	if err != nil {
-		return "", fmt.Errorf("file selection: %w", err)
+// normalizeTimestamp accepts the ISO 8601 forms documented on the
+// --timestamp flag and returns the value in canonical RFC3339 form. Date-only
+// inputs are promoted to midnight UTC to give the server a fully-specified
+// instant without silently dropping the user's intent.
+func normalizeTimestamp(raw string) (string, error) {
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		return "", fmt.Errorf("--timestamp is empty")
 	}
-	if path == "" {
-		return "", fmt.Errorf("no file selected")
+	layouts := []string{
+		time.RFC3339Nano,
+		time.RFC3339,
+		"2006-01-02",
 	}
-	return path, nil
+	for _, layout := range layouts {
+		if t, err := time.Parse(layout, raw); err == nil {
+			return t.UTC().Format(time.RFC3339), nil
+		}
+	}
+	return "", fmt.Errorf("--timestamp %q is not a supported ISO 8601 form (try 2025-01-15 or 2025-01-15T14:30:00Z)", raw)
 }
 
 // overlayFlags applies flag values onto claims, overriding existing values.
@@ -336,7 +308,18 @@ func overlayFlags(cmd *cobra.Command, claims map[string]any) error {
 	setIfChanged("hash-type", "hash_type")
 	setIfChanged("description", "description")
 	setIfChanged("url", "url")
-	setIfChanged("timestamp", "timestamp")
+
+	// Timestamp: validate ISO 8601 locally and re-emit in canonical RFC3339
+	// form so the server sees a normalized value and the user gets a clear
+	// local error for typos.
+	if cmd.Flags().Changed("timestamp") {
+		raw, _ := cmd.Flags().GetString("timestamp")
+		normalized, err := normalizeTimestamp(raw)
+		if err != nil {
+			return err
+		}
+		claims["timestamp"] = normalized
+	}
 
 	// Metadata: parse JSON string
 	if cmd.Flags().Changed("metadata") {
@@ -439,7 +422,7 @@ func presentCreate(resp *items.CreateItemResponse) {
 
 	tbl := table.New().
 		Border(lipgloss.HiddenBorder()).
-		StyleFunc(createStyleFunc).
+		StyleFunc(ui.LabelValueStyleFunc()).
 		Row("ID", resp.ID).
 		Row("Name", resp.Name)
 
@@ -464,17 +447,6 @@ func presentCreate(resp *items.CreateItemResponse) {
 		header,
 		tbl.String(),
 	))
-}
-
-func createStyleFunc(row, col int) lipgloss.Style {
-	if col == 0 {
-		return lipgloss.NewStyle().
-			Foreground(ui.Label).
-			PaddingLeft(2).
-			Align(lipgloss.Right).
-			PaddingRight(1)
-	}
-	return lipgloss.NewStyle().Foreground(ui.Value)
 }
 
 func init() {

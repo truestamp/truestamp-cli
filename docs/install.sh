@@ -8,13 +8,21 @@
 #   curl -fsSL https://get.truestamp.com/install.sh | sh
 #
 # Environment variables (all optional):
-#   TRUESTAMP_VERSION        Tag to install, e.g. v0.2.0. Defaults to latest.
-#   TRUESTAMP_INSTALL_DIR    Install target dir. Defaults to /usr/local/bin
-#                            or ~/.local/bin.
-#   TRUESTAMP_SKIP_CHECKSUM  Set to 1 to skip SHA-256 verification. Debug only.
-#   TRUESTAMP_ALLOW_SUDO     Set to 1 to allow running as root / via sudo.
-#   GITHUB_TOKEN             Bearer token for the GitHub releases API (raises
-#                            rate limits; optional).
+#   TRUESTAMP_VERSION         Tag to install, e.g. v0.2.0. Defaults to latest.
+#   TRUESTAMP_INSTALL_DIR     Install target dir. Defaults to /usr/local/bin
+#                             or ~/.local/bin.
+#   TRUESTAMP_SKIP_CHECKSUM   Set to 1 to skip SHA-256 verification. Debug only.
+#   TRUESTAMP_REQUIRE_COSIGN  Set to 1 to REQUIRE cosign signature verification
+#                             of the checksums file. Refuses to install if cosign
+#                             is not on PATH or the signature does not verify.
+#                             Without this, cosign verification is best-effort:
+#                             run when cosign is present, skipped silently if not.
+#   TRUESTAMP_ALLOW_SUDO      Set to 1 to allow running as root / via sudo.
+#   GITHUB_TOKEN              Bearer token for the GitHub releases API (raises
+#                             rate limits; optional).
+#
+# Flags:
+#   -h, --help                Print this usage summary and exit.
 
 set -eu
 
@@ -32,6 +40,30 @@ log()  { printf '%s\n' "$*" >&2; }
 info() { log "  $*"; }
 warn() { log "warning: $*"; }
 die()  { log "error: $*"; exit 1; }
+
+usage() {
+    # Kept in sync manually with the header block above. This function is
+    # reachable via `curl ... | sh -s -- --help`, where $0 is `sh` rather
+    # than the script path, so we can't re-read the header at runtime.
+    cat <<'EOF'
+Truestamp CLI installer.
+
+Usage:
+    curl -fsSL https://get.truestamp.com/install.sh | sh
+    curl -fsSL https://get.truestamp.com/install.sh | sh -s -- --help
+
+Environment variables (all optional):
+    TRUESTAMP_VERSION         Tag to install, e.g. v0.2.0. Defaults to latest.
+    TRUESTAMP_INSTALL_DIR     Install target dir. Defaults to /usr/local/bin
+                              or ~/.local/bin.
+    TRUESTAMP_SKIP_CHECKSUM   Set to 1 to skip SHA-256 verification. Debug only.
+    TRUESTAMP_REQUIRE_COSIGN  Set to 1 to REQUIRE cosign signature verification
+                              of the checksums file.
+    TRUESTAMP_ALLOW_SUDO      Set to 1 to allow running as root / via sudo.
+    GITHUB_TOKEN              Bearer token for the GitHub releases API.
+EOF
+    exit 0
+}
 
 cleanup() {
     if [ -n "${TMPDIR_INSTALL}" ] && [ -d "${TMPDIR_INSTALL}" ]; then
@@ -156,8 +188,11 @@ download_and_verify() {
     # Strip leading v, if present, to match GoReleaser's archive naming.
     _ver_no_v="${VERSION#v}"
     ARCHIVE_NAME="${PROJECT}_${_ver_no_v}_${OS}_${ARCH}.tar.gz"
-    ARCHIVE_URL="https://github.com/${REPO}/releases/download/${VERSION}/${ARCHIVE_NAME}"
-    CHECKSUM_URL="https://github.com/${REPO}/releases/download/${VERSION}/checksums.txt"
+    _base_url="https://github.com/${REPO}/releases/download/${VERSION}"
+    ARCHIVE_URL="${_base_url}/${ARCHIVE_NAME}"
+    CHECKSUM_URL="${_base_url}/checksums.txt"
+    CHECKSUM_SIG_URL="${_base_url}/checksums.txt.sig"
+    CHECKSUM_PEM_URL="${_base_url}/checksums.txt.pem"
 
     info "downloading ${ARCHIVE_NAME}..."
     fetch "${ARCHIVE_URL}" "${TMPDIR_INSTALL}/${ARCHIVE_NAME}" \
@@ -165,24 +200,68 @@ download_and_verify() {
 
     if [ "${TRUESTAMP_SKIP_CHECKSUM:-}" = "1" ]; then
         warn "TRUESTAMP_SKIP_CHECKSUM=1 — skipping SHA-256 verification"
-    else
-        info "verifying SHA-256..."
-        fetch "${CHECKSUM_URL}" "${TMPDIR_INSTALL}/checksums.txt" \
-            || die "could not download ${CHECKSUM_URL}"
+        return
+    fi
 
-        _expected="$(grep "  ${ARCHIVE_NAME}\$" "${TMPDIR_INSTALL}/checksums.txt" \
-            | awk '{print $1}')"
-        [ -n "${_expected}" ] \
-            || die "checksum for ${ARCHIVE_NAME} not found in checksums.txt"
+    info "verifying SHA-256..."
+    fetch "${CHECKSUM_URL}" "${TMPDIR_INSTALL}/checksums.txt" \
+        || die "could not download ${CHECKSUM_URL}"
 
-        _actual="$(sha256_of "${TMPDIR_INSTALL}/${ARCHIVE_NAME}")"
-        if [ "${_expected}" != "${_actual}" ]; then
-            die "checksum mismatch!
+    verify_cosign_signature "${TMPDIR_INSTALL}/checksums.txt"
+
+    _expected="$(grep "  ${ARCHIVE_NAME}\$" "${TMPDIR_INSTALL}/checksums.txt" \
+        | awk '{print $1}')"
+    [ -n "${_expected}" ] \
+        || die "checksum for ${ARCHIVE_NAME} not found in checksums.txt"
+
+    _actual="$(sha256_of "${TMPDIR_INSTALL}/${ARCHIVE_NAME}")"
+    if [ "${_expected}" != "${_actual}" ]; then
+        die "checksum mismatch!
   expected: ${_expected}
   actual:   ${_actual}
   (re-run the installer, or report this at https://github.com/${REPO}/issues)"
-        fi
     fi
+    info "sha256: ${_actual}"
+}
+
+# Verify the cosign keyless signature over checksums.txt. The signing identity
+# is the release workflow in this repository; the OIDC issuer is GitHub
+# Actions' token endpoint. If cosign is not available and
+# TRUESTAMP_REQUIRE_COSIGN is unset, we skip silently — the SHA-256 check
+# still guarantees integrity of the archive against whatever checksums.txt we
+# got, just not that checksums.txt itself is authentic.
+verify_cosign_signature() {
+    _checksums="$1"
+
+    if ! command -v cosign >/dev/null 2>&1; then
+        if [ "${TRUESTAMP_REQUIRE_COSIGN:-}" = "1" ]; then
+            die "TRUESTAMP_REQUIRE_COSIGN=1 but 'cosign' is not on PATH. Install cosign from https://github.com/sigstore/cosign"
+        fi
+        return
+    fi
+
+    # If the .sig / .pem aren't published for this release (e.g. a legacy
+    # release from before cosign signing landed), soft-fail: in best-effort
+    # mode we skip with a warning, in require mode we refuse.
+    if ! fetch "${CHECKSUM_SIG_URL}" "${TMPDIR_INSTALL}/checksums.txt.sig" 2>/dev/null \
+        || ! fetch "${CHECKSUM_PEM_URL}" "${TMPDIR_INSTALL}/checksums.txt.pem" 2>/dev/null; then
+        if [ "${TRUESTAMP_REQUIRE_COSIGN:-}" = "1" ]; then
+            die "TRUESTAMP_REQUIRE_COSIGN=1 but cosign signature artifacts are not published for ${VERSION}"
+        fi
+        warn "cosign signature artifacts not found for ${VERSION}; skipping signature verification"
+        return
+    fi
+
+    info "verifying cosign signature..."
+
+    # Identity: the release workflow file in this repo. OIDC issuer: GitHub Actions.
+    cosign verify-blob \
+        --certificate "${TMPDIR_INSTALL}/checksums.txt.pem" \
+        --signature "${TMPDIR_INSTALL}/checksums.txt.sig" \
+        --certificate-identity-regexp "^https://github\\.com/${REPO}/\\.github/workflows/release\\.yml@" \
+        --certificate-oidc-issuer "https://token.actions.githubusercontent.com" \
+        "${_checksums}" >/dev/null 2>&1 \
+        || die "cosign signature did not verify for checksums.txt"
 }
 
 # -----------------------------------------------------------------------------
@@ -265,6 +344,16 @@ verify_installed() {
 # -----------------------------------------------------------------------------
 
 main() {
+    # Parse flags. The only supported flag is --help / -h; anything else is
+    # rejected so a typo like `sh -s -- --ifnstall-dir` doesn't silently
+    # fall through to the default install path.
+    while [ $# -gt 0 ]; do
+        case "$1" in
+            -h|--help) usage ;;
+            *) die "unknown argument: $1 (run with --help for usage)" ;;
+        esac
+    done
+
     log ""
     log "Truestamp CLI installer"
     log "  https://github.com/${REPO}"

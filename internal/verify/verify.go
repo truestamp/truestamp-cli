@@ -1,6 +1,11 @@
 // Copyright (c) 2021-2026 Truestamp, Inc.
 // SPDX-License-Identifier: MIT
 
+// Package verify runs the end-to-end cryptographic verification pipeline
+// against a parsed proof bundle: signing-key lookup against the public
+// keyring, Ed25519 signature check, Merkle-inclusion proof, block hash
+// chain, and optional public-blockchain commitments (Stellar, Bitcoin).
+// Callers receive a [Report] summarizing every check.
 package verify
 
 import (

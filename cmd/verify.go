@@ -6,6 +6,7 @@ package cmd
 import (
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/url"
@@ -19,10 +20,17 @@ import (
 	"github.com/truestamp/truestamp-cli/internal/verify"
 )
 
-// Sentinel values for flags passed without a value (via NoOptDefVal).
+// errVerificationFailed is returned when the proof report itself fails.
+// The report has already been rendered so we only need a non-nil error for
+// exit code 1. Execute() prints it via its default path.
+var errVerificationFailed = errors.New("verification failed")
+
+// Sentinel values for flags passed without a value (via NoOptDefVal). NUL
+// bytes are not valid in filenames or URLs on any supported OS, so the
+// sentinel can never collide with a value a user could legitimately pass.
 const (
-	fileFlagPick  = ":pick"
-	urlFlagPrompt = ":prompt"
+	fileFlagPick  = "\x00pick"
+	urlFlagPrompt = "\x00prompt"
 )
 
 var verifyCmd = &cobra.Command{
@@ -84,13 +92,11 @@ Exit code 0 on success, 1 on verification failure.`,
 
 		if cfg.Verify.Remote {
 			if cfg.Verify.SkipExternal || cfg.Verify.SkipSignatures {
-				cmd.PrintErrln("Error: --skip-external and --skip-signatures cannot be used with --remote (server always runs full verification)")
-				os.Exit(1)
+				return fmt.Errorf("--skip-external and --skip-signatures cannot be used with --remote (server always runs full verification)")
 			}
 
 			if cfg.APIKey == "" {
-				cmd.PrintErrln("Error: API key required for --remote verification (use --api-key or set TRUESTAMP_API_KEY)")
-				os.Exit(1)
+				return fmt.Errorf("API key required for --remote verification (use --api-key or set TRUESTAMP_API_KEY)")
 			}
 
 			if data != nil {
@@ -124,10 +130,10 @@ Exit code 0 on success, 1 on verification failure.`,
 		}
 
 		if err != nil {
-			if !cfg.Verify.Silent {
-				cmd.PrintErrln("Error:", err)
+			if cfg.Verify.Silent {
+				return errSilentFail
 			}
-			os.Exit(1)
+			return err
 		}
 
 		switch {
@@ -143,7 +149,10 @@ Exit code 0 on success, 1 on verification failure.`,
 		}
 
 		if !report.Passed() {
-			os.Exit(1)
+			if cfg.Verify.Silent {
+				return errSilentFail
+			}
+			return errVerificationFailed
 		}
 		return nil
 	},
@@ -173,7 +182,7 @@ func resolveProofInput(cmd *cobra.Command, args []string) (string, []byte, error
 
 	case urlFlag == urlFlagPrompt:
 		if len(args) > 0 {
-			data, err := proof.Download(args[0])
+			data, err := proof.DownloadCtx(cmd.Context(), args[0])
 			if err != nil {
 				return "", nil, err
 			}
@@ -183,14 +192,14 @@ func resolveProofInput(cmd *cobra.Command, args []string) (string, []byte, error
 		if err != nil {
 			return "", nil, err
 		}
-		data, err := proof.Download(rawURL)
+		data, err := proof.DownloadCtx(cmd.Context(), rawURL)
 		if err != nil {
 			return "", nil, err
 		}
 		return rawURL, data, nil
 
 	case urlFlag != "":
-		data, err := proof.Download(urlFlag)
+		data, err := proof.DownloadCtx(cmd.Context(), urlFlag)
 		if err != nil {
 			return "", nil, err
 		}
@@ -198,7 +207,7 @@ func resolveProofInput(cmd *cobra.Command, args []string) (string, []byte, error
 
 	case len(args) > 0:
 		if u, err := url.Parse(args[0]); err == nil && (u.Scheme == "http" || u.Scheme == "https") && u.Host != "" {
-			data, err := proof.Download(args[0])
+			data, err := proof.DownloadCtx(cmd.Context(), args[0])
 			if err != nil {
 				return "", nil, err
 			}
@@ -233,35 +242,10 @@ func isStdinPipe() bool {
 
 // pickFile launches an interactive file picker for selecting a proof file.
 func pickFile() (string, error) {
-	cwd, err := os.Getwd()
-	if err != nil {
-		return "", fmt.Errorf("getting working directory: %w", err)
-	}
-
-	var path string
-	err = huh.NewForm(
-		huh.NewGroup(
-			huh.NewFilePicker().
-				Title("Select proof file").
-				Description("up/down move  right/enter open  left/backspace back  enter select").
-				CurrentDirectory(cwd).
-				AllowedTypes([]string{".json", ".cbor"}).
-				FileAllowed(true).
-				DirAllowed(false).
-				ShowSize(true).
-				ShowPermissions(false).
-				Picking(true).
-				Height(20).
-				Value(&path),
-		),
-	).WithTheme(ui.HuhTheme()).Run()
-	if err != nil {
-		return "", fmt.Errorf("file selection: %w", err)
-	}
-	if path == "" {
-		return "", fmt.Errorf("no file selected")
-	}
-	return path, nil
+	return ui.PickFile(ui.PickFileOptions{
+		Title:        "Select proof file",
+		AllowedTypes: []string{".json", ".cbor"},
+	})
 }
 
 // promptURL launches an interactive text input for entering a proof URL.

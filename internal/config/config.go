@@ -1,6 +1,10 @@
 // Copyright (c) 2021-2026 Truestamp, Inc.
 // SPDX-License-Identifier: MIT
 
+// Package config resolves the CLI's runtime configuration from compiled
+// defaults, an optional TOML config file, environment variables, and
+// command-line flags — in that order, with later sources overriding
+// earlier ones.
 package config
 
 import (

@@ -7,6 +7,7 @@
 package httpclient
 
 import (
+	"context"
 	"fmt"
 	"io"
 	"net/http"
@@ -25,15 +26,29 @@ func Init(timeout time.Duration) {
 	httpClient = &http.Client{Timeout: timeout}
 }
 
-// Do executes an HTTP request using the shared client.
+// Do executes an HTTP request using the shared client. The request's
+// existing [context.Context] (if any) is respected; callers that want
+// cancellation should attach one via [http.Request.WithContext] before
+// calling.
 func Do(req *http.Request) (*http.Response, error) {
 	return httpClient.Do(req)
 }
 
-// GetJSON performs a GET request and returns the response body as bytes.
-// Returns an error for non-2xx status codes.
+// GetJSON performs a GET request with [context.Background] and returns the
+// response body. Prefer [GetJSONCtx] when a cancellable context is
+// available (e.g. from Cobra's cmd.Context()).
 func GetJSON(url string) ([]byte, error) {
-	resp, err := httpClient.Get(url)
+	return GetJSONCtx(context.Background(), url)
+}
+
+// GetJSONCtx performs a context-aware GET request and returns the response
+// body. Returns an error for non-2xx status codes or on ctx cancellation.
+func GetJSONCtx(ctx context.Context, url string) ([]byte, error) {
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	if err != nil {
+		return nil, err
+	}
+	resp, err := httpClient.Do(req)
 	if err != nil {
 		return nil, err
 	}

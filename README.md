@@ -74,7 +74,20 @@ Grab the archive for your platform from the [Releases page](https://github.com/t
 - `truestamp-cli_<version>_windows_amd64.zip`
 - `truestamp-cli_<version>_windows_arm64.zip`
 
-Extract and place `truestamp` somewhere on your `PATH`. Verify `checksums.txt` with `sha256sum -c` before running.
+Extract and place `truestamp` somewhere on your `PATH`.
+
+## Verifying a download
+
+Every GitHub Release publishes a `checksums.txt` alongside the archives. To verify a download manually:
+
+```sh
+# From the directory containing the downloaded archive and checksums.txt.
+sha256sum -c checksums.txt --ignore-missing   # GNU coreutils
+# or on macOS without coreutils:
+shasum -a 256 -c checksums.txt --ignore-missing
+```
+
+The `install.sh` installer and Homebrew cask both verify the SHA-256 automatically — this section is only needed if you downloaded the tarball yourself.
 
 ## Quick start
 
@@ -182,6 +195,12 @@ Settings are resolved in this order (later overrides earlier):
 3. Environment variables (`TRUESTAMP_*`)
 4. CLI flags
 
+> The config file may contain an API key. It is stored in plaintext, so restrict permissions on a shared machine:
+>
+> ```sh
+> chmod 600 ~/.config/truestamp/config.toml
+> ```
+
 ### Global flags
 
 | Flag | Env var | Default |
@@ -220,136 +239,18 @@ Settings are resolved in this order (later overrides earlier):
 
 Skipped selectively with `--skip-external` and `--skip-signatures`.
 
-## Development
+## Exit codes
 
-This repo uses [mise](https://mise.jdx.dev/) for tool versions and [Task](https://taskfile.dev/) for the developer workflow.
+| Code | Meaning |
+| ---- | ------- |
+| `0`  | Success. For `verify`, the proof is valid. |
+| `1`  | Error. Failed verification, network failure, invalid input, or any other runtime error. |
 
-```sh
-mise install                 # Installs Go and GoReleaser from .tool-versions
-task build                   # Build for current platform → build/truestamp
-task test                    # Run all tests
-task precommit               # fmt + vet + test + build-all
-task release-snapshot        # Local GoReleaser dry-run → dist/
-```
+Exit code `2` is reserved for future use (usage / flag-parse errors). Scripts should branch on `0` vs non-zero rather than matching specific non-zero codes.
 
-The Go module path is `github.com/truestamp/truestamp-cli`; releases are tagged `vX.Y.Z` and drive both the GitHub Release and the Homebrew Cask publication to [`truestamp/homebrew-tap`](https://github.com/truestamp/homebrew-tap) via GoReleaser.
+## Contributing
 
-## Cutting a release (maintainer)
-
-Releases are driven entirely by a git tag matching `v*`. Pushing the tag triggers [`.github/workflows/release.yml`](./.github/workflows/release.yml), which runs GoReleaser to build the six platform archives, generate `checksums.txt`, publish a GitHub Release, and commit an updated cask to `truestamp/homebrew-tap`.
-
-### Prerequisites (one-time)
-
-- Repository secret `HOMEBREW_TAP_GITHUB_TOKEN` on `truestamp/truestamp-cli` with `contents:write` on `truestamp/homebrew-tap`. Without it, the release job fails at the cask publication step.
-- `mise install` locally so `task release-check` and `task release-snapshot` work for pre-flight testing.
-
-### Pre-flight checklist
-
-```sh
-# Working copy is clean and on top of the latest origin/main.
-jj git fetch
-jj log -r 'main@origin..@'   # expect 0 commits not on origin
-
-# All quality gates pass.
-task precommit               # fmt + vet + test + build-all
-
-# GoReleaser can build the full artifact set with ldflags intact.
-task release-check           # validates .goreleaser.yaml
-task release-snapshot        # rm -rf dist/ && goreleaser release --snapshot --clean
-
-# Inspect the generated cask before tagging.
-cat dist/homebrew/Casks/truestamp-cli.rb
-```
-
-### Update `CHANGELOG.md`
-
-Move entries from `## [Unreleased]` into a new section for the version you're about to cut. Use today's date and the Keep a Changelog grouping (`Added` / `Changed` / `Fixed` / `Removed`). Add a matching link reference at the bottom.
-
-```md
-## [Unreleased]
-
-## [0.2.0] — 2026-04-20
-
-### Added
-- ...
-```
-
-### Commit and push the CHANGELOG
-
-This repo is a jj colocated workspace. Commit the CHANGELOG edit as a normal change and advance `main`:
-
-```sh
-jj describe -m "Prep release v0.2.0"
-jj bookmark move main --to @
-jj git push --bookmark main
-```
-
-### Tag and push
-
-jj doesn't create annotated tags itself — use the git CLI in the same working copy (the jj repo is colocated with `.git/`):
-
-```sh
-git tag -a v0.2.0 -m "v0.2.0 - one-line summary of the headline change"
-git push origin v0.2.0
-```
-
-The tag must point at the exact commit that `main` now holds, and must start with `v` so GoReleaser's trigger (`push: tags: ['v*']`) fires.
-
-### Watch the release
-
-```sh
-# Stream the run to completion.
-run_id=$(gh run list --workflow=release.yml --limit 1 --json databaseId -q '.[].databaseId')
-gh run watch "$run_id" --exit-status
-
-# Verify artifacts landed.
-gh release view v0.2.0 --json tagName,assets -q '{tag: .tagName, assets: (.assets | length)}'
-# Expect: 6 platform archives + checksums.txt = 7 assets.
-
-# Confirm the tap cask updated.
-gh api repos/truestamp/homebrew-tap/contents/Casks/truestamp-cli.rb -q '.content' | base64 -d | head
-```
-
-### Smoke-test the four install channels
-
-```sh
-# install.sh (get.truestamp.com).
-curl -fsSL https://get.truestamp.com/install.sh | TRUESTAMP_INSTALL_DIR=/tmp sh
-/tmp/truestamp version  # should show the new version
-
-# Homebrew (macOS / Linux).
-brew update
-brew upgrade truestamp/tap/truestamp-cli
-# First run on macOS needs the Gatekeeper xattr workaround — see the
-# macOS Gatekeeper note in the Install section.
-xattr -cr "$(brew --caskroom)/truestamp-cli"
-truestamp version
-
-# Go install.
-go install github.com/truestamp/truestamp-cli/cmd/truestamp@v0.2.0
-truestamp version       # picks up v0.2.0 via debug.ReadBuildInfo
-
-# Direct tarball.
-curl -sSL "https://github.com/truestamp/truestamp-cli/releases/download/v0.2.0/truestamp-cli_0.2.0_$(uname -s | tr A-Z a-z)_$(uname -m | sed 's/x86_64/amd64/;s/aarch64/arm64/').tar.gz" | tar -xz
-./truestamp version
-```
-
-### If the release fails partway
-
-GoReleaser is mostly idempotent, but a partial failure (e.g., tap push rejected) leaves the GitHub Release in place while the tap cask is out of date. To redo cleanly:
-
-```sh
-# Roll back the failed release.
-gh release delete v0.2.0 -y
-git push origin :refs/tags/v0.2.0
-git tag -d v0.2.0
-
-# Fix the problem in a new commit, push to main, then retag from the fixed commit.
-git tag -a v0.2.0 -m "v0.2.0 - ..."
-git push origin v0.2.0
-```
-
-Do **not** re-tag a version that's already propagated to `proxy.golang.org` — the proxy caches tagged module versions forever. Bump the patch version (`v0.2.1`) instead.
+Dev setup, testing, and release process are in [`CONTRIBUTING.md`](./CONTRIBUTING.md). Security issues go through [`SECURITY.md`](./SECURITY.md). Conduct expectations are in [`CODE_OF_CONDUCT.md`](./CODE_OF_CONDUCT.md).
 
 ## Related projects
 
