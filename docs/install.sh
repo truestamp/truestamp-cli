@@ -332,8 +332,21 @@ verify_installed() {
             log ""
             log "note: ${INSTALL_DIR} is not on your \$PATH. Add it to your shell profile:"
             log "    export PATH=\"${INSTALL_DIR}:\$PATH\""
+            return
             ;;
     esac
+
+    # Shadow check: the install dir is on $PATH, but another truestamp
+    # earlier on $PATH (stale `go install`, Homebrew copy, etc.) may take
+    # precedence. Warn instead of silently running the wrong binary.
+    _resolved="$(command -v "${BINARY}" 2>/dev/null || true)"
+    if [ -n "${_resolved}" ] && [ "${_resolved}" != "${_dest}" ]; then
+        log ""
+        log "note: another '${BINARY}' on your \$PATH shadows this install:"
+        log "    in use:    ${_resolved}"
+        log "    installed: ${_dest}"
+        log "  remove the shadowing binary or put ${INSTALL_DIR} earlier in \$PATH."
+    fi
 }
 
 # -----------------------------------------------------------------------------
