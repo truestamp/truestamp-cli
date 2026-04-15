@@ -78,13 +78,65 @@ Extract and place `truestamp` somewhere on your `PATH`. Verify `checksums.txt` w
 
 ## Quick start
 
+The three main commands — `create`, `download`, `verify` — form the full lifecycle of a Truestamp item. Commands that talk to the Truestamp API (`create`, `download`) need an API key (`--api-key`, `TRUESTAMP_API_KEY`, or the config file). `verify` works entirely locally by default.
+
+### Create an item
+
+Hash a file and submit it in one step:
+
+```sh
+truestamp create document.pdf
+```
+
+Under the hood this computes SHA-256 of the file, uses the filename as the item name, and registers it with the Truestamp API so it'll be included in the next block.
+
+Other input styles:
+
+```sh
+truestamp create --file document.pdf                     # Explicit file path
+truestamp create --file                                  # Interactive file picker
+truestamp create -c claims.json                          # Claims from a JSON file
+cat claims.json | truestamp create -C                    # Claims from stdin
+truestamp create -n "Q1 Report" --hash abc123... \       # Build claims from flags
+  -v public -t finance,reports
+```
+
+JSON output for scripting:
+
+```sh
+truestamp create document.pdf --json
+```
+
+### Download a proof bundle
+
+After an item has been committed to a block, download its proof by ID. Item IDs are ULIDs; entropy observation IDs are UUIDv7s; the command auto-detects which from the format:
+
+```sh
+truestamp download 01KNN33GX5E470CB9TRWAYF9DD
+```
+
+Pick a format and output path:
+
+```sh
+truestamp download -f cbor -o proof.cbor 01KNN33GX5E470CB9TRWAYF9DD
+truestamp download -o /tmp/proof.json 01KNN33GX5E470CB9TRWAYF9DD
+```
+
+Download an entropy proof (UUIDv7 triggers entropy proof mode):
+
+```sh
+truestamp download 019d6a32-13e6-72b0-97e5-3779231ea97b
+```
+
+### Verify a proof
+
 ```sh
 truestamp verify proof.json
 ```
 
 Exit code `0` on success, `1` on failure or structural error.
 
-Offline verification (no network calls to Truestamp, Stellar, or Bitcoin APIs):
+Offline verification (no calls to Truestamp, Stellar, or Bitcoin APIs):
 
 ```sh
 truestamp verify proof.json --skip-external
@@ -108,6 +160,8 @@ cat proof.json | truestamp verify                  # stdin pipe
 ## Commands
 
 ```
+truestamp create [file]      Create a new Truestamp item (submit claims / file hash)
+truestamp download <id>      Download a proof bundle for an item or entropy observation
 truestamp verify [proof]     Verify a Truestamp proof bundle
 truestamp config path        Print the config file path
 truestamp config show        Print the resolved configuration (API key masked)
@@ -256,19 +310,24 @@ gh release view v0.2.0 --json tagName,assets -q '{tag: .tagName, assets: (.asset
 gh api repos/truestamp/homebrew-tap/contents/Casks/truestamp-cli.rb -q '.content' | base64 -d | head
 ```
 
-### Smoke-test the three install channels
+### Smoke-test the four install channels
 
 ```sh
+# install.sh (get.truestamp.com).
+curl -fsSL https://get.truestamp.com/install.sh | TRUESTAMP_INSTALL_DIR=/tmp sh
+/tmp/truestamp version  # should show the new version
+
 # Homebrew (macOS / Linux).
 brew update
 brew upgrade truestamp/tap/truestamp-cli
-# First run on macOS needs the Gatekeeper xattr workaround — see README.
+# First run on macOS needs the Gatekeeper xattr workaround — see the
+# macOS Gatekeeper note in the Install section.
 xattr -cr "$(brew --caskroom)/truestamp-cli"
-truestamp version       # should show 0.2.0
+truestamp version
 
 # Go install.
 go install github.com/truestamp/truestamp-cli/cmd/truestamp@v0.2.0
-truestamp version       # shows v0.2.0 via debug.ReadBuildInfo
+truestamp version       # picks up v0.2.0 via debug.ReadBuildInfo
 
 # Direct tarball.
 curl -sSL "https://github.com/truestamp/truestamp-cli/releases/download/v0.2.0/truestamp-cli_0.2.0_$(uname -s | tr A-Z a-z)_$(uname -m | sed 's/x86_64/amd64/;s/aarch64/arm64/').tar.gz" | tar -xz
