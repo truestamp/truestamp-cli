@@ -7,6 +7,94 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.2] — 2026-04-16
+
+### Added
+- Retroactive 0.3.1 entry in this CHANGELOG documenting the
+  `truestamp upgrade` subcommand that shipped in that release. No
+  functional changes in 0.3.2 itself; this release is primarily a
+  smoke test of the new in-place upgrade flow introduced in 0.3.1
+  (download archive, verify SHA-256, verify cosign bundle, atomic
+  replace, darwin quarantine clear).
+
+## [0.3.1] — 2026-04-16
+
+### Added
+- `truestamp upgrade` subcommand with install-method detection.
+  Homebrew installs print `brew upgrade --cask truestamp/tap/truestamp-cli`,
+  `go install` binaries print `go install github.com/truestamp/truestamp-cli/cmd/truestamp@latest`,
+  and install.sh / manual installs perform a native-Go in-place
+  upgrade that mirrors `docs/install.sh`: download tarball, verify
+  SHA-256 (mandatory, pure Go), verify cosign bundle (best-effort via
+  shell-out to `cosign` when on `PATH`; required when
+  `TRUESTAMP_REQUIRE_COSIGN=1`), extract, atomic replace with
+  `.bak.<rfc3339>` backup, clear the macOS quarantine xattr. A
+  7-day-old-backup prune runs on every successful upgrade.
+- `--check` flag on `upgrade` — report status without installing.
+  Exit codes: `0` up-to-date, `1` upgrade available, `2` network
+  error, `3` latest release is a pre-release.
+- `--yes` and `--version <tag>` flags on `upgrade` for non-interactive
+  and pinned upgrades. Passing `--version` is the opt-in path for
+  installing pre-release tags; without it, pre-releases are refused.
+- Pre-release defense is two-layer: GitHub's `/releases/latest`
+  endpoint already filters releases flagged `prerelease: true`, and
+  our Go code additionally rejects any resolved tag with a semver
+  pre-release suffix (e.g. `v1.0.0-rc.1`) unless `--version` was
+  passed explicitly.
+- Passive "new version available" notice on stderr, emitted at most
+  once per 24 hours (cached at
+  `$XDG_CACHE_HOME/truestamp/upgrade-check.json`). Suppressed when
+  stderr is not a TTY, when the running binary is a `dev` build, when
+  the resolved latest is a pre-release, and under any of seven CI env
+  vars (`CI`, `GITHUB_ACTIONS`, `GITLAB_CI`, `CIRCLECI`, `BUILDKITE`,
+  `JENKINS_HOME`, `TF_BUILD`).
+- `--no-upgrade-check` persistent flag and `TRUESTAMP_NO_UPGRADE_CHECK`
+  env var to opt out of the passive notice.
+- New `install` line in `truestamp version` output showing the
+  detected install method.
+- `docs-serve` Taskfile task —
+  `mise exec -- caddy file-server --listen :8080 --root docs` —
+  for previewing `docs/index.html` and testing `docs/install.sh`
+  changes locally before they reach `get.truestamp.com`.
+- `caddy` entry in `.tool-versions` so `mise install` bootstraps the
+  binary used by `task docs-serve` via the Aqua backend
+  (`caddyserver/caddy`).
+- New internal packages:
+  - `internal/install` — classify the running binary by resolved
+    executable path plus `runtime/debug.BuildInfo`. `sameDir`
+    resolves symlinks so `/tmp → /private/tmp` and other macOS
+    symlinked prefixes classify correctly.
+  - `internal/selfupgrade` — orchestrator plus SemVer,
+    GitHub Releases client, SHA-256 + cosign verification, tar.gz
+    extraction with path-traversal rejection, and Unix/Windows
+    atomic-replace implementations.
+  - `internal/upgradecheck` — passive check runner with JSON cache
+    and all suppression rules.
+- `DownloadCtx` and `DownloadBytesCtx` helpers in `internal/httpclient`
+  (bounded, context-aware). `DownloadCtx` streams to disk with a
+  200 MB default cap.
+- Test suite additions: 111 total passing cases across the touched
+  packages — path-heuristic coverage for all four install methods, a
+  regression test for the `sameDir` symlink bug, httptest-stubbed
+  `selfupgrade.Check()` tests locking in both layers of the
+  pre-release defense, tar-extraction path-traversal rejection, all
+  `Disabled()` suppression rules, cache round-trip, and
+  `cmd/upgrade`'s routing + `readYes` + exit-code unwrapping.
+
+### Changed
+- `truestamp version` now includes a new `install` line reporting
+  the detected install method (`homebrew`, `go install`,
+  `install.sh`, or `unknown`).
+- Root command's `Execute()` now recognises the internal
+  `exitCodeErr` sentinel so `upgrade --check` can exit with a
+  specific non-zero code without cobra printing an error line.
+
+### Notes
+- Windows is print-only for `upgrade` in this release —
+  rename-running-exe-to-`.bak` is deferred to a future minor version.
+  Windows users always get `go install …@latest` printed regardless
+  of detected method.
+
 ## [0.3.0] — 2026-04-15
 
 ### Added
@@ -123,7 +211,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   v0.1.0 is the first release of a standalone Go codebase; the two share
   nothing beyond the repository name.
 
-[Unreleased]: https://github.com/truestamp/truestamp-cli/compare/v0.3.0...HEAD
+[Unreleased]: https://github.com/truestamp/truestamp-cli/compare/v0.3.2...HEAD
+[0.3.2]: https://github.com/truestamp/truestamp-cli/releases/tag/v0.3.2
+[0.3.1]: https://github.com/truestamp/truestamp-cli/releases/tag/v0.3.1
 [0.3.0]: https://github.com/truestamp/truestamp-cli/releases/tag/v0.3.0
 [0.2.0]: https://github.com/truestamp/truestamp-cli/releases/tag/v0.2.0
 [0.1.0]: https://github.com/truestamp/truestamp-cli/releases/tag/v0.1.0
