@@ -7,6 +7,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+- `CONTRIBUTING.md`'s "Cutting a release" section updated to match
+  the actual release flow: GoReleaser opens a PR on
+  `truestamp/homebrew-tap` (since 0.3.0) and a follow-up workflow
+  step auto-merges it (since 0.3.3). The `HOMEBREW_TAP_GITHUB_TOKEN`
+  PAT scope list now correctly includes `Pull requests: Read and
+  write` (CHANGELOG 0.3.0 had the right value but CONTRIBUTING had
+  not been updated). Added a prerequisite to enable the
+  `Allow auto-merge` repo setting on `truestamp/homebrew-tap`.
+  Watch-the-release checks now verify the tap PR auto-merged
+  rather than assuming a direct push. Partial-failure recipes now
+  call out auto-merge failures (soft-fail under
+  `continue-on-error: true`) as a distinct, recoverable mode.
+- `CONTRIBUTING.md` development-setup now lists `caddy` alongside
+  the other tools `mise install` bootstraps (added in 0.3.1 for the
+  `task docs-serve` workflow).
+
 ## [0.3.3] — 2026-04-16
 
 ### Changed
