@@ -48,6 +48,27 @@ func TestParseSemver(t *testing.T) {
 	}
 }
 
+func TestDisplay(t *testing.T) {
+	cases := []struct {
+		in, want string
+	}{
+		{"v0.3.2", "0.3.2"},
+		{"0.3.2", "0.3.2"}, // already stripped
+		{"v1.0.0-rc.1", "1.0.0-rc.1"},
+		{"1.0.0-rc.1", "1.0.0-rc.1"},
+		{"", ""},
+		{"v", ""},
+		{"vdev", "dev"}, // non-semver strings still get the prefix stripped (best-effort)
+		{"dev", "dev"},
+		{"0.3.0-5-g12d62b0-dirty", "0.3.0-5-g12d62b0-dirty"}, // git describe output
+	}
+	for _, c := range cases {
+		if got := Display(c.in); got != c.want {
+			t.Errorf("Display(%q) = %q, want %q", c.in, got, c.want)
+		}
+	}
+}
+
 func TestSemverCompare(t *testing.T) {
 	cases := []struct {
 		a, b string

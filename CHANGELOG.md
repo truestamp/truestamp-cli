@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+- Version strings in `truestamp upgrade` output now render with a
+  consistent style regardless of whether the source is a ldflags-
+  injected build version (no `v` prefix) or a GitHub release tag
+  (`v` prefix). Previously the "from" and "to" sides of the upgrade
+  line — e.g. `0.3.1 → v0.3.2` — could mix prefixes. A new
+  `selfupgrade.Display()` helper strips any leading `v` and is used
+  everywhere user-facing version strings are printed (check output,
+  confirmation prompt, success line, "already at" message, pre-release
+  notices, and the passive once-per-day "new version available"
+  notice on stderr). The `--version` flag in help text still references
+  tags with the `v` prefix to match what users see on the GitHub
+  Releases page.
+
 ## [0.3.2] — 2026-04-16
 
 ### Added

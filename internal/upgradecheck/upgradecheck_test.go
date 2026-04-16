@@ -155,10 +155,18 @@ func TestDisabled_nonTTY(t *testing.T) {
 
 func TestEmitIfNewer(t *testing.T) {
 	var buf bytes.Buffer
-	// Older current → newer latest: should emit.
+	// Older current → newer latest: should emit. Display strips the
+	// leading "v" so output format is consistent regardless of whether
+	// the source (ldflags vs GitHub tag) carried the prefix.
 	emitIfNewer(&buf, "v0.3.0", "v0.4.0")
-	if !strings.Contains(buf.String(), "v0.4.0 is available") {
+	if !strings.Contains(buf.String(), "0.4.0 is available") {
 		t.Errorf("emitIfNewer (upgrade case) didn't include version: %q", buf.String())
+	}
+	if strings.Contains(buf.String(), "v0.4.0 is available") {
+		t.Errorf("emitIfNewer leaked the 'v' prefix into the notice: %q", buf.String())
+	}
+	if strings.Contains(buf.String(), "(current: v0.3.0)") {
+		t.Errorf("emitIfNewer leaked the 'v' prefix into the current-version field: %q", buf.String())
 	}
 	if !strings.Contains(buf.String(), "TRUESTAMP_NO_UPGRADE_CHECK") {
 		t.Errorf("emitIfNewer didn't mention opt-out env var")

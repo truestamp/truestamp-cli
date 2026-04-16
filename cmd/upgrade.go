@@ -148,7 +148,8 @@ func printUpgradeInstruction(out io.Writer, method install.Method, command strin
 func runCheck(ctx context.Context, out io.Writer, opts selfupgrade.Options) error {
 	result, err := selfupgrade.Check(ctx, opts)
 	if errors.Is(err, selfupgrade.ErrPreRelease) {
-		fmt.Fprintf(out, "note: latest release %s is a pre-release; pass --version %s to install it explicitly, or wait for the next stable release.\n", result.LatestVersion, result.LatestVersion)
+		latest := selfupgrade.Display(result.LatestVersion)
+		fmt.Fprintf(out, "note: latest release %s is a pre-release; pass --version %s to install it explicitly, or wait for the next stable release.\n", latest, result.LatestVersion)
 		return exitWith(checkExitPreRelease)
 	}
 	if err != nil {
@@ -156,10 +157,10 @@ func runCheck(ctx context.Context, out io.Writer, opts selfupgrade.Options) erro
 		return exitWith(checkExitNetworkErr)
 	}
 	if result.UpgradeAvail {
-		fmt.Fprintf(out, "truestamp %s is available (current: %s)\n", result.LatestVersion, result.CurrentVersion)
+		fmt.Fprintf(out, "truestamp %s is available (current: %s)\n", selfupgrade.Display(result.LatestVersion), selfupgrade.Display(result.CurrentVersion))
 		return exitWith(checkExitUpgradeAvail)
 	}
-	fmt.Fprintf(out, "truestamp is up to date (%s)\n", result.CurrentVersion)
+	fmt.Fprintf(out, "truestamp is up to date (%s)\n", selfupgrade.Display(result.CurrentVersion))
 	return nil
 }
 
@@ -169,14 +170,14 @@ func runInPlaceUpgrade(ctx context.Context, cmd *cobra.Command, opts selfupgrade
 
 	result, err := selfupgrade.Check(ctx, opts)
 	if errors.Is(err, selfupgrade.ErrPreRelease) {
-		fmt.Fprintf(errOut, "note: latest release %s is a pre-release; pass --version %s to install it explicitly, or wait for the next stable release.\n", result.LatestVersion, result.LatestVersion)
+		fmt.Fprintf(errOut, "note: latest release %s is a pre-release; pass --version %s to install it explicitly, or wait for the next stable release.\n", selfupgrade.Display(result.LatestVersion), result.LatestVersion)
 		return nil
 	}
 	if err != nil {
 		return fmt.Errorf("resolve latest: %w", err)
 	}
 	if !result.UpgradeAvail && opts.TargetVersion == "" {
-		fmt.Fprintf(out, "truestamp is up to date (%s)\n", result.CurrentVersion)
+		fmt.Fprintf(out, "truestamp is up to date (%s)\n", selfupgrade.Display(result.CurrentVersion))
 		return nil
 	}
 
@@ -186,7 +187,7 @@ func runInPlaceUpgrade(ctx context.Context, cmd *cobra.Command, opts selfupgrade
 	}
 
 	if !upgradeFlagYes && stdinIsTerminal() {
-		fmt.Fprintf(out, "Upgrade truestamp %s → %s? [Y/n] ", result.CurrentVersion, target)
+		fmt.Fprintf(out, "Upgrade truestamp %s → %s? [Y/n] ", selfupgrade.Display(result.CurrentVersion), selfupgrade.Display(target))
 		if !readYes(cmd.InOrStdin()) {
 			fmt.Fprintln(out, "aborted")
 			return nil
@@ -195,7 +196,7 @@ func runInPlaceUpgrade(ctx context.Context, cmd *cobra.Command, opts selfupgrade
 
 	installed, backup, err := selfupgrade.Upgrade(ctx, opts)
 	if errors.Is(err, selfupgrade.ErrAlreadyCurrent) {
-		fmt.Fprintf(out, "truestamp is already at %s\n", installed)
+		fmt.Fprintf(out, "truestamp is already at %s\n", selfupgrade.Display(installed))
 		return nil
 	}
 	if err != nil {
@@ -203,7 +204,7 @@ func runInPlaceUpgrade(ctx context.Context, cmd *cobra.Command, opts selfupgrade
 	}
 
 	successStyle := lipgloss.NewStyle().Foreground(ui.Green).Bold(true)
-	fmt.Fprintf(out, "%s upgraded %s → %s\n", successStyle.Render("✓"), result.CurrentVersion, installed)
+	fmt.Fprintf(out, "%s upgraded %s → %s\n", successStyle.Render("✓"), selfupgrade.Display(result.CurrentVersion), selfupgrade.Display(installed))
 	if backup != "" {
 		dim := lipgloss.NewStyle().Foreground(ui.Dim)
 		fmt.Fprintf(out, "%s\n", dim.Render("  previous binary: "+backup))

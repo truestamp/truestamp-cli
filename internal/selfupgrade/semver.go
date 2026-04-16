@@ -76,6 +76,16 @@ func (v Semver) IsPreRelease() bool {
 	return v.PreRelease != ""
 }
 
+// Display returns a user-facing version string with any leading "v"
+// stripped so versions printed from different sources — ldflags-injected
+// build metadata (already stripped by the Taskfile build), GitHub tag
+// names (keep the "v"), or cached upgrade-check values — render
+// consistently. Safe to call on any string; a value without a leading
+// "v" is returned unchanged. Never fails, never parses.
+func Display(s string) string {
+	return strings.TrimPrefix(s, "v")
+}
+
 // Compare returns -1, 0, or 1 for v < other, v == other, v > other.
 // Semver ordering rules: a pre-release version has lower precedence than
 // a normal one with the same MAJOR.MINOR.PATCH

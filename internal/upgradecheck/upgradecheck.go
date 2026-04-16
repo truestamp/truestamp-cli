@@ -144,7 +144,7 @@ func emitIfNewer(w io.Writer, current, latest string) {
 	if lat.Compare(cur) <= 0 {
 		return
 	}
-	fmt.Fprintf(w, "\nnote: truestamp %s is available (current: %s).\n", latest, current)
+	fmt.Fprintf(w, "\nnote: truestamp %s is available (current: %s).\n", selfupgrade.Display(latest), selfupgrade.Display(current))
 	fmt.Fprintf(w, "      run `truestamp upgrade` to install it, or set TRUESTAMP_NO_UPGRADE_CHECK=1 to silence this.\n\n")
 }
 
