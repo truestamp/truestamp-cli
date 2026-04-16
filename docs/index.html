@@ -35,7 +35,25 @@ Install to a custom directory:
 
     curl -fsSL https://get.truestamp.com/install.sh | TRUESTAMP_INSTALL_DIR=~/bin sh
 
-Upgrade: re-run the command.
+Upgrade:
+
+    truestamp upgrade
+
+    Once installed, `truestamp upgrade` is install-method aware. For
+    install.sh / manual installs it downloads the latest release,
+    verifies SHA-256 (and cosign if present), and atomically replaces
+    the binary in place. For Homebrew / `go install` it prints the
+    right `brew upgrade` / `go install @latest` command to run.
+
+    `truestamp upgrade --check` exits 0 up-to-date, 1 if an upgrade is
+    available, 2 on network error, 3 if the latest release is a
+    pre-release (won't auto-install; pass `--version` to opt in).
+
+    Other commands print a once-per-day "new version available" notice
+    on stderr. Suppress with `--no-upgrade-check` or
+    `TRUESTAMP_NO_UPGRADE_CHECK=1`, or in CI (auto-detected).
+
+    Re-running `curl ... | sh` also works.
 
 
 Signature verification (macOS and Linux):

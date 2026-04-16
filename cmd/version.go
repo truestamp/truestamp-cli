@@ -9,6 +9,7 @@ import (
 	lipgloss "charm.land/lipgloss/v2"
 	"github.com/spf13/cobra"
 	"github.com/truestamp/truestamp-cli/internal/config"
+	"github.com/truestamp/truestamp-cli/internal/install"
 	"github.com/truestamp/truestamp-cli/internal/ui"
 	"github.com/truestamp/truestamp-cli/internal/version"
 )
@@ -28,6 +29,7 @@ var versionCmd = &cobra.Command{
 			{"version", version.Version},
 			{"path", version.Path},
 			{"config path", configPath},
+			{"install", install.Detect().String()},
 			{"go", version.GoFor()},
 			{"commit", version.GitCommit},
 			{"built", version.BuildDate},

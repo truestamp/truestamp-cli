@@ -12,7 +12,9 @@ Go CLI tool that cryptographically verifies Truestamp proof bundle JSON files. C
 task build                    # -> build/truestamp
 ./build/truestamp verify [proof.json] [--file [path]] [--url [url]] [--skip-external] [--skip-signatures] [--silent] [--json]
 ./build/truestamp config path|show|init
-# Global flags: --no-color, --http-timeout 30s, --config path, --api-url, --api-key, --team, --keyring-url
+./build/truestamp upgrade [--check] [--yes] [--version vX.Y.Z]
+./build/truestamp version      # includes detected install method (homebrew / go install / install.sh / unknown)
+# Global flags: --no-color, --no-upgrade-check, --http-timeout 30s, --config path, --api-url, --api-key, --team, --keyring-url
 ```
 
 Exit code 0 = all checks passed, 1 = failure.
@@ -56,6 +58,7 @@ Settings are resolved in priority order (highest priority last):
 | `--keyring-url` | `TRUESTAMP_KEYRING_URL` | `https://www.truestamp.com/.well-known/keyring.json` | URL of keyring endpoint |
 | `--http-timeout` | `TRUESTAMP_HTTP_TIMEOUT` | `10s` | HTTP timeout for external API calls |
 | `--no-color` | `NO_COLOR` | `false` | Disable all color and ANSI output |
+| `--no-upgrade-check` | `TRUESTAMP_NO_UPGRADE_CHECK` | `false` | Disable the once-per-day "new version available" notice |
 
 ### Verify Flags (scoped to verify subcommand)
 
@@ -142,15 +145,34 @@ Bitcoin regtest has no public API -- local crypto verification only.
 ```
 main.go                         Entry point
 cmd/
-  root.go                       Cobra root command, persistent flags, config loading
+  root.go                       Cobra root command, persistent flags, config loading, PostRun hook for passive upgrade notices
   verify.go                     Verify subcommand + flags
   config.go                     Config subcommand (path, show, init)
+  upgrade.go                    Upgrade subcommand + flags (install-method routing, exitCodeErr contract)
+  upgrade_test.go               upgradeInstructionFor routing + readYes + ExitCode tests
   verify_test.go                CLI integration tests (builds binary, tests exit codes)
 internal/
   config/
     config.go                   koanf-based config loading, XDG paths, validation
     defaults/
       config.toml               Embedded default config (go:embed)
+  install/
+    detect.go                   Install-method detection (Homebrew / GoInstall / InstallScript / Unknown) via path + debug.BuildInfo
+    detect_test.go              Detection heuristics + sameDir symlink regression test
+  selfupgrade/
+    selfupgrade.go              Orchestrator: Check() + Upgrade() with install.sh parity
+    github.go                   GitHub Releases API client (honors GITHUB_TOKEN)
+    semver.go                   Minimal semver parse + compare (pre-release detection for Layer-2 defense)
+    verify.go                   SHA-256 (mandatory, pure Go) + cosign subprocess (best-effort)
+    extract.go                  tar.gz extraction with path-traversal rejection
+    replace_unix.go             Atomic rename + .bak.<ts> backup + darwin quarantine clear + 7-day prune
+    replace_windows.go          Stub returning ErrReplaceUnsupported (Windows is print-only)
+    check_test.go               httptest-stubbed Check() tests (upgrade available / up-to-date / pre-release Layer-1 + Layer-2 / --version pin bypass)
+    extract_test.go, semver_test.go, verify_test.go  Unit tests
+  upgradecheck/
+    upgradecheck.go             Passive once-per-24h check; suppression rules (CI / non-TTY / dev / flag / env)
+    cache.go                    $XDG_CACHE_HOME/truestamp/upgrade-check.json with atomic rename
+    upgradecheck_test.go        All suppression paths + cache round-trip + emit logic
   proof/
     types.go                    Proof bundle struct types (compact JSON tags)
     parse.go                    JSON parsing with json.RawMessage for JCS
@@ -171,6 +193,10 @@ internal/
     stellar.go                  GET Horizon API
     bitcoin.go                  GET Blockstream API
     external_test.go            HTTP mock tests (httptest)
+  httpclient/
+    client.go                   Shared HTTP client, GetJSONCtx for small JSON responses
+    download.go                 DownloadCtx (streams to disk, 200MB cap) + DownloadBytesCtx (in-memory, cap configurable)
+    download_test.go            httptest-server tests for happy path, oversize, HTTP error, context cancellation
   ui/
     ui.go                       Shared lipgloss v2 styling: renderer, adaptive colors, components
   verify/
@@ -189,6 +215,11 @@ internal/
 - **`tscrypto` package**: Named to avoid shadowing Go's stdlib `crypto` package. No import alias needed.
 - **Error handling**: `Run()` returns `(*Report, error)`. `error` for structural failures (missing file, bad JSON). Individual verification failures are `StatusFail` steps in the report.
 - **CLI integration tests**: `cmd/verify_test.go` builds the actual binary in `TestMain` and runs it as a subprocess to test real exit codes and silent mode.
+- **Upgrade subcommand is install-method aware**: `internal/install.Detect()` classifies the running binary by inspecting the resolved executable path (symlinks followed) against Homebrew prefixes (`/opt/homebrew/Cellar/`, `/usr/local/Cellar/`, `/home/linuxbrew/.linuxbrew/`), `$GOBIN` / `$GOPATH/bin` / `$HOME/go/bin`, and standard install.sh destinations (`/usr/local/bin`, `$HOME/.local/bin`). Combined with `runtime/debug.BuildInfo` (Main.Version + absence of vcs.revision) as a second signal for `go install` builds. Homebrew and `go install` users get printed instructions; install.sh / manual / Unknown-but-writable users get a native-Go in-place upgrade that mirrors `docs/install.sh` byte-for-byte: SHA-256 mandatory, cosign best-effort (shell-out to `cosign verify-blob` if on PATH, required when `TRUESTAMP_REQUIRE_COSIGN=1`), atomic rename with `.bak.<rfc3339>` backup, darwin quarantine xattr cleared via `xattr -d com.apple.quarantine`.
+- **Pre-release defense is two-layer**: GitHub's `/releases/latest` endpoint already filters out releases flagged as `prerelease: true` (Layer 1). As a second defense (Layer 2), `selfupgrade.Check()` parses the resolved tag and rejects anything with a semver pre-release suffix (`v1.0.0-rc.1`, etc.) unless the user passed `--version` explicitly. The passive upgrade notice in `internal/upgradecheck` also refuses to surface pre-release "latests". Do not weaken either layer without adding the opt-in `--pre` flag that's listed as future work.
+- **Passive upgrade notices are stderr-only**: `internal/upgradecheck.MaybeNotify` is wired into the Cobra root's `PersistentPostRun`. It spawns an async goroutine with a 2-second deadline and a 500ms wait budget on the main goroutine — if the GitHub API doesn't answer quickly, nothing is printed this invocation but the background fetch still populates the cache for next time. Suppression triggers: `--no-upgrade-check` flag, `TRUESTAMP_NO_UPGRADE_CHECK` env, any of 7 CI env vars (`CI`, `GITHUB_ACTIONS`, `GITLAB_CI`, `CIRCLECI`, `BUILDKITE`, `JENKINS_HOME`, `TF_BUILD`), non-TTY stderr, current version equal to `dev`, and pre-release latests.
+- **Windows is print-only for `upgrade`**: `selfupgrade/replace_windows.go` is a stub returning `ErrReplaceUnsupported`. `cmd/upgrade.go:upgradeInstructionFor` short-circuits on `runtime.GOOS == "windows"` and always prints the `go install ...@latest` command regardless of detected method. In-place upgrade on Windows (rename-running-exe-to-.bak trick) is explicit future work, not v1.
+- **Exit codes for `upgrade --check`**: 0 up-to-date, 1 upgrade available, 2 network error, 3 pre-release latest. The contract lives in `cmd/upgrade.go`'s constants + `cmd/root.go`'s `Execute()` which recognizes `exitCodeErr` and propagates the code without printing an error message.
 
 ## JCS Handling
 
@@ -225,4 +256,4 @@ When changing verification logic, ensure it stays consistent with:
 - `truestamp-v2/clients/elixir/verify_proof.exs` for the reference Elixir implementation
 - `truestamp-v2/proof.livemd` for the verification flow
 
-This CLI is standalone. All crypto uses Go stdlib (`crypto/sha256`, `crypto/ed25519`) plus `gowebpki/jcs` for RFC 8785 canonicalization. External deps: `cobra` (CLI), `koanf` (config), `gofrs/uuid` (UUIDv7), `oklog/ulid` (ULID), `lipgloss` v2 (terminal styling), `creativeprojects/go-selfupdate` (planned, for a future `truestamp upgrade` subcommand).
+This CLI is standalone. All crypto uses Go stdlib (`crypto/sha256`, `crypto/ed25519`) plus `gowebpki/jcs` for RFC 8785 canonicalization. External deps: `cobra` (CLI), `koanf` (config), `gofrs/uuid` (UUIDv7), `oklog/ulid` (ULID), `lipgloss` v2 (terminal styling). The `truestamp upgrade` subcommand is implemented in-house (`internal/selfupgrade`, `internal/upgradecheck`, `internal/install`) with stdlib-only crypto and an optional shell-out to the system `cosign` binary — no third-party upgrade library pulled in.

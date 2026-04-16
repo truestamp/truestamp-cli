@@ -16,6 +16,7 @@ import (
 	"github.com/truestamp/truestamp-cli/internal/config"
 	"github.com/truestamp/truestamp-cli/internal/httpclient"
 	"github.com/truestamp/truestamp-cli/internal/ui"
+	"github.com/truestamp/truestamp-cli/internal/upgradecheck"
 	"github.com/truestamp/truestamp-cli/internal/version"
 )
 
@@ -58,6 +59,9 @@ var rootCmd = &cobra.Command{
 		httpclient.Init(cfg.Timeout())
 		return nil
 	},
+	PersistentPostRun: func(cmd *cobra.Command, args []string) {
+		maybeEmitUpgradeNotice(cmd)
+	},
 }
 
 func init() {
@@ -70,16 +74,45 @@ func init() {
 	rootCmd.PersistentFlags().String("keyring-url", "", "URL of the Truestamp keyring endpoint")
 	rootCmd.PersistentFlags().String("http-timeout", "", "HTTP timeout for external API calls (e.g. 10s, 30s, 1m)")
 	rootCmd.PersistentFlags().Bool("no-color", false, "Disable color output")
+	rootCmd.PersistentFlags().Bool("no-upgrade-check", false, "Disable the once-per-day 'new version available' notice")
+}
+
+// maybeEmitUpgradeNotice runs after any successful subcommand and may
+// write a one-line "upgrade available" notice to stderr. It is a no-op
+// when the upgrade-check is disabled (flag, env var, CI, non-TTY), when
+// the invoked subcommand is itself about upgrades/version/help, or when
+// no newer release is found. All failures are swallowed; this path is
+// never load-bearing.
+func maybeEmitUpgradeNotice(cmd *cobra.Command) {
+	// Only run for subcommands where a nag wouldn't be annoying. Also
+	// skip for the root command itself (help output) and for hidden
+	// completion helpers.
+	name := cmd.Name()
+	switch name {
+	case "truestamp", "upgrade", "version", "help", "completion",
+		"__complete", "__completeNoDesc":
+		return
+	}
+
+	// Don't emit on non-TTY or CI — the Disabled() check handles those.
+	flagDisabled, _ := cmd.Flags().GetBool("no-upgrade-check")
+	upgradecheck.MaybeNotify(cmd.ErrOrStderr(), flagDisabled, version.Version)
 }
 
 // Execute runs the root command. Commands set SilenceErrors so cobra does
 // not print their errors; Execute is the single place errors reach stderr.
 // A command that needs silent-on-error UX (e.g. `verify --silent`) returns
-// errSilentFail instead of the real error to opt out of printing.
+// errSilentFail instead of the real error to opt out of printing. The
+// upgrade --check flow uses exitCodeErr to return a specific exit code
+// without also printing an error line.
 func Execute() error {
 	err := rootCmd.Execute()
 	if err == nil {
 		return nil
+	}
+	var ec exitCodeErr
+	if errors.As(err, &ec) {
+		return err
 	}
 	if !errors.Is(err, errSilentFail) {
 		fmt.Fprintln(os.Stderr, err)

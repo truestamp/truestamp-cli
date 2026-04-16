@@ -1,0 +1,11 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "docs-serve",
+      "runtimeExecutable": "task",
+      "runtimeArgs": ["docs-serve"],
+      "port": 8080
+    }
+  ]
+}

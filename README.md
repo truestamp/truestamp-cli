@@ -17,7 +17,7 @@ Ships as a single static binary. No runtime required.
 curl -fsSL https://get.truestamp.com/install.sh | sh
 ```
 
-The script detects your OS/architecture (darwin/linux × amd64/arm64), resolves the latest release, verifies the SHA-256 checksum, installs the binary to `/usr/local/bin` (or `~/.local/bin` if the former isn't writable), and clears the macOS quarantine attribute so the binary runs without a Gatekeeper prompt. Upgrade by re-running the same command.
+The script detects your OS/architecture (darwin/linux × amd64/arm64), resolves the latest release, verifies the SHA-256 checksum, installs the binary to `/usr/local/bin` (or `~/.local/bin` if the former isn't writable), and clears the macOS quarantine attribute so the binary runs without a Gatekeeper prompt. To upgrade later, run `truestamp upgrade` (it will match the install method — for install-script users this downloads the new release, verifies SHA-256 + cosign, and atomically replaces the binary in place). Re-running the curl pipeline also works.
 
 Pin a specific version:
 
@@ -176,15 +176,55 @@ cat proof.json | truestamp verify                  # stdin pipe
 truestamp create [file]      Create a new Truestamp item (submit claims / file hash)
 truestamp download <id>      Download a proof bundle for an item or entropy observation
 truestamp verify [proof]     Verify a Truestamp proof bundle
+truestamp upgrade            Upgrade the CLI to the latest release (install-method aware)
 truestamp config path        Print the config file path
 truestamp config show        Print the resolved configuration (API key masked)
 truestamp config init        Create a default config file
-truestamp version            Print detailed build and runtime info
+truestamp version            Print detailed build and runtime info (includes detected install method)
 truestamp --version          Terse one-line version
 truestamp completion <shell> Generate shell completions (bash, zsh, fish)
 ```
 
 Run `truestamp <command> --help` for per-command flags.
+
+## Upgrading
+
+The `truestamp upgrade` command is install-method aware — it detects how the binary was installed (Homebrew, `go install`, or install.sh / manual tarball) and does the right thing for each:
+
+| Install method | `truestamp upgrade` behavior |
+| -------------- | ---------------------------- |
+| Homebrew       | Prints `brew upgrade --cask truestamp/tap/truestamp-cli` (does not touch the Homebrew prefix). |
+| `go install`   | Prints `go install github.com/truestamp/truestamp-cli/cmd/truestamp@latest`. |
+| install.sh / manual | Downloads the latest release tarball, verifies SHA-256 (mandatory, pure Go) and cosign signature (best-effort; required if `TRUESTAMP_REQUIRE_COSIGN=1`), extracts the binary, atomically replaces the running executable, and clears the macOS quarantine xattr. A `.bak.<timestamp>` backup of the previous binary is kept for 7 days. |
+| Windows (any method) | Prints `go install ...@latest`. In-place upgrade is not supported on Windows in this release. |
+
+Check the detected install method at any time:
+
+```sh
+truestamp version           # output includes `install    <method>`
+```
+
+Flags:
+
+```sh
+truestamp upgrade --check            # only report whether an upgrade is available (does not install)
+truestamp upgrade --yes              # skip the interactive confirmation prompt
+truestamp upgrade --version v0.4.0   # pin to a specific release tag (also the opt-in path for pre-releases)
+```
+
+`--check` exit codes: `0` up-to-date, `1` upgrade available, `2` network error, `3` the latest release is a pre-release (will not auto-install; pass `--version <tag>` to install one explicitly).
+
+### Passive upgrade notices
+
+Once every 24 hours (cached at `$XDG_CACHE_HOME/truestamp/upgrade-check.json`), other commands print a one-line note on stderr if a newer release is available. The notice is automatically suppressed in CI environments (`CI`, `GITHUB_ACTIONS`, `GITLAB_CI`, `CIRCLECI`, `BUILDKITE`, `JENKINS_HOME`, `TF_BUILD`), when stderr is not a TTY, when the current version is a local `dev` build, and when the resolved latest is a pre-release. To opt out:
+
+```sh
+truestamp --no-upgrade-check verify proof.json
+# or persistently:
+export TRUESTAMP_NO_UPGRADE_CHECK=1
+```
+
+The notice is always on stderr, so it never pollutes stdout (`truestamp verify proof.json > out.json` is safe for scripting).
 
 ## Configuration
 
@@ -211,6 +251,7 @@ Settings are resolved in this order (later overrides earlier):
 | `--keyring-url` | `TRUESTAMP_KEYRING_URL` | `https://www.truestamp.com/.well-known/keyring.json` |
 | `--http-timeout` | `TRUESTAMP_HTTP_TIMEOUT` | `10s` |
 | `--no-color` | `NO_COLOR` | `false` |
+| `--no-upgrade-check` | `TRUESTAMP_NO_UPGRADE_CHECK` | `false` |
 
 ### Verify-specific flags
 
@@ -243,10 +284,12 @@ Skipped selectively with `--skip-external` and `--skip-signatures`.
 
 | Code | Meaning |
 | ---- | ------- |
-| `0`  | Success. For `verify`, the proof is valid. |
-| `1`  | Error. Failed verification, network failure, invalid input, or any other runtime error. |
+| `0`  | Success. For `verify`, the proof is valid. For `upgrade --check`, the CLI is up to date. |
+| `1`  | Error. Failed verification, network failure, invalid input, or any other runtime error. For `upgrade --check`, a newer release is available. |
+| `2`  | Reserved for future use by other commands (usage / flag-parse errors). For `upgrade --check`, a network error prevented the check. |
+| `3`  | For `upgrade --check` only: the latest release is a pre-release and will not auto-install. Pass `--version <tag>` to install one explicitly. |
 
-Exit code `2` is reserved for future use (usage / flag-parse errors). Scripts should branch on `0` vs non-zero rather than matching specific non-zero codes.
+Scripts that branch on specific codes should check only `upgrade --check`'s documented codes; for other commands, treat any non-zero as failure.
 
 ## Contributing
 

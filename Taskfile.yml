@@ -75,6 +75,30 @@ tasks:
     cmds:
       - go run ./cmd/truestamp verify {{.CLI_ARGS}}
 
+  upgrade-test-local:
+    desc: "Build with a fake older version and exercise 'upgrade --check' against live GitHub releases"
+    cmds:
+      - |
+        OLD_VERSION=0.0.1
+        LDFLAGS="-X {{.MODULE}}/internal/version.Version=${OLD_VERSION}"
+        mkdir -p build
+        go build -ldflags "$LDFLAGS" -o build/truestamp-upgrade-test ./cmd/truestamp
+        ./build/truestamp-upgrade-test upgrade --check || EXIT=$?
+        echo "upgrade --check exit code: ${EXIT:-0}"
+        if [ "${EXIT:-0}" != "1" ] && [ "${EXIT:-0}" != "0" ] && [ "${EXIT:-0}" != "3" ]; then
+          echo "unexpected exit code"
+          exit 1
+        fi
+
+  # =============================================================================
+  # Docs preview (mirrors get.truestamp.com)
+  # =============================================================================
+
+  docs-serve:
+    desc: "Serve docs/ locally with caddy (mirrors get.truestamp.com). Browse http://localhost:8080, test `curl http://localhost:8080/install.sh | sh` against the staged installer."
+    cmds:
+      - mise exec -- caddy file-server --listen :8080 --root docs
+
   # =============================================================================
   # Test & Quality
   # =============================================================================

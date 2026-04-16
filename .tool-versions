@@ -3,3 +3,4 @@ goreleaser latest
 cosign latest
 shellcheck latest
 syft latest
+caddy latest
