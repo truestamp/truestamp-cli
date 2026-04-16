@@ -7,6 +7,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+- Release workflow now auto-merges the GoReleaser-generated PR on
+  `truestamp/homebrew-tap` instead of requiring a manual click.
+  Immediately after the `goreleaser release` step succeeds, a new
+  step runs `gh pr merge --auto --merge --delete-branch` against the
+  `goreleaser-<version>` branch using the existing
+  `HOMEBREW_TAP_GITHUB_TOKEN` PAT. The step is `continue-on-error`
+  so that a merge failure (conflict, rate limit, etc.) doesn't mask
+  an otherwise-successful release — the tap PR can always be merged
+  manually. Addresses the friction of having two open cask PRs
+  stacking up during rapid back-to-back releases (see
+  truestamp/homebrew-tap#3 and #4 for the last instance where PR #3
+  blocked PR #4 with a conflict).
+- Release workflow now requests `pull-requests: write` permission in
+  addition to `contents: write`, `id-token: write`, and
+  `attestations: write`. The auto-merge step uses the fine-grained
+  `HOMEBREW_TAP_GITHUB_TOKEN` PAT, so the workflow permission is
+  belt-and-braces and does not grant the default `GITHUB_TOKEN` any
+  additional reach into `truestamp-cli` itself beyond its own PRs.
+
 ### Fixed
 - Version strings in `truestamp upgrade` output now render with a
   consistent style regardless of whether the source is a ldflags-

@@ -9,6 +9,7 @@ permissions:
   contents: write
   id-token: write   # Required by cosign keyless signing (GitHub OIDC)
   attestations: write  # Required by actions/attest-build-provenance
+  pull-requests: write  # Belt-and-braces; auto-merge step uses HOMEBREW_TAP_GITHUB_TOKEN
 
 jobs:
   goreleaser:
@@ -34,6 +35,24 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           HOMEBREW_TAP_GITHUB_TOKEN: ${{ secrets.HOMEBREW_TAP_GITHUB_TOKEN }}
+
+      - name: Auto-merge homebrew-tap PR
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ secrets.HOMEBREW_TAP_GITHUB_TOKEN }}
+        run: |
+          # GoReleaser opens a PR on truestamp/homebrew-tap from a
+          # branch named `goreleaser-{{ .Version }}`, where Version is
+          # the tag with any leading "v" stripped. ${GITHUB_REF_NAME}
+          # is the pushed tag (e.g. "v0.3.3").
+          tag="${GITHUB_REF_NAME#v}"
+          branch="goreleaser-${tag}"
+          echo "Enabling auto-merge on PR from branch ${branch}"
+          gh pr merge "${branch}" \
+            --repo truestamp/homebrew-tap \
+            --auto \
+            --merge \
+            --delete-branch
 
       - name: Attest build provenance
         uses: actions/attest-build-provenance@977bb373ede98d70efdf65b84cb5f73e068dcc2a # v3
