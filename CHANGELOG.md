@@ -7,6 +7,45 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.4.0] — 2026-04-17
+
+### Added
+- New `truestamp auth` parent command with `login`, `logout`, and
+  `status` subcommands for managing the API key stored in
+  `~/.config/truestamp/config.toml`.
+  - `truestamp auth login` prints the web app's API-keys URL (derived
+    from the configured `api_url` — so a local `http://localhost:4000/api/json`
+    maps to `http://localhost:4000/api-keys`) and prompts for the key
+    via a hidden-input field (`huh.EchoModePassword`). There is
+    intentionally no `--api-key` flag; the key must be pasted into the
+    prompt. The help text and on-screen hint both instruct the user to
+    **create and copy a new key** — Truestamp does not allow re-copying
+    existing keys after initial creation. The resulting config file is
+    written with 0600 permissions.
+  - `truestamp auth logout` confirms via an interactive `huh.Confirm`
+    and clears `api_key` in the config (fast no-op when no key is set).
+  - `truestamp auth status` is an always-online command: it renders a
+    table of the resolved config (config path, API URL, probe URL,
+    masked key, team in scope) and then calls
+    `GET {api_url}/users?page[limit]=1&fields[user]=email,first_name,last_name,full_name`
+    with `Authorization: Bearer <key>` (and `tenant: <team>` when a
+    team is configured). On 2xx, the success banner shows
+    `Authenticated as <full name> <email>`. When a team is configured,
+    `auth status` additionally calls
+    `GET {api_url}/teams/{id}?fields[team]=name,personal` to resolve
+    and display the team's friendly name alongside its id
+    (e.g. `Team: Acme Corp  [team_42]`). A 401/403 on the user probe
+    is reported as "API key rejected by the server"; a 401/403/404 on
+    the team probe is reported as "Team <id> is not accessible" —
+    both exit 1, as does any transport-level failure. No offline mode
+    is offered.
+- New `internal/config.SetAPIKey` helper persists the API key to the
+  on-disk config. It edits the `api_key` line in the top-level TOML
+  scope in place (preserving comments and other settings), creating
+  the config from the embedded default when it does not yet exist,
+  and tightens file permissions to 0600 because the file now holds a
+  secret.
+
 ### Changed
 - `CONTRIBUTING.md`'s "Cutting a release" section updated to match
   the actual release flow: GoReleaser opens a PR on
@@ -264,7 +303,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   v0.1.0 is the first release of a standalone Go codebase; the two share
   nothing beyond the repository name.
 
-[Unreleased]: https://github.com/truestamp/truestamp-cli/compare/v0.3.3...HEAD
+[Unreleased]: https://github.com/truestamp/truestamp-cli/compare/v0.4.0...HEAD
+[0.4.0]: https://github.com/truestamp/truestamp-cli/releases/tag/v0.4.0
 [0.3.3]: https://github.com/truestamp/truestamp-cli/releases/tag/v0.3.3
 [0.3.2]: https://github.com/truestamp/truestamp-cli/releases/tag/v0.3.2
 [0.3.1]: https://github.com/truestamp/truestamp-cli/releases/tag/v0.3.1
