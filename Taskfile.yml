@@ -170,6 +170,90 @@ tasks:
     cmds:
       - go vet ./...
 
+  lint:
+    desc: "All quality checks: vet + fmt-check + staticcheck + gosec. Install the last two via: go install honnef.co/go/tools/cmd/staticcheck@latest && go install github.com/securego/gosec/v2/cmd/gosec@latest"
+    deps: [vet, fmt-check]
+    cmds:
+      - staticcheck ./...
+      # gosec exclusions, justified:
+      #   G104: unhandled lipgloss.Println / fmt.Fprintf to stdout — errors there
+      #         are not actionable in a CLI.
+      #   G115: wire-format integer conversions where source values are bounded
+      #         by protocol constants (proof version byte, epoch-root counts).
+      #   G304: reading user-specified file paths IS the point of a CLI.
+      #   G301/G302/G306: 0644/0755 are the correct Unix defaults for config
+      #         files and user-installed binaries.
+      #   G401/G501/G505: MD5 and SHA-1 are supported as legacy hash_type
+      #         values (mirrors the Truestamp backend registry); runtime
+      #         emits a stderr warning when either is used.
+      #   G204: subprocess invocations (xattr, cosign) use hard-coded binary
+      #         names resolved via PATH LookPath — no user-controlled command.
+      #   G704: URL-from-variable used only for known upstream services
+      #         (Horizon, Blockstream, keyring); not user-controlled.
+      - gosec -quiet -exclude-dir=testdata -exclude=G104,G115,G301,G302,G306,G304,G401,G501,G505,G204,G704 ./...
+
+  vuln-check:
+    desc: "Scan go.mod deps for known vulnerabilities. Install via: go install golang.org/x/vuln/cmd/govulncheck@latest"
+    cmds:
+      - govulncheck ./...
+
+  test-race:
+    desc: "Run all tests under the race detector (~2-20x slower; catches concurrent unsynchronized memory access)"
+    cmds:
+      - go test -race ./...
+
+  bench:
+    desc: "Run all benchmarks (BenchmarkXxx) with -benchmem for alloc accounting"
+    cmds:
+      - go test -run=^$ -bench=. -benchmem ./...
+
+  bench-compare:
+    desc: "Capture a baseline benchmark profile. Usage: task bench-compare -- baseline.txt (then later: go test -bench=. ... > new.txt && benchstat baseline.txt new.txt)"
+    cmds:
+      - |
+        out="${1:-{{.CLI_ARGS | default "bench.out"}}}"
+        go test -run=^$ -bench=. -benchmem -count=5 ./... | tee "$out"
+        echo "Baseline written to $out. Compare later with: benchstat $out new.out"
+
+  fuzz:
+    desc: "Smoke-run every FuzzXxx with its seed corpus (no mutation, ~seconds)"
+    cmds:
+      - go test -run=^Fuzz ./...
+
+  fuzz-deep:
+    desc: "Actively fuzz every FuzzXxx for DURATION (default 15s) each. Use for manual hardening; very chatty. Note: shorter budgets can flake under parallel-worker cold-start."
+    vars:
+      DURATION: '{{.DURATION | default "15s"}}'
+    cmds:
+      - |
+        set -e
+        failed=0
+        for pkg in $(go list ./...); do
+          tests=$(go test -list='^Fuzz' "$pkg" 2>/dev/null | grep '^Fuzz' || true)
+          for t in $tests; do
+            echo "==> $pkg :: $t ({{.DURATION}})"
+            if ! go test -run=^$ -fuzz="^${t}$" -fuzztime={{.DURATION}} "$pkg"; then
+              failed=$((failed+1))
+            fi
+          done
+        done
+        if [ $failed -gt 0 ]; then
+          echo "FAILED: $failed fuzz target(s) discovered issues; see testdata/fuzz/ for reproducers"
+          exit 1
+        fi
+
+  fuzz-list:
+    desc: "List every FuzzXxx target across the repo"
+    cmds:
+      - |
+        for pkg in $(go list ./...); do
+          tests=$(go test -list='^Fuzz' "$pkg" 2>/dev/null | grep '^Fuzz' || true)
+          if [ -n "$tests" ]; then
+            echo "$pkg"
+            echo "$tests" | sed 's/^/  /'
+          fi
+        done
+
   fmt:
     desc: Format all Go source files
     cmds:
@@ -180,16 +264,22 @@ tasks:
     cmds:
       - test -z "$(gofmt -l .)" || (echo "Files need formatting:" && gofmt -l . && exit 1)
 
-  lint:
-    desc: Run all quality checks (vet + fmt-check)
-    deps: [vet, fmt-check]
-
   precommit:
-    desc: Run all pre-commit checks (fmt, vet, test, build)
+    desc: "Fast pre-commit checks (fmt + lint + test + build). Target <10s on a hot cache. Note: 'task test' already replays every FuzzXxx seed corpus as part of the regular test suite, so no separate fuzz step is needed here."
     cmds:
       - task: fmt
-      - task: vet
+      - task: lint
       - task: test
+      - task: build
+
+  precommit-full:
+    desc: "Strict pre-release bundle: precommit + race detector + active mutation fuzzing + vuln scan + all-platform build. Takes ~3-5 min."
+    cmds:
+      - task: fmt
+      - task: lint
+      - task: test-race
+      - task: fuzz
+      - task: vuln-check
       - task: build-all
 
   # =============================================================================

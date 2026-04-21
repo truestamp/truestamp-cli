@@ -1,0 +1,14 @@
+md5            16 bytes  [legacy]
+sha1           20 bytes  [legacy]
+sha224         28 bytes
+sha256         32 bytes
+sha384         48 bytes
+sha512         64 bytes
+sha3-224       28 bytes  (aliases: sha3_224)
+sha3-256       32 bytes  (aliases: sha3_256)
+sha3-384       48 bytes  (aliases: sha3_384)
+sha3-512       64 bytes  (aliases: sha3_512)
+blake2s-256    32 bytes  (aliases: blake2s)
+blake2b-256    32 bytes
+blake2b-384    48 bytes
+blake2b-512    64 bytes  (aliases: blake2b)

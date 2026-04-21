@@ -1,0 +1,37 @@
+Truestamp CLI — tools for cryptographic timestamping
+
+Truestamp, Inc. — https://truestamp.com
+Copyright (c) 2021-2026 Truestamp, Inc. All rights reserved.
+
+Usage:
+  truestamp [command]
+
+Available Commands:
+  auth        Manage Truestamp API authentication
+  completion  Generate the autocompletion script for the specified shell
+  config      Manage CLI configuration
+  convert     Convert Truestamp-domain values (time, proof format, IDs, keyid, Merkle proofs)
+  create      Create a new Truestamp item
+  decode      Decode hex / base64 / base64url into raw bytes
+  download    Download a Truestamp proof bundle
+  encode      Encode raw bytes into hex, base64, or base64url
+  hash        Compute cryptographic digests (SHA-2 / SHA-3 / BLAKE2 / MD5 / SHA-1)
+  help        Help about any command
+  jcs         Canonicalize JSON per RFC 8785 (JSON Canonicalization Scheme)
+  upgrade     Upgrade the truestamp CLI to the latest release
+  verify      Verify a Truestamp proof bundle
+  version     Print detailed version, build, and runtime information
+
+Flags:
+      --api-key string        API key for authenticating with the Truestamp API
+      --api-url string        Base URL of the Truestamp API
+      --config string         Path to config file (default: <home>/config.toml)
+  -h, --help                  help for truestamp
+      --http-timeout string   HTTP timeout for external API calls (e.g. 10s, 30s, 1m)
+      --keyring-url string    URL of the Truestamp keyring endpoint
+      --no-color              Disable color output
+      --no-upgrade-check      Disable the once-per-day 'new version available' notice
+      --team string           Team ID for multi-tenant API operations
+  -v, --version               version for truestamp
+
+Use "truestamp [command] --help" for more information about a command.

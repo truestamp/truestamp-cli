@@ -1,0 +1,7 @@
+{
+  "from": "binary",
+  "input_bytes": 5,
+  "output": "68656c6c6f",
+  "output_bytes": 10,
+  "to": "hex"
+}

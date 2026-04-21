@@ -1,6 +1,13 @@
-go latest
-goreleaser latest
-cosign latest
-shellcheck latest
-syft latest
-caddy latest
+# Pin tool versions so every developer and CI runs identical toolchains.
+# Bump intentionally after vetting the upstream changelog; do not let
+# the stdlib (or any other tool below) drift under the project via `latest`.
+#
+# Go 1.26.2 is the minimum: 1.26.1 carries six stdlib vulnerabilities
+# (5 in crypto/x509, 1 in html/template) surfaced by `task vuln-check`.
+# Re-run `task vuln-check` after every Go bump.
+go 1.26.2
+goreleaser 2.15.2
+cosign 3.0.6
+shellcheck 0.11.0
+syft 1.42.4
+caddy 2.11.2

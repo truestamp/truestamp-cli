@@ -1,0 +1,15 @@
+{
+  "algorithm": "sha256",
+  "digest": {
+    "base64": "ungWv48Bz+pBQUDeXa4iI7ADYaOWF3qctBD/YfIAFa0=",
+    "base64url": "ungWv48Bz-pBQUDeXa4iI7ADYaOWF3qctBD_YfIAFa0",
+    "hex": "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad"
+  },
+  "encoded": "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad",
+  "encoding": "hex",
+  "input": {
+    "path": "-",
+    "type": "stdin"
+  },
+  "size_bytes": 3
+}

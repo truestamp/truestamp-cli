@@ -1,0 +1,43 @@
+Cryptographically verify a Truestamp proof bundle JSON file.
+
+Verifies the complete chain: signing keys, proof signature, item hashes,
+Ed25519 signatures, Merkle proofs, block chain integrity, and public
+blockchain commitments (Stellar, Bitcoin).
+
+Proof input can be provided as:
+  truestamp verify proof.json           Local file path
+  truestamp verify https://host/p.json  URL (auto-detected)
+  truestamp verify --file proof.json    Explicit file path
+  truestamp verify --file               Interactive file picker
+  truestamp verify --url https://...    Explicit URL download
+  truestamp verify --url                Interactive URL prompt
+  cat proof.json | truestamp verify     Pipe from stdin
+
+Use --remote to delegate verification to the Truestamp server API instead
+of performing local computation. Requires --api-key to be set.
+
+Exit code 0 on success, 1 on verification failure.
+
+Usage:
+  truestamp verify [file-or-url] [flags]
+
+Flags:
+      --file string[="(pick)"]    Path to proof file (interactive picker if no path given)
+      --hash string               Expected claims hash (hex) to compare against proof
+  -h, --help                      help for verify
+      --json                      Output results as JSON
+      --remote                    Verify via server API instead of local computation (requires --api-key)
+  -s, --silent                    No output, exit code only
+      --skip-external             Skip all external API verification
+      --skip-signatures           Skip signing key and signature verification
+      --url string[="(prompt)"]   URL to download proof from (interactive prompt if no URL given)
+
+Global Flags:
+      --api-key string        API key for authenticating with the Truestamp API
+      --api-url string        Base URL of the Truestamp API
+      --config string         Path to config file (default: <home>/config.toml)
+      --http-timeout string   HTTP timeout for external API calls (e.g. 10s, 30s, 1m)
+      --keyring-url string    URL of the Truestamp keyring endpoint
+      --no-color              Disable color output
+      --no-upgrade-check      Disable the once-per-day 'new version available' notice
+      --team string           Team ID for multi-tenant API operations

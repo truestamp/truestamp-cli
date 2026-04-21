@@ -1,0 +1,53 @@
+Compute cryptographic digests for files, URLs, stdin, or a picked file.
+
+Default output is byte-identical to GNU coreutils' sha256sum / md5sum
+(text mode: "<hex>  <filename>\n") so it drops into existing scripts.
+Pass --style bsd for "SHA256 (filename) = <hex>" or --style bare for
+just the digest.
+
+Input modes follow the same convention as 'truestamp verify':
+  truestamp hash doc.pdf                   Hash a file
+  truestamp hash a.bin b.bin c.bin         Hash multiple files
+  truestamp hash -                         Hash stdin (Unix "-" alias)
+  truestamp hash --file doc.pdf            Explicit file path
+  truestamp hash --file                    Interactive file picker
+  truestamp hash --url https://...         Download then hash
+  truestamp hash --url                     Interactive URL prompt
+  cat doc.pdf | truestamp hash             Pipe from stdin
+
+Truestamp-domain extras:
+  truestamp hash --prefix 0x11 --jcs < claims.json
+      Canonicalize (RFC 8785) then hash with a one-byte domain prefix.
+      Matches what the Truestamp backend computes for a claims_hash.
+  truestamp hash --list
+      Print supported algorithms.
+
+Exit code 0 on success, 1 if any input failed.
+
+Usage:
+  truestamp hash [flags] [path ...]
+
+Flags:
+  -a, --algorithm string          Hash algorithm (see --list) (default "sha256")
+      --binary                    Binary mode (gnu style uses space+asterisk instead of two spaces)
+  -e, --encoding string           Digest output encoding: hex, base64, base64url (default "hex")
+      --file string[="(pick)"]    Path to file (interactive picker if no path given)
+  -h, --help                      help for hash
+      --jcs                       Apply RFC 8785 JCS canonicalization before hashing (input must be JSON)
+      --json                      Output as JSON
+      --list                      List supported algorithms and exit
+      --no-filename               Omit the filename from text output
+      --prefix string             Prepend single domain-separation byte before hashing (e.g. 0x11)
+  -s, --silent                    No output, exit code only
+      --style string              Output style: gnu (default), bsd, bare (default "gnu")
+      --url string[="(prompt)"]   URL to download (interactive prompt if no URL given)
+
+Global Flags:
+      --api-key string        API key for authenticating with the Truestamp API
+      --api-url string        Base URL of the Truestamp API
+      --config string         Path to config file (default: <home>/config.toml)
+      --http-timeout string   HTTP timeout for external API calls (e.g. 10s, 30s, 1m)
+      --keyring-url string    URL of the Truestamp keyring endpoint
+      --no-color              Disable color output
+      --no-upgrade-check      Disable the once-per-day 'new version available' notice
+      --team string           Team ID for multi-tenant API operations

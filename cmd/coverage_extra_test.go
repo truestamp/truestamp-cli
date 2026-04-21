@@ -465,9 +465,8 @@ func TestCLI_ConvertProof_InvalidFrom(t *testing.T) {
 	if _, err := os.Stat(src); err != nil {
 		t.Skipf("no fixture: %v", err)
 	}
-	cmd := exec.Command(binaryPath, "convert", "proof", "--from", "json", "--to", "cbor", src)
 	// Give it CBOR content but claim JSON — should error.
-	cmd = exec.Command(binaryPath, "convert", "proof", "--from", "json", "--to", "cbor")
+	cmd := exec.Command(binaryPath, "convert", "proof", "--from", "json", "--to", "cbor")
 	cborSrc := filepath.Join("..", "internal", "verify", "testdata", "proof_item.cbor")
 	data, _ := os.ReadFile(cborSrc)
 	cmd.Stdin = strings.NewReader(string(data))
