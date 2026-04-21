@@ -96,12 +96,12 @@ func runConvertTime(cmd *cobra.Command, args []string) error {
 
 	if jsonOut {
 		return emitJSON(cmd.OutOrStdout(), struct {
-			Input        string `json:"input"`
-			ParsedUTC    string `json:"parsed_utc"`
-			OutputZone   string `json:"output_zone"`
-			Output       string `json:"output"`
-			UnixSeconds  int64  `json:"unix_s"`
-			UnixMillis   int64  `json:"unix_ms"`
+			Input       string `json:"input"`
+			ParsedUTC   string `json:"parsed_utc"`
+			OutputZone  string `json:"output_zone"`
+			Output      string `json:"output"`
+			UnixSeconds int64  `json:"unix_s"`
+			UnixMillis  int64  `json:"unix_ms"`
 		}{
 			Input:       raw,
 			ParsedUTC:   t.UTC().Format(time.RFC3339Nano),

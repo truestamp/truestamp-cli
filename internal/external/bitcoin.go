@@ -26,15 +26,23 @@ type BitcoinResult struct {
 	Timestamp string // ISO 8601 block timestamp from Blockstream
 }
 
+// BlockstreamMainnetURL / BlockstreamTestnetURL are the Blockstream API
+// endpoints consulted by VerifyBitcoinBlock. Exposed as vars so tests
+// can redirect them; do not mutate in production code.
+var (
+	BlockstreamMainnetURL = "https://blockstream.info/api"
+	BlockstreamTestnetURL = "https://blockstream.info/testnet/api"
+)
+
 // VerifyBitcoinBlock checks the Blockstream API to confirm a Bitcoin block exists.
 // Returns the block height and timestamp, or an error. For regtest, returns a skip indicator.
 func VerifyBitcoinBlock(blockHash, network string) (*BitcoinResult, bool, error) {
 	var baseURL string
 	switch network {
 	case "mainnet":
-		baseURL = "https://blockstream.info/api"
+		baseURL = BlockstreamMainnetURL
 	case "testnet":
-		baseURL = "https://blockstream.info/testnet/api"
+		baseURL = BlockstreamTestnetURL
 	default:
 		return nil, true, nil // skipped
 	}

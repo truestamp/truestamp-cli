@@ -15,7 +15,10 @@ import (
 // to verify exit codes and quiet mode behavior. This is the idiomatic
 // Go approach for testing CLI tools that call os.Exit.
 
-var binaryPath string
+var (
+	binaryPath         string
+	subprocessCoverDir string // set during TestMain when coverage is requested
+)
 
 func TestMain(m *testing.M) {
 	// Build the binary once for all tests in this package
@@ -33,7 +36,26 @@ func TestMain(m *testing.M) {
 		panic("cannot find module root: " + err.Error())
 	}
 
-	cmd := exec.Command("go", "build", "-o", binaryPath, "./cmd/truestamp")
+	// When TRUESTAMP_COVERDIR is set (task test-coverage-full sets it to
+	// coverage/bin), build the subprocess binary with -cover so its
+	// runtime coverage is recorded there. We use our own env var rather
+	// than GOCOVERDIR because `go test -cover` overwrites GOCOVERDIR in
+	// the test process's env with its own temp dir — the subprocess
+	// would then write to that temp dir and lose the data when go test
+	// cleans it up.
+	buildArgs := []string{"build"}
+	subprocessCoverDir = os.Getenv("TRUESTAMP_COVERDIR")
+	if subprocessCoverDir != "" {
+		buildArgs = append(buildArgs, "-cover", "-coverpkg=./...")
+		// Force the subprocess binary (and implicitly every child of
+		// this test process) to write to our stable covdata dir.
+		// go test still writes its own test-process covdata to a
+		// different temp dir via -test.gocoverdir, which our task
+		// merges separately.
+		_ = os.Setenv("GOCOVERDIR", subprocessCoverDir)
+	}
+	buildArgs = append(buildArgs, "-o", binaryPath, "./cmd/truestamp")
+	cmd := exec.Command("go", buildArgs...)
 	cmd.Dir = modRoot
 	if out, err := cmd.CombinedOutput(); err != nil {
 		panic("failed to build binary: " + err.Error() + "\n" + string(out))

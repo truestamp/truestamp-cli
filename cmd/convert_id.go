@@ -141,12 +141,12 @@ func emitULIDInfo(cmd *cobra.Command, raw, extract, toZone string, jsonOut, sile
 
 	if jsonOut {
 		return emitJSON(cmd.OutOrStdout(), struct {
-			Type        string `json:"type"`
-			Value       string `json:"value"`
-			TimestampMS uint64 `json:"timestamp_ms"`
+			Type         string `json:"type"`
+			Value        string `json:"value"`
+			TimestampMS  uint64 `json:"timestamp_ms"`
 			TimestampUTC string `json:"timestamp_utc"`
-			Zone        string `json:"zone"`
-			Local       string `json:"local"`
+			Zone         string `json:"zone"`
+			Local        string `json:"local"`
 		}{
 			Type:         "ulid",
 			Value:        raw,

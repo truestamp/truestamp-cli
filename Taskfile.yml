@@ -126,6 +126,45 @@ tasks:
       - open coverage.html
       - echo "Coverage report written to coverage.html"
 
+  test-coverage-full:
+    desc: "Accurate coverage including CLI integration tests' subprocess runs (Go 1.20+ instrumented binaries)"
+    cmds:
+      # Clean start. Two covdata sub-dirs: `bin` for the subprocess
+      # binary's runtime data, `test` for go test's per-test-binary data.
+      - rm -rf coverage && mkdir -p coverage/bin coverage/test coverage/merged
+      # TRUESTAMP_COVERDIR is read by verify_test.go's TestMain to
+      # (a) build the subprocess binary with -cover and (b) point its
+      # GOCOVERDIR at coverage/bin. We don't use GOCOVERDIR directly
+      # here because `go test -cover` overwrites GOCOVERDIR in the test
+      # process's environment with its own temp dir.
+      - TRUESTAMP_COVERDIR=$PWD/coverage/bin go test -cover -coverpkg=./... ./... -args -test.gocoverdir=$PWD/coverage/test >/dev/null
+      # Merge the two covdata directories into a single textfmt profile.
+      - go tool covdata merge -i=coverage/bin,coverage/test -o coverage/merged
+      - go tool covdata textfmt -i=coverage/merged -o coverage.out
+      - echo "--- per-function coverage (tail) ---"
+      - go tool cover -func=coverage.out | tail -20
+      - echo "--- per-package coverage ---"
+      - |
+        go tool cover -func=coverage.out | awk '
+          /^total:/ { next }
+          {
+            split($1, a, ":")
+            pkg = a[1]
+            sub(/\/[^\/]+$/, "", pkg)
+            pct = $NF
+            gsub("%", "", pct)
+            sum[pkg] += pct
+            n[pkg]++
+          }
+          END {
+            for (p in sum) printf "%-60s %6.2f%%\n", p, sum[p]/n[p]
+          }
+        ' | sort
+      - echo "--- total ---"
+      - 'go tool cover -func=coverage.out | grep ^total:'
+      - go tool cover -html=coverage.out -o coverage.html
+      - echo "HTML report written to coverage.html"
+
   vet:
     desc: Run go vet static analysis
     cmds:

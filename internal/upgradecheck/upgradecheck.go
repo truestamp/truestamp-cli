@@ -13,6 +13,10 @@ import (
 	"github.com/truestamp/truestamp-cli/internal/selfupgrade"
 )
 
+// terminalCheck is the hook used by Disabled to detect a TTY. Tests
+// replace it to exercise the TTY-true branch without a real terminal.
+var terminalCheck = isTerminal
+
 // Disabled reports whether passive upgrade checks are suppressed in the
 // current environment. The answer combines: explicit opt-out flag,
 // TRUESTAMP_NO_UPGRADE_CHECK env var, CI detection, non-TTY stderr, and
@@ -33,7 +37,7 @@ func Disabled(flagDisabled bool, stderr *os.File, currentVersion string) bool {
 	if inCI() {
 		return true
 	}
-	if !isTerminal(stderr) {
+	if !terminalCheck(stderr) {
 		return true
 	}
 	return false

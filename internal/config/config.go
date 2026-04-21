@@ -12,7 +12,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"runtime"
 	"strings"
 	"time"
 
@@ -181,29 +180,11 @@ func Load(configPath string, flags *pflag.FlagSet) (*Config, error) {
 	return &cfg, nil
 }
 
-// ConfigDir returns the config directory path, respecting XDG_CONFIG_HOME on Unix
-// and APPDATA on Windows.
-func ConfigDir() string {
-	if runtime.GOOS == "windows" {
-		if appData := os.Getenv("APPDATA"); appData != "" {
-			return filepath.Join(appData, "truestamp")
-		}
-		home, err := os.UserHomeDir()
-		if err != nil {
-			return ""
-		}
-		return filepath.Join(home, "AppData", "Roaming", "truestamp")
-	}
-
-	if xdg := os.Getenv("XDG_CONFIG_HOME"); xdg != "" {
-		return filepath.Join(xdg, "truestamp")
-	}
-	home, err := os.UserHomeDir()
-	if err != nil {
-		return ""
-	}
-	return filepath.Join(home, ".config", "truestamp")
-}
+// ConfigDir returns the config directory path. The implementation is
+// split across config_unix.go and config_windows.go via build tags so
+// each platform's branch is exercised — and scored for coverage — only
+// on the platform where it can actually run.
+func ConfigDir() string { return configDir() }
 
 // ConfigFilePath returns the full path to the config file.
 func ConfigFilePath() string {

@@ -26,6 +26,14 @@ type StellarResult struct {
 	Timestamp string // ISO 8601 ledger close timestamp from Horizon
 }
 
+// HorizonPublicURL / HorizonTestnetURL are the Stellar Horizon endpoints
+// consulted by VerifyStellar. Exposed as vars so tests can point them at
+// an httptest server; do not mutate in production code.
+var (
+	HorizonPublicURL  = "https://horizon.stellar.org"
+	HorizonTestnetURL = "https://horizon-testnet.stellar.org"
+)
+
 // VerifyStellar checks the Stellar Horizon API to confirm the transaction exists,
 // the memo matches, and the ledger number matches the expected value.
 // Returns the ledger number, the transaction timestamp, or an error.
@@ -34,9 +42,9 @@ func VerifyStellar(transactionHash, expectedMemoHash, network string, expectedLe
 		return nil, fmt.Errorf("invalid transaction hash format")
 	}
 
-	horizonURL := "https://horizon-testnet.stellar.org"
+	horizonURL := HorizonTestnetURL
 	if network == "public" {
-		horizonURL = "https://horizon.stellar.org"
+		horizonURL = HorizonPublicURL
 	}
 
 	url := fmt.Sprintf("%s/transactions/%s", horizonURL, transactionHash)

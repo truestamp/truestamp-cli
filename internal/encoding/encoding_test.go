@@ -182,6 +182,83 @@ func TestParse(t *testing.T) {
 	}
 }
 
+func TestName(t *testing.T) {
+	cases := []struct {
+		enc  Encoding
+		want string
+	}{
+		{Binary, "binary"},
+		{Hex, "hex"},
+		{Base64Std, "base64"},
+		{Base64URL, "base64url"},
+		{Encoding(99), "unknown"},
+	}
+	for _, c := range cases {
+		if got := c.enc.Name(); got != c.want {
+			t.Errorf("Encoding(%d).Name(): got %q, want %q", c.enc, got, c.want)
+		}
+	}
+}
+
+func TestAllNames(t *testing.T) {
+	got := AllNames()
+	want := []string{"binary", "hex", "base64", "base64url"}
+	if len(got) != len(want) {
+		t.Fatalf("AllNames len: got %d, want %d", len(got), len(want))
+	}
+	for i, name := range want {
+		if got[i] != name {
+			t.Errorf("AllNames[%d]: got %q, want %q", i, got[i], name)
+		}
+	}
+}
+
+func TestEncode_UnknownEncoding(t *testing.T) {
+	if _, err := Encode(Encoding(99), []byte("x")); err == nil {
+		t.Error("Encode with unknown encoding should error")
+	}
+}
+
+func TestDecode_UnknownEncoding(t *testing.T) {
+	if _, err := Decode(Encoding(99), []byte("x")); err == nil {
+		t.Error("Decode with unknown encoding should error")
+	}
+}
+
+// TestDecode_MalformedPaddedBase64 forces the error branch inside the
+// padded (StdEncoding) path of Base64Std. Input contains '=' so we take
+// the padded decoder branch, but the padding placement is invalid.
+func TestDecode_MalformedPaddedBase64(t *testing.T) {
+	if _, err := Decode(Base64Std, []byte("===")); err == nil {
+		t.Error("expected error for malformed padded base64")
+	}
+}
+
+// TestDecode_MalformedRawBase64 forces the error branch inside the
+// unpadded (RawStdEncoding) path of Base64Std.
+func TestDecode_MalformedRawBase64(t *testing.T) {
+	// Odd length without padding is invalid.
+	if _, err := Decode(Base64Std, []byte("Z")); err == nil {
+		t.Error("expected error for malformed raw base64")
+	}
+}
+
+// TestDecode_MalformedPaddedBase64URL forces the padded URLEncoding
+// error branch inside Base64URL.
+func TestDecode_MalformedPaddedBase64URL(t *testing.T) {
+	if _, err := Decode(Base64URL, []byte("===")); err == nil {
+		t.Error("expected error for malformed padded base64url")
+	}
+}
+
+// TestDecode_MalformedRawBase64URL forces the unpadded RawURLEncoding
+// error branch inside Base64URL.
+func TestDecode_MalformedRawBase64URL(t *testing.T) {
+	if _, err := Decode(Base64URL, []byte("Z")); err == nil {
+		t.Error("expected error for malformed raw base64url")
+	}
+}
+
 func TestBinaryPassThrough(t *testing.T) {
 	data := []byte{0x00, 0xff, 0x7f}
 	out, err := Encode(Binary, data)

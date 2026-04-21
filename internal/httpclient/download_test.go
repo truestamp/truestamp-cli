@@ -151,3 +151,41 @@ func TestDownloadBytesCtx_httpError(t *testing.T) {
 		t.Errorf("error = %q, want '410'", err.Error())
 	}
 }
+
+func TestDownloadBytesCtx_BadURL(t *testing.T) {
+	if _, err := DownloadBytesCtx(context.Background(), "://nope", 0); err == nil {
+		t.Fatal("expected error for bad URL")
+	}
+}
+
+func TestDownloadBytesCtx_UnreachableHost(t *testing.T) {
+	if _, err := DownloadBytesCtx(context.Background(), "http://127.0.0.1:1/x", 0); err == nil {
+		t.Fatal("expected error for unreachable host")
+	}
+}
+
+func TestDownloadCtx_BadURL(t *testing.T) {
+	dest := filepath.Join(t.TempDir(), "x.bin")
+	if _, err := DownloadCtx(context.Background(), "://nope", dest, 0); err == nil {
+		t.Fatal("expected error for bad URL")
+	}
+}
+
+func TestDownloadCtx_UnreachableHost(t *testing.T) {
+	dest := filepath.Join(t.TempDir(), "x.bin")
+	if _, err := DownloadCtx(context.Background(), "http://127.0.0.1:1/x", dest, 0); err == nil {
+		t.Fatal("expected error for unreachable host")
+	}
+}
+
+func TestDownloadCtx_UnwriteableDest(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = w.Write([]byte("hi"))
+	}))
+	defer srv.Close()
+	// A path inside a non-existent directory fails at OpenFile.
+	dest := filepath.Join(t.TempDir(), "no-such-dir", "out.bin")
+	if _, err := DownloadCtx(context.Background(), srv.URL, dest, 0); err == nil {
+		t.Fatal("expected error for unwriteable dest")
+	}
+}

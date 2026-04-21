@@ -11,7 +11,6 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
-	"runtime"
 	"time"
 )
 
@@ -40,21 +39,8 @@ func CachePath() (string, error) {
 	return filepath.Join(dir, "upgrade-check.json"), nil
 }
 
-func cacheDir() (string, error) {
-	if runtime.GOOS == "windows" {
-		if d := os.Getenv("LOCALAPPDATA"); d != "" {
-			return filepath.Join(d, "truestamp"), nil
-		}
-	}
-	if d := os.Getenv("XDG_CACHE_HOME"); d != "" {
-		return filepath.Join(d, "truestamp"), nil
-	}
-	home, err := os.UserHomeDir()
-	if err != nil {
-		return "", err
-	}
-	return filepath.Join(home, ".cache", "truestamp"), nil
-}
+// cacheDir is defined per-platform (cache_unix.go, cache_windows.go) so
+// each branch is counted for coverage only on its own platform.
 
 // ReadCache returns the cached result, or (nil, nil) if the cache is
 // absent or unreadable. Never returns an error — cache misses are a

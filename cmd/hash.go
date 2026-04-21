@@ -286,14 +286,14 @@ type jsonInput struct {
 }
 
 type hashJSON struct {
-	Algorithm string      `json:"algorithm"`
-	Digest    jsonDigest  `json:"digest"`
-	Encoded   string      `json:"encoded"` // digest rendered in the requested --encoding (for convenience)
-	Encoding  string      `json:"encoding"`
-	SizeBytes int64       `json:"size_bytes"`
-	Prefix    string      `json:"prefix,omitempty"`
-	JCS       bool        `json:"jcs,omitempty"`
-	Input     jsonInput   `json:"input"`
+	Algorithm string     `json:"algorithm"`
+	Digest    jsonDigest `json:"digest"`
+	Encoded   string     `json:"encoded"` // digest rendered in the requested --encoding (for convenience)
+	Encoding  string     `json:"encoding"`
+	SizeBytes int64      `json:"size_bytes"`
+	Prefix    string     `json:"prefix,omitempty"`
+	JCS       bool       `json:"jcs,omitempty"`
+	Input     jsonInput  `json:"input"`
 }
 
 func emitHashJSON(w io.Writer, alg hashing.Algorithm, enc encoding.Encoding, prefix string, useJCS, multi bool, results []hashResult) error {

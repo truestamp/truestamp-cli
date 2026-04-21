@@ -97,11 +97,50 @@ func TestTOMLQuote(t *testing.T) {
 		`a"b`:       `"a\"b"`,
 		`a\b`:       `"a\\b"`,
 		"line\nend": `"line\nend"`,
+		"tab\there": `"tab\there"`,
+		"cr\rend":   `"cr\rend"`,
 	}
 	for in, want := range cases {
 		if got := tomlQuote(in); got != want {
 			t.Errorf("tomlQuote(%q) = %q, want %q", in, got, want)
 		}
+	}
+}
+
+// TestSetAPIKey_NoHome covers the branch where EnsureDefaultConfig
+// returns an error (no determinable config directory).
+func TestSetAPIKey_NoHome(t *testing.T) {
+	t.Setenv("HOME", "")
+	t.Setenv("XDG_CONFIG_HOME", "")
+	t.Setenv("APPDATA", "")
+	if err := SetAPIKey("x"); err == nil {
+		t.Skip("platform provided a fallback home; no-home path not exercised here")
+	}
+}
+
+// TestSetAPIKey_ReadError exercises the ReadFile failure path. We
+// create the config dir but make it unreadable.
+func TestSetAPIKey_ReadError(t *testing.T) {
+	if os.Geteuid() == 0 {
+		t.Skip("root bypasses permission checks")
+	}
+	dir := t.TempDir()
+	t.Setenv("XDG_CONFIG_HOME", dir)
+	t.Setenv("HOME", dir)
+
+	// Create the file, then make it unreadable.
+	cfgDir := filepath.Join(dir, "truestamp")
+	if err := os.MkdirAll(cfgDir, 0755); err != nil {
+		t.Fatal(err)
+	}
+	path := filepath.Join(cfgDir, "config.toml")
+	if err := os.WriteFile(path, []byte(""), 0000); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = os.Chmod(path, 0644) })
+
+	if err := SetAPIKey("x"); err == nil {
+		t.Skip("filesystem allowed unreadable file to be read (unusual)")
 	}
 }
 

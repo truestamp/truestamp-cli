@@ -35,10 +35,10 @@ import (
 type Algorithm struct {
 	Name    string // canonical name (kebab-case)
 	Aliases []string
-	Size    int                // digest length in bytes
-	Legacy  bool               // true for broken algorithms (MD5, SHA-1)
-	BSDName string             // upper-case name used in shasum --tag / BSD output
-	New     func() hash.Hash   // constructor; never returns nil
+	Size    int              // digest length in bytes
+	Legacy  bool             // true for broken algorithms (MD5, SHA-1)
+	BSDName string           // upper-case name used in shasum --tag / BSD output
+	New     func() hash.Hash // constructor; never returns nil
 }
 
 // newBlake2s256 wraps blake2s.New256(nil) — keyless construction never

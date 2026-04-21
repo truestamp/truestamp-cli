@@ -224,6 +224,16 @@ func TestCompute_ReaderError(t *testing.T) {
 	}
 }
 
+func TestCompute_CancelledContext(t *testing.T) {
+	alg, _ := Lookup("sha256")
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel() // cancel before call so the early ctx.Err() check fires
+	_, _, err := Compute(ctx, alg, strings.NewReader("abc"))
+	if err == nil {
+		t.Fatal("expected context.Canceled")
+	}
+}
+
 type errorReader struct{}
 
 func (errorReader) Read([]byte) (int, error) { return 0, io.ErrUnexpectedEOF }

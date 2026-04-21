@@ -306,8 +306,24 @@ func isHTTPURL(s string) bool {
 	return (u.Scheme == "http" || u.Scheme == "https") && u.Host != ""
 }
 
-// pickFile launches the shared interactive picker.
-func pickFile(opts Options) (string, error) {
+// pickFileFunc and promptURLFunc are indirection hooks so tests can
+// substitute a deterministic implementation for the interactive
+// picker/prompt. In production they point at the huh-backed helpers
+// defined below.
+var (
+	pickFileFunc  = defaultPickFile
+	promptURLFunc = defaultPromptURL
+)
+
+// pickFile is the internal caller used by resolvePath; the indirection
+// through pickFileFunc makes the interactive path testable.
+func pickFile(opts Options) (string, error) { return pickFileFunc(opts) }
+
+// promptURL is the internal caller used by resolvePath; see pickFile.
+func promptURL(opts Options) (string, error) { return promptURLFunc(opts) }
+
+// defaultPickFile launches the shared interactive picker.
+func defaultPickFile(opts Options) (string, error) {
 	title := opts.PickerTitle
 	if title == "" {
 		title = "Select file"
@@ -315,8 +331,8 @@ func pickFile(opts Options) (string, error) {
 	return ui.PickFile(ui.PickFileOptions{Title: title, AllowedTypes: opts.PickerExts})
 }
 
-// promptURL collects a URL via a huh text input form.
-func promptURL(opts Options) (string, error) {
+// defaultPromptURL collects a URL via a huh text input form.
+func defaultPromptURL(opts Options) (string, error) {
 	title := opts.URLPromptTitle
 	if title == "" {
 		title = "Enter URL"
@@ -332,15 +348,7 @@ func promptURL(opts Options) (string, error) {
 				Title(title).
 				Placeholder(placeholder).
 				Value(&rawURL).
-				Validate(func(s string) error {
-					if s == "" {
-						return nil
-					}
-					if !strings.HasPrefix(s, "http://") && !strings.HasPrefix(s, "https://") {
-						return fmt.Errorf("must start with http:// or https://")
-					}
-					return nil
-				}),
+				Validate(validateURL),
 		),
 	).WithTheme(ui.HuhTheme()).Run()
 	if err != nil {
@@ -350,6 +358,19 @@ func promptURL(opts Options) (string, error) {
 		return "", fmt.Errorf("no URL provided")
 	}
 	return rawURL, nil
+}
+
+// validateURL is the tiny pure-function predicate behind the huh
+// input's Validate() callback. Extracted so tests can exercise it
+// without running the terminal form.
+func validateURL(s string) error {
+	if s == "" {
+		return nil
+	}
+	if !strings.HasPrefix(s, "http://") && !strings.HasPrefix(s, "https://") {
+		return fmt.Errorf("must start with http:// or https://")
+	}
+	return nil
 }
 
 // downloadURL validates the URL shape and fetches bytes through the

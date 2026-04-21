@@ -361,3 +361,160 @@ func TestRunRemote_EntropyProof_SubjectType(t *testing.T) {
 
 func intPtr(i int) *int       { return &i }
 func strPtr(s string) *string { return &s }
+
+func TestParseAPIError_HTMLPage(t *testing.T) {
+	err := parseAPIError(502, []byte("<html>oops</html>"))
+	if err == nil {
+		t.Fatal("expected error")
+	}
+	if !contains(err.Error(), "HTML") {
+		t.Errorf("error should mention HTML: %v", err)
+	}
+}
+
+func TestParseAPIError_TitleOnly(t *testing.T) {
+	err := parseAPIError(404, []byte(`{"errors":[{"title":"Not Found"}]}`))
+	if err == nil || !contains(err.Error(), "Not Found") {
+		t.Errorf("expected title in error, got %v", err)
+	}
+}
+
+func TestParseAPIError_Unparseable(t *testing.T) {
+	err := parseAPIError(500, []byte("not json and not html"))
+	if err == nil {
+		t.Fatal("expected error")
+	}
+	if !contains(err.Error(), "not json") {
+		t.Errorf("error should contain body prefix: %v", err)
+	}
+}
+
+func TestRunRemote_CBORInput(t *testing.T) {
+	// Build a CBOR proof from a JSON proof then submit it to RunRemote.
+	dir := t.TempDir()
+	jsonPath := makeProofFile(t)
+	data, err := os.ReadFile(jsonPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// The remote package doesn't expose proof.MarshalCBOR directly here.
+	// We simulate a CBOR input by parsing via proof.ParseBytes then using
+	// MarshalCBOR — do that through the public API.
+	b, err := parseBundle(data)
+	if err != nil {
+		t.Fatalf("parseBundle: %v", err)
+	}
+	cborBytes, err := b.MarshalCBOR()
+	if err != nil {
+		t.Fatalf("MarshalCBOR: %v", err)
+	}
+	cborPath := filepath.Join(dir, "proof.cbor")
+	if err := os.WriteFile(cborPath, cborBytes, 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// Decode request body to verify the server saw JSON (not CBOR).
+		var body map[string]any
+		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+			t.Errorf("request body not JSON: %v", err)
+		}
+		w.WriteHeader(201)
+		resp := apiEnvelope{Result: &apiResult{Passed: true}}
+		_ = json.NewEncoder(w).Encode(resp)
+	}))
+	defer server.Close()
+
+	_, err = RunRemote(cborPath, RemoteOptions{APIURL: server.URL, APIKey: "k"})
+	if err != nil {
+		t.Fatalf("RunRemote(cbor): %v", err)
+	}
+}
+
+func TestRunRemote_MalformedJSONResponse(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(200)
+		_, _ = w.Write([]byte("not json"))
+	}))
+	defer server.Close()
+	_, err := RunRemote(makeProofFile(t), RemoteOptions{APIURL: server.URL, APIKey: "k"})
+	if err == nil {
+		t.Fatal("expected parse error for non-JSON response")
+	}
+}
+
+func TestRunRemote_EmptyResultField(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = w.Write([]byte(`{"errors":[]}`))
+	}))
+	defer server.Close()
+	_, err := RunRemote(makeProofFile(t), RemoteOptions{APIURL: server.URL, APIKey: "k"})
+	if err == nil || !contains(err.Error(), "result") {
+		t.Errorf("expected result-missing error, got %v", err)
+	}
+}
+
+func TestRunRemote_UnreachableHost(t *testing.T) {
+	_, err := RunRemote(makeProofFile(t), RemoteOptions{
+		APIURL: "http://127.0.0.1:1",
+		APIKey: "k",
+	})
+	if err == nil {
+		t.Fatal("expected connection error")
+	}
+}
+
+func TestRunRemote_ExpectedHashIncluded(t *testing.T) {
+	received := ""
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var body map[string]any
+		_ = json.NewDecoder(r.Body).Decode(&body)
+		if data, ok := body["data"].(map[string]any); ok {
+			if hash, ok := data["expected_hash"].(string); ok {
+				received = hash
+			}
+		}
+		w.WriteHeader(201)
+		_, _ = w.Write([]byte(`{"result":{"passed":true}}`))
+	}))
+	defer server.Close()
+
+	_, err := RunRemote(makeProofFile(t), RemoteOptions{
+		APIURL:       server.URL,
+		APIKey:       "k",
+		ExpectedHash: "deadbeef",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if received != "deadbeef" {
+		t.Errorf("expected_hash: got %q, want deadbeef", received)
+	}
+}
+
+func contains(s, substr string) bool {
+	return len(s) >= len(substr) && indexOfSubstr(s, substr) >= 0
+}
+
+func indexOfSubstr(s, substr string) int {
+	for i := 0; i+len(substr) <= len(s); i++ {
+		if s[i:i+len(substr)] == substr {
+			return i
+		}
+	}
+	return -1
+}
+
+// parseBundle exposes proof.ParseBytes for the CBOR test. Keeps the
+// import list of remote_test.go free of the proof package.
+func parseBundle(data []byte) (bundle, error) {
+	return parseProofBytes(data)
+}
+
+// bundle is the minimal interface the CBOR round-trip test needs from
+// the proof package. The real ParseBytes result satisfies it via
+// MarshalCBOR().
+type bundle interface {
+	MarshalCBOR() ([]byte, error)
+}
