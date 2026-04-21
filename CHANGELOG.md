@@ -7,6 +7,176 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.5.0] — 2026-04-21
+
+### Added
+- Five new pipe-friendly sub-commands that replace the ad-hoc external
+  tool chain (`sha256sum`, `shasum`, `xxd`, `base64`, `jq`, `date`)
+  with built-ins that behave identically across macOS, Linux, BSD,
+  WSL, and Git-Bash on Windows:
+  - `truestamp hash` — SHA-2 / SHA-3 / BLAKE2 / MD5 / SHA-1 digests
+    for files, stdin, URLs, or a picked file. Default output is
+    byte-identical to GNU coreutils' `sha256sum` (including the
+    standard `\`-escaping for filenames with newlines/backslashes).
+    `--style bsd` matches `shasum --tag`; `--style bare` is
+    digest-only. Legacy algorithms (MD5, SHA-1) emit a one-line
+    stderr warning unless `--json` or `--silent` is set. Supports
+    `--prefix 0xNN` (prepend a single domain-separation byte before
+    hashing) and `--jcs` (apply RFC 8785 canonicalization first), so
+    the Truestamp claims-hash intermediate is a one-liner:
+    `truestamp hash --prefix 0x11 --jcs -a sha256 --style bare < claims.json`.
+  - `truestamp encode` and `truestamp decode` — byte-encoding
+    conversions among `hex`, `base64`, `base64url`, and `binary`,
+    with strict cross-encoding-alphabet rejection. Both support
+    text-to-text conversion via `--from`/`--to`.
+  - `truestamp jcs` — apply RFC 8785 JSON Canonicalization to the
+    input. Pipes directly into `truestamp hash` for hashing
+    pipelines; `truestamp hash --jcs` is the shortcut.
+  - `truestamp convert` — umbrella for domain-specific conversions:
+    - `convert time` — parse and re-format timestamps across zones
+      and Unix formats (auto / rfc3339 / unix-{s,ms,us,ns}, IANA
+      zones, Go time layouts as `--format`).
+    - `convert proof` — switch a proof bundle between JSON and CBOR
+      wire formats. CBOR output uses RFC 8949 §4.2 core
+      deterministic encoding and prepends the self-describing tag
+      55799 so `truestamp verify` auto-detects the format.
+    - `convert id` — extract the embedded millisecond timestamp
+      from a ULID (item IDs) or UUIDv7 (block and entropy IDs).
+      Auto-detects the type; supports `--to-zone` for display.
+    - `convert keyid` — derive the 4-byte Truestamp `kid`
+      fingerprint (`truncate4(SHA256(0x51 || pubkey))`) from an
+      Ed25519 public key in hex, base64, or base64url.
+    - `convert merkle` — decode a compact base64url Merkle proof
+      (`ip` / `ep` fields) into a human-readable sibling list with
+      position + hash per step.
+- `internal/inputsrc` — shared six-mode input resolver (positional,
+  `--file [path]`, `--file` picker, `--url [url]`, `--url` prompt,
+  stdin pipe). Used uniformly by `verify`, `create`, and every new
+  sub-command. `pflag` `NoOptDefVal` sentinels are now readable
+  `(pick)` / `(prompt)` strings so `--help` renders cleanly; `-`
+  as a positional is accepted as the Unix-standard stdin alias.
+- `internal/encoding` — RFC 4648 hex/base64/base64url round-trip with
+  tolerance for trailing whitespace and rejection of mismatched
+  alphabets.
+- `internal/hashing` — 14-algorithm registry built on `crypto/{md5,
+  sha1,sha256,sha512}` + `golang.org/x/crypto/{sha3,blake2b,blake2s}`,
+  streaming `Compute`, and `sha256sum` / `shasum --tag` output
+  formatters with proper filename escaping.
+- `ProofBundle.MarshalCBOR` on `internal/proof` — deterministic CBOR
+  encoding (RFC 8949 §4.2) with the 0xd9d9f7 self-describing tag.
+  Byte-valued fields (`pk`, `sig`, hashes, epoch/inclusion proofs)
+  are re-encoded as CBOR major-type-2 byte strings per an explicit
+  per-field policy; round-trips stabilize on the second pass.
+- `[hash]` and `[convert]` config sections in
+  `~/.config/truestamp/config.toml`, plus matching env-var overrides
+  (`TRUESTAMP_HASH_ALGORITHM`, `TRUESTAMP_HASH_ENCODING`,
+  `TRUESTAMP_HASH_STYLE`, `TRUESTAMP_CONVERT_TIME_ZONE`).
+- Comprehensive test infrastructure:
+  - **59 fuzz targets** (`FuzzXxx`) across 13 packages covering every
+    parser that touches attacker-controlled bytes. Seed corpus lives
+    in `f.Add()` calls; `go test` replays them on every run. Active
+    mutation via `task fuzz-deep` (default 15s per target, 59
+    targets, ~320M inputs per full pass).
+  - **20+ benchmarks** (`BenchmarkXxx`) on hot paths: hashing across
+    all 14 algorithms (SHA-256 ~2.9 GB/s, BLAKE2b ~1.1 GB/s on M3
+    Max), encoding round-trip, proof parse / marshal (JSON + CBOR),
+    Merkle decode + verify, domain-prefixed hashing.
+  - **9 golden-output snapshot tests** — `testdata/golden/` fixtures
+    for `--help` output on root/verify/hash, `hash --list`, and JSON
+    envelopes for `hash`, `encode`, and `convert {time,id,keyid}`.
+    JSON is canonicalized before diffing so tests don't flake on
+    Go's map-iteration order. Regenerate with
+    `UPDATE_GOLDEN=1 go test ./cmd -run Golden`.
+  - Coverage raised from 47.6% to 81.2% across 17 packages. Most
+    packages are now >90%; the handful below that ceiling have
+    structural reasons (interactive TTY, platform-specific Windows
+    branches on a macOS/Linux runner, self-upgrade pipeline that
+    needs a real release tarball + cosign binary).
+- New Taskfile entry points:
+  - `task test-coverage-full` — covers CLI subprocess runs too by
+    building the binary with `-cover -coverpkg=./...` and routing
+    its `GOCOVERDIR` through a task-controlled directory (works
+    around `go test -cover` clobbering `GOCOVERDIR` in the test
+    process's environment).
+  - `task test-race` — full suite under the race detector; currently
+    zero-finding.
+  - `task bench` / `task bench-compare` — benchmarks with `-benchmem`
+    and a `-count=5` baseline suitable for `benchstat` comparison.
+  - `task fuzz` / `task fuzz-deep` / `task fuzz-list`.
+  - `task lint` — `go vet` + `gofmt -l` + `staticcheck` + `gosec`
+    with documented exclusions for CLI-standard patterns
+    (user-specified file paths, supported-with-warning legacy
+    hashes, Unix-standard file permissions, hard-coded subprocess
+    names).
+  - `task vuln-check` — `govulncheck` against `go.mod` and stdlib.
+  - `task precommit-full` — strict pre-release gate (fmt + lint +
+    test-race + fuzz seeds + vuln-check + build-all, ~3-5 min).
+- `EXAMPLES.md` — new, ~800 lines. Per-sub-command tour with
+  copy-pastable examples, ~15 pipeline recipes, `--json` + `jq`
+  scripting patterns, CI conventions, and an offline/air-gapped
+  usage section. Every example was exercised end-to-end against a
+  live dev server to catch documentation drift. Linked prominently
+  from the top of `README.md`.
+
+### Changed
+- Go toolchain pinned to **1.26.2** in both `.tool-versions` and
+  `go.mod` (previously `latest`, which resolved to 1.26.1). See
+  Security below. All other entries in `.tool-versions` are now
+  explicitly version-pinned rather than tracking `latest` to avoid
+  silent drift.
+- `task precommit` slimmed to a **fast** hot-cache pass — `fmt` +
+  `lint` + `test` + `build` (single-platform). ~2 s hot, ~8 s cold.
+  Fuzz seed replay happens automatically as part of `task test` so
+  no separate fuzz step is needed here. The comprehensive gate
+  (race, active fuzz, vuln-check, cross-compile) lives in
+  `precommit-full` and is intended for PR/release boundaries.
+- `cmd/verify.go` and `cmd/create.go` now consume the shared
+  `internal/inputsrc` resolver; the old duplicated six-mode input
+  logic in each command is gone.
+- `hash --style bare` now unconditionally omits the filename column
+  (previously only did so when `--no-filename` was also passed,
+  making `bare` accidentally byte-identical to `gnu` when a filename
+  was available). The three styles now produce three distinct
+  shapes:
+  - `gnu` — `<hex>  <filename>` (sha256sum-compatible)
+  - `bsd` — `<ALGO> (<filename>) = <hex>` (shasum --tag)
+  - `bare` — `<hex>` (digest only, always)
+- `internal/config.ConfigDir` and `internal/upgradecheck.cacheDir`
+  split into `*_unix.go` / `*_windows.go` via build tags so each
+  platform's branch is counted for coverage only on the platform
+  where it can execute.
+- `ProofBundle.MarshalJSON` now writes `ts`, `pk`, `sig`, `s`, `b`,
+  `ip`, `cx` in a stable map — with `encoding/json`'s alphabetical
+  key ordering this yields a canonical JSON form suitable for
+  round-trip comparisons against JCS.
+- `CONTRIBUTING.md` significantly expanded with a "When to run which
+  task" table covering every Taskfile entry point, their durations,
+  and recommended usage. The `Tests` section is now broken out by
+  category (unit/integration, golden snapshots, fuzz, bench, race,
+  coverage, lint, vuln-check) with guidance on what kind of test to
+  add when.
+- `CLAUDE.md` updated with new package structure entries, the
+  deterministic-CBOR policy, the shared inputsrc pattern, and a
+  note on the 59-target fuzz coverage.
+
+### Security
+- `golang.org/x/crypto` (already an indirect dependency) promoted to
+  direct; used for SHA-3 and BLAKE2 implementations in
+  `internal/hashing`. `task vuln-check` after the bump is clean.
+- Go toolchain bump to 1.26.2 eliminates **six standard-library
+  vulnerabilities** flagged by `govulncheck` in 1.26.1: five in
+  `crypto/x509` (various certificate-parsing issues reachable via
+  `io.Copy` through our hash-streaming path, though not exploitable
+  through the CLI's actual call graph) and one XSS-class bug in
+  `html/template` (reachable from `fmt.Fprintln` → `template.Error`,
+  again not exploitable from the CLI's call graph but eliminated on
+  principle). `task vuln-check` now reports zero findings.
+
+### Fixed
+- One real `staticcheck` finding addressed: an unused variable
+  assignment in `cmd/coverage_extra_test.go` that the prior test
+  suite never caught.
+
 ## [0.4.0] — 2026-04-17
 
 ### Added
@@ -303,7 +473,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   v0.1.0 is the first release of a standalone Go codebase; the two share
   nothing beyond the repository name.
 
-[Unreleased]: https://github.com/truestamp/truestamp-cli/compare/v0.4.0...HEAD
+[Unreleased]: https://github.com/truestamp/truestamp-cli/compare/v0.5.0...HEAD
+[0.5.0]: https://github.com/truestamp/truestamp-cli/releases/tag/v0.5.0
 [0.4.0]: https://github.com/truestamp/truestamp-cli/releases/tag/v0.4.0
 [0.3.3]: https://github.com/truestamp/truestamp-cli/releases/tag/v0.3.3
 [0.3.2]: https://github.com/truestamp/truestamp-cli/releases/tag/v0.3.2
