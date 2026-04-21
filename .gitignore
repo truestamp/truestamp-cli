@@ -1,5 +1,6 @@
-# Test proof files (root level only, not testdata fixtures)
+# Test proof files (root level only, not testdata fixtures or samples/)
 /*.json
+/*.cbor
 
 # Build output
 build/

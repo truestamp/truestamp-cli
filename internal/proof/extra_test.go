@@ -12,6 +12,7 @@ import (
 	"testing"
 
 	"github.com/fxamacker/cbor/v2"
+	"github.com/truestamp/truestamp-cli/internal/proof/ptype"
 )
 
 // --- id.go (DetectIDType) --------------------------------------------------
@@ -44,19 +45,19 @@ func TestDetectIDType(t *testing.T) {
 
 func TestFindCommitByType(t *testing.T) {
 	commits := []ExternalCommit{
-		{Type: "stellar", TransactionHash: "aa"},
-		{Type: "bitcoin", TransactionHash: "bb"},
+		{Type: ptype.CommitmentStellar, TransactionHash: "aa"},
+		{Type: ptype.CommitmentBitcoin, TransactionHash: "bb"},
 	}
-	if got := FindCommitByType(commits, "stellar"); got == nil || got.TransactionHash != "aa" {
+	if got := FindCommitByType(commits, ptype.CommitmentStellar); got == nil || got.TransactionHash != "aa" {
 		t.Errorf("FindCommitByType(stellar) = %+v", got)
 	}
-	if got := FindCommitByType(commits, "bitcoin"); got == nil || got.TransactionHash != "bb" {
+	if got := FindCommitByType(commits, ptype.CommitmentBitcoin); got == nil || got.TransactionHash != "bb" {
 		t.Errorf("FindCommitByType(bitcoin) = %+v", got)
 	}
-	if got := FindCommitByType(commits, "other"); got != nil {
+	if got := FindCommitByType(commits, ptype.Code(99)); got != nil {
 		t.Errorf("FindCommitByType(other) should return nil, got %+v", got)
 	}
-	if got := FindCommitByType(nil, "stellar"); got != nil {
+	if got := FindCommitByType(nil, ptype.CommitmentStellar); got != nil {
 		t.Errorf("FindCommitByType(nil, ...) should return nil")
 	}
 }
@@ -236,8 +237,8 @@ func TestParseCBOR_Malformed(t *testing.T) {
 }
 
 func TestParseCBOR_MissingPK(t *testing.T) {
-	// Valid CBOR map without pk.
-	m := map[string]any{"v": 1, "sig": []byte{0x01}}
+	// Valid CBOR map with v+t but without pk.
+	m := map[string]any{"v": 1, "t": uint16(20), "sig": []byte{0x01}}
 	data, err := cbor.Marshal(m)
 	if err != nil {
 		t.Fatal(err)
@@ -563,11 +564,11 @@ func TestDecodeCommitsCBOR_ElementNotMap(t *testing.T) {
 func TestMarshalCBOR_BitcoinCommit(t *testing.T) {
 	const proofWithBitcoin = `{
 	  "v": 1,
+	  "t": 20,
 	  "pk": "CTwMqDZnPd/QTLSq8aTeSD3a+j2DQxKcGfhhIYJQ65Y=",
-	  "sig": "c2lnbmF0dXJlX2J5dGVzX2hlcmU=",
+	  "sig": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==",
 	  "ts": "2026-04-06T23:25:06Z",
 	  "s": {
-	    "src": "item",
 	    "id": "01HJHB01T8FYZ7YTR9P5N62K5B",
 	    "d": {"name": "test"},
 	    "mh": "ccddccddccddccddccddccddccddccddccddccddccddccddccddccddccddccdd",
@@ -583,9 +584,10 @@ func TestMarshalCBOR_BitcoinCommit(t *testing.T) {
 	  "ip": "AA",
 	  "cx": [
 	    {
-	      "t": "bitcoin",
+	      "t": 41,
 	      "net": "regtest",
 	      "ep": "AA",
+	      "tx": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
 	      "op": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
 	      "rtx": "bbbbbbbb",
 	      "txp": "cccccccc",
@@ -621,7 +623,7 @@ func TestMarshalCBOR_BadCommitFields(t *testing.T) {
 	// each error branch in commitsToCBOR.
 	base := func() *ProofBundle {
 		b, _ := ParseBytes([]byte(validProofJSON))
-		b.Commitments[0].Type = "bitcoin"
+		b.Commitments[0].Type = ptype.CommitmentBitcoin
 		b.Commitments[0].Network = "regtest"
 		b.Commitments[0].OpReturn = "aa"
 		b.Commitments[0].RawTxHex = "bb"
@@ -662,22 +664,32 @@ func TestMarshalCBOR_BadCommitFields(t *testing.T) {
 func TestConvertForJSON_AllBranches(t *testing.T) {
 	const proof = `{
 	  "v": 1,
+	  "t": 20,
 	  "pk": "CTwMqDZnPd/QTLSq8aTeSD3a+j2DQxKcGfhhIYJQ65Y=",
-	  "sig": "c2lnbmF0dXJlX2J5dGVzX2hlcmU=",
+	  "sig": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==",
 	  "ts": "2026-04-06T23:25:06Z",
 	  "s": {
-	    "src": "item",
 	    "id": "01HJHB01T8FYZ7YTR9P5N62K5B",
 	    "d": {
 	      "nested": {"deep": "value"},
 	      "list": [1, 2, {"a": "b"}],
 	      "leaf": "plain"
 	    },
-	    "mh": "cc",
-	    "kid": "4c"
+	    "mh": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+	    "kid": "4c4c4c4c"
 	  },
-	  "b": {"id":"e","mr":"aa","mh":"bb","kid":"cc","ph":"dd"},
-	  "ip": "AA"
+	  "b": {
+	    "id":"019cf813-99b8-730a-84f1-5a711a9c355e",
+	    "mr":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+	    "mh":"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+	    "kid":"cccccccc",
+	    "ph":"dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd"
+	  },
+	  "ip": "AA",
+	  "cx": [{"t":40,"net":"testnet","ep":"AA",
+	    "memo":"abababababababababababababababababababababababababababababababab",
+	    "tx":"cdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcd",
+	    "l":1}]
 	}`
 	b, err := ParseBytes([]byte(proof))
 	if err != nil {

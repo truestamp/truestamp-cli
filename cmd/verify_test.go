@@ -91,16 +91,16 @@ func writeProofFile(t *testing.T, content string) string {
 	return path
 }
 
-// Minimal structurally valid proof with fake crypto values (v1 compact format).
+// Minimal structurally valid proof with fake crypto values.
 // Hex hashes are 64 chars (SHA-256), key IDs are 8 chars, base64 public_key is
 // 32 bytes (44 chars), base64 signature is 64 bytes (88 chars).
 const fakeProofJSON = `{
   "v": 1,
+  "t": 20,
   "pk": "CTwMqDZnPd/QTLSq8aTeSD3a+j2DQxKcGfhhIYJQ65Y=",
-  "sig": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+  "sig": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==",
   "ts": "2026-04-06T23:25:06Z",
   "s": {
-    "src": "item",
     "id": "01HJHB01T8FYZ7YTR9P5N62K5B",
     "d": {"name": "test", "hash": "aabbccddaabbccddaabbccddaabbccddaabbccddaabbccddaabbccddaabbccdd"},
     "mh": "ccddccddccddccddccddccddccddccddccddccddccddccddccddccddccddccdd",
@@ -114,7 +114,7 @@ const fakeProofJSON = `{
     "kid": "4ceefa4a"
   },
   "ip": "AA",
-  "cx": []
+  "cx": [{"t": 40, "net": "testnet", "tx": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "memo": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb", "l": 1, "ep": "AA"}]
 }`
 
 func TestCLI_MissingFile_ExitCode1(t *testing.T) {
@@ -217,14 +217,14 @@ func TestCLI_SkipSignatures_Silent_ExitCode(t *testing.T) {
 	}
 }
 
-// Minimal entropy proof for testing --hash rejection (v1 compact format).
+// Minimal entropy proof for testing --hash rejection.
 const fakeEntropyProofJSON = `{
   "v": 1,
+  "t": 30,
   "pk": "CTwMqDZnPd/QTLSq8aTeSD3a+j2DQxKcGfhhIYJQ65Y=",
-  "sig": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+  "sig": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==",
   "ts": "2026-04-06T23:25:06Z",
   "s": {
-    "src": "nist_beacon",
     "id": "019cf813-99b8-730a-84f1-5a711a9c355e",
     "d": {"pulse": {"pulseIndex": 123}},
     "mh": "ccddccddccddccddccddccddccddccddccddccddccddccddccddccddccddccdd",
@@ -238,7 +238,7 @@ const fakeEntropyProofJSON = `{
     "kid": "4ceefa4a"
   },
   "ip": "AA",
-  "cx": []
+  "cx": [{"t": 40, "net": "testnet", "tx": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "memo": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb", "l": 1, "ep": "AA"}]
 }`
 
 func TestCLI_Hash_WithEntropyProof_ExitCode1(t *testing.T) {

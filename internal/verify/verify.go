@@ -18,6 +18,7 @@ import (
 	"github.com/truestamp/truestamp-cli/internal/bitcoin"
 	"github.com/truestamp/truestamp-cli/internal/external"
 	"github.com/truestamp/truestamp-cli/internal/proof"
+	"github.com/truestamp/truestamp-cli/internal/proof/ptype"
 	"github.com/truestamp/truestamp-cli/internal/tscrypto"
 )
 
@@ -49,21 +50,18 @@ func RunFromBytes(data []byte, displayName string, opts Options) (*Report, error
 
 // runBundle runs the verification pipeline on a parsed proof bundle.
 func runBundle(bundle *proof.ProofBundle, filename string, fileSize int64, opts Options) (*Report, error) {
-	subject := bundle.Subject
 	block := bundle.Block
 	commits := bundle.Commitments
+	isBlock := bundle.IsBlock()
+	isItem := bundle.IsItem()
 	isEntropy := bundle.IsEntropy()
 
-	subjectType := "item"
-	if isEntropy {
-		subjectType = "entropy"
-	}
+	subjectType := ptype.Name(bundle.T)
 
 	r := &Report{
 		Filename:        filename,
 		FileSize:        fileSize,
 		ProofVersion:    bundle.Version,
-		SubjectID:       subject.ID,
 		SubjectType:     subjectType,
 		GeneratedAt:     bundle.Timestamp,
 		SkippedExternal: opts.SkipExternal,
@@ -71,22 +69,27 @@ func runBundle(bundle *proof.ProofBundle, filename string, fileSize int64, opts 
 		SigningKeyID:    block.SigningKeyID,
 	}
 
-	if isEntropy {
-		r.Source = subject.Source
-		r.EntropySubject = parseEntropySubject(subject.Source, subject.Data)
+	if isBlock {
+		r.SubjectID = block.ID
+	} else if bundle.Subject != nil {
+		r.SubjectID = bundle.Subject.ID
 	}
 
-	// Parse claims for display (item proofs only)
-	if !isEntropy {
+	if isEntropy && bundle.Subject != nil {
+		r.Source = subjectType
+		r.EntropySubject = parseEntropySubject(bundle.T, bundle.Subject.Data)
+	}
+
+	if isItem {
 		r.Claims = parseClaims(bundle.RawData)
 	}
 
 	// Hash comparison (item proofs only)
-	if opts.ExpectedHash != "" && isEntropy {
+	if opts.ExpectedHash != "" && !isItem {
 		r.fail(groupHashComparison, CatDataIntegrity,
-			fmt.Sprintf("--hash flag is not applicable to entropy proofs (source: %s)", subject.Source))
+			fmt.Sprintf("--hash flag is not applicable to %s proofs", subjectType))
 	}
-	if !isEntropy {
+	if isItem {
 		if opts.ExpectedHash != "" {
 			r.HashProvided = opts.ExpectedHash
 			if tscrypto.HexEqual(opts.ExpectedHash, r.Claims.Hash) {
@@ -110,56 +113,60 @@ func runBundle(bundle *proof.ProofBundle, filename string, fileSize int64, opts 
 	pubkeyBytes, keyID := verifySigningKey(r, bundle, opts)
 
 	// Step 2: Structure + Version
-	verifyStructure(r, block)
+	verifyStructure(r, bundle, block)
 	verifyVersion(r, bundle)
 
-	// Steps 3-6: Subject hash derivation (branched by proof type)
+	// Steps 3-6: Subject-hash derivation (non-block subjects only)
 	var subjectHash string
-	if isEntropy {
-		entropyHash := deriveEntropyHash(r, bundle.RawData)
-		subjectHash = deriveObservationHash(r, subject, entropyHash)
-	} else {
+	switch {
+	case isItem:
 		claimsHash := deriveClaimsHash(r, bundle.RawData)
 		validateClaimsHashType(r, r.Claims)
-		verifyClaimsTimestamp(r, subject)
-		subjectHash = deriveItemHash(r, subject, claimsHash)
+		verifyClaimsTimestamp(r, bundle.Subject)
+		subjectHash = deriveItemHash(r, bundle.Subject, claimsHash)
+	case isEntropy:
+		entropyHash := deriveEntropyHash(r, bundle.RawData)
+		subjectHash = deriveObservationHash(r, bundle.Subject, entropyHash)
 	}
 
-	// Step 7: Inclusion Proof (Merkle proof from subject to block)
-	verifyInclusionProof(r, subjectHash, bundle.InclusionProof, block)
+	// Step 7: Inclusion Proof (skipped for block subjects)
+	if !isBlock {
+		verifyInclusionProof(r, subjectHash, bundle.InclusionProof, block)
+	}
 
 	// Step 8: Block Hash Derivation
 	blockHash := deriveBlockHash(r, block)
 
-	// Step 9: Key consistency (subject vs block)
-	if !isEntropy {
-		verifyItemKeyMatchesBlock(r, subject, block)
+	// For block subjects, subject_hash == block_hash by construction.
+	if isBlock {
+		subjectHash = blockHash
 	}
+
+	// Step 9 (dropped): subject.kid == block.kid equality check. Legitimate
+	// key rotation can produce divergent kids; subject-kid tampering is still
+	// caught because s.kid is an input to the 0x13 / 0x23 composite hash.
 
 	// Step 10: Epoch proofs (cx entries)
 	epochRoots := verifyEpochProofs(r, commits, blockHash)
 
-	// Step 11: Proof Signature (with timestamp)
+	// Step 11: Proof Signature
 	verifyProofSignature(r, bundle, pubkeyBytes, keyID, subjectHash, blockHash, epochRoots, opts)
 
-	// Step 12: Temporal checks
+	// Step 12: Temporal checks + info
+	if !isBlock {
+		verifySubjectTemporalWindow(r, bundle.T, bundle.Subject, block)
+	}
+	addTemporalInfo(r, bundle.T, bundle.Subject, block)
+
+	// Step 13: Entropy source consistency (entropy subjects only, external, skippable)
 	if isEntropy {
-		verifyEntropyTemporalWindow(r, subject, block)
-	} else {
-		verifyItemTemporalWindow(r, subject, block)
+		verifyEntropySource(r, bundle.T, bundle.Subject, commits, opts)
 	}
 
-	// Step 13: Temporal Info
-	if isEntropy {
-		addEntropyTemporalInfo(r, subject, block)
-	} else {
-		addTemporalInfo(r, subject, block)
-	}
-
-	// Step 14: Stellar Commitment (external verification)
+	// Step 14: Stellar Commitment
 	verifyStellarCommitments(r, commits, blockHash, opts)
 
-	// Step 15: Bitcoin Commitment (external verification)
+	// Step 15: Bitcoin Commitment
 	verifyBitcoinCommitments(r, commits, blockHash, opts)
 
 	return r, nil
@@ -169,12 +176,15 @@ const (
 	groupHashComparison = "Hash Comparison"
 	groupSigningKey     = "Signing Key"
 	groupStructure      = "Structure"
+	groupSubjectData    = "Subject Data"
 	groupInclusion      = "Inclusion Proof"
-	groupBlock          = "Block"
+	groupBlockHash      = "Block Hash"
 	groupProof          = "Proof Signature"
-	groupEpoch          = "Epoch Proofs"
+	groupEpoch          = "Epoch Proof"
 	groupStellar        = "Stellar Commitment"
 	groupBitcoin        = "Bitcoin Commitment"
+	groupTemporal       = "Temporal Window"
+	groupEntropySource  = "Entropy Source"
 )
 
 // --- Step 1: Signing Key ---
@@ -211,9 +221,12 @@ func verifySigningKey(r *Report, bundle *proof.ProofBundle, opts Options) ([]byt
 
 const expectedVersion = 1
 
-func verifyStructure(r *Report, block proof.Block) {
+func verifyStructure(r *Report, bundle *proof.ProofBundle, block proof.Block) {
+	r.check(groupStructure, CatStructural, ptype.IsValidSubject(bundle.T),
+		fmt.Sprintf("Subject type %d (%s) is registered", uint16(bundle.T), ptype.Name(bundle.T)))
 	r.check(groupStructure, CatStructural, block.ID != "", "Block present with ID")
 	r.check(groupStructure, CatStructural, block.MerkleRoot != "", "Block has merkle_root")
+	r.check(groupStructure, CatStructural, len(bundle.Commitments) > 0, "At least one external commitment")
 }
 
 func verifyVersion(r *Report, bundle *proof.ProofBundle) {
@@ -224,20 +237,19 @@ func verifyVersion(r *Report, bundle *proof.ProofBundle) {
 // --- Step 3: Claims Hash ---
 
 func deriveClaimsHash(r *Report, rawClaims json.RawMessage) string {
-	group := "Item"
 	if len(rawClaims) == 0 || string(rawClaims) == "null" {
-		r.skip(group, CatCryptographic, "Claims hash skipped (redacted)")
+		r.skip(groupSubjectData, CatCryptographic, "Claims hash skipped (redacted)")
 		return ""
 	}
 
 	canonical, err := jcs.Transform(rawClaims)
 	if err != nil {
-		r.fail(group, CatCryptographic, fmt.Sprintf("Claims JCS failed: %s", err))
+		r.fail(groupSubjectData, CatCryptographic, fmt.Sprintf("Claims JCS failed: %s", err))
 		return ""
 	}
 
 	hash := tscrypto.BytesToHex(tscrypto.DomainHash(tscrypto.PrefixItemClaims, canonical))
-	r.pass(group, CatCryptographic, "Claims hash derived (0x11)")
+	r.pass(groupSubjectData, CatCryptographic, "Claims hash derived (0x11)")
 	return hash
 }
 
@@ -247,18 +259,19 @@ func validateClaimsHashType(r *Report, claims Claims) {
 	if claims.Hash == "" || claims.HashType == "" {
 		return
 	}
-	group := "Item"
 	if err := tscrypto.ValidateClaimsHash(claims.Hash, claims.HashType); err != nil {
-		r.warn(group, CatDataIntegrity, fmt.Sprintf("Claims hash validation: %s", err))
+		r.warn(groupSubjectData, CatDataIntegrity, fmt.Sprintf("Claims hash validation: %s", err))
 	} else {
-		r.pass(group, CatDataIntegrity, fmt.Sprintf("Claims hash length valid for %s", claims.HashType))
+		r.pass(groupSubjectData, CatDataIntegrity, fmt.Sprintf("Claims hash length valid for %s", claims.HashType))
 	}
 }
 
 // --- Step 5: Claims Timestamp ---
 
-func verifyClaimsTimestamp(r *Report, subject proof.Subject) {
-	group := "Item"
+func verifyClaimsTimestamp(r *Report, subject *proof.Subject) {
+	if subject == nil {
+		return
+	}
 	ts := extractClaimsTimestamp(subject.Data)
 	if ts == "" {
 		r.Claims.TimestampStatus = TimestampMissing
@@ -277,31 +290,34 @@ func verifyClaimsTimestamp(r *Report, subject proof.Subject) {
 	if !claimedTime.Before(submittedTime) {
 		r.Claims.TimestampStatus = TimestampFuture
 		r.Claims.TimestampNote = "Claims timestamp is not before submission time (future-dated claim)"
-		r.warn(group, CatTiming, "Claims timestamp is not before submission time (future-dated claim)")
+		r.warn(groupSubjectData, CatTiming, "Claims timestamp is not before submission time (future-dated claim)")
 	} else if submittedTime.Sub(claimedTime) > 7*24*time.Hour {
 		days := int(submittedTime.Sub(claimedTime).Hours() / 24)
 		r.Claims.TimestampStatus = TimestampStale
 		r.Claims.TimestampNote = fmt.Sprintf("Claims timestamp is %d days before submission (stale claim)", days)
-		r.warn(group, CatTiming, fmt.Sprintf("Claims timestamp is %d days before submission (stale claim)", days))
+		r.warn(groupSubjectData, CatTiming, fmt.Sprintf("Claims timestamp is %d days before submission (stale claim)", days))
 	}
 }
 
 // --- Step 6: Item Hash ---
 
-func deriveItemHash(r *Report, subject proof.Subject, claimsHash string) string {
-	group := "Item"
+func deriveItemHash(r *Report, subject *proof.Subject, claimsHash string) string {
+	if subject == nil {
+		r.fail(groupSubjectData, CatCryptographic, "Cannot derive item hash (missing subject)")
+		return ""
+	}
 	if claimsHash == "" || subject.MetadataHash == "" || subject.SigningKeyID == "" {
-		r.fail(group, CatCryptographic, "Cannot derive item hash (missing inputs)")
+		r.fail(groupSubjectData, CatCryptographic, "Cannot derive item hash (missing inputs)")
 		return ""
 	}
 
 	hash, err := tscrypto.ComputeItemHash(subject.ID, claimsHash, subject.MetadataHash, subject.SigningKeyID)
 	if err != nil {
-		r.fail(group, CatCryptographic, fmt.Sprintf("Item hash computation failed: %s", err))
+		r.fail(groupSubjectData, CatCryptographic, fmt.Sprintf("Item hash computation failed: %s", err))
 		return ""
 	}
 
-	r.pass(group, CatCryptographic, "Item hash derived (0x13)")
+	r.pass(groupSubjectData, CatCryptographic, "Item hash derived (0x13)")
 	return hash
 }
 
@@ -333,23 +349,12 @@ func verifyInclusionProof(r *Report, subjectHash, inclusionProof string, block p
 func deriveBlockHash(r *Report, block proof.Block) string {
 	computed, err := tscrypto.ComputeBlockHash(block.ID, block.PreviousBlockHash, block.MerkleRoot, block.MetadataHash, block.SigningKeyID)
 	if err != nil {
-		r.fail(groupBlock, CatCryptographic, fmt.Sprintf("Block hash computation failed: %s", err))
+		r.fail(groupBlockHash, CatCryptographic, fmt.Sprintf("Block hash computation failed: %s", err))
 		return ""
 	}
 
-	r.pass(groupBlock, CatCryptographic, "Block hash derived (0x32)")
+	r.pass(groupBlockHash, CatCryptographic, "Block hash derived (0x32)")
 	return computed
-}
-
-// --- Step 9: Item Key Matches Block ---
-
-func verifyItemKeyMatchesBlock(r *Report, subject proof.Subject, block proof.Block) {
-	group := "Item"
-	if tscrypto.HexEqual(subject.SigningKeyID, block.SigningKeyID) {
-		r.pass(group, CatDataIntegrity, "Item signing key matches block signing key")
-	} else {
-		r.info(group, CatDataIntegrity, "Item signing key differs from block (key rotation)")
-	}
 }
 
 // --- Step 10: Epoch Proofs ---
@@ -372,29 +377,36 @@ func verifyEpochProofs(r *Report, commits []ExternalCommit, blockHash string) []
 			continue
 		}
 
-		valid, err := tscrypto.VerifyMerkleProof(blockHash, proofList, epochTarget(cx))
+		target := epochTarget(cx)
+		if target == "" {
+			r.fail(groupEpoch, CatCryptographic, fmt.Sprintf("Epoch proof %d: missing target for commitment type %d", i, uint16(cx.Type)))
+			epochRoots = append(epochRoots, "")
+			continue
+		}
+
+		valid, err := tscrypto.VerifyMerkleProof(blockHash, proofList, target)
 		if err != nil {
 			r.fail(groupEpoch, CatCryptographic, fmt.Sprintf("Epoch proof %d error: %s", i, err))
 			epochRoots = append(epochRoots, "")
 			continue
 		}
 
-		root := epochTarget(cx)
 		r.check(groupEpoch, CatCryptographic, valid,
-			fmt.Sprintf("Epoch proof %d (%s): block hash maps to committed value (%d steps)", i, cx.Type, len(proofList)))
-		epochRoots = append(epochRoots, root)
+			fmt.Sprintf("Epoch proof %d (%s): block hash maps to committed value (%d steps)",
+				i, ptype.Humanize(cx.Type), len(proofList)))
+		epochRoots = append(epochRoots, target)
 	}
 
 	return epochRoots
 }
 
 // epochTarget returns the committed value for an external commitment:
-// memo for stellar, op_return for bitcoin.
+// memo for stellar (t=40), op_return for bitcoin (t=41).
 func epochTarget(cx ExternalCommit) string {
 	switch cx.Type {
-	case "stellar":
+	case ptype.CommitmentStellar:
 		return cx.MemoHash
-	case "bitcoin":
+	case ptype.CommitmentBitcoin:
 		return cx.OpReturn
 	default:
 		return ""
@@ -424,7 +436,6 @@ func verifyProofSignature(r *Report, bundle *proof.ProofBundle, pubkeyBytes []by
 		}
 	}
 
-	// Parse timestamp from proof ts field
 	tsTime, err := time.Parse(time.RFC3339, bundle.Timestamp)
 	if err != nil {
 		r.fail(groupProof, CatCryptographic, fmt.Sprintf("Cannot parse proof timestamp: %s", err))
@@ -433,7 +444,7 @@ func verifyProofSignature(r *Report, bundle *proof.ProofBundle, pubkeyBytes []by
 	timestampMs := uint64(tsTime.UnixMilli())
 
 	proofHashBytes, err := tscrypto.BuildCompactProofPayload(
-		byte(bundle.Version), keyID, timestampMs, subjectHash, blockHash, epochRoots,
+		byte(bundle.Version), uint16(bundle.T), keyID, timestampMs, subjectHash, blockHash, epochRoots,
 	)
 	if err != nil {
 		r.fail(groupProof, CatCryptographic, fmt.Sprintf("Proof hash computation failed: %s", err))
@@ -456,10 +467,19 @@ func verifyProofSignature(r *Report, bundle *proof.ProofBundle, pubkeyBytes []by
 
 // --- Step 12: Temporal Checks ---
 
-func verifyItemTemporalWindow(r *Report, subject proof.Subject, block proof.Block) {
-	group := "Item"
-	itemTime, err := tscrypto.ExtractULIDTimestamp(subject.ID)
-	if err != nil {
+func verifySubjectTemporalWindow(r *Report, t ptype.Code, subject *proof.Subject, block proof.Block) {
+	if subject == nil {
+		return
+	}
+
+	var subjectTime time.Time
+	var sErr error
+	if t == ptype.Item {
+		subjectTime, sErr = tscrypto.ExtractULIDTimestamp(subject.ID)
+	} else {
+		subjectTime, sErr = tscrypto.ExtractUUIDv7Timestamp(subject.ID)
+	}
+	if sErr != nil {
 		return
 	}
 
@@ -468,43 +488,254 @@ func verifyItemTemporalWindow(r *Report, subject proof.Subject, block proof.Bloc
 		return
 	}
 
-	ok := !itemTime.After(blockTime)
-	r.check(group, CatTiming, ok, fmt.Sprintf("Item submitted before committed block (%s)", blockTime.Format(time.RFC3339)))
+	ok := !subjectTime.After(blockTime)
+	label := "Subject"
+	switch {
+	case t == ptype.Item:
+		label = "Item submitted"
+	case ptype.IsEntropySubject(t):
+		label = "Entropy captured"
+	}
+	r.check(groupTemporal, CatTiming,
+		ok,
+		fmt.Sprintf("%s before committed block (%s)", label, blockTime.Format(time.RFC3339)))
 }
 
-func verifyEntropyTemporalWindow(r *Report, subject proof.Subject, block proof.Block) {
-	group := "Entropy"
-	obsTime, err := tscrypto.ExtractUUIDv7Timestamp(subject.ID)
+func addTemporalInfo(r *Report, t ptype.Code, subject *proof.Subject, block proof.Block) {
+	switch {
+	case t == ptype.Item && subject != nil:
+		r.Temporal.SubmittedAt = tscrypto.FormatItemTime(subject.ID)
+		r.Temporal.CommittedAt = tscrypto.FormatBlockTime(block.ID)
+	case ptype.IsEntropySubject(t) && subject != nil:
+		r.Temporal.CapturedAt = tscrypto.FormatBlockTime(subject.ID)
+		r.Temporal.CommittedAt = tscrypto.FormatBlockTime(block.ID)
+	default:
+		// Block subject: no subject timestamp, just the block.
+		r.Temporal.CommittedAt = tscrypto.FormatBlockTime(block.ID)
+	}
+}
+
+// --- Step 13: Entropy Source consistency ---
+
+// verifyEntropySource confirms that s.d matches the canonical published
+// value at the upstream source. Each entropy type fetches a specific
+// upstream document and byte-compares identifier fields. For NIST Beacon
+// we intentionally do not validate the pulse's X.509 signature chain —
+// the Truestamp service stores only the minimal pulse fields
+// (chainIndex/pulseIndex/outputValue/timeStamp/version), so the subject
+// hash it signed is already over exactly the slice of data we compare.
+//
+// Network selection:
+//   - entropy_stellar: matches the deployment's Stellar network. A given
+//     Truestamp deployment uses one Stellar network for both entropy
+//     observation and commitment, so we derive the network from the
+//     bundle's Stellar commitment in cx[]. Falls back to "public" if
+//     no Stellar commitment is present.
+//   - entropy_bitcoin: always Bitcoin mainnet. The server captures
+//     mainnet Bitcoin blocks as the authoritative public-randomness
+//     source even in dev/test/staging deployments that commit to
+//     testnet/regtest.
+//   - entropy_nist: NIST Beacon is a single global public source.
+func verifyEntropySource(r *Report, t ptype.Code, subject *proof.Subject, commits []proof.ExternalCommit, opts Options) {
+	if opts.SkipExternal {
+		r.skip(groupEntropySource, CatBlockchain,
+			fmt.Sprintf("Entropy source verification skipped for %s (--skip-external)", ptype.Humanize(t)))
+		return
+	}
+	if subject == nil || len(subject.Data) == 0 {
+		r.fail(groupEntropySource, CatBlockchain, "Missing entropy subject data")
+		return
+	}
+
+	switch t {
+	case ptype.EntropyNIST:
+		verifyEntropyNIST(r, subject.Data)
+	case ptype.EntropyStellar:
+		verifyEntropyStellar(r, subject.Data, entropyNetwork(commits, ptype.CommitmentStellar, "public"))
+	case ptype.EntropyBitcoin:
+		// Bitcoin entropy is always captured from mainnet — even in dev
+		// environments that commit to regtest/testnet. Do not derive
+		// from cx[] commitments.
+		verifyEntropyBitcoin(r, subject.Data, "mainnet")
+	default:
+		r.fail(groupEntropySource, CatBlockchain,
+			fmt.Sprintf("Unsupported entropy type code %d", uint16(t)))
+	}
+}
+
+// entropyNetwork returns the network string for the first cx[] entry
+// matching the given commitment code, or the fallback if none match.
+func entropyNetwork(commits []proof.ExternalCommit, code ptype.Code, fallback string) string {
+	for _, c := range commits {
+		if c.Type == code && c.Network != "" {
+			return c.Network
+		}
+	}
+	return fallback
+}
+
+func verifyEntropyNIST(r *Report, rawData json.RawMessage) {
+	// NIST pulses may arrive wrapped in {"pulse": {...}} or flat.
+	var env struct {
+		Pulse *struct {
+			ChainIndex  int    `json:"chainIndex"`
+			PulseIndex  int    `json:"pulseIndex"`
+			OutputValue string `json:"outputValue"`
+			TimeStamp   string `json:"timeStamp"`
+			Version     string `json:"version"`
+		} `json:"pulse"`
+		ChainIndex  int    `json:"chainIndex"`
+		PulseIndex  int    `json:"pulseIndex"`
+		OutputValue string `json:"outputValue"`
+		TimeStamp   string `json:"timeStamp"`
+		Version     string `json:"version"`
+	}
+	if err := json.Unmarshal(rawData, &env); err != nil {
+		r.fail(groupEntropySource, CatBlockchain,
+			fmt.Sprintf("Cannot parse NIST pulse from subject data: %s", err))
+		return
+	}
+	chainIdx, pulseIdx, outputValue, timeStamp := env.ChainIndex, env.PulseIndex, env.OutputValue, env.TimeStamp
+	if env.Pulse != nil {
+		chainIdx = env.Pulse.ChainIndex
+		pulseIdx = env.Pulse.PulseIndex
+		outputValue = env.Pulse.OutputValue
+		timeStamp = env.Pulse.TimeStamp
+	}
+	if outputValue == "" {
+		r.fail(groupEntropySource, CatBlockchain, "NIST entropy subject missing outputValue")
+		return
+	}
+
+	remote, err := external.GetNISTPulse(chainIdx, pulseIdx)
 	if err != nil {
+		r.fail(groupEntropySource, CatBlockchain,
+			fmt.Sprintf("NIST Beacon fetch failed (chain %d, pulse %d): %s", chainIdx, pulseIdx, err))
+		return
+	}
+	if remote.OutputValue != outputValue {
+		r.fail(groupEntropySource, CatBlockchain,
+			fmt.Sprintf("NIST outputValue mismatch at pulse %d: upstream %s, proof %s",
+				pulseIdx, truncateHash(remote.OutputValue), truncateHash(outputValue)))
+		return
+	}
+	if !timestampsEqual(remote.TimeStamp, timeStamp) {
+		r.fail(groupEntropySource, CatBlockchain,
+			fmt.Sprintf("NIST timeStamp mismatch at pulse %d: upstream %s, proof %s",
+				pulseIdx, remote.TimeStamp, timeStamp))
+		return
+	}
+	r.pass(groupEntropySource, CatBlockchain,
+		fmt.Sprintf("NIST Beacon pulse %d (chain %d) confirmed upstream", pulseIdx, chainIdx))
+}
+
+func verifyEntropyStellar(r *Report, rawData json.RawMessage, network string) {
+	var stellar struct {
+		Hash     string `json:"hash"`
+		Sequence int    `json:"sequence"`
+		ClosedAt string `json:"closed_at"`
+	}
+	if err := json.Unmarshal(rawData, &stellar); err != nil {
+		r.fail(groupEntropySource, CatBlockchain,
+			fmt.Sprintf("Cannot parse Stellar ledger from subject data: %s", err))
+		return
+	}
+	if stellar.Sequence == 0 || stellar.Hash == "" {
+		r.fail(groupEntropySource, CatBlockchain, "Stellar entropy subject missing sequence or hash")
 		return
 	}
 
-	blockTime, bErr := tscrypto.ExtractUUIDv7Timestamp(block.ID)
-	if bErr != nil {
+	remote, err := external.GetStellarLedger(stellar.Sequence, network)
+	if err != nil {
+		r.fail(groupEntropySource, CatBlockchain,
+			fmt.Sprintf("Stellar ledger fetch failed (sequence %d on %s): %s", stellar.Sequence, network, err))
+		return
+	}
+	if !tscrypto.HexEqual(remote.Hash, stellar.Hash) {
+		r.fail(groupEntropySource, CatBlockchain,
+			fmt.Sprintf("Stellar ledger hash mismatch at seq %d: upstream %s, proof %s",
+				stellar.Sequence, truncateHash(remote.Hash), truncateHash(stellar.Hash)))
+		return
+	}
+	if !timestampsEqual(remote.ClosedAt, stellar.ClosedAt) {
+		r.fail(groupEntropySource, CatBlockchain,
+			fmt.Sprintf("Stellar ledger closed_at mismatch at seq %d: upstream %s, proof %s",
+				stellar.Sequence, remote.ClosedAt, stellar.ClosedAt))
+		return
+	}
+	r.pass(groupEntropySource, CatBlockchain,
+		fmt.Sprintf("Stellar ledger %d confirmed on %s", stellar.Sequence, network))
+}
+
+func verifyEntropyBitcoin(r *Report, rawData json.RawMessage, network string) {
+	var btc struct {
+		Hash   string `json:"hash"`
+		Height int    `json:"height"`
+		Time   int64  `json:"time"`
+	}
+	if err := json.Unmarshal(rawData, &btc); err != nil {
+		r.fail(groupEntropySource, CatBlockchain,
+			fmt.Sprintf("Cannot parse Bitcoin block from subject data: %s", err))
+		return
+	}
+	if btc.Hash == "" {
+		r.fail(groupEntropySource, CatBlockchain, "Bitcoin entropy subject missing hash")
 		return
 	}
 
-	ok := !obsTime.After(blockTime)
-	r.check(group, CatTiming, ok, fmt.Sprintf("Entropy captured before committed block (%s)", blockTime.Format(time.RFC3339)))
+	remote, skipped, err := external.GetBitcoinBlockHeader(btc.Hash, network)
+	if skipped {
+		r.skip(groupEntropySource, CatBlockchain,
+			fmt.Sprintf("Bitcoin entropy source verification skipped: no public API for %s", network))
+		return
+	}
+	if err != nil {
+		r.fail(groupEntropySource, CatBlockchain,
+			fmt.Sprintf("Bitcoin block fetch failed (hash %s on %s): %s", truncateHash(btc.Hash), network, err))
+		return
+	}
+	if !tscrypto.HexEqual(remote.Hash, btc.Hash) {
+		r.fail(groupEntropySource, CatBlockchain,
+			fmt.Sprintf("Bitcoin block hash mismatch: upstream %s, proof %s",
+				truncateHash(remote.Hash), truncateHash(btc.Hash)))
+		return
+	}
+	if btc.Height != 0 && remote.Height != btc.Height {
+		r.fail(groupEntropySource, CatBlockchain,
+			fmt.Sprintf("Bitcoin height mismatch at hash %s: upstream %d, proof %d",
+				truncateHash(btc.Hash), remote.Height, btc.Height))
+		return
+	}
+	if btc.Time != 0 && remote.Time != btc.Time {
+		r.fail(groupEntropySource, CatBlockchain,
+			fmt.Sprintf("Bitcoin block time mismatch at height %d: upstream %d, proof %d",
+				remote.Height, remote.Time, btc.Time))
+		return
+	}
+	r.pass(groupEntropySource, CatBlockchain,
+		fmt.Sprintf("Bitcoin block %d confirmed on %s", remote.Height, network))
 }
 
-// --- Step 13: Temporal Info ---
-
-func addTemporalInfo(r *Report, subject proof.Subject, block proof.Block) {
-	r.Temporal.SubmittedAt = tscrypto.FormatItemTime(subject.ID)
-	r.Temporal.CommittedAt = tscrypto.FormatBlockTime(block.ID)
-}
-
-func addEntropyTemporalInfo(r *Report, subject proof.Subject, block proof.Block) {
-	r.Temporal.CapturedAt = tscrypto.FormatBlockTime(subject.ID)
-	r.Temporal.CommittedAt = tscrypto.FormatBlockTime(block.ID)
+// timestampsEqual compares two ISO 8601 timestamp strings after parsing,
+// so "2026-04-22T19:45:00Z" and "2026-04-22T19:45:00.000Z" are treated
+// as equal. Falls back to string equality on parse failure.
+func timestampsEqual(a, b string) bool {
+	if a == b {
+		return true
+	}
+	ta, errA := time.Parse(time.RFC3339Nano, a)
+	tb, errB := time.Parse(time.RFC3339Nano, b)
+	if errA != nil || errB != nil {
+		return false
+	}
+	return ta.Equal(tb)
 }
 
 // --- Step 14: Stellar Commitments ---
 
 func verifyStellarCommitments(r *Report, commits []proof.ExternalCommit, blockHash string, opts Options) {
 	for i := range commits {
-		if commits[i].Type != "stellar" {
+		if commits[i].Type != ptype.CommitmentStellar {
 			continue
 		}
 		verifySingleStellar(r, &commits[i], blockHash, opts)
@@ -512,7 +743,6 @@ func verifyStellarCommitments(r *Report, commits []proof.ExternalCommit, blockHa
 }
 
 func verifySingleStellar(r *Report, cx *proof.ExternalCommit, blockHash string, opts Options) {
-	// Build commitment info for display
 	ci := CommitmentInfo{
 		Method:        "stellar",
 		Network:       cx.Network,
@@ -525,13 +755,15 @@ func verifySingleStellar(r *Report, cx *proof.ExternalCommit, blockHash string, 
 
 	if opts.SkipExternal {
 		r.skip(groupStellar, CatBlockchain, "External Stellar verification skipped (--skip-external)")
+	} else if cx.Network != "testnet" && cx.Network != "public" {
+		r.fail(groupStellar, CatBlockchain,
+			fmt.Sprintf("Stellar net %q is not a recognised Stellar network (expected testnet or public)", cx.Network))
 	} else {
 		result, err := external.VerifyStellar(cx.TransactionHash, cx.MemoHash, cx.Network, cx.Ledger)
 		if err != nil {
 			r.fail(groupStellar, CatBlockchain, fmt.Sprintf("Stellar external verification failed: %s", err))
 		} else {
 			r.pass(groupStellar, CatBlockchain, fmt.Sprintf("Transaction %s confirmed on %s (ledger %d)", cx.TransactionHash, cx.Network, result.Ledger))
-			// Use externally confirmed timestamp as the gold standard
 			if result.Timestamp != "" {
 				ci.Timestamp = result.Timestamp
 			}
@@ -545,7 +777,7 @@ func verifySingleStellar(r *Report, cx *proof.ExternalCommit, blockHash string, 
 
 func verifyBitcoinCommitments(r *Report, commits []proof.ExternalCommit, blockHash string, opts Options) {
 	for i := range commits {
-		if commits[i].Type != "bitcoin" {
+		if commits[i].Type != ptype.CommitmentBitcoin {
 			continue
 		}
 		verifySingleBitcoin(r, &commits[i], blockHash, opts)
@@ -553,7 +785,6 @@ func verifyBitcoinCommitments(r *Report, commits []proof.ExternalCommit, blockHa
 }
 
 func verifySingleBitcoin(r *Report, cx *proof.ExternalCommit, blockHash string, opts Options) {
-	// OP_RETURN extraction from raw transaction
 	extractedOpReturn, err := bitcoin.ExtractOpReturn(cx.RawTxHex)
 	if err != nil {
 		r.fail(groupBitcoin, CatBlockchain, fmt.Sprintf("OP_RETURN extraction failed: %s", err))
@@ -563,7 +794,6 @@ func verifySingleBitcoin(r *Report, cx *proof.ExternalCommit, blockHash string, 
 			"OP_RETURN extracted from raw transaction matches")
 	}
 
-	// Txid computation (handles segwit non-witness serialization)
 	computedTxid, err := bitcoin.ComputeTxID(cx.RawTxHex)
 	if err != nil {
 		r.fail(groupBitcoin, CatBlockchain, fmt.Sprintf("Txid computation failed: %s", err))
@@ -573,7 +803,6 @@ func verifySingleBitcoin(r *Report, cx *proof.ExternalCommit, blockHash string, 
 			fmt.Sprintf("Transaction %s verified from raw tx", cx.TransactionHash))
 	}
 
-	// Parse txoutproof and verify partial merkle tree (BIP 37)
 	mb, err := bitcoin.DecodeTxOutProof(cx.TxoutproofHex)
 	if err != nil {
 		r.fail(groupBitcoin, CatBlockchain, fmt.Sprintf("Txoutproof parse failed: %s", err))
@@ -595,7 +824,6 @@ func verifySingleBitcoin(r *Report, cx *proof.ExternalCommit, blockHash string, 
 
 	r.check(groupBitcoin, CatBlockchain, merkleResult.Valid && txidInMatched, "Bitcoin merkle proof valid")
 
-	// Build commitment info for display
 	timestamp := cx.Timestamp
 	ci := CommitmentInfo{
 		Method:        "bitcoin",
@@ -618,7 +846,6 @@ func verifySingleBitcoin(r *Report, cx *proof.ExternalCommit, blockHash string, 
 			r.fail(groupBitcoin, CatBlockchain, fmt.Sprintf("Bitcoin external verification failed: %s", err))
 		} else {
 			r.pass(groupBitcoin, CatBlockchain, fmt.Sprintf("Block confirmed on %s (height %d)", cx.Network, result.Height))
-			// Use externally confirmed timestamp as the gold standard
 			if result.Timestamp != "" {
 				ci.Timestamp = result.Timestamp
 			}
@@ -631,53 +858,55 @@ func verifySingleBitcoin(r *Report, cx *proof.ExternalCommit, blockHash string, 
 // --- Entropy Hash ---
 
 func deriveEntropyHash(r *Report, rawData json.RawMessage) string {
-	group := "Entropy"
 	if len(rawData) == 0 || string(rawData) == "null" {
-		r.fail(group, CatCryptographic, "Entropy data missing")
+		r.fail(groupSubjectData, CatCryptographic, "Entropy data missing")
 		return ""
 	}
 
 	canonical, err := jcs.Transform(rawData)
 	if err != nil {
-		r.fail(group, CatCryptographic, fmt.Sprintf("Entropy JCS failed: %s", err))
+		r.fail(groupSubjectData, CatCryptographic, fmt.Sprintf("Entropy JCS failed: %s", err))
 		return ""
 	}
 
 	hash := tscrypto.ComputeEntropyHash(canonical)
-	r.pass(group, CatCryptographic, "Entropy hash derived (0x21)")
+	r.pass(groupSubjectData, CatCryptographic, "Entropy hash derived (0x21)")
 	return hash
 }
 
 // --- Observation Hash ---
 
-func deriveObservationHash(r *Report, subject proof.Subject, entropyHash string) string {
-	group := "Entropy"
+func deriveObservationHash(r *Report, subject *proof.Subject, entropyHash string) string {
+	if subject == nil {
+		r.fail(groupSubjectData, CatCryptographic, "Cannot derive observation hash (missing subject)")
+		return ""
+	}
 	if entropyHash == "" || subject.MetadataHash == "" || subject.SigningKeyID == "" {
-		r.fail(group, CatCryptographic, "Cannot derive observation hash (missing inputs)")
+		r.fail(groupSubjectData, CatCryptographic, "Cannot derive observation hash (missing inputs)")
 		return ""
 	}
 
 	hash, err := tscrypto.ComputeObservationHash(subject.ID, entropyHash, subject.MetadataHash, subject.SigningKeyID)
 	if err != nil {
-		r.fail(group, CatCryptographic, fmt.Sprintf("Observation hash computation failed: %s", err))
+		r.fail(groupSubjectData, CatCryptographic, fmt.Sprintf("Observation hash computation failed: %s", err))
 		return ""
 	}
 
-	r.pass(group, CatCryptographic, "Observation hash derived (0x23)")
+	r.pass(groupSubjectData, CatCryptographic, "Observation hash derived (0x23)")
 	return hash
 }
 
-// --- Entropy Subject Parsing ---
+// --- Entropy Subject Parsing (display only) ---
 
-func parseEntropySubject(source string, rawEntropy json.RawMessage) EntropySubject {
-	subject := EntropySubject{RawSource: source, Source: humanizeSource(source)}
+func parseEntropySubject(t ptype.Code, rawEntropy json.RawMessage) EntropySubject {
+	subject := EntropySubject{RawSource: ptype.Name(t), Source: ptype.Humanize(t)}
 
 	if len(rawEntropy) == 0 {
 		return subject
 	}
 
-	switch source {
-	case "nist_beacon":
+	switch t {
+	case ptype.EntropyNIST:
 		var nist struct {
 			Pulse struct {
 				TimeStamp   string `json:"timeStamp"`
@@ -695,7 +924,7 @@ func parseEntropySubject(source string, rawEntropy json.RawMessage) EntropySubje
 			subject.OutputValue = nist.Pulse.OutputValue
 		}
 
-	case "bitcoin_block":
+	case ptype.EntropyBitcoin:
 		var btc struct {
 			Hash   string `json:"hash"`
 			Height int    `json:"height"`
@@ -710,7 +939,7 @@ func parseEntropySubject(source string, rawEntropy json.RawMessage) EntropySubje
 			}
 		}
 
-	case "stellar_ledger":
+	case ptype.EntropyStellar:
 		var stellar struct {
 			Hash     string `json:"hash"`
 			Sequence int    `json:"sequence"`
@@ -722,26 +951,9 @@ func parseEntropySubject(source string, rawEntropy json.RawMessage) EntropySubje
 			subject.LedgerClosedAt = stellar.ClosedAt
 			subject.CapturedAt = stellar.ClosedAt
 		}
-
-	default:
-		subject.Source = "Unknown entropy source: " + source
 	}
 
 	return subject
-}
-
-// humanizeSource converts an entropy source identifier to a human-readable name.
-func humanizeSource(source string) string {
-	switch source {
-	case "nist_beacon":
-		return "NIST Beacon"
-	case "bitcoin_block":
-		return "Bitcoin Block"
-	case "stellar_ledger":
-		return "Stellar Ledger"
-	default:
-		return source
-	}
 }
 
 // --- Helpers ---

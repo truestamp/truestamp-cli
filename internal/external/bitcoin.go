@@ -72,3 +72,55 @@ func VerifyBitcoinBlock(blockHash, network string) (*BitcoinResult, bool, error)
 		Timestamp: ts,
 	}, false, nil
 }
+
+// blockstreamHeader is the subset of fields the CLI reads for
+// entropy_bitcoin verification. Blockstream returns many more fields.
+type blockstreamHeader struct {
+	ID         string `json:"id"`
+	Height     int    `json:"height"`
+	Timestamp  int64  `json:"timestamp"`
+	MerkleRoot string `json:"merkle_root"`
+}
+
+// BitcoinBlockHeader is the CLI-facing return shape for GetBitcoinBlockHeader.
+type BitcoinBlockHeader struct {
+	Hash       string
+	Height     int
+	Time       int64
+	MerkleRoot string
+}
+
+// GetBitcoinBlockHeader fetches a Bitcoin block header from Blockstream by
+// block hash. Returns (nil, skipped=true, nil) for regtest (no public API).
+func GetBitcoinBlockHeader(blockHash, network string) (*BitcoinBlockHeader, bool, error) {
+	var baseURL string
+	switch network {
+	case "mainnet":
+		baseURL = BlockstreamMainnetURL
+	case "testnet":
+		baseURL = BlockstreamTestnetURL
+	default:
+		return nil, true, nil
+	}
+	if _, err := hex.DecodeString(blockHash); err != nil || len(blockHash) != 64 {
+		return nil, false, fmt.Errorf("invalid block hash format")
+	}
+	url := fmt.Sprintf("%s/block/%s", baseURL, blockHash)
+	body, err := httpclient.GetJSON(url)
+	if err != nil {
+		return nil, false, fmt.Errorf("fetching Bitcoin block header: %w", err)
+	}
+	var h blockstreamHeader
+	if err := json.Unmarshal(body, &h); err != nil {
+		return nil, false, fmt.Errorf("parsing Blockstream block response: %w", err)
+	}
+	if h.ID == "" {
+		return nil, false, fmt.Errorf("blockstream response missing block id")
+	}
+	return &BitcoinBlockHeader{
+		Hash:       h.ID,
+		Height:     h.Height,
+		Time:       h.Timestamp,
+		MerkleRoot: h.MerkleRoot,
+	}, false, nil
+}

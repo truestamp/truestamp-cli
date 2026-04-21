@@ -14,6 +14,7 @@ import (
 	"fmt"
 
 	"github.com/fxamacker/cbor/v2"
+	"github.com/truestamp/truestamp-cli/internal/proof/ptype"
 )
 
 // IsCBORProof checks for CBOR self-describing tag (0xd9d9f7, RFC 8949 tag 55799).
@@ -36,6 +37,20 @@ func ParseCBOR(data []byte) (*ProofBundle, error) {
 		return nil, fmt.Errorf("CBOR decode: %w", err)
 	}
 
+	version := toInt(raw["v"])
+	if version == 0 {
+		return nil, fmt.Errorf("missing required field: v")
+	}
+
+	tRaw, hasT := raw["t"]
+	if !hasT {
+		return nil, fmt.Errorf("missing required field: t")
+	}
+	t := ptype.Code(toInt(tRaw))
+	if !ptype.IsValidSubject(t) {
+		return nil, fmt.Errorf("invalid subject type code: %d", t)
+	}
+
 	publicKeyB64, err := bytesToBase64(raw, "pk")
 	if err != nil {
 		return nil, fmt.Errorf("pk: %w", err)
@@ -44,11 +59,6 @@ func ParseCBOR(data []byte) (*ProofBundle, error) {
 	signatureB64, err := bytesToBase64(raw, "sig")
 	if err != nil {
 		return nil, fmt.Errorf("sig: %w", err)
-	}
-
-	subject, rawData, err := decodeSubjectCBOR(raw["s"])
-	if err != nil {
-		return nil, fmt.Errorf("s: %w", err)
 	}
 
 	block, err := decodeBlockCBOR(raw["b"])
@@ -60,27 +70,64 @@ func ParseCBOR(data []byte) (*ProofBundle, error) {
 	if err != nil {
 		return nil, fmt.Errorf("cx: %w", err)
 	}
-
-	proofType := "item"
-	if subject.Source != "item" {
-		proofType = "entropy"
+	if len(commits) == 0 {
+		return nil, fmt.Errorf("cx must not be empty")
+	}
+	for i, cx := range commits {
+		if !ptype.IsValidExternalCommitment(cx.Type) {
+			return nil, fmt.Errorf("cx[%d]: invalid commitment type code: %d", i, cx.Type)
+		}
 	}
 
 	timestamp, _ := raw["ts"].(string)
-	inclusionProof := getStringField(raw, "ip")
 
-	return &ProofBundle{
-		Version:        toInt(raw["v"]),
-		Type:           proofType,
-		Timestamp:      timestamp,
-		PublicKey:      publicKeyB64,
-		Signature:      signatureB64,
-		Subject:        subject,
-		Block:          block,
-		Commitments:    commits,
-		InclusionProof: inclusionProof,
-		RawData:        rawData,
-	}, nil
+	bundle := &ProofBundle{
+		Version:     version,
+		T:           t,
+		Timestamp:   timestamp,
+		PublicKey:   publicKeyB64,
+		Signature:   signatureB64,
+		Block:       block,
+		Commitments: commits,
+	}
+
+	if t == ptype.Block {
+		if _, ok := raw["s"]; ok {
+			return nil, fmt.Errorf("block proof must not include s")
+		}
+		if v, ok := raw["ip"]; ok && v != nil {
+			return nil, fmt.Errorf("block proof must not include ip")
+		}
+		if err := validateSizes(bundle); err != nil {
+			return nil, err
+		}
+		return bundle, nil
+	}
+
+	sRaw, ok := raw["s"]
+	if !ok || sRaw == nil {
+		return nil, fmt.Errorf("missing required field: s")
+	}
+	subject, rawData, err := decodeSubjectCBOR(sRaw)
+	if err != nil {
+		return nil, fmt.Errorf("s: %w", err)
+	}
+	if subject.ID == "" || subject.MetadataHash == "" || subject.SigningKeyID == "" {
+		return nil, fmt.Errorf("subject missing required fields (id, mh, kid)")
+	}
+
+	inclusionProof := getStringField(raw, "ip")
+	if inclusionProof == "" {
+		return nil, fmt.Errorf("missing required field: ip")
+	}
+
+	bundle.Subject = &subject
+	bundle.InclusionProof = inclusionProof
+	bundle.RawData = rawData
+	if err := validateSizes(bundle); err != nil {
+		return nil, err
+	}
+	return bundle, nil
 }
 
 func decodeSubjectCBOR(v any) (Subject, json.RawMessage, error) {
@@ -93,7 +140,6 @@ func decodeSubjectCBOR(v any) (Subject, json.RawMessage, error) {
 		m = toAnyKeyMap(m2)
 	}
 
-	source, _ := m["src"].(string)
 	id, _ := m["id"].(string)
 	metadataHash := bytesFieldToHex(m, "mh")
 	signingKeyID := bytesFieldToHex(m, "kid")
@@ -104,7 +150,6 @@ func decodeSubjectCBOR(v any) (Subject, json.RawMessage, error) {
 	}
 
 	subject := Subject{
-		Source:       source,
 		ID:           id,
 		Data:         dataJSON,
 		MetadataHash: metadataHash,
@@ -146,7 +191,7 @@ func decodeCommitsCBOR(v any) ([]ExternalCommit, error) {
 		}
 
 		ec := ExternalCommit{
-			Type:    getString(m, "t"),
+			Type:    ptype.Code(getInt(m, "t")),
 			Network: getString(m, "net"),
 		}
 

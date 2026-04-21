@@ -10,6 +10,7 @@ import (
 	"fmt"
 
 	"github.com/fxamacker/cbor/v2"
+	"github.com/truestamp/truestamp-cli/internal/proof/ptype"
 )
 
 // deterministicCBOR is a CBOR encode mode configured for RFC 8949 §4.2
@@ -24,9 +25,10 @@ var deterministicCBOR, _ = cbor.CoreDetEncOptions().EncMode()
 // MarshalCBOR produces the canonical CBOR representation of the proof
 // bundle. Byte-valued fields (`pk`, `sig`, hashes, epoch/inclusion
 // proofs) are emitted as CBOR major-type-2 byte strings; identifier
-// fields (ULID, UUIDv7, timestamps, enum strings) remain text. The
-// subject data (`s.d`) is decoded back from its preserved raw JSON and
-// encoded as a nested CBOR structure.
+// fields (ULID, UUIDv7, timestamps) remain text. The subject data
+// (`s.d`) is decoded back from its preserved raw JSON and encoded as a
+// nested CBOR structure. `t` is emitted as a CBOR integer at the top
+// level and per commitment entry.
 //
 // Round-trip guarantee: `cbor → Parse → MarshalCBOR` is byte-stable for
 // inputs that are themselves deterministically encoded. Non-deterministic
@@ -41,10 +43,6 @@ func (b *ProofBundle) MarshalCBOR() ([]byte, error) {
 		return nil, fmt.Errorf("sig base64 decode: %w", err)
 	}
 
-	subjectMap, err := subjectToCBORMap(b.Subject, b.RawData)
-	if err != nil {
-		return nil, fmt.Errorf("s: %w", err)
-	}
 	blockMap, err := blockToCBORMap(b.Block)
 	if err != nil {
 		return nil, fmt.Errorf("b: %w", err)
@@ -54,21 +52,32 @@ func (b *ProofBundle) MarshalCBOR() ([]byte, error) {
 		return nil, fmt.Errorf("cx: %w", err)
 	}
 
-	ipBytes, err := decodeB64URLOrBytes(b.InclusionProof)
-	if err != nil {
-		return nil, fmt.Errorf("ip base64url decode: %w", err)
-	}
-
 	out := map[string]any{
 		"v":   b.Version,
+		"t":   uint16(b.T),
 		"ts":  b.Timestamp,
 		"pk":  pkBytes,
 		"sig": sigBytes,
-		"s":   subjectMap,
 		"b":   blockMap,
-		"ip":  ipBytes,
 		"cx":  commits,
 	}
+
+	if b.T != ptype.Block {
+		if b.Subject == nil {
+			return nil, fmt.Errorf("non-block proof missing subject")
+		}
+		subjectMap, err := subjectToCBORMap(*b.Subject, b.RawData)
+		if err != nil {
+			return nil, fmt.Errorf("s: %w", err)
+		}
+		ipBytes, err := decodeB64URLOrBytes(b.InclusionProof)
+		if err != nil {
+			return nil, fmt.Errorf("ip base64url decode: %w", err)
+		}
+		out["s"] = subjectMap
+		out["ip"] = ipBytes
+	}
+
 	body, err := deterministicCBOR.Marshal(out)
 	if err != nil {
 		return nil, err
@@ -104,7 +113,6 @@ func subjectToCBORMap(s Subject, rawData json.RawMessage) (map[string]any, error
 	}
 
 	return map[string]any{
-		"src": s.Source,
 		"id":  s.ID,
 		"d":   data,
 		"mh":  mh,
@@ -142,7 +150,7 @@ func commitsToCBOR(commits []ExternalCommit) ([]any, error) {
 	out := make([]any, 0, len(commits))
 	for i, c := range commits {
 		m := map[string]any{
-			"t":   c.Type,
+			"t":   uint16(c.Type),
 			"net": c.Network,
 		}
 		ep, err := decodeB64URLOrBytes(c.EpochProof)

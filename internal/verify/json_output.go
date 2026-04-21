@@ -182,7 +182,15 @@ func computeResult(r *Report) string {
 }
 
 func buildSubject(r *Report) any {
-	if r.SubjectType == "entropy" {
+	switch r.SubjectType {
+	case "block":
+		return map[string]any{
+			"block_id":     r.SubjectID,
+			"signing_key":  r.SigningKeyID,
+			"committed_at": r.Temporal.CommittedAt,
+		}
+
+	case "entropy_nist", "entropy_stellar", "entropy_bitcoin":
 		m := map[string]any{}
 		if r.EntropySubject.RawSource != "" {
 			m["source"] = r.EntropySubject.RawSource
@@ -190,9 +198,8 @@ func buildSubject(r *Report) any {
 		if r.EntropySubject.CapturedAt != "" {
 			m["captured_at"] = r.EntropySubject.CapturedAt
 		}
-		// Source-specific fields
 		switch r.EntropySubject.RawSource {
-		case "nist_beacon":
+		case "entropy_nist":
 			if r.EntropySubject.PulseIndex > 0 {
 				m["pulse_index"] = r.EntropySubject.PulseIndex
 			}
@@ -205,7 +212,7 @@ func buildSubject(r *Report) any {
 			if r.EntropySubject.OutputValue != "" {
 				m["output_value"] = r.EntropySubject.OutputValue
 			}
-		case "bitcoin_block":
+		case "entropy_bitcoin":
 			if r.EntropySubject.BlockHeight > 0 {
 				m["block_height"] = r.EntropySubject.BlockHeight
 			}
@@ -215,7 +222,7 @@ func buildSubject(r *Report) any {
 			if r.EntropySubject.BlockTime > 0 {
 				m["block_time"] = r.EntropySubject.BlockTime
 			}
-		case "stellar_ledger":
+		case "entropy_stellar":
 			if r.EntropySubject.LedgerSequence > 0 {
 				m["ledger_sequence"] = r.EntropySubject.LedgerSequence
 			}
@@ -229,6 +236,7 @@ func buildSubject(r *Report) any {
 		return m
 	}
 
+	// Default: item
 	m := map[string]any{}
 	if r.Claims.Name != "" {
 		m["name"] = r.Claims.Name

@@ -13,31 +13,32 @@ import (
 	"testing"
 
 	"github.com/truestamp/truestamp-cli/internal/proof"
+	"github.com/truestamp/truestamp-cli/internal/proof/ptype"
 )
 
-// Minimal valid proof JSON in the new compact format.
+// Minimal valid proof JSON in the compact format.
 // Crypto values are fake -- this tests the orchestrator flow, not crypto correctness.
 const minimalProofJSON = `{
   "v": 1,
+  "t": 20,
   "pk": "CTwMqDZnPd/QTLSq8aTeSD3a+j2DQxKcGfhhIYJQ65Y=",
-  "sig": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+  "sig": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==",
   "ts": "2026-04-06T23:25:06Z",
   "s": {
-    "src": "item",
     "id": "01TEST",
     "d": {"name": "test"},
-    "mh": "ccdd",
+    "mh": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
     "kid": "4ceefa4a"
   },
   "b": {
     "id": "019cf813-99b8-730a-84f1-5a711a9c355e",
-    "ph": "1111",
-    "mr": "2222",
-    "mh": "4444",
+    "ph": "1111111111111111111111111111111111111111111111111111111111111111",
+    "mr": "2222222222222222222222222222222222222222222222222222222222222222",
+    "mh": "4444444444444444444444444444444444444444444444444444444444444444",
     "kid": "4ceefa4a"
   },
   "ip": "AA",
-  "cx": []
+  "cx": [{"t": 40, "net": "testnet", "tx": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "memo": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb", "l": 1, "ep": "AA"}]
 }`
 
 func writeTemp(t *testing.T, content string) string {
@@ -142,42 +143,42 @@ func indexOf(s, substr string) int {
 // Proof with stellar and bitcoin commitments (fake crypto, but exercises commitment code paths)
 const proofWithCommitmentsJSON = `{
   "v": 1,
+  "t": 20,
   "pk": "CTwMqDZnPd/QTLSq8aTeSD3a+j2DQxKcGfhhIYJQ65Y=",
-  "sig": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+  "sig": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==",
   "ts": "2026-04-06T23:25:06Z",
   "s": {
-    "src": "item",
     "id": "01TEST",
     "d": {"name": "test"},
-    "mh": "ccdd",
+    "mh": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
     "kid": "4ceefa4a"
   },
   "b": {
     "id": "019cf813-99b8-730a-84f1-5a711a9c355e",
-    "ph": "1111",
-    "mr": "2222",
-    "mh": "4444",
+    "ph": "1111111111111111111111111111111111111111111111111111111111111111",
+    "mr": "2222222222222222222222222222222222222222222222222222222222222222",
+    "mh": "4444444444444444444444444444444444444444444444444444444444444444",
     "kid": "4ceefa4a"
   },
   "ip": "AA",
   "cx": [
     {
-      "t": "stellar",
+      "t": 40,
       "net": "testnet",
-      "tx": "aaaa",
-      "memo": "3333",
+      "tx": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "memo": "3333333333333333333333333333333333333333333333333333333333333333",
       "l": 100,
       "ts": "2026-04-06T23:25:06Z",
       "ep": "AA"
     },
     {
-      "t": "bitcoin",
+      "t": 41,
       "net": "regtest",
-      "tx": "bbbb",
-      "op": "6666",
+      "tx": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "op": "6666666666666666666666666666666666666666666666666666666666666666",
       "rtx": "0200000001abcdef",
       "txp": "aabbccdd",
-      "bmr": "cccc",
+      "bmr": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
       "h": 500,
       "ts": "2026-04-06T23:25:06Z",
       "ep": "AA"
@@ -470,9 +471,8 @@ func TestDeriveClaimsHash_ValidClaims(t *testing.T) {
 
 func TestDeriveItemHash_MissingInputs(t *testing.T) {
 	r := &Report{}
-	subject := proof.Subject{
+	subject := &proof.Subject{
 		ID:           "test",
-		Source:       "item",
 		MetadataHash: "",
 		SigningKeyID: "4ceefa4a",
 	}
@@ -493,7 +493,8 @@ func TestDeriveItemHash_MissingInputs(t *testing.T) {
 
 func TestVerifyStructure_EmptyBlock(t *testing.T) {
 	r := &Report{}
-	verifyStructure(r, proof.Block{})
+	bundle := &proof.ProofBundle{T: ptype.Item, Commitments: []proof.ExternalCommit{{Type: ptype.CommitmentStellar}}}
+	verifyStructure(r, bundle, proof.Block{})
 	hasFail := false
 	for _, s := range r.Steps {
 		if s.Status == StatusFail {
@@ -507,7 +508,8 @@ func TestVerifyStructure_EmptyBlock(t *testing.T) {
 
 func TestVerifyStructure_ValidBlock(t *testing.T) {
 	r := &Report{}
-	verifyStructure(r, proof.Block{ID: "b1", MerkleRoot: "aaaa"})
+	bundle := &proof.ProofBundle{T: ptype.Item, Commitments: []proof.ExternalCommit{{Type: ptype.CommitmentStellar}}}
+	verifyStructure(r, bundle, proof.Block{ID: "b1", MerkleRoot: "aaaa"})
 	hasFail := false
 	for _, s := range r.Steps {
 		if s.Status == StatusFail {
@@ -542,7 +544,7 @@ func TestVerifyBitcoinCommitment_FullPath(t *testing.T) {
 	r := &Report{}
 	commits := []proof.ExternalCommit{
 		{
-			Type:            "bitcoin",
+			Type:            ptype.CommitmentBitcoin,
 			Network:         "regtest",
 			TransactionHash: "29c38e578c10ff89e1a0392d97b3f4fd4c83c439a5ad2977f294182724718752",
 			OpReturn:        "16c095556481e3f5f5c410cd2d5cad50d17f09a5ae16ac2deda88d64db5c424b",
@@ -575,7 +577,7 @@ func TestVerifyBitcoinCommitment_MalformedTx(t *testing.T) {
 	r := &Report{}
 	commits := []proof.ExternalCommit{
 		{
-			Type:            "bitcoin",
+			Type:            ptype.CommitmentBitcoin,
 			Network:         "regtest",
 			TransactionHash: "aaaa",
 			OpReturn:        "bbbb",
@@ -603,7 +605,7 @@ func TestVerifyBitcoinCommitment_ExternalSkipped(t *testing.T) {
 	r := &Report{}
 	commits := []proof.ExternalCommit{
 		{
-			Type:            "bitcoin",
+			Type:            ptype.CommitmentBitcoin,
 			Network:         "regtest",
 			TransactionHash: "29c38e578c10ff89e1a0392d97b3f4fd4c83c439a5ad2977f294182724718752",
 			OpReturn:        "16c095556481e3f5f5c410cd2d5cad50d17f09a5ae16ac2deda88d64db5c424b",
@@ -860,13 +862,14 @@ func TestReport_ProofPassed_ExcludesHashFailure(t *testing.T) {
 func TestRunFromBytes_HashWithEntropyProof_FailsInReport(t *testing.T) {
 	minimalEntropy := `{
 		"v": 1,
+		"t": 30,
 		"pk": "CTwMqDZnPd/QTLSq8aTeSD3a+j2DQxKcGfhhIYJQ65Y=",
-		"sig": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+		"sig": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==",
 		"ts": "2026-04-06T23:25:06Z",
-		"s": {"src": "nist_beacon", "id": "019cf813-99b8-730a-84f1-5a711a9c355e", "d": {}, "mh": "ccddccddccddccddccddccddccddccddccddccddccddccddccddccddccddccdd", "kid": "4ceefa4a"},
+		"s": {"id": "019cf813-99b8-730a-84f1-5a711a9c355e", "d": {}, "mh": "ccddccddccddccddccddccddccddccddccddccddccddccddccddccddccddccdd", "kid": "4ceefa4a"},
 		"b": {"id": "019cf813-99b8-730a-84f1-5a711a9c355e", "ph": "1111111111111111111111111111111111111111111111111111111111111111", "mr": "2222222222222222222222222222222222222222222222222222222222222222", "mh": "4444444444444444444444444444444444444444444444444444444444444444", "kid": "4ceefa4a"},
 		"ip": "AA",
-		"cx": []
+		"cx": [{"t": 40, "net": "testnet", "tx": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "memo": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb", "l": 1, "ep": "AA"}]
 	}`
 	report, err := RunFromBytes([]byte(minimalEntropy), "(test)", Options{
 		SkipExternal: true,
@@ -1136,11 +1139,11 @@ func TestTruncateToSecond_Invalid(t *testing.T) {
 // Minimal valid entropy proof JSON for testing.
 const minimalEntropyProofJSON = `{
   "v": 1,
+  "t": 30,
   "pk": "CTwMqDZnPd/QTLSq8aTeSD3a+j2DQxKcGfhhIYJQ65Y=",
-  "sig": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+  "sig": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==",
   "ts": "2026-03-27T13:48:35Z",
   "s": {
-    "src": "nist_beacon",
     "id": "019d2ae3-865c-7651-9923-b14c55bc8e33",
     "d": {"pulse": {"outputValue": "ABC123"}},
     "mh": "5555555555555555555555555555555555555555555555555555555555555555",
@@ -1148,13 +1151,13 @@ const minimalEntropyProofJSON = `{
   },
   "b": {
     "id": "019cf813-99b8-730a-84f1-5a711a9c355e",
-    "ph": "1111",
-    "mr": "2222",
-    "mh": "4444",
+    "ph": "1111111111111111111111111111111111111111111111111111111111111111",
+    "mr": "2222222222222222222222222222222222222222222222222222222222222222",
+    "mh": "4444444444444444444444444444444444444444444444444444444444444444",
     "kid": "4ceefa4a"
   },
   "ip": "AA",
-  "cx": []
+  "cx": [{"t": 40, "net": "testnet", "tx": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "memo": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb", "l": 1, "ep": "AA"}]
 }`
 
 func TestRun_MinimalEntropyProof_ParsesCorrectly(t *testing.T) {
@@ -1166,14 +1169,14 @@ func TestRun_MinimalEntropyProof_ParsesCorrectly(t *testing.T) {
 	if report == nil {
 		t.Fatal("expected non-nil report")
 	}
-	if report.SubjectType != "entropy" {
-		t.Errorf("SubjectType: got %q, want entropy", report.SubjectType)
+	if report.SubjectType != "entropy_nist" {
+		t.Errorf("SubjectType: got %q, want entropy_nist", report.SubjectType)
 	}
 	if report.SubjectID != "019d2ae3-865c-7651-9923-b14c55bc8e33" {
 		t.Errorf("SubjectID: got %q", report.SubjectID)
 	}
-	if report.Source != "nist_beacon" {
-		t.Errorf("Source: got %q, want nist_beacon", report.Source)
+	if report.Source != "entropy_nist" {
+		t.Errorf("Source: got %q, want entropy_nist", report.Source)
 	}
 	if report.GeneratedAt != "2026-03-27T13:48:35Z" {
 		t.Errorf("GeneratedAt: got %q", report.GeneratedAt)
@@ -1190,16 +1193,16 @@ func TestRun_MinimalEntropyProof_RunsWithoutPanic(t *testing.T) {
 	if len(report.Steps) == 0 {
 		t.Error("expected steps in report")
 	}
-	// Should have entropy hash step
-	hasEntropyStep := false
+	// Should have Subject Data steps (0x21 entropy hash + 0x23 composite)
+	hasSubjectDataStep := false
 	for _, s := range report.Steps {
-		if s.Group == "Entropy" {
-			hasEntropyStep = true
+		if s.Group == "Subject Data" {
+			hasSubjectDataStep = true
 			break
 		}
 	}
-	if !hasEntropyStep {
-		t.Error("expected Entropy group in report steps")
+	if !hasSubjectDataStep {
+		t.Error("expected Subject Data group in report steps")
 	}
 }
 
@@ -1226,11 +1229,11 @@ func TestPresent_EntropyReport(t *testing.T) {
 		Filename:    "entropy.json",
 		FileSize:    500,
 		SubjectID:   "019d2ae3-865c-7651-9923-b14c55bc8e33",
-		SubjectType: "entropy",
-		Source:      "nist_beacon",
+		SubjectType: "entropy_nist",
+		Source:      "entropy_nist",
 		GeneratedAt: "2026-03-27T13:48:35Z",
 		Steps: []Step{
-			{Group: "Entropy", Status: StatusPass, Message: "Entropy hash derived (0x21)"},
+			{Group: "Subject Data", Status: StatusPass, Message: "Entropy hash derived (0x21)"},
 			{Group: "Test", Status: StatusPass, Message: "ok"},
 		},
 		Temporal: TemporalSummary{

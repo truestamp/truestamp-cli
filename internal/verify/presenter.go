@@ -13,8 +13,27 @@ import (
 
 	lipgloss "charm.land/lipgloss/v2"
 	"charm.land/lipgloss/v2/table"
+	"github.com/truestamp/truestamp-cli/internal/proof/ptype"
 	"github.com/truestamp/truestamp-cli/internal/ui"
 )
+
+// subjectCodeForName maps the report's string subject_type (from ptype.Name)
+// back to the integer code. Used by the presenter to pick a render path.
+func subjectCodeForName(name string) ptype.Code {
+	switch name {
+	case "block":
+		return ptype.Block
+	case "item":
+		return ptype.Item
+	case "entropy_nist":
+		return ptype.EntropyNIST
+	case "entropy_stellar":
+		return ptype.EntropyStellar
+	case "entropy_bitcoin":
+		return ptype.EntropyBitcoin
+	}
+	return 0
+}
 
 // Present renders a Report to stdout with lipgloss styling.
 func Present(r *Report) {
@@ -72,12 +91,7 @@ func renderProofSection(r *Report) string {
 		StyleFunc(metadataStyleFunc)
 
 	tbl = tbl.Row("ID", r.SubjectID)
-
-	if r.SubjectType == "entropy" {
-		tbl = tbl.Row("Type", "Entropy")
-	} else {
-		tbl = tbl.Row("Type", "Item")
-	}
+	tbl = tbl.Row("Type", ptype.Humanize(subjectCodeForName(r.SubjectType)))
 
 	return header + "\n" + tbl.String()
 }
@@ -85,10 +99,30 @@ func renderProofSection(r *Report) string {
 // --- Subject Section ---
 
 func renderSubject(r *Report) string {
-	if r.SubjectType == "entropy" {
+	switch subjectCodeForName(r.SubjectType) {
+	case ptype.Block:
+		return renderBlockSubject(r)
+	case ptype.EntropyNIST, ptype.EntropyStellar, ptype.EntropyBitcoin:
 		return renderEntropySubject(r)
 	}
 	return renderItemSubject(r)
+}
+
+func renderBlockSubject(r *Report) string {
+	header := ui.SectionHeader("Block Subject")
+	subtitle := ui.FaintStyle().Render("  The subject of this proof is a Truestamp block. No user claims, no observation — the block itself is what was committed.")
+
+	tbl := table.New().
+		Border(lipgloss.HiddenBorder()).
+		StyleFunc(metadataStyleFunc)
+
+	tbl = tbl.Row("Block ID", r.SubjectID)
+	tbl = tbl.Row("Signing Key", r.SigningKeyID)
+	if r.Temporal.CommittedAt != "" {
+		tbl = tbl.Row("Committed", truncateToSecond(r.Temporal.CommittedAt))
+	}
+
+	return header + "\n" + subtitle + "\n" + tbl.String()
 }
 
 func renderItemSubject(r *Report) string {
@@ -160,7 +194,7 @@ func renderMetadataBlock(raw json.RawMessage) string {
 
 func renderEntropySourceFields(tbl *table.Table, es EntropySubject) *table.Table {
 	switch es.RawSource {
-	case "nist_beacon":
+	case "entropy_nist":
 		if es.PulseIndex > 0 {
 			pulseInfo := fmt.Sprintf("#%d", es.PulseIndex)
 			var parts []string
@@ -179,7 +213,7 @@ func renderEntropySourceFields(tbl *table.Table, es EntropySubject) *table.Table
 			tbl = tbl.Row("Value", es.OutputValue)
 		}
 
-	case "bitcoin_block":
+	case "entropy_bitcoin":
 		if es.BlockHeight > 0 {
 			tbl = tbl.Row("Block", fmt.Sprintf("%d", es.BlockHeight))
 		}
@@ -187,7 +221,7 @@ func renderEntropySourceFields(tbl *table.Table, es EntropySubject) *table.Table
 			tbl = tbl.Row("Block Hash", es.BlockHash)
 		}
 
-	case "stellar_ledger":
+	case "entropy_stellar":
 		if es.LedgerSequence > 0 {
 			tbl = tbl.Row("Ledger", fmt.Sprintf("%d", es.LedgerSequence))
 		}

@@ -140,61 +140,98 @@ MD5 and SHA-1 emit a one-line stderr warning when selected, suppressed under `--
 
 Env vars: `TRUESTAMP_CONVERT_TIME_ZONE` sets the default `--to-zone` for `convert time` and `convert id`.
 
-## Proof Bundle Format (v1 compact)
+## Proof Bundle Format
 
-All proofs use a compact format with short keys. The `s.src` field discriminates between item and entropy proofs.
+All Truestamp proofs use a compact format with short keys. Bundle version `v` is `1`. The top-level integer field `t` discriminates subject types. Normative references in the truestamp-v2 reference repo: `docs/PROOF_FORMAT.md` (authoritative wire spec) and `docs/PROOF_FORMAT_IMPLEMENTERS_GUIDE.md` (self-contained cross-implementation guide).
 
-### Item Proof (src: "item")
+### Type code registry (frozen; never renumbered)
+
+| Code | Name | Category |
+| ---- | ---- | -------- |
+| 10 | block | subject |
+| 20 | item | subject |
+| 30 | entropy_nist | subject |
+| 31 | entropy_stellar | subject |
+| 32 | entropy_bitcoin | subject |
+| 40 | commitment_stellar | external commitment |
+| 41 | commitment_bitcoin | external commitment |
+
+The single source of truth lives at [`internal/proof/ptype/ptype.go`](internal/proof/ptype/ptype.go). Every caller branches on these integers, never on strings.
+
+### Item / entropy bundle shape (t ∈ {20, 30, 31, 32})
 
 ```json
 {
   "v": 1,
+  "t": 20,
   "ts": "2026-04-06T23:25:06Z",
   "pk": "base64(32-byte Ed25519 pubkey)",
   "sig": "base64(64-byte Ed25519 sig over proof_hash)",
-  "s": { "src": "item", "id": "ULID", "d": { claims... }, "mh": "hex64", "kid": "hex8" },
-  "b": { "id": "uuid", "ph": "hex64", "mr": "hex64", "mh": "hex64", "kid": "hex8" },
+  "s":  { "id": "ULID|UUIDv7", "d": { subject_data... }, "mh": "hex64", "kid": "hex8" },
   "ip": "base64url(compact Merkle proof)",
+  "b":  { "id": "uuid", "ph": "hex64", "mr": "hex64", "mh": "hex64", "kid": "hex8" },
   "cx": [
-    { "t": "stellar", "net": "testnet", "tx": "hex64", "memo": "hex64", "l": 1800000, "ts": "iso8601", "ep": "base64url" },
-    { "t": "bitcoin", "net": "mainnet", "tx": "hex64", "op": "hex64", "h": 850000, "rtx": "hex_var", "txp": "hex_var", "bmr": "hex64", "ep": "base64url" }
+    { "t": 40, "net": "testnet|public", "tx": "hex64", "memo": "hex64", "l": 1800000, "ts": "iso8601", "ep": "base64url" },
+    { "t": 41, "net": "regtest|testnet|mainnet", "tx": "hex64", "op": "hex64", "h": 850000, "rtx": "hex_var", "txp": "hex_var", "bmr": "hex64", "ep": "base64url" }
   ]
 }
 ```
 
-### Entropy Proof (src: "nist_beacon" | "bitcoin_block" | "stellar_ledger")
+Item proofs (`t=20`) use domain prefixes `0x11` / `0x13` for subject-data / composite. Entropy proofs (`t ∈ {30,31,32}`) use `0x21` / `0x23`.
 
-Same structure with `s.src` set to the entropy source type instead of `"item"`, and the subject hash uses domain prefix `0x21`/`0x23` instead of `0x11`/`0x13`.
+### Block bundle shape (t == 10)
 
-### Key Mapping (old -> new)
+No `s` key, no `ip` key — the block IS the subject, so `subject_hash == block_hash` in the signed payload.
 
-- `version` -> `v`
-- `public_key` -> `pk`
-- `signature` -> `sig`
-- `generated_at` -> `ts` (required, included in signature payload)
-- `subject` -> `s` (with `source`->`src`, `data`->`d`, `metadata_hash`->`mh`, `signing_key_id`->`kid`)
-- `chain` (array) -> `b` (single block: `previous_block_hash`->`ph`, `merkle_root`->`mr`, `metadata_hash`->`mh`, `signing_key_id`->`kid`)
-- `commitments` (array with nested commitment_data) -> `cx` (flat external commitments with `ep` epoch proof each)
-- NEW: `ip` (inclusion proof, base64url compact Merkle proof)
+```json
+{
+  "v": 1,
+  "t": 10,
+  "ts": "2026-04-06T23:25:06Z",
+  "pk": "base64(...)",
+  "sig": "base64(...)",
+  "b":  { "id": "uuid", "ph": "hex64", "mr": "hex64", "mh": "hex64", "kid": "hex8" },
+  "cx": [ ... at least one commitment ... ]
+}
+```
+
+### Structural requirements (enforced by the parser)
+
+- `v == 1`, `t ∈ {10, 20, 30, 31, 32}`, `cx` non-empty, every `cx[i].t ∈ {40, 41}`.
+- `t == 10` ⇒ `s` absent, `ip` absent.
+- `t != 10` ⇒ `s` present (`id`/`d`/`mh`/`kid` all required), `ip` non-empty.
+- Subject `kid` may differ from block `kid` under legitimate key rotation; no equality assertion is made. Subject-kid tampering is still detected because `kid` is an input to the 0x13 / 0x23 composite hash.
+- Stellar `net` is strict: only `"testnet"` and `"public"` are accepted.
 
 ## Verification Steps (in order)
 
 1. **Signing Key** -- Decode base64 `pk`, derive `kid = truncate4(SHA256(0x51 || pubkey))`, verify against keyring endpoint. Skipped with `--skip-signatures` or `--skip-external`.
-2. **Structure** -- Block present with ID and merkle_root.
-3-6. **Subject Hash** -- Branches based on proof type:
-   - **Item proofs**: Claims Hash `SHA256(0x11 || JCS(claims))`, Claims Hash Type validation, Claims Timestamp check, Item Hash `SHA256(0x13 || len32(id) || len32(claims_hash) || len32(metadata_hash) || len32(signing_key_id))`.
-   - **Entropy proofs**: Entropy Hash `SHA256(0x21 || JCS(entropy))`, Observation Hash `SHA256(0x23 || len32(id) || len32(entropy_hash) || len32(metadata_hash) || len32(signing_key_id))`.
-7. **Inclusion Proof** -- Decode compact base64url `ip`, RFC 6962 walk: leaf = `SHA256(0x00 || subject_hash_bytes)`, internal = `SHA256(0x01 || left || right)`. Root must match `b.mr`.
-8. **Block Hash** -- Derive block hash: `SHA256(0x32 || len32(id) || len32(ph) || len32(mr) || len32(mh) || len32(kid))`.
-9. **Key Consistency** -- Item's `kid` matches block's `kid` (info if different). Skipped for entropy proofs.
-10. **Epoch Proofs** -- For each `cx` entry: decode `ep`, RFC 6962 Merkle walk using block_hash as leaf, root must match `cx.memo` (stellar) or `cx.op` (bitcoin).
-11. **Proof Signature** -- Build binary payload: `version(1) || key_id(4) || timestamp(8) || subject_hash(32) || block_hash(32) || N(2) || epoch_roots(32*N)`. `timestamp` = milliseconds since Unix epoch (uint64 big-endian) from `ts`. Compute `SHA256(0x61 || payload)`. Verify Ed25519 signature. Skipped with `--skip-signatures`.
-12. **Temporal Checks** -- Branches based on proof type:
-   - **Item proofs**: Item time (ULID) before committed block time (UUIDv7).
-   - **Entropy proofs**: Entropy observation time (UUIDv7) before committed block time (UUIDv7).
-13. **Temporal Info** -- Extract timestamps for display.
-14. **Stellar Commitment** -- External: GET Horizon API, verify memo and ledger number.
+2. **Structure** -- `t` is a registered subject code, block present with ID and merkle_root, `cx` is non-empty.
+3-6. **Subject Data** -- Skipped entirely when `t == 10` (block subject).
+   - **Item proofs (`t == 20`)**: Claims Hash `SHA256(0x11 || JCS(claims))`, Claims Hash Type validation, Claims Timestamp check, Item Hash `SHA256(0x13 || len32(id) || len32(claims_hash) || len32(metadata_hash) || len32(signing_key_id))`.
+   - **Entropy proofs (`t ∈ {30,31,32}`)**: Entropy Hash `SHA256(0x21 || JCS(entropy))`, Observation Hash `SHA256(0x23 || len32(id) || len32(entropy_hash) || len32(metadata_hash) || len32(signing_key_id))`.
+7. **Inclusion Proof** -- Decode compact base64url `ip`, RFC 6962 walk: leaf = `SHA256(0x00 || subject_hash_bytes)`, internal = `SHA256(0x01 || left || right)`. Root must match `b.mr`. Skipped entirely when `t == 10`.
+8. **Block Hash** -- Derive block hash: `SHA256(0x32 || len32(id) || len32(ph) || len32(mr) || len32(mh) || len32(kid))`. For block subjects, `subject_hash = block_hash`.
+9. **Epoch Proofs** -- For each `cx` entry: decode `ep`, RFC 6962 Merkle walk using block_hash as leaf, root must match `cx.memo` (Stellar, `t=40`) or `cx.op` (Bitcoin, `t=41`).
+10. **Proof Signature** -- Build binary payload (big-endian throughout):
+
+    ```
+    v(1) || t(2) || kid(4) || ts_ms(8) || subject_hash(32) || block_hash(32) || N(2) || epoch_roots(32*N)
+    ```
+
+    `ts_ms` = milliseconds since Unix epoch (uint64 BE) from `ts`. Compute `SHA256(0x61 || payload)`. Verify Ed25519 signature. Skipped with `--skip-signatures`. Flipping `t` in a bundle without re-signing breaks the signature.
+11. **Temporal Window** -- Skipped entirely when `t == 10`.
+    - **Item proofs**: item time (ULID) before committed block time (UUIDv7).
+    - **Entropy proofs**: entropy observation time (UUIDv7) before committed block time (UUIDv7).
+12. **Temporal Info** -- Extract display timestamps (submitted/captured/committed).
+13. **Entropy Source** -- For entropy subjects, confirm `s.d` matches the canonical published value at the upstream source. Skipped under `--skip-external`.
+   - **NIST Beacon** (`t=30`): `GET beacon.nist.gov/beacon/2.0/chain/{chainIndex}/pulse/{pulseIndex}`; byte-compare `outputValue` and `timeStamp`. RSA signature / X.509 chain verification is out of scope — the server stores only the minimal pulse fields (`chainIndex`, `pulseIndex`, `outputValue`, `timeStamp`, `version`), so the bytes needed to reconstruct NIST's signed pre-image aren't in the bundle.
+   - **Stellar ledger** (`t=31`): `GET {horizon}/ledgers/{sequence}`; byte-compare `hash` and `closed_at`. Network is auto-derived from the bundle's Stellar commitment in `cx[]` (`testnet` in dev, `public` in prod) — a given Truestamp deployment uses one Stellar network for both entropy and commitment.
+   - **Bitcoin block** (`t=32`): `GET blockstream.info/api/block/{hash}`; byte-compare `height` and `time`. Always pinned to **mainnet** regardless of the commitment chain's network — the server observes mainnet as the authoritative public-randomness source even in dev deployments that commit to regtest/testnet.
+14. **Stellar Commitment** -- External: GET Horizon API, verify memo and ledger number. Only `testnet` / `public` networks accepted.
 15. **Bitcoin Commitment** -- Local: OP_RETURN extraction, txid computation, CMerkleBlock parsing, partial merkle tree verification. External: GET Blockstream API for mainnet/testnet (skipped for regtest).
+
+The legacy "subject `kid` must equal block `kid`" check has been removed: key rotation can legitimately produce divergent kids, and subject-kid tampering is still detected because `kid` is an input to the subject composite hash (0x13 / 0x23).
 
 ## External API Calls
 
@@ -324,14 +361,17 @@ The `gowebpki/jcs` library operates on raw JSON bytes. The parser preserves `jso
 
 ## Signature Payload Format
 
-The compact proof uses a new signature payload that includes the proof timestamp:
+The signed payload is fixed-width, big-endian:
 
 ```
-version(1) || key_id(4) || timestamp(8) || subject_hash(32) || block_hash(32) || N(2) || epoch_roots(32*N)
+v(1) || t(2) || kid(4) || ts_ms(8) || subject_hash(32) || block_hash(32) || N(2) || epoch_roots(32*N)
 ```
 
-- `timestamp` = milliseconds since Unix epoch, uint64 big-endian, parsed from `ts` ISO 8601
-- Signed as: `Ed25519.verify(SHA256(0x61 || payload), pk)`
+- `t` = subject type code (uint16 BE); cryptographic domain separation across subject types.
+- `kid` = 4 raw bytes from `b.kid` hex-decoded.
+- `ts_ms` = milliseconds since Unix epoch (uint64 BE) from `ts` ISO 8601.
+- For `t == 10`, `subject_hash == block_hash`.
+- Signed as: `Ed25519.verify(SHA256(0x61 || payload), pk)`.
 
 ## Relationship to the Truestamp service
 

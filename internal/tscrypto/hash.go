@@ -230,11 +230,25 @@ func ComputeProofHash(version byte, keyIDHex, subjectHashHex string, blockHashes
 	return BytesToHex(hashBytes), hashBytes, nil
 }
 
-// BuildCompactProofPayload builds the new compact proof signature payload:
-// version(1) || key_id(4) || timestamp(8) || subject_hash(32) || block_hash(32) || N(2) || epoch_roots(32*N)
-// Then computes SHA256(0x61 || payload) for Ed25519 verification.
-// Returns the raw hash bytes (for signature verification).
-func BuildCompactProofPayload(version byte, keyIDHex string, timestampMs uint64, subjectHashHex, blockHashHex string, epochRootHexes []string) ([]byte, error) {
+// BuildCompactProofPayload builds the compact proof signature payload
+// and computes SHA256(0x61 || payload). The returned 32-byte hash is what
+// the Ed25519 signature covers.
+//
+// Byte layout (big-endian throughout):
+//
+//	offset  size  field
+//	0       1     v  (version, uint8)
+//	1       2     t  (type code, uint16 BE)
+//	3       4     kid (raw 4 bytes from b.kid hex-decoded)
+//	7       8     ts_ms (timestamp in ms since Unix epoch, uint64 BE)
+//	15      32    subject_hash
+//	47      32    block_hash
+//	79      2     N (epoch root count, uint16 BE)
+//	81      32*N  epoch_roots (concatenated, in cx order)
+//
+// For block subjects (t == 10), subject_hash == block_hash — the same
+// 32 bytes appear in both slots.
+func BuildCompactProofPayload(version byte, typeCode uint16, keyIDHex string, timestampMs uint64, subjectHashHex, blockHashHex string, epochRootHexes []string) ([]byte, error) {
 	keyIDBytes, err := HexToBytes(keyIDHex)
 	if err != nil {
 		return nil, fmt.Errorf("decoding key_id: %w", err)
@@ -252,12 +266,11 @@ func BuildCompactProofPayload(version byte, keyIDHex string, timestampMs uint64,
 		return nil, fmt.Errorf("epoch root count %d exceeds maximum 65535", len(epochRootHexes))
 	}
 
-	// Build payload: version(1) || key_id(4) || timestamp(8) || subject_hash(32) || block_hash(32) || N(2) || epoch_roots(32*N)
-	payload := make([]byte, 0, 1+4+8+32+32+2+32*len(epochRootHexes))
+	payload := make([]byte, 0, 1+2+4+8+32+32+2+32*len(epochRootHexes))
 	payload = append(payload, version)
+	payload = append(payload, byte(typeCode>>8), byte(typeCode))
 	payload = append(payload, keyIDBytes...)
 
-	// Timestamp as uint64 big-endian (milliseconds since Unix epoch)
 	var tsBuf [8]byte
 	binary.BigEndian.PutUint64(tsBuf[:], timestampMs)
 	payload = append(payload, tsBuf[:]...)
@@ -265,7 +278,6 @@ func BuildCompactProofPayload(version byte, keyIDHex string, timestampMs uint64,
 	payload = append(payload, subjectHashBytes...)
 	payload = append(payload, blockHashBytes...)
 
-	// Epoch roots count (uint16 big-endian)
 	payload = append(payload, byte(len(epochRootHexes)>>8), byte(len(epochRootHexes)))
 	for _, er := range epochRootHexes {
 		erBytes, err := HexToBytes(er)

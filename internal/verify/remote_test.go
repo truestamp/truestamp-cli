@@ -12,16 +12,16 @@ import (
 	"testing"
 )
 
-// makeProofFile writes a minimal valid v1 compact-format JSON proof to a temp file.
+// makeProofFile writes a minimal valid compact-format JSON proof to a temp file.
 func makeProofFile(t *testing.T) string {
 	t.Helper()
 	p := map[string]any{
 		"v":   1,
+		"t":   20,
 		"pk":  "CTwMqDZnPd/QTLSq8aTeSD3a+j2DQxKcGfhhIYJQ65Y=",
-		"sig": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+		"sig": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==",
 		"ts":  "2026-04-06T23:25:06Z",
 		"s": map[string]any{
-			"src": "item",
 			"id":  "01HJHB01T8FYZ7YTR9P5N62K5B",
 			"d":   map[string]any{"name": "test"},
 			"mh":  "ccddccddccddccddccddccddccddccddccddccddccddccddccddccddccddccdd",
@@ -35,7 +35,9 @@ func makeProofFile(t *testing.T) string {
 			"kid": "4ceefa4a",
 		},
 		"ip": "AA",
-		"cx": []any{},
+		"cx": []any{
+			map[string]any{"t": 40, "net": "testnet", "tx": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "memo": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb", "l": 1, "ep": "AA"},
+		},
 	}
 	data, err := json.Marshal(p)
 	if err != nil {
@@ -257,16 +259,16 @@ func TestStatusJSON_UnknownString(t *testing.T) {
 	}
 }
 
-// makeEntropyProofFile writes a minimal valid v1 compact entropy proof to a temp file.
+// makeEntropyProofFile writes a minimal valid compact entropy proof (NIST beacon) to a temp file.
 func makeEntropyProofFile(t *testing.T) string {
 	t.Helper()
 	p := map[string]any{
 		"v":   1,
+		"t":   30,
 		"pk":  "CTwMqDZnPd/QTLSq8aTeSD3a+j2DQxKcGfhhIYJQ65Y=",
-		"sig": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+		"sig": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==",
 		"ts":  "2026-04-06T23:25:06Z",
 		"s": map[string]any{
-			"src": "nist_beacon",
 			"id":  "019d2ae3-865c-7651-9923-b14c55bc8e33",
 			"d":   map[string]any{"pulse": map[string]any{"outputValue": "ABC", "pulseIndex": 100, "chainIndex": 2, "version": "2.0", "timeStamp": "2026-03-26T16:02:00.000Z"}},
 			"mh":  "5555555555555555555555555555555555555555555555555555555555555555",
@@ -280,7 +282,9 @@ func makeEntropyProofFile(t *testing.T) string {
 			"kid": "4ceefa4a",
 		},
 		"ip": "AA",
-		"cx": []any{},
+		"cx": []any{
+			map[string]any{"t": 40, "net": "testnet", "tx": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "memo": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb", "l": 1, "ep": "AA"},
+		},
 	}
 	data, err := json.Marshal(p)
 	if err != nil {
@@ -339,8 +343,8 @@ func TestRunRemote_EntropyProof_SubjectType(t *testing.T) {
 	if err != nil {
 		t.Fatalf("RunRemote error: %v", err)
 	}
-	if report.SubjectType != "entropy" {
-		t.Errorf("SubjectType: got %q, want entropy", report.SubjectType)
+	if report.SubjectType != "entropy_nist" {
+		t.Errorf("SubjectType: got %q, want entropy_nist", report.SubjectType)
 	}
 	if report.SubjectID != "019d2ae3-865c-7651-9923-b14c55bc8e33" {
 		t.Errorf("SubjectID: got %q", report.SubjectID)
@@ -348,8 +352,8 @@ func TestRunRemote_EntropyProof_SubjectType(t *testing.T) {
 	if report.EntropySubject.Source != "NIST Beacon" {
 		t.Errorf("EntropySubject.Source: got %q, want NIST Beacon", report.EntropySubject.Source)
 	}
-	if report.EntropySubject.RawSource != "nist_beacon" {
-		t.Errorf("EntropySubject.RawSource: got %q, want nist_beacon", report.EntropySubject.RawSource)
+	if report.EntropySubject.RawSource != "entropy_nist" {
+		t.Errorf("EntropySubject.RawSource: got %q, want entropy_nist", report.EntropySubject.RawSource)
 	}
 	if report.EntropySubject.PulseIndex != 100 {
 		t.Errorf("EntropySubject.PulseIndex: got %d, want 100", report.EntropySubject.PulseIndex)

@@ -133,10 +133,10 @@ func FuzzComputeBlockHash(f *testing.F) {
 // FuzzBuildCompactProofPayload: variadic-ish hex decoder that feeds
 // the signature construction. Fuzz to ensure no slice-bounds panic.
 func FuzzBuildCompactProofPayload(f *testing.F) {
-	f.Add("4ceefa4a", uint64(1700000000000),
+	f.Add(uint16(20), "4ceefa4a", uint64(1700000000000),
 		"deadbeef", "deadbeef", "cafebabe")
 
-	f.Fuzz(func(t *testing.T, kid string, ts uint64, subj, block, epoch string) {
-		_, _ = BuildCompactProofPayload(1, kid, ts, subj, block, []string{epoch})
+	f.Fuzz(func(t *testing.T, typeCode uint16, kid string, ts uint64, subj, block, epoch string) {
+		_, _ = BuildCompactProofPayload(1, typeCode, kid, ts, subj, block, []string{epoch})
 	})
 }

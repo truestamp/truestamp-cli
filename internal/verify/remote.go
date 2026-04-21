@@ -15,6 +15,7 @@ import (
 	"github.com/truestamp/truestamp-cli/internal/bitcoin"
 	"github.com/truestamp/truestamp-cli/internal/httpclient"
 	"github.com/truestamp/truestamp-cli/internal/proof"
+	"github.com/truestamp/truestamp-cli/internal/proof/ptype"
 	"github.com/truestamp/truestamp-cli/internal/tscrypto"
 )
 
@@ -181,21 +182,21 @@ func mapToReport(filename string, fileSize int64, result *apiResult) *Report {
 // populateFromBundle extracts display data from a parsed proof bundle
 // for presenter parity with local mode.
 func populateFromBundle(r *Report, bundle *proof.ProofBundle) {
-	isEntropy := bundle.IsEntropy()
 	subject := bundle.Subject
+	t := bundle.T
 
-	// Set subject type and ID from the bundle (authoritative source)
-	if isEntropy {
-		r.SubjectType = "entropy"
-	} else {
-		r.SubjectType = "item"
-	}
+	r.SubjectType = ptype.Name(t)
+
 	if r.SubjectID == "" {
-		r.SubjectID = subject.ID
+		if bundle.IsBlock() {
+			r.SubjectID = bundle.Block.ID
+		} else if subject != nil {
+			r.SubjectID = subject.ID
+		}
 	}
 
 	// Claims (item proofs)
-	if !isEntropy {
+	if bundle.IsItem() && subject != nil {
 		r.Claims = parseClaims(bundle.RawData)
 
 		// Derive TimestampStatus from steps (server already validated)
@@ -211,12 +212,10 @@ func populateFromBundle(r *Report, bundle *proof.ProofBundle) {
 			}
 		}
 
-		// Temporal: submitted_at from item ULID
 		if r.Temporal.SubmittedAt == "" {
 			r.Temporal.SubmittedAt = tscrypto.FormatItemTime(subject.ID)
 		}
 
-		// Temporal: claimed_at from claims timestamp
 		if r.Temporal.ClaimedAt == "" {
 			if ts := extractClaimsTimestamp(subject.Data); ts != "" {
 				r.Temporal.ClaimedAt = truncateToSecond(ts)
@@ -224,31 +223,26 @@ func populateFromBundle(r *Report, bundle *proof.ProofBundle) {
 		}
 	}
 
-	// Entropy subject data
-	if isEntropy {
-		r.EntropySubject = parseEntropySubject(subject.Source, subject.Data)
+	if bundle.IsEntropy() && subject != nil {
+		r.EntropySubject = parseEntropySubject(t, subject.Data)
 
-		// Temporal: captured_at from observation UUIDv7
 		if r.Temporal.CapturedAt == "" {
 			r.Temporal.CapturedAt = tscrypto.FormatBlockTime(subject.ID)
 		}
 	}
 
-	// Block info
 	r.ChainLength = 1
 	r.SigningKeyID = bundle.Block.SigningKeyID
 
-	// Temporal: committed_at from block
 	if r.Temporal.CommittedAt == "" {
 		r.Temporal.CommittedAt = tscrypto.FormatBlockTime(bundle.Block.ID)
 	}
 
-	// Commitment display data from cx entries
 	for i := range bundle.Commitments {
 		cx := &bundle.Commitments[i]
 
 		switch cx.Type {
-		case "stellar":
+		case ptype.CommitmentStellar:
 			ci := CommitmentInfo{
 				Method:        "stellar",
 				Network:       cx.Network,
@@ -259,7 +253,7 @@ func populateFromBundle(r *Report, bundle *proof.ProofBundle) {
 			}
 			r.CommitmentInfos = append(r.CommitmentInfos, ci)
 
-		case "bitcoin":
+		case ptype.CommitmentBitcoin:
 			ci := CommitmentInfo{
 				Method:        "bitcoin",
 				Network:       cx.Network,
@@ -268,7 +262,6 @@ func populateFromBundle(r *Report, bundle *proof.ProofBundle) {
 				CommittedHash: cx.OpReturn,
 				Timestamp:     cx.Timestamp,
 			}
-			// Derive block hash from txoutproof header
 			if cx.TxoutproofHex != "" {
 				if blockHash, err := bitcoin.ParseBlockHash(cx.TxoutproofHex); err == nil {
 					ci.BlockHash = blockHash

@@ -154,7 +154,7 @@ type CommitmentInfo struct {
 // EntropySubject holds parsed entropy data for display (internal use by presenter).
 // Fields are populated based on the entropy source type.
 type EntropySubject struct {
-	RawSource  string // original source identifier ("nist_beacon")
+	RawSource  string // lowercase identifier emitted by ptype.Name (e.g. "entropy_nist")
 	Source     string // humanized: "NIST Beacon"
 	CapturedAt string // from entropy data timestamp (source-specific)
 

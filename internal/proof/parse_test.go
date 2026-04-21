@@ -7,16 +7,18 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+
+	"github.com/truestamp/truestamp-cli/internal/proof/ptype"
 )
 
-// Minimal valid proof JSON for testing (compact format)
+// Minimal valid proof JSON for testing (t=20, item subject).
 const validProofJSON = `{
   "v": 1,
+  "t": 20,
   "pk": "CTwMqDZnPd/QTLSq8aTeSD3a+j2DQxKcGfhhIYJQ65Y=",
-  "sig": "c2lnbmF0dXJlX2J5dGVzX2hlcmU=",
+  "sig": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==",
   "ts": "2026-04-06T23:25:06Z",
   "s": {
-    "src": "item",
     "id": "01HJHB01T8FYZ7YTR9P5N62K5B",
     "d": {"name": "test"},
     "mh": "ccddccddccddccddccddccddccddccddccddccddccddccddccddccddccddccdd",
@@ -32,15 +34,56 @@ const validProofJSON = `{
   "ip": "AA",
   "cx": [
     {
-      "t": "stellar",
+      "t": 40,
       "net": "testnet",
-      "tx": "aaaa",
-      "memo": "bbbb",
+      "tx": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "memo": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
       "l": 100,
       "ts": "2026-04-06T23:25:06Z",
       "ep": "AA"
     }
   ]
+}`
+
+// Minimal valid entropy proof JSON (t=30, nist entropy).
+const validEntropyProofJSON = `{
+  "v": 1,
+  "t": 30,
+  "pk": "CTwMqDZnPd/QTLSq8aTeSD3a+j2DQxKcGfhhIYJQ65Y=",
+  "sig": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==",
+  "ts": "2026-04-06T23:25:06Z",
+  "s": {
+    "id": "019d2ae3-865c-7651-9923-b14c55bc8e33",
+    "d": {"pulse": {"outputValue": "ABC123"}},
+    "mh": "5555555555555555555555555555555555555555555555555555555555555555",
+    "kid": "4ceefa4a"
+  },
+  "b": {
+    "id": "019cf813-99b8-730a-84f1-5a711a9c355e",
+    "ph": "1111111111111111111111111111111111111111111111111111111111111111",
+    "mr": "2222222222222222222222222222222222222222222222222222222222222222",
+    "mh": "4444444444444444444444444444444444444444444444444444444444444444",
+    "kid": "4ceefa4a"
+  },
+  "ip": "AA",
+  "cx": [{"t": 40, "net": "testnet", "tx": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "memo": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb", "l": 1, "ep": "AA"}]
+}`
+
+// Minimal valid block proof JSON (t=10, no s, no ip).
+const validBlockProofJSON = `{
+  "v": 1,
+  "t": 10,
+  "pk": "CTwMqDZnPd/QTLSq8aTeSD3a+j2DQxKcGfhhIYJQ65Y=",
+  "sig": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==",
+  "ts": "2026-04-06T23:25:06Z",
+  "b": {
+    "id": "019cf813-99b8-730a-84f1-5a711a9c355e",
+    "ph": "1111111111111111111111111111111111111111111111111111111111111111",
+    "mr": "2222222222222222222222222222222222222222222222222222222222222222",
+    "mh": "4444444444444444444444444444444444444444444444444444444444444444",
+    "kid": "4ceefa4a"
+  },
+  "cx": [{"t": 40, "net": "testnet", "tx": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "memo": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb", "l": 1, "ep": "AA"}]
 }`
 
 func writeTemp(t *testing.T, content string) string {
@@ -53,7 +96,7 @@ func writeTemp(t *testing.T, content string) string {
 	return path
 }
 
-func TestParse_ValidProof(t *testing.T) {
+func TestParse_ValidItemProof(t *testing.T) {
 	path := writeTemp(t, validProofJSON)
 	bundle, err := Parse(path)
 	if err != nil {
@@ -63,47 +106,26 @@ func TestParse_ValidProof(t *testing.T) {
 	if bundle.Version != 1 {
 		t.Errorf("version: got %d, want 1", bundle.Version)
 	}
-	if bundle.PublicKey != "CTwMqDZnPd/QTLSq8aTeSD3a+j2DQxKcGfhhIYJQ65Y=" {
-		t.Errorf("public_key: got %s", bundle.PublicKey)
+	if bundle.T != ptype.Item {
+		t.Errorf("T: got %d, want %d", bundle.T, ptype.Item)
 	}
-	if bundle.Signature != "c2lnbmF0dXJlX2J5dGVzX2hlcmU=" {
-		t.Errorf("signature: got %s", bundle.Signature)
+	if !bundle.IsItem() || bundle.IsEntropy() || bundle.IsBlock() {
+		t.Errorf("IsItem/IsEntropy/IsBlock: %v/%v/%v, want t/f/f", bundle.IsItem(), bundle.IsEntropy(), bundle.IsBlock())
 	}
-	if bundle.Timestamp != "2026-04-06T23:25:06Z" {
-		t.Errorf("timestamp: got %s", bundle.Timestamp)
-	}
-	if bundle.Subject.ID != "01HJHB01T8FYZ7YTR9P5N62K5B" {
-		t.Errorf("subject.id: got %s, want 01HJHB01T8FYZ7YTR9P5N62K5B", bundle.Subject.ID)
-	}
-	if bundle.Subject.Source != "item" {
-		t.Errorf("subject.source: got %s, want item", bundle.Subject.Source)
-	}
-	if bundle.Subject.MetadataHash != "ccddccddccddccddccddccddccddccddccddccddccddccddccddccddccddccdd" {
-		t.Errorf("subject.metadata_hash: got %s", bundle.Subject.MetadataHash)
-	}
-	if bundle.Subject.SigningKeyID != "4ceefa4a" {
-		t.Errorf("subject.signing_key_id: got %s", bundle.Subject.SigningKeyID)
+	if bundle.Subject == nil || bundle.Subject.ID != "01HJHB01T8FYZ7YTR9P5N62K5B" {
+		t.Errorf("subject.id mismatch")
 	}
 	if bundle.Block.ID != "019cf813-99b8-730a-84f1-5a711a9c355e" {
 		t.Errorf("block.id: got %s", bundle.Block.ID)
-	}
-	if bundle.Block.PreviousBlockHash != "1111111111111111111111111111111111111111111111111111111111111111" {
-		t.Errorf("block.ph: got %s", bundle.Block.PreviousBlockHash)
-	}
-	if bundle.Block.MerkleRoot != "2222222222222222222222222222222222222222222222222222222222222222" {
-		t.Errorf("block.mr: got %s", bundle.Block.MerkleRoot)
 	}
 	if bundle.InclusionProof != "AA" {
 		t.Errorf("ip: got %s", bundle.InclusionProof)
 	}
 	if len(bundle.Commitments) != 1 {
-		t.Errorf("commitments length: got %d, want 1", len(bundle.Commitments))
+		t.Fatalf("commitments length: got %d, want 1", len(bundle.Commitments))
 	}
-	if bundle.Commitments[0].Type != "stellar" {
-		t.Errorf("commitments[0].type: got %s", bundle.Commitments[0].Type)
-	}
-	if bundle.Commitments[0].TransactionHash != "aaaa" {
-		t.Errorf("commitments[0].tx: got %s", bundle.Commitments[0].TransactionHash)
+	if bundle.Commitments[0].Type != ptype.CommitmentStellar {
+		t.Errorf("commitments[0].t: got %d, want %d", bundle.Commitments[0].Type, ptype.CommitmentStellar)
 	}
 }
 
@@ -113,14 +135,10 @@ func TestParse_PreservesRawData(t *testing.T) {
 	if err != nil {
 		t.Fatalf("unexpected error: %s", err)
 	}
-
-	// RawData should contain the original data JSON bytes
 	if len(bundle.RawData) == 0 {
 		t.Error("RawData should not be empty")
 	}
-
-	// Subject data should be preserved as raw JSON
-	if len(bundle.Subject.Data) == 0 {
+	if bundle.Subject == nil || len(bundle.Subject.Data) == 0 {
 		t.Error("subject.Data should be preserved as raw JSON")
 	}
 }
@@ -141,167 +159,228 @@ func TestParse_InvalidJSON(t *testing.T) {
 }
 
 func TestParse_MissingVersion(t *testing.T) {
-	path := writeTemp(t, `{
-		"pk": "aa", "sig": "bb", "ts": "2026-01-01T00:00:00Z",
-		"s": {"src":"item","id":"x","d":{},"mh":"cc","kid":"dd"},
+	_, err := ParseBytes([]byte(`{
+		"t": 20, "pk": "aa", "sig": "bb", "ts": "2026-01-01T00:00:00Z",
+		"s": {"id":"x","d":{},"mh":"cc","kid":"dd"},
 		"b": {"id":"e","mr":"f","mh":"g","kid":"h"},
-		"ip": "AA"
-	}`)
-	_, err := Parse(path)
+		"ip": "AA",
+		"cx": [{"t":40,"net":"testnet","ep":"AA"}]
+	}`))
 	if err == nil {
 		t.Error("expected error for missing version")
 	}
 }
 
-func TestParse_MissingPublicKey(t *testing.T) {
-	path := writeTemp(t, `{
-		"v": 1, "sig": "bb", "ts": "2026-01-01T00:00:00Z",
-		"s": {"src":"item","id":"x","d":{},"mh":"cc","kid":"dd"},
+func TestParse_MissingTypeCode(t *testing.T) {
+	_, err := ParseBytes([]byte(`{
+		"v": 1, "pk": "aa", "sig": "bb", "ts": "2026-01-01T00:00:00Z",
+		"s": {"id":"x","d":{},"mh":"cc","kid":"dd"},
 		"b": {"id":"e","mr":"f","mh":"g","kid":"h"},
-		"ip": "AA"
-	}`)
-	_, err := Parse(path)
+		"ip": "AA",
+		"cx": [{"t":40,"net":"testnet","ep":"AA"}]
+	}`))
 	if err == nil {
-		t.Error("expected error for missing public_key")
+		t.Error("expected error for missing t field")
+	}
+}
+
+func TestParse_InvalidTypeCode(t *testing.T) {
+	_, err := ParseBytes([]byte(`{
+		"v": 1, "t": 99,
+		"pk": "aa", "sig": "bb", "ts": "2026-01-01T00:00:00Z",
+		"b": {"id":"e","mr":"f","mh":"g","kid":"h"},
+		"cx": [{"t":40,"net":"testnet","ep":"AA"}]
+	}`))
+	if err == nil {
+		t.Error("expected error for unknown t code")
+	}
+}
+
+func TestParse_MissingPublicKey(t *testing.T) {
+	_, err := ParseBytes([]byte(`{
+		"v": 1, "t": 20,
+		"sig": "bb", "ts": "2026-01-01T00:00:00Z",
+		"s": {"id":"x","d":{},"mh":"cc","kid":"dd"},
+		"b": {"id":"e","mr":"f","mh":"g","kid":"h"},
+		"ip": "AA",
+		"cx": [{"t":40,"net":"testnet","ep":"AA"}]
+	}`))
+	if err == nil {
+		t.Error("expected error for missing pk")
 	}
 }
 
 func TestParse_MissingSignature(t *testing.T) {
-	path := writeTemp(t, `{
-		"v": 1, "pk": "aa", "ts": "2026-01-01T00:00:00Z",
-		"s": {"src":"item","id":"x","d":{},"mh":"cc","kid":"dd"},
+	_, err := ParseBytes([]byte(`{
+		"v": 1, "t": 20,
+		"pk": "aa", "ts": "2026-01-01T00:00:00Z",
+		"s": {"id":"x","d":{},"mh":"cc","kid":"dd"},
 		"b": {"id":"e","mr":"f","mh":"g","kid":"h"},
-		"ip": "AA"
-	}`)
-	_, err := Parse(path)
+		"ip": "AA",
+		"cx": [{"t":40,"net":"testnet","ep":"AA"}]
+	}`))
 	if err == nil {
-		t.Error("expected error for missing signature")
+		t.Error("expected error for missing sig")
 	}
 }
 
-func TestParse_MissingSubject(t *testing.T) {
-	path := writeTemp(t, `{
-		"v": 1, "pk": "aa", "sig": "bb", "ts": "2026-01-01T00:00:00Z",
+func TestParse_MissingSubjectForItem(t *testing.T) {
+	_, err := ParseBytes([]byte(`{
+		"v": 1, "t": 20,
+		"pk": "aa", "sig": "bb", "ts": "2026-01-01T00:00:00Z",
 		"b": {"id":"e","mr":"f","mh":"g","kid":"h"},
-		"ip": "AA"
-	}`)
-	_, err := Parse(path)
+		"ip": "AA",
+		"cx": [{"t":40,"net":"testnet","ep":"AA"}]
+	}`))
 	if err == nil {
-		t.Error("expected error for missing subject")
+		t.Error("expected error for missing s on item proof")
+	}
+}
+
+func TestParse_MissingInclusionProofForItem(t *testing.T) {
+	_, err := ParseBytes([]byte(`{
+		"v": 1, "t": 20,
+		"pk": "aa", "sig": "bb", "ts": "2026-01-01T00:00:00Z",
+		"s": {"id":"x","d":{},"mh":"cc","kid":"dd"},
+		"b": {"id":"e","mr":"f","mh":"g","kid":"h"},
+		"cx": [{"t":40,"net":"testnet","ep":"AA"}]
+	}`))
+	if err == nil {
+		t.Error("expected error for missing ip on item proof")
 	}
 }
 
 func TestParse_MissingBlock(t *testing.T) {
-	path := writeTemp(t, `{
-		"v": 1, "pk": "aa", "sig": "bb", "ts": "2026-01-01T00:00:00Z",
-		"s": {"src":"item","id":"x","d":{},"mh":"cc","kid":"dd"},
-		"ip": "AA"
-	}`)
-	_, err := Parse(path)
+	_, err := ParseBytes([]byte(`{
+		"v": 1, "t": 20,
+		"pk": "aa", "sig": "bb", "ts": "2026-01-01T00:00:00Z",
+		"s": {"id":"x","d":{},"mh":"cc","kid":"dd"},
+		"ip": "AA",
+		"cx": [{"t":40,"net":"testnet","ep":"AA"}]
+	}`))
 	if err == nil {
 		t.Error("expected error for missing block")
 	}
 }
 
-func TestParse_InvalidSubjectStructure(t *testing.T) {
-	path := writeTemp(t, `{
-		"v": 1, "pk": "aa", "sig": "bb", "ts": "2026-01-01T00:00:00Z",
-		"s": "not an object",
+func TestParse_EmptyCxRejected(t *testing.T) {
+	_, err := ParseBytes([]byte(`{
+		"v": 1, "t": 20,
+		"pk": "aa", "sig": "bb", "ts": "2026-01-01T00:00:00Z",
+		"s": {"id":"x","d":{},"mh":"cc","kid":"dd"},
+		"b": {"id":"e","mr":"f","mh":"g","kid":"h"},
+		"ip": "AA",
+		"cx": []
+	}`))
+	if err == nil {
+		t.Error("empty cx must be rejected")
+	}
+}
+
+func TestParse_MissingCxRejected(t *testing.T) {
+	_, err := ParseBytes([]byte(`{
+		"v": 1, "t": 20,
+		"pk": "aa", "sig": "bb", "ts": "2026-01-01T00:00:00Z",
+		"s": {"id":"x","d":{},"mh":"cc","kid":"dd"},
 		"b": {"id":"e","mr":"f","mh":"g","kid":"h"},
 		"ip": "AA"
-	}`)
-	_, err := Parse(path)
+	}`))
+	if err == nil {
+		t.Error("missing cx must be rejected")
+	}
+}
+
+func TestParse_UnknownCxCodeRejected(t *testing.T) {
+	_, err := ParseBytes([]byte(`{
+		"v": 1, "t": 20,
+		"pk": "aa", "sig": "bb", "ts": "2026-01-01T00:00:00Z",
+		"s": {"id":"x","d":{},"mh":"cc","kid":"dd"},
+		"b": {"id":"e","mr":"f","mh":"g","kid":"h"},
+		"ip": "AA",
+		"cx": [{"t": 99, "net": "testnet", "ep": "AA"}]
+	}`))
+	if err == nil {
+		t.Error("unknown cx type code must be rejected")
+	}
+}
+
+func TestParse_InvalidSubjectStructure(t *testing.T) {
+	_, err := ParseBytes([]byte(`{
+		"v": 1, "t": 20,
+		"pk": "aa", "sig": "bb", "ts": "2026-01-01T00:00:00Z",
+		"s": "not an object",
+		"b": {"id":"e","mr":"f","mh":"g","kid":"h"},
+		"ip": "AA",
+		"cx": [{"t":40,"net":"testnet","ep":"AA"}]
+	}`))
 	if err == nil {
 		t.Error("expected error for invalid subject structure")
 	}
 }
 
-func TestParse_NullCommitments(t *testing.T) {
-	path := writeTemp(t, `{
-		"v": 1, "pk": "aa", "sig": "bb", "ts": "2026-01-01T00:00:00Z",
-		"s": {"src":"item","id":"x","d":{},"mh":"cc","kid":"dd"},
+func TestParse_EntropyProof(t *testing.T) {
+	bundle, err := ParseBytes([]byte(validEntropyProofJSON))
+	if err != nil {
+		t.Fatalf("unexpected error: %s", err)
+	}
+	if bundle.T != ptype.EntropyNIST {
+		t.Errorf("T: got %d, want %d", bundle.T, ptype.EntropyNIST)
+	}
+	if !bundle.IsEntropy() {
+		t.Error("IsEntropy() should return true")
+	}
+	if bundle.Subject == nil {
+		t.Fatal("subject must be present for entropy proofs")
+	}
+	if len(bundle.RawData) == 0 {
+		t.Error("RawData should be populated")
+	}
+}
+
+func TestParse_BlockProofNoSubjectNoIP(t *testing.T) {
+	bundle, err := ParseBytes([]byte(validBlockProofJSON))
+	if err != nil {
+		t.Fatalf("unexpected error: %s", err)
+	}
+	if !bundle.IsBlock() {
+		t.Error("IsBlock() should be true")
+	}
+	if bundle.Subject != nil {
+		t.Error("Subject must be nil for block proofs")
+	}
+	if bundle.InclusionProof != "" {
+		t.Errorf("InclusionProof must be empty for block proofs, got %q", bundle.InclusionProof)
+	}
+}
+
+func TestParse_BlockProofRejectsSubject(t *testing.T) {
+	_, err := ParseBytes([]byte(`{
+		"v": 1, "t": 10,
+		"pk": "aa", "sig": "bb", "ts": "2026-01-01T00:00:00Z",
+		"s": {"id":"x","d":{},"mh":"cc","kid":"dd"},
+		"b": {"id":"e","mr":"f","mh":"g","kid":"h"},
+		"cx": [{"t":40,"net":"testnet","ep":"AA"}]
+	}`))
+	if err == nil {
+		t.Error("block proof with s must be rejected")
+	}
+}
+
+func TestParse_BlockProofRejectsIP(t *testing.T) {
+	_, err := ParseBytes([]byte(`{
+		"v": 1, "t": 10,
+		"pk": "aa", "sig": "bb", "ts": "2026-01-01T00:00:00Z",
 		"b": {"id":"e","mr":"f","mh":"g","kid":"h"},
 		"ip": "AA",
-		"cx": null
-	}`)
-	bundle, err := Parse(path)
-	if err != nil {
-		t.Fatalf("unexpected error: %s", err)
-	}
-	if len(bundle.Commitments) != 0 {
-		t.Errorf("commitments should be empty for null, got %d", len(bundle.Commitments))
-	}
-}
-
-func TestParse_OmittedCommitments(t *testing.T) {
-	path := writeTemp(t, `{
-		"v": 1, "pk": "aa", "sig": "bb", "ts": "2026-01-01T00:00:00Z",
-		"s": {"src":"item","id":"x","d":{},"mh":"cc","kid":"dd"},
-		"b": {"id":"e","mr":"f","mh":"g","kid":"h"},
-		"ip": "AA"
-	}`)
-	bundle, err := Parse(path)
-	if err != nil {
-		t.Fatalf("unexpected error: %s", err)
-	}
-	if len(bundle.Commitments) != 0 {
-		t.Errorf("commitments should be empty when omitted, got %d", len(bundle.Commitments))
-	}
-}
-
-func TestParseBytes_Valid(t *testing.T) {
-	bundle, err := ParseBytes([]byte(validProofJSON))
-	if err != nil {
-		t.Fatalf("unexpected error: %s", err)
-	}
-	if bundle.Version != 1 {
-		t.Errorf("version: got %d, want 1", bundle.Version)
-	}
-	if bundle.Subject.ID != "01HJHB01T8FYZ7YTR9P5N62K5B" {
-		t.Errorf("subject.id: got %s, want 01HJHB01T8FYZ7YTR9P5N62K5B", bundle.Subject.ID)
-	}
-	if bundle.PublicKey == "" {
-		t.Error("public_key should not be empty")
-	}
-	if bundle.Signature == "" {
-		t.Error("signature should not be empty")
-	}
-}
-
-func TestParseBytes_InvalidJSON(t *testing.T) {
-	_, err := ParseBytes([]byte("not json"))
-	if err == nil {
-		t.Error("expected error for invalid JSON")
-	}
-}
-
-func TestParseBytes_MissingVersion(t *testing.T) {
-	_, err := ParseBytes([]byte(`{
-		"pk": "aa", "sig": "bb", "ts": "2026-01-01T00:00:00Z",
-		"s": {"src":"item","id":"x","d":{},"mh":"cc","kid":"dd"},
-		"b": {"id":"e","mr":"f","mh":"g","kid":"h"},
-		"ip": "AA"
+		"cx": [{"t":40,"net":"testnet","ep":"AA"}]
 	}`))
 	if err == nil {
-		t.Error("expected error for missing version")
-	}
-}
-
-func TestParseBytes_MissingPublicKey(t *testing.T) {
-	_, err := ParseBytes([]byte(`{
-		"v": 1, "sig": "bb", "ts": "2026-01-01T00:00:00Z",
-		"s": {"src":"item","id":"x","d":{},"mh":"cc","kid":"dd"},
-		"b": {"id":"e","mr":"f","mh":"g","kid":"h"},
-		"ip": "AA"
-	}`))
-	if err == nil {
-		t.Error("expected error for missing public_key")
+		t.Error("block proof with ip must be rejected")
 	}
 }
 
 func TestFileSizeFromData(t *testing.T) {
-	data := []byte("hello world")
-	if got := FileSizeFromData(data); got != 11 {
+	if got := FileSizeFromData([]byte("hello world")); got != 11 {
 		t.Errorf("FileSizeFromData: got %d, want 11", got)
 	}
 }
@@ -324,72 +403,5 @@ func TestFileSize_NotExists(t *testing.T) {
 	size := FileSize("/nonexistent/file")
 	if size != 0 {
 		t.Errorf("file size for missing file: got %d, want 0", size)
-	}
-}
-
-// Minimal valid entropy proof JSON for testing (compact format)
-const validEntropyProofJSON = `{
-  "v": 1,
-  "pk": "CTwMqDZnPd/QTLSq8aTeSD3a+j2DQxKcGfhhIYJQ65Y=",
-  "sig": "c2lnbmF0dXJlX2J5dGVzX2hlcmU=",
-  "ts": "2026-04-06T23:25:06Z",
-  "s": {
-    "src": "nist_beacon",
-    "id": "019d2ae3-865c-7651-9923-b14c55bc8e33",
-    "d": {"pulse": {"outputValue": "ABC123"}},
-    "mh": "5555555555555555555555555555555555555555555555555555555555555555",
-    "kid": "4ceefa4a"
-  },
-  "b": {
-    "id": "019cf813-99b8-730a-84f1-5a711a9c355e",
-    "ph": "1111111111111111111111111111111111111111111111111111111111111111",
-    "mr": "2222222222222222222222222222222222222222222222222222222222222222",
-    "mh": "4444444444444444444444444444444444444444444444444444444444444444",
-    "kid": "4ceefa4a"
-  },
-  "ip": "AA",
-  "cx": []
-}`
-
-func TestParse_EntropyProof(t *testing.T) {
-	path := writeTemp(t, validEntropyProofJSON)
-	bundle, err := Parse(path)
-	if err != nil {
-		t.Fatalf("unexpected error: %s", err)
-	}
-
-	if bundle.Type != "entropy" {
-		t.Errorf("type: got %s, want entropy", bundle.Type)
-	}
-	if bundle.Timestamp != "2026-04-06T23:25:06Z" {
-		t.Errorf("timestamp: got %s", bundle.Timestamp)
-	}
-	if !bundle.IsEntropy() {
-		t.Error("IsEntropy() should return true")
-	}
-	if bundle.Subject.ID != "019d2ae3-865c-7651-9923-b14c55bc8e33" {
-		t.Errorf("subject.id: got %s", bundle.Subject.ID)
-	}
-	if bundle.Subject.Source != "nist_beacon" {
-		t.Errorf("subject.source: got %s", bundle.Subject.Source)
-	}
-	if bundle.Subject.SigningKeyID != "4ceefa4a" {
-		t.Errorf("subject.signing_key_id: got %s", bundle.Subject.SigningKeyID)
-	}
-	if len(bundle.RawData) == 0 {
-		t.Error("RawData should be populated")
-	}
-}
-
-func TestParse_ItemProofHasType(t *testing.T) {
-	bundle, err := ParseBytes([]byte(validProofJSON))
-	if err != nil {
-		t.Fatalf("unexpected error: %s", err)
-	}
-	if bundle.Type != "item" {
-		t.Errorf("type: got %s, want item", bundle.Type)
-	}
-	if bundle.IsEntropy() {
-		t.Error("IsEntropy() should return false for item proofs")
 	}
 }
