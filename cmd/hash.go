@@ -33,7 +33,8 @@ var hashCmd = &cobra.Command{
 Default output is byte-identical to GNU coreutils' sha256sum / md5sum
 (text mode: "<hex>  <filename>\n") so it drops into existing scripts.
 Pass --style bsd for "SHA256 (filename) = <hex>" or --style bare for
-just the digest.
+just the digest (bare always omits the filename column; use it when
+piping the digest into another command or shell variable).
 
 Input modes follow the same convention as 'truestamp verify':
   truestamp hash doc.pdf                   Hash a file
@@ -242,6 +243,15 @@ func runHashOne(ctx context.Context, opts inputsrc.Options, alg hashing.Algorith
 }
 
 // emitHashText writes sha256sum-style (or BSD/bare) lines to w.
+//
+// Styles:
+//
+//	gnu  — "<hex>  <filename>\n" (sha256sum default; --no-filename drops the name)
+//	bsd  — "<ALGO> (<filename>) = <hex>\n" (shasum --tag / BSD md5(1);
+//	       --no-filename collapses to "<ALGO> = <hex>\n")
+//	bare — "<hex>\n" always. Implies --no-filename; any filename column is
+//	       omitted unconditionally, even for multiple inputs, because the
+//	       entire point of `bare` is "just the digest, nothing else".
 func emitHashText(w io.Writer, alg hashing.Algorithm, enc encoding.Encoding, style string, binaryMode, noFilename bool, results []hashResult) {
 	for _, r := range results {
 		digestEnc, _ := encoding.Encode(enc, r.Digest)
@@ -251,11 +261,10 @@ func emitHashText(w io.Writer, alg hashing.Algorithm, enc encoding.Encoding, sty
 		}
 		switch style {
 		case "bare":
-			if noFilename {
-				fmt.Fprintf(w, "%s\n", string(digestEnc))
-			} else {
-				fmt.Fprintf(w, "%s  %s\n", string(digestEnc), name)
-			}
+			// bare is always just the digest — filename column is
+			// never rendered, making it the correct choice for
+			// scripting and piping into another tool's --hash.
+			fmt.Fprintf(w, "%s\n", string(digestEnc))
 		case "bsd":
 			if noFilename {
 				fmt.Fprintf(w, "%s = %s\n", alg.BSDName, string(digestEnc))
@@ -389,7 +398,7 @@ func init() {
 	f.StringP("algorithm", "a", "sha256", "Hash algorithm (see --list)")
 	f.Bool("list", false, "List supported algorithms and exit")
 	f.StringP("encoding", "e", "hex", "Digest output encoding: hex, base64, base64url")
-	f.String("style", "gnu", "Output style: gnu (default), bsd, bare")
+	f.String("style", "gnu", "Output style: gnu (<hex>  <filename>, sha256sum-compatible), bsd (<ALGO> (<filename>) = <hex>), bare (<hex> only; filename always omitted)")
 	f.Bool("binary", false, "Binary mode (gnu style uses space+asterisk instead of two spaces)")
 	f.String("file", "", "Path to file (interactive picker if no path given)")
 	f.String("url", "", "URL to download (interactive prompt if no URL given)")

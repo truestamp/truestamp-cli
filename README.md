@@ -9,6 +9,13 @@ Standalone Go CLI for cryptographic timestamping with [Truestamp](https://truest
 
 Ships as a single static binary. No runtime required.
 
+## 📖 Documentation
+
+- **[EXAMPLES.md](./EXAMPLES.md)** — Hands-on tour of every sub-command with real, copy-pastable examples. Includes pipeline recipes, `--json` / `jq` patterns, CI conventions, and offline / air-gapped usage. **Start here to see what the CLI can do.**
+- **[CONTRIBUTING.md](./CONTRIBUTING.md)** — Development setup, test categories, and task reference.
+- **[CHANGELOG.md](./CHANGELOG.md)** — Release notes.
+- Per-command help: `truestamp <command> --help`.
+
 ## Install
 
 ### Install script (macOS, Linux)
@@ -196,6 +203,8 @@ truestamp completion <shell>         Generate shell completions (bash, zsh, fish
 
 Run `truestamp <command> --help` for per-command flags.
 
+> 📖 **[See EXAMPLES.md](./EXAMPLES.md) for an exhaustive per-command tour plus real-world pipeline recipes.** The examples below are a taste.
+
 ### Composable pipelines
 
 Everything reads stdin, supports `--file` / `--url` with optional path, and prints to stdout — so the commands compose as Unix pipes and replace a pile of external tools (`sha256sum`, `shasum`, `xxd`, `base64`, `jq`, `date`):
@@ -229,6 +238,8 @@ truestamp convert id 019cf813-99b8-730a-84f1-5a711a9c355e --to-zone Local
 ```
 
 Every command supports `--json` (structured output for scripting) and `-s` / `--silent` (exit code only). `truestamp hash` defaults to GNU `sha256sum`-compatible output, `--style bsd` switches to BSD `shasum --tag` format.
+
+**More examples:** [EXAMPLES.md](./EXAMPLES.md) covers every sub-command with copy-pastable recipes, scripting patterns, CI conventions, and offline usage.
 
 ## Upgrading
 

@@ -3,7 +3,8 @@ Compute cryptographic digests for files, URLs, stdin, or a picked file.
 Default output is byte-identical to GNU coreutils' sha256sum / md5sum
 (text mode: "<hex>  <filename>\n") so it drops into existing scripts.
 Pass --style bsd for "SHA256 (filename) = <hex>" or --style bare for
-just the digest.
+just the digest (bare always omits the filename column; use it when
+piping the digest into another command or shell variable).
 
 Input modes follow the same convention as 'truestamp verify':
   truestamp hash doc.pdf                   Hash a file
@@ -39,7 +40,7 @@ Flags:
       --no-filename               Omit the filename from text output
       --prefix string             Prepend single domain-separation byte before hashing (e.g. 0x11)
   -s, --silent                    No output, exit code only
-      --style string              Output style: gnu (default), bsd, bare (default "gnu")
+      --style string              Output style: gnu (<hex>  <filename>, sha256sum-compatible), bsd (<ALGO> (<filename>) = <hex>), bare (<hex> only; filename always omitted) (default "gnu")
       --url string[="(prompt)"]   URL to download (interactive prompt if no URL given)
 
 Global Flags:

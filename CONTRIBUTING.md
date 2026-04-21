@@ -13,16 +13,44 @@ mise install    # Installs Go, GoReleaser, cosign, shellcheck, syft, caddy from 
 task build      # Build for current platform → build/truestamp
 ```
 
-Useful tasks:
+Optional static-analysis and vuln-scan tools (needed by `task lint` and `task vuln-check`):
 
 ```sh
-task test              # All tests with -race and coverage
-task precommit         # fmt + vet + test + build-all
-task release-check     # Validate .goreleaser.yaml
-task release-snapshot  # Local GoReleaser dry-run → dist/
+go install honnef.co/go/tools/cmd/staticcheck@latest
+go install github.com/securego/gosec/v2/cmd/gosec@latest
+go install golang.org/x/vuln/cmd/govulncheck@latest
 ```
 
-The Go module path is `github.com/truestamp/truestamp-cli`. Minimum Go is pinned in `.tool-versions` and `go.mod`.
+The Go module path is `github.com/truestamp/truestamp-cli`. Minimum Go is pinned in `.tool-versions` and `go.mod`; bumping Go there should always be followed by re-running `task vuln-check` to confirm no new stdlib CVEs surface.
+
+## When to run which task
+
+| Task | What it runs | Typical duration | When to use it |
+| ---- | ------------ | ---------------- | -------------- |
+| `task test` | `go test ./...` — every `TestXxx` + `FuzzXxx` seed replay across 17 packages | ~2–8 s | While iterating on code |
+| `task precommit` | `fmt` + `lint` + `test` + `build` | <10 s hot cache | Before every commit |
+| `task precommit-full` | Adds `test-race` + active fuzz + `vuln-check` + `build-all` | ~3–5 min | Before opening a PR or cutting a release |
+| `task test-race` | Full suite under the race detector (`-race`) | ~60 s | When touching goroutines or package-level state |
+| `task test-coverage` | Per-package coverage summary | ~5 s | Quick "where are the gaps?" check |
+| `task test-coverage-full` | Coverage including CLI subprocess tests + HTML report | ~20 s | Before investing in more tests |
+| `task bench` | Every `BenchmarkXxx` with `-benchmem` | ~30 s | Before merging a change that may affect hot paths |
+| `task bench-compare` | Same, with `-count=5`, writes a baseline file for `benchstat` | ~2 min | A/B comparing performance between branches |
+| `task fuzz` | Smoke-runs every `FuzzXxx` with its seed corpus (no mutation) | ~5 s | Explicit fuzz-seed pass (subsumed by `task test`) |
+| `task fuzz-deep` | Active mutation fuzzing, default 15 s per target × 59 targets | ~15 min | Hardening pass before a release; override with `DURATION=1m task fuzz-deep` |
+| `task fuzz-list` | Print the fuzz-target inventory | instant | Discover what's covered |
+| `task lint` | `go vet` + `gofmt -l` + `staticcheck` + `gosec` | ~5–10 s | Part of `precommit`; rarely run standalone |
+| `task vuln-check` | `govulncheck` against `go.mod` + stdlib | ~10 s | After a `go.mod` change or Go toolchain bump |
+| `task release-check` | Validate `.goreleaser.yaml` | <5 s | Maintainer pre-release gate |
+| `task release-snapshot` | Local GoReleaser dry-run → `dist/` | ~60 s | Maintainer pre-release gate |
+
+Run a single test or a focused subset:
+
+```sh
+go test ./internal/verify/...                 # Every test in a package subtree
+go test ./internal/verify -run TestInclusionProof
+go test ./internal/hashing -bench=. -benchmem
+go test -run=^$ -fuzz=FuzzParseCBOR -fuzztime=30s ./internal/proof/
+```
 
 ## Commit conventions
 
@@ -32,16 +60,50 @@ The Go module path is `github.com/truestamp/truestamp-cli`. Minimum Go is pinned
 
 ## Tests
 
-- All tests must pass under `task test` (which runs `go test -race -coverprofile=coverage.out ./...`).
-- Prefer table-driven unit tests. Integration tests that shell out to the binary should be gated with a build tag so they can be skipped.
-- New `internal/*` packages should get at least one `_test.go` file alongside them.
+New code is expected to ship with tests. The repo has **seven categories** of tests, each with a defined purpose:
 
-Run a single test file:
+### Unit and integration tests (`TestXxx`)
 
-```sh
-go test ./internal/verify/...
-go test ./internal/verify -run TestInclusionProof
-```
+- **~650 functions across 17 packages.** Plain `go test` semantics — one test per invariant.
+- Table-driven tests are preferred for parser / validator / encoder code.
+- `cmd/` integration tests use a `TestMain` that builds the CLI binary in a tempdir once and then runs it as a subprocess for each test. This gives real exit-code + real stdout/stderr assertions without paying subprocess costs per-test. See `cmd/verify_test.go` for the pattern.
+- New `internal/*` packages should ship at least one `_test.go` file alongside them.
+
+### Golden-output snapshot tests (`cmd/golden_test.go`)
+
+- Pin every user-facing CLI output (help text, `--list`, `--json` envelopes) byte-for-byte to committed fixtures under `cmd/testdata/golden/`.
+- Catch silent wording / formatting / JSON-schema drift — the class of change that quietly breaks downstream scripts.
+- Regenerate with `UPDATE_GOLDEN=1 go test ./cmd -run Golden` after an intentional output change.
+- When you add a flag that affects output, add (or update) a golden test.
+
+### Fuzz tests (`FuzzXxx`)
+
+- **59 targets across 13 packages** covering every parser that touches attacker-controlled bytes: proof JSON + CBOR, encoding decoders, compact Merkle proofs, Bitcoin tx + txoutproof, TOML config, tar.gz extraction (path-traversal defense), ID / timestamp / URL / public-key parsers.
+- Go's native fuzz framework calls your target in-process (no subprocess cost). Seed corpus lives in `f.Add()` calls; `go test` replays it as regression tests on every run. Active mutation kicks in only with `-fuzz=...`.
+- Add a fuzz target whenever you write a parser that consumes external bytes. Assert at minimum "no panic"; add stronger invariants (round-trip, bounded output, etc.) where the semantics support it. See `internal/selfupgrade/fuzz_test.go`'s `FuzzExtractBinary` for a direct path-traversal assertion inside the fuzz callback.
+- Crashing inputs discovered during fuzzing are auto-saved under `<pkg>/testdata/fuzz/FuzzXxx/` and become permanent regression seeds. Commit these.
+
+### Benchmarks (`BenchmarkXxx`)
+
+- **20+ targets** on hot paths: hashing across all 14 algorithms, proof parse / marshal (JSON + CBOR), encoding round-trip, Merkle proof decode + verify, domain-prefixed hashing.
+- Run with `task bench` or `go test -bench=.`. `b.SetBytes` is used where throughput matters so `go test` reports MB/s alongside ns/op.
+- Before merging a change to any parser or crypto primitive, capture a baseline with `task bench-compare` and diff with [`benchstat`](https://pkg.go.dev/golang.org/x/perf/cmd/benchstat).
+
+### Race detector (`task test-race`)
+
+- Runs the full suite under `-race`. Currently zero-finding on `main`; keep it that way. Any new goroutine, any new package-level mutable state, any test that swaps a package-level var should stay green under this task.
+- Runs in `precommit-full` but not `precommit`, so PR authors should run it before opening a PR.
+
+### Coverage (`task test-coverage` / `task test-coverage-full`)
+
+- `task test-coverage` — fast per-package summary, no subprocess instrumentation.
+- `task test-coverage-full` — builds the CLI binary with `-cover` so subprocess runs in `cmd/*_test.go` are counted too; merges test-process + subprocess covdata; emits `coverage.out` and `coverage.html`. This is the honest number.
+- Target is 90%+ per package where reachable; packages below that threshold have structural reasons documented inline (interactive TTY, platform-specific branches, side-effect-heavy upgrade pipeline).
+
+### Static analysis (`task lint`) and vulnerability scan (`task vuln-check`)
+
+- `go vet` + `gofmt -l` + `staticcheck` + `gosec`. Lint exclusions (`G104`, `G115`, `G304`, etc.) are documented inline in the Taskfile with rationale — if you disagree with one, argue the case in the PR.
+- `govulncheck` is run by `precommit-full` and must be clean before any release. Re-run it after every Go toolchain bump.
 
 ## Pull requests
 
@@ -73,8 +135,9 @@ The PR flow (introduced in 0.3.0) preserves an audit trail of every cask update;
 jj git fetch
 jj log -r 'main@origin..@'   # expect 0 commits not on origin
 
-# All quality gates pass.
-task precommit               # fmt + vet + test + build-all
+# Full quality gate — race detector + active fuzz + vuln scan + all-platform build.
+# Takes ~3-5 minutes; use this at the release boundary, not for every commit.
+task precommit-full
 
 # GoReleaser can build the full artifact set with ldflags intact.
 task release-check           # validates .goreleaser.yaml

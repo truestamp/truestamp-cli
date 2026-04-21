@@ -123,7 +123,7 @@ func TestCLI_JCS_HashEquivalence(t *testing.T) {
 		t.Skip("no POSIX sh available")
 	}
 	pipedCmd := exec.Command(sh, "-c", binaryPath+" jcs | "+binaryPath+
-		" hash -a sha256 --style bare --no-filename")
+		" hash -a sha256 --style bare")
 	pipedCmd.Stdin = strings.NewReader(input)
 	piped, err := pipedCmd.Output()
 	if err != nil {

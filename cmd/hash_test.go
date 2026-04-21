@@ -212,7 +212,7 @@ func TestCLI_Hash_PrefixMatchesJCS(t *testing.T) {
 		t.Skip("no POSIX sh available")
 	}
 	cmdB := exec.Command(sh, "-c", binaryPath+" jcs | "+binaryPath+
-		" hash --prefix 0x11 -a sha256 --style bare --no-filename")
+		" hash --prefix 0x11 -a sha256 --style bare")
 	cmdB.Stdin = strings.NewReader(input)
 	outB, err := cmdB.Output()
 	if err != nil {
@@ -265,8 +265,8 @@ func TestCLI_Hash_CRLFDifferentFromLF(t *testing.T) {
 	if err := os.WriteFile(lf, []byte("hello\n"), 0644); err != nil {
 		t.Fatal(err)
 	}
-	a := mustRun(t, binaryPath, "hash", "--style", "bare", "--no-filename", crlf)
-	b := mustRun(t, binaryPath, "hash", "--style", "bare", "--no-filename", lf)
+	a := mustRun(t, binaryPath, "hash", "--style", "bare", crlf)
+	b := mustRun(t, binaryPath, "hash", "--style", "bare", lf)
 	if a == b {
 		t.Errorf("CRLF and LF files produced the same digest: %s", a)
 	}
