@@ -49,3 +49,22 @@ skip_signatures = false
 # Verify via server API instead of local computation (requires api_key)
 # Env: TRUESTAMP_VERIFY_REMOTE
 remote = false
+
+[hash]
+# Default algorithm for `truestamp hash`
+# Env: TRUESTAMP_HASH_ALGORITHM
+algorithm = "sha256"
+
+# Default digest encoding: hex, base64, base64url
+# Env: TRUESTAMP_HASH_ENCODING
+encoding = "hex"
+
+# Default output style: gnu (sha256sum-compatible), bsd, bare
+# Env: TRUESTAMP_HASH_STYLE
+style = "gnu"
+
+[convert]
+# Default IANA time zone for `truestamp convert time` and `convert id`
+# (override with --to-zone). Accepts UTC, Local, or any IANA name.
+# Env: TRUESTAMP_CONVERT_TIME_ZONE
+time_zone = "UTC"

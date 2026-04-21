@@ -173,19 +173,62 @@ cat proof.json | truestamp verify                  # stdin pipe
 ## Commands
 
 ```
-truestamp create [file]      Create a new Truestamp item (submit claims / file hash)
-truestamp download <id>      Download a proof bundle for an item or entropy observation
-truestamp verify [proof]     Verify a Truestamp proof bundle
-truestamp upgrade            Upgrade the CLI to the latest release (install-method aware)
-truestamp config path        Print the config file path
-truestamp config show        Print the resolved configuration (API key masked)
-truestamp config init        Create a default config file
-truestamp version            Print detailed build and runtime info (includes detected install method)
-truestamp --version          Terse one-line version
-truestamp completion <shell> Generate shell completions (bash, zsh, fish)
+truestamp create [file]              Create a new Truestamp item (submit claims / file hash)
+truestamp download <id>              Download a proof bundle for an item or entropy observation
+truestamp verify [proof]             Verify a Truestamp proof bundle
+truestamp hash [path ...]            Compute cryptographic digests (SHA-2 / SHA-3 / BLAKE2 / MD5 / SHA-1)
+truestamp encode [file]              Encode raw bytes into hex / base64 / base64url
+truestamp decode [file]              Decode hex / base64 / base64url into raw bytes
+truestamp jcs [file]                 Canonicalize JSON per RFC 8785
+truestamp convert time [input]       Convert timestamps across zones / Unix formats
+truestamp convert proof [file]       Convert a proof bundle between JSON and CBOR
+truestamp convert id [value]         Extract the embedded timestamp from a ULID or UUIDv7
+truestamp convert keyid [pubkey]     Derive the 4-byte Truestamp kid from an Ed25519 public key
+truestamp convert merkle [compact]   Decode a compact base64url Merkle proof
+truestamp upgrade                    Upgrade the CLI to the latest release (install-method aware)
+truestamp config path                Print the config file path
+truestamp config show                Print the resolved configuration (API key masked)
+truestamp config init                Create a default config file
+truestamp version                    Print detailed build and runtime info (includes detected install method)
+truestamp --version                  Terse one-line version
+truestamp completion <shell>         Generate shell completions (bash, zsh, fish)
 ```
 
 Run `truestamp <command> --help` for per-command flags.
+
+### Composable pipelines
+
+Everything reads stdin, supports `--file` / `--url` with optional path, and prints to stdout — so the commands compose as Unix pipes and replace a pile of external tools (`sha256sum`, `shasum`, `xxd`, `base64`, `jq`, `date`):
+
+```sh
+# SHA-256 a file, byte-identical to sha256sum / shasum output
+truestamp hash doc.pdf
+
+# Pick a different algorithm (14 supported; see `truestamp hash --list`)
+truestamp hash -a blake2b-512 doc.pdf
+truestamp hash -a sha3-256 --style bsd doc.pdf
+
+# Recompute a Truestamp claims_hash locally — the flagship use case
+truestamp hash --prefix 0x11 --jcs -a sha256 --style bare --no-filename < claims.json
+# equivalently, as an explicit pipeline:
+truestamp jcs < claims.json | truestamp hash --prefix 0x11 -a sha256 --style bare --no-filename
+
+# Round-trip a proof between wire formats and verify end-to-end
+truestamp convert proof --to cbor proof.json | truestamp verify --skip-external
+
+# Derive the 4-byte kid fingerprint from an Ed25519 pubkey
+truestamp convert keyid CTwMqDZnPd/QTLSq8aTeSD3a+j2DQxKcGfhhIYJQ65Y=
+
+# Timezone math without shelling out to `date`
+truestamp convert time 1700000000 --to-zone America/New_York
+truestamp convert time "2024-06-15T12:00:00Z" --to-zone Asia/Kolkata
+
+# ULID / UUIDv7 timestamp extraction
+truestamp convert id 01KNN33GX5E470CB9TRWAYF9DD
+truestamp convert id 019cf813-99b8-730a-84f1-5a711a9c355e --to-zone Local
+```
+
+Every command supports `--json` (structured output for scripting) and `-s` / `--silent` (exit code only). `truestamp hash` defaults to GNU `sha256sum`-compatible output, `--style bsd` switches to BSD `shasum --tag` format.
 
 ## Upgrading
 

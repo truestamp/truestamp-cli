@@ -87,12 +87,28 @@ func presentConfig(cfg *config.Config) {
 		Border(lipgloss.HiddenBorder()).
 		StyleFunc(configStyleFunc)
 
+	hash := table.New().
+		Row("Algorithm", cfg.Hash.Algorithm).
+		Row("Encoding", cfg.Hash.Encoding).
+		Row("Style", cfg.Hash.Style).
+		Border(lipgloss.HiddenBorder()).
+		StyleFunc(configStyleFunc)
+
+	convert := table.New().
+		Row("Time Zone", valueOrNotSet(cfg.Convert.TimeZone)).
+		Border(lipgloss.HiddenBorder()).
+		StyleFunc(configStyleFunc)
+
 	output := lipgloss.JoinVertical(lipgloss.Left,
 		header, "",
 		ui.SectionHeader("General"),
 		general.String(), "",
 		ui.SectionHeader("Verification"),
-		verify.String(),
+		verify.String(), "",
+		ui.SectionHeader("Hash"),
+		hash.String(), "",
+		ui.SectionHeader("Convert"),
+		convert.String(),
 	)
 	lipgloss.Println(output)
 }

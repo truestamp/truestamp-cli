@@ -30,12 +30,14 @@ var DefaultTOML string
 
 // Config holds the resolved configuration for the CLI.
 type Config struct {
-	APIURL      string       `koanf:"api_url"`
-	APIKey      string       `koanf:"api_key"`
-	Team        string       `koanf:"team"`
-	KeyringURL  string       `koanf:"keyring_url"`
-	HTTPTimeout string       `koanf:"http_timeout"`
-	Verify      VerifyConfig `koanf:"verify"`
+	APIURL      string        `koanf:"api_url"`
+	APIKey      string        `koanf:"api_key"`
+	Team        string        `koanf:"team"`
+	KeyringURL  string        `koanf:"keyring_url"`
+	HTTPTimeout string        `koanf:"http_timeout"`
+	Verify      VerifyConfig  `koanf:"verify"`
+	Hash        HashConfig    `koanf:"hash"`
+	Convert     ConvertConfig `koanf:"convert"`
 }
 
 // Timeout parses the HTTPTimeout string as a Go duration.
@@ -56,11 +58,24 @@ type VerifyConfig struct {
 	Remote         bool `koanf:"remote"`
 }
 
+// HashConfig holds hash-subcommand-specific configuration.
+type HashConfig struct {
+	Algorithm string `koanf:"algorithm"`
+	Encoding  string `koanf:"encoding"`
+	Style     string `koanf:"style"`
+}
+
+// ConvertConfig holds convert-subcommand-specific configuration.
+type ConvertConfig struct {
+	TimeZone string `koanf:"time_zone"`
+}
+
 // sectionPrefixes lists known TOML section names for env var mapping.
-var sectionPrefixes = []string{"verify"}
+var sectionPrefixes = []string{"verify", "hash", "convert"}
 
 // flagKeyMap maps CLI flag names to their koanf key paths.
-// Verify-subcommand flags are scoped under "verify.".
+// Verify-subcommand flags are scoped under "verify."; hash under "hash.";
+// convert under "convert.".
 var flagKeyMap = map[string]string{
 	// Root persistent flags
 	"api-url":      "api_url",
@@ -74,6 +89,12 @@ var flagKeyMap = map[string]string{
 	"skip-external":   "verify.skip_external",
 	"skip-signatures": "verify.skip_signatures",
 	"remote":          "verify.remote",
+	// Hash subcommand flags
+	"algorithm": "hash.algorithm",
+	"encoding":  "hash.encoding",
+	"style":     "hash.style",
+	// Convert subcommand flags
+	"to-zone": "convert.time_zone",
 }
 
 // Load reads configuration in priority order: defaults → config file → env → CLI flags.
@@ -95,6 +116,10 @@ func Load(configPath string, flags *pflag.FlagSet) (*Config, error) {
 		"verify.skip_external":   false,
 		"verify.skip_signatures": false,
 		"verify.remote":          false,
+		"hash.algorithm":         "sha256",
+		"hash.encoding":          "hex",
+		"hash.style":             "gnu",
+		"convert.time_zone":      "UTC",
 	}
 	if err := k.Load(confmap.Provider(defaults, "."), nil); err != nil {
 		return nil, fmt.Errorf("loading defaults: %w", err)
@@ -234,7 +259,17 @@ json = %v
 skip_external = %v
 skip_signatures = %v
 remote = %v
+
+[hash]
+algorithm = %q
+encoding = %q
+style = %q
+
+[convert]
+time_zone = %q
 `, c.APIURL, apiKey, c.Team, c.KeyringURL, c.HTTPTimeout,
 		c.Verify.Silent, c.Verify.JSON,
-		c.Verify.SkipExternal, c.Verify.SkipSignatures, c.Verify.Remote)
+		c.Verify.SkipExternal, c.Verify.SkipSignatures, c.Verify.Remote,
+		c.Hash.Algorithm, c.Hash.Encoding, c.Hash.Style,
+		c.Convert.TimeZone)
 }

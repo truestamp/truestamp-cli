@@ -18,15 +18,9 @@ import (
 	lipgloss "charm.land/lipgloss/v2"
 	"charm.land/lipgloss/v2/table"
 	"github.com/spf13/cobra"
+	"github.com/truestamp/truestamp-cli/internal/inputsrc"
 	"github.com/truestamp/truestamp-cli/internal/items"
 	"github.com/truestamp/truestamp-cli/internal/ui"
-)
-
-// Sentinels for flags passed without a value (via NoOptDefVal). See
-// the equivalent block in verify.go for the rationale behind NUL bytes.
-const (
-	claimsFlagPick     = "\x00pick"
-	fileFlagPickCreate = "\x00pick"
 )
 
 var createCmd = &cobra.Command{
@@ -134,7 +128,7 @@ func resolveCreateInput(cmd *cobra.Command, args []string) (map[string]any, erro
 
 	switch {
 	// --claims: load claims JSON from file (picker if no path)
-	case claimsFlag == claimsFlagPick:
+	case claimsFlag == inputsrc.FilePickSentinel:
 		path, err := pickClaimsFile()
 		if err != nil {
 			return nil, err
@@ -149,7 +143,7 @@ func resolveCreateInput(cmd *cobra.Command, args []string) (map[string]any, erro
 		return readClaimsStdin()
 
 	// --file: auto-hash a file (picker if no path)
-	case fileFlag == fileFlagPickCreate:
+	case fileFlag == inputsrc.FilePickSentinel:
 		path, err := pickAnyFile()
 		if err != nil {
 			return nil, err
@@ -454,12 +448,12 @@ func init() {
 
 	// Input source: file to hash
 	f.StringP("file", "f", "", "Path to file to hash (interactive picker if no path given)")
-	f.Lookup("file").NoOptDefVal = fileFlagPickCreate
+	f.Lookup("file").NoOptDefVal = inputsrc.FilePickSentinel
 	f.BoolP("file-stdin", "F", false, "Hash raw file content from stdin (requires --name)")
 
 	// Input source: claims JSON
 	f.StringP("claims", "c", "", "Path to claims JSON file (interactive picker if no path given)")
-	f.Lookup("claims").NoOptDefVal = claimsFlagPick
+	f.Lookup("claims").NoOptDefVal = inputsrc.FilePickSentinel
 	f.BoolP("claims-stdin", "C", false, "Read claims JSON from stdin")
 
 	// Claims fields

@@ -8,15 +8,11 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
-	"net/url"
 	"os"
 	"strings"
 
-	"charm.land/huh/v2"
 	"github.com/spf13/cobra"
-	"github.com/truestamp/truestamp-cli/internal/proof"
-	"github.com/truestamp/truestamp-cli/internal/ui"
+	"github.com/truestamp/truestamp-cli/internal/inputsrc"
 	"github.com/truestamp/truestamp-cli/internal/verify"
 )
 
@@ -24,14 +20,6 @@ import (
 // The report has already been rendered so we only need a non-nil error for
 // exit code 1. Execute() prints it via its default path.
 var errVerificationFailed = errors.New("verification failed")
-
-// Sentinel values for flags passed without a value (via NoOptDefVal). NUL
-// bytes are not valid in filenames or URLs on any supported OS, so the
-// sentinel can never collide with a value a user could legitimately pass.
-const (
-	fileFlagPick  = "\x00pick"
-	urlFlagPrompt = "\x00prompt"
-)
 
 var verifyCmd = &cobra.Command{
 	Use:   "verify [file-or-url]",
@@ -61,22 +49,39 @@ Exit code 0 on success, 1 on verification failure.`,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		cfg := appConfig
 
-		// Validate mutual exclusivity of --silent and --json
 		if cfg.Verify.Silent && cfg.Verify.JSON {
 			return fmt.Errorf("--silent and --json are mutually exclusive")
 		}
 
-		filename, data, err := resolveProofInput(cmd, args)
+		positional := ""
+		if len(args) > 0 {
+			positional = args[0]
+		}
+		fileFlag, _ := cmd.Flags().GetString("file")
+		urlFlag, _ := cmd.Flags().GetString("url")
+
+		data, src, err := inputsrc.Resolve(cmd.Context(), inputsrc.Options{
+			PositionalArg:        positional,
+			FileFlag:             fileFlag,
+			URLFlag:              urlFlag,
+			AllowStdin:           true,
+			AutoDetectURL:        true,
+			PickerTitle:          "Select proof file",
+			PickerExts:           []string{".json", ".cbor"},
+			URLPromptTitle:       "Enter proof URL",
+			URLPromptPlaceholder: "https://example.com/proof.json",
+		})
 		if err != nil {
+			if errors.Is(err, inputsrc.ErrNoInput) {
+				_ = cmd.Help()
+				return nil
+			}
+			if cfg.Verify.Silent {
+				return errSilentFail
+			}
 			return err
 		}
 
-		// Empty filename means cmd.Help() was shown
-		if filename == "" && data == nil {
-			return nil
-		}
-
-		// Validate --hash flag
 		hashFlag, _ := cmd.Flags().GetString("hash")
 		if hashFlag != "" {
 			hashFlag = strings.ToLower(strings.TrimSpace(hashFlag))
@@ -88,28 +93,37 @@ Exit code 0 on success, 1 on verification failure.`,
 			}
 		}
 
+		displayName := src.DisplayName()
+		if src.Type == inputsrc.SourceStdin {
+			displayName = "(stdin)"
+		}
+
 		var report *verify.Report
 
 		if cfg.Verify.Remote {
 			if cfg.Verify.SkipExternal || cfg.Verify.SkipSignatures {
 				return fmt.Errorf("--skip-external and --skip-signatures cannot be used with --remote (server always runs full verification)")
 			}
-
 			if cfg.APIKey == "" {
 				return fmt.Errorf("API key required for --remote verification (use --api-key or set TRUESTAMP_API_KEY)")
 			}
 
-			if data != nil {
-				// Remote verification needs a file on disk -- write temp
+			// Remote verification needs a file on disk. For non-file
+			// sources (stdin/url/picker that produced bytes) we write a
+			// temp file; for regular file paths we pass through directly.
+			tmpPath := ""
+			sourceFile := displayName
+			if src.Type != inputsrc.SourceFile {
 				tmp, tErr := writeTempProof(data)
 				if tErr != nil {
 					return tErr
 				}
-				defer os.Remove(tmp)
-				filename = tmp
+				tmpPath = tmp
+				sourceFile = tmp
+				defer os.Remove(tmpPath)
 			}
 
-			report, err = verify.RunRemote(filename, verify.RemoteOptions{
+			report, err = verify.RunRemote(sourceFile, verify.RemoteOptions{
 				APIURL:       cfg.APIURL,
 				APIKey:       cfg.APIKey,
 				Team:         cfg.Team,
@@ -122,11 +136,7 @@ Exit code 0 on success, 1 on verification failure.`,
 				SkipSignatures: cfg.Verify.SkipSignatures,
 				ExpectedHash:   hashFlag,
 			}
-			if data != nil {
-				report, err = verify.RunFromBytes(data, filename, opts)
-			} else {
-				report, err = verify.Run(filename, opts)
-			}
+			report, err = verify.RunFromBytes(data, displayName, opts)
 		}
 
 		if err != nil {
@@ -158,125 +168,6 @@ Exit code 0 on success, 1 on verification failure.`,
 	},
 }
 
-// resolveProofInput determines where the proof comes from based on flags and args.
-// Returns (filename, data, error). If data is non-nil, the proof was downloaded
-// from a URL and filename is the display name. If data is nil, filename is a
-// local file path to read.
-func resolveProofInput(cmd *cobra.Command, args []string) (string, []byte, error) {
-	fileFlag, _ := cmd.Flags().GetString("file")
-	urlFlag, _ := cmd.Flags().GetString("url")
-
-	switch {
-	case fileFlag == fileFlagPick:
-		if len(args) > 0 {
-			return args[0], nil, nil
-		}
-		path, err := pickFile()
-		if err != nil {
-			return "", nil, err
-		}
-		return path, nil, nil
-
-	case fileFlag != "":
-		return fileFlag, nil, nil
-
-	case urlFlag == urlFlagPrompt:
-		if len(args) > 0 {
-			data, err := proof.DownloadCtx(cmd.Context(), args[0])
-			if err != nil {
-				return "", nil, err
-			}
-			return args[0], data, nil
-		}
-		rawURL, err := promptURL()
-		if err != nil {
-			return "", nil, err
-		}
-		data, err := proof.DownloadCtx(cmd.Context(), rawURL)
-		if err != nil {
-			return "", nil, err
-		}
-		return rawURL, data, nil
-
-	case urlFlag != "":
-		data, err := proof.DownloadCtx(cmd.Context(), urlFlag)
-		if err != nil {
-			return "", nil, err
-		}
-		return urlFlag, data, nil
-
-	case len(args) > 0:
-		if u, err := url.Parse(args[0]); err == nil && (u.Scheme == "http" || u.Scheme == "https") && u.Host != "" {
-			data, err := proof.DownloadCtx(cmd.Context(), args[0])
-			if err != nil {
-				return "", nil, err
-			}
-			return args[0], data, nil
-		}
-		return args[0], nil, nil
-
-	case isStdinPipe():
-		data, err := io.ReadAll(io.LimitReader(os.Stdin, 1<<20))
-		if err != nil {
-			return "", nil, fmt.Errorf("reading stdin: %w", err)
-		}
-		if len(data) == 0 {
-			return "", nil, fmt.Errorf("no data received on stdin")
-		}
-		return "(stdin)", data, nil
-
-	default:
-		cmd.Help()
-		return "", nil, nil
-	}
-}
-
-// isStdinPipe returns true if stdin is a pipe (not a terminal).
-func isStdinPipe() bool {
-	stat, err := os.Stdin.Stat()
-	if err != nil {
-		return false
-	}
-	return (stat.Mode() & os.ModeCharDevice) == 0
-}
-
-// pickFile launches an interactive file picker for selecting a proof file.
-func pickFile() (string, error) {
-	return ui.PickFile(ui.PickFileOptions{
-		Title:        "Select proof file",
-		AllowedTypes: []string{".json", ".cbor"},
-	})
-}
-
-// promptURL launches an interactive text input for entering a proof URL.
-func promptURL() (string, error) {
-	var rawURL string
-	err := huh.NewForm(
-		huh.NewGroup(
-			huh.NewInput().
-				Title("Enter proof URL").
-				Placeholder("https://example.com/proof.json").
-				Value(&rawURL).
-				Validate(func(s string) error {
-					if s == "" {
-						return nil
-					}
-					if !strings.HasPrefix(s, "http://") && !strings.HasPrefix(s, "https://") {
-						return fmt.Errorf("must start with http:// or https://")
-					}
-					return nil
-				}),
-		),
-	).WithTheme(ui.HuhTheme()).Run()
-	if err != nil {
-		return "", fmt.Errorf("URL input: %w", err)
-	}
-	if rawURL == "" {
-		return "", fmt.Errorf("no URL provided")
-	}
-	return rawURL, nil
-}
-
 // writeTempProof writes proof data to a temporary file for remote verification.
 func writeTempProof(data []byte) (string, error) {
 	f, err := os.CreateTemp("", "truestamp-proof-*.json")
@@ -296,8 +187,8 @@ func init() {
 	f := verifyCmd.Flags()
 	f.String("file", "", "Path to proof file (interactive picker if no path given)")
 	f.String("url", "", "URL to download proof from (interactive prompt if no URL given)")
-	f.Lookup("file").NoOptDefVal = fileFlagPick
-	f.Lookup("url").NoOptDefVal = urlFlagPrompt
+	f.Lookup("file").NoOptDefVal = inputsrc.FilePickSentinel
+	f.Lookup("url").NoOptDefVal = inputsrc.URLPromptSentinel
 	f.String("hash", "", "Expected claims hash (hex) to compare against proof")
 	f.BoolP("silent", "s", false, "No output, exit code only")
 	f.Bool("json", false, "Output results as JSON")
