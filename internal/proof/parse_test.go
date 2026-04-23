@@ -86,6 +86,27 @@ const validBlockProofJSON = `{
   "cx": [{"t": 40, "net": "testnet", "tx": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "memo": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb", "l": 1, "ep": "AA"}]
 }`
 
+// Beacon bundle (t=11) has the same wire shape as a block bundle — no
+// `s`, no `ip` — but a distinct type code. The signature would also
+// differ from the block proof of the same block (the `t` byte is in
+// the signing payload), but this fixture uses a placeholder `sig`
+// like all the other test bundles.
+const validBeaconProofJSON = `{
+  "v": 1,
+  "t": 11,
+  "pk": "CTwMqDZnPd/QTLSq8aTeSD3a+j2DQxKcGfhhIYJQ65Y=",
+  "sig": "BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB==",
+  "ts": "2026-04-06T23:25:06Z",
+  "b": {
+    "id": "019cf813-99b8-730a-84f1-5a711a9c355e",
+    "ph": "1111111111111111111111111111111111111111111111111111111111111111",
+    "mr": "2222222222222222222222222222222222222222222222222222222222222222",
+    "mh": "4444444444444444444444444444444444444444444444444444444444444444",
+    "kid": "4ceefa4a"
+  },
+  "cx": [{"t": 40, "net": "testnet", "tx": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "memo": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb", "l": 1, "ep": "AA"}]
+}`
+
 func writeTemp(t *testing.T, content string) string {
 	t.Helper()
 	dir := t.TempDir()
@@ -109,8 +130,9 @@ func TestParse_ValidItemProof(t *testing.T) {
 	if bundle.T != ptype.Item {
 		t.Errorf("T: got %d, want %d", bundle.T, ptype.Item)
 	}
-	if !bundle.IsItem() || bundle.IsEntropy() || bundle.IsBlock() {
-		t.Errorf("IsItem/IsEntropy/IsBlock: %v/%v/%v, want t/f/f", bundle.IsItem(), bundle.IsEntropy(), bundle.IsBlock())
+	if !bundle.IsItem() || bundle.IsEntropy() || bundle.IsBlock() || bundle.IsBeacon() || bundle.IsBlockLike() {
+		t.Errorf("item flags: IsItem/IsEntropy/IsBlock/IsBeacon/IsBlockLike: %v/%v/%v/%v/%v, want t/f/f/f/f",
+			bundle.IsItem(), bundle.IsEntropy(), bundle.IsBlock(), bundle.IsBeacon(), bundle.IsBlockLike())
 	}
 	if bundle.Subject == nil || bundle.Subject.ID != "01HJHB01T8FYZ7YTR9P5N62K5B" {
 		t.Errorf("subject.id mismatch")
@@ -345,11 +367,61 @@ func TestParse_BlockProofNoSubjectNoIP(t *testing.T) {
 	if !bundle.IsBlock() {
 		t.Error("IsBlock() should be true")
 	}
+	if bundle.IsBeacon() {
+		t.Error("IsBeacon() should be false for a t=10 bundle")
+	}
+	if !bundle.IsBlockLike() {
+		t.Error("IsBlockLike() should be true for a t=10 bundle")
+	}
 	if bundle.Subject != nil {
 		t.Error("Subject must be nil for block proofs")
 	}
 	if bundle.InclusionProof != "" {
 		t.Errorf("InclusionProof must be empty for block proofs, got %q", bundle.InclusionProof)
+	}
+}
+
+// TestParse_BeaconProof covers the t=11 beacon wire shape: structurally
+// identical to a block (no s, no ip, non-empty cx) but with IsBlock()
+// false, IsBeacon() true, and IsBlockLike() true. This pins the
+// discrimination logic that verify pipeline guards rely on.
+func TestParse_BeaconProof(t *testing.T) {
+	bundle, err := ParseBytes([]byte(validBeaconProofJSON))
+	if err != nil {
+		t.Fatalf("unexpected error: %s", err)
+	}
+	if bundle.T != ptype.Beacon {
+		t.Errorf("T: got %d, want %d", bundle.T, ptype.Beacon)
+	}
+	if bundle.IsBlock() {
+		t.Error("IsBlock() should be false for a t=11 bundle (use IsBlockLike for pipeline guards)")
+	}
+	if !bundle.IsBeacon() {
+		t.Error("IsBeacon() should be true")
+	}
+	if !bundle.IsBlockLike() {
+		t.Error("IsBlockLike() should be true for a t=11 bundle")
+	}
+	if bundle.Subject != nil {
+		t.Error("Subject must be nil for beacon proofs")
+	}
+	if bundle.InclusionProof != "" {
+		t.Errorf("InclusionProof must be empty for beacon proofs, got %q", bundle.InclusionProof)
+	}
+}
+
+// TestParse_BeaconProofRejectsSubject mirrors the block rejection test —
+// a t=11 bundle carrying an `s` field must be rejected.
+func TestParse_BeaconProofRejectsSubject(t *testing.T) {
+	_, err := ParseBytes([]byte(`{
+		"v": 1, "t": 11,
+		"pk": "aa", "sig": "bb", "ts": "2026-01-01T00:00:00Z",
+		"s": {"id":"x","d":{},"mh":"cc","kid":"dd"},
+		"b": {"id":"e","mr":"f","mh":"g","kid":"h"},
+		"cx": [{"t":40,"net":"testnet","ep":"AA"}]
+	}`))
+	if err == nil {
+		t.Error("beacon proof with s must be rejected")
 	}
 }
 

@@ -23,6 +23,8 @@ func subjectCodeForName(name string) ptype.Code {
 	switch name {
 	case "block":
 		return ptype.Block
+	case "beacon":
+		return ptype.Beacon
 	case "item":
 		return ptype.Item
 	case "entropy_nist":
@@ -99,8 +101,13 @@ func renderProofSection(r *Report) string {
 // --- Subject Section ---
 
 func renderSubject(r *Report) string {
+	// Block and beacon share the same subject shape (no claims, no
+	// observation — the block itself is what was committed) so they
+	// render through the same section. The Type row upstream already
+	// reads "Block" vs "Beacon" via ptype.Humanize, so the distinction
+	// is preserved for the user.
 	switch subjectCodeForName(r.SubjectType) {
-	case ptype.Block:
+	case ptype.Block, ptype.Beacon:
 		return renderBlockSubject(r)
 	case ptype.EntropyNIST, ptype.EntropyStellar, ptype.EntropyBitcoin:
 		return renderEntropySubject(r)
@@ -109,8 +116,15 @@ func renderSubject(r *Report) string {
 }
 
 func renderBlockSubject(r *Report) string {
+	// Slightly different copy for plain block vs beacon: both describe
+	// a block as the subject, but a beacon is the finalized-block
+	// projection used for "proof of life", so name it that way.
 	header := ui.SectionHeader("Block Subject")
 	subtitle := ui.FaintStyle().Render("  The subject of this proof is a Truestamp block. No user claims, no observation — the block itself is what was committed.")
+	if subjectCodeForName(r.SubjectType) == ptype.Beacon {
+		header = ui.SectionHeader("Beacon Subject")
+		subtitle = ui.FaintStyle().Render("  The subject of this proof is a Truestamp beacon — a finalized block exposed as a \"proof of life\" commitment. Structurally identical to a block proof (t=11 on the wire).")
+	}
 
 	tbl := table.New().
 		Border(lipgloss.HiddenBorder()).

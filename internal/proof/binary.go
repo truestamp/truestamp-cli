@@ -91,12 +91,14 @@ func ParseCBOR(data []byte) (*ProofBundle, error) {
 		Commitments: commits,
 	}
 
-	if t == ptype.Block {
+	// Block-like subjects (t ∈ {10, 11}) have no `s` and no `ip`.
+	if ptype.IsBlockLikeSubject(t) {
+		shape := ptype.Name(t) // "block" or "beacon"
 		if _, ok := raw["s"]; ok {
-			return nil, fmt.Errorf("block proof must not include s")
+			return nil, fmt.Errorf("%s proof must not include s", shape)
 		}
 		if v, ok := raw["ip"]; ok && v != nil {
-			return nil, fmt.Errorf("block proof must not include ip")
+			return nil, fmt.Errorf("%s proof must not include ip", shape)
 		}
 		if err := validateSizes(bundle); err != nil {
 			return nil, err

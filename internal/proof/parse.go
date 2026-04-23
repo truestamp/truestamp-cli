@@ -26,10 +26,10 @@ func Parse(filename string) (*ProofBundle, error) {
 // describing tag 0xd9d9f7) and falls back to JSON parsing. Enforces:
 //
 //   - v == 1
-//   - t ∈ {10, 20, 30, 31, 32}
+//   - t ∈ {10, 11, 20, 30, 31, 32}
 //   - cx non-empty, every cx[i].t ∈ {40, 41}
-//   - t == 10: s absent, ip absent
-//   - t != 10: s present with id/d/mh/kid, ip present and non-empty
+//   - t ∈ {10, 11} (block-like): s absent, ip absent
+//   - t ∉ {10, 11}: s present with id/d/mh/kid, ip present and non-empty
 func ParseBytes(data []byte) (*ProofBundle, error) {
 	if IsCBORProof(data) {
 		return ParseCBOR(data)
@@ -105,13 +105,16 @@ func ParseBytes(data []byte) (*ProofBundle, error) {
 		Commitments: commits,
 	}
 
-	// Subject + inclusion proof rules depend on type code
-	if t == ptype.Block {
+	// Subject + inclusion proof rules depend on type code. Block-like
+	// subjects (t ∈ {10, 11} — plain block and beacon) share the same
+	// wire shape: no `s`, no `ip`, `subject_hash == block_hash`.
+	if ptype.IsBlockLikeSubject(t) {
+		shape := ptype.Name(t) // "block" or "beacon" — for error text
 		if len(raw.Subject) > 0 && string(raw.Subject) != "null" {
-			return nil, fmt.Errorf("block proof must not include s")
+			return nil, fmt.Errorf("%s proof must not include s", shape)
 		}
 		if raw.InclusionProof != nil && *raw.InclusionProof != "" {
-			return nil, fmt.Errorf("block proof must not include ip")
+			return nil, fmt.Errorf("%s proof must not include ip", shape)
 		}
 		if err := validateSizes(bundle); err != nil {
 			return nil, err
@@ -119,7 +122,7 @@ func ParseBytes(data []byte) (*ProofBundle, error) {
 		return bundle, nil
 	}
 
-	// Non-block subjects: s and ip are required
+	// Non-block-like subjects (item, entropy_*): s and ip are required
 	if len(raw.Subject) == 0 || string(raw.Subject) == "null" {
 		return nil, fmt.Errorf("missing required field: s")
 	}

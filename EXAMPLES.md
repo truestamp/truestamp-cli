@@ -26,6 +26,7 @@ Run `truestamp <command> --help` at any time for exhaustive flag documentation.
 - [`truestamp convert id`](#truestamp-convert-id)
 - [`truestamp convert keyid`](#truestamp-convert-keyid)
 - [`truestamp convert merkle`](#truestamp-convert-merkle)
+- [`truestamp beacon`](#truestamp-beacon)
 - [`truestamp upgrade`](#truestamp-upgrade)
 - [`truestamp version`](#truestamp-version)
 - [Pipeline recipes](#pipeline-recipes)
@@ -227,21 +228,64 @@ truestamp create contract.pdf \
 
 ## `truestamp download`
 
-Fetch a proof bundle for an already-committed item.
+Fetch a proof bundle for an already-committed subject. `--type` declares
+which kind of proof you want; there is no auto-detection at the server,
+so every UUIDv7 id needs an explicit `--type`. ULID ids default to
+`--type item` client-side (the only zero-flag shortcut).
+
+The six `--type` values map 1:1 to server subject codes:
+
+| `--type` | Wire value | Returned `t` | Filename stem |
+| --- | --- | --- | --- |
+| `item` | `item` | 20 | `item` |
+| `entropy_nist` | `entropy_nist` | 30 | `entropy-nist` |
+| `entropy_stellar` | `entropy_stellar` | 31 | `entropy-stellar` |
+| `entropy_bitcoin` | `entropy_bitcoin` | 32 | `entropy-bitcoin` |
+| `block` | `block` | 10 | `block` |
+| `beacon` | `beacon` | 11 | `beacon` |
+
+Filenames use hyphens; wire values use underscores (the CLI translates
+between them so filenames stay readable).
 
 ```sh
-# Download by item ID (ULID) — auto-detects item vs entropy proof
+# ULID id — defaults to --type item, produces truestamp-item-<ulid>.json
 truestamp download 01KNN33GX5E470CB9TRWAYF9DD
 
-# Write to a specific path
+# Same, with an explicit type (identical behaviour)
+truestamp download --type item 01KNN33GX5E470CB9TRWAYF9DD
+
+# Override the auto-generated filename
 truestamp download 01KNN33GX5E470CB9TRWAYF9DD -o contract.proof.json
 
-# CBOR format (smaller, deterministic, suitable for embedding)
+# CBOR — smaller, deterministic, ideal for embedding in another file
 truestamp download 01KNN33GX5E470CB9TRWAYF9DD -f cbor -o contract.proof.cbor
 
-# Entropy proof (UUIDv7 ID auto-detected)
-truestamp download 019cf813-99b8-730a-84f1-5a711a9c355e -o beacon.json
+# Entropy proof — UUIDv7 ids require an explicit --type (three subtypes)
+truestamp download --type entropy_stellar 019cf813-99b8-730a-84f1-5a711a9c355e
+truestamp download --type entropy_nist    019cf813-99b8-730a-84f1-5a711a9c355e
+truestamp download --type entropy_bitcoin 019cf813-99b8-730a-84f1-5a711a9c355e
+
+# Block proof (t=10) for a committed block
+truestamp download --type block 019db7cd-efc0-7196-b763-682a84d71919
+
+# Beacon proof (t=11) for the same block — structurally identical to a
+# block proof but carries a distinct type code and a different signature
+# (the `t` byte is part of the signing payload). The CLI downloads a
+# self-describing t=11 bundle.
+truestamp download --type beacon 019db7cd-efc0-7196-b763-682a84d71919
+
+# Resulting files (default naming: truestamp-<stem>-<id>.<ext>):
+#   truestamp-item-01KNN33GX5E470CB9TRWAYF9DD.json
+#   truestamp-entropy-stellar-019cf813-99b8-730a-84f1-5a711a9c355e.json
+#   truestamp-block-019db7cd-efc0-7196-b763-682a84d71919.json
+#   truestamp-beacon-019db7cd-efc0-7196-b763-682a84d71919.json
 ```
+
+UUIDv7 ids are ambiguous — entropy observations, blocks, and beacons
+all use UUIDv7 — so the CLI cannot infer what you want. A UUIDv7
+without `--type` exits with a helpful error listing the five valid
+types. Use `truestamp beacon by-hash <hash>` first if you only have a
+hash and need the id.
 
 ---
 
@@ -512,6 +556,74 @@ jq -r .ip proof.json | truestamp convert merkle
 # JSON envelope (depth, siblings with position + hash)
 jq -r .ip proof.json | truestamp convert merkle --json
 ```
+
+---
+
+## `truestamp beacon`
+
+Inspect Truestamp block beacons via the read-only JSON:API at
+`/api/json/beacons/*`. A **beacon** is a compact projection of a
+finalized block — four fields only: `{id, hash, timestamp,
+previous_hash}`. It's a "proof of life" commitment: every item and
+entropy observation finalized inside that minute window is covered by
+the beacon's hash.
+
+Full verifiable proof bundles for a beacon are a separate artefact
+fetched via `truestamp download --type beacon <id>` (see above).
+
+```sh
+# Current head beacon (no subcommand is an alias for `latest`)
+truestamp beacon
+truestamp beacon latest
+
+# Most-recent N beacons, newest first (server caps at 100)
+truestamp beacon list
+truestamp beacon list --limit 3
+
+# Look up by UUIDv7 id
+truestamp beacon get 019db8b5-90a1-7015-a62c-48e5038f2306
+
+# Look up by 64-hex-char hash — useful when all you have is a hash
+# (e.g. printed on a receipt or read from photo metadata)
+truestamp beacon by-hash 9f0be4446c4bfb8faa9a13766e3635b2c27913f35cec4eafcc20cd10af663feb
+```
+
+Shared flags (all four subcommands): `--json` (raw JSON, pipeline
+friendly), `--hash-only` (prints just the hash + newline for shell
+substitution), `--silent` / `-s` (exit code only). `--silent` +
+`--json`, `--silent` + `--hash-only`, and `--json` + `--hash-only` are
+mutually exclusive. `--hash-only` is not valid on `beacon list` (a list
+has no single hash).
+
+```sh
+# Capture the current chain head as a moment-in-time anchor
+MOMENT=$(truestamp beacon --hash-only)
+echo "beacon hash: $MOMENT"
+# → beacon hash: 9f0be4446c4bfb8faa9a13766e3635b2c27913f35cec4eafcc20cd10af663feb
+
+# Pipeline-friendly JSON
+truestamp beacon list --limit 10 --json | jq -r '.[].hash'
+
+# Round-trip: id → hash → id (demonstrates by-hash lookup)
+ID=$(truestamp beacon latest --json | jq -r .id)
+HASH=$(truestamp beacon get "$ID" --hash-only)
+truestamp beacon by-hash "$HASH" --json | jq .id
+```
+
+Client-side validation catches obvious typos without hitting the
+network:
+
+```sh
+truestamp beacon get not-a-uuid
+# invalid UUID: uuid: incorrect UUID length 10 in string "not-a-uuid"
+
+truestamp beacon by-hash ABCDEF
+# hash must be 64 lowercase hex characters, got "ABCDEF"
+```
+
+All beacon subcommands require `--api-key` (via flag, env, or config
+file); a missing key prints a "Not authenticated" banner to stderr and
+exits non-zero.
 
 ---
 

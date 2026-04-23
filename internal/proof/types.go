@@ -17,6 +17,7 @@ import (
 // The top-level integer field `t` discriminates subject types:
 //
 //	10  block            (no Subject, no InclusionProof)
+//	11  beacon           (no Subject, no InclusionProof — same shape as block)
 //	20  item
 //	30  entropy_nist
 //	31  entropy_stellar
@@ -28,23 +29,36 @@ type ProofBundle struct {
 	PublicKey string     `json:"pk"`
 	Signature string     `json:"sig"`
 
-	// Subject is nil for block subjects (T == ptype.Block). For all other
+	// Subject is nil for block-like subjects (t ∈ {10, 11}). For all other
 	// subject types it is non-nil after a successful parse.
 	Subject *Subject `json:"-"`
 
 	Block       Block            `json:"-"`
 	Commitments []ExternalCommit `json:"-"`
 
-	// InclusionProof is "" for block subjects and non-empty otherwise.
+	// InclusionProof is "" for block-like subjects and non-empty otherwise.
 	InclusionProof string `json:"-"` // base64url compact Merkle proof
 
 	// RawData is the subject-data JSON preserved byte-for-byte for JCS.
-	// Empty for block subjects.
+	// Empty for block-like subjects.
 	RawData json.RawMessage `json:"-"`
 }
 
-// IsBlock returns true if this bundle is a block subject (t=10).
+// IsBlock returns true if this bundle is a plain block subject (t=10).
+// Does NOT include beacon (t=11); use IsBlockLike for that.
 func (b *ProofBundle) IsBlock() bool { return b.T == ptype.Block }
+
+// IsBeacon returns true if this bundle is a beacon subject (t=11). Beacon
+// bundles are structurally identical to block bundles but carry a distinct
+// type code for domain separation — their signatures differ from the
+// block bundle of the same block because `t` is in the signing payload.
+func (b *ProofBundle) IsBeacon() bool { return b.T == ptype.Beacon }
+
+// IsBlockLike returns true if this bundle is either a block (t=10) or a
+// beacon (t=11). Use this in verification-pipeline guards that skip
+// subject / inclusion-proof / subject-hash-derivation steps — those are
+// shape concerns and beacon proofs have the same shape as block proofs.
+func (b *ProofBundle) IsBlockLike() bool { return ptype.IsBlockLikeSubject(b.T) }
 
 // IsItem returns true if this bundle is an item subject (t=20).
 func (b *ProofBundle) IsItem() bool { return b.T == ptype.Item }
@@ -53,8 +67,9 @@ func (b *ProofBundle) IsItem() bool { return b.T == ptype.Item }
 func (b *ProofBundle) IsEntropy() bool { return ptype.IsEntropySubject(b.T) }
 
 // MarshalJSON produces the compact JSON wire format from a parsed
-// ProofBundle. Subject and InclusionProof are omitted for block subjects.
-// Used when sending a CBOR-decoded proof to the API as JSON.
+// ProofBundle. Subject and InclusionProof are omitted for block-like
+// subjects (t ∈ {10, 11}). Used when sending a CBOR-decoded proof to the
+// API as JSON.
 func (b *ProofBundle) MarshalJSON() ([]byte, error) {
 	m := map[string]any{
 		"v":   b.Version,
@@ -65,7 +80,7 @@ func (b *ProofBundle) MarshalJSON() ([]byte, error) {
 		"b":   b.Block,
 		"cx":  b.Commitments,
 	}
-	if b.T != ptype.Block {
+	if !b.IsBlockLike() {
 		m["s"] = b.Subject
 		m["ip"] = b.InclusionProof
 	}

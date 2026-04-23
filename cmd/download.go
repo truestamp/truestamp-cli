@@ -13,29 +13,47 @@ import (
 	"charm.land/lipgloss/v2/table"
 	"github.com/spf13/cobra"
 	"github.com/truestamp/truestamp-cli/internal/proof"
-	"github.com/truestamp/truestamp-cli/internal/proof/ptype"
 	"github.com/truestamp/truestamp-cli/internal/ui"
 )
 
-// Subject-type flag values for `truestamp download --type`. Four of these
-// map 1:1 to the server's /proof/generate `type` enum; "beacon" is a
-// CLIENT-SIDE alias — the server does not yet accept type="beacon" and
-// rejects it with 400. We send wire type="block" and label the output
-// file with stem "beacon" instead.
+// Subject-type flag values for `truestamp download --type`. These map 1:1
+// to the server's /proof/generate `type` string enum. There is no "auto"
+// and no bare "entropy" — both were removed in the server's strict-type
+// cutover. Callers that don't pass --type get a client-side smart default:
+// a ULID id defaults to --type item; a UUIDv7 id errors asking for an
+// explicit --type.
 //
-// TODO(server-beacon): once the server accepts type="beacon" natively,
-// stop the alias and pass it through verbatim (see BEACONS_API_IMPLEMENTERS_GUIDE.md).
+// Wire values preserve the underscore form (entropy_nist) to match the
+// server enum exactly; filename stems translate underscores to hyphens
+// for friendlier filenames (truestamp-entropy-nist-<id>.json).
 const (
-	downloadTypeAuto    = "auto"
-	downloadTypeItem    = "item"
-	downloadTypeEntropy = "entropy"
-	downloadTypeBlock   = "block"
-	downloadTypeBeacon  = "beacon"
+	downloadTypeItem           = "item"
+	downloadTypeEntropyNIST    = "entropy_nist"
+	downloadTypeEntropyStellar = "entropy_stellar"
+	downloadTypeEntropyBitcoin = "entropy_bitcoin"
+	downloadTypeBlock          = "block"
+	downloadTypeBeacon         = "beacon"
 )
 
+// downloadTypeValues lists every accepted --type value in the order they
+// appear in user-facing help text.
 var downloadTypeValues = []string{
-	downloadTypeAuto, downloadTypeItem, downloadTypeEntropy,
-	downloadTypeBlock, downloadTypeBeacon,
+	downloadTypeItem,
+	downloadTypeEntropyNIST,
+	downloadTypeEntropyStellar,
+	downloadTypeEntropyBitcoin,
+	downloadTypeBlock,
+	downloadTypeBeacon,
+}
+
+// downloadTypesForUUIDv7 lists the --type values that may be used with a
+// UUIDv7 id (everything except "item").
+var downloadTypesForUUIDv7 = []string{
+	downloadTypeEntropyNIST,
+	downloadTypeEntropyStellar,
+	downloadTypeEntropyBitcoin,
+	downloadTypeBlock,
+	downloadTypeBeacon,
 }
 
 var downloadCmd = &cobra.Command{
@@ -43,28 +61,37 @@ var downloadCmd = &cobra.Command{
 	Short: "Download a Truestamp proof bundle",
 	Long: `Download a cryptographic proof bundle for a Truestamp subject.
 
-The subject type is auto-detected by the server from the ID format when
---type is omitted (default). Override with --type to force a specific
-class of proof.
+The server requires an explicit --type. For zero-flag convenience, if
+--type is omitted the CLI falls back to the following rules based on
+the ID format:
 
-  ULID   (e.g. 01KNN33GX5E470CB9TRWAYF9DD)         -> item proof
-  UUIDv7 (e.g. 019d6a32-13e6-72b0-97e5-3779231ea97b) -> block (tried first) then entropy
+  ULID    (e.g. 01KNN33GX5E470CB9TRWAYF9DD)     -> --type item
+  UUIDv7  (e.g. 019d6a32-13e6-72b0-97e5-...)    -> must specify --type
 
-Use --type beacon to download a block proof saved with a 'beacon'
-filename label — beacon and block proofs are byte-identical on the wire.
+UUIDv7 ids are ambiguous (entropy observations, blocks, and beacons all
+use UUIDv7), so an explicit --type is required for them.
 
-Output filename (when -o is not set):
-  --type auto     -> truestamp-<item|entropy|block>-<id>.<ext>   (from returned t)
-  --type item     -> truestamp-item-<ulid>.<ext>
-  --type entropy  -> truestamp-entropy-<uuidv7>.<ext>
-  --type block    -> truestamp-block-<uuidv7>.<ext>
-  --type beacon   -> truestamp-beacon-<uuidv7>.<ext>
+Output filename (when -o is not set): truestamp-<stem>-<id>.<ext> where
+<stem> is the --type value with underscores translated to hyphens:
+
+  --type item              -> truestamp-item-<ulid>.<ext>
+  --type entropy_nist      -> truestamp-entropy-nist-<uuidv7>.<ext>
+  --type entropy_stellar   -> truestamp-entropy-stellar-<uuidv7>.<ext>
+  --type entropy_bitcoin   -> truestamp-entropy-bitcoin-<uuidv7>.<ext>
+  --type block             -> truestamp-block-<uuidv7>.<ext>
+  --type beacon            -> truestamp-beacon-<uuidv7>.<ext>
+
+Block (t=10) and beacon (t=11) proofs share the same structural shape
+but carry distinct type codes on the wire. A block and beacon proof for
+the same underlying block have different signatures — the ` + "`t`" + ` byte is
+part of the signing payload, providing cryptographic domain separation.
 
 Examples:
   truestamp download 01KNN33GX5E470CB9TRWAYF9DD
-  truestamp download --type block 019d6a32-13e6-72b0-97e5-3779231ea97b
-  truestamp download --type beacon 019d6a32-13e6-72b0-97e5-3779231ea97b
+  truestamp download --type block   019d6a32-13e6-72b0-97e5-3779231ea97b
+  truestamp download --type beacon  019d6a32-13e6-72b0-97e5-3779231ea97b
   truestamp download --type beacon -f cbor 019d6a32-13e6-72b0-97e5-3779231ea97b
+  truestamp download --type entropy_stellar 019cf813-99b8-730a-84f1-5a711a9c355e
   truestamp download -o proof.json 01KNN33GX5E470CB9TRWAYF9DD
 
 Requires --api-key to be set (via flag, env, or config file).`,
@@ -91,32 +118,49 @@ Requires --api-key to be set (via flag, env, or config file).`,
 
 		typeFlag, _ := cmd.Flags().GetString("type")
 		typeFlag = strings.ToLower(strings.TrimSpace(typeFlag))
+
+		// Pre-flight id-shape validation — catches obvious typos before
+		// the network round-trip and is also the basis for the smart
+		// --type default.
+		shape, err := proof.DetectIDType(id)
+		if err != nil {
+			return err
+		}
+
+		// Resolve --type when not specified.
+		if typeFlag == "" {
+			switch shape {
+			case proof.IDTypeULID:
+				typeFlag = downloadTypeItem
+			case proof.IDTypeUUIDv7:
+				return fmt.Errorf(
+					"--type is required for UUIDv7 ids (entropy, block, and beacon all use UUIDv7). One of: %s",
+					strings.Join(downloadTypesForUUIDv7, " | "))
+			default:
+				// DetectIDType should have errored already; belt-and-suspenders.
+				return fmt.Errorf("unrecognised id shape %q", shape)
+			}
+		}
+
 		if !validDownloadType(typeFlag) {
 			return fmt.Errorf("--type must be one of %s, got %q",
 				strings.Join(downloadTypeValues, " | "), typeFlag)
 		}
 
-		// Pre-flight id shape validation — sensible errors before hitting the network.
-		if _, err := proof.DetectIDType(id); err != nil {
+		// Shape vs type cross-check — surfaces obvious mismatches locally
+		// before the server's 422 id_format_mismatch fires.
+		if err := validateTypeVsShape(typeFlag, shape); err != nil {
 			return err
 		}
 
-		// Client-side beacon alias: wire sends type=block (the server does
-		// not yet accept "beacon"), but the output file is labelled "beacon".
-		wireType := typeFlag
-		if wireType == downloadTypeBeacon {
-			wireType = downloadTypeBlock
-		}
-
-		data, err := proof.GenerateCtx(cmd.Context(), cfg.APIURL, cfg.APIKey, cfg.Team, id, wireType, format)
+		// Wire-send typeFlag verbatim. Beacon is a first-class server type
+		// now (returns t=11), not a client-side alias.
+		data, err := proof.GenerateCtx(cmd.Context(), cfg.APIURL, cfg.APIKey, cfg.Team, id, typeFlag, format)
 		if err != nil {
 			return err
 		}
 
-		stem, err := downloadStem(typeFlag, data)
-		if err != nil {
-			return err
-		}
+		stem := downloadStem(typeFlag)
 
 		output, _ := cmd.Flags().GetString("output")
 		if output == "" {
@@ -127,40 +171,44 @@ Requires --api-key to be set (via flag, env, or config file).`,
 			return fmt.Errorf("writing file: %w", err)
 		}
 
-		presentDownload(output, format, id, stem, len(data))
+		presentDownload(output, format, id, typeFlag, len(data))
 		return nil
 	},
 }
 
-// downloadStem picks the filename stem based on the user's --type choice
-// and (for --type auto) the returned proof's `t` field.
-func downloadStem(typeFlag string, data []byte) (string, error) {
-	switch typeFlag {
-	case downloadTypeItem, downloadTypeEntropy, downloadTypeBlock, downloadTypeBeacon:
-		return typeFlag, nil
-	case downloadTypeAuto, "":
-		t, err := proof.InspectBundleType(data)
-		if err != nil {
-			return "", fmt.Errorf("inspecting returned proof: %w", err)
-		}
-		switch t {
-		case ptype.Item:
-			return downloadTypeItem, nil
-		case ptype.EntropyNIST, ptype.EntropyStellar, ptype.EntropyBitcoin:
-			return downloadTypeEntropy, nil
-		case ptype.Block:
-			return downloadTypeBlock, nil
-		}
-		return "", fmt.Errorf("unexpected subject type %d in returned proof", t)
-	}
-	return "", fmt.Errorf("unexpected --type value %q", typeFlag)
+// downloadStem converts a resolved --type value to a filename stem. Wire
+// values use underscores (entropy_nist) to match the server enum;
+// filename stems use hyphens (entropy-nist) for friendlier filenames.
+func downloadStem(typeFlag string) string {
+	return strings.ReplaceAll(typeFlag, "_", "-")
 }
 
+// validDownloadType reports whether v is one of the six canonical --type
+// values.
 func validDownloadType(v string) bool {
 	return slices.Contains(downloadTypeValues, v)
 }
 
-func presentDownload(filename, format, id, stem string, size int) {
+// validateTypeVsShape ensures --type matches the syntactic shape of the
+// positional id. `item` requires a ULID; every other type requires a
+// UUIDv7. Runs locally before the network call so users get a targeted
+// error rather than a generic server 422.
+func validateTypeVsShape(typeFlag string, shape proof.IDType) error {
+	switch typeFlag {
+	case downloadTypeItem:
+		if shape != proof.IDTypeULID {
+			return fmt.Errorf("--type %s requires a ULID id (e.g. 01KNN33GX5E470CB9TRWAYF9DD); got a UUIDv7", typeFlag)
+		}
+	default:
+		// entropy_*, block, beacon — all UUIDv7.
+		if shape != proof.IDTypeUUIDv7 {
+			return fmt.Errorf("--type %s requires a UUIDv7 id (e.g. 019d6a32-13e6-72b0-97e5-3779231ea97b); got a ULID", typeFlag)
+		}
+	}
+	return nil
+}
+
+func presentDownload(filename, format, id, typeFlag string, size int) {
 	header := ui.AccentBoldStyle().Render("  Proof Downloaded")
 
 	formatDisplay := strings.ToUpper(format)
@@ -171,7 +219,7 @@ func presentDownload(filename, format, id, stem string, size int) {
 		Row("File", filename).
 		Row("Format", fmt.Sprintf("%s (%s bytes)", formatDisplay, formatSize(size))).
 		Row("ID", id).
-		Row("Type", stem)
+		Row("Type", typeFlag)
 
 	lipgloss.Println(lipgloss.JoinVertical(lipgloss.Left,
 		header, "",
@@ -194,8 +242,8 @@ func init() {
 	f := downloadCmd.Flags()
 	f.StringP("format", "f", "json", `Output format: "json" or "cbor"`)
 	f.StringP("output", "o", "", "Output file path (default: auto-generated from ID)")
-	f.String("type", downloadTypeAuto,
-		fmt.Sprintf(`Subject type: %s (beacon is a client-side alias for block)`,
+	f.String("type", "",
+		fmt.Sprintf(`Subject type (required for UUIDv7 ids; auto-defaults to "item" for ULID). One of: %s`,
 			strings.Join(downloadTypeValues, " | ")))
 	rootCmd.AddCommand(downloadCmd)
 }

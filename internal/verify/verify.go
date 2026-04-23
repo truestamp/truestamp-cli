@@ -52,7 +52,11 @@ func RunFromBytes(data []byte, displayName string, opts Options) (*Report, error
 func runBundle(bundle *proof.ProofBundle, filename string, fileSize int64, opts Options) (*Report, error) {
 	block := bundle.Block
 	commits := bundle.Commitments
-	isBlock := bundle.IsBlock()
+	// Block and beacon (t ∈ {10, 11}) share the same wire shape — no subject,
+	// no inclusion proof, subject_hash == block_hash. Pipeline guards switch
+	// on "block-like" rather than strict IsBlock so beacon proofs take the
+	// same code path.
+	isBlockLike := bundle.IsBlockLike()
 	isItem := bundle.IsItem()
 	isEntropy := bundle.IsEntropy()
 
@@ -69,7 +73,7 @@ func runBundle(bundle *proof.ProofBundle, filename string, fileSize int64, opts 
 		SigningKeyID:    block.SigningKeyID,
 	}
 
-	if isBlock {
+	if isBlockLike {
 		r.SubjectID = block.ID
 	} else if bundle.Subject != nil {
 		r.SubjectID = bundle.Subject.ID
@@ -116,7 +120,7 @@ func runBundle(bundle *proof.ProofBundle, filename string, fileSize int64, opts 
 	verifyStructure(r, bundle, block)
 	verifyVersion(r, bundle)
 
-	// Steps 3-6: Subject-hash derivation (non-block subjects only)
+	// Steps 3-6: Subject-hash derivation (non-block-like subjects only)
 	var subjectHash string
 	switch {
 	case isItem:
@@ -129,16 +133,16 @@ func runBundle(bundle *proof.ProofBundle, filename string, fileSize int64, opts 
 		subjectHash = deriveObservationHash(r, bundle.Subject, entropyHash)
 	}
 
-	// Step 7: Inclusion Proof (skipped for block subjects)
-	if !isBlock {
+	// Step 7: Inclusion Proof (skipped for block-like subjects)
+	if !isBlockLike {
 		verifyInclusionProof(r, subjectHash, bundle.InclusionProof, block)
 	}
 
 	// Step 8: Block Hash Derivation
 	blockHash := deriveBlockHash(r, block)
 
-	// For block subjects, subject_hash == block_hash by construction.
-	if isBlock {
+	// For block-like subjects, subject_hash == block_hash by construction.
+	if isBlockLike {
 		subjectHash = blockHash
 	}
 
@@ -153,7 +157,7 @@ func runBundle(bundle *proof.ProofBundle, filename string, fileSize int64, opts 
 	verifyProofSignature(r, bundle, pubkeyBytes, keyID, subjectHash, blockHash, epochRoots, opts)
 
 	// Step 12: Temporal checks + info
-	if !isBlock {
+	if !isBlockLike {
 		verifySubjectTemporalWindow(r, bundle.T, bundle.Subject, block)
 	}
 	addTemporalInfo(r, bundle.T, bundle.Subject, block)

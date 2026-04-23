@@ -188,7 +188,9 @@ func populateFromBundle(r *Report, bundle *proof.ProofBundle) {
 	r.SubjectType = ptype.Name(t)
 
 	if r.SubjectID == "" {
-		if bundle.IsBlock() {
+		// Block-like (plain block or beacon): SubjectID falls back to the
+		// block id. Otherwise use the Subject.ID (item or entropy).
+		if bundle.IsBlockLike() {
 			r.SubjectID = bundle.Block.ID
 		} else if subject != nil {
 			r.SubjectID = subject.ID

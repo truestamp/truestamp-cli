@@ -246,8 +246,10 @@ func ComputeProofHash(version byte, keyIDHex, subjectHashHex string, blockHashes
 //	79      2     N (epoch root count, uint16 BE)
 //	81      32*N  epoch_roots (concatenated, in cx order)
 //
-// For block subjects (t == 10), subject_hash == block_hash — the same
-// 32 bytes appear in both slots.
+// For block-like subjects (t ∈ {10, 11} — plain block and beacon),
+// subject_hash == block_hash — the same 32 bytes appear in both slots.
+// The `t` byte in the payload domain-separates block (t=10) and beacon
+// (t=11) signatures for the same underlying block.
 func BuildCompactProofPayload(version byte, typeCode uint16, keyIDHex string, timestampMs uint64, subjectHashHex, blockHashHex string, epochRootHexes []string) ([]byte, error) {
 	keyIDBytes, err := HexToBytes(keyIDHex)
 	if err != nil {

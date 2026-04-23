@@ -16,6 +16,7 @@ func TestRegistryFrozen(t *testing.T) {
 		want uint16
 	}{
 		{Block, 10},
+		{Beacon, 11},
 		{Item, 20},
 		{EntropyNIST, 30},
 		{EntropyStellar, 31},
@@ -31,16 +32,30 @@ func TestRegistryFrozen(t *testing.T) {
 }
 
 func TestIsValidSubject(t *testing.T) {
-	valid := []Code{Block, Item, EntropyNIST, EntropyStellar, EntropyBitcoin}
+	valid := []Code{Block, Beacon, Item, EntropyNIST, EntropyStellar, EntropyBitcoin}
 	for _, c := range valid {
 		if !IsValidSubject(c) {
 			t.Errorf("IsValidSubject(%d) = false, want true", c)
 		}
 	}
-	invalid := []Code{0, 1, 11, 19, 22, 29, 33, 40, 41, 50, 9999}
+	invalid := []Code{0, 1, 12, 19, 22, 29, 33, 40, 41, 50, 9999}
 	for _, c := range invalid {
 		if IsValidSubject(c) {
 			t.Errorf("IsValidSubject(%d) = true, want false", c)
+		}
+	}
+}
+
+func TestIsBlockLikeSubject(t *testing.T) {
+	// Block and Beacon are block-like; everything else is not.
+	for _, c := range []Code{Block, Beacon} {
+		if !IsBlockLikeSubject(c) {
+			t.Errorf("IsBlockLikeSubject(%d) = false, want true", c)
+		}
+	}
+	for _, c := range []Code{Item, EntropyNIST, EntropyStellar, EntropyBitcoin, CommitmentStellar, CommitmentBitcoin, 0, 12, 19, 99} {
+		if IsBlockLikeSubject(c) {
+			t.Errorf("IsBlockLikeSubject(%d) = true, want false", c)
 		}
 	}
 }
@@ -78,6 +93,7 @@ func TestNameAndHumanize(t *testing.T) {
 		human string
 	}{
 		{Block, "block", "Block"},
+		{Beacon, "beacon", "Beacon"},
 		{Item, "item", "Item"},
 		{EntropyNIST, "entropy_nist", "NIST Beacon"},
 		{EntropyStellar, "entropy_stellar", "Stellar Ledger"},

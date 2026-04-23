@@ -14,7 +14,7 @@ Beyond verification, the CLI exposes five Unix-y, pipe-friendly sub-commands tha
 task build                    # -> build/truestamp
 ./build/truestamp verify [proof.json] [--file [path]] [--url [url]] [--skip-external] [--skip-signatures] [--silent] [--json]
 ./build/truestamp create [file] [--file [path]] [--claims [path]] [--claims-stdin] [--file-stdin] [--name ...] [--hash ...] [--json]
-./build/truestamp download <id> [--type auto|item|entropy|block|beacon] [-f json|cbor] [-o path]
+./build/truestamp download <id> [--type item|entropy_nist|entropy_stellar|entropy_bitcoin|block|beacon] [-f json|cbor] [-o path]
 ./build/truestamp beacon [latest|list|get|by-hash] [--json|--hash-only|-s]   # read-only Truestamp beacons JSON:API
 ./build/truestamp hash [flags] [path ...]                              # SHA-2/SHA-3/BLAKE2/MD5/SHA-1 digests; supports --prefix 0xNN, --jcs
 ./build/truestamp encode [--from <enc>] [--to <enc>] [file]            # hex|base64|base64url|binary
@@ -119,6 +119,20 @@ Settings are resolved in priority order (highest priority last):
 
 MD5 and SHA-1 emit a one-line stderr warning when selected, suppressed under `--json` or `--silent`. Algorithm output is byte-identical to `sha256sum`, `md5sum`, and `shasum --tag` for the corresponding vectors; tests in `internal/hashing/hashing_test.go` anchor against the canonical NIST FIPS 180-4, FIPS 202, RFC 6234, RFC 7693 vectors.
 
+### Download Flags (scoped to download subcommand)
+
+| Flag | Default | Description |
+| ---- | ------- | ----------- |
+| `--type` | `""` (smart default, see below) | `item` \| `entropy_nist` \| `entropy_stellar` \| `entropy_bitcoin` \| `block` \| `beacon`. Sent verbatim to the server's `/proof/generate` `type` field. |
+| `--format` / `-f` | `json` | `json` or `cbor`. |
+| `--output` / `-o` | auto-generated | Output file path. When unset, the filename is `truestamp-<stem>-<id>.<ext>`. |
+
+When `--type` is omitted the CLI applies a **client-side smart default** based on the id shape: ULID ids default to `--type item` (the only unambiguous case); UUIDv7 ids fail fast with a helpful error listing the five valid types (`entropy_nist | entropy_stellar | entropy_bitcoin | block | beacon`). There is no `"auto"` — the server's strict-type cutover rejects it, and the CLI follows the same contract.
+
+**Filename stem convention**: wire values use underscores (`entropy_nist`) to match the server enum; filename stems translate `_` → `-` for readable filenames (`truestamp-entropy-nist-<id>.json`). Other types (`item`, `block`, `beacon`) contain no underscores and pass through unchanged.
+
+**Pre-flight id-shape validation**: `--type item` requires a ULID; every other type requires a UUIDv7. Mismatches are caught client-side before the network call with a targeted error instead of a generic server 422.
+
 ### Encode / Decode / JCS Flags
 
 | Command | Flag | Default | Description |
@@ -151,6 +165,7 @@ All Truestamp proofs use a compact format with short keys. Bundle version `v` is
 | Code | Name | Category |
 | ---- | ---- | -------- |
 | 10 | block | subject |
+| 11 | beacon | subject |
 | 20 | item | subject |
 | 30 | entropy_nist | subject |
 | 31 | entropy_stellar | subject |
@@ -159,6 +174,8 @@ All Truestamp proofs use a compact format with short keys. Bundle version `v` is
 | 41 | commitment_bitcoin | external commitment |
 
 The single source of truth lives at [`internal/proof/ptype/ptype.go`](internal/proof/ptype/ptype.go). Every caller branches on these integers, never on strings.
+
+Block (`t=10`) and beacon (`t=11`) share the same wire shape (no `s`, no `ip`, `b` + `cx` only) — the type code is the only discriminator. Verify-pipeline guards use `ptype.IsBlockLikeSubject` / `ProofBundle.IsBlockLike()` instead of strict `IsBlock()`. Because the `t` byte is part of the signing payload, a `t=10` and `t=11` bundle for the same underlying block produce **different signatures**; this is intentional cryptographic domain separation.
 
 ### Item / entropy bundle shape (t ∈ {20, 30, 31, 32})
 
@@ -181,35 +198,35 @@ The single source of truth lives at [`internal/proof/ptype/ptype.go`](internal/p
 
 Item proofs (`t=20`) use domain prefixes `0x11` / `0x13` for subject-data / composite. Entropy proofs (`t ∈ {30,31,32}`) use `0x21` / `0x23`.
 
-### Block bundle shape (t == 10)
+### Block-like bundle shape (t ∈ {10, 11})
 
-No `s` key, no `ip` key — the block IS the subject, so `subject_hash == block_hash` in the signed payload.
+Block (`t=10`) and beacon (`t=11`) share the same wire shape — no `s` key, no `ip` key — because the block IS the subject, so `subject_hash == block_hash` in the signed payload.
 
 ```json
 {
   "v": 1,
-  "t": 10,
+  "t": 10,                           // or 11 for beacon
   "ts": "2026-04-06T23:25:06Z",
   "pk": "base64(...)",
-  "sig": "base64(...)",
+  "sig": "base64(...)",              // differs between t=10 and t=11 for the same block
   "b":  { "id": "uuid", "ph": "hex64", "mr": "hex64", "mh": "hex64", "kid": "hex8" },
   "cx": [ ... at least one commitment ... ]
 }
 ```
 
-### Beacons are block proofs with a server-side metadata projection
+### Beacons are first-class proof bundles
 
-A **beacon** is not a separate subject type on the wire — it's the same `t == 10` block proof, exposed via a compact read-only projection `{id, hash, timestamp, previous_hash}` at `GET /api/json/beacons/*` (see `truestamp-v2/docs/BEACONS_API_IMPLEMENTERS_GUIDE.md`). The CLI treats them as equivalent cryptographic artefacts:
+A **beacon** is now its own subject type code (`t=11`) alongside plain block (`t=10`). Both share the structural shape above but are cryptographically distinct: the `t` byte lives in the signing payload, so a block and beacon bundle for the same underlying block have different signatures. Flipping `t` from `10` to `11` on a bundle without re-signing breaks verification.
 
-- `truestamp beacon {latest|list|get|by-hash}` reads the projection (authenticated JSON:API).
-- `truestamp download --type beacon <uuidv7>` fetches a proof bundle labelled `truestamp-beacon-*` on disk. The wire request sends `data.type = "block"` today — the server does not yet accept `"beacon"` as a `type` value. See the `TODO(server-beacon)` in `cmd/download.go`: once the server schema extends, the client-side alias disappears.
-- `truestamp verify` handles beacon proofs byte-for-byte as block proofs; the Type row of the report shows `Block`. The filename is the only beacon-vs-block signal retained after download.
+- `truestamp beacon {latest|list|get|by-hash}` reads the compact metadata projection `{id, hash, timestamp, previous_hash}` at `GET /api/json/beacons/*` (see `truestamp-v2/docs/BEACONS_API_IMPLEMENTERS_GUIDE.md`).
+- `truestamp download --type beacon <uuidv7>` fetches a full `t=11` proof bundle labelled `truestamp-beacon-*` on disk. The wire request sends `data.type = "beacon"` verbatim; the server returns a `t=11` bundle that self-describes.
+- `truestamp verify` dispatches beacon proofs through the same pipeline as block proofs (no subject-hash derivation, no inclusion-proof walk, `subject_hash == block_hash`). The Type row of the report reads "Beacon" for `t=11` and "Block" for `t=10`.
 
 ### Structural requirements (enforced by the parser)
 
-- `v == 1`, `t ∈ {10, 20, 30, 31, 32}`, `cx` non-empty, every `cx[i].t ∈ {40, 41}`.
-- `t == 10` ⇒ `s` absent, `ip` absent.
-- `t != 10` ⇒ `s` present (`id`/`d`/`mh`/`kid` all required), `ip` non-empty.
+- `v == 1`, `t ∈ {10, 11, 20, 30, 31, 32}`, `cx` non-empty, every `cx[i].t ∈ {40, 41}`.
+- `t ∈ {10, 11}` (block-like: plain block and beacon) ⇒ `s` absent, `ip` absent.
+- `t ∉ {10, 11}` (item and entropy subtypes) ⇒ `s` present (`id`/`d`/`mh`/`kid` all required), `ip` non-empty.
 - Subject `kid` may differ from block `kid` under legitimate key rotation; no equality assertion is made. Subject-kid tampering is still detected because `kid` is an input to the 0x13 / 0x23 composite hash.
 - Stellar `net` is strict: only `"testnet"` and `"public"` are accepted.
 
@@ -217,11 +234,11 @@ A **beacon** is not a separate subject type on the wire — it's the same `t == 
 
 1. **Signing Key** -- Decode base64 `pk`, derive `kid = truncate4(SHA256(0x51 || pubkey))`, verify against keyring endpoint. Skipped with `--skip-signatures` or `--skip-external`.
 2. **Structure** -- `t` is a registered subject code, block present with ID and merkle_root, `cx` is non-empty.
-3-6. **Subject Data** -- Skipped entirely when `t == 10` (block subject).
+3-6. **Subject Data** -- Skipped entirely when `t ∈ {10, 11}` (block-like subjects).
    - **Item proofs (`t == 20`)**: Claims Hash `SHA256(0x11 || JCS(claims))`, Claims Hash Type validation, Claims Timestamp check, Item Hash `SHA256(0x13 || len32(id) || len32(claims_hash) || len32(metadata_hash) || len32(signing_key_id))`.
    - **Entropy proofs (`t ∈ {30,31,32}`)**: Entropy Hash `SHA256(0x21 || JCS(entropy))`, Observation Hash `SHA256(0x23 || len32(id) || len32(entropy_hash) || len32(metadata_hash) || len32(signing_key_id))`.
-7. **Inclusion Proof** -- Decode compact base64url `ip`, RFC 6962 walk: leaf = `SHA256(0x00 || subject_hash_bytes)`, internal = `SHA256(0x01 || left || right)`. Root must match `b.mr`. Skipped entirely when `t == 10`.
-8. **Block Hash** -- Derive block hash: `SHA256(0x32 || len32(id) || len32(ph) || len32(mr) || len32(mh) || len32(kid))`. For block subjects, `subject_hash = block_hash`.
+7. **Inclusion Proof** -- Decode compact base64url `ip`, RFC 6962 walk: leaf = `SHA256(0x00 || subject_hash_bytes)`, internal = `SHA256(0x01 || left || right)`. Root must match `b.mr`. Skipped entirely when `t ∈ {10, 11}`.
+8. **Block Hash** -- Derive block hash: `SHA256(0x32 || len32(id) || len32(ph) || len32(mr) || len32(mh) || len32(kid))`. For block-like subjects (t ∈ {10, 11}), `subject_hash = block_hash`.
 9. **Epoch Proofs** -- For each `cx` entry: decode `ep`, RFC 6962 Merkle walk using block_hash as leaf, root must match `cx.memo` (Stellar, `t=40`) or `cx.op` (Bitcoin, `t=41`).
 10. **Proof Signature** -- Build binary payload (big-endian throughout):
 
@@ -229,8 +246,8 @@ A **beacon** is not a separate subject type on the wire — it's the same `t == 
     v(1) || t(2) || kid(4) || ts_ms(8) || subject_hash(32) || block_hash(32) || N(2) || epoch_roots(32*N)
     ```
 
-    `ts_ms` = milliseconds since Unix epoch (uint64 BE) from `ts`. Compute `SHA256(0x61 || payload)`. Verify Ed25519 signature. Skipped with `--skip-signatures`. Flipping `t` in a bundle without re-signing breaks the signature.
-11. **Temporal Window** -- Skipped entirely when `t == 10`.
+    `ts_ms` = milliseconds since Unix epoch (uint64 BE) from `ts`. Compute `SHA256(0x61 || payload)`. Verify Ed25519 signature. Skipped with `--skip-signatures`. Flipping `t` in a bundle without re-signing breaks the signature — this is the mechanism that separates beacon (`t=11`) signatures from block (`t=10`) signatures for the same underlying block.
+11. **Temporal Window** -- Skipped entirely when `t ∈ {10, 11}`.
     - **Item proofs**: item time (ULID) before committed block time (UUIDv7).
     - **Entropy proofs**: entropy observation time (UUIDv7) before committed block time (UUIDv7).
 12. **Temporal Info** -- Extract display timestamps (submitted/captured/committed).
@@ -270,7 +287,7 @@ cmd/
   beacon_by_hash.go             beacon by-hash (client-side 64-hex validation)
   beacon_test.go                CLI integration tests for beacon (httptest + subprocess)
   download.go                   download subcommand (server auto-routes on id; --type auto|item|entropy|block|beacon)
-  download_test.go              CLI integration tests for download (all --type variants + --as beacon alias)
+  download_test.go              CLI integration tests for download (all six --type variants, shape pre-flight errors, hyphenated entropy filenames)
   hash.go                       Hash subcommand (SHA-2/3, BLAKE2, MD5/SHA-1; --prefix, --jcs, --style gnu|bsd|bare)
   codec.go                      Encode / Decode / JCS sub-commands (all share a thin resolver)
   convert.go                    Convert parent (no-op; aggregates children)

@@ -10,7 +10,6 @@ import (
 	"fmt"
 
 	"github.com/fxamacker/cbor/v2"
-	"github.com/truestamp/truestamp-cli/internal/proof/ptype"
 )
 
 // deterministicCBOR is a CBOR encode mode configured for RFC 8949 §4.2
@@ -62,9 +61,10 @@ func (b *ProofBundle) MarshalCBOR() ([]byte, error) {
 		"cx":  commits,
 	}
 
-	if b.T != ptype.Block {
+	// Block-like subjects (t ∈ {10, 11}) have no `s`, no `ip`.
+	if !b.IsBlockLike() {
 		if b.Subject == nil {
-			return nil, fmt.Errorf("non-block proof missing subject")
+			return nil, fmt.Errorf("non-block-like proof missing subject")
 		}
 		subjectMap, err := subjectToCBORMap(*b.Subject, b.RawData)
 		if err != nil {
