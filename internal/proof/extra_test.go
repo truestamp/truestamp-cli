@@ -23,10 +23,10 @@ func TestDetectIDType(t *testing.T) {
 		want IDType
 		ok   bool
 	}{
-		{"01HJHB01T8FYZ7YTR9P5N62K5B", IDTypeItem, true},
-		{"01kn3ahv5gmc7y9z9y0s6r90p5", IDTypeItem, true}, // ULID is case-insensitive via upper
-		{"019cf813-99b8-730a-84f1-5a711a9c355e", IDTypeEntropy, true},
-		{"019d6a3213e672b097e53779231ea97b", IDTypeEntropy, true}, // no hyphens
+		{"01HJHB01T8FYZ7YTR9P5N62K5B", IDTypeULID, true},
+		{"01kn3ahv5gmc7y9z9y0s6r90p5", IDTypeULID, true}, // ULID is case-insensitive via upper
+		{"019cf813-99b8-730a-84f1-5a711a9c355e", IDTypeUUIDv7, true},
+		{"019d6a3213e672b097e53779231ea97b", IDTypeUUIDv7, true}, // no hyphens
 		{"not-an-id", "", false},
 		{"", "", false},
 	}
@@ -445,7 +445,7 @@ func TestGenerateCtx_Success(t *testing.T) {
 		_, _ = w.Write([]byte(`{"result":` + validProofJSON + `}`))
 	}))
 	defer srv.Close()
-	data, err := Generate(srv.URL, "key", "team", "01HJHB01T8FYZ7YTR9P5N62K5B", "json")
+	data, err := Generate(srv.URL, "key", "team", "01HJHB01T8FYZ7YTR9P5N62K5B", "auto", "json")
 	if err != nil {
 		t.Fatalf("Generate: %v", err)
 	}
@@ -461,7 +461,7 @@ func TestGenerateCtx_CBORSuccess(t *testing.T) {
 		_, _ = w.Write([]byte(`{"result":"` + encodeBase64Std(rawCBOR) + `"}`))
 	}))
 	defer srv.Close()
-	data, err := Generate(srv.URL, "k", "", "01HJHB01T8FYZ7YTR9P5N62K5B", "cbor")
+	data, err := Generate(srv.URL, "k", "", "01HJHB01T8FYZ7YTR9P5N62K5B", "auto", "cbor")
 	if err != nil {
 		t.Fatalf("Generate(cbor): %v", err)
 	}
@@ -476,7 +476,7 @@ func TestGenerateCtx_APIError(t *testing.T) {
 		_, _ = w.Write([]byte(`{"errors":[{"detail":"bad id","title":"invalid"}]}`))
 	}))
 	defer srv.Close()
-	_, err := Generate(srv.URL, "k", "", "bad", "json")
+	_, err := Generate(srv.URL, "k", "", "bad", "auto", "json")
 	if err == nil {
 		t.Error("expected API error")
 	}
@@ -491,7 +491,7 @@ func TestGenerateCtx_APIErrorHTMLPage(t *testing.T) {
 		_, _ = w.Write([]byte("<html>oops</html>"))
 	}))
 	defer srv.Close()
-	_, err := Generate(srv.URL, "k", "", "id", "json")
+	_, err := Generate(srv.URL, "k", "", "id", "auto", "json")
 	if err == nil {
 		t.Error("expected error for HTML response")
 	}
@@ -506,7 +506,7 @@ func TestGenerateCtx_APIErrorTitleOnly(t *testing.T) {
 		_, _ = w.Write([]byte(`{"errors":[{"title":"Not Found"}]}`))
 	}))
 	defer srv.Close()
-	_, err := Generate(srv.URL, "k", "", "id", "json")
+	_, err := Generate(srv.URL, "k", "", "id", "auto", "json")
 	if err == nil {
 		t.Error("expected error")
 	}
@@ -521,7 +521,7 @@ func TestGenerateCtx_APIErrorUnparseable(t *testing.T) {
 		_, _ = w.Write([]byte("upstream exploded"))
 	}))
 	defer srv.Close()
-	_, err := Generate(srv.URL, "k", "", "id", "json")
+	_, err := Generate(srv.URL, "k", "", "id", "auto", "json")
 	if err == nil {
 		t.Error("expected error")
 	}
@@ -532,7 +532,7 @@ func TestGenerateCtx_MissingResultField(t *testing.T) {
 		_, _ = w.Write([]byte(`{"nope": 1}`))
 	}))
 	defer srv.Close()
-	_, err := Generate(srv.URL, "k", "", "id", "json")
+	_, err := Generate(srv.URL, "k", "", "id", "auto", "json")
 	if err == nil {
 		t.Error("expected error for missing result")
 	}

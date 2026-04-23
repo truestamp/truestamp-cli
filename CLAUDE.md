@@ -14,6 +14,8 @@ Beyond verification, the CLI exposes five Unix-y, pipe-friendly sub-commands tha
 task build                    # -> build/truestamp
 ./build/truestamp verify [proof.json] [--file [path]] [--url [url]] [--skip-external] [--skip-signatures] [--silent] [--json]
 ./build/truestamp create [file] [--file [path]] [--claims [path]] [--claims-stdin] [--file-stdin] [--name ...] [--hash ...] [--json]
+./build/truestamp download <id> [--type auto|item|entropy|block|beacon] [-f json|cbor] [-o path]
+./build/truestamp beacon [latest|list|get|by-hash] [--json|--hash-only|-s]   # read-only Truestamp beacons JSON:API
 ./build/truestamp hash [flags] [path ...]                              # SHA-2/SHA-3/BLAKE2/MD5/SHA-1 digests; supports --prefix 0xNN, --jcs
 ./build/truestamp encode [--from <enc>] [--to <enc>] [file]            # hex|base64|base64url|binary
 ./build/truestamp decode [--from <enc>] [--to <enc>] [file]            # hex|base64|base64url|binary
@@ -195,6 +197,14 @@ No `s` key, no `ip` key — the block IS the subject, so `subject_hash == block_
 }
 ```
 
+### Beacons are block proofs with a server-side metadata projection
+
+A **beacon** is not a separate subject type on the wire — it's the same `t == 10` block proof, exposed via a compact read-only projection `{id, hash, timestamp, previous_hash}` at `GET /api/json/beacons/*` (see `truestamp-v2/docs/BEACONS_API_IMPLEMENTERS_GUIDE.md`). The CLI treats them as equivalent cryptographic artefacts:
+
+- `truestamp beacon {latest|list|get|by-hash}` reads the projection (authenticated JSON:API).
+- `truestamp download --type beacon <uuidv7>` fetches a proof bundle labelled `truestamp-beacon-*` on disk. The wire request sends `data.type = "block"` today — the server does not yet accept `"beacon"` as a `type` value. See the `TODO(server-beacon)` in `cmd/download.go`: once the server schema extends, the client-side alias disappears.
+- `truestamp verify` handles beacon proofs byte-for-byte as block proofs; the Type row of the report shows `Block`. The filename is the only beacon-vs-block signal retained after download.
+
 ### Structural requirements (enforced by the parser)
 
 - `v == 1`, `t ∈ {10, 20, 30, 31, 32}`, `cx` non-empty, every `cx[i].t ∈ {40, 41}`.
@@ -254,6 +264,13 @@ cmd/
   verify.go                     Verify subcommand (uses inputsrc for the six-mode input resolver)
   create.go                     Create subcommand (item registration; shares inputsrc sentinels)
   auth.go                       Auth login/logout/status subcommand
+  beacon.go                     beacon parent + `latest` default (maps `truestamp beacon` → latest)
+  beacon_list.go                beacon list (table rendering, TTY-aware hash truncation)
+  beacon_get.go                 beacon get (client-side UUIDv7 validation)
+  beacon_by_hash.go             beacon by-hash (client-side 64-hex validation)
+  beacon_test.go                CLI integration tests for beacon (httptest + subprocess)
+  download.go                   download subcommand (server auto-routes on id; --type auto|item|entropy|block|beacon)
+  download_test.go              CLI integration tests for download (all --type variants + --as beacon alias)
   hash.go                       Hash subcommand (SHA-2/3, BLAKE2, MD5/SHA-1; --prefix, --jcs, --style gnu|bsd|bare)
   codec.go                      Encode / Decode / JCS sub-commands (all share a thin resolver)
   convert.go                    Convert parent (no-op; aggregates children)
@@ -274,6 +291,10 @@ internal/
     config.go                   koanf-based config loading, XDG paths, validation
     defaults/
       config.toml               Embedded default config (go:embed)
+  beacons/
+    client.go                   Thin HTTP client for the Beacons JSON:API (Latest/List/Get/ByHash); typed errors + APIError
+    client_test.go              httptest tests for all four endpoints incl. envelope variants, JSON:API error parsing, 429 Retry-After
+    fuzz_test.go                Fuzz targets for the JSON parser (single + list) and the UUIDv7 / 64-hex validators
   inputsrc/
     inputsrc.go                 Shared six-mode input resolver (positional | --file [path] | --file picker | --url [url] | --url prompt | stdin pipe); Resolve and ResolveStream
     inputsrc_test.go            Unit tests for all six modes and precedence
@@ -306,7 +327,8 @@ internal/
     binary.go                   CBOR parsing (read)
     marshal_cbor.go             Deterministic CBOR encoding (RFC 8949 §4.2, self-describing tag 55799); per-field byte-string policy
     marshal_cbor_test.go        CBOR round-trip canonicalization tests
-    download.go                 URL download with validation
+    id.go                       Syntactic id shape detection (ULID vs UUIDv7) — pre-flight only; server decides subject type
+    download.go                 URL download + /proof/generate client; GenerateCtx takes subject type (auto|item|entropy|block); InspectBundleType reads returned t
     parse_test.go               Parsing validation tests
   tscrypto/
     hash.go                     Domain-separated hashing (0x11-0x61), len_prefix, key_id, BuildCompactProofPayload

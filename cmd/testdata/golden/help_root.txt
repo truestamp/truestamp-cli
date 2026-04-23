@@ -8,6 +8,7 @@ Usage:
 
 Available Commands:
   auth        Manage Truestamp API authentication
+  beacon      Inspect Truestamp block beacons
   completion  Generate the autocompletion script for the specified shell
   config      Manage CLI configuration
   convert     Convert Truestamp-domain values (time, proof format, IDs, keyid, Merkle proofs)

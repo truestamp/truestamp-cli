@@ -14,6 +14,7 @@ import (
 	"net/url"
 
 	"github.com/truestamp/truestamp-cli/internal/httpclient"
+	"github.com/truestamp/truestamp-cli/internal/proof/ptype"
 )
 
 // Download fetches a proof bundle from a URL using [context.Background].
@@ -52,27 +53,38 @@ func DownloadCtx(ctx context.Context, rawURL string) ([]byte, error) {
 	if err := json.Unmarshal(data, &shape); err != nil {
 		return nil, fmt.Errorf("response is not valid JSON: %w", err)
 	}
-	if shape.Version == 0 || shape.PublicKey == "" || shape.Signature == "" || len(shape.Subject) == 0 || len(shape.Block) == 0 {
-		return nil, fmt.Errorf("response does not appear to be a Truestamp proof bundle (missing v, pk, sig, s, or b)")
+	// Block proofs (t == 10) have no "s" field; don't require it here.
+	if shape.Version == 0 || shape.PublicKey == "" || shape.Signature == "" || len(shape.Block) == 0 {
+		return nil, fmt.Errorf("response does not appear to be a Truestamp proof bundle (missing v, pk, sig, or b)")
 	}
 
 	return data, nil
 }
 
 // Generate calls [GenerateCtx] with [context.Background].
-func Generate(apiURL, apiKey, team, id, format string) ([]byte, error) {
-	return GenerateCtx(context.Background(), apiURL, apiKey, team, id, format)
+func Generate(apiURL, apiKey, team, id, subjectType, format string) ([]byte, error) {
+	return GenerateCtx(context.Background(), apiURL, apiKey, team, id, subjectType, format)
 }
 
 // GenerateCtx requests a proof bundle from the Truestamp API for the given
-// subject ID. The server auto-detects item (ULID) vs entropy (UUIDv7) from
-// the ID format. format should be "json" or "cbor". Returns raw bytes ready
-// to write to a file (pretty JSON or decoded CBOR binary). ctx cancels the
-// in-flight request.
-func GenerateCtx(ctx context.Context, apiURL, apiKey, team, id, format string) ([]byte, error) {
+// subject ID. subjectType selects the subject class on the server:
+//   - ""       — omit the field; server uses its default ("auto")
+//   - "auto"   — server detects from id (ULID → item; UUIDv7 → block, then entropy)
+//   - "item" | "entropy" | "block" — explicit server-side routing
+//
+// format is "json" or "cbor". Returns raw bytes ready to write to a file
+// (pretty JSON or decoded CBOR binary). ctx cancels the in-flight request.
+//
+// NOTE: the server does NOT currently accept subjectType == "beacon". Callers
+// wanting a beacon-labelled artefact pass "block" here and handle the beacon
+// labelling themselves (see cmd/download.go).
+func GenerateCtx(ctx context.Context, apiURL, apiKey, team, id, subjectType, format string) ([]byte, error) {
 	dataFields := map[string]string{"id": id}
 	if format != "" && format != "json" {
 		dataFields["format"] = format
+	}
+	if subjectType != "" {
+		dataFields["type"] = subjectType
 	}
 	requestBody := map[string]any{"data": dataFields}
 	bodyBytes, err := json.Marshal(requestBody)
@@ -140,6 +152,26 @@ func GenerateCtx(ctx context.Context, apiURL, apiKey, team, id, format string) (
 		return nil, fmt.Errorf("formatting proof JSON: %w", err)
 	}
 	return append(pretty, '\n'), nil
+}
+
+// InspectBundleType returns the subject type code `t` of a proof bundle
+// encoded as either pretty JSON or deterministic CBOR. Used by downloaders
+// to pick a filename stem from the authoritative server-returned type.
+func InspectBundleType(data []byte) (ptype.Code, error) {
+	if IsCBORProof(data) {
+		b, err := ParseCBOR(data)
+		if err != nil {
+			return 0, err
+		}
+		return b.T, nil
+	}
+	var shape struct {
+		T ptype.Code `json:"t"`
+	}
+	if err := json.Unmarshal(data, &shape); err != nil {
+		return 0, fmt.Errorf("inspecting bundle type: %w", err)
+	}
+	return shape.T, nil
 }
 
 // parseGenerateError extracts a meaningful error message from the API response.
