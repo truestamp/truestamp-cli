@@ -25,6 +25,13 @@ type RemoteOptions struct {
 	APIKey       string
 	Team         string // team ID, sent as tenant header
 	ExpectedHash string // hex hash to compare against claims.hash
+
+	// ExpectedSubjectType, when non-empty, is sent to the server as
+	// `data.type` on /proof/verify. The server then asserts the posted
+	// bundle's `t` matches; a mismatch returns a structured 422 with
+	// meta.code == "subject_type_mismatch" (see PROOF_FORMAT_IMPLEMENTERS_GUIDE
+	// §12). Mirrors Options.ExpectedSubjectType for the local path.
+	ExpectedSubjectType string
 }
 
 // apiEnvelope wraps the top-level API response.
@@ -90,6 +97,15 @@ func RunRemote(filename string, opts RemoteOptions) (*Report, error) {
 	}
 	if opts.ExpectedHash != "" {
 		dataFields["expected_hash"] = opts.ExpectedHash
+	}
+	// Forward --type to the server when set. The server enforces the
+	// assertion via the new /proof/verify `type` arg and returns 4xx
+	// with meta.code="subject_type_mismatch" on mismatch. Sending the
+	// type is strictly additive — when omitted, the server reads
+	// bundle["t"] as before (backward-compat for callers that haven't
+	// adopted --type).
+	if opts.ExpectedSubjectType != "" {
+		dataFields["type"] = opts.ExpectedSubjectType
 	}
 	requestBody := map[string]any{
 		"data": dataFields,

@@ -39,6 +39,15 @@ Proof input can be provided as:
   truestamp verify --url                Interactive URL prompt
   cat proof.json | truestamp verify     Pipe from stdin
 
+Pass --type to assert the expected subject type. If the bundle's t
+doesn't match, the report surfaces a Subject Type failure (local
+mode) or the server rejects the request with subject_type_mismatch
+(--remote mode). Values: item | entropy_nist | entropy_stellar |
+entropy_bitcoin | block | beacon. Useful as a guard against verifying
+the wrong file — e.g. a beacon-named file that was swapped with a
+plain block proof (both verify on their own, but only --type beacon
+catches the swap).
+
 Use --remote to delegate verification to the Truestamp server API instead
 of performing local computation. Requires --api-key to be set.
 
@@ -93,6 +102,13 @@ Exit code 0 on success, 1 on verification failure.`,
 			}
 		}
 
+		typeFlag, _ := cmd.Flags().GetString("type")
+		typeFlag = strings.ToLower(strings.TrimSpace(typeFlag))
+		if typeFlag != "" && !validDownloadType(typeFlag) {
+			return fmt.Errorf("--type must be one of %s, got %q",
+				strings.Join(downloadTypeValues, " | "), typeFlag)
+		}
+
 		displayName := src.DisplayName()
 		if src.Type == inputsrc.SourceStdin {
 			displayName = "(stdin)"
@@ -124,17 +140,19 @@ Exit code 0 on success, 1 on verification failure.`,
 			}
 
 			report, err = verify.RunRemote(sourceFile, verify.RemoteOptions{
-				APIURL:       cfg.APIURL,
-				APIKey:       cfg.APIKey,
-				Team:         cfg.Team,
-				ExpectedHash: hashFlag,
+				APIURL:              cfg.APIURL,
+				APIKey:              cfg.APIKey,
+				Team:                cfg.Team,
+				ExpectedHash:        hashFlag,
+				ExpectedSubjectType: typeFlag,
 			})
 		} else {
 			opts := verify.Options{
-				KeyringURL:     cfg.KeyringURL,
-				SkipExternal:   cfg.Verify.SkipExternal,
-				SkipSignatures: cfg.Verify.SkipSignatures,
-				ExpectedHash:   hashFlag,
+				KeyringURL:          cfg.KeyringURL,
+				SkipExternal:        cfg.Verify.SkipExternal,
+				SkipSignatures:      cfg.Verify.SkipSignatures,
+				ExpectedHash:        hashFlag,
+				ExpectedSubjectType: typeFlag,
 			}
 			report, err = verify.RunFromBytes(data, displayName, opts)
 		}
@@ -190,6 +208,9 @@ func init() {
 	f.Lookup("file").NoOptDefVal = inputsrc.FilePickSentinel
 	f.Lookup("url").NoOptDefVal = inputsrc.URLPromptSentinel
 	f.String("hash", "", "Expected claims hash (hex) to compare against proof")
+	f.String("type", "",
+		fmt.Sprintf("Assert expected subject type (guards against verifying the wrong file). One of: %s",
+			strings.Join(downloadTypeValues, " | ")))
 	f.BoolP("silent", "s", false, "No output, exit code only")
 	f.Bool("json", false, "Output results as JSON")
 	f.Bool("skip-external", false, "Skip all external API verification")

@@ -12,7 +12,7 @@ Beyond verification, the CLI exposes five Unix-y, pipe-friendly sub-commands tha
 
 ```bash
 task build                    # -> build/truestamp
-./build/truestamp verify [proof.json] [--file [path]] [--url [url]] [--skip-external] [--skip-signatures] [--silent] [--json]
+./build/truestamp verify [proof.json] [--type item|entropy_nist|entropy_stellar|entropy_bitcoin|block|beacon] [--file [path]] [--url [url]] [--hash hex] [--skip-external] [--skip-signatures] [--silent] [--json] [--remote]
 ./build/truestamp create [file] [--file [path]] [--claims [path]] [--claims-stdin] [--file-stdin] [--name ...] [--hash ...] [--json]
 ./build/truestamp download <id> [--type item|entropy_nist|entropy_stellar|entropy_bitcoin|block|beacon] [-f json|cbor] [-o path]
 ./build/truestamp beacon [latest|list|get|by-hash] [--json|--hash-only|-s]   # read-only Truestamp beacons JSON:API
@@ -95,6 +95,7 @@ Settings are resolved in priority order (highest priority last):
 | `--file [path]` | | | Proof file path; interactive picker if no path given |
 | `--url [url]` | | | Download proof from URL; interactive prompt if no URL given |
 | `--hash` | | | Expected claims hash (hex) to compare against proof |
+| `--type` | | | Assert expected subject type: `item` \| `entropy_nist` \| `entropy_stellar` \| `entropy_bitcoin` \| `block` \| `beacon`. Local mode: mismatch surfaces as a "Subject Type" failure step. Remote mode: the value is forwarded to the server's `/proof/verify type` arg; the server rejects with HTTP 4xx + `meta.code=subject_type_mismatch` if the posted bundle's `t` disagrees. |
 | `--silent` / `-s` | `TRUESTAMP_VERIFY_SILENT` | `false` | No output, exit code only |
 | `--json` | `TRUESTAMP_VERIFY_JSON` | `false` | Output results as JSON |
 | `--skip-external` | `TRUESTAMP_VERIFY_SKIP_EXTERNAL` | `false` | Skip all external API verification |

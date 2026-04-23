@@ -499,3 +499,95 @@ func indexOf(s, substr string) int {
 	}
 	return -1
 }
+
+// --- Subject-type assertion (--type flag) -----------------------------------
+
+// TestCLI_Verify_TypeMatches_NoAssertionFailure: --type matches the bundle's
+// t (both item). The fake proof fails other checks (fake sig/hashes), but the
+// Subject Type assertion should NOT contribute a failure of its own.
+func TestCLI_Verify_TypeMatches_NoAssertionFailure(t *testing.T) {
+	path := writeProofFile(t, fakeProofJSON)
+	cmd := exec.Command(binaryPath, "verify", "--type", "item", "--skip-external", "--skip-signatures", path)
+	cmd.Env = cleanEnv()
+	out, _ := cmd.CombinedOutput()
+	stripped := stripANSI(string(out))
+	if strings.Contains(stripped, "--type item was requested") {
+		t.Errorf("--type should not surface assertion failure when it matches, got: %s", stripped)
+	}
+	if strings.Contains(stripped, "Proof is item (t=20) but") {
+		t.Errorf("unexpected Subject Type mismatch message when types match: %s", stripped)
+	}
+}
+
+// TestCLI_Verify_TypeMismatch_Fails: --type beacon on an item proof should
+// exit non-zero. The report still renders; the Subject Type group shows fail.
+func TestCLI_Verify_TypeMismatch_Fails(t *testing.T) {
+	path := writeProofFile(t, fakeProofJSON)
+	cmd := exec.Command(binaryPath, "verify", "--type", "beacon", "--skip-external", "--skip-signatures", path)
+	cmd.Env = cleanEnv()
+	out, err := cmd.CombinedOutput()
+	if err == nil {
+		t.Fatal("expected non-zero exit on type mismatch")
+	}
+	// The mismatch renders as a failing step inside the report:
+	//   x Proof is item (t=20) but --type beacon was requested
+	stripped := stripANSI(string(out))
+	if !strings.Contains(stripped, "Proof is item") {
+		t.Errorf("expected 'Proof is item' in failure message, got: %s", stripped)
+	}
+	if !strings.Contains(stripped, "--type beacon was requested") {
+		t.Errorf("expected '--type beacon was requested' in failure message, got: %s", stripped)
+	}
+}
+
+// TestCLI_Verify_Type_InvalidEnum: --type with a value outside the six-value
+// enum is rejected client-side before the file is even parsed.
+func TestCLI_Verify_Type_InvalidEnum(t *testing.T) {
+	path := writeProofFile(t, fakeProofJSON)
+	cmd := exec.Command(binaryPath, "verify", "--type", "auto", path)
+	cmd.Env = cleanEnv()
+	out, err := cmd.CombinedOutput()
+	if err == nil {
+		t.Fatal("expected non-zero exit on --type=auto")
+	}
+	if !strings.Contains(string(out), "--type must be one of") {
+		t.Errorf("expected enum validation message, got: %s", out)
+	}
+}
+
+// TestCLI_Verify_Type_BareEntropy_Rejected: bare "entropy" is not in the
+// six-value enum (must be entropy_nist / entropy_stellar / entropy_bitcoin).
+func TestCLI_Verify_Type_BareEntropy_Rejected(t *testing.T) {
+	path := writeProofFile(t, fakeProofJSON)
+	cmd := exec.Command(binaryPath, "verify", "--type", "entropy", path)
+	cmd.Env = cleanEnv()
+	out, err := cmd.CombinedOutput()
+	if err == nil {
+		t.Fatal("expected non-zero exit on --type=entropy")
+	}
+	if !strings.Contains(string(out), "--type must be one of") {
+		t.Errorf("expected enum validation message, got: %s", out)
+	}
+}
+
+// stripANSI removes ANSI escape sequences from output so tests don't have to
+// deal with lipgloss color codes when checking text content.
+func stripANSI(s string) string {
+	out := make([]byte, 0, len(s))
+	skip := false
+	for i := 0; i < len(s); i++ {
+		b := s[i]
+		if b == 0x1b {
+			skip = true
+			continue
+		}
+		if skip {
+			if b == 'm' {
+				skip = false
+			}
+			continue
+		}
+		out = append(out, b)
+	}
+	return string(out)
+}

@@ -28,6 +28,16 @@ type Options struct {
 	SkipExternal   bool
 	SkipSignatures bool
 	ExpectedHash   string // hex hash to compare against claims.hash
+
+	// ExpectedSubjectType, when non-empty, asserts that the parsed
+	// bundle's subject type name (ptype.Name) matches. A mismatch
+	// surfaces as a StatusFail step in the "Subject Type" group —
+	// crypto steps still run, the report still renders, and the
+	// mismatch appears in the Issues section. Mirrors --type in the
+	// download command so users can guard against verifying the wrong
+	// file. Must be one of: item, entropy_nist, entropy_stellar,
+	// entropy_bitcoin, block, beacon.
+	ExpectedSubjectType string
 }
 
 // Run executes the full verification pipeline on a proof file.
@@ -62,6 +72,16 @@ func runBundle(bundle *proof.ProofBundle, filename string, fileSize int64, opts 
 
 	subjectType := ptype.Name(bundle.T)
 
+	// Subject-type assertion (client-side; mirrors the server's
+	// /proof/verify type check added alongside the t=11 beacon work).
+	// Surface as a StatusFail step so the report still renders and the
+	// crypto pipeline still runs — same UX precedent as --hash
+	// mismatches. Exit code is non-zero via Report.Passed().
+	subjectTypeAssertionFailed := false
+	if opts.ExpectedSubjectType != "" && opts.ExpectedSubjectType != subjectType {
+		subjectTypeAssertionFailed = true
+	}
+
 	r := &Report{
 		Filename:        filename,
 		FileSize:        fileSize,
@@ -86,6 +106,16 @@ func runBundle(bundle *proof.ProofBundle, filename string, fileSize int64, opts 
 
 	if isItem {
 		r.Claims = parseClaims(bundle.RawData)
+	}
+
+	// Subject-type assertion (from --type flag). Check early so it
+	// surfaces at the top of the Issues block alongside structural
+	// failures; crypto still runs so users see whether the proof is
+	// otherwise valid.
+	if subjectTypeAssertionFailed {
+		r.fail(groupSubjectType, CatStructural, fmt.Sprintf(
+			"Proof is %s (t=%d) but --type %s was requested",
+			subjectType, bundle.T, opts.ExpectedSubjectType))
 	}
 
 	// Hash comparison (item proofs only)
@@ -180,6 +210,7 @@ const (
 	groupHashComparison = "Hash Comparison"
 	groupSigningKey     = "Signing Key"
 	groupStructure      = "Structure"
+	groupSubjectType    = "Subject Type"
 	groupSubjectData    = "Subject Data"
 	groupInclusion      = "Inclusion Proof"
 	groupBlockHash      = "Block Hash"

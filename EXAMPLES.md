@@ -310,6 +310,15 @@ truestamp verify --file
 truestamp verify contract.proof.json \
   --hash e08764deac64ca9a1046901c5b23674941f1e86f0e2d0429ee07c5e311a15ce7
 
+# Assert the expected subject type — guards against verifying the wrong
+# file. Useful because block (t=10) and beacon (t=11) proofs are
+# structurally identical on the wire, so a renamed or swapped file
+# would still verify on its own. --type <t> fails the verify if the
+# bundle's t doesn't match the requested type.
+truestamp verify --type beacon truestamp-beacon-019d....json
+truestamp verify --type item   truestamp-item-01K....json
+truestamp verify --type entropy_stellar truestamp-entropy-stellar-019c....json
+
 # Skip the public-blockchain checks (offline / restricted networks)
 truestamp verify contract.proof.json --skip-external
 
@@ -323,6 +332,10 @@ truestamp verify contract.proof.json --silent      # exit code only
 
 Use `--remote` to delegate verification to the Truestamp server (requires
 API key). Local verification is the default and needs no credentials.
+When `--type` is combined with `--remote`, the value is forwarded to the
+server's `/proof/verify` endpoint — a server-side assertion rather than
+a CLI-only one — and a mismatch returns HTTP 4xx with
+`meta.code=subject_type_mismatch`.
 
 ---
 
