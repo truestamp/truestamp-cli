@@ -6,6 +6,7 @@ package ui
 import (
 	"fmt"
 	"os"
+	"time"
 
 	"charm.land/huh/v2"
 	lipgloss "charm.land/lipgloss/v2"
@@ -75,4 +76,20 @@ func LabelValueStyleFunc() func(row, col int) lipgloss.Style {
 		}
 		return lipgloss.NewStyle().Foreground(Value)
 	}
+}
+
+// TruncateToSecond parses an RFC 3339 / ISO 8601 timestamp and re-emits
+// it at second precision (drops fractional seconds). Returns the input
+// string unchanged if it cannot be parsed, so it is safe to chain with
+// already-truncated values. Used by every display site that shows a
+// timestamp to a human — beacon list rows, beacon cards, the verify
+// report's Timeline / Subject / Commitments sections. The `convert`
+// subcommands deliberately bypass this helper because they exist
+// precisely to extract high-precision timestamps from IDs.
+func TruncateToSecond(ts string) string {
+	t, err := time.Parse(time.RFC3339Nano, ts)
+	if err != nil {
+		return ts
+	}
+	return t.Truncate(time.Second).Format(time.RFC3339)
 }

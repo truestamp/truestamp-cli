@@ -39,20 +39,19 @@ Run `truestamp <command> --help` at any time for exhaustive flag documentation.
 ## External tools used in these examples
 
 The examples below are written in POSIX shell syntax and compose `truestamp`
-with standard Unix utilities and a handful of common third-party tools.
-**Only `truestamp` itself is required** to use the CLI; the others appear
-purely because they're how you glue Unix commands together. If a given tool
-isn't on your system (especially on Windows or a minimal container), the
-example using it won't run, but you can substitute an equivalent.
+with standard Unix utilities (plus `jq` where pipeline scripting benefits
+from it). **Only `truestamp` itself is required** to use the CLI; the
+others appear purely because they're how you glue Unix commands together.
+If a given tool isn't on your system (especially on Windows or a minimal
+container), the example using it won't run, but you can substitute an
+equivalent.
 
 | Tool | Used for | Typical availability |
 | --- | --- | --- |
-| `cat` / `echo` / `printf` / `read` / `grep` / `cut` / `find` / `xargs` / `awk` / `wc` / `od` / `test` / `[` / `for` / `while` | Shell plumbing and text manipulation | POSIX-standard. Built-in on macOS, Linux, BSD, WSL, Git-Bash on Windows |
+| `cat` / `echo` / `printf` / `read` / `grep` / `cut` / `find` / `xargs` / `awk` / `for` / `while` | Shell plumbing and text manipulation | POSIX-standard. Built-in on macOS, Linux, BSD, WSL, Git-Bash on Windows |
 | `curl` | Fetch remote files / proofs | Pre-installed on macOS and most Linux; install via your package manager if missing |
 | `date` | Format or print the current time | POSIX-standard; GNU `date` and BSD `date` have different `-d` / `-v` flag syntax |
 | `jq` | Parse and transform JSON | Third-party; [install from jqlang.org](https://jqlang.org/). Highly recommended for any scripting against Truestamp's `--json` output |
-| `sha256sum` / `shasum` | Cross-checking `truestamp hash` output | Linux usually ships `sha256sum`; macOS ships `shasum`. The examples note where these are used only to show byte-identical output |
-| `base64` | Cross-checking `truestamp encode` / `decode` output | GNU and BSD `base64` have different flag syntax; the examples use `truestamp` instead |
 
 Windows users running outside WSL should install Git-Bash or a similar POSIX
 shell to run the examples. PowerShell-native equivalents work too, but the

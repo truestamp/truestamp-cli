@@ -221,10 +221,10 @@ func presentDownload(filename, format, id, typeFlag string, size int) {
 		Row("ID", id).
 		Row("Type", typeFlag)
 
-	lipgloss.Println(lipgloss.JoinVertical(lipgloss.Left,
-		header, "",
-		tbl.String(),
-	))
+	// Plain newline-join — see note in internal/verify/presenter.go
+	// Present(). Long filenames (e.g. truestamp-entropy-bitcoin-<uuidv7>.cbor)
+	// won't inflate every other table row on narrow terminals.
+	lipgloss.Println(strings.Join([]string{header, "", tbl.String()}, "\n"))
 }
 
 func formatSize(size int) string {

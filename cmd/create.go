@@ -437,10 +437,10 @@ func presentCreate(resp *items.CreateItemResponse) {
 		tbl = tbl.Row("Team", resp.TeamID)
 	}
 
-	lipgloss.Println(lipgloss.JoinVertical(lipgloss.Left,
-		header,
-		tbl.String(),
-	))
+	// Plain newline-join — see note in internal/verify/presenter.go
+	// Present(). lipgloss.JoinVertical pad-to-widest can cause phantom
+	// blank lines after every table row on narrow terminals.
+	lipgloss.Println(strings.Join([]string{header, tbl.String()}, "\n"))
 }
 
 func init() {

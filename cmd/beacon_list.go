@@ -6,6 +6,7 @@ package cmd
 import (
 	"fmt"
 	"io"
+	"strings"
 
 	lipgloss "charm.land/lipgloss/v2"
 	"charm.land/lipgloss/v2/table"
@@ -71,25 +72,21 @@ func runBeaconList(cmd *cobra.Command, _ []string) error {
 	return nil
 }
 
-// renderBeaconList prints a compact three-column table. Hashes truncate on
-// narrow terminals; full hashes are emitted when stdout is not a TTY so
-// piped output stays byte-stable for downstream tools.
+// renderBeaconList prints a compact three-column table. Hashes are
+// always shown full-width — truncation would silently drop the bytes a
+// user came here to capture (the whole point of `beacon list` is to
+// surface the hash for copy-paste or shell substitution).
 func renderBeaconList(w io.Writer, items []beacons.Beacon) {
 	heading := fmt.Sprintf("  Beacons (latest %d)", len(items))
 	header := ui.AccentBoldStyle().Render(heading)
 
-	// Truncate hashes only when writing to a live terminal. When piped
-	// (non-TTY), emit the full hash so downstream tools stay byte-stable.
-	showFullHash := !stdoutIsTerminal()
-
 	rows := make([][]string, 0, len(items)+1)
 	rows = append(rows, []string{"TIMESTAMP", "HASH", "ID"})
 	for _, b := range items {
-		hashCell := b.Hash
-		if !showFullHash {
-			hashCell = truncateHashShort(b.Hash)
-		}
-		rows = append(rows, []string{b.Timestamp, hashCell, b.ID})
+		// Drop fractional-second precision for readability. The full
+		// precision is preserved in --json output; this only affects
+		// the human-readable table.
+		rows = append(rows, []string{ui.TruncateToSecond(b.Timestamp), b.Hash, b.ID})
 	}
 
 	tbl := table.New().
@@ -102,16 +99,11 @@ func renderBeaconList(w io.Writer, items []beacons.Beacon) {
 		}).
 		Rows(rows...)
 
-	fmt.Fprintln(w, lipgloss.JoinVertical(lipgloss.Left, header, "", tbl.String()))
-}
-
-// truncateHashShort returns the first 12 chars of a hash + ellipsis, for
-// narrow TTYs. When stdout isn't a TTY, callers show the full hash.
-func truncateHashShort(h string) string {
-	if len(h) <= 13 {
-		return h
-	}
-	return h[:12] + "…"
+	// Plain newline-join — see note in internal/verify/presenter.go
+	// Present(). Avoids lipgloss.JoinVertical's pad-to-widest behaviour,
+	// which would make long hash rows blow up vertical spacing on
+	// narrow terminals.
+	fmt.Fprintln(w, strings.Join([]string{header, "", tbl.String()}, "\n"))
 }
 
 func init() {

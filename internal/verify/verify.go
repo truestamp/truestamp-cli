@@ -620,7 +620,7 @@ func verifyEntropyNIST(r *Report, rawData json.RawMessage) {
 	if remote.OutputValue != outputValue {
 		r.fail(groupEntropySource, CatBlockchain,
 			fmt.Sprintf("NIST outputValue mismatch at pulse %d: upstream %s, proof %s",
-				pulseIdx, truncateHash(remote.OutputValue), truncateHash(outputValue)))
+				pulseIdx, remote.OutputValue, outputValue))
 		return
 	}
 	if !timestampsEqual(remote.TimeStamp, timeStamp) {
@@ -658,7 +658,7 @@ func verifyEntropyStellar(r *Report, rawData json.RawMessage, network string) {
 	if !tscrypto.HexEqual(remote.Hash, stellar.Hash) {
 		r.fail(groupEntropySource, CatBlockchain,
 			fmt.Sprintf("Stellar ledger hash mismatch at seq %d: upstream %s, proof %s",
-				stellar.Sequence, truncateHash(remote.Hash), truncateHash(stellar.Hash)))
+				stellar.Sequence, remote.Hash, stellar.Hash))
 		return
 	}
 	if !timestampsEqual(remote.ClosedAt, stellar.ClosedAt) {
@@ -695,19 +695,19 @@ func verifyEntropyBitcoin(r *Report, rawData json.RawMessage, network string) {
 	}
 	if err != nil {
 		r.fail(groupEntropySource, CatBlockchain,
-			fmt.Sprintf("Bitcoin block fetch failed (hash %s on %s): %s", truncateHash(btc.Hash), network, err))
+			fmt.Sprintf("Bitcoin block fetch failed (hash %s on %s): %s", btc.Hash, network, err))
 		return
 	}
 	if !tscrypto.HexEqual(remote.Hash, btc.Hash) {
 		r.fail(groupEntropySource, CatBlockchain,
 			fmt.Sprintf("Bitcoin block hash mismatch: upstream %s, proof %s",
-				truncateHash(remote.Hash), truncateHash(btc.Hash)))
+				remote.Hash, btc.Hash))
 		return
 	}
 	if btc.Height != 0 && remote.Height != btc.Height {
 		r.fail(groupEntropySource, CatBlockchain,
 			fmt.Sprintf("Bitcoin height mismatch at hash %s: upstream %d, proof %d",
-				truncateHash(btc.Hash), remote.Height, btc.Height))
+				btc.Hash, remote.Height, btc.Height))
 		return
 	}
 	if btc.Time != 0 && remote.Time != btc.Time {

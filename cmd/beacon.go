@@ -180,26 +180,29 @@ func renderBeaconCard(w io.Writer, apiURL string, b *beacons.Beacon) {
 		Row("ID", b.ID).
 		Row("Previous", b.PreviousHash)
 
-	fmt.Fprintln(w, lipgloss.JoinVertical(lipgloss.Left, header, "", tbl.String()))
+	// Plain newline-join — see note in internal/verify/presenter.go
+	// Present(). lipgloss.JoinVertical pads every line to match the
+	// widest line, which can blow up vertical spacing when a long line
+	// forces terminal wrap on every row.
+	fmt.Fprintln(w, strings.Join([]string{header, "", tbl.String()}, "\n"))
 	if link := beaconWebURL(apiURL, b.Hash); link != "" {
 		fmt.Fprintln(w, ui.FaintStyle().Render("    Verify → "+link))
 	}
 }
 
 // timestampWithRelative appends a coarse "N minutes ago" hint to an ISO
-// timestamp when it parses cleanly. Falls back to the original string.
+// timestamp when it parses cleanly. Falls back to the input string.
+// Delegates the second-precision truncation to the shared ui helper so
+// all CLI surfaces render timestamps consistently.
 func timestampWithRelative(ts string) string {
-	t, err := time.Parse(time.RFC3339Nano, ts)
+	parsed, err := time.Parse(time.RFC3339Nano, ts)
 	if err != nil {
-		t, err = time.Parse(time.RFC3339, ts)
+		parsed, err = time.Parse(time.RFC3339, ts)
 	}
 	if err != nil {
 		return ts
 	}
-	// Render the timestamp at second precision for readability, then a
-	// rough relative label.
-	display := t.UTC().Format("2006-01-02T15:04:05Z")
-	return display + "  (" + humanizeAge(time.Since(t)) + ")"
+	return ui.TruncateToSecond(ts) + "  (" + humanizeAge(time.Since(parsed)) + ")"
 }
 
 func humanizeAge(d time.Duration) string {

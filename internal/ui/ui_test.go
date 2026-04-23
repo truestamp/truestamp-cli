@@ -92,3 +92,28 @@ func TestHasDarkBackground_DoesNotPanic(t *testing.T) {
 	// there's no panic and a boolean is returned.
 	_ = hasDarkBackground()
 }
+
+func TestTruncateToSecond(t *testing.T) {
+	cases := []struct {
+		in   string
+		want string
+	}{
+		// Microsecond precision (beacon API shape) drops fractional part.
+		{"2026-04-22T21:05:00.000000Z", "2026-04-22T21:05:00Z"},
+		{"2026-04-22T21:05:00.123456Z", "2026-04-22T21:05:00Z"},
+		// Nanosecond precision also drops.
+		{"2026-04-22T21:05:00.123456789Z", "2026-04-22T21:05:00Z"},
+		// Already at second precision: idempotent.
+		{"2026-04-22T21:05:00Z", "2026-04-22T21:05:00Z"},
+		// Non-UTC offset preserved.
+		{"2026-04-22T21:05:00.5-07:00", "2026-04-22T21:05:00-07:00"},
+		// Unparseable input is returned verbatim (safe pass-through).
+		{"not-a-timestamp", "not-a-timestamp"},
+		{"", ""},
+	}
+	for _, c := range cases {
+		if got := TruncateToSecond(c.in); got != c.want {
+			t.Errorf("TruncateToSecond(%q) = %q, want %q", c.in, got, c.want)
+		}
+	}
+}

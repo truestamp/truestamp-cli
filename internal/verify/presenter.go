@@ -9,7 +9,6 @@ import (
 	"fmt"
 	"sort"
 	"strings"
-	"time"
 
 	lipgloss "charm.land/lipgloss/v2"
 	"charm.land/lipgloss/v2/table"
@@ -74,7 +73,17 @@ func Present(r *Report) {
 	// Verification Summary (replaces old raw counts line)
 	sections = append(sections, "", renderVerificationSummary(r))
 
-	lipgloss.Println(lipgloss.JoinVertical(lipgloss.Left, sections...))
+	// Plain newline-join — NOT lipgloss.JoinVertical. JoinVertical pads
+	// every section's lines with trailing spaces to match the widest line
+	// across ALL sections. When any section contains a line wider than
+	// the terminal (e.g. a long section subtitle, a 64-hex tx hash row,
+	// a paragraph of prose), the padding pushes every other row over the
+	// terminal width too, which the terminal then hard-wraps — producing
+	// a blank visual line after every table row. The spacing collapses
+	// on terminal resize because the JoinVertical output was already
+	// correctly formed; only the terminal's line-wrap was inflating it.
+	// strings.Join sidesteps the padding entirely.
+	lipgloss.Println(strings.Join(sections, "\n"))
 }
 
 // --- Result Banner ---
@@ -120,10 +129,10 @@ func renderBlockSubject(r *Report) string {
 	// a block as the subject, but a beacon is the finalized-block
 	// projection used for "proof of life", so name it that way.
 	header := ui.SectionHeader("Block Subject")
-	subtitle := ui.FaintStyle().Render("  The subject of this proof is a Truestamp block. No user claims, no observation — the block itself is what was committed.")
+	subtitle := ui.FaintStyle().Render("  The subject is a Truestamp block. No user claims, no observation — the block itself is what was committed.")
 	if subjectCodeForName(r.SubjectType) == ptype.Beacon {
 		header = ui.SectionHeader("Beacon Subject")
-		subtitle = ui.FaintStyle().Render("  The subject of this proof is a Truestamp beacon — a finalized block exposed as a \"proof of life\" commitment. Structurally identical to a block proof (t=11 on the wire).")
+		subtitle = ui.FaintStyle().Render("  The subject is a Truestamp beacon — a finalized block exposed as a \"proof of life\" commitment (t=11 on the wire).")
 	}
 
 	tbl := table.New().
@@ -291,25 +300,29 @@ func renderTimeline(r *Report) string {
 		Border(lipgloss.HiddenBorder()).
 		StyleFunc(metadataStyleFunc)
 
+	// Apply ui.TruncateToSecond at every display site — idempotent if the
+	// value is already at second precision, and defensive against any
+	// upstream change that starts storing higher-precision timestamps.
 	if t.ClaimedAt != "" {
-		row := t.ClaimedAt
+		claimed := ui.TruncateToSecond(t.ClaimedAt)
+		row := claimed
 		if r.Claims.TimestampStatus == TimestampStale {
-			row = lipgloss.NewStyle().Foreground(ui.Yellow).Render(t.ClaimedAt) +
+			row = lipgloss.NewStyle().Foreground(ui.Yellow).Render(claimed) +
 				lipgloss.NewStyle().Foreground(ui.Yellow).Render(" ! "+r.Claims.TimestampNote)
 		} else if r.Claims.TimestampStatus == TimestampFuture {
-			row = lipgloss.NewStyle().Foreground(ui.Red).Render(t.ClaimedAt) +
+			row = lipgloss.NewStyle().Foreground(ui.Red).Render(claimed) +
 				lipgloss.NewStyle().Foreground(ui.Red).Render(" x "+r.Claims.TimestampNote)
 		}
 		tbl = tbl.Row("Claimed at", row)
 	}
 	if t.SubmittedAt != "" {
-		tbl = tbl.Row("Submitted at", t.SubmittedAt)
+		tbl = tbl.Row("Submitted at", ui.TruncateToSecond(t.SubmittedAt))
 	}
 	if t.CapturedAt != "" {
-		tbl = tbl.Row("Captured at", t.CapturedAt)
+		tbl = tbl.Row("Captured at", ui.TruncateToSecond(t.CapturedAt))
 	}
 	if t.CommittedAt != "" {
-		tbl = tbl.Row("Committed at", t.CommittedAt)
+		tbl = tbl.Row("Committed at", ui.TruncateToSecond(t.CommittedAt))
 	}
 
 	return header + "\n" + tbl.String()
@@ -385,9 +398,13 @@ func renderHashMismatchDetail(r *Report) string {
 		Border(lipgloss.HiddenBorder()).
 		StyleFunc(metadataStyleFunc)
 
-	tbl = tbl.Row("Expected", truncateHash(r.HashProvided)+
+	// Show full 64-char hashes — the user is here specifically to spot
+	// the mismatch, and a head8…tail8 truncation can hide the differing
+	// bytes in the middle, or render two different hashes as visually
+	// identical when they share prefix + suffix by coincidence.
+	tbl = tbl.Row("Expected", r.HashProvided+
 		lipgloss.NewStyle().Foreground(ui.Dim).Render(" (from --hash)"))
-	tbl = tbl.Row("Found", truncateHash(r.Claims.Hash)+
+	tbl = tbl.Row("Found", r.Claims.Hash+
 		lipgloss.NewStyle().Foreground(ui.Dim).Render(" (in proof)"))
 
 	return tbl.String()
@@ -592,19 +609,8 @@ func metadataStyleFunc(row, col int) lipgloss.Style {
 	return lipgloss.NewStyle().Foreground(ui.Value)
 }
 
-// truncateHash shows first 8 and last 8 chars of a hex hash with ellipsis.
-func truncateHash(hash string) string {
-	if len(hash) <= 20 {
-		return hash
-	}
-	return hash[:8] + "..." + hash[len(hash)-8:]
-}
-
-// truncateToSecond parses an RFC3339 timestamp and truncates to second precision.
-func truncateToSecond(ts string) string {
-	t, err := time.Parse(time.RFC3339Nano, ts)
-	if err != nil {
-		return ts
-	}
-	return t.Truncate(time.Second).Format(time.RFC3339)
-}
+// truncateToSecond is a package-local alias for ui.TruncateToSecond so
+// existing call sites here don't need to thread the ui import. The
+// shared helper in internal/ui is the single source of truth; this
+// wrapper exists only for readability.
+func truncateToSecond(ts string) string { return ui.TruncateToSecond(ts) }

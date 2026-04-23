@@ -5,6 +5,7 @@ package cmd
 
 import (
 	"fmt"
+	"strings"
 
 	lipgloss "charm.land/lipgloss/v2"
 	"charm.land/lipgloss/v2/table"
@@ -99,7 +100,13 @@ func presentConfig(cfg *config.Config) {
 		Border(lipgloss.HiddenBorder()).
 		StyleFunc(configStyleFunc)
 
-	output := lipgloss.JoinVertical(lipgloss.Left,
+	// Plain newline-join — NOT lipgloss.JoinVertical. JoinVertical pads
+	// every line to the widest line across all inputs; if any single
+	// value (URL, long path) exceeds terminal width, the padding
+	// inflates every row and the terminal hard-wraps, producing phantom
+	// blank lines after every table row. See the matching note in
+	// internal/verify/presenter.go Present().
+	output := strings.Join([]string{
 		header, "",
 		ui.SectionHeader("General"),
 		general.String(), "",
@@ -109,7 +116,7 @@ func presentConfig(cfg *config.Config) {
 		hash.String(), "",
 		ui.SectionHeader("Convert"),
 		convert.String(),
-	)
+	}, "\n")
 	lipgloss.Println(output)
 }
 
