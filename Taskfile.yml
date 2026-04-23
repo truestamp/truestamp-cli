@@ -298,9 +298,9 @@ tasks:
       - mise exec -- goreleaser check
 
   release-snapshot:
-    desc: Build a local snapshot release into dist/ (no publishing, no network)
+    desc: "Local snapshot release into dist/ — skips cosign signing (keyless requires the CI OIDC token) and GitHub publishing, so this runs fully offline and is safe for pre-release inspection."
     cmds:
-      - mise exec -- goreleaser release --snapshot --clean
+      - mise exec -- goreleaser release --snapshot --clean --skip=sign,publish
       - 'echo "✅ Snapshot artifacts in dist/"'
 
   # =============================================================================
