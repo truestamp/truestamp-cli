@@ -7,10 +7,12 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
 func TestSHA256File(t *testing.T) {
+	t.Parallel()
 	dir := t.TempDir()
 	path := filepath.Join(dir, "sample.bin")
 	content := []byte("truestamp test vector\n")
@@ -31,6 +33,7 @@ func TestSHA256File(t *testing.T) {
 }
 
 func TestChecksumFor(t *testing.T) {
+	t.Parallel()
 	body := []byte(`# comment line
 abcd1234  other-file.tar.gz
 deadbeef  truestamp-cli_0.3.0_darwin_arm64.tar.gz
@@ -62,6 +65,7 @@ cafef00d  truestamp-cli_0.3.0_linux_amd64.tar.gz
 }
 
 func TestVerifySHA256(t *testing.T) {
+	t.Parallel()
 	dir := t.TempDir()
 	path := filepath.Join(dir, "v.bin")
 	content := []byte("truestamp test vector\n")
@@ -84,11 +88,13 @@ func TestVerifySHA256(t *testing.T) {
 }
 
 func TestVerifyCosign_missingBinary_nonRequired(t *testing.T) {
-	// Force cosign lookup to miss by pointing PATH at an empty dir.
-	emptyDir := t.TempDir()
-	t.Setenv("PATH", emptyDir)
-
-	verified, err := VerifyCosign("/nonexistent", "/nonexistent", DefaultCosignOptions(false))
+	t.Parallel()
+	// Force cosign lookup to miss by pointing PinnedPath at a
+	// non-existent absolute path. Using the pin (rather than t.Setenv on
+	// PATH) keeps the test parallel-safe: resolveCosignBinary never
+	// touches $PATH when pinned is non-empty.
+	missing := filepath.Join(t.TempDir(), "no-such-cosign")
+	verified, err := VerifyCosign("/nonexistent", "/nonexistent", DefaultCosignOptions(false, missing))
 	if err != nil {
 		t.Errorf("VerifyCosign (best-effort): unexpected error %v", err)
 	}
@@ -98,11 +104,62 @@ func TestVerifyCosign_missingBinary_nonRequired(t *testing.T) {
 }
 
 func TestVerifyCosign_missingBinary_required(t *testing.T) {
-	emptyDir := t.TempDir()
-	t.Setenv("PATH", emptyDir)
-
-	_, err := VerifyCosign("/nonexistent", "/nonexistent", DefaultCosignOptions(true))
+	t.Parallel()
+	missing := filepath.Join(t.TempDir(), "no-such-cosign")
+	_, err := VerifyCosign("/nonexistent", "/nonexistent", DefaultCosignOptions(true, missing))
 	if !errors.Is(err, ErrCosignMissing) {
 		t.Errorf("VerifyCosign (required): err = %v, want ErrCosignMissing", err)
 	}
+}
+
+// TestResolveCosignBinary_pinnedPath covers resolveCosignBinary's
+// per-case behavior when a caller passes a pinned path: valid
+// executable wins; invalid forms are rejected without $PATH fallback.
+func TestResolveCosignBinary_pinnedPath(t *testing.T) {
+	t.Parallel()
+
+	dir := t.TempDir()
+	fake := filepath.Join(dir, "fake-cosign")
+	if err := os.WriteFile(fake, []byte("#!/bin/sh\nexit 0\n"), 0755); err != nil {
+		t.Fatalf("write fake cosign: %v", err)
+	}
+
+	// Valid executable: returned verbatim.
+	got, err := resolveCosignBinary(fake)
+	if err != nil {
+		t.Fatalf("resolveCosignBinary with valid pin: unexpected error %v", err)
+	}
+	if got != fake {
+		t.Errorf("resolveCosignBinary = %q, want %q", got, fake)
+	}
+
+	// Non-existent path.
+	if _, err := resolveCosignBinary(filepath.Join(dir, "does-not-exist")); err == nil {
+		t.Error("resolveCosignBinary with missing path: expected error, got nil")
+	}
+
+	// Directory, not a file.
+	if _, err := resolveCosignBinary(dir); err == nil {
+		t.Error("resolveCosignBinary with directory: expected error, got nil")
+	}
+
+	// Non-executable file.
+	nonExec := filepath.Join(dir, "not-executable")
+	if err := os.WriteFile(nonExec, []byte("plain"), 0644); err != nil {
+		t.Fatalf("write non-exec: %v", err)
+	}
+	if _, err := resolveCosignBinary(nonExec); err == nil {
+		t.Error("resolveCosignBinary with non-executable: expected error, got nil")
+	}
+
+	// Relative path: rejected up front.
+	if _, err := resolveCosignBinary("cosign"); err == nil || !strings.Contains(err.Error(), "absolute") {
+		t.Errorf("resolveCosignBinary with relative path: got %v, want error mentioning 'absolute'", err)
+	}
+
+	// Whitespace-only is treated as empty (falls back to $PATH); this
+	// call may or may not succeed depending on whether cosign is
+	// installed on the test host. Either is acceptable — we just want
+	// to verify the path isn't pinned-validated.
+	_, _ = resolveCosignBinary("   ")
 }

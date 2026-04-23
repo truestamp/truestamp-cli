@@ -6,6 +6,7 @@ package selfupgrade
 import "testing"
 
 func TestParseSemver(t *testing.T) {
+	t.Parallel()
 	cases := []struct {
 		in        string
 		want      Semver
@@ -54,6 +55,7 @@ func TestParseSemver(t *testing.T) {
 }
 
 func TestDisplay(t *testing.T) {
+	t.Parallel()
 	cases := []struct {
 		in, want string
 	}{
@@ -75,6 +77,7 @@ func TestDisplay(t *testing.T) {
 }
 
 func TestSemverCompare(t *testing.T) {
+	t.Parallel()
 	cases := []struct {
 		a, b string
 		want int
@@ -109,6 +112,7 @@ func TestSemverCompare(t *testing.T) {
 }
 
 func TestIsGitDescribeDev(t *testing.T) {
+	t.Parallel()
 	cases := []struct {
 		in   string
 		want bool
@@ -143,6 +147,7 @@ func TestIsGitDescribeDev(t *testing.T) {
 }
 
 func TestUpgradeAvailable(t *testing.T) {
+	t.Parallel()
 	cases := []struct {
 		current, latest string
 		want            bool

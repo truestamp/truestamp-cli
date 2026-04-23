@@ -17,6 +17,7 @@ import (
 // ParseCBOR → MarshalCBOR may rewrite a non-deterministic source, but
 // a second round-trip must produce identical bytes.
 func TestMarshalCBOR_RoundTripStabilizes(t *testing.T) {
+	t.Parallel()
 	path := filepath.Join("..", "verify", "testdata", "proof_item.cbor")
 	orig, err := os.ReadFile(path)
 	if err != nil {
@@ -55,6 +56,7 @@ func TestMarshalCBOR_RoundTripStabilizes(t *testing.T) {
 // trip through CBOR. Content must remain equivalent — specifically, the
 // same bundle parsed from both forms must produce byte-identical JSON.
 func TestMarshalCBOR_JSONToCBORToJSON(t *testing.T) {
+	t.Parallel()
 	jsonPath := filepath.Join("..", "verify", "testdata", "proof_item.json")
 	jsonBytes, err := os.ReadFile(jsonPath)
 	if err != nil {

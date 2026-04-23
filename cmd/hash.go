@@ -10,7 +10,9 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"runtime"
 	"strings"
+	"sync"
 
 	"github.com/gowebpki/jcs"
 	"github.com/spf13/cobra"
@@ -156,19 +158,7 @@ func runHash(cmd *cobra.Command, args []string) error {
 		return nil
 	}
 
-	results := make([]hashResult, 0, len(sources))
-	hadError := false
-	for _, src := range sources {
-		r, err := runHashOne(cmd.Context(), src, alg, prefixByte, prefixSet, useJCS)
-		if err != nil {
-			hadError = true
-			if !silent {
-				fmt.Fprintf(cmd.ErrOrStderr(), "truestamp hash: %s\n", err)
-			}
-			continue
-		}
-		results = append(results, r)
-	}
+	results, hadError := runHashMany(cmd, sources, alg, prefixByte, prefixSet, useJCS, silent)
 
 	if silent {
 		if hadError {
@@ -196,6 +186,84 @@ type hashResult struct {
 	Source inputsrc.Source
 	Digest []byte
 	Size   int64
+}
+
+// parallelHashThreshold is the source count at which runHashMany switches
+// from serial to worker-pool execution. Below this threshold the goroutine
+// and channel overhead costs more than it saves.
+const parallelHashThreshold = 3
+
+// runHashMany hashes every source, preserving the caller-supplied order
+// in the returned slice. For a single input it stays serial (no worker
+// cost); for multiple inputs it hashes in parallel on a bounded worker
+// pool. Stdin sources force serial execution because os.Stdin is not
+// safe to read from multiple goroutines.
+//
+// Per-input errors are written to stderr (unless --silent) and the
+// corresponding slot is dropped from results; hadError is true when any
+// input failed, so the caller exits non-zero.
+func runHashMany(cmd *cobra.Command, sources []inputsrc.Options, alg hashing.Algorithm, prefixByte byte, prefixSet, useJCS, silent bool) ([]hashResult, bool) {
+	ctx := cmd.Context()
+	slots := make([]*hashResult, len(sources))
+	errs := make([]error, len(sources))
+
+	// Stdin isn't a concurrent resource — a pipe can't be read from two
+	// goroutines at once without interleaving. Fall back to serial when
+	// any source consumes stdin.
+	hasStdin := false
+	for _, s := range sources {
+		if s.AllowStdin || s.PositionalArg == "-" {
+			hasStdin = true
+			break
+		}
+	}
+
+	runOne := func(i int) {
+		r, err := runHashOne(ctx, sources[i], alg, prefixByte, prefixSet, useJCS)
+		if err != nil {
+			errs[i] = err
+			return
+		}
+		slots[i] = &r
+	}
+
+	if len(sources) < parallelHashThreshold || hasStdin {
+		for i := range sources {
+			runOne(i)
+		}
+	} else {
+		workers := min(runtime.NumCPU(), len(sources))
+		jobs := make(chan int, len(sources))
+		var wg sync.WaitGroup
+		for range workers {
+			wg.Go(func() {
+				for i := range jobs {
+					runOne(i)
+				}
+			})
+		}
+		for i := range sources {
+			jobs <- i
+		}
+		close(jobs)
+		wg.Wait()
+	}
+
+	results := make([]hashResult, 0, len(sources))
+	hadError := false
+	for i := range sources {
+		if errs[i] != nil {
+			hadError = true
+			if !silent {
+				fmt.Fprintf(cmd.ErrOrStderr(), "truestamp hash: %s\n", errs[i])
+			}
+			continue
+		}
+		if slots[i] != nil {
+			results = append(results, *slots[i])
+		}
+	}
+	return results, hadError
 }
 
 // runHashOne resolves one input and hashes it. For raw byte-stream inputs

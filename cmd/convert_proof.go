@@ -197,6 +197,10 @@ func init() {
 	f.String("from", "auto", "Input format: auto, json, or cbor")
 	f.String("to", "", "Output format: json or cbor (required)")
 	f.Bool("compact", false, "JSON output: emit minified form (default: 2-space indent)")
+	// convert proof's --json means "JSON envelope"; the help text above
+	// stays specific to that, so we register it explicitly instead of
+	// going through addConvertCommonFlags. --silent shares the family
+	// default.
 	f.Bool("json", false, "Emit a JSON envelope with input/output metadata instead of raw output")
 	f.BoolP("silent", "s", false, "No output, exit code only")
 	convertCmd.AddCommand(convertProofCmd)

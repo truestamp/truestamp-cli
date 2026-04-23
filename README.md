@@ -249,7 +249,7 @@ The `truestamp upgrade` command is install-method aware — it detects how the b
 | -------------- | ---------------------------- |
 | Homebrew       | Prints `brew upgrade --cask truestamp/tap/truestamp-cli` (does not touch the Homebrew prefix). |
 | `go install`   | Prints `go install github.com/truestamp/truestamp-cli/cmd/truestamp@latest`. |
-| install.sh / manual | Downloads the latest release tarball, verifies SHA-256 (mandatory, pure Go) and cosign signature (best-effort; required if `TRUESTAMP_REQUIRE_COSIGN=1`), extracts the binary, atomically replaces the running executable, and clears the macOS quarantine xattr. A `.bak.<timestamp>` backup of the previous binary is kept for 7 days. |
+| install.sh / manual | Downloads the latest release tarball, verifies SHA-256 (mandatory, pure Go) and cosign signature (best-effort; required if `TRUESTAMP_REQUIRE_COSIGN=1`; `cosign` is located on `$PATH` by default, or pin an absolute path with `cosign_path` in config or `TRUESTAMP_COSIGN_PATH` env var to defend against `$PATH` hijacking), extracts the binary, atomically replaces the running executable, and clears the macOS quarantine xattr. A `.bak.<timestamp>` backup of the previous binary is kept for 7 days. |
 | Windows (any method) | Prints `go install ...@latest`. In-place upgrade is not supported on Windows in this release. |
 
 Check the detected install method at any time:
@@ -306,6 +306,9 @@ Settings are resolved in this order (later overrides earlier):
 | `--http-timeout` | `TRUESTAMP_HTTP_TIMEOUT` | `10s` |
 | `--no-color` | `NO_COLOR` | `false` |
 | `--no-upgrade-check` | `TRUESTAMP_NO_UPGRADE_CHECK` | `false` |
+| (config file / env only: `cosign_path`) | `TRUESTAMP_COSIGN_PATH` |   |
+
+`cosign_path` pins the `cosign` binary used by `truestamp upgrade` for release-artifact signature verification. Empty (the default) means "use `$PATH` lookup"; set this to an absolute path (e.g. `/opt/cosign/bin/cosign`) in hardened environments to avoid `$PATH` hijacking. Relative paths are rejected at config load. Setting has no effect unless you actually run `truestamp upgrade`.
 
 ### Verify-specific flags
 

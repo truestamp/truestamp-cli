@@ -147,6 +147,80 @@ func TestLoad_InvalidHTTPTimeout(t *testing.T) {
 	}
 }
 
+// TestLoad_NonPositiveHTTPTimeout rejects zero and negative durations
+// since http.Client treats a zero timeout as "no timeout", which would
+// silently disable the guard.
+func TestLoad_NonPositiveHTTPTimeout(t *testing.T) {
+	cases := []string{`http_timeout = "0s"`, `http_timeout = "-1s"`}
+	for _, body := range cases {
+		dir := t.TempDir()
+		path := filepath.Join(dir, "config.toml")
+		_ = os.WriteFile(path, []byte(body), 0644)
+		_, err := Load(path, nil)
+		if err == nil {
+			t.Errorf("Load with %q: expected error, got nil", body)
+			continue
+		}
+		if !strings.Contains(err.Error(), "positive") {
+			t.Errorf("Load with %q: error should mention 'positive', got: %v", body, err)
+		}
+	}
+}
+
+// TestLoad_CosignPathAbsolute requires the resolved cosign_path to be
+// absolute (or empty for $PATH lookup). Relative paths are rejected at
+// load time so downstream callers can assume a validated value.
+func TestLoad_CosignPathAbsolute(t *testing.T) {
+	cases := []struct {
+		name    string
+		body    string
+		wantErr bool
+	}{
+		{"empty is ok (falls back to $PATH)", `cosign_path = ""`, false},
+		{"absolute path is ok", `cosign_path = "/usr/local/bin/cosign"`, false},
+		{"relative path is rejected", `cosign_path = "cosign"`, true},
+		{"dot-relative path is rejected", `cosign_path = "./bin/cosign"`, true},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			dir := t.TempDir()
+			path := filepath.Join(dir, "config.toml")
+			_ = os.WriteFile(path, []byte(tc.body), 0644)
+			_, err := Load(path, nil)
+			if tc.wantErr && err == nil {
+				t.Errorf("Load with %q: expected error, got nil", tc.body)
+			}
+			if !tc.wantErr && err != nil {
+				t.Errorf("Load with %q: unexpected error %v", tc.body, err)
+			}
+			if tc.wantErr && err != nil && !strings.Contains(err.Error(), "cosign_path") {
+				t.Errorf("Load with %q: error should mention 'cosign_path', got: %v", tc.body, err)
+			}
+		})
+	}
+}
+
+// TestLoad_CosignPathFromEnv verifies TRUESTAMP_COSIGN_PATH flows
+// through the koanf env provider into Config.CosignPath just like the
+// other TRUESTAMP_* env vars. Env takes precedence over the (empty)
+// config file value.
+func TestLoad_CosignPathFromEnv(t *testing.T) {
+	// t.Setenv precludes t.Parallel() on this specific test; other
+	// cases in this file that don't mutate env can still parallelize.
+	dir := t.TempDir()
+	path := filepath.Join(dir, "config.toml")
+	_ = os.WriteFile(path, []byte(""), 0644)
+
+	t.Setenv("TRUESTAMP_COSIGN_PATH", "/opt/cosign/bin/cosign")
+	cfg, err := Load(path, nil)
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	if cfg.CosignPath != "/opt/cosign/bin/cosign" {
+		t.Errorf("CosignPath from env: got %q, want %q", cfg.CosignPath, "/opt/cosign/bin/cosign")
+	}
+}
+
 func TestLoad_InvalidTOML(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "config.toml")

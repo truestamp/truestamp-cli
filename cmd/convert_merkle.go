@@ -111,8 +111,6 @@ func gatherMerkleInput(cmd *cobra.Command, args []string) (string, error) {
 var errConvertNoMerkleInput = errors.New("no Merkle proof input provided")
 
 func init() {
-	f := convertMerkleCmd.Flags()
-	f.Bool("json", false, "Output as JSON")
-	f.BoolP("silent", "s", false, "No output, exit code only")
+	addConvertCommonFlags(convertMerkleCmd)
 	convertCmd.AddCommand(convertMerkleCmd)
 }

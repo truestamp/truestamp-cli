@@ -93,7 +93,11 @@ Examples:
   truestamp download --type entropy_stellar 019cf813-99b8-730a-84f1-5a711a9c355e
   truestamp download -o proof.json 01KNN33GX5E470CB9TRWAYF9DD
 
-Requires --api-key to be set (via flag, env, or config file).`,
+Requires --api-key to be set (via flag, env, or config file).
+
+Exit code 0 on success, 1 on any error (validation failure, network
+error, missing API key, server rejection, or failure to write the
+output file).`,
 	Args:          cobra.MaximumNArgs(1),
 	SilenceUsage:  true,
 	SilenceErrors: true,

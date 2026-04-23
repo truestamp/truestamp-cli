@@ -11,11 +11,17 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"runtime"
 	"time"
 )
 
 // httpClient is the shared HTTP client.
 var httpClient = &http.Client{Timeout: 10 * time.Second}
+
+// userAgent is stamped onto every outbound request by SetUserAgent and
+// applied centrally in Do. Empty means "don't override any UA the caller
+// already set". Populated once at startup via SetUserAgent from cmd/root.
+var userAgent string
 
 // MaxResponseSize limits HTTP response bodies to 1 MB to prevent OOM.
 const MaxResponseSize = 1 << 20
@@ -26,12 +32,39 @@ func Init(timeout time.Duration) {
 	httpClient = &http.Client{Timeout: timeout}
 }
 
+// SetUserAgent configures the User-Agent header stamped onto every
+// outbound request through [Do]. Typical value:
+// "truestamp-cli/<version> (<os>/<arch>)". Pass an empty string to
+// disable the override (requests keep whatever UA the caller set, or
+// Go's default).
+func SetUserAgent(version string) {
+	if version == "" {
+		userAgent = ""
+		return
+	}
+	userAgent = fmt.Sprintf("truestamp-cli/%s (%s/%s)", version, runtime.GOOS, runtime.GOARCH)
+}
+
 // Do executes an HTTP request using the shared client. The request's
 // existing [context.Context] (if any) is respected; callers that want
 // cancellation should attach one via [http.Request.WithContext] before
-// calling.
+// calling. If SetUserAgent has been called and the request has no
+// User-Agent header, the configured value is applied.
 func Do(req *http.Request) (*http.Response, error) {
+	stampUserAgent(req)
 	return httpClient.Do(req)
+}
+
+// stampUserAgent applies the shared User-Agent header when one is
+// configured and the caller did not already set one.
+func stampUserAgent(req *http.Request) {
+	if userAgent == "" {
+		return
+	}
+	if req.Header.Get("User-Agent") != "" {
+		return
+	}
+	req.Header.Set("User-Agent", userAgent)
 }
 
 // GetJSON performs a GET request with [context.Background] and returns the
@@ -48,6 +81,7 @@ func GetJSONCtx(ctx context.Context, url string) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
+	stampUserAgent(req)
 	resp, err := httpClient.Do(req)
 	if err != nil {
 		return nil, err

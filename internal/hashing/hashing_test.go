@@ -52,6 +52,7 @@ var canonicalVectors = []struct {
 }
 
 func TestCompute_CanonicalVectors(t *testing.T) {
+	t.Parallel()
 	for _, v := range canonicalVectors {
 		alg, err := Lookup(v.alg)
 		if err != nil {
@@ -76,6 +77,7 @@ func TestCompute_CanonicalVectors(t *testing.T) {
 }
 
 func TestCompute_EmptyAllAlgorithms(t *testing.T) {
+	t.Parallel()
 	// Every registered algorithm must produce a deterministic, non-empty
 	// digest for empty input (and the size must match the declared Size).
 	for _, alg := range Algorithms() {
@@ -91,6 +93,7 @@ func TestCompute_EmptyAllAlgorithms(t *testing.T) {
 }
 
 func TestCompute_Streaming(t *testing.T) {
+	t.Parallel()
 	// 1 MiB buffer streamed through io.Copy must produce the same digest
 	// as handing the slice to a one-shot hasher. Guards against any
 	// accidental buffering bug.
@@ -115,6 +118,7 @@ func TestCompute_Streaming(t *testing.T) {
 }
 
 func TestLookup_AliasesAndCase(t *testing.T) {
+	t.Parallel()
 	cases := []struct {
 		in        string
 		canonical string
@@ -139,6 +143,7 @@ func TestLookup_AliasesAndCase(t *testing.T) {
 }
 
 func TestLookup_Unknown(t *testing.T) {
+	t.Parallel()
 	_, err := Lookup("crc32")
 	if err == nil {
 		t.Fatal("Lookup(unknown) should return error")
@@ -150,6 +155,7 @@ func TestLookup_Unknown(t *testing.T) {
 }
 
 func TestAlgorithms_Stable(t *testing.T) {
+	t.Parallel()
 	// Algorithms() is part of the public contract — downstream tooling
 	// may parse `truestamp hash --list`. Pin the order and size.
 	got := Algorithms()
@@ -162,6 +168,7 @@ func TestAlgorithms_Stable(t *testing.T) {
 }
 
 func TestLegacyFlag(t *testing.T) {
+	t.Parallel()
 	for _, alg := range Algorithms() {
 		want := alg.Name == "md5" || alg.Name == "sha1"
 		if alg.Legacy != want {
@@ -171,6 +178,7 @@ func TestLegacyFlag(t *testing.T) {
 }
 
 func TestFormatGNU_TextAndBinary(t *testing.T) {
+	t.Parallel()
 	digest := "abc123"
 	cases := []struct {
 		bin  bool
@@ -190,6 +198,7 @@ func TestFormatGNU_TextAndBinary(t *testing.T) {
 }
 
 func TestFormatGNU_FilenameEscape(t *testing.T) {
+	t.Parallel()
 	// GNU coreutils prefixes the whole line with '\' when the filename
 	// contained '\' or '\n' and escapes those characters inside the name.
 	cases := []struct {
@@ -209,6 +218,7 @@ func TestFormatGNU_FilenameEscape(t *testing.T) {
 }
 
 func TestFormatBSD(t *testing.T) {
+	t.Parallel()
 	got := FormatBSD("SHA256", "abc123", "foo.bin")
 	want := "SHA256 (foo.bin) = abc123\n"
 	if got != want {
@@ -217,6 +227,7 @@ func TestFormatBSD(t *testing.T) {
 }
 
 func TestCompute_ReaderError(t *testing.T) {
+	t.Parallel()
 	alg, _ := Lookup("sha256")
 	_, _, err := Compute(context.Background(), alg, errorReader{})
 	if err == nil {
@@ -225,6 +236,7 @@ func TestCompute_ReaderError(t *testing.T) {
 }
 
 func TestCompute_CancelledContext(t *testing.T) {
+	t.Parallel()
 	alg, _ := Lookup("sha256")
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel() // cancel before call so the early ctx.Err() check fires

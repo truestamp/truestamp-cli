@@ -37,3 +37,12 @@ For JSON canonicalization (RFC 8785) use 'truestamp jcs'.`,
 func init() {
 	rootCmd.AddCommand(convertCmd)
 }
+
+// addConvertCommonFlags registers the --json and --silent flags shared
+// by every convert sub-command. Kept central so the flag name, default,
+// help text, and -s short alias stay in sync across the family.
+func addConvertCommonFlags(cmd *cobra.Command) {
+	f := cmd.Flags()
+	f.Bool("json", false, "Output as JSON")
+	f.BoolP("silent", "s", false, "No output, exit code only")
+}

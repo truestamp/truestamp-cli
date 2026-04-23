@@ -245,7 +245,6 @@ func init() {
 	f.String("type", "auto", "ID type: auto, ulid, uuid7")
 	f.String("extract", "time", "What to extract: time, raw")
 	f.String("to-zone", "UTC", "Target IANA zone for time output (default UTC)")
-	f.Bool("json", false, "Output as JSON")
-	f.BoolP("silent", "s", false, "No output, exit code only")
+	addConvertCommonFlags(convertIDCmd)
 	convertCmd.AddCommand(convertIDCmd)
 }

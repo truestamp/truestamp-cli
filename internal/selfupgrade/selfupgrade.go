@@ -71,6 +71,11 @@ type Options struct {
 	// TRUESTAMP_SKIP_CHECKSUM=0 parity is intentional only for SHA-256.
 	SkipCosign bool
 
+	// CosignPath pins the cosign binary used for signature verification.
+	// Empty = $PATH lookup. Must be an absolute path when set; the
+	// config layer validates this up front.
+	CosignPath string
+
 	// Logger receives progress lines. May be nil for silent operation.
 	Logger func(msg string)
 }
@@ -198,7 +203,7 @@ func Upgrade(ctx context.Context, opts Options) (installedVersion string, backup
 		} else {
 			bundlePath = "" // signals "bundle missing" to VerifyCosign
 		}
-		verified, err := VerifyCosign(checksumsPath, bundlePath, DefaultCosignOptions(opts.RequireCosign))
+		verified, err := VerifyCosign(checksumsPath, bundlePath, DefaultCosignOptions(opts.RequireCosign, opts.CosignPath))
 		if err != nil {
 			return "", "", err
 		}

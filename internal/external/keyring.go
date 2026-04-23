@@ -29,6 +29,18 @@ type KeyringKey struct {
 	Active    bool   `json:"active"`
 }
 
+// keyringNetError wraps a raw network error with a friendlier message.
+// Error() returns the friendly text; Unwrap() returns the underlying
+// error so callers can errors.Is/errors.As against the original type
+// (net.DNSError, net.OpError, context.DeadlineExceeded, etc.).
+type keyringNetError struct {
+	friendly string
+	inner    error
+}
+
+func (e *keyringNetError) Error() string { return e.friendly }
+func (e *keyringNetError) Unwrap() error { return e.inner }
+
 // classifyNetworkError returns a human-friendly message for common network errors.
 func classifyNetworkError(err error) string {
 	var dnsErr *net.DNSError
@@ -86,10 +98,32 @@ func compactError(err error) string {
 }
 
 // VerifyKeyring checks that all signing keys in the proof match the published keyring.
+//
+// Trust model: the keyring's authenticity is rooted entirely in the TLS
+// chain presented by keyringURL. There is no in-band signature over the
+// keyring payload itself, so every key in the returned document is only
+// as trustworthy as the URL you configured. In particular:
+//
+//   - Use https:// with a host whose certificate chain you trust (an
+//     attacker able to mint a valid cert for the host — via DNS/BGP
+//     hijack, a rogue CA, or a compromised certificate — can substitute
+//     signing keys and every downstream signature will validate against
+//     their key).
+//   - Configure --keyring-url (or the TRUESTAMP_KEYRING_URL env var, or
+//     the keyring_url setting in config.toml) from a source you trust —
+//     e.g. official Truestamp docs — not from a bundle authored by the
+//     same party whose proof you are verifying.
+//   - The CLI enforces TLS chain validation (InsecureSkipVerify is never
+//     set) and does not follow cross-host redirects that strip TLS.
+//
+// A future revision may add pinning of the keyring payload's hash or a
+// cosign/Sigstore signature over the keyring document itself. Until
+// then, treat keyring-url as a root of trust that deserves the same
+// care as a CA root.
 func VerifyKeyring(signingKeys map[string]string, keyringURL string) error {
 	resp, err := httpclient.GetJSON(keyringURL)
 	if err != nil {
-		return fmt.Errorf("%s", classifyNetworkError(err))
+		return &keyringNetError{friendly: classifyNetworkError(err), inner: err}
 	}
 
 	var keyring KeyringResponse

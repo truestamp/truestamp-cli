@@ -96,6 +96,7 @@ func runUpgrade(cmd *cobra.Command, _ []string) error {
 		CurrentVersion: current,
 		RequireCosign:  os.Getenv("TRUESTAMP_REQUIRE_COSIGN") == "1",
 		SkipCosign:     upgradeFlagNoVerify,
+		CosignPath:     appConfig.CosignPath,
 		Logger: func(msg string) {
 			fmt.Fprintf(cmd.ErrOrStderr(), "  %s\n", msg)
 		},

@@ -118,6 +118,7 @@ func writeTemp(t *testing.T, content string) string {
 }
 
 func TestParse_ValidItemProof(t *testing.T) {
+	t.Parallel()
 	path := writeTemp(t, validProofJSON)
 	bundle, err := Parse(path)
 	if err != nil {
@@ -152,6 +153,7 @@ func TestParse_ValidItemProof(t *testing.T) {
 }
 
 func TestParse_PreservesRawData(t *testing.T) {
+	t.Parallel()
 	path := writeTemp(t, validProofJSON)
 	bundle, err := Parse(path)
 	if err != nil {
@@ -166,6 +168,7 @@ func TestParse_PreservesRawData(t *testing.T) {
 }
 
 func TestParse_FileNotFound(t *testing.T) {
+	t.Parallel()
 	_, err := Parse("/nonexistent/path/proof.json")
 	if err == nil {
 		t.Error("expected error for missing file")
@@ -173,6 +176,7 @@ func TestParse_FileNotFound(t *testing.T) {
 }
 
 func TestParse_InvalidJSON(t *testing.T) {
+	t.Parallel()
 	path := writeTemp(t, "not json at all")
 	_, err := Parse(path)
 	if err == nil {
@@ -181,6 +185,7 @@ func TestParse_InvalidJSON(t *testing.T) {
 }
 
 func TestParse_MissingVersion(t *testing.T) {
+	t.Parallel()
 	_, err := ParseBytes([]byte(`{
 		"t": 20, "pk": "aa", "sig": "bb", "ts": "2026-01-01T00:00:00Z",
 		"s": {"id":"x","d":{},"mh":"cc","kid":"dd"},
@@ -194,6 +199,7 @@ func TestParse_MissingVersion(t *testing.T) {
 }
 
 func TestParse_MissingTypeCode(t *testing.T) {
+	t.Parallel()
 	_, err := ParseBytes([]byte(`{
 		"v": 1, "pk": "aa", "sig": "bb", "ts": "2026-01-01T00:00:00Z",
 		"s": {"id":"x","d":{},"mh":"cc","kid":"dd"},
@@ -207,6 +213,7 @@ func TestParse_MissingTypeCode(t *testing.T) {
 }
 
 func TestParse_InvalidTypeCode(t *testing.T) {
+	t.Parallel()
 	_, err := ParseBytes([]byte(`{
 		"v": 1, "t": 99,
 		"pk": "aa", "sig": "bb", "ts": "2026-01-01T00:00:00Z",
@@ -219,6 +226,7 @@ func TestParse_InvalidTypeCode(t *testing.T) {
 }
 
 func TestParse_MissingPublicKey(t *testing.T) {
+	t.Parallel()
 	_, err := ParseBytes([]byte(`{
 		"v": 1, "t": 20,
 		"sig": "bb", "ts": "2026-01-01T00:00:00Z",
@@ -233,6 +241,7 @@ func TestParse_MissingPublicKey(t *testing.T) {
 }
 
 func TestParse_MissingSignature(t *testing.T) {
+	t.Parallel()
 	_, err := ParseBytes([]byte(`{
 		"v": 1, "t": 20,
 		"pk": "aa", "ts": "2026-01-01T00:00:00Z",
@@ -247,6 +256,7 @@ func TestParse_MissingSignature(t *testing.T) {
 }
 
 func TestParse_MissingSubjectForItem(t *testing.T) {
+	t.Parallel()
 	_, err := ParseBytes([]byte(`{
 		"v": 1, "t": 20,
 		"pk": "aa", "sig": "bb", "ts": "2026-01-01T00:00:00Z",
@@ -260,6 +270,7 @@ func TestParse_MissingSubjectForItem(t *testing.T) {
 }
 
 func TestParse_MissingInclusionProofForItem(t *testing.T) {
+	t.Parallel()
 	_, err := ParseBytes([]byte(`{
 		"v": 1, "t": 20,
 		"pk": "aa", "sig": "bb", "ts": "2026-01-01T00:00:00Z",
@@ -273,6 +284,7 @@ func TestParse_MissingInclusionProofForItem(t *testing.T) {
 }
 
 func TestParse_MissingBlock(t *testing.T) {
+	t.Parallel()
 	_, err := ParseBytes([]byte(`{
 		"v": 1, "t": 20,
 		"pk": "aa", "sig": "bb", "ts": "2026-01-01T00:00:00Z",
@@ -286,6 +298,7 @@ func TestParse_MissingBlock(t *testing.T) {
 }
 
 func TestParse_EmptyCxRejected(t *testing.T) {
+	t.Parallel()
 	_, err := ParseBytes([]byte(`{
 		"v": 1, "t": 20,
 		"pk": "aa", "sig": "bb", "ts": "2026-01-01T00:00:00Z",
@@ -300,6 +313,7 @@ func TestParse_EmptyCxRejected(t *testing.T) {
 }
 
 func TestParse_MissingCxRejected(t *testing.T) {
+	t.Parallel()
 	_, err := ParseBytes([]byte(`{
 		"v": 1, "t": 20,
 		"pk": "aa", "sig": "bb", "ts": "2026-01-01T00:00:00Z",
@@ -313,6 +327,7 @@ func TestParse_MissingCxRejected(t *testing.T) {
 }
 
 func TestParse_UnknownCxCodeRejected(t *testing.T) {
+	t.Parallel()
 	_, err := ParseBytes([]byte(`{
 		"v": 1, "t": 20,
 		"pk": "aa", "sig": "bb", "ts": "2026-01-01T00:00:00Z",
@@ -327,6 +342,7 @@ func TestParse_UnknownCxCodeRejected(t *testing.T) {
 }
 
 func TestParse_InvalidSubjectStructure(t *testing.T) {
+	t.Parallel()
 	_, err := ParseBytes([]byte(`{
 		"v": 1, "t": 20,
 		"pk": "aa", "sig": "bb", "ts": "2026-01-01T00:00:00Z",
@@ -341,6 +357,7 @@ func TestParse_InvalidSubjectStructure(t *testing.T) {
 }
 
 func TestParse_EntropyProof(t *testing.T) {
+	t.Parallel()
 	bundle, err := ParseBytes([]byte(validEntropyProofJSON))
 	if err != nil {
 		t.Fatalf("unexpected error: %s", err)
@@ -360,6 +377,7 @@ func TestParse_EntropyProof(t *testing.T) {
 }
 
 func TestParse_BlockProofNoSubjectNoIP(t *testing.T) {
+	t.Parallel()
 	bundle, err := ParseBytes([]byte(validBlockProofJSON))
 	if err != nil {
 		t.Fatalf("unexpected error: %s", err)
@@ -386,6 +404,7 @@ func TestParse_BlockProofNoSubjectNoIP(t *testing.T) {
 // false, IsBeacon() true, and IsBlockLike() true. This pins the
 // discrimination logic that verify pipeline guards rely on.
 func TestParse_BeaconProof(t *testing.T) {
+	t.Parallel()
 	bundle, err := ParseBytes([]byte(validBeaconProofJSON))
 	if err != nil {
 		t.Fatalf("unexpected error: %s", err)
@@ -413,6 +432,7 @@ func TestParse_BeaconProof(t *testing.T) {
 // TestParse_BeaconProofRejectsSubject mirrors the block rejection test —
 // a t=11 bundle carrying an `s` field must be rejected.
 func TestParse_BeaconProofRejectsSubject(t *testing.T) {
+	t.Parallel()
 	_, err := ParseBytes([]byte(`{
 		"v": 1, "t": 11,
 		"pk": "aa", "sig": "bb", "ts": "2026-01-01T00:00:00Z",
@@ -426,6 +446,7 @@ func TestParse_BeaconProofRejectsSubject(t *testing.T) {
 }
 
 func TestParse_BlockProofRejectsSubject(t *testing.T) {
+	t.Parallel()
 	_, err := ParseBytes([]byte(`{
 		"v": 1, "t": 10,
 		"pk": "aa", "sig": "bb", "ts": "2026-01-01T00:00:00Z",
@@ -439,6 +460,7 @@ func TestParse_BlockProofRejectsSubject(t *testing.T) {
 }
 
 func TestParse_BlockProofRejectsIP(t *testing.T) {
+	t.Parallel()
 	_, err := ParseBytes([]byte(`{
 		"v": 1, "t": 10,
 		"pk": "aa", "sig": "bb", "ts": "2026-01-01T00:00:00Z",
@@ -452,18 +474,21 @@ func TestParse_BlockProofRejectsIP(t *testing.T) {
 }
 
 func TestFileSizeFromData(t *testing.T) {
+	t.Parallel()
 	if got := FileSizeFromData([]byte("hello world")); got != 11 {
 		t.Errorf("FileSizeFromData: got %d, want 11", got)
 	}
 }
 
 func TestFileSizeFromData_Empty(t *testing.T) {
+	t.Parallel()
 	if got := FileSizeFromData(nil); got != 0 {
 		t.Errorf("FileSizeFromData(nil): got %d, want 0", got)
 	}
 }
 
 func TestFileSize_Exists(t *testing.T) {
+	t.Parallel()
 	path := writeTemp(t, "hello")
 	size := FileSize(path)
 	if size != 5 {
@@ -472,6 +497,7 @@ func TestFileSize_Exists(t *testing.T) {
 }
 
 func TestFileSize_NotExists(t *testing.T) {
+	t.Parallel()
 	size := FileSize("/nonexistent/file")
 	if size != 0 {
 		t.Errorf("file size for missing file: got %d, want 0", size)

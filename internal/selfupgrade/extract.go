@@ -11,6 +11,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"slices"
 )
 
 // ErrBinaryNotInArchive is returned when the extracted tarball does not
@@ -27,6 +28,8 @@ const extractMaxBytes = 200 << 20
 // full path of the written file. The file is written with 0755 perms.
 //
 // Rejects:
+//   - non-regular tar entries (symlinks, hardlinks, devices) — GoReleaser
+//     tarballs ship only regular files, so these are always suspicious.
 //   - tar entries with `..` path components (defense against path
 //     traversal — shouldn't happen with GoReleaser output, defensive).
 //   - entries larger than extractMaxBytes.
@@ -56,6 +59,12 @@ func ExtractBinary(archivePath, binaryName, destDir string) (string, error) {
 		// at the archive root as plain `truestamp`.
 		if filepath.Base(hdr.Name) != binaryName {
 			continue
+		}
+		// Defense-in-depth: only regular files are acceptable. A symlink
+		// or hardlink entry pointing outside destDir could otherwise be
+		// used to write through to an arbitrary location on rename.
+		if hdr.Typeflag != tar.TypeReg {
+			return "", fmt.Errorf("refusing non-regular archive entry %q (typeflag %d)", hdr.Name, hdr.Typeflag)
 		}
 		// Defensive rejection of path-traversal entries.
 		cleaned := filepath.Clean(hdr.Name)
@@ -87,25 +96,20 @@ func ExtractBinary(archivePath, binaryName, destDir string) (string, error) {
 	return "", fmt.Errorf("%w: %s", ErrBinaryNotInArchive, binaryName)
 }
 
+// hasParentTraversal reports whether p contains any ".." segment after
+// normalization. Callers should pass a filepath.Clean'd path; this
+// function double-checks by re-cleaning and splitting on forward slash.
 func hasParentTraversal(p string) bool {
-	for _, seg := range filepath.SplitList(p) {
-		_ = seg
+	slashed := filepath.ToSlash(p)
+	if slashed != filepath.Clean(slashed) {
+		return true
 	}
-	// filepath.Clean normalizes; a traversal still present after Clean
-	// starts with ".." or contains `/../`.
-	return p == ".." || len(p) >= 3 && p[:3] == "../" ||
-		filepath.ToSlash(p) != filepath.Clean(filepath.ToSlash(p)) ||
-		containsParentSegment(filepath.ToSlash(p))
+	return containsParentSegment(slashed)
 }
 
 func containsParentSegment(p string) bool {
 	// Split on forward slash since we've normalized.
-	for _, seg := range splitSlash(p) {
-		if seg == ".." {
-			return true
-		}
-	}
-	return false
+	return slices.Contains(splitSlash(p), "..")
 }
 
 func splitSlash(p string) []string {

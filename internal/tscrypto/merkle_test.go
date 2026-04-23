@@ -14,6 +14,7 @@ import (
 )
 
 func TestVerifyMerkleProof_SingleLeaf(t *testing.T) {
+	t.Parallel()
 	// Single-leaf tree: empty proof, root = SHA256(0x00 || leaf_bytes)
 	leafHex := "6de54da2c7d3bddcd8a6c2bb22fc0c44af3bbad47d351cfd43ac8dbb5fc1cc3d"
 	leafBytes, _ := HexToBytes(leafHex)
@@ -33,6 +34,7 @@ func TestVerifyMerkleProof_SingleLeaf(t *testing.T) {
 }
 
 func TestVerifyMerkleProof_WrongRoot(t *testing.T) {
+	t.Parallel()
 	leafHex := "6de54da2c7d3bddcd8a6c2bb22fc0c44af3bbad47d351cfd43ac8dbb5fc1cc3d"
 	wrongRoot := "0000000000000000000000000000000000000000000000000000000000000000"
 
@@ -46,6 +48,7 @@ func TestVerifyMerkleProof_WrongRoot(t *testing.T) {
 }
 
 func TestVerifyMerkleProof_InvalidDirection(t *testing.T) {
+	t.Parallel()
 	leafHex := "6de54da2c7d3bddcd8a6c2bb22fc0c44af3bbad47d351cfd43ac8dbb5fc1cc3d"
 	proof := []string{"x:0000000000000000000000000000000000000000000000000000000000000000"}
 
@@ -56,6 +59,7 @@ func TestVerifyMerkleProof_InvalidDirection(t *testing.T) {
 }
 
 func TestVerifyMerkleProof_InvalidHex(t *testing.T) {
+	t.Parallel()
 	_, err := VerifyMerkleProof("not_hex", []string{}, "anything")
 	if err == nil {
 		t.Error("expected error for invalid hex")
@@ -63,6 +67,7 @@ func TestVerifyMerkleProof_InvalidHex(t *testing.T) {
 }
 
 func TestVerifyMerkleProof_InvalidElementFormat(t *testing.T) {
+	t.Parallel()
 	leafHex := "6de54da2c7d3bddcd8a6c2bb22fc0c44af3bbad47d351cfd43ac8dbb5fc1cc3d"
 	proof := []string{"no-colon-separator"}
 
@@ -73,6 +78,7 @@ func TestVerifyMerkleProof_InvalidElementFormat(t *testing.T) {
 }
 
 func TestVerifyMerkleProof_InvalidSiblingHex(t *testing.T) {
+	t.Parallel()
 	leafHex := "6de54da2c7d3bddcd8a6c2bb22fc0c44af3bbad47d351cfd43ac8dbb5fc1cc3d"
 	proof := []string{"l:not_valid_hex_ZZZZ"}
 
@@ -83,6 +89,7 @@ func TestVerifyMerkleProof_InvalidSiblingHex(t *testing.T) {
 }
 
 func TestVerifyMerkleProof_WithProofSteps(t *testing.T) {
+	t.Parallel()
 	// Build a simple 2-leaf tree manually and verify the proof
 	leaf1, _ := HexToBytes("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa")
 	leaf2, _ := HexToBytes("bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb")
@@ -131,6 +138,7 @@ func TestVerifyMerkleProof_WithProofSteps(t *testing.T) {
 // --- DecodeCompactMerkleProof tests ---
 
 func TestDecodeCompactMerkleProof_Empty(t *testing.T) {
+	t.Parallel()
 	// "AA" is base64url for a single byte 0x00 (depth=0)
 	proof, err := DecodeCompactMerkleProof("AA")
 	if err != nil {
@@ -142,6 +150,7 @@ func TestDecodeCompactMerkleProof_Empty(t *testing.T) {
 }
 
 func TestDecodeCompactMerkleProof_SingleStep(t *testing.T) {
+	t.Parallel()
 	// Build a 1-step compact proof manually:
 	//   depth=1, bitfield=0x01 (right), 32 bytes of hash
 	hashHex := "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
@@ -168,6 +177,7 @@ func TestDecodeCompactMerkleProof_SingleStep(t *testing.T) {
 }
 
 func TestDecodeCompactMerkleProof_MultipleSteps(t *testing.T) {
+	t.Parallel()
 	// Build a 2-step compact proof:
 	//   depth=2, bitfield=0x02 (bit0=0 -> left, bit1=1 -> right)
 	hash1Hex := "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
@@ -199,6 +209,7 @@ func TestDecodeCompactMerkleProof_MultipleSteps(t *testing.T) {
 }
 
 func TestDecodeCompactMerkleProof_InvalidBase64(t *testing.T) {
+	t.Parallel()
 	_, err := DecodeCompactMerkleProof("!!!not-valid-base64!!!")
 	if err == nil {
 		t.Error("expected error for invalid base64url input")
@@ -206,6 +217,7 @@ func TestDecodeCompactMerkleProof_InvalidBase64(t *testing.T) {
 }
 
 func TestDecodeCompactMerkleProof_DepthTooLarge(t *testing.T) {
+	t.Parallel()
 	// Depth 65 exceeds the maximum of 64
 	buf := []byte{65}
 	encoded := base64.RawURLEncoding.EncodeToString(buf)
@@ -220,6 +232,7 @@ func TestDecodeCompactMerkleProof_DepthTooLarge(t *testing.T) {
 }
 
 func TestDecodeCompactMerkleProof_WrongLength(t *testing.T) {
+	t.Parallel()
 	// depth=1 expects 1 + 1 + 32 = 34 bytes total, provide only 10
 	var buf []byte
 	buf = append(buf, 0x01)               // depth = 1
@@ -238,6 +251,7 @@ func TestDecodeCompactMerkleProof_WrongLength(t *testing.T) {
 }
 
 func TestDecodeAndVerifyMerkleProof_RealProof(t *testing.T) {
+	t.Parallel()
 	// End-to-end test using real proof data from the Truestamp system.
 	// This validates that compact proof decoding + merkle verification
 	// produce the correct root from real production data.

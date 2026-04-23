@@ -29,20 +29,28 @@ var DefaultTOML string
 
 // Config holds the resolved configuration for the CLI.
 type Config struct {
-	APIURL      string        `koanf:"api_url"`
-	APIKey      string        `koanf:"api_key"`
-	Team        string        `koanf:"team"`
-	KeyringURL  string        `koanf:"keyring_url"`
-	HTTPTimeout string        `koanf:"http_timeout"`
-	Verify      VerifyConfig  `koanf:"verify"`
-	Hash        HashConfig    `koanf:"hash"`
-	Convert     ConvertConfig `koanf:"convert"`
+	APIURL      string `koanf:"api_url"`
+	APIKey      string `koanf:"api_key"`
+	Team        string `koanf:"team"`
+	KeyringURL  string `koanf:"keyring_url"`
+	HTTPTimeout string `koanf:"http_timeout"`
+	// CosignPath pins the cosign binary used during `truestamp upgrade`.
+	// Must be an absolute path to an executable when set; empty means
+	// fall back to $PATH lookup. Settable in config.toml as
+	// `cosign_path = "..."` or via the TRUESTAMP_COSIGN_PATH env var.
+	CosignPath string        `koanf:"cosign_path"`
+	Verify     VerifyConfig  `koanf:"verify"`
+	Hash       HashConfig    `koanf:"hash"`
+	Convert    ConvertConfig `koanf:"convert"`
 }
 
-// Timeout parses the HTTPTimeout string as a Go duration.
+// Timeout parses the HTTPTimeout string as a Go duration. A zero or
+// negative parsed value (which http.Client treats as "no timeout") is
+// rejected in favour of the 10-second default — Load validates this up
+// front, so reaching the fallback here means the config bypassed Load.
 func (c Config) Timeout() time.Duration {
 	d, err := time.ParseDuration(c.HTTPTimeout)
-	if err != nil {
+	if err != nil || d <= 0 {
 		return 10 * time.Second
 	}
 	return d
@@ -110,6 +118,7 @@ func Load(configPath string, flags *pflag.FlagSet) (*Config, error) {
 		"team":                   "",
 		"keyring_url":            "https://www.truestamp.com/.well-known/keyring.json",
 		"http_timeout":           "10s",
+		"cosign_path":            "",
 		"verify.silent":          false,
 		"verify.json":            false,
 		"verify.skip_external":   false,
@@ -172,9 +181,25 @@ func Load(configPath string, flags *pflag.FlagSet) (*Config, error) {
 		return nil, fmt.Errorf("unmarshaling config: %w", err)
 	}
 
-	// Validate http_timeout is parseable
-	if _, err := time.ParseDuration(cfg.HTTPTimeout); err != nil {
+	// Validate http_timeout is parseable and positive. A zero or negative
+	// duration is treated by http.Client as "no timeout", which would
+	// silently disable the guard — reject it up front so the user gets
+	// a clear error instead of a hung request.
+	d, err := time.ParseDuration(cfg.HTTPTimeout)
+	if err != nil {
 		return nil, fmt.Errorf("invalid http_timeout %q: %w", cfg.HTTPTimeout, err)
+	}
+	if d <= 0 {
+		return nil, fmt.Errorf("invalid http_timeout %q: must be a positive duration", cfg.HTTPTimeout)
+	}
+
+	// Validate cosign_path: when set, it must be an absolute path.
+	// Existence and the executable bit are re-checked lazily at use
+	// time in selfupgrade.resolveCosignBinary — the upgrade command is
+	// the only consumer, and the filesystem state there can differ from
+	// startup (cosign installed/removed between a session's commands).
+	if cfg.CosignPath != "" && !filepath.IsAbs(cfg.CosignPath) {
+		return nil, fmt.Errorf("invalid cosign_path %q: must be an absolute path (or empty for $PATH lookup)", cfg.CosignPath)
 	}
 
 	return &cfg, nil
@@ -233,6 +258,7 @@ api_key = %q
 team = %q
 keyring_url = %q
 http_timeout = %q
+cosign_path = %q
 
 [verify]
 silent = %v
@@ -248,7 +274,7 @@ style = %q
 
 [convert]
 time_zone = %q
-`, c.APIURL, apiKey, c.Team, c.KeyringURL, c.HTTPTimeout,
+`, c.APIURL, apiKey, c.Team, c.KeyringURL, c.HTTPTimeout, c.CosignPath,
 		c.Verify.Silent, c.Verify.JSON,
 		c.Verify.SkipExternal, c.Verify.SkipSignatures, c.Verify.Remote,
 		c.Hash.Algorithm, c.Hash.Encoding, c.Hash.Style,

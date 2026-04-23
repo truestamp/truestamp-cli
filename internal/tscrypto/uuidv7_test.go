@@ -9,6 +9,7 @@ import (
 )
 
 func TestExtractUUIDv7Timestamp(t *testing.T) {
+	t.Parallel()
 	// Known UUIDv7: 019cf812-af77-7c5b-a89d-9fc8459c7247
 	// First 12 hex chars (no hyphens): 019cf812af77
 	uuid := "019cf812-af77-7c5b-a89d-9fc8459c7247"
@@ -27,6 +28,7 @@ func TestExtractUUIDv7Timestamp(t *testing.T) {
 }
 
 func TestExtractUUIDv7Timestamp_TooShort(t *testing.T) {
+	t.Parallel()
 	_, err := ExtractUUIDv7Timestamp("abc")
 	if err == nil {
 		t.Error("expected error for short UUID")
@@ -34,6 +36,7 @@ func TestExtractUUIDv7Timestamp_TooShort(t *testing.T) {
 }
 
 func TestFormatBlockTime(t *testing.T) {
+	t.Parallel()
 	result := FormatBlockTime("019cf812-af77-7c5b-a89d-9fc8459c7247")
 	if result == "unknown" {
 		t.Error("should not return unknown for valid UUID")
@@ -45,6 +48,7 @@ func TestFormatBlockTime(t *testing.T) {
 }
 
 func TestFormatBlockTime_Invalid(t *testing.T) {
+	t.Parallel()
 	result := FormatBlockTime("not-a-uuid")
 	if result != "unknown" {
 		t.Errorf("expected 'unknown' for invalid UUID, got %q", result)

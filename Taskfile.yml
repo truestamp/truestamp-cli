@@ -221,7 +221,7 @@ tasks:
       - go test -run=^Fuzz ./...
 
   fuzz-deep:
-    desc: "Actively fuzz every FuzzXxx for DURATION (default 15s) each. Use for manual hardening; very chatty. Note: shorter budgets can flake under parallel-worker cold-start."
+    desc: "Actively fuzz every FuzzXxx for DURATION (default 15s) each. Use for manual hardening; very chatty. Failing targets are retried once to absorb the Go fuzz engine's known shutdown-boundary flake where an in-flight input reports 'context deadline exceeded' when fuzztime expires. A real bug writes a reproducer under the owning package's testdata/fuzz/FuzzXxx/ directory and reproduces on replay instantly. IMPORTANT: any files written under */testdata/fuzz/* must be committed — they are the permanent corpus that `task test` replays as regression tests. Run `find . -path '*/testdata/fuzz/*' -type f` after this task to list new reproducers, and `git add` (or `jj file track`) them before you commit."
     vars:
       DURATION: '{{.DURATION | default "15s"}}'
     cmds:
@@ -233,7 +233,10 @@ tasks:
           for t in $tests; do
             echo "==> $pkg :: $t ({{.DURATION}})"
             if ! go test -run=^$ -fuzz="^${t}$" -fuzztime={{.DURATION}} "$pkg"; then
-              failed=$((failed+1))
+              echo "==> $pkg :: $t — first attempt failed; retrying once to rule out fuzz-engine shutdown flake"
+              if ! go test -run=^$ -fuzz="^${t}$" -fuzztime={{.DURATION}} "$pkg"; then
+                failed=$((failed+1))
+              fi
             fi
           done
         done

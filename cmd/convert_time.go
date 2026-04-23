@@ -249,7 +249,6 @@ func init() {
 	f.String("from", "auto", "Input format: auto, rfc3339, unix-s, unix-ms, unix-us, unix-ns")
 	f.String("to-zone", "UTC", "Target IANA time zone (e.g. UTC, America/New_York, Local)")
 	f.String("format", "rfc3339", "Output format: rfc3339, unix-s, unix-ms, unix-us, unix-ns, or a Go time layout")
-	f.Bool("json", false, "Output as JSON")
-	f.BoolP("silent", "s", false, "No output, exit code only")
+	addConvertCommonFlags(convertTimeCmd)
 	convertCmd.AddCommand(convertTimeCmd)
 }

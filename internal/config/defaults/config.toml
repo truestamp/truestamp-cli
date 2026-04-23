@@ -29,6 +29,13 @@ keyring_url = "https://www.truestamp.com/.well-known/keyring.json"
 # Env: TRUESTAMP_HTTP_TIMEOUT
 http_timeout = "10s"
 
+# Absolute path to the cosign binary used by `truestamp upgrade` for
+# release-artifact signature verification. Empty (default) means "use
+# $PATH lookup"; set this to pin cosign to a known install in hardened
+# environments and avoid $PATH hijacking. Must be absolute if set.
+# Env: TRUESTAMP_COSIGN_PATH
+cosign_path = ""
+
 [verify]
 # No output, exit code only
 # Env: TRUESTAMP_VERIFY_SILENT

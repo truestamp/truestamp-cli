@@ -29,6 +29,7 @@ func parseMsgMerkleBlock(t *testing.T) *wire.MsgMerkleBlock {
 }
 
 func TestVerifyPartialMerkleTree_FromProof(t *testing.T) {
+	t.Parallel()
 	mb := parseMsgMerkleBlock(t)
 
 	result := VerifyPartialMerkleTree(
@@ -62,6 +63,7 @@ func TestVerifyPartialMerkleTree_FromProof(t *testing.T) {
 }
 
 func TestVerifyPartialMerkleTree_EmptyTree(t *testing.T) {
+	t.Parallel()
 	result := VerifyPartialMerkleTree(nil, nil, 0, nil)
 	if result.Valid {
 		t.Error("empty tree should not be valid")
@@ -69,6 +71,7 @@ func TestVerifyPartialMerkleTree_EmptyTree(t *testing.T) {
 }
 
 func TestVerifyPartialMerkleTree_SingleTx(t *testing.T) {
+	t.Parallel()
 	var txHash chainhash.Hash
 	txHash[0] = 0xAA
 
@@ -87,6 +90,7 @@ func TestVerifyPartialMerkleTree_SingleTx(t *testing.T) {
 }
 
 func TestVerifyPartialMerkleTree_OddTxCount(t *testing.T) {
+	t.Parallel()
 	var tx1, tx2, tx3 chainhash.Hash
 	tx1[0] = 0x11
 	tx2[0] = 0x22
@@ -116,6 +120,7 @@ func TestVerifyPartialMerkleTree_OddTxCount(t *testing.T) {
 }
 
 func TestVerifyPartialMerkleTree_UnconsumedHashes(t *testing.T) {
+	t.Parallel()
 	var txHash, extra chainhash.Hash
 	extra[0] = 0xFF
 
@@ -131,6 +136,7 @@ func TestVerifyPartialMerkleTree_UnconsumedHashes(t *testing.T) {
 }
 
 func TestVerifyPartialMerkleTree_WrongRoot(t *testing.T) {
+	t.Parallel()
 	mb := parseMsgMerkleBlock(t)
 
 	var wrongRoot chainhash.Hash // all zeros
@@ -147,6 +153,7 @@ func TestVerifyPartialMerkleTree_WrongRoot(t *testing.T) {
 }
 
 func TestVerifyPartialMerkleTree_DuplicateChildHashes(t *testing.T) {
+	t.Parallel()
 	// BIP 37: two-child internal nodes must not have equal left and right hashes.
 	// Construct a 2-tx tree where both leaves are identical (attack scenario).
 	var tx chainhash.Hash
@@ -169,6 +176,7 @@ func TestVerifyPartialMerkleTree_DuplicateChildHashes(t *testing.T) {
 }
 
 func TestParseBlockHash(t *testing.T) {
+	t.Parallel()
 	blockHash, err := ParseBlockHash(testTxoutproofHex)
 	if err != nil {
 		t.Fatalf("unexpected error: %s", err)

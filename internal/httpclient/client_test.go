@@ -100,3 +100,48 @@ func TestGetJSONCtx_CancelledContext(t *testing.T) {
 		t.Fatal("expected context-cancel error")
 	}
 }
+
+// TestSetUserAgent_StampedOnOutboundRequests verifies that after
+// SetUserAgent is called, every request through GetJSONCtx/Do carries
+// the configured User-Agent unless the caller already set one.
+// Not t.Parallel() because it mutates the package-global userAgent.
+func TestSetUserAgent_StampedOnOutboundRequests(t *testing.T) {
+	var seen string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		seen = r.Header.Get("User-Agent")
+		_, _ = w.Write([]byte(`{}`))
+	}))
+	defer srv.Close()
+
+	// Save and restore the package-global to avoid leaking into other tests.
+	orig := userAgent
+	t.Cleanup(func() { userAgent = orig })
+
+	SetUserAgent("1.2.3")
+	if _, err := GetJSONCtx(context.Background(), srv.URL); err != nil {
+		t.Fatalf("GetJSONCtx: %v", err)
+	}
+	if !strings.Contains(seen, "truestamp-cli/1.2.3") {
+		t.Errorf("User-Agent: got %q, want it to contain truestamp-cli/1.2.3", seen)
+	}
+
+	// Caller-set header must be preserved.
+	req, _ := http.NewRequest("GET", srv.URL, nil)
+	req.Header.Set("User-Agent", "caller-ua/9.9")
+	if _, err := Do(req); err != nil {
+		t.Fatalf("Do: %v", err)
+	}
+	if seen != "caller-ua/9.9" {
+		t.Errorf("User-Agent (caller-set): got %q, want caller-ua/9.9", seen)
+	}
+
+	// Empty version disables the stamp.
+	SetUserAgent("")
+	req2, _ := http.NewRequest("GET", srv.URL, nil)
+	if _, err := Do(req2); err != nil {
+		t.Fatalf("Do: %v", err)
+	}
+	if strings.Contains(seen, "truestamp-cli") {
+		t.Errorf("User-Agent with empty stamp: got %q, want no truestamp-cli prefix", seen)
+	}
+}

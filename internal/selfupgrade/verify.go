@@ -12,6 +12,7 @@ import (
 	"io"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
 )
 
@@ -96,6 +97,13 @@ type CosignOptions struct {
 	// true, missing cosign binary or bundle is a hard error.
 	Required bool
 
+	// PinnedPath is an absolute path to the cosign binary. When empty,
+	// $PATH is searched. Populated from config.Config.CosignPath which
+	// in turn sources from config.toml or $TRUESTAMP_COSIGN_PATH. The
+	// config layer validates the path is absolute; resolveCosignBinary
+	// re-checks existence and the executable bit at use time.
+	PinnedPath string
+
 	// CertIdentityRegexp is passed to cosign as
 	// --certificate-identity-regexp. Must match the release workflow.
 	CertIdentityRegexp string
@@ -106,13 +114,47 @@ type CosignOptions struct {
 
 // DefaultCosignOptions returns the identity values wired into
 // install.sh:256-261 — the release.yml workflow in truestamp/truestamp-cli
-// signed by GitHub Actions' OIDC token endpoint.
-func DefaultCosignOptions(required bool) CosignOptions {
+// signed by GitHub Actions' OIDC token endpoint. pinnedPath is optional
+// (empty = $PATH lookup) and is forwarded verbatim to CosignOptions.
+func DefaultCosignOptions(required bool, pinnedPath string) CosignOptions {
 	return CosignOptions{
 		Required:           required,
+		PinnedPath:         pinnedPath,
 		CertIdentityRegexp: `^https://github\.com/truestamp/truestamp-cli/\.github/workflows/release\.yml@`,
 		OIDCIssuer:         "https://token.actions.githubusercontent.com",
 	}
+}
+
+// resolveCosignBinary returns a usable path to the cosign binary.
+// pinned, when non-empty, must be an absolute path to an executable
+// file — operators use this to avoid $PATH hijacking in hardened
+// environments. The absolute-path check is redundant with the
+// validation in config.Load but defensive: this function is also
+// callable from tests and any future direct caller.
+//
+// When pinned is empty, falls back to exec.LookPath("cosign").
+//
+// The G703 suppression below is the tightest surface gosec worries
+// about: by the time we call os.Stat, the input is a caller-supplied
+// absolute path, and the result only gates whether we return that
+// exact path as a command to exec — no other filesystem access is
+// derived from it.
+func resolveCosignBinary(pinned string) (string, error) {
+	pinned = strings.TrimSpace(pinned)
+	if pinned != "" {
+		if !filepath.IsAbs(pinned) {
+			return "", fmt.Errorf("cosign_path %q must be an absolute path", pinned)
+		}
+		info, err := os.Stat(pinned) //#nosec G304 G703 -- operator-pinned absolute path
+		if err != nil {
+			return "", fmt.Errorf("cosign_path %q: %w", pinned, err)
+		}
+		if info.IsDir() || info.Mode()&0111 == 0 {
+			return "", fmt.Errorf("cosign_path %q is not an executable file", pinned)
+		}
+		return pinned, nil
+	}
+	return exec.LookPath("cosign")
 }
 
 // VerifyCosign runs `cosign verify-blob --bundle=<bundlePath> ...
@@ -120,11 +162,20 @@ func DefaultCosignOptions(required bool) CosignOptions {
 // behavior depends on opts.Required: required=true returns an error,
 // required=false returns (false, nil) to indicate "skipped, non-fatal".
 // Returns (true, nil) when verification succeeds.
+//
+// Resolution order for the cosign binary:
+//  1. $TRUESTAMP_COSIGN_PATH (absolute path; lets hardened environments
+//     pin cosign to a known location and avoid $PATH hijacking).
+//  2. exec.LookPath("cosign") (the usual $PATH search).
+//
+// The SHA-256 verification in VerifySHA256 is mandatory regardless of
+// what this function does, so a cosign-layer miss is defense-in-depth,
+// not a single point of failure.
 func VerifyCosign(checksumsPath, bundlePath string, opts CosignOptions) (bool, error) {
-	cosignPath, err := exec.LookPath("cosign")
+	cosignPath, err := resolveCosignBinary(opts.PinnedPath)
 	if err != nil {
 		if opts.Required {
-			return false, ErrCosignMissing
+			return false, fmt.Errorf("%w: %w", ErrCosignMissing, err)
 		}
 		return false, nil
 	}

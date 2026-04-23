@@ -401,6 +401,47 @@ func TestResolve_URLPrompt_Cancelled(t *testing.T) {
 // just call into ui.PickFile / huh.Form.Run and can't be tested without
 // a headless terminal harness.)
 
+// TestDefaultPickFile_NoTTY verifies the picker fails fast with ErrNoTTY
+// when stdin is piped, instead of crashing inside the huh renderer.
+func TestDefaultPickFile_NoTTY(t *testing.T) {
+	orig := os.Stdin
+	r, w, err := os.Pipe()
+	if err != nil {
+		t.Fatal(err)
+	}
+	_ = w.Close()
+	os.Stdin = r
+	t.Cleanup(func() {
+		os.Stdin = orig
+		_ = r.Close()
+	})
+
+	_, err = defaultPickFile(Options{PickerTitle: "Pick"})
+	if !errors.Is(err, ErrNoTTY) {
+		t.Errorf("defaultPickFile no-tty: got %v, want ErrNoTTY", err)
+	}
+}
+
+// TestDefaultPromptURL_NoTTY is the URL-prompt mirror of the above.
+func TestDefaultPromptURL_NoTTY(t *testing.T) {
+	orig := os.Stdin
+	r, w, err := os.Pipe()
+	if err != nil {
+		t.Fatal(err)
+	}
+	_ = w.Close()
+	os.Stdin = r
+	t.Cleanup(func() {
+		os.Stdin = orig
+		_ = r.Close()
+	})
+
+	_, err = defaultPromptURL(Options{URLPromptTitle: "Enter URL"})
+	if !errors.Is(err, ErrNoTTY) {
+		t.Errorf("defaultPromptURL no-tty: got %v, want ErrNoTTY", err)
+	}
+}
+
 // --- validateURL ---------------------------------------------------------
 
 func TestValidateURL(t *testing.T) {

@@ -27,6 +27,7 @@ var rfc4648Vectors = []struct {
 }
 
 func TestEncodeRFC4648(t *testing.T) {
+	t.Parallel()
 	for _, v := range rfc4648Vectors {
 		plain := []byte(v.plain)
 
@@ -46,6 +47,7 @@ func TestEncodeRFC4648(t *testing.T) {
 }
 
 func TestDecodeRFC4648(t *testing.T) {
+	t.Parallel()
 	for _, v := range rfc4648Vectors {
 		if v.plain == "" {
 			// Empty input is rejected by Decode; tested separately.
@@ -67,6 +69,7 @@ func TestDecodeRFC4648(t *testing.T) {
 }
 
 func TestDecodeEmpty(t *testing.T) {
+	t.Parallel()
 	for _, enc := range []Encoding{Hex, Base64Std, Base64URL} {
 		if _, err := Decode(enc, []byte("")); !errors.Is(err, ErrEmptyDecodeInput) {
 			t.Errorf("Decode(%s, \"\") = %v, want ErrEmptyDecodeInput", enc.Name(), err)
@@ -78,6 +81,7 @@ func TestDecodeEmpty(t *testing.T) {
 }
 
 func TestDecodeTrimsWhitespace(t *testing.T) {
+	t.Parallel()
 	// A trailing newline and surrounding spaces must not trip the decoder.
 	cases := []struct {
 		enc   Encoding
@@ -98,6 +102,7 @@ func TestDecodeTrimsWhitespace(t *testing.T) {
 }
 
 func TestDecodeRejectsCrossEncodingCharacters(t *testing.T) {
+	t.Parallel()
 	// base64 (standard) alphabet: A-Za-z0-9+/  -> reject - _
 	if _, err := Decode(Base64Std, []byte("Zm9_YmFy")); err == nil {
 		t.Error("Decode(Base64Std) should reject '_'")
@@ -119,6 +124,7 @@ func TestDecodeRejectsCrossEncodingCharacters(t *testing.T) {
 }
 
 func TestEncodeDecodeRoundTripRandom(t *testing.T) {
+	t.Parallel()
 	// Property-style: for each encoding, a varied byte payload round-trips.
 	payloads := [][]byte{
 		nil,
@@ -152,6 +158,7 @@ func TestEncodeDecodeRoundTripRandom(t *testing.T) {
 }
 
 func TestParse(t *testing.T) {
+	t.Parallel()
 	cases := []struct {
 		in   string
 		want Encoding
@@ -183,6 +190,7 @@ func TestParse(t *testing.T) {
 }
 
 func TestName(t *testing.T) {
+	t.Parallel()
 	cases := []struct {
 		enc  Encoding
 		want string
@@ -201,6 +209,7 @@ func TestName(t *testing.T) {
 }
 
 func TestAllNames(t *testing.T) {
+	t.Parallel()
 	got := AllNames()
 	want := []string{"binary", "hex", "base64", "base64url"}
 	if len(got) != len(want) {
@@ -214,12 +223,14 @@ func TestAllNames(t *testing.T) {
 }
 
 func TestEncode_UnknownEncoding(t *testing.T) {
+	t.Parallel()
 	if _, err := Encode(Encoding(99), []byte("x")); err == nil {
 		t.Error("Encode with unknown encoding should error")
 	}
 }
 
 func TestDecode_UnknownEncoding(t *testing.T) {
+	t.Parallel()
 	if _, err := Decode(Encoding(99), []byte("x")); err == nil {
 		t.Error("Decode with unknown encoding should error")
 	}
@@ -229,6 +240,7 @@ func TestDecode_UnknownEncoding(t *testing.T) {
 // padded (StdEncoding) path of Base64Std. Input contains '=' so we take
 // the padded decoder branch, but the padding placement is invalid.
 func TestDecode_MalformedPaddedBase64(t *testing.T) {
+	t.Parallel()
 	if _, err := Decode(Base64Std, []byte("===")); err == nil {
 		t.Error("expected error for malformed padded base64")
 	}
@@ -237,6 +249,7 @@ func TestDecode_MalformedPaddedBase64(t *testing.T) {
 // TestDecode_MalformedRawBase64 forces the error branch inside the
 // unpadded (RawStdEncoding) path of Base64Std.
 func TestDecode_MalformedRawBase64(t *testing.T) {
+	t.Parallel()
 	// Odd length without padding is invalid.
 	if _, err := Decode(Base64Std, []byte("Z")); err == nil {
 		t.Error("expected error for malformed raw base64")
@@ -246,6 +259,7 @@ func TestDecode_MalformedRawBase64(t *testing.T) {
 // TestDecode_MalformedPaddedBase64URL forces the padded URLEncoding
 // error branch inside Base64URL.
 func TestDecode_MalformedPaddedBase64URL(t *testing.T) {
+	t.Parallel()
 	if _, err := Decode(Base64URL, []byte("===")); err == nil {
 		t.Error("expected error for malformed padded base64url")
 	}
@@ -254,12 +268,14 @@ func TestDecode_MalformedPaddedBase64URL(t *testing.T) {
 // TestDecode_MalformedRawBase64URL forces the unpadded RawURLEncoding
 // error branch inside Base64URL.
 func TestDecode_MalformedRawBase64URL(t *testing.T) {
+	t.Parallel()
 	if _, err := Decode(Base64URL, []byte("Z")); err == nil {
 		t.Error("expected error for malformed raw base64url")
 	}
 }
 
 func TestBinaryPassThrough(t *testing.T) {
+	t.Parallel()
 	data := []byte{0x00, 0xff, 0x7f}
 	out, err := Encode(Binary, data)
 	if err != nil || !bytes.Equal(out, data) {

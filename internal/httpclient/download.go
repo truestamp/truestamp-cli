@@ -36,6 +36,7 @@ func DownloadCtx(ctx context.Context, url, destPath string, maxBytes int64) (int
 		return 0, err
 	}
 
+	stampUserAgent(req)
 	resp, err := httpClient.Do(req)
 	if err != nil {
 		return 0, err
@@ -86,6 +87,7 @@ func DownloadBytesCtx(ctx context.Context, url string, maxBytes int64) ([]byte, 
 		return nil, err
 	}
 
+	stampUserAgent(req)
 	resp, err := httpClient.Do(req)
 	if err != nil {
 		return nil, err

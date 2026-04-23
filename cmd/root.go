@@ -57,6 +57,7 @@ var rootCmd = &cobra.Command{
 		}
 		appConfig = cfg
 		httpclient.Init(cfg.Timeout())
+		httpclient.SetUserAgent(version.Version)
 		return nil
 	},
 	PersistentPostRun: func(cmd *cobra.Command, args []string) {

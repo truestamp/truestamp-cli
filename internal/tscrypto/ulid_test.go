@@ -9,6 +9,7 @@ import (
 )
 
 func TestExtractULIDTimestamp(t *testing.T) {
+	t.Parallel()
 	// Known ULID from proof: 01KKW164FPQ6V353WM3NXFRTCE
 	ulid := "01KKW164FPQ6V353WM3NXFRTCE"
 	ts, err := ExtractULIDTimestamp(ulid)
@@ -24,6 +25,7 @@ func TestExtractULIDTimestamp(t *testing.T) {
 }
 
 func TestExtractULIDTimestamp_TooShort(t *testing.T) {
+	t.Parallel()
 	_, err := ExtractULIDTimestamp("abc")
 	if err == nil {
 		t.Error("expected error for short ULID")
@@ -31,6 +33,7 @@ func TestExtractULIDTimestamp_TooShort(t *testing.T) {
 }
 
 func TestExtractULIDTimestamp_InvalidChar(t *testing.T) {
+	t.Parallel()
 	// 'U' is not in Crockford Base32 — 26-char string with invalid chars
 	_, err := ExtractULIDTimestamp("0UUUUUUUUUUUUUUUUUUUUUUUUU")
 	if err == nil {
@@ -39,6 +42,7 @@ func TestExtractULIDTimestamp_InvalidChar(t *testing.T) {
 }
 
 func TestFormatItemTime(t *testing.T) {
+	t.Parallel()
 	result := FormatItemTime("01KKW164FPQ6V353WM3NXFRTCE")
 	if result == "unknown" {
 		t.Error("should not return unknown for valid ULID")
@@ -49,6 +53,7 @@ func TestFormatItemTime(t *testing.T) {
 }
 
 func TestFormatItemTime_Invalid(t *testing.T) {
+	t.Parallel()
 	result := FormatItemTime("!!!")
 	if result != "unknown" {
 		t.Errorf("expected 'unknown' for invalid ULID, got %q", result)

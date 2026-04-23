@@ -14,6 +14,7 @@ import (
 )
 
 func TestExtractBinary(t *testing.T) {
+	t.Parallel()
 	archive := makeTarGz(t, []tarEntry{
 		{name: "truestamp", content: []byte("#!/bin/sh\necho ok\n"), mode: 0755},
 		{name: "LICENSE", content: []byte("MIT"), mode: 0644},
@@ -46,6 +47,7 @@ func TestExtractBinary(t *testing.T) {
 }
 
 func TestExtractBinary_missing(t *testing.T) {
+	t.Parallel()
 	archive := makeTarGz(t, []tarEntry{
 		{name: "README.md", content: []byte("hi"), mode: 0644},
 	})
@@ -59,6 +61,7 @@ func TestExtractBinary_missing(t *testing.T) {
 }
 
 func TestExtractBinary_rejectsTraversal(t *testing.T) {
+	t.Parallel()
 	archive := makeTarGz(t, []tarEntry{
 		{name: "../../etc/truestamp", content: []byte("pwned"), mode: 0755},
 	})
@@ -68,6 +71,39 @@ func TestExtractBinary_rejectsTraversal(t *testing.T) {
 	_, err := ExtractBinary(archivePath, "truestamp", dest)
 	if err == nil {
 		t.Fatal("ExtractBinary with ../../ path: want error, got nil")
+	}
+}
+
+// TestExtractBinary_rejectsSymlink verifies that a tar symlink entry
+// named "truestamp" is refused rather than silently followed. GoReleaser
+// tarballs never include symlinks for the binary; any archive that does
+// is suspicious.
+func TestExtractBinary_rejectsSymlink(t *testing.T) {
+	t.Parallel()
+	var buf bytes.Buffer
+	gz := gzip.NewWriter(&buf)
+	tw := tar.NewWriter(gz)
+	hdr := &tar.Header{
+		Name:     "truestamp",
+		Linkname: "/etc/passwd",
+		Mode:     0777,
+		Typeflag: tar.TypeSymlink,
+	}
+	if err := tw.WriteHeader(hdr); err != nil {
+		t.Fatalf("tar header: %v", err)
+	}
+	if err := tw.Close(); err != nil {
+		t.Fatalf("tar close: %v", err)
+	}
+	if err := gz.Close(); err != nil {
+		t.Fatalf("gz close: %v", err)
+	}
+	archivePath := writeToTemp(t, "symlink.tar.gz", buf.Bytes())
+
+	dest := t.TempDir()
+	_, err := ExtractBinary(archivePath, "truestamp", dest)
+	if err == nil {
+		t.Fatal("ExtractBinary with symlink entry: want error, got nil")
 	}
 }
 

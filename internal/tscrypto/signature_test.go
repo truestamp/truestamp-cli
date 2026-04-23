@@ -10,6 +10,7 @@ import (
 )
 
 func TestDecodePublicKey_Valid(t *testing.T) {
+	t.Parallel()
 	b64 := "CTwMqDZnPd/QTLSq8aTeSD3a+j2DQxKcGfhhIYJQ65Y="
 	key, err := DecodePublicKey(b64)
 	if err != nil {
@@ -21,6 +22,7 @@ func TestDecodePublicKey_Valid(t *testing.T) {
 }
 
 func TestDecodePublicKey_InvalidBase64(t *testing.T) {
+	t.Parallel()
 	_, err := DecodePublicKey("not-valid-base64!!!")
 	if err == nil {
 		t.Error("expected error for invalid base64")
@@ -28,6 +30,7 @@ func TestDecodePublicKey_InvalidBase64(t *testing.T) {
 }
 
 func TestDecodePublicKey_WrongSize(t *testing.T) {
+	t.Parallel()
 	_, err := DecodePublicKey("AAAAAAAAAAAAAAAAAAAAAA==")
 	if err == nil {
 		t.Error("expected error for wrong key size")
@@ -35,6 +38,7 @@ func TestDecodePublicKey_WrongSize(t *testing.T) {
 }
 
 func TestVerifyEd25519_ValidSignature(t *testing.T) {
+	t.Parallel()
 	pub, priv, _ := ed25519.GenerateKey(nil)
 	msg := []byte("test message hash 32 bytes long!")
 	sig := ed25519.Sign(priv, msg)
@@ -50,6 +54,7 @@ func TestVerifyEd25519_ValidSignature(t *testing.T) {
 }
 
 func TestVerifyEd25519_WrongKey(t *testing.T) {
+	t.Parallel()
 	_, priv, _ := ed25519.GenerateKey(nil)
 	otherPub, _, _ := ed25519.GenerateKey(nil)
 	msg := []byte("test message hash 32 bytes long!")
@@ -66,6 +71,7 @@ func TestVerifyEd25519_WrongKey(t *testing.T) {
 }
 
 func TestVerifyEd25519_InvalidSignatureBase64(t *testing.T) {
+	t.Parallel()
 	pub, _, _ := ed25519.GenerateKey(nil)
 	_, err := VerifyEd25519([]byte("hash"), "not-base64!!!", pub)
 	if err == nil {
@@ -74,6 +80,7 @@ func TestVerifyEd25519_InvalidSignatureBase64(t *testing.T) {
 }
 
 func TestVerifyEd25519_WrongSignatureSize(t *testing.T) {
+	t.Parallel()
 	pub, _, _ := ed25519.GenerateKey(nil)
 	shortSig := base64.StdEncoding.EncodeToString([]byte("too short"))
 	_, err := VerifyEd25519([]byte("hash"), shortSig, pub)

@@ -121,6 +121,11 @@ const defaultMaxBytes = 64 << 20 // 64 MB
 // errors.Is for a direct equality check.
 var ErrNoInput = errors.New("no input provided")
 
+// ErrNoTTY is returned when an interactive picker or prompt is requested
+// but stdin is not a terminal. Callers can errors.Is against it to offer
+// a non-interactive fallback or a clearer hint to the user.
+var ErrNoTTY = errors.New("interactive prompt requires a terminal (stdin is piped or redirected)")
+
 // Resolve reads the caller's selected input and returns its bytes along
 // with a Source description. Priority (highest first):
 //
@@ -322,8 +327,13 @@ func pickFile(opts Options) (string, error) { return pickFileFunc(opts) }
 // promptURL is the internal caller used by resolvePath; see pickFile.
 func promptURL(opts Options) (string, error) { return promptURLFunc(opts) }
 
-// defaultPickFile launches the shared interactive picker.
+// defaultPickFile launches the shared interactive picker. Fails fast with
+// [ErrNoTTY] when stdin isn't a terminal — otherwise huh would crash deep
+// in its render path with a cryptic error.
 func defaultPickFile(opts Options) (string, error) {
+	if !IsStdinTerminal() {
+		return "", fmt.Errorf("--file without a path: %w", ErrNoTTY)
+	}
 	title := opts.PickerTitle
 	if title == "" {
 		title = "Select file"
@@ -331,8 +341,13 @@ func defaultPickFile(opts Options) (string, error) {
 	return ui.PickFile(ui.PickFileOptions{Title: title, AllowedTypes: opts.PickerExts})
 }
 
-// defaultPromptURL collects a URL via a huh text input form.
+// defaultPromptURL collects a URL via a huh text input form. Fails fast
+// with [ErrNoTTY] when stdin isn't a terminal — otherwise huh would
+// crash deep in its render path with a cryptic error.
 func defaultPromptURL(opts Options) (string, error) {
+	if !IsStdinTerminal() {
+		return "", fmt.Errorf("--url without a URL: %w", ErrNoTTY)
+	}
 	title := opts.URLPromptTitle
 	if title == "" {
 		title = "Enter URL"

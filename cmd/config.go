@@ -75,7 +75,8 @@ func presentConfig(cfg *config.Config) {
 		Row("API Key", maskAPIKey(cfg.APIKey)).
 		Row("Team", valueOrNotSet(cfg.Team)).
 		Row("Keyring URL", cfg.KeyringURL).
-		Row("HTTP Timeout", cfg.HTTPTimeout)
+		Row("HTTP Timeout", cfg.HTTPTimeout).
+		Row("Cosign Path", cosignPathDisplay(cfg.CosignPath))
 
 	verify := ui.CompactTable().
 		StyleFunc(configStyleFunc).
@@ -139,6 +140,16 @@ func maskAPIKey(key string) string {
 func valueOrNotSet(v string) string {
 	if v == "" {
 		return "(not set)"
+	}
+	return v
+}
+
+// cosignPathDisplay renders the resolved cosign_path for `config show`.
+// Empty means "use $PATH lookup" — distinct from "not set" for other
+// string fields because zero-value here has a documented meaning.
+func cosignPathDisplay(v string) string {
+	if v == "" {
+		return "(auto: $PATH lookup)"
 	}
 	return v
 }

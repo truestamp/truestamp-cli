@@ -9,6 +9,7 @@ import (
 )
 
 func TestDomainHash_ClaimsVector(t *testing.T) {
+	t.Parallel()
 	// Test vector from docs/CRYPTOGRAPHY.md: SHA256(0x11 || "truestamp")
 	result := BytesToHex(DomainHash(0x11, []byte("truestamp")))
 	expected := "9d9443e5133052d9fc837e150d32e3094fc979f097922034a984ddfbe5247aca"
@@ -18,6 +19,7 @@ func TestDomainHash_ClaimsVector(t *testing.T) {
 }
 
 func TestDomainHash_EntropyVector(t *testing.T) {
+	t.Parallel()
 	// Test vector: SHA256(0x21 || "truestamp")
 	result := BytesToHex(DomainHash(0x21, []byte("truestamp")))
 	expected := "22da1f4e92cfd2318f0cec8c3b8f7bf3c7c2531db0e5ac781f25e1e25ae65831"
@@ -27,6 +29,7 @@ func TestDomainHash_EntropyVector(t *testing.T) {
 }
 
 func TestDomainHash_GenesisVector(t *testing.T) {
+	t.Parallel()
 	// Test vector: SHA256(0x31 || "truestamp")
 	result := BytesToHex(DomainHash(0x31, []byte("truestamp")))
 	expected := "96965205fa528419d226675f8ad4a11f978d5523e31c462f4af0f1405d2ac8da"
@@ -36,6 +39,7 @@ func TestDomainHash_GenesisVector(t *testing.T) {
 }
 
 func TestDomainHash_DifferentPrefixesDiffer(t *testing.T) {
+	t.Parallel()
 	data := []byte("same input")
 	h11 := BytesToHex(DomainHash(0x11, data))
 	h12 := BytesToHex(DomainHash(0x12, data))
@@ -46,6 +50,7 @@ func TestDomainHash_DifferentPrefixesDiffer(t *testing.T) {
 }
 
 func TestComputeKeyID(t *testing.T) {
+	t.Parallel()
 	// Test vector: known public key -> key_id
 	pubkeyB64 := "CTwMqDZnPd/QTLSq8aTeSD3a+j2DQxKcGfhhIYJQ65Y="
 	pubkey, _ := base64.StdEncoding.DecodeString(pubkeyB64)
@@ -57,6 +62,7 @@ func TestComputeKeyID(t *testing.T) {
 }
 
 func TestLenPrefix(t *testing.T) {
+	t.Parallel()
 	data := []byte("hello")
 	result := LenPrefix(data)
 	// 4-byte big-endian length (5) + "hello"
@@ -72,6 +78,7 @@ func TestLenPrefix(t *testing.T) {
 }
 
 func TestLenPrefix_Empty(t *testing.T) {
+	t.Parallel()
 	result := LenPrefix([]byte{})
 	if len(result) != 4 {
 		t.Errorf("len_prefix empty length: got %d, want 4", len(result))
@@ -84,6 +91,7 @@ func TestLenPrefix_Empty(t *testing.T) {
 }
 
 func TestComputeItemHash(t *testing.T) {
+	t.Parallel()
 	// ComputeItemHash now takes 4 args: id, claimsHashHex, metadataHashHex, signingKeyIDHex
 	result, err := ComputeItemHash(
 		"01KKW15X4C9J75W2C30286JY00",
@@ -100,6 +108,7 @@ func TestComputeItemHash(t *testing.T) {
 }
 
 func TestComputeBlockHash(t *testing.T) {
+	t.Parallel()
 	// ComputeBlockHash field order: id, prevHashHex, merkleRootHex, metadataHashHex, signingKeyIDHex
 	result, err := ComputeBlockHash(
 		"019cf813-99b8-730a-84f1-5a711a9c355e",
@@ -117,6 +126,7 @@ func TestComputeBlockHash(t *testing.T) {
 }
 
 func TestHexToBytes_Empty(t *testing.T) {
+	t.Parallel()
 	result, err := HexToBytes("")
 	if err != nil {
 		t.Fatalf("unexpected error: %s", err)
@@ -127,6 +137,7 @@ func TestHexToBytes_Empty(t *testing.T) {
 }
 
 func TestHexEqual(t *testing.T) {
+	t.Parallel()
 	if !HexEqual("abcdef", "ABCDEF") {
 		t.Error("HexEqual should be case-insensitive")
 	}
@@ -148,6 +159,7 @@ func TestHexEqual(t *testing.T) {
 }
 
 func TestComputeItemHash_InvalidClaimsHex(t *testing.T) {
+	t.Parallel()
 	_, err := ComputeItemHash("id", "ZZZZ", "aabb", "ccdd")
 	if err == nil {
 		t.Error("expected error for invalid claims_hash hex")
@@ -155,6 +167,7 @@ func TestComputeItemHash_InvalidClaimsHex(t *testing.T) {
 }
 
 func TestComputeItemHash_InvalidMetadataHex(t *testing.T) {
+	t.Parallel()
 	_, err := ComputeItemHash("id", "aabb", "ZZZZ", "ccdd")
 	if err == nil {
 		t.Error("expected error for invalid metadata_hash hex")
@@ -162,6 +175,7 @@ func TestComputeItemHash_InvalidMetadataHex(t *testing.T) {
 }
 
 func TestComputeItemHash_InvalidSigningKeyIDHex(t *testing.T) {
+	t.Parallel()
 	_, err := ComputeItemHash("id", "aabb", "ccdd", "ZZZZ")
 	if err == nil {
 		t.Error("expected error for invalid signing_key_id hex")
@@ -169,6 +183,7 @@ func TestComputeItemHash_InvalidSigningKeyIDHex(t *testing.T) {
 }
 
 func TestComputeBlockHash_InvalidPrevHash(t *testing.T) {
+	t.Parallel()
 	// Field order: id, prevHashHex, merkleRootHex, metadataHashHex, signingKeyIDHex
 	_, err := ComputeBlockHash("id", "ZZZZ", "aabb", "ccdd", "eeff")
 	if err == nil {
@@ -177,6 +192,7 @@ func TestComputeBlockHash_InvalidPrevHash(t *testing.T) {
 }
 
 func TestComputeBlockHash_InvalidMerkleRoot(t *testing.T) {
+	t.Parallel()
 	// Field order: id, prevHashHex, merkleRootHex, metadataHashHex, signingKeyIDHex
 	_, err := ComputeBlockHash("id", "aabb", "ZZZZ", "ccdd", "eeff")
 	if err == nil {
@@ -185,6 +201,7 @@ func TestComputeBlockHash_InvalidMerkleRoot(t *testing.T) {
 }
 
 func TestComputeBlockHash_InvalidMetadataHash(t *testing.T) {
+	t.Parallel()
 	// Field order: id, prevHashHex, merkleRootHex, metadataHashHex, signingKeyIDHex
 	_, err := ComputeBlockHash("id", "aabb", "ccdd", "ZZZZ", "eeff")
 	if err == nil {
@@ -193,6 +210,7 @@ func TestComputeBlockHash_InvalidMetadataHash(t *testing.T) {
 }
 
 func TestComputeBlockHash_InvalidSigningKeyID(t *testing.T) {
+	t.Parallel()
 	// Field order: id, prevHashHex, merkleRootHex, metadataHashHex, signingKeyIDHex
 	_, err := ComputeBlockHash("id", "aabb", "ccdd", "eeff", "ZZZZ")
 	if err == nil {
@@ -201,6 +219,7 @@ func TestComputeBlockHash_InvalidSigningKeyID(t *testing.T) {
 }
 
 func TestComputeCommitmentDataHash(t *testing.T) {
+	t.Parallel()
 	// ComputeCommitmentDataHash takes JCS bytes and returns a hex hash
 	jcsData := []byte(`{"blockchain":"stellar","network":"testnet"}`)
 	result := ComputeCommitmentDataHash(jcsData)
@@ -220,6 +239,7 @@ func TestComputeCommitmentDataHash(t *testing.T) {
 }
 
 func TestComputeCommitmentHash(t *testing.T) {
+	t.Parallel()
 	// ComputeCommitmentHash takes id, commitmentDataHashHex, ownerID, signingKeyIDHex
 	cdHash := ComputeCommitmentDataHash([]byte(`{"test":"data"}`))
 	result, err := ComputeCommitmentHash(
@@ -237,6 +257,7 @@ func TestComputeCommitmentHash(t *testing.T) {
 }
 
 func TestComputeCommitmentHash_InvalidCommitmentDataHash(t *testing.T) {
+	t.Parallel()
 	_, err := ComputeCommitmentHash("id", "ZZZZ", "owner", "4ceefa4a")
 	if err == nil {
 		t.Error("expected error for invalid commitment_data_hash hex")
@@ -244,6 +265,7 @@ func TestComputeCommitmentHash_InvalidCommitmentDataHash(t *testing.T) {
 }
 
 func TestComputeCommitmentHash_InvalidSigningKeyID(t *testing.T) {
+	t.Parallel()
 	_, err := ComputeCommitmentHash("id", "aabb", "owner", "ZZZZ")
 	if err == nil {
 		t.Error("expected error for invalid signing_key_id hex")
@@ -251,6 +273,7 @@ func TestComputeCommitmentHash_InvalidSigningKeyID(t *testing.T) {
 }
 
 func TestComputeProofHash(t *testing.T) {
+	t.Parallel()
 	// ComputeProofHash takes version, keyIDHex, itemHashHex, blockHashes, commitmentHashes
 	blockHash := "48b7f261f5a2e9dbc121d3541947e847665160d8d7baf4a74daca4ab3d17a09d"
 	itemHash := "6de54da2c7d3bddcd8a6c2bb22fc0c44af3bbad47d351cfd43ac8dbb5fc1cc3d"
@@ -279,6 +302,7 @@ func TestComputeProofHash(t *testing.T) {
 }
 
 func TestComputeProofHash_EmptyLists(t *testing.T) {
+	t.Parallel()
 	hexResult, hashBytes, err := ComputeProofHash(
 		1,
 		"4ceefa4a",
@@ -298,6 +322,7 @@ func TestComputeProofHash_EmptyLists(t *testing.T) {
 }
 
 func TestComputeProofHash_InvalidKeyID(t *testing.T) {
+	t.Parallel()
 	_, _, err := ComputeProofHash(1, "ZZZZ", "aabb", nil, nil)
 	if err == nil {
 		t.Error("expected error for invalid key_id hex")
@@ -305,6 +330,7 @@ func TestComputeProofHash_InvalidKeyID(t *testing.T) {
 }
 
 func TestComputeProofHash_InvalidSubjectHash(t *testing.T) {
+	t.Parallel()
 	_, _, err := ComputeProofHash(1, "4ceefa4a", "ZZZZ", nil, nil)
 	if err == nil {
 		t.Error("expected error for invalid subject_hash hex")
@@ -312,6 +338,7 @@ func TestComputeProofHash_InvalidSubjectHash(t *testing.T) {
 }
 
 func TestComputeProofHash_InvalidBlockHash(t *testing.T) {
+	t.Parallel()
 	_, _, err := ComputeProofHash(1, "4ceefa4a", "aabb", []string{"ZZZZ"}, nil)
 	if err == nil {
 		t.Error("expected error for invalid block_hash hex")
@@ -319,6 +346,7 @@ func TestComputeProofHash_InvalidBlockHash(t *testing.T) {
 }
 
 func TestComputeProofHash_InvalidCommitmentHash(t *testing.T) {
+	t.Parallel()
 	_, _, err := ComputeProofHash(1, "4ceefa4a", "aabb", nil, []string{"ZZZZ"})
 	if err == nil {
 		t.Error("expected error for invalid commitment_hash hex")
@@ -326,6 +354,7 @@ func TestComputeProofHash_InvalidCommitmentHash(t *testing.T) {
 }
 
 func TestComputeEntropyHash(t *testing.T) {
+	t.Parallel()
 	// Test vector: SHA256(0x21 || "truestamp") from hash_test.go's DomainHash test
 	result := ComputeEntropyHash([]byte("truestamp"))
 	expected := "22da1f4e92cfd2318f0cec8c3b8f7bf3c7c2531db0e5ac781f25e1e25ae65831"
@@ -335,6 +364,7 @@ func TestComputeEntropyHash(t *testing.T) {
 }
 
 func TestComputeEntropyHash_Deterministic(t *testing.T) {
+	t.Parallel()
 	data := []byte(`{"pulse":{"outputValue":"ABC123"}}`)
 	r1 := ComputeEntropyHash(data)
 	r2 := ComputeEntropyHash(data)
@@ -347,6 +377,7 @@ func TestComputeEntropyHash_Deterministic(t *testing.T) {
 }
 
 func TestComputeEntropyHash_DifferentFromClaims(t *testing.T) {
+	t.Parallel()
 	data := []byte("same input")
 	entropy := ComputeEntropyHash(data)
 	claims := BytesToHex(DomainHash(PrefixItemClaims, data))
@@ -356,6 +387,7 @@ func TestComputeEntropyHash_DifferentFromClaims(t *testing.T) {
 }
 
 func TestComputeObservationHash(t *testing.T) {
+	t.Parallel()
 	// ComputeObservationHash takes id, entropyHashHex, metadataHashHex, signingKeyIDHex
 	result, err := ComputeObservationHash(
 		"019cf813-99b8-730a-84f1-5a711a9c355e",
@@ -392,6 +424,7 @@ func TestComputeObservationHash(t *testing.T) {
 }
 
 func TestComputeObservationHash_InvalidEntropyHex(t *testing.T) {
+	t.Parallel()
 	_, err := ComputeObservationHash("id", "ZZZZ", "aabb", "ccdd")
 	if err == nil {
 		t.Error("expected error for invalid entropy_hash hex")
@@ -399,6 +432,7 @@ func TestComputeObservationHash_InvalidEntropyHex(t *testing.T) {
 }
 
 func TestComputeObservationHash_InvalidMetadataHex(t *testing.T) {
+	t.Parallel()
 	_, err := ComputeObservationHash("id", "aabb", "ZZZZ", "ccdd")
 	if err == nil {
 		t.Error("expected error for invalid metadata_hash hex")
@@ -406,6 +440,7 @@ func TestComputeObservationHash_InvalidMetadataHex(t *testing.T) {
 }
 
 func TestComputeObservationHash_InvalidSigningKeyIDHex(t *testing.T) {
+	t.Parallel()
 	_, err := ComputeObservationHash("id", "aabb", "ccdd", "ZZZZ")
 	if err == nil {
 		t.Error("expected error for invalid signing_key_id hex")
@@ -413,6 +448,7 @@ func TestComputeObservationHash_InvalidSigningKeyIDHex(t *testing.T) {
 }
 
 func TestComputeObservationHash_DifferentFromItemHash(t *testing.T) {
+	t.Parallel()
 	// Same field values but different domain prefixes (0x23 vs 0x13) should differ
 	obsHash, _ := ComputeObservationHash("id", "aabb", "ccdd", "eeff")
 	itemHash, _ := ComputeItemHash("id", "aabb", "ccdd", "eeff")

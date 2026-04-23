@@ -144,7 +144,6 @@ func encodeHex(data []byte) string {
 func init() {
 	f := convertKeyIDCmd.Flags()
 	f.String("from", "auto", "Public key encoding: auto, hex, base64, base64url")
-	f.Bool("json", false, "Output as JSON")
-	f.BoolP("silent", "s", false, "No output, exit code only")
+	addConvertCommonFlags(convertKeyIDCmd)
 	convertCmd.AddCommand(convertKeyIDCmd)
 }
