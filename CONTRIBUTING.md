@@ -122,6 +122,14 @@ Releases are driven entirely by a git tag matching `v*`. Pushing the tag trigger
 
 The PR flow (introduced in 0.3.0) preserves an audit trail of every cask update; the auto-merge step (added in 0.3.3, simplified to a direct merge in 0.6.0 after auto-merge kept rejecting already-clean PRs) removes the human-click step that used to be required.
 
+### How to actually cut a release: use `/release`
+
+**The canonical way to ship a release is to run the [`/release` skill](.claude/skills/release/SKILL.md) from Claude Code.** It walks the entire flow end-to-end — pre-flight gates, CHANGELOG update, release PR + CI wait, signed tag, release.yml verification, GitHub Release + Homebrew tap + cosign / SLSA-attestation checks — and produces either a structured success report or actionable failure diagnostics keyed to `.claude/skills/release/references/failure-recovery.md`.
+
+Every release since v0.7.1 has followed this flow. The sections below document the underlying steps for reference (you'll need them when diagnosing a failure, reviewing the skill, or cutting a release without Claude), but they are NOT the recommended day-to-day procedure. Typos and skipped steps are much more likely when you do this by hand, and the `protect-main` ruleset will reject any direct-push flow anyway.
+
+If you are cutting a release without Claude Code (e.g., from a shell alone), follow the sections below exactly as written — the skill derives every command from them.
+
 ### Prerequisites (one-time)
 
 - Repository secret `HOMEBREW_TAP_GITHUB_TOKEN` on `truestamp/truestamp-cli`. **This must be a fine-grained PAT scoped to `truestamp/homebrew-tap` only, with `Contents: Read and write` + `Pull requests: Read and write`.** Do not use a classic `repo`-scoped PAT — the classic scope is broader than the release pipeline needs and should not be reintroduced. The `Pull requests` scope is what lets GoReleaser open the cask update PR and what lets the follow-up step merge it.
@@ -254,6 +262,8 @@ curl -sSL "https://github.com/truestamp/truestamp-cli/releases/download/vX.Y.Z/t
 ```
 
 ### If the release fails partway
+
+The `/release` skill routes failures to [`.claude/skills/release/references/failure-recovery.md`](.claude/skills/release/references/failure-recovery.md), which covers every scenario observed in practice (CI-gate-failed-before-publish, GoReleaser-published-but-tap-merge-flaked, Go proxy cached a broken version, etc.) with specific recipes. Prefer that reference when diagnosing; the outline below is the authoritative fallback if you're recovering without Claude.
 
 GoReleaser is mostly idempotent, but partial failures are possible. The two common modes:
 
