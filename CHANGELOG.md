@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+- Release workflow: direct `gh pr merge --merge` on the homebrew-tap PR
+  instead of `gh pr merge --auto --merge`. The tap's `protect-main`
+  ruleset only blocks branch deletion and non-fast-forward pushes — no
+  required checks or reviews — so nothing gates mergeability, and
+  `--auto` rejected the instantly-clean PR with "Pull request is in
+  clean status". The simplification removes a manual merge step that
+  the 0.6.0 release tripped over.
+
 ## [0.6.0] — 2026-04-23
 
 ### Added

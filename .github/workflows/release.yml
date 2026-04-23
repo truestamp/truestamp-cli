@@ -36,7 +36,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           HOMEBREW_TAP_GITHUB_TOKEN: ${{ secrets.HOMEBREW_TAP_GITHUB_TOKEN }}
 
-      - name: Auto-merge homebrew-tap PR
+      - name: Merge homebrew-tap PR
         continue-on-error: true
         env:
           GH_TOKEN: ${{ secrets.HOMEBREW_TAP_GITHUB_TOKEN }}
@@ -45,12 +45,18 @@ jobs:
           # branch named `goreleaser-{{ .Version }}`, where Version is
           # the tag with any leading "v" stripped. ${GITHUB_REF_NAME}
           # is the pushed tag (e.g. "v0.3.3").
+          #
+          # Direct `--merge` (no `--auto`): the tap's `protect-main`
+          # ruleset only blocks branch deletion / non-fast-forward
+          # pushes, so nothing gates mergeability. `--auto` requires
+          # a pending status check or review to queue against and
+          # rejects clean PRs with "Pull request is in clean status".
+          # The direct merge also arrives faster — no queue round-trip.
           tag="${GITHUB_REF_NAME#v}"
           branch="goreleaser-${tag}"
-          echo "Enabling auto-merge on PR from branch ${branch}"
+          echo "Merging PR from branch ${branch}"
           gh pr merge "${branch}" \
             --repo truestamp/homebrew-tap \
-            --auto \
             --merge \
             --delete-branch
 

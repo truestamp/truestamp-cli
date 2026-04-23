@@ -118,14 +118,13 @@ Releases are driven entirely by a git tag matching `v*`. Pushing the tag trigger
 
 1. Runs GoReleaser to cross-compile the platform archives, generate `checksums.txt`, and publish a GitHub Release (including the cosign `.sigstore` bundle, SBOMs, and build-provenance attestation).
 2. GoReleaser opens a PR on [`truestamp/homebrew-tap`](https://github.com/truestamp/homebrew-tap) from a branch named `goreleaser-<version>` into `main`, updating `Casks/truestamp-cli.rb` with the new version and per-platform SHA-256s.
-3. A follow-up `gh pr merge --auto --merge --delete-branch` step in the release workflow queues that PR for auto-merge. With no required reviews or status checks on the tap's `main` branch, the merge fires as soon as GitHub registers the PR as mergeable — typically within seconds of the GoReleaser step finishing.
+3. A follow-up `gh pr merge --merge --delete-branch` step in the release workflow merges that PR directly. The tap's `protect-main` ruleset only blocks branch deletion and non-fast-forward pushes — no required status checks or reviews — so there is nothing to gate mergeability, and `--auto` (which queues until some pending check / review clears) rejects the PR as already clean. Direct merge is the right call.
 
-The PR flow (introduced in 0.3.0) preserves an audit trail of every cask update; the auto-merge step (added in 0.3.3) removes the human-click step that used to be required.
+The PR flow (introduced in 0.3.0) preserves an audit trail of every cask update; the auto-merge step (added in 0.3.3, simplified to a direct merge in 0.6.0 after auto-merge kept rejecting already-clean PRs) removes the human-click step that used to be required.
 
 ### Prerequisites (one-time)
 
-- Repository secret `HOMEBREW_TAP_GITHUB_TOKEN` on `truestamp/truestamp-cli`. **This must be a fine-grained PAT scoped to `truestamp/homebrew-tap` only, with `Contents: Read and write` + `Pull requests: Read and write`.** Do not use a classic `repo`-scoped PAT — the classic scope is broader than the release pipeline needs and should not be reintroduced. The `Pull requests` scope is what lets GoReleaser open the cask update PR and what lets the follow-up step auto-merge it.
-- Repo setting `Allow auto-merge` enabled on `truestamp/homebrew-tap` (one-time). Without it, `gh pr merge --auto` rejects with `auto merge is not allowed for this repository`. Verify via `gh api repos/truestamp/homebrew-tap --jq '.allow_auto_merge'` — should return `true`.
+- Repository secret `HOMEBREW_TAP_GITHUB_TOKEN` on `truestamp/truestamp-cli`. **This must be a fine-grained PAT scoped to `truestamp/homebrew-tap` only, with `Contents: Read and write` + `Pull requests: Read and write`.** Do not use a classic `repo`-scoped PAT — the classic scope is broader than the release pipeline needs and should not be reintroduced. The `Pull requests` scope is what lets GoReleaser open the cask update PR and what lets the follow-up step merge it.
 - `mise install` locally so `task release-check` and `task release-snapshot` work for pre-flight testing.
 
 ### Pre-flight checklist
@@ -190,7 +189,7 @@ gh run watch "$run_id" --exit-status
 # Verify artifacts landed.
 gh release view vX.Y.Z --json tagName,assets -q '{tag: .tagName, assets: (.assets | length)}'
 
-# Confirm auto-merge ran and no tap PRs are dangling.
+# Confirm the tap PR merged and none are dangling.
 gh pr list --repo truestamp/homebrew-tap --state open    # expect empty
 gh pr list --repo truestamp/homebrew-tap --state merged --limit 1   # expect the goreleaser-<ver> PR
 
@@ -227,7 +226,7 @@ curl -sSL "https://github.com/truestamp/truestamp-cli/releases/download/vX.Y.Z/t
 GoReleaser is mostly idempotent, but partial failures are possible. The two common modes:
 
 - **GoReleaser step failed outright** (cross-compile broke, cosign signing flaked, tap PAT expired). No GitHub Release, no tap PR. Redo cleanly with the recipe below.
-- **GoReleaser succeeded, tap auto-merge failed.** The GitHub Release is in place, but the tap PR is still open. The auto-merge step is `continue-on-error: true`, so the overall workflow goes green and you get a visible warning rather than a hard failure. Check `gh pr list --repo truestamp/homebrew-tap --state open` — if you see a stale `goreleaser-<ver>` PR, either fix whatever blocked it (e.g. a conflict from an overlapping release) and merge manually, or re-enable auto-merge with `gh pr merge <branch> --repo truestamp/homebrew-tap --auto --merge --delete-branch`.
+- **GoReleaser succeeded, tap merge failed.** The GitHub Release is in place, but the tap PR is still open. The merge step is `continue-on-error: true`, so the overall workflow goes green and you get a visible warning rather than a hard failure. Check `gh pr list --repo truestamp/homebrew-tap --state open` — if you see a stale `goreleaser-<ver>` PR, either fix whatever blocked it (e.g. a conflict from an overlapping release) and merge manually with `gh pr merge <branch> --repo truestamp/homebrew-tap --merge --delete-branch`.
 
 To redo a release cleanly:
 
