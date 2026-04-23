@@ -1,4 +1,7 @@
 #!/bin/sh
+# Copyright (c) 2021-2026 Truestamp, Inc.
+# SPDX-License-Identifier: MIT
+#
 # Truestamp CLI installer.
 #
 # Source:  https://github.com/truestamp/truestamp-cli/blob/main/docs/install.sh

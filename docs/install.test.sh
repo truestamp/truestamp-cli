@@ -1,4 +1,7 @@
 #!/bin/sh
+# Copyright (c) 2021-2026 Truestamp, Inc.
+# SPDX-License-Identifier: MIT
+#
 # End-to-end smoke test for docs/install.sh.
 #
 # Runs the installer against a real, pinned GitHub release into a disposable
