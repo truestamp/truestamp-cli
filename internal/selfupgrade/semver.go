@@ -8,66 +8,85 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+
+	"golang.org/x/mod/semver"
 )
 
-// Semver is a minimal, lenient semver parse adequate for release-tag
-// comparison. Release tags in this project are strict
-// `v<MAJOR>.<MINOR>.<PATCH>[-<PRE>][+<BUILD>]` with no looser shapes. The
-// PreRelease slot is populated from the string after `-`; any value there
-// is treated as pre-release for the purposes of PreRelease().
+// Semver is the CLI's release-tag view over `golang.org/x/mod/semver`.
+// Parsing, validation, and ordering are delegated to the Go team's
+// canonical implementation; this struct keeps typed Major/Minor/Patch
+// ints + a Raw copy of the original input around because it reads more
+// clearly at call sites than passing bare strings, and because a few
+// places (samePatch, UpgradeAvailable's core-only comparison) need
+// structural access.
+//
+// Release tags in this project are strict
+// `v<MAJOR>.<MINOR>.<PATCH>[-<PRE>][+<BUILD>]`. Any leading "v" is
+// normalized internally (x/mod/semver requires it) but preserved in
+// Raw for display.
 type Semver struct {
 	Major, Minor, Patch int
-	PreRelease          string // empty for stable releases
+	PreRelease          string // content after `-`, empty for stable releases
 	BuildMetadata       string // content after `+`
-	Raw                 string // original input, leading "v" preserved
+	Raw                 string // original input, preserved for display
+	canonical           string // "v"-prefixed canonical form, used with semver.Compare
 }
 
 // ParseSemver accepts tags like "v0.3.0", "0.3.0", "v1.0.0-rc.1",
-// "v1.0.0-beta.2+build.7". Returns an error for shapes it can't parse
-// (not a version string, or non-numeric core).
+// "v1.0.0-beta.2+build.7", and git-describe shapes like
+// "0.5.0-4-g356ee75-dirty". Validation and the canonical form come
+// from x/mod/semver; the typed MAJOR.MINOR.PATCH fields are derived
+// from the canonical string.
 func ParseSemver(s string) (Semver, error) {
 	orig := s
-	s = strings.TrimPrefix(s, "v")
 	s = strings.TrimSpace(s)
 	if s == "" {
 		return Semver{}, fmt.Errorf("empty version")
 	}
 
-	// Split off build metadata first (everything after `+`).
-	var build string
-	if plus := strings.Index(s, "+"); plus >= 0 {
-		build = s[plus+1:]
-		s = s[:plus]
+	// x/mod/semver requires a leading "v"; normalize for the library
+	// while preserving the original string for display in Raw.
+	canonical := s
+	if !strings.HasPrefix(canonical, "v") {
+		canonical = "v" + canonical
+	}
+	if !semver.IsValid(canonical) {
+		return Semver{}, fmt.Errorf("not a valid semver: %q", orig)
 	}
 
-	// Split off pre-release (everything after the first `-`).
-	var pre string
-	if dash := strings.Index(s, "-"); dash >= 0 {
-		pre = s[dash+1:]
-		s = s[:dash]
+	// Derive MAJOR.MINOR.PATCH by trimming the pre-release and build
+	// suffixes from the canonical form. x/mod/semver has validated the
+	// shape, so the split is guaranteed to yield exactly 3 integers.
+	core := canonical
+	if i := strings.IndexAny(core, "-+"); i >= 0 {
+		core = core[:i]
 	}
-
-	core := strings.Split(s, ".")
-	if len(core) != 3 {
+	parts := strings.Split(strings.TrimPrefix(core, "v"), ".")
+	if len(parts) != 3 {
+		// Defence in depth: should be unreachable given IsValid above.
 		return Semver{}, fmt.Errorf("not MAJOR.MINOR.PATCH: %q", orig)
 	}
-
-	major, err := strconv.Atoi(core[0])
+	major, err := strconv.Atoi(parts[0])
 	if err != nil {
 		return Semver{}, fmt.Errorf("non-numeric major: %q", orig)
 	}
-	minor, err := strconv.Atoi(core[1])
+	minor, err := strconv.Atoi(parts[1])
 	if err != nil {
 		return Semver{}, fmt.Errorf("non-numeric minor: %q", orig)
 	}
-	patch, err := strconv.Atoi(core[2])
+	patch, err := strconv.Atoi(parts[2])
 	if err != nil {
 		return Semver{}, fmt.Errorf("non-numeric patch: %q", orig)
 	}
 
 	return Semver{
-		Major: major, Minor: minor, Patch: patch,
-		PreRelease: pre, BuildMetadata: build, Raw: orig,
+		Major:         major,
+		Minor:         minor,
+		Patch:         patch,
+		PreRelease:    strings.TrimPrefix(semver.Prerelease(canonical), "-"),
+		BuildMetadata: strings.TrimPrefix(semver.Build(canonical), "+"),
+		Raw:           orig,
+		canonical:     canonical,
 	}, nil
 }
 
@@ -75,6 +94,30 @@ func ParseSemver(s string) (Semver, error) {
 // identifier (anything after `-`). Build metadata alone doesn't count.
 func (v Semver) IsPreRelease() bool {
 	return v.PreRelease != ""
+}
+
+// Display returns a user-facing version string with any leading "v"
+// stripped so versions printed from different sources — ldflags-injected
+// build metadata (already stripped by the Taskfile build), GitHub tag
+// names (keep the "v"), or cached upgrade-check values — render
+// consistently. Safe to call on any string; a value without a leading
+// "v" is returned unchanged. Never fails, never parses.
+func Display(s string) string {
+	return strings.TrimPrefix(s, "v")
+}
+
+// Compare returns -1, 0, or 1 for v < other, v == other, v > other.
+// Delegates to golang.org/x/mod/semver.Compare, which implements the
+// strict SemVer §11 ordering (pre-releases rank below the same core
+// tagged release; pre-release identifiers compare numerically when
+// both are numeric, lexically otherwise; build metadata is ignored).
+//
+// For the git-describe-vs-tag asymmetry — SemVer ranks
+// `v0.5.0-4-g...-dirty` BELOW `v0.5.0` even though the dev build is
+// conceptually ahead — callers should use [UpgradeAvailable] instead,
+// which special-cases that shape.
+func (v Semver) Compare(other Semver) int {
+	return semver.Compare(v.canonical, other.canonical)
 }
 
 // gitDescribeSuffixRE matches git-describe's `<N>-g<SHA>[-dirty]`
@@ -126,88 +169,8 @@ func IsGitDescribeDev(s string) bool {
 // `v0.5.1` or `v0.6.0` still register as upgrades.
 func UpgradeAvailable(current, latest Semver) bool {
 	if IsGitDescribeDev(current.Raw) {
-		curCore := Semver{Major: current.Major, Minor: current.Minor, Patch: current.Patch}
+		curCore, _ := ParseSemver(fmt.Sprintf("v%d.%d.%d", current.Major, current.Minor, current.Patch))
 		return latest.Compare(curCore) > 0
 	}
 	return latest.Compare(current) > 0
-}
-
-// Display returns a user-facing version string with any leading "v"
-// stripped so versions printed from different sources — ldflags-injected
-// build metadata (already stripped by the Taskfile build), GitHub tag
-// names (keep the "v"), or cached upgrade-check values — render
-// consistently. Safe to call on any string; a value without a leading
-// "v" is returned unchanged. Never fails, never parses.
-func Display(s string) string {
-	return strings.TrimPrefix(s, "v")
-}
-
-// Compare returns -1, 0, or 1 for v < other, v == other, v > other.
-// Semver ordering rules: a pre-release version has lower precedence than
-// a normal one with the same MAJOR.MINOR.PATCH
-// (https://semver.org/#spec-item-11). Build metadata is IGNORED for
-// precedence per the spec.
-func (v Semver) Compare(other Semver) int {
-	if c := cmpInt(v.Major, other.Major); c != 0 {
-		return c
-	}
-	if c := cmpInt(v.Minor, other.Minor); c != 0 {
-		return c
-	}
-	if c := cmpInt(v.Patch, other.Patch); c != 0 {
-		return c
-	}
-	// Pre-release comparison: no-pre > has-pre.
-	if v.PreRelease == "" && other.PreRelease != "" {
-		return 1
-	}
-	if v.PreRelease != "" && other.PreRelease == "" {
-		return -1
-	}
-	if v.PreRelease == other.PreRelease {
-		return 0
-	}
-	return cmpPreRelease(v.PreRelease, other.PreRelease)
-}
-
-func cmpInt(a, b int) int {
-	switch {
-	case a < b:
-		return -1
-	case a > b:
-		return 1
-	default:
-		return 0
-	}
-}
-
-// cmpPreRelease compares two non-empty pre-release strings per
-// semver.org §11. Identifiers are split on `.`; numeric identifiers
-// compare as integers, alphanumerics as ASCII, numeric < alphanumeric
-// when equal-length prefix, shorter prefix loses when equal up to its
-// length.
-func cmpPreRelease(a, b string) int {
-	ap := strings.Split(a, ".")
-	bp := strings.Split(b, ".")
-	for i := 0; i < len(ap) && i < len(bp); i++ {
-		if c := cmpIdent(ap[i], bp[i]); c != 0 {
-			return c
-		}
-	}
-	return cmpInt(len(ap), len(bp))
-}
-
-func cmpIdent(a, b string) int {
-	ai, aIsNum := strconv.Atoi(a)
-	bi, bIsNum := strconv.Atoi(b)
-	switch {
-	case aIsNum == nil && bIsNum == nil:
-		return cmpInt(ai, bi)
-	case aIsNum == nil && bIsNum != nil:
-		return -1 // numeric < alphanumeric
-	case aIsNum != nil && bIsNum == nil:
-		return 1
-	default:
-		return strings.Compare(a, b)
-	}
 }

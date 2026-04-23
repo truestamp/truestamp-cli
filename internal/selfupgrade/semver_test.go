@@ -36,8 +36,13 @@ func TestParseSemver(t *testing.T) {
 			t.Errorf("ParseSemver(%q) unexpected error: %v", c.in, err)
 			continue
 		}
-		if got != c.want {
-			t.Errorf("ParseSemver(%q) = %+v, want %+v", c.in, got, c.want)
+		// Compare public fields one-by-one — struct equality would trip on
+		// the unexported `canonical` field populated from x/mod/semver.
+		if got.Major != c.want.Major || got.Minor != c.want.Minor || got.Patch != c.want.Patch ||
+			got.PreRelease != c.want.PreRelease || got.BuildMetadata != c.want.BuildMetadata ||
+			got.Raw != c.want.Raw {
+			t.Errorf("ParseSemver(%q) public fields = {M:%d m:%d p:%d Pre:%q Build:%q Raw:%q}, want %+v",
+				c.in, got.Major, got.Minor, got.Patch, got.PreRelease, got.BuildMetadata, got.Raw, c.want)
 		}
 		if got.IsPreRelease() != c.wantPre {
 			t.Errorf("ParseSemver(%q).IsPreRelease() = %v, want %v", c.in, got.IsPreRelease(), c.wantPre)
