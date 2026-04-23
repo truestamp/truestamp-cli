@@ -165,7 +165,7 @@ truestamp verify proof.json --skip-external
 Silent mode for scripting:
 
 ```sh
-truestamp verify proof.json --output silent && echo valid || echo invalid
+truestamp verify proof.json --silent && echo valid || echo invalid
 ```
 
 Other input sources:
@@ -361,4 +361,4 @@ Dev setup, testing, and release process are in [`CONTRIBUTING.md`](./CONTRIBUTIN
 
 MIT. See [LICENSE](./LICENSE).
 
-Copyright (c) 2021-2026 [Truestamp, Inc.](https://truestamp.com) All rights reserved.
+Copyright (c) 2019-2026 [Truestamp, Inc.](https://truestamp.com) All rights reserved.

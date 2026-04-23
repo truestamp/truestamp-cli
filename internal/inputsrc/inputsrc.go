@@ -1,4 +1,4 @@
-// Copyright (c) 2021-2026 Truestamp, Inc.
+// Copyright (c) 2019-2026 Truestamp, Inc.
 // SPDX-License-Identifier: MIT
 
 // Package inputsrc resolves a CLI input to a byte slice (or a stream) from

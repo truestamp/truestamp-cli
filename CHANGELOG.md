@@ -735,7 +735,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Terminal-themed landing page at `https://get.truestamp.com` with plain
   green-on-black monospace install instructions.
 - `shellcheck` step in CI to keep `docs/install.sh` portable POSIX sh.
-- SPDX-style `Copyright (c) 2021-2026 Truestamp, Inc.` +
+- SPDX-style `Copyright (c) 2019-2026 Truestamp, Inc.` +
   `SPDX-License-Identifier: MIT` header on all 48 Go source files under
   `cmd/` and `internal/`.
 - Copyright footer in `README.md` and the `get.truestamp.com` landing

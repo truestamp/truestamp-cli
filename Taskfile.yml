@@ -1,4 +1,4 @@
-# Copyright (c) 2021-2026 Truestamp, Inc.
+# Copyright (c) 2019-2026 Truestamp, Inc.
 # SPDX-License-Identifier: MIT
 #
 # https://taskfile.dev
@@ -74,7 +74,7 @@ tasks:
   # =============================================================================
 
   run:
-    desc: "Run verify without building (usage: task run -- proof.json [--verbose] [--skip-external])"
+    desc: "Run verify without building (usage: task run -- proof.json [--skip-external] [--skip-signatures] [--json])"
     cmds:
       - go run ./cmd/truestamp verify {{.CLI_ARGS}}
 

@@ -1,5 +1,5 @@
 #!/bin/sh
-# Copyright (c) 2021-2026 Truestamp, Inc.
+# Copyright (c) 2019-2026 Truestamp, Inc.
 # SPDX-License-Identifier: MIT
 #
 # End-to-end smoke test for docs/install.sh.

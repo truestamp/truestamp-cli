@@ -1,4 +1,4 @@
-# Copyright (c) 2021-2026 Truestamp, Inc.
+# Copyright (c) 2019-2026 Truestamp, Inc.
 # SPDX-License-Identifier: MIT
 
 name: Bug Report
@@ -8,8 +8,12 @@ body:
   - type: markdown
     attributes:
       value: |
-        Thanks for taking the time to file a report. Please include the output of
-        `truestamp version` and the exact command you ran.
+        Thanks for taking the time to file a report.
+
+        **Before you submit:**
+        - Paste the full output of `truestamp version` — it includes the detected install method, OS/arch, Go version, and build date.
+        - If the bug involves a specific proof, item, block, beacon, or entropy record, include its ID (ULID or UUIDv7). Maintainers can correlate IDs with server-side logs.
+        - **Do not paste API keys, private keys, or claims data you consider sensitive.** `truestamp config show` masks the API key for you.
 
   - type: textarea
     id: version
@@ -17,22 +21,62 @@ body:
       label: Version output
       description: Paste the full output of `truestamp version`.
       render: shell
+      placeholder: |
+        $ truestamp version
+        truestamp
+          version      v0.7.0
+          path         github.com/truestamp/truestamp-cli
+          config path  /Users/you/.config/truestamp/config.toml
+          install      homebrew
+          go           go1.26.2 for darwin/arm64
+          commit       648e610
+          built        2026-04-23T18:09:15Z
+    validations:
+      required: true
+
+  - type: dropdown
+    id: subcommand
+    attributes:
+      label: Affected subcommand
+      description: Which `truestamp` sub-command produced the bug?
+      options:
+        - verify
+        - create
+        - download
+        - beacon
+        - hash
+        - encode / decode / jcs
+        - convert
+        - config
+        - auth
+        - upgrade
+        - version
+        - Other / unclear
     validations:
       required: true
 
   - type: textarea
     id: command
     attributes:
-      label: Command
-      description: The exact command invocation that triggered the issue.
+      label: Exact command
+      description: The exact `truestamp …` invocation that triggered the issue. Redact anything sensitive (API key, file paths under $HOME with your real username, etc.).
       render: shell
+      placeholder: truestamp verify --url https://example.com/proof.json
     validations:
       required: true
+
+  - type: input
+    id: subject-id
+    attributes:
+      label: Subject ID (if applicable)
+      description: The ULID (items) or UUIDv7 (blocks, beacons, entropy) involved in the bug, if the command was tied to a specific record. Helps correlate with server logs.
+      placeholder: "01KNN33GX5E470CB9TRWAYF9DD  or  019d6a32-13e6-72b0-97e5-3779231ea97b"
 
   - type: textarea
     id: expected
     attributes:
       label: Expected behavior
+      description: What did you expect the command to do?
     validations:
       required: true
 
@@ -40,17 +84,50 @@ body:
     id: actual
     attributes:
       label: Actual behavior
-      description: Include the full output. Use `--output debug` for verbose detail.
+      description: |
+        What actually happened? Include the full terminal output (or the exit code if there was no output). For structured output that's easier to inspect, re-run the command with `--json` if the sub-command supports it. For non-obvious failures, include any stderr lines verbatim.
       render: shell
     validations:
       required: true
 
-  - type: input
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: Steps to reproduce
+      description: Minimal steps for someone else to trigger the same bug. Include any input files or URLs if safe to share.
+      placeholder: |
+        1. Run `truestamp download --type item 01K…`
+        2. Pipe to `truestamp verify`
+        3. Observe exit code 1 with message "…"
+
+  - type: dropdown
     id: install-method
     attributes:
       label: Install method
-      description: brew / go install / direct download / task build
-      placeholder: "brew install truestamp/tap/truestamp-cli"
+      description: How did you install this copy of `truestamp`? `truestamp version` reports this on the `install` line.
+      options:
+        - Homebrew (`brew install truestamp/tap/truestamp-cli`)
+        - install.sh (`curl -fsSL https://get.truestamp.com/install.sh | sh`)
+        - Direct tarball download from GitHub Releases
+        - "`go install github.com/truestamp/truestamp-cli/cmd/truestamp@latest`"
+        - Built locally from source (`task build`)
+        - Other / unsure
+    validations:
+      required: true
+
+  - type: dropdown
+    id: os
+    attributes:
+      label: Operating system
+      description: Run `uname -sm` (macOS/Linux) or `systeminfo | findstr /B /C:"OS"` (Windows) if unsure.
+      options:
+        - macOS (arm64 / Apple Silicon)
+        - macOS (amd64 / Intel)
+        - Linux (amd64)
+        - Linux (arm64)
+        - Windows (amd64)
+        - Windows (arm64)
+        - Other
     validations:
       required: true
 
@@ -58,4 +135,5 @@ body:
     id: additional
     attributes:
       label: Additional context
-      description: Proof file characteristics, network environment, relevant config.
+      description: |
+        Anything else that might help — network environment (corporate proxy, restrictive firewall), relevant config (`truestamp config show` with any sensitive values redacted), proof bundle characteristics, whether the issue is reproducible or intermittent, screenshots, etc.
