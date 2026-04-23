@@ -102,3 +102,71 @@ func TestSemverCompare(t *testing.T) {
 		}
 	}
 }
+
+func TestIsGitDescribeDev(t *testing.T) {
+	cases := []struct {
+		in   string
+		want bool
+	}{
+		// git-describe outputs — should match
+		{"0.5.0-4-g356ee75-dirty", true},
+		{"0.5.0-4-g356ee75", true},
+		{"v0.5.0-4-g356ee75-dirty", true},
+		{"1.2.3-99-g0000000", true},
+		{"0.5.0-rc.1-2-gdeadbeef", true}, // dev build ahead of pre-release tag
+		{"0.5.0-rc.1-2-gdeadbeef-dirty", true},
+		// Not git-describe — should NOT match
+		{"0.5.0", false},
+		{"v0.5.0", false},
+		{"0.5.0-rc.1", false},
+		{"0.5.0-beta.2", false},
+		{"0.5.0-alpha", false},
+		{"0.5.0+build.1", false}, // build metadata only, no pre-release
+		// Hex too short to be a git short-sha (regex requires 7+)
+		{"0.5.0-4-gabc", false},
+		// Leading "g" without the digit-prefix
+		{"0.5.0-gabc1234567", false},
+		// Garbage
+		{"not-a-version", false},
+		{"", false},
+	}
+	for _, c := range cases {
+		if got := IsGitDescribeDev(c.in); got != c.want {
+			t.Errorf("IsGitDescribeDev(%q) = %v, want %v", c.in, got, c.want)
+		}
+	}
+}
+
+func TestUpgradeAvailable(t *testing.T) {
+	cases := []struct {
+		current, latest string
+		want            bool
+		note            string
+	}{
+		// Normal (non-git-describe) behavior — strict semver.
+		{"v0.5.0", "v0.5.1", true, "patch bump"},
+		{"v0.5.0", "v0.5.0", false, "same version"},
+		{"v0.5.1", "v0.5.0", false, "latest is older"},
+		{"v1.0.0-rc.1", "v1.0.0", true, "rc → final is an upgrade"},
+		// Git-describe dev builds — compare cores only.
+		{"0.5.0-4-g356ee75-dirty", "v0.5.0", false,
+			"dev build 4 commits past v0.5.0 should NOT offer v0.5.0 as an upgrade (it's a downgrade)"},
+		{"0.5.0-4-g356ee75", "v0.5.0", false, "clean git-describe, same outcome"},
+		{"0.5.0-4-g356ee75-dirty", "v0.5.1", true,
+			"dev build past v0.5.0 SHOULD offer v0.5.1 — real upgrade"},
+		{"0.5.0-4-g356ee75-dirty", "v0.6.0", true, "minor bump past dev-build's base"},
+		{"0.5.0-4-g356ee75-dirty", "v1.0.0", true, "major bump past dev-build's base"},
+		{"0.5.0-4-g356ee75-dirty", "v0.4.9", false, "latest is behind dev-build's base"},
+	}
+	for _, c := range cases {
+		cur, errA := ParseSemver(c.current)
+		lat, errB := ParseSemver(c.latest)
+		if errA != nil || errB != nil {
+			t.Fatalf("setup %q/%q: %v/%v", c.current, c.latest, errA, errB)
+		}
+		if got := UpgradeAvailable(cur, lat); got != c.want {
+			t.Errorf("UpgradeAvailable(%q → %q) = %v, want %v  // %s",
+				c.current, c.latest, got, c.want, c.note)
+		}
+	}
+}

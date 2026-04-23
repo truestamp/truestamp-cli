@@ -145,7 +145,11 @@ func emitIfNewer(w io.Writer, current, latest string) {
 	if lat.IsPreRelease() {
 		return
 	}
-	if lat.Compare(cur) <= 0 {
+	// Same rule as the upgrade command: for git-describe dev builds
+	// (e.g. "0.5.0-4-g356ee75-dirty") compare cores only, so we don't
+	// nag a developer to "upgrade" back to the base tag they're already
+	// ahead of. A real new release (0.5.1, 0.6.0, etc.) still notifies.
+	if !selfupgrade.UpgradeAvailable(cur, lat) {
 		return
 	}
 	fmt.Fprintf(w, "\nnote: truestamp %s is available (current: %s).\n", selfupgrade.Display(latest), selfupgrade.Display(current))

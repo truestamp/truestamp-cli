@@ -5,6 +5,7 @@ package selfupgrade
 
 import (
 	"fmt"
+	"regexp"
 	"strconv"
 	"strings"
 )
@@ -74,6 +75,61 @@ func ParseSemver(s string) (Semver, error) {
 // identifier (anything after `-`). Build metadata alone doesn't count.
 func (v Semver) IsPreRelease() bool {
 	return v.PreRelease != ""
+}
+
+// gitDescribeSuffixRE matches git-describe's `<N>-g<SHA>[-dirty]`
+// post-tag suffix anywhere at the end of a pre-release identifier. The
+// N is a non-negative commit count ahead of the nearest tag; SHA is
+// 7+ hex characters prefixed with the literal "g"; -dirty is optional.
+//
+// Matches:
+//
+//	"4-g356ee75-dirty"         (tag + 4 commits, dirty worktree)
+//	"4-g356ee75"               (tag + 4 commits, clean)
+//	"rc.1-2-gdeadbeef"         (tag-rc.1 + 2 commits)
+//	"rc.1-2-gdeadbeef-dirty"
+//
+// Does NOT match plain pre-releases like "rc.1", "beta.2", "alpha.12".
+var gitDescribeSuffixRE = regexp.MustCompile(`(^|-)\d+-g[0-9a-f]{7,}(-dirty)?$`)
+
+// IsGitDescribeDev reports whether s looks like a locally-built
+// development binary whose version string came from
+// `git describe --tags --always --dirty` — i.e. a
+// `<base-version>-<N>-g<SHA>[-dirty]` shape where N is the count of
+// commits past the nearest release tag.
+//
+// This matters because strict SemVer §11 ranks `M.m.p-<any-pre>` BELOW
+// `M.m.p` — but git-describe's `-<N>-g<SHA>` suffix means the build is
+// AHEAD of the tag, the opposite semantic. Without special-casing this
+// shape, the upgrade flow would happily "upgrade" a dev build back to
+// the base tag (an actual downgrade), and the passive notice would
+// nag on every command run.
+func IsGitDescribeDev(s string) bool {
+	v, err := ParseSemver(s)
+	if err != nil {
+		return false
+	}
+	if v.PreRelease == "" {
+		return false
+	}
+	return gitDescribeSuffixRE.MatchString(v.PreRelease)
+}
+
+// UpgradeAvailable reports whether `latest` represents a real upgrade
+// from `current`, taking git-describe dev builds into account.
+//
+// For non-git-describe versions this is plain `latest.Compare(current) > 0`.
+//
+// For git-describe dev builds (see [IsGitDescribeDev]), we compare the
+// MAJOR.MINOR.PATCH cores only: a dev build `0.5.0-4-g356ee75-dirty`
+// is considered at-or-above `v0.5.0` (no spurious upgrade offer), but
+// `v0.5.1` or `v0.6.0` still register as upgrades.
+func UpgradeAvailable(current, latest Semver) bool {
+	if IsGitDescribeDev(current.Raw) {
+		curCore := Semver{Major: current.Major, Minor: current.Minor, Patch: current.Patch}
+		return latest.Compare(curCore) > 0
+	}
+	return latest.Compare(current) > 0
 }
 
 // Display returns a user-facing version string with any leading "v"

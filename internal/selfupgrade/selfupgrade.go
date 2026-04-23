@@ -112,7 +112,12 @@ func Check(ctx context.Context, opts Options) (*CheckResult, error) {
 		result.UpgradeAvail = curErr != nil && latestErr == nil
 		return result, nil
 	}
-	result.UpgradeAvail = latest.Compare(cur) > 0
+	// UpgradeAvailable accounts for git-describe dev builds (e.g.
+	// "0.5.0-4-g356ee75-dirty"): strict-semver Compare would rank the
+	// tagged release "newer" than a dev build that's 4 commits past it,
+	// which would cause `truestamp upgrade` to downgrade. The helper
+	// compares MAJOR.MINOR.PATCH cores only for that shape.
+	result.UpgradeAvail = UpgradeAvailable(cur, latest)
 	return result, nil
 }
 
