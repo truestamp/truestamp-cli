@@ -1,4 +1,4 @@
-// Copyright (c) 2021-2026 Truestamp, Inc.
+// Copyright (c) 2019-2026 Truestamp, Inc.
 // SPDX-License-Identifier: MIT
 
 // Package verify runs the end-to-end cryptographic verification pipeline

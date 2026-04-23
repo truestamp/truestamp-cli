@@ -1,4 +1,4 @@
-// Copyright (c) 2021-2026 Truestamp, Inc.
+// Copyright (c) 2019-2026 Truestamp, Inc.
 // SPDX-License-Identifier: MIT
 
 // Package hashing exposes the full set of cryptographic hash algorithms
