@@ -7,6 +7,173 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.6.0] — 2026-04-23
+
+### Added
+- **Proof format restructure.** The subject-kind discriminator moves
+  from the string `s.src` to a top-level integer `t` that identifies
+  both the subject and every external-commitment chain. The byte is
+  emitted as a 2-byte big-endian u16 right after the version byte in
+  the Ed25519 signing pre-image, so flipping `t` on a bundle without
+  re-signing breaks signature verification — real cryptographic
+  domain separation between subject kinds. Frozen type-code registry
+  (single source of truth at `internal/proof/ptype/ptype.go`):
+  - `10` block · `20` item · `30` entropy_nist · `31` entropy_stellar
+    · `32` entropy_bitcoin · `40` commitment_stellar · `41` commitment_bitcoin.
+  The wire field `v` remains `1`; this is a structure-only refresh,
+  not a new bundle version. Parser tightened: unknown `t` rejected,
+  `cx` required non-empty, block proofs must not carry `s` / `ip`,
+  non-block proofs must, every hash field decodes to the exact byte
+  count declared by the CDDL schema (32 for hashes, 4 for kid, 32
+  for pk, 64 for sig). Opaque failures three steps into the pipeline
+  now surface as "pk must be 32 bytes, got 31" at parse time.
+- **Beacons are first-class proof subjects (`t = 11`).** Beacon and
+  block (`t = 10`) share the same wire shape (no `s`, no `ip`,
+  `subject_hash == block_hash`) but are cryptographically distinct
+  because `t` is in the signed payload — a block bundle and a beacon
+  bundle over the same underlying block have different signatures.
+  Verify dispatches both through the same pipeline via the new
+  `ptype.IsBlockLikeSubject` / `ProofBundle.IsBlockLike()` predicates;
+  the report's Type row reads "Beacon" for `t=11`, "Block" for `t=10`.
+- **`truestamp beacon {latest,list,get,by-hash}`** — read-only client
+  for the Truestamp Beacons JSON:API (`GET /api/json/beacons/*`).
+  Shared `--json` / `--hash-only` / `--silent` flags, client-side
+  UUIDv7 and 64-hex validation before the network round-trip, and
+  typed sentinel errors (`Unauthorized`, `NotFound`, `BadRequest`,
+  `RateLimited`, `Server`) that preserve the server's JSON:API error
+  envelope. `truestamp beacon` alone defaults to `latest`.
+- **`truestamp download --type`** extended to the full six-value
+  enum matching the server's strict `/proof/generate` contract:
+  `item | entropy_nist | entropy_stellar | entropy_bitcoin | block | beacon`.
+  No `auto`, no bare `entropy`. Smart default from id shape: a ULID
+  id defaults to `--type item` (the only unambiguous case); a UUIDv7
+  id without `--type` fails fast listing the five valid choices,
+  since the server cannot infer the subtype from id alone. Downloaded
+  filenames use the `truestamp-<stem>-<id>.<ext>` convention with
+  hyphenated stems (`truestamp-entropy-nist-<id>.json`) while the
+  wire value stays underscored to match the server enum.
+- **`truestamp verify --type`** — assert the expected subject type
+  locally and remotely, defending against swapped-file confused-deputy
+  scenarios (block and beacon are wire-identical apart from the `t`
+  byte, so both verify cleanly on their own). Local mode surfaces a
+  mismatch as a "Subject Type" failure step in the report. Remote
+  mode forwards the value to the server's `/proof/verify type` arg;
+  the server rejects with HTTP 4xx + `meta.code=subject_type_mismatch`
+  if the posted bundle's `t` disagrees. When `--type` is omitted the
+  CLI infers it from the input filename / URL basename using the
+  download convention (`truestamp-beacon-019d…json` → beacon), prints
+  a faint stderr hint so the inference is traceable in transcripts,
+  and lets an explicit `--type` override. Inference goes through a
+  dedicated fuzz target (`FuzzInferTypeFromFilename`) with a 20-seed
+  corpus.
+- **Live entropy-source consistency checks.** The Entropy Source
+  verification step now contacts the canonical upstream source for
+  each subject type and byte-compares the bundle's stored value:
+  - NIST Beacon (`t=30`) — `beacon.nist.gov/beacon/2.0/chain/{c}/pulse/{p}`,
+    compare `outputValue` and `timeStamp`.
+  - Stellar ledger (`t=31`) — Horizon `/ledgers/{seq}` on the network
+    derived from the bundle's Stellar commitment; compare `hash` and
+    `closed_at`.
+  - Bitcoin block (`t=32`) — `blockstream.info/api/block/{hash}` pinned
+    to mainnet (the authoritative public-randomness source, even in
+    dev deployments that commit to regtest/testnet); compare `height`
+    and `time`.
+  Skipped under `--skip-external`.
+- **Dual Details + Verify URLs on every post-action card** (beacon,
+  download, create, and the verify report's Proof section). URL shape
+  comes from the shared `ui.SubjectDetailURL` / `ui.SubjectVerifyURL`
+  / `ui.BeaconDetailURL` / `ui.BeaconVerifyURL` helpers, routed
+  through one `publicWebBase` that strips a trailing `/api/json`.
+  URLs render unconditionally — localhost, 127.0.0.1, and plain-http
+  hosts too — so the links are visible when developing against a
+  local server.
+- `internal/beacons` — HTTP client for the Beacons JSON:API (Latest /
+  List / Get / ByHash) with typed errors, 429 `Retry-After` surfacing,
+  and a fuzz suite over the parser + UUIDv7 / 64-hex validators.
+
+### Changed
+- **Homegrown semver parser replaced with `golang.org/x/mod/semver`**
+  (the same package `go mod` uses). ~100 lines of parser + comparator
+  deleted; pre-release identifier comparison (numeric vs alphanumeric,
+  shortest-prefix rules from SemVer §11) now comes from battle-tested
+  upstream code. Public API (`Semver`, `ParseSemver`, `Compare`,
+  `Display`, `IsPreRelease`) is preserved. `go.mod` gains a direct
+  `golang.org/x/mod` dependency — already transitive, so effectively
+  zero footprint growth in real-world installs.
+- **Upgrade-check no longer mis-ranks git-describe dev builds.** A
+  locally-built `0.5.0-4-g356ee75-dirty` binary is conceptually
+  4 commits AHEAD of v0.5.0, but SemVer §11 ranks it as a pre-release
+  BELOW the tag. Two concrete fixes: new
+  `selfupgrade.IsGitDescribeDev` predicate regex-detects the
+  `<N>-g<SHA>[-dirty]` shape (accepts bare post-tag and post-release
+  suffixes, rejects plain pre-releases like `rc.1`); new
+  `selfupgrade.UpgradeAvailable` delegates to the normal comparator
+  but compares MAJOR.MINOR.PATCH cores only for dev builds, so
+  `0.5.0-4-g...-dirty → v0.5.0` reports no upgrade (would downgrade)
+  while → v0.5.1 / v0.6.0 / v1.0.0 still does. Both `truestamp
+  upgrade --check` and the passive upgrade-check nag now use this
+  predicate.
+- **Narrow-TTY layout fix.** `lipgloss.JoinVertical(Left, …)` pads
+  every line to the widest line across all inputs; one over-wide
+  section pushed every other row past the terminal width, which the
+  terminal then hard-wrapped, producing phantom blank lines after
+  every table row. Switched to `strings.Join(…, "\n")` at six call
+  sites (`internal/verify/presenter.go`, `cmd/config.go`,
+  `cmd/beacon.go`, `cmd/beacon_list.go`, `cmd/create.go`,
+  `cmd/download.go`). Each site carries a comment pointing back to
+  the root-cause note.
+- **Tight vertical spacing across every card.** `lipgloss.HiddenBorder()`
+  emits invisible top/bottom border rows that stack with explicit
+  `""` separators in `strings.Join`, doubling the apparent gap
+  between a section header and its first row. New
+  `ui.CompactTable()` helper returns a table with `HiddenBorder`
+  plus `BorderTop/Bottom/Left/Right(false)` — content is flush to
+  whatever comes before and after, and callers control inter-section
+  spacing explicitly. Applied at 16 call sites across `cmd/` and
+  `internal/verify/presenter.go`.
+- **Full-hash display everywhere.** Removed `truncateHash()` and its
+  seven call sites in `internal/verify/presenter.go`; diagnostic
+  contexts (hash-mismatch diffs, entropy-source mismatch, Bitcoin
+  fetch/height errors) now emit the full 64-char hex. Two different
+  hashes sharing prefix + suffix used to read as visually identical
+  — no longer. Commitments section already did, so this is the
+  convergence pass. `cmd/beacon_list.go` also drops its local
+  `truncateHashShort` in favour of TTY-aware width logic.
+- **Centralized timestamp truncation.** Promoted the package-local
+  `verify.truncateToSecond()` to exported `ui.TruncateToSecond()`,
+  applied at every human-display site (beacon list TIMESTAMP column,
+  beacon card, verify report Timeline section). `--json` output and
+  timestamp-extraction sites (`convert time`, `convert id`) keep full
+  microsecond precision; `verify` Stellar `closed_at` / Bitcoin `time`
+  mismatch errors keep full precision so a sub-second diff isn't
+  masked.
+- **Stellar `net` strict.** Only `"testnet"` and `"public"` accepted
+  — the previous tolerance of other values is gone.
+- **Legacy `s.kid == b.kid` equality check removed.** Legitimate key
+  rotation can produce divergent kids; subject-kid tampering is
+  still detected because `kid` is an input to the 0x13 / 0x23
+  composite hash.
+- Verify report groups renamed to match the authoritative spec:
+  Subject Data, Block Hash, Epoch Proof, Temporal Window,
+  Entropy Source.
+- Subject-card URL rows now render as rows of the SAME table as
+  labels (Details / Verify inherit the right-aligned-label column),
+  and the `→` arrow between label and URL was dropped as redundant
+  visual noise.
+- CBOR parser now accepts `t ∈ {10, 11}` for no-`s` / no-`ip` proofs
+  matching the JSON parser. Marshaller emits no `s` / `ip` for both.
+
+### Removed
+- `--type auto` and bare `--type entropy` on `download` — rejected
+  client-side before any I/O. The server's strict six-value enum is
+  the contract.
+- Old `s.src` string discriminator. All callers branch on the `t`
+  integer exclusively.
+
+### Security
+- Build pulls `golang.org/x/mod` direct; `task vuln-check` clean.
+- Dependabot: `github-actions` group updates ([#4](https://github.com/truestamp/truestamp-cli/pull/4)).
+
 ## [0.5.0] — 2026-04-21
 
 ### Added
@@ -473,7 +640,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   v0.1.0 is the first release of a standalone Go codebase; the two share
   nothing beyond the repository name.
 
-[Unreleased]: https://github.com/truestamp/truestamp-cli/compare/v0.5.0...HEAD
+[Unreleased]: https://github.com/truestamp/truestamp-cli/compare/v0.6.0...HEAD
+[0.6.0]: https://github.com/truestamp/truestamp-cli/releases/tag/v0.6.0
 [0.5.0]: https://github.com/truestamp/truestamp-cli/releases/tag/v0.5.0
 [0.4.0]: https://github.com/truestamp/truestamp-cli/releases/tag/v0.4.0
 [0.3.3]: https://github.com/truestamp/truestamp-cli/releases/tag/v0.3.3

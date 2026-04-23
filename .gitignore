@@ -15,3 +15,6 @@ coverage/
 
 # Task runner cache
 .task/
+
+# Claude Code local settings
+.claude/settings.local.json
