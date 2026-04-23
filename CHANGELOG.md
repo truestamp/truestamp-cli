@@ -7,14 +7,136 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.7.0] — 2026-04-23
+
+### Added
+- **`cosign_path` config setting.** Operators can pin the absolute
+  path to the `cosign` binary used by `truestamp upgrade` for
+  release-artifact signature verification, defending against
+  `$PATH` hijacking in hardened environments. Settable in
+  `config.toml` as `cosign_path = "/abs/path"`, via the
+  `TRUESTAMP_COSIGN_PATH` env var, or left empty for the default
+  `$PATH` lookup. Validated at config load (must be absolute; empty
+  is valid); existence and the executable bit are re-checked at
+  use time inside `selfupgrade.resolveCosignBinary`. Surfaces in
+  `truestamp config show` and is included in the first-generation
+  config template written by `truestamp config init`.
+- **HTTP `User-Agent` header** on every outbound request, stamped
+  centrally from `httpclient.SetUserAgent` as
+  `truestamp-cli/<version> (<os>/<arch>)`. Caller-set User-Agent
+  headers are preserved (the GitHub client's existing
+  `truestamp-cli-upgrade` UA is unchanged).
+- **`inputsrc.ErrNoTTY`.** The interactive file picker (`--file`
+  with no path) and URL prompt (`--url` with no URL) now fail fast
+  with a clear error when stdin is not a terminal, instead of
+  crashing inside the huh renderer.
+- **Parallel multi-file hashing.** `truestamp hash a b c …` uses a
+  bounded `runtime.NumCPU()` worker pool when three or more inputs
+  are supplied. Arg order is preserved in the output; stdin
+  sources force serial execution (pipes aren't concurrent-safe).
+- **`truestamp download --help` exit codes.** The help text now
+  explicitly documents exit-0 on success and exit-1 on any error.
+
 ### Changed
-- Release workflow: direct `gh pr merge --merge` on the homebrew-tap PR
-  instead of `gh pr merge --auto --merge`. The tap's `protect-main`
-  ruleset only blocks branch deletion and non-fast-forward pushes — no
-  required checks or reviews — so nothing gates mergeability, and
-  `--auto` rejected the instantly-clean PR with "Pull request is in
-  clean status". The simplification removes a manual merge step that
-  the 0.6.0 release tripped over.
+- **Self-upgrade tar extraction rejects non-regular entries.**
+  `internal/selfupgrade.ExtractBinary` now refuses tar entries
+  whose `Typeflag` is not `tar.TypeReg` (symlinks, hardlinks,
+  devices, etc.). GoReleaser tarballs only ship regular files; the
+  explicit rejection is defence in depth if archive provenance
+  ever broadens.
+- **`hasParentTraversal` simplified.** Removed an unused
+  `filepath.SplitList` loop (which splits on PATH separators, not
+  path segments, and whose body was empty anyway). The working
+  `filepath.Clean` round-trip plus `slices.Contains(segments, "..")`
+  check is retained and unchanged in behaviour.
+- **`http_timeout` validation.** Zero and negative durations are
+  now rejected at `config.Load` with a clear error. `http.Client`
+  treats those as "no timeout" which would silently disable the
+  guard.
+- **`config show` layout.** New "Cosign Path" row under the
+  General section, rendering `(auto: $PATH lookup)` when unset
+  and the pinned absolute path otherwise.
+- **`truestamp hash` worker pool.** The per-input hash path is
+  unchanged for a single file or a stdin source; it's the
+  multi-file case that now parallelises across cores.
+- Release workflow: direct `gh pr merge --merge` on the
+  homebrew-tap PR instead of `gh pr merge --auto --merge`. The
+  tap's `protect-main` ruleset only blocks branch deletion and
+  non-fast-forward pushes — no required checks or reviews — so
+  nothing gates mergeability, and `--auto` rejected the
+  instantly-clean PR with "Pull request is in clean status". The
+  simplification removes a manual merge step that the 0.6.0
+  release tripped over.
+
+### Fixed
+- **Keyring error chain.** `external.VerifyKeyring` now returns a
+  `keyringNetError` wrapper that keeps the user-facing classified
+  message as `.Error()` while `.Unwrap()` exposes the underlying
+  `net.DNSError`, `net.OpError`, `tls.CertificateVerificationError`,
+  `context.DeadlineExceeded`, etc. for `errors.Is`/`errors.As`
+  callers. Previously the classification `string` replaced the
+  chain entirely.
+- **Cosign `$PATH` lookup hardened.** `selfupgrade.VerifyCosign`
+  no longer falls back to `$PATH` when a pinned path is
+  configured — an operator who set `cosign_path` gets their
+  chosen binary or a clear error, never a silent $PATH
+  substitution. SHA-256 verification remains mandatory regardless
+  of cosign status; cosign stays best-effort unless
+  `TRUESTAMP_REQUIRE_COSIGN=1`.
+
+### Security
+- **Trust model documented for `external.VerifyKeyring`.** The
+  function's doc comment now states explicitly that the keyring's
+  authenticity is rooted entirely in TLS chain verification to
+  the configured `keyring-url` — there is no in-band signature
+  over the keyring payload — and spells out the implications for
+  operators choosing a `keyring_url` value.
+- **Defensive abs-path check on pinned cosign.** The path stored
+  in `cosign_path` / `TRUESTAMP_COSIGN_PATH` must be absolute;
+  relative paths are rejected at config load. This blocks a
+  subtle CWD-bait class where `cosign_path = "cosign"` would
+  otherwise resolve against whatever directory the CLI happened
+  to run from. The `gosec` G703 warning on the consequent
+  `os.Stat(pinned)` is suppressed with a targeted `#nosec` and
+  justification — the input has been reduced to an
+  operator-chosen absolute path on a CLI running with the user's
+  own privileges, and the stat result only gates whether we
+  return that exact path as a command to exec.
+
+### Developer experience / tests
+- **`t.Parallel()` added to 143 pure-logic unit tests** across
+  `internal/{encoding,hashing,tscrypto,bitcoin,proof,selfupgrade}`.
+  The two tests that use `t.Setenv` on shared keys
+  (`TestVerifyCosign_missingBinary_*`) stay serial. Full suite is
+  race-clean under `go test -race ./...`.
+- **New regression tests:**
+  `TestResolveCosignBinary_pinnedPath` (valid exec, missing,
+  directory, non-executable, relative — five cases),
+  `TestExtractBinary_rejectsSymlink`, `TestDefaultPickFile_NoTTY`,
+  `TestDefaultPromptURL_NoTTY`, `TestLoad_NonPositiveHTTPTimeout`
+  (both 0s and -1s), `TestLoad_CosignPathAbsolute` (four
+  sub-cases), `TestLoad_CosignPathFromEnv`,
+  `TestSetUserAgent_StampedOnOutboundRequests`.
+- **Shared convert-subcommand flag helper.** `cmd/convert.go`
+  exposes `addConvertCommonFlags(cmd)` so the five convert
+  children (`time`, `id`, `keyid`, `merkle`, `proof`) register
+  the shared `--json` and `--silent` flags through one call site,
+  keeping defaults and help text in sync. `convert proof` still
+  registers `--json` locally because its semantics ("JSON
+  envelope", not "raw JSON output") warrant a different help
+  string.
+- **Documentation hygiene.** `CLAUDE.md`'s fuzz-target count
+  updated 45 → 64 with a per-package breakdown (cmd:8,
+  tscrypto:11, proof:7, bitcoin:6, selfupgrade:5, encoding:5,
+  hashing:4, beacons:4, items:3, config:3, verify:2,
+  upgradecheck:2, inputsrc:2, external:2). `Taskfile.yml`'s
+  `fuzz-deep` description now spells out that reproducers the Go
+  fuzz engine writes under `testdata/fuzz/FuzzXxx/` MUST be
+  committed so `task test` replays them as permanent regression
+  corpus. `README.md` and `CLAUDE.md` document the new
+  `cosign_path` setting in their respective Global Flags tables,
+  and the README's Upgrading section calls out the pin option
+  alongside `TRUESTAMP_REQUIRE_COSIGN`.
 
 ## [0.6.0] — 2026-04-23
 
