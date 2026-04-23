@@ -219,24 +219,23 @@ func presentDownload(filename, format, id, typeFlag string, size int) {
 		Row("ID", id).
 		Row("Type", typeFlag)
 
+	// Append URL rows to the SAME table so they share the
+	// right-aligned-label / value column alignment. subjectDetailURL
+	// routes beacon downloads to /blocks/<id> because the id we have
+	// is the block id; the hash-keyed /beacons/<hash> form lives on
+	// the beacon listing card where the hash comes directly from the
+	// API response.
+	if detail := ui.SubjectDetailURL(appConfig.APIURL, typeFlag, id); detail != "" {
+		tbl = tbl.Row("Details", detail)
+	}
+	if verify := ui.SubjectVerifyURL(appConfig.APIURL, typeFlag, id); verify != "" {
+		tbl = tbl.Row("Verify", verify)
+	}
+
 	// Plain newline-join — see note in internal/verify/presenter.go
 	// Present(). Long filenames (e.g. truestamp-entropy-bitcoin-<uuidv7>.cbor)
 	// won't inflate every other table row on narrow terminals.
 	lipgloss.Println(strings.Join([]string{header, "", tbl.String()}, "\n"))
-
-	// Shareable public-web links for the subject. Both suppress against
-	// dev hosts (plain http / localhost / 127.0.0.1) so transcripts
-	// don't leak internal URLs. subjectDetailURL routes beacon
-	// downloads to /blocks/<id> (see the note on subjectDetailPath):
-	// the id we have on hand keys into the underlying block page —
-	// the hash-keyed /beacons/<hash> form lives on the beacon listing
-	// card where the hash is available from the API.
-	if detail := ui.SubjectDetailURL(appConfig.APIURL, typeFlag, id); detail != "" {
-		lipgloss.Println(ui.FaintStyle().Render("    Details → " + detail))
-	}
-	if verify := ui.SubjectVerifyURL(appConfig.APIURL, typeFlag, id); verify != "" {
-		lipgloss.Println(ui.FaintStyle().Render("    Verify  → " + verify))
-	}
 }
 
 func formatSize(size int) string {

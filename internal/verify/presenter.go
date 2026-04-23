@@ -103,23 +103,22 @@ func renderProofSection(r *Report) string {
 	tbl = tbl.Row("ID", r.SubjectID)
 	tbl = tbl.Row("Type", ptype.Humanize(subjectCodeForName(r.SubjectType)))
 
-	out := header + "\n" + tbl.String()
-
-	// Append two shareable public-web links (Details + Verify), same
-	// pattern as the beacon / download / create cards. r.APIURL is set
-	// by the verify cmd via opts.APIURL so we don't reach into a global
-	// from a pure-logic package. Empty APIURL → no links (e.g. in unit
-	// tests that exercise Present without a configured API host, or
-	// callers that deliberately suppress them).
+	// Append shareable public-web links as rows of the SAME table so
+	// they inherit the right-aligned-label / value column alignment.
+	// r.APIURL is set by the verify cmd via opts.APIURL so we don't
+	// reach into a global from a pure-logic package. Empty APIURL →
+	// no links (e.g. in unit tests that exercise Present without a
+	// configured API host).
 	if r.APIURL != "" && r.SubjectType != "" && r.SubjectID != "" {
 		if detail := ui.SubjectDetailURL(r.APIURL, r.SubjectType, r.SubjectID); detail != "" {
-			out += "\n" + ui.FaintStyle().Render("    Details → "+detail)
+			tbl = tbl.Row("Details", detail)
 		}
 		if verify := ui.SubjectVerifyURL(r.APIURL, r.SubjectType, r.SubjectID); verify != "" {
-			out += "\n" + ui.FaintStyle().Render("    Verify  → "+verify)
+			tbl = tbl.Row("Verify", verify)
 		}
 	}
-	return out
+
+	return header + "\n" + tbl.String()
 }
 
 // --- Subject Section ---

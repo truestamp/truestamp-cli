@@ -435,21 +435,22 @@ func presentCreate(resp *items.CreateItemResponse) {
 		tbl = tbl.Row("Team", resp.TeamID)
 	}
 
+	// Shareable public-web links as rows of the SAME table — they share
+	// the right-aligned-label / value column alignment. Note the verify
+	// link will render "not yet committed" until the item lands in a
+	// finalized block — still useful to surface the stable URL format
+	// so the user can come back later.
+	if detail := ui.SubjectDetailURL(appConfig.APIURL, "item", resp.ID); detail != "" {
+		tbl = tbl.Row("Details", detail)
+	}
+	if verify := ui.SubjectVerifyURL(appConfig.APIURL, "item", resp.ID); verify != "" {
+		tbl = tbl.Row("Verify", verify)
+	}
+
 	// Plain newline-join — see note in internal/verify/presenter.go
 	// Present(). lipgloss.JoinVertical pad-to-widest can cause phantom
 	// blank lines after every table row on narrow terminals.
 	lipgloss.Println(strings.Join([]string{header, tbl.String()}, "\n"))
-
-	// Shareable public-web links for the newly-created item. Note the
-	// verify link will render "not yet committed" until the item lands
-	// in a finalized block — still useful to surface the stable URL
-	// format so the user can check back later.
-	if detail := ui.SubjectDetailURL(appConfig.APIURL, "item", resp.ID); detail != "" {
-		lipgloss.Println(ui.FaintStyle().Render("    Details → " + detail))
-	}
-	if verify := ui.SubjectVerifyURL(appConfig.APIURL, "item", resp.ID); verify != "" {
-		lipgloss.Println(ui.FaintStyle().Render("    Verify  → " + verify))
-	}
 }
 
 func init() {

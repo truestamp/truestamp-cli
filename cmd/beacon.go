@@ -183,17 +183,22 @@ func renderBeaconCard(w io.Writer, apiURL string, b *beacons.Beacon) {
 		Row("ID", b.ID).
 		Row("Previous", b.PreviousHash)
 
+	// Append URL rows to the SAME table so they inherit the
+	// right-aligned-label / value-column alignment. Adding as separate
+	// faint-styled lines would leave the labels dangling at a fixed
+	// left indent and visually break the column grid.
+	if detail := ui.BeaconDetailURL(apiURL, b.Hash); detail != "" {
+		tbl = tbl.Row("Details", detail)
+	}
+	if verify := ui.BeaconVerifyURL(apiURL, b.ID); verify != "" {
+		tbl = tbl.Row("Verify", verify)
+	}
+
 	// Plain newline-join — see note in internal/verify/presenter.go
 	// Present(). lipgloss.JoinVertical pads every line to match the
 	// widest line, which can blow up vertical spacing when a long line
 	// forces terminal wrap on every row.
 	fmt.Fprintln(w, strings.Join([]string{header, "", tbl.String()}, "\n"))
-	if detail := ui.BeaconDetailURL(apiURL, b.Hash); detail != "" {
-		fmt.Fprintln(w, ui.FaintStyle().Render("    Details → "+detail))
-	}
-	if verify := ui.BeaconVerifyURL(apiURL, b.ID); verify != "" {
-		fmt.Fprintln(w, ui.FaintStyle().Render("    Verify  → "+verify))
-	}
 }
 
 // timestampWithRelative appends a coarse "N minutes ago" hint to an ISO
