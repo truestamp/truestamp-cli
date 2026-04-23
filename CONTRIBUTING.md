@@ -126,29 +126,32 @@ The PR flow (introduced in 0.3.0) preserves an audit trail of every cask update;
 
 - Repository secret `HOMEBREW_TAP_GITHUB_TOKEN` on `truestamp/truestamp-cli`. **This must be a fine-grained PAT scoped to `truestamp/homebrew-tap` only, with `Contents: Read and write` + `Pull requests: Read and write`.** Do not use a classic `repo`-scoped PAT — the classic scope is broader than the release pipeline needs and should not be reintroduced. The `Pull requests` scope is what lets GoReleaser open the cask update PR and what lets the follow-up step merge it.
 - `mise install` locally so `task release-check` and `task release-snapshot` work for pre-flight testing.
+- `protect-main` ruleset (repo Settings → Rules → Rulesets). Enforces linear history, blocks force-pushes and deletions, and **requires `Test (ubuntu-latest)` + `Test (macos-latest)` green on the exact SHA** before anything merges to `main`. The release flow below routes the CHANGELOG commit through a PR specifically to satisfy that rule. Release tags then trigger a second CI re-run (via `release.yml`'s `workflow_call` into `ci.yml`) before GoReleaser starts — two layers of "tests green on this SHA" before artifacts publish.
 
 ### Pre-flight checklist
 
 ```sh
 # Working copy is clean and on top of the latest origin/main.
 jj git fetch
-jj log -r 'main@origin..@'   # expect 0 commits not on origin
+jj log -r 'main@origin..@'   # expect the empty WC change, nothing else
 
 # Full quality gate — race detector + active fuzz + vuln scan + all-platform build.
 # Takes ~3-5 minutes; use this at the release boundary, not for every commit.
 task precommit-full
 
 # GoReleaser can build the full artifact set with ldflags intact.
-task release-check           # validates .goreleaser.yaml
-task release-snapshot        # rm -rf dist/ && goreleaser release --snapshot --clean
+task release-check           # validates .goreleaser.yaml (<1s)
+task release-snapshot        # rm -rf dist/ && goreleaser release --snapshot --clean --skip=sign,publish
 
 # Inspect the generated cask before tagging.
 cat dist/homebrew/Casks/truestamp-cli.rb
 ```
 
+`release-snapshot` skips `sign` and `publish` because cosign keyless signing requires a GitHub OIDC token (only available inside the release workflow), and no dry-run should touch the GitHub Release API. Expect the `version` in the rendered cask to read `X.Y.Z-SNAPSHOT-<shortsha>` — that gets replaced with the real tag during the actual release.
+
 ### Update `CHANGELOG.md`
 
-Move entries from `## [Unreleased]` into a new section for the version you're about to cut. Use today's date and the Keep-a-Changelog groupings. Add a matching link reference at the bottom.
+Move entries from `## [Unreleased]` into a new section for the version you're about to cut. Use today's date and the Keep-a-Changelog groupings.
 
 ```md
 ## [Unreleased]
@@ -159,22 +162,43 @@ Move entries from `## [Unreleased]` into a new section for the version you're ab
 - ...
 ```
 
-### Commit and push the CHANGELOG
+### Open a release PR for the CHANGELOG commit
 
-This repo is a jj colocated workspace. Commit the CHANGELOG edit as a normal change and advance `main`:
+The `protect-main` ruleset (see Prerequisites) requires CI checks to pass on the exact SHA before `main` accepts it, so the release commit must land via PR — direct `jj git push --bookmark main` is rejected with `GH013: Repository rule violations found`. This is by design: the PR gives CI a chance to run on the SHA that's about to be tagged.
 
 ```sh
-jj describe -m "Prep release vX.Y.Z"
-jj bookmark move main --to @
-jj git push --bookmark main
+# Commit the CHANGELOG edit.
+jj describe -m "Release vX.Y.Z"
+
+# Push to a release branch instead of directly to main.
+jj bookmark create release-vX.Y.Z -r @
+jj git push --bookmark release-vX.Y.Z
+
+# Open the PR. Keep the title exactly "Release vX.Y.Z" — it's what
+# the changelog and commit history expect.
+gh pr create --base main --head release-vX.Y.Z \
+  --title "Release vX.Y.Z" \
+  --body "See CHANGELOG.md for the full release notes."
+
+# Wait for CI to go green on the PR, then merge via rebase so the
+# signed tag below points at the exact CHANGELOG commit (merge commits
+# would introduce a different SHA, which the linear-history rule also
+# rejects anyway).
+gh pr checks <pr> --watch --repo truestamp/truestamp-cli
+gh pr merge <pr> --rebase --delete-branch --repo truestamp/truestamp-cli
+
+# Sync jj to the post-merge main.
+jj git fetch
+jj bookmark set main -r main@origin
 ```
 
 ### Tag and push
 
-jj does not create annotated tags itself — use the git CLI in the same working copy (the jj repo is colocated with `.git/`):
+jj does not create annotated tags itself — use the git CLI in the same working copy (the jj repo is colocated with `.git/`). Run `git tag -v` afterwards to confirm the tag was signed; the repo has `tag.gpgsign=true` + `user.signingkey` set, so plain `git tag -a` auto-signs.
 
 ```sh
 git tag -a vX.Y.Z -m "vX.Y.Z - one-line summary of the headline change"
+git tag -v vX.Y.Z   # expect "Good 'git' signature ..." — abort if unsigned.
 git push origin vX.Y.Z
 ```
 
@@ -182,11 +206,19 @@ The tag must point at the exact commit that `main` now holds, and must start wit
 
 ### Watch the release
 
+The tag push triggers `release.yml`, which runs two top-level jobs:
+
+1. `ci` — `workflow_call` into `ci.yml`, re-running the full lint + test matrix on the tagged SHA. If this fails, nothing publishes.
+2. `goreleaser` (needs: ci) — runs `goreleaser check`, then a `--snapshot --clean` dry-run (local cross-compile + SBOM + cask template render, surfaces platform-specific breakage before the real publish), then the real `goreleaser release --clean`, then the homebrew-tap PR merge, then build-provenance attestation.
+
+Total runtime: ~7-9 minutes (CI gate 3-5 min + snapshot ~1 min + real release ~2-3 min).
+
 ```sh
 run_id=$(gh run list --workflow=release.yml --limit 1 --json databaseId -q '.[].databaseId')
 gh run watch "$run_id" --exit-status
 
-# Verify artifacts landed.
+# Verify artifacts landed (expect 14 assets: checksums.txt +
+# checksums.txt.sigstore + 6 platform archives + 6 SBOMs).
 gh release view vX.Y.Z --json tagName,assets -q '{tag: .tagName, assets: (.assets | length)}'
 
 # Confirm the tap PR merged and none are dangling.
