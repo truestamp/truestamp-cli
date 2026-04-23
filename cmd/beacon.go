@@ -13,8 +13,6 @@ import (
 	"strings"
 	"time"
 
-	lipgloss "charm.land/lipgloss/v2"
-	"charm.land/lipgloss/v2/table"
 	"github.com/spf13/cobra"
 	"github.com/truestamp/truestamp-cli/internal/beacons"
 	"github.com/truestamp/truestamp-cli/internal/ui"
@@ -168,12 +166,17 @@ func renderBeacon(cmd *cobra.Command, b *beacons.Beacon, jsonOut, hashOnly, sile
 	return nil
 }
 
-// renderBeaconCard prints the 4-field human-readable card. The "Verify"
-// link is suppressed under --silent and --json (both handled upstream).
+// renderBeaconCard prints the 4-field human-readable card followed by
+// two public-web links (suppressed under --silent / --json upstream):
+//
+//	Details — the beacon detail page, keyed by hash (useful when a
+//	          user has only the hash, e.g. printed on a receipt)
+//	Verify  — the verify page, keyed by the typed sub-path
+//	          /verify/beacon/<id> (the shareable "go verify this"
+//	          URL format introduced in the t=11 cutover)
 func renderBeaconCard(w io.Writer, apiURL string, b *beacons.Beacon) {
 	header := ui.AccentBoldStyle().Render("  Beacon")
-	tbl := table.New().
-		Border(lipgloss.HiddenBorder()).
+	tbl := ui.CompactTable().
 		StyleFunc(ui.LabelValueStyleFunc()).
 		Row("Hash", b.Hash).
 		Row("Timestamp", timestampWithRelative(b.Timestamp)).
@@ -185,8 +188,11 @@ func renderBeaconCard(w io.Writer, apiURL string, b *beacons.Beacon) {
 	// widest line, which can blow up vertical spacing when a long line
 	// forces terminal wrap on every row.
 	fmt.Fprintln(w, strings.Join([]string{header, "", tbl.String()}, "\n"))
-	if link := beaconWebURL(apiURL, b.Hash); link != "" {
-		fmt.Fprintln(w, ui.FaintStyle().Render("    Verify → "+link))
+	if detail := ui.BeaconDetailURL(apiURL, b.Hash); detail != "" {
+		fmt.Fprintln(w, ui.FaintStyle().Render("    Details → "+detail))
+	}
+	if verify := ui.BeaconVerifyURL(apiURL, b.ID); verify != "" {
+		fmt.Fprintln(w, ui.FaintStyle().Render("    Verify  → "+verify))
 	}
 }
 
@@ -222,22 +228,10 @@ func humanizeAge(d time.Duration) string {
 	}
 }
 
-// beaconWebURL derives the public web URL for a beacon hash from the
-// configured API URL. Returns "" when the API URL looks non-standard
-// (e.g. a dev host), in which case the card omits the link. We don't
-// emit localhost or internal-looking URLs as "Verify" links.
-func beaconWebURL(apiURL, hash string) string {
-	// Trim the /api/json suffix if present and keep https://<host>.
-	base := strings.TrimSuffix(apiURL, "/")
-	base = strings.TrimSuffix(base, "/api/json")
-	if !strings.HasPrefix(base, "https://") {
-		return ""
-	}
-	if strings.Contains(base, "localhost") || strings.Contains(base, "127.0.0.1") {
-		return ""
-	}
-	return base + "/beacons/" + hash
-}
+// URL helpers (publicWebBase, beaconDetailURL, beaconVerifyURL,
+// subjectDetailURL, subjectVerifyURL) all live in cmd/weburls.go —
+// they're shared across the beacon card, download card, and create
+// card, so centralization avoids drift.
 
 // emitJSONMarshal is a small shim so subcommands can render either a
 // single beacon or a list via emitJSON() (shared with codec subcommands).

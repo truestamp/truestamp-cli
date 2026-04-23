@@ -95,7 +95,7 @@ Settings are resolved in priority order (highest priority last):
 | `--file [path]` | | | Proof file path; interactive picker if no path given |
 | `--url [url]` | | | Download proof from URL; interactive prompt if no URL given |
 | `--hash` | | | Expected claims hash (hex) to compare against proof |
-| `--type` | | | Assert expected subject type: `item` \| `entropy_nist` \| `entropy_stellar` \| `entropy_bitcoin` \| `block` \| `beacon`. Local mode: mismatch surfaces as a "Subject Type" failure step. Remote mode: the value is forwarded to the server's `/proof/verify type` arg; the server rejects with HTTP 4xx + `meta.code=subject_type_mismatch` if the posted bundle's `t` disagrees. |
+| `--type` | | | Assert expected subject type: `item` \| `entropy_nist` \| `entropy_stellar` \| `entropy_bitcoin` \| `block` \| `beacon`. Local mode: mismatch surfaces as a "Subject Type" failure step. Remote mode: the value is forwarded to the server's `/proof/verify type` arg; the server rejects with HTTP 4xx + `meta.code=subject_type_mismatch` if the posted bundle's `t` disagrees. **Smart default**: when `--type` is omitted and the input filename / URL basename matches the `truestamp-<stem>-<id>.<ext>` download convention (e.g. `truestamp-beacon-019d….json`), the stem is translated back to the matching wire type (`entropy-nist` → `entropy_nist` etc.) and used as if the flag had been passed. A faint stderr hint `(inferred --type X from filename "…")` is emitted so a Subject Type mismatch arising from a renamed / swapped file is traceable to the inference. Pass `--type` explicitly to override. |
 | `--silent` / `-s` | `TRUESTAMP_VERIFY_SILENT` | `false` | No output, exit code only |
 | `--json` | `TRUESTAMP_VERIFY_JSON` | `false` | Output results as JSON |
 | `--skip-external` | `TRUESTAMP_VERIFY_SKIP_EXTERNAL` | `false` | Skip all external API verification |
@@ -133,6 +133,19 @@ When `--type` is omitted the CLI applies a **client-side smart default** based o
 **Filename stem convention**: wire values use underscores (`entropy_nist`) to match the server enum; filename stems translate `_` → `-` for readable filenames (`truestamp-entropy-nist-<id>.json`). Other types (`item`, `block`, `beacon`) contain no underscores and pass through unchanged.
 
 **Pre-flight id-shape validation**: `--type item` requires a ULID; every other type requires a UUIDv7. Mismatches are caught client-side before the network call with a targeted error instead of a generic server 422.
+
+**Post-download card** emits two public-web hint lines:
+
+- `Details → {host}/<subject-path>/<id>` — the subject's own detail page (`/items/`, `/entropy/`, `/blocks/`). Beacon downloads route to `/blocks/<id>` because the hash-keyed `/beacons/<hash>` form requires computing the block hash from bundle bytes; the beacon listing card uses that form instead since it has the hash directly from the API.
+- `Verify → {host}/verify/<type>/<id>` — the typed-sub-path verify landing page from the t=11 cutover. Same URL format the `create` card and the `verify` report emit.
+
+### Post-action card URL shape
+
+The beacon, download, create, and verify cards all share the `ui.SubjectDetailURL` / `ui.SubjectVerifyURL` / `ui.BeaconDetailURL` / `ui.BeaconVerifyURL` helpers in [`internal/ui/weburls.go`](internal/ui/weburls.go). Every helper goes through one `publicWebBase` function that strips a trailing `/api/json` and emits the URL unconditionally — localhost, 127.0.0.1, and plain-http hosts all render URLs so developers can click through against their dev server. The small tradeoff (a dev-host URL may appear in a shared transcript) is accepted by design.
+
+### Card vertical spacing
+
+Every post-action card uses `ui.CompactTable()` which returns a lipgloss table with `HiddenBorder` plus `BorderTop/Bottom/Left/Right(false)`. Without the false flags, HiddenBorder still emits invisible top/bottom border rows that stack with section separators and double the apparent vertical gap between a section header and its first row. Using `CompactTable` keeps the table content flush to whatever precedes/follows it, letting callers control inter-section spacing explicitly with `""` elements in `strings.Join`.
 
 ### Encode / Decode / JCS Flags
 
@@ -219,7 +232,7 @@ Block (`t=10`) and beacon (`t=11`) share the same wire shape — no `s` key, no 
 
 A **beacon** is now its own subject type code (`t=11`) alongside plain block (`t=10`). Both share the structural shape above but are cryptographically distinct: the `t` byte lives in the signing payload, so a block and beacon bundle for the same underlying block have different signatures. Flipping `t` from `10` to `11` on a bundle without re-signing breaks verification.
 
-- `truestamp beacon {latest|list|get|by-hash}` reads the compact metadata projection `{id, hash, timestamp, previous_hash}` at `GET /api/json/beacons/*` (see `truestamp-v2/docs/BEACONS_API_IMPLEMENTERS_GUIDE.md`).
+- `truestamp beacon {latest|list|get|by-hash}` reads the compact metadata projection `{id, hash, timestamp, previous_hash}` at `GET /api/json/beacons/*` (see `truestamp-v2/docs/BEACONS_API_IMPLEMENTERS_GUIDE.md`). The single-beacon card prints two shareable public-web links: `Details → {host}/beacons/<hash>` (the beacon detail page keyed by hash) and `Verify → {host}/verify/beacon/<id>` (the typed-sub-path verify landing page introduced in the t=11 cutover). URLs render unconditionally — localhost and plain-http hosts too — so the links are visible when developing against a local server.
 - `truestamp download --type beacon <uuidv7>` fetches a full `t=11` proof bundle labelled `truestamp-beacon-*` on disk. The wire request sends `data.type = "beacon"` verbatim; the server returns a `t=11` bundle that self-describes.
 - `truestamp verify` dispatches beacon proofs through the same pipeline as block proofs (no subject-hash derivation, no inclusion-proof walk, `subject_hash == block_hash`). The Type row of the report reads "Beacon" for `t=11` and "Block" for `t=10`.
 

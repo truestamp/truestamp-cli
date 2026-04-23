@@ -9,10 +9,13 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"path"
+	"path/filepath"
 	"strings"
 
 	"github.com/spf13/cobra"
 	"github.com/truestamp/truestamp-cli/internal/inputsrc"
+	"github.com/truestamp/truestamp-cli/internal/ui"
 	"github.com/truestamp/truestamp-cli/internal/verify"
 )
 
@@ -114,6 +117,20 @@ Exit code 0 on success, 1 on verification failure.`,
 			displayName = "(stdin)"
 		}
 
+		// Smart default: if the user didn't pass --type explicitly and the
+		// input looks like a file or URL whose basename matches the
+		// `truestamp-<stem>-<id>.<ext>` download-filename convention,
+		// infer the expected type from the stem. A faint stderr hint is
+		// printed below (unless --silent/--json) so the user knows the
+		// assertion came from the filename if they see a mismatch.
+		inferredType := ""
+		if typeFlag == "" {
+			inferredType = inferTypeFromFilename(displayName)
+			if inferredType != "" {
+				typeFlag = inferredType
+			}
+		}
+
 		var report *verify.Report
 
 		if cfg.Verify.Remote {
@@ -149,6 +166,7 @@ Exit code 0 on success, 1 on verification failure.`,
 		} else {
 			opts := verify.Options{
 				KeyringURL:          cfg.KeyringURL,
+				APIURL:              cfg.APIURL,
 				SkipExternal:        cfg.Verify.SkipExternal,
 				SkipSignatures:      cfg.Verify.SkipSignatures,
 				ExpectedHash:        hashFlag,
@@ -176,6 +194,17 @@ Exit code 0 on success, 1 on verification failure.`,
 			verify.Present(report)
 		}
 
+		// After the report renders, drop a faint hint to stderr if we
+		// derived --type from the filename. This makes Subject Type
+		// failures that come from filename mismatch easy to diagnose
+		// ("I didn't pass --type, why does this report say mismatch?").
+		// Suppressed under --silent / --json to keep machine output clean.
+		if inferredType != "" && !cfg.Verify.Silent && !cfg.Verify.JSON {
+			fmt.Fprintln(cmd.ErrOrStderr(), ui.FaintStyle().Render(
+				fmt.Sprintf("  (inferred --type %s from filename %q; pass --type explicitly to override)",
+					inferredType, path.Base(filepath.ToSlash(displayName)))))
+		}
+
 		if !report.Passed() {
 			if cfg.Verify.Silent {
 				return errSilentFail
@@ -184,6 +213,57 @@ Exit code 0 on success, 1 on verification failure.`,
 		}
 		return nil
 	},
+}
+
+// filenameStems maps the hyphenated filename stems emitted by
+// `truestamp download` back to the underscored wire `type` values that
+// /proof/{generate,verify} accepts. Hyphen-vs-underscore is a
+// client-side cosmetic choice (see the note on downloadStem); this
+// reversal is its inverse.
+var filenameStems = map[string]string{
+	"item":            "item",
+	"entropy-nist":    "entropy_nist",
+	"entropy-stellar": "entropy_stellar",
+	"entropy-bitcoin": "entropy_bitcoin",
+	"block":           "block",
+	"beacon":          "beacon",
+}
+
+// inferTypeFromFilename returns the canonical --type value implied by
+// a filename following the `truestamp-<stem>-<id>.<ext>` convention
+// emitted by `truestamp download`. Returns "" when the filename doesn't
+// match (caller leaves --type unset, verify runs without assertion).
+//
+// Accepts absolute paths, relative paths, URLs, or bare basenames —
+// only the last path segment is consulted. The extension is stripped
+// before the stem search so `.json` and `.cbor` both work.
+func inferTypeFromFilename(name string) string {
+	if name == "" {
+		return ""
+	}
+	// Reduce to last path segment (handles / and \ uniformly via path.Base
+	// after normalizing, and also handles URLs where the last segment is
+	// the filename).
+	base := path.Base(filepath.ToSlash(name))
+	// Strip ".json" / ".cbor" (and any other single extension for future-proof).
+	if dot := strings.LastIndex(base, "."); dot > 0 {
+		base = base[:dot]
+	}
+	const prefix = "truestamp-"
+	if !strings.HasPrefix(base, prefix) {
+		return ""
+	}
+	rest := base[len(prefix):]
+	// Match the longest stem that prefixes rest (entropy-nist before
+	// entropy-*, so a simple `stem+"-"` HasPrefix over each known stem
+	// works; the map iterates in arbitrary order so we require both a
+	// prefix match AND that the next char is "-" (the stem/id separator).
+	for stem, wireType := range filenameStems {
+		if strings.HasPrefix(rest, stem+"-") {
+			return wireType
+		}
+	}
+	return ""
 }
 
 // writeTempProof writes proof data to a temporary file for remote verification.

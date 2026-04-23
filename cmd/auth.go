@@ -14,7 +14,6 @@ import (
 
 	"charm.land/huh/v2"
 	lipgloss "charm.land/lipgloss/v2"
-	"charm.land/lipgloss/v2/table"
 	"github.com/spf13/cobra"
 	"github.com/truestamp/truestamp-cli/internal/config"
 	"github.com/truestamp/truestamp-cli/internal/httpclient"
@@ -177,14 +176,13 @@ func runAuthStatus(cmd *cobra.Command, _ []string) error {
 
 	labelStyle := lipgloss.NewStyle().Foreground(ui.Label)
 
-	t := table.New().
+	t := ui.CompactTable().
+		StyleFunc(configStyleFunc).
 		Row("Config File", config.ConfigFilePath()).
 		Row("API URL", apiURL).
 		Row("Check URL", checkURL).
 		Row("API Key", maskAPIKey(cfg.APIKey)).
-		Row("Team In Scope", teamInScope(cfg.Team)).
-		Border(lipgloss.HiddenBorder()).
-		StyleFunc(configStyleFunc)
+		Row("Team In Scope", teamInScope(cfg.Team))
 
 	fmt.Fprintln(out, ui.HeaderBox("Truestamp Auth Status", "Validating with the API"))
 	fmt.Fprintln(out)

@@ -67,17 +67,18 @@ func Generate(apiURL, apiKey, team, id, subjectType, format string) ([]byte, err
 }
 
 // GenerateCtx requests a proof bundle from the Truestamp API for the given
-// subject ID. subjectType selects the subject class on the server:
-//   - ""       — omit the field; server uses its default ("auto")
-//   - "auto"   — server detects from id (ULID → item; UUIDv7 → block, then entropy)
-//   - "item" | "entropy" | "block" — explicit server-side routing
+// subject ID. subjectType MUST be one of the six canonical values on the
+// server's /proof/generate type enum (empty string omits the field, which
+// the server rejects under the post-cutover schema — callers should always
+// pass an explicit value):
+//
+//	item | entropy_nist | entropy_stellar | entropy_bitcoin | block | beacon
+//
+// "auto" and bare "entropy" were removed when the server cut over to the
+// strict enum alongside t=11 beacon support. Use the matching subtype.
 //
 // format is "json" or "cbor". Returns raw bytes ready to write to a file
 // (pretty JSON or decoded CBOR binary). ctx cancels the in-flight request.
-//
-// NOTE: the server does NOT currently accept subjectType == "beacon". Callers
-// wanting a beacon-labelled artefact pass "block" here and handle the beacon
-// labelling themselves (see cmd/download.go).
 func GenerateCtx(ctx context.Context, apiURL, apiKey, team, id, subjectType, format string) ([]byte, error) {
 	dataFields := map[string]string{"id": id}
 	if format != "" && format != "json" {

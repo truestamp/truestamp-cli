@@ -16,7 +16,6 @@ import (
 	"time"
 
 	lipgloss "charm.land/lipgloss/v2"
-	"charm.land/lipgloss/v2/table"
 	"github.com/spf13/cobra"
 	"github.com/truestamp/truestamp-cli/internal/inputsrc"
 	"github.com/truestamp/truestamp-cli/internal/items"
@@ -414,8 +413,7 @@ func printCreateJSON(resp *items.CreateItemResponse) error {
 func presentCreate(resp *items.CreateItemResponse) {
 	header := ui.AccentBoldStyle().Render("  Item Created")
 
-	tbl := table.New().
-		Border(lipgloss.HiddenBorder()).
+	tbl := ui.CompactTable().
 		StyleFunc(ui.LabelValueStyleFunc()).
 		Row("ID", resp.ID).
 		Row("Name", resp.Name)
@@ -441,6 +439,17 @@ func presentCreate(resp *items.CreateItemResponse) {
 	// Present(). lipgloss.JoinVertical pad-to-widest can cause phantom
 	// blank lines after every table row on narrow terminals.
 	lipgloss.Println(strings.Join([]string{header, tbl.String()}, "\n"))
+
+	// Shareable public-web links for the newly-created item. Note the
+	// verify link will render "not yet committed" until the item lands
+	// in a finalized block — still useful to surface the stable URL
+	// format so the user can check back later.
+	if detail := ui.SubjectDetailURL(appConfig.APIURL, "item", resp.ID); detail != "" {
+		lipgloss.Println(ui.FaintStyle().Render("    Details → " + detail))
+	}
+	if verify := ui.SubjectVerifyURL(appConfig.APIURL, "item", resp.ID); verify != "" {
+		lipgloss.Println(ui.FaintStyle().Render("    Verify  → " + verify))
+	}
 }
 
 func init() {

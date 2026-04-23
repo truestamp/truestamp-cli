@@ -151,6 +151,7 @@ func RunRemote(filename string, opts RemoteOptions) (*Report, error) {
 	}
 
 	report := mapToReport(filename, int64(len(data)), envelope.Result)
+	report.APIURL = opts.APIURL // for presenter's subject-detail + verify web links
 
 	// Extract display data from the already-parsed proof bundle
 	populateFromBundle(report, bundle)

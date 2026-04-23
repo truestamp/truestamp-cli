@@ -97,14 +97,29 @@ func renderResultBanner(_ *Report) string {
 func renderProofSection(r *Report) string {
 	header := ui.SectionHeader("Proof")
 
-	tbl := table.New().
-		Border(lipgloss.HiddenBorder()).
+	tbl := ui.CompactTable().
 		StyleFunc(metadataStyleFunc)
 
 	tbl = tbl.Row("ID", r.SubjectID)
 	tbl = tbl.Row("Type", ptype.Humanize(subjectCodeForName(r.SubjectType)))
 
-	return header + "\n" + tbl.String()
+	out := header + "\n" + tbl.String()
+
+	// Append two shareable public-web links (Details + Verify), same
+	// pattern as the beacon / download / create cards. r.APIURL is set
+	// by the verify cmd via opts.APIURL so we don't reach into a global
+	// from a pure-logic package. Empty APIURL → no links (e.g. in unit
+	// tests that exercise Present without a configured API host, or
+	// callers that deliberately suppress them).
+	if r.APIURL != "" && r.SubjectType != "" && r.SubjectID != "" {
+		if detail := ui.SubjectDetailURL(r.APIURL, r.SubjectType, r.SubjectID); detail != "" {
+			out += "\n" + ui.FaintStyle().Render("    Details → "+detail)
+		}
+		if verify := ui.SubjectVerifyURL(r.APIURL, r.SubjectType, r.SubjectID); verify != "" {
+			out += "\n" + ui.FaintStyle().Render("    Verify  → "+verify)
+		}
+	}
+	return out
 }
 
 // --- Subject Section ---
@@ -135,8 +150,7 @@ func renderBlockSubject(r *Report) string {
 		subtitle = ui.FaintStyle().Render("  The subject is a Truestamp beacon — a finalized block exposed as a \"proof of life\" commitment (t=11 on the wire).")
 	}
 
-	tbl := table.New().
-		Border(lipgloss.HiddenBorder()).
+	tbl := ui.CompactTable().
 		StyleFunc(metadataStyleFunc)
 
 	tbl = tbl.Row("Block ID", r.SubjectID)
@@ -152,8 +166,7 @@ func renderItemSubject(r *Report) string {
 	header := ui.SectionHeader("Item Claims")
 	subtitle := ui.FaintStyle().Render("  Claims made by the submitter. Not independently verified by Truestamp.")
 
-	tbl := table.New().
-		Border(lipgloss.HiddenBorder()).
+	tbl := ui.CompactTable().
 		StyleFunc(metadataStyleFunc)
 
 	if r.Claims.Name != "" {
@@ -190,8 +203,7 @@ func renderEntropySubject(r *Report) string {
 	header := ui.SectionHeader("Entropy Observation")
 	subtitle := ui.FaintStyle().Render("  Verifiable entropy observed from a trusted external source.")
 
-	tbl := table.New().
-		Border(lipgloss.HiddenBorder()).
+	tbl := ui.CompactTable().
 		StyleFunc(metadataStyleFunc)
 
 	tbl = tbl.Row("Source", r.EntropySubject.Source)
@@ -296,8 +308,7 @@ func renderTimeline(r *Report) string {
 
 	header := ui.SectionHeader("Timeline")
 
-	tbl := table.New().
-		Border(lipgloss.HiddenBorder()).
+	tbl := ui.CompactTable().
 		StyleFunc(metadataStyleFunc)
 
 	// Apply ui.TruncateToSecond at every display site — idempotent if the
@@ -337,8 +348,7 @@ func renderCommitments(r *Report) string {
 
 	header := ui.SectionHeader("Commitments")
 
-	tbl := table.New().
-		Border(lipgloss.HiddenBorder()).
+	tbl := ui.CompactTable().
 		StyleFunc(metadataStyleFunc)
 
 	// Truestamp chain info
@@ -394,8 +404,7 @@ func formatCommitmentTimestamp(ts string) string {
 // --- Hash Mismatch Detail ---
 
 func renderHashMismatchDetail(r *Report) string {
-	tbl := table.New().
-		Border(lipgloss.HiddenBorder()).
+	tbl := ui.CompactTable().
 		StyleFunc(metadataStyleFunc)
 
 	// Show full 64-char hashes — the user is here specifically to spot

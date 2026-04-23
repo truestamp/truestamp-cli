@@ -182,7 +182,8 @@ type Report struct {
 	FileSize        int64
 	ProofVersion    int
 	SubjectID       string
-	SubjectType     string // "item" or "entropy"
+	SubjectType     string // ptype.Name(bundle.T): "item" | "entropy_nist" | "entropy_stellar" | "entropy_bitcoin" | "block" | "beacon"
+	APIURL          string // the resolved API base URL, used by the presenter to emit subject-detail + verify web links
 	GeneratedAt     string
 	Source          string // raw entropy source identifier
 	Temporal        TemporalSummary

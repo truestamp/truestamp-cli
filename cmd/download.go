@@ -10,7 +10,6 @@ import (
 	"strings"
 
 	lipgloss "charm.land/lipgloss/v2"
-	"charm.land/lipgloss/v2/table"
 	"github.com/spf13/cobra"
 	"github.com/truestamp/truestamp-cli/internal/proof"
 	"github.com/truestamp/truestamp-cli/internal/ui"
@@ -213,8 +212,7 @@ func presentDownload(filename, format, id, typeFlag string, size int) {
 
 	formatDisplay := strings.ToUpper(format)
 
-	tbl := table.New().
-		Border(lipgloss.HiddenBorder()).
+	tbl := ui.CompactTable().
 		StyleFunc(ui.LabelValueStyleFunc()).
 		Row("File", filename).
 		Row("Format", fmt.Sprintf("%s (%s bytes)", formatDisplay, formatSize(size))).
@@ -225,6 +223,20 @@ func presentDownload(filename, format, id, typeFlag string, size int) {
 	// Present(). Long filenames (e.g. truestamp-entropy-bitcoin-<uuidv7>.cbor)
 	// won't inflate every other table row on narrow terminals.
 	lipgloss.Println(strings.Join([]string{header, "", tbl.String()}, "\n"))
+
+	// Shareable public-web links for the subject. Both suppress against
+	// dev hosts (plain http / localhost / 127.0.0.1) so transcripts
+	// don't leak internal URLs. subjectDetailURL routes beacon
+	// downloads to /blocks/<id> (see the note on subjectDetailPath):
+	// the id we have on hand keys into the underlying block page —
+	// the hash-keyed /beacons/<hash> form lives on the beacon listing
+	// card where the hash is available from the API.
+	if detail := ui.SubjectDetailURL(appConfig.APIURL, typeFlag, id); detail != "" {
+		lipgloss.Println(ui.FaintStyle().Render("    Details → " + detail))
+	}
+	if verify := ui.SubjectVerifyURL(appConfig.APIURL, typeFlag, id); verify != "" {
+		lipgloss.Println(ui.FaintStyle().Render("    Verify  → " + verify))
+	}
 }
 
 func formatSize(size int) string {

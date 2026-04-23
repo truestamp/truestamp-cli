@@ -9,7 +9,6 @@ import (
 	"strings"
 
 	lipgloss "charm.land/lipgloss/v2"
-	"charm.land/lipgloss/v2/table"
 	"github.com/spf13/cobra"
 	"github.com/truestamp/truestamp-cli/internal/beacons"
 	"github.com/truestamp/truestamp-cli/internal/ui"
@@ -89,8 +88,7 @@ func renderBeaconList(w io.Writer, items []beacons.Beacon) {
 		rows = append(rows, []string{ui.TruncateToSecond(b.Timestamp), b.Hash, b.ID})
 	}
 
-	tbl := table.New().
-		Border(lipgloss.HiddenBorder()).
+	tbl := ui.CompactTable().
 		StyleFunc(func(row, col int) lipgloss.Style {
 			if row == 0 {
 				return lipgloss.NewStyle().Foreground(ui.Label).PaddingLeft(2).PaddingRight(1).Bold(true)

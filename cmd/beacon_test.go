@@ -11,6 +11,8 @@ import (
 	"os/exec"
 	"strings"
 	"testing"
+
+	"github.com/truestamp/truestamp-cli/internal/ui"
 )
 
 const (
@@ -53,6 +55,70 @@ func requireBearer(t *testing.T, r *http.Request) {
 	auth := r.Header.Get("Authorization")
 	if !strings.HasPrefix(auth, "Bearer ") {
 		t.Errorf("missing Bearer header, got %q", auth)
+	}
+}
+
+// Unit coverage for the public-web link helpers. URLs render
+// unconditionally — localhost, 127.0.0.1, and plain-http all produce
+// a rendered link; suppression was removed by explicit user request
+// so developers can see card URLs against their dev server.
+func TestBeaconURLHelpers(t *testing.T) {
+	const (
+		hash = "ffe86dc05a0c7b42279f7fa6afb016cd6928980d24673051fc58731492ce2a1b"
+		id   = "019db702-b08c-73dc-a7cd-2c5e011f1dad"
+	)
+	cases := []struct {
+		name       string
+		apiURL     string
+		wantDetail string
+		wantVerify string
+	}{
+		{
+			name:       "prod https with /api/json suffix",
+			apiURL:     "https://www.truestamp.com/api/json",
+			wantDetail: "https://www.truestamp.com/beacons/" + hash,
+			wantVerify: "https://www.truestamp.com/verify/beacon/" + id,
+		},
+		{
+			name:       "prod https without suffix",
+			apiURL:     "https://example.com",
+			wantDetail: "https://example.com/beacons/" + hash,
+			wantVerify: "https://example.com/verify/beacon/" + id,
+		},
+		{
+			name:       "trailing slash is stripped",
+			apiURL:     "https://example.com/api/json/",
+			wantDetail: "https://example.com/beacons/" + hash,
+			wantVerify: "https://example.com/verify/beacon/" + id,
+		},
+		{
+			name:       "plain http still renders",
+			apiURL:     "http://example.com/api/json",
+			wantDetail: "http://example.com/beacons/" + hash,
+			wantVerify: "http://example.com/verify/beacon/" + id,
+		},
+		{
+			name:       "localhost still renders",
+			apiURL:     "http://localhost:4000/api/json",
+			wantDetail: "http://localhost:4000/beacons/" + hash,
+			wantVerify: "http://localhost:4000/verify/beacon/" + id,
+		},
+		{
+			name:       "127.0.0.1 still renders",
+			apiURL:     "http://127.0.0.1:4000/api/json",
+			wantDetail: "http://127.0.0.1:4000/beacons/" + hash,
+			wantVerify: "http://127.0.0.1:4000/verify/beacon/" + id,
+		},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			if got := ui.BeaconDetailURL(c.apiURL, hash); got != c.wantDetail {
+				t.Errorf("ui.BeaconDetailURL(%q) = %q, want %q", c.apiURL, got, c.wantDetail)
+			}
+			if got := ui.BeaconVerifyURL(c.apiURL, id); got != c.wantVerify {
+				t.Errorf("ui.BeaconVerifyURL(%q) = %q, want %q", c.apiURL, got, c.wantVerify)
+			}
+		})
 	}
 }
 

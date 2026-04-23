@@ -98,3 +98,46 @@ func FuzzResolveZone(f *testing.F) {
 		_, _ = resolveZone(s)
 	})
 }
+
+// FuzzInferTypeFromFilename: the verify command now consults arbitrary
+// user-controlled strings (file paths, URL basenames, the "(stdin)"
+// sentinel) to derive a default --type. Must never panic, must return a
+// valid wire-type value or the empty string. Seeds cover every known
+// good stem, malformed prefixes, path separators both flavours, URL
+// shapes, and the empty / sentinel cases.
+func FuzzInferTypeFromFilename(f *testing.F) {
+	for _, s := range []string{
+		"",
+		"(stdin)",
+		"truestamp-item-01HJHB01T8FYZ7YTR9P5N62K5B.json",
+		"truestamp-entropy-nist-019db702-b08c-73dc-a7cd-2c5e011f1dad.cbor",
+		"truestamp-entropy-stellar-019db702.json",
+		"truestamp-entropy-bitcoin-019db702.json",
+		"truestamp-block-019db702.json",
+		"truestamp-beacon-019db702.json",
+		"/tmp/truestamp-beacon-019db702.json",
+		"C:\\downloads\\truestamp-block-019db702.json",
+		"https://example.com/proofs/truestamp-block-019db702.json",
+		"truestamp-unknown-stem-abc.json",
+		"not-a-truestamp-file.json",
+		"truestamp-",
+		"truestamp-.json",
+		"truestamp-beacon",       // no extension
+		"truestamp-beacon-",      // trailing dash, no id
+		"truestamp-entropy--xyz", // double dash
+		".hidden",
+		"...",
+	} {
+		f.Add(s)
+	}
+	f.Fuzz(func(t *testing.T, s string) {
+		got := inferTypeFromFilename(s)
+		// Post-condition: either "" or one of the six canonical values.
+		switch got {
+		case "", "item", "entropy_nist", "entropy_stellar", "entropy_bitcoin", "block", "beacon":
+			// ok
+		default:
+			t.Fatalf("inferTypeFromFilename(%q) returned non-canonical value %q", s, got)
+		}
+	})
+}

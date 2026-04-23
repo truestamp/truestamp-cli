@@ -319,6 +319,14 @@ truestamp verify --type beacon truestamp-beacon-019d....json
 truestamp verify --type item   truestamp-item-01K....json
 truestamp verify --type entropy_stellar truestamp-entropy-stellar-019c....json
 
+# Smart default: when you verify a file whose name matches the
+# `truestamp-<stem>-<id>.<ext>` convention `truestamp download` emits,
+# the CLI infers --type from the filename and asserts automatically.
+# A faint stderr hint tells you the inference happened. To override,
+# pass --type explicitly; to skip the assertion, rename the file.
+truestamp verify truestamp-beacon-019d....json          # infers --type beacon
+truestamp verify truestamp-entropy-nist-019d....json    # infers --type entropy_nist
+
 # Skip the public-blockchain checks (offline / restricted networks)
 truestamp verify contract.proof.json --skip-external
 

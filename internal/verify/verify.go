@@ -25,6 +25,7 @@ import (
 // Options holds CLI flags for the verifier.
 type Options struct {
 	KeyringURL     string
+	APIURL         string // optional; populates Report.APIURL so the presenter can emit subject-detail + verify web links
 	SkipExternal   bool
 	SkipSignatures bool
 	ExpectedHash   string // hex hash to compare against claims.hash
@@ -87,6 +88,7 @@ func runBundle(bundle *proof.ProofBundle, filename string, fileSize int64, opts 
 		FileSize:        fileSize,
 		ProofVersion:    bundle.Version,
 		SubjectType:     subjectType,
+		APIURL:          opts.APIURL,
 		GeneratedAt:     bundle.Timestamp,
 		SkippedExternal: opts.SkipExternal,
 		ChainLength:     1,

@@ -570,6 +570,112 @@ func TestCLI_Verify_Type_BareEntropy_Rejected(t *testing.T) {
 	}
 }
 
+// --- Filename → --type inference (D5) ---------------------------------------
+
+// TestInferTypeFromFilename pins the mapping from the hyphen-cased
+// filename stems `truestamp download` emits back to the underscore-cased
+// wire `type` values the server enum uses.
+func TestInferTypeFromFilename(t *testing.T) {
+	cases := []struct {
+		in   string
+		want string
+	}{
+		// Six canonical stems, both .json and .cbor extensions.
+		{"truestamp-item-01KPVAP639RSVPZCW2CBS51CTV.json", "item"},
+		{"truestamp-entropy-nist-019db702-b08c-73dc-a7cd-2c5e011f1dad.json", "entropy_nist"},
+		{"truestamp-entropy-stellar-019db702-b08c-73dc-a7cd-2c5e011f1dad.json", "entropy_stellar"},
+		{"truestamp-entropy-bitcoin-019db702-b08c-73dc-a7cd-2c5e011f1dad.json", "entropy_bitcoin"},
+		{"truestamp-block-019db702-b08c-73dc-a7cd-2c5e011f1dad.cbor", "block"},
+		{"truestamp-beacon-019db702-b08c-73dc-a7cd-2c5e011f1dad.json", "beacon"},
+		// Directory components are ignored.
+		{"/tmp/truestamp-beacon-019db702-b08c-73dc-a7cd-2c5e011f1dad.json", "beacon"},
+		{"./downloads/truestamp-item-01KPVAP639RSVPZCW2CBS51CTV.json", "item"},
+		// URL form — last path segment is the filename.
+		{"https://example.com/proofs/truestamp-block-019db702-b08c-73dc-a7cd-2c5e011f1dad.json", "block"},
+		// Non-conforming names — no inference.
+		{"contract.proof.json", ""},
+		{"proof.json", ""},
+		{"truestamp-unknown-stem-abc.json", ""},
+		{"some-other-file.cbor", ""},
+		// Empty / stdin sentinels.
+		{"", ""},
+		{"(stdin)", ""},
+		// Missing "truestamp-" prefix.
+		{"beacon-019db702.json", ""},
+	}
+	for _, c := range cases {
+		if got := inferTypeFromFilename(c.in); got != c.want {
+			t.Errorf("inferTypeFromFilename(%q) = %q, want %q", c.in, got, c.want)
+		}
+	}
+}
+
+// TestCLI_Verify_Type_InferredFromFilename: file named
+// `truestamp-beacon-<id>.json` verified without --type should trigger
+// filename inference, show a stderr hint, and assert the type. The fake
+// fixture is t=20 (item) — which mismatches "beacon" — so the
+// inference surfaces a Subject Type failure, exactly the confused-
+// deputy guard the inference exists to catch.
+func TestCLI_Verify_Type_InferredFromFilename(t *testing.T) {
+	dir := t.TempDir()
+	// Write fakeProofJSON (t=20 item) under a beacon-named filename
+	// to simulate a swap — the actual t doesn't match the name.
+	misnamedPath := filepath.Join(dir, "truestamp-beacon-019db702-b08c-73dc-a7cd-2c5e011f1dad.json")
+	if err := os.WriteFile(misnamedPath, []byte(fakeProofJSON), 0644); err != nil {
+		t.Fatal(err)
+	}
+	cmd := exec.Command(binaryPath, "verify", misnamedPath, "--skip-external", "--skip-signatures")
+	cmd.Env = cleanEnv()
+	out, err := cmd.CombinedOutput()
+	if err == nil {
+		t.Fatal("expected non-zero exit (filename-inferred beacon mismatches item bundle)")
+	}
+	stripped := stripANSI(string(out))
+	if !strings.Contains(stripped, "inferred --type beacon from filename") {
+		t.Errorf("expected filename-inference hint in output, got: %s", stripped)
+	}
+	if !strings.Contains(stripped, "Proof is item") {
+		t.Errorf("expected Subject Type failure in output, got: %s", stripped)
+	}
+}
+
+// TestCLI_Verify_Type_ExplicitOverridesInference: explicit --type wins
+// over filename inference even when the filename also implies a type.
+func TestCLI_Verify_Type_ExplicitOverridesInference(t *testing.T) {
+	dir := t.TempDir()
+	beaconNamed := filepath.Join(dir, "truestamp-beacon-019db702.json")
+	if err := os.WriteFile(beaconNamed, []byte(fakeProofJSON), 0644); err != nil {
+		t.Fatal(err)
+	}
+	// fakeProofJSON is t=20 item; explicit --type item should NOT
+	// surface any assertion failure AND the inferred-from-filename hint
+	// should NOT print (we used --type explicitly).
+	cmd := exec.Command(binaryPath, "verify", "--type", "item", "--skip-external", "--skip-signatures", beaconNamed)
+	cmd.Env = cleanEnv()
+	out, _ := cmd.CombinedOutput()
+	stripped := stripANSI(string(out))
+	if strings.Contains(stripped, "inferred --type") {
+		t.Errorf("explicit --type should suppress the filename-inference hint, got: %s", stripped)
+	}
+	if strings.Contains(stripped, "Proof is item (t=20) but --type") {
+		t.Errorf("matching --type should not surface assertion failure: %s", stripped)
+	}
+}
+
+// TestCLI_Verify_Type_NoInferenceForUnknownFilename: a filename that
+// doesn't match the convention gets no inference (no hint, no
+// assertion). Falls through to plain verify behavior.
+func TestCLI_Verify_Type_NoInferenceForUnknownFilename(t *testing.T) {
+	path := writeProofFile(t, fakeProofJSON) // writeProofFile names it "proof.json"
+	cmd := exec.Command(binaryPath, "verify", path, "--skip-external", "--skip-signatures")
+	cmd.Env = cleanEnv()
+	out, _ := cmd.CombinedOutput()
+	stripped := stripANSI(string(out))
+	if strings.Contains(stripped, "inferred --type") {
+		t.Errorf("non-conforming filename should not trigger inference, got: %s", stripped)
+	}
+}
+
 // stripANSI removes ANSI escape sequences from output so tests don't have to
 // deal with lipgloss color codes when checking text content.
 func stripANSI(s string) string {

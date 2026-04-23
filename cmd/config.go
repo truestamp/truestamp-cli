@@ -8,7 +8,6 @@ import (
 	"strings"
 
 	lipgloss "charm.land/lipgloss/v2"
-	"charm.land/lipgloss/v2/table"
 	"github.com/spf13/cobra"
 	"github.com/truestamp/truestamp-cli/internal/config"
 	"github.com/truestamp/truestamp-cli/internal/ui"
@@ -70,35 +69,31 @@ var configShowCmd = &cobra.Command{
 func presentConfig(cfg *config.Config) {
 	header := ui.HeaderBox("Truestamp CLI Configuration", "Resolved settings")
 
-	general := table.New().
+	general := ui.CompactTable().
+		StyleFunc(configStyleFunc).
 		Row("API URL", cfg.APIURL).
 		Row("API Key", maskAPIKey(cfg.APIKey)).
 		Row("Team", valueOrNotSet(cfg.Team)).
 		Row("Keyring URL", cfg.KeyringURL).
-		Row("HTTP Timeout", cfg.HTTPTimeout).
-		Border(lipgloss.HiddenBorder()).
-		StyleFunc(configStyleFunc)
+		Row("HTTP Timeout", cfg.HTTPTimeout)
 
-	verify := table.New().
+	verify := ui.CompactTable().
+		StyleFunc(configStyleFunc).
 		Row("Silent", fmt.Sprintf("%v", cfg.Verify.Silent)).
 		Row("JSON", fmt.Sprintf("%v", cfg.Verify.JSON)).
 		Row("Skip External", fmt.Sprintf("%v", cfg.Verify.SkipExternal)).
 		Row("Skip Signatures", fmt.Sprintf("%v", cfg.Verify.SkipSignatures)).
-		Row("Remote", fmt.Sprintf("%v", cfg.Verify.Remote)).
-		Border(lipgloss.HiddenBorder()).
-		StyleFunc(configStyleFunc)
+		Row("Remote", fmt.Sprintf("%v", cfg.Verify.Remote))
 
-	hash := table.New().
+	hash := ui.CompactTable().
+		StyleFunc(configStyleFunc).
 		Row("Algorithm", cfg.Hash.Algorithm).
 		Row("Encoding", cfg.Hash.Encoding).
-		Row("Style", cfg.Hash.Style).
-		Border(lipgloss.HiddenBorder()).
-		StyleFunc(configStyleFunc)
+		Row("Style", cfg.Hash.Style)
 
-	convert := table.New().
-		Row("Time Zone", valueOrNotSet(cfg.Convert.TimeZone)).
-		Border(lipgloss.HiddenBorder()).
-		StyleFunc(configStyleFunc)
+	convert := ui.CompactTable().
+		StyleFunc(configStyleFunc).
+		Row("Time Zone", valueOrNotSet(cfg.Convert.TimeZone))
 
 	// Plain newline-join — NOT lipgloss.JoinVertical. JoinVertical pads
 	// every line to the widest line across all inputs; if any single

@@ -10,6 +10,7 @@ import (
 
 	"charm.land/huh/v2"
 	lipgloss "charm.land/lipgloss/v2"
+	"charm.land/lipgloss/v2/table"
 )
 
 // PickFileOptions configures an interactive file-picker form. Both fields
@@ -59,6 +60,25 @@ func PickFile(opts PickFileOptions) (string, error) {
 		return "", fmt.Errorf("no file selected")
 	}
 	return path, nil
+}
+
+// CompactTable returns a lipgloss table with a hidden border AND no
+// top/bottom/left/right border rows. `.Border(HiddenBorder())` on its
+// own still emits invisible top and bottom rows of whitespace, which
+// stacks with section separators in the card / verify-report output
+// and wastes a blank line above and below every table. Using this
+// helper ensures the table content is flush to whatever comes before
+// and after it, letting callers use explicit `""` elements in a
+// `strings.Join` (or a bare newline) for inter-section spacing when
+// they want it. Every post-action card / verify-report table in the
+// CLI routes through this.
+func CompactTable() *table.Table {
+	return table.New().
+		Border(lipgloss.HiddenBorder()).
+		BorderTop(false).
+		BorderBottom(false).
+		BorderLeft(false).
+		BorderRight(false)
 }
 
 // LabelValueStyleFunc returns a lipgloss table StyleFunc that renders the
