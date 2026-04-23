@@ -4,6 +4,10 @@ on:
   push:
     branches: [main]
   pull_request:
+  # Reusable — release.yml calls this workflow as a quality gate before
+  # GoReleaser runs, so a failing lint/test/vuln check blocks a release
+  # at the tagged SHA instead of producing a half-published state.
+  workflow_call:
 
 permissions:
   contents: read
@@ -48,12 +52,29 @@ jobs:
       - name: go vet
         run: go vet ./...
 
+      - name: staticcheck
+        run: |
+          go install honnef.co/go/tools/cmd/staticcheck@latest
+          staticcheck ./...
+
+      - name: gosec
+        # Exclusions mirror `task lint` in Taskfile.yml; each code is
+        # justified there. Keep the two lists in sync when editing.
+        run: |
+          go install github.com/securego/gosec/v2/cmd/gosec@latest
+          gosec -quiet -exclude-dir=testdata \
+            -exclude=G104,G115,G301,G302,G306,G304,G401,G501,G505,G204,G704 \
+            ./...
+
       - name: govulncheck
         run: |
           go install golang.org/x/vuln/cmd/govulncheck@latest
           govulncheck ./...
 
       - name: Test
+        # -race runs the full suite; seed-corpus fuzz targets replay as
+        # regular tests inside this call, so `task fuzz` is covered
+        # implicitly. Heavy `task fuzz-deep` stays local/manual.
         run: go test -race -coverprofile=coverage.out -covermode=atomic ./...
 
       - name: Build

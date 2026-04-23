@@ -12,8 +12,18 @@ permissions:
   pull-requests: write  # Belt-and-braces; auto-merge step uses HOMEBREW_TAP_GITHUB_TOKEN
 
 jobs:
+  # Quality gate: re-runs the full CI job (lint + staticcheck + gosec +
+  # govulncheck + race-enabled test matrix + build) on the tagged SHA.
+  # If anything fails here, goreleaser never starts — no half-published
+  # state to clean up. The duplicate work vs. the ci.yml run on main is
+  # cheap insurance against drift between the main-push and the tag.
+  ci:
+    name: CI gate
+    uses: ./.github/workflows/ci.yml
+
   goreleaser:
     name: GoReleaser
+    needs: ci
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -25,6 +35,24 @@ jobs:
         uses: jdx/mise-action@1648a7812b9aeae629881980618f079932869151 # v4
         with:
           experimental: true
+
+      # Pre-flight: catch a broken .goreleaser.yaml before the full
+      # cross-compile burns ~3 minutes and before we touch the GitHub
+      # Release API. Cheap (<1s) so always worth running.
+      - name: goreleaser check
+        run: mise exec -- goreleaser check
+
+      # Snapshot dry-run: exercises the full cross-compile matrix, SBOM
+      # generation, archive creation, and cask template rendering
+      # without publishing or signing. Surfaces platform-specific
+      # build breakage (e.g. a stdlib API that compiles on the
+      # developer's host but not on darwin/arm64) before the real
+      # release step tries to upload.
+      - name: goreleaser release --snapshot (dry run)
+        run: |
+          mise exec -- goreleaser release --snapshot --clean
+          # Discard snapshot artifacts — the real release below starts fresh.
+          rm -rf dist/
 
       - name: Run GoReleaser
         uses: goreleaser/goreleaser-action@e24998b8b67b290c2fa8b7c14fcfa7de2c5c9b8c # v7
