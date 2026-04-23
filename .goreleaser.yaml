@@ -1,3 +1,6 @@
+# Copyright (c) 2021-2026 Truestamp, Inc.
+# SPDX-License-Identifier: MIT
+#
 # GoReleaser configuration for truestamp-cli.
 # Reference: https://goreleaser.com/customization/
 #
