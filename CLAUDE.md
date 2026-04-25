@@ -8,6 +8,8 @@ Go CLI tool that cryptographically verifies Truestamp proof bundle JSON files. C
 
 Beyond verification, the CLI exposes five Unix-y, pipe-friendly sub-commands that replace the common external tool chain (`sha256sum`, `shasum`, `xxd`, `base64`, `jq`, `date`): `truestamp hash` (digests), `truestamp encode` / `truestamp decode` (byte encodings), `truestamp jcs` (RFC 8785 canonicalization), `truestamp convert {time, proof, id, keyid, merkle}` (domain conversions). `truestamp create` registers a new timestamped item.
 
+`truestamp console` opens an interactive Bubble Tea TUI that holds a long-lived authenticated WebSocket to the backend (multiplexed Phoenix Channels: `console:lobby` for commands + stream events, `console:clock` for server-time ticks). Three panes — Monitor (toggleable stream subscriptions + scrollable waterfall), New Item (form + live lifecycle), Connection (diagnostics + log file path). Reconnect-with-backoff, server-side first-event-immediate event coalescing into `<resource>.burst` summaries, and 24h time-windowed event retention. Full architecture, limits, logging, and testing in [docs/engineering/console.md](docs/engineering/console.md). Server wire protocol authoritative reference in [truestamp-v2/docs/console_channel.md](https://github.com/truestamp/truestamp-v2/blob/main/docs/console_channel.md).
+
 ## How to Build and Run
 
 ```bash
@@ -312,6 +314,7 @@ cmd/
   convert_keyid.go              convert keyid (Ed25519 pubkey -> 4-byte Truestamp kid)
   convert_merkle.go             convert merkle (decode compact base64url Merkle proof)
   config.go                     Config subcommand (path, show, init)
+  console.go                    Console subcommand (Bubble Tea TUI over authenticated WebSocket; --ws-url, --log-level, --log-file flags). See docs/engineering/console.md.
   upgrade.go                    Upgrade subcommand + flags (install-method routing, exitCodeErr contract)
   upgrade_test.go               upgradeInstructionFor routing + readYes + ExitCode tests
   verify_test.go                CLI integration tests (builds binary, tests exit codes)
@@ -380,6 +383,19 @@ internal/
     client.go                   Shared HTTP client, GetJSONCtx for small JSON responses
     download.go                 DownloadCtx (streams to disk, 200MB cap) + DownloadBytesCtx (in-memory, cap configurable)
     download_test.go            httptest-server tests for happy path, oversize, HTTP error, context cancellation
+  console/
+    app.go                      Bubble Tea root model, header (with reconnect countdown + server-time clock), footer key hints, pane switching
+    monitor.go                  Monitor pane: stream toggle list + scrollable / reversible event waterfall (24h time-windowed retention, 100k hard cap)
+    newitem.go                  New Item form pane: 4-field input + items.create round-trip + per-item lifecycle card (capped at 100 transitions)
+    connection.go               Connection pane: scope, push counts, reconnect summary, log file path
+    messages.go                 tea.Msg types + waitForPush bridge between WS reader goroutine and tea.Update; routes server-time ticks, rejoin events, reconnect status
+  wschannel/
+    client.go                   Homegrown Phoenix Channels V2 client. Multi-topic on one socket; reconnect-with-backoff (1→2→5→10→30s); rejoinAllTopics replay; api_key redaction; two-stage readiness gate (socketReady / sessionReady); pending-call drain on disconnect
+    codec.go                    Phoenix V2 array-form Frame encoder/decoder + ParseReply
+    redact_test.go              Security-critical: api_key never leaks in logs OR returned errors
+    smoke_test.go               Live-server tests gated behind `smoke` build tag (TestSmokeConsoleLobby, TestSmokeClockTopic, TestSmokeLiveBlock, TestSmokeReconnect)
+  logging/
+    logging.go                  slog + lumberjack file logger (10MB rotation, 5 backups, 14d retention, gzip). Default path: $UserCacheDir/truestamp/console.log. Also exports DefaultPath() for flag help text.
   ui/
     ui.go                       Shared lipgloss v2 styling: renderer, adaptive colors, components
   verify/

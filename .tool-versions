@@ -11,3 +11,7 @@ cosign 3.0.6
 shellcheck 0.11.0
 syft 1.42.4
 caddy 2.11.2
+# websocat: hand-rolled WebSocket testing for the `truestamp console`
+# wire protocol. See docs/engineering/console.md and the upstream
+# truestamp-v2/docs/console_channel.md "Hand-rolled testing" recipe.
+websocat 1.14.1

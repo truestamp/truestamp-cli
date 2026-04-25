@@ -11,6 +11,7 @@ Available Commands:
   beacon      Inspect Truestamp block beacons
   completion  Generate the autocompletion script for the specified shell
   config      Manage CLI configuration
+  console     Open the interactive Truestamp console (TUI)
   convert     Convert Truestamp-domain values (time, proof format, IDs, keyid, Merkle proofs)
   create      Create a new Truestamp item
   decode      Decode hex / base64 / base64url into raw bytes
