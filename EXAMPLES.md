@@ -18,6 +18,7 @@ Run `truestamp <command> --help` at any time for exhaustive flag documentation.
 - [`truestamp create`](#truestamp-create)
 - [`truestamp download`](#truestamp-download)
 - [`truestamp verify`](#truestamp-verify)
+- [`truestamp console`](#truestamp-console)
 - [`truestamp hash`](#truestamp-hash)
 - [`truestamp encode` / `truestamp decode`](#truestamp-encode--truestamp-decode)
 - [`truestamp jcs`](#truestamp-jcs)
@@ -344,6 +345,128 @@ When `--type` is combined with `--remote`, the value is forwarded to the
 server's `/proof/verify` endpoint — a server-side assertion rather than
 a CLI-only one — and a mismatch returns HTTP 4xx with
 `meta.code=subject_type_mismatch`.
+
+---
+
+## `truestamp console`
+
+Interactive Bubble Tea TUI backed by an authenticated WebSocket to the
+Truestamp server. Three panes share one long-lived connection:
+
+- **Monitor** — toggleable subscriptions to live event streams (block
+  lifecycle, internal/external commitments, NIST/Stellar/Bitcoin
+  entropy observations, item events for your team) plus a scrollable,
+  reversible event waterfall. Newest at top by default.
+- **New Item** — a form (name, description, hash, hash type) that
+  creates a timestamped item over the same socket and shows its live
+  state transitions (`created → processing → committed`) below the
+  card as they arrive.
+- **Connection** — scope summary, push counts by event, reconnect
+  history, and the log file path so you can `tail -f` it for live
+  transport diagnostics.
+
+Requires an API key (run `truestamp auth login` first; everything in
+the console talks to the same endpoint as the JSON:API).
+
+```sh
+# Launch (uses your configured api_url + api_key)
+truestamp console
+
+# Point at a non-default backend (e.g. local dev)
+truestamp console --ws-url ws://localhost:4000/console/websocket
+
+# Crank the log file to debug if something goes wrong
+truestamp console --log-level debug
+
+# Send the log somewhere other than the default cache dir
+truestamp console --log-file /tmp/truestamp-console.log
+```
+
+### Keys
+
+| Key                | Action                                                                    |
+| ------------------ | ------------------------------------------------------------------------- |
+| `1` / `2` / `3`    | Jump to Monitor / New Item / Connection                                   |
+| `tab`              | Cycle to the next pane                                                    |
+| `q` / `ctrl+c`     | Quit                                                                      |
+| **Monitor pane:**  |                                                                           |
+| `←` / `→` (`h`/`l`)| Switch focus between the Streams list and the Events waterfall           |
+| `↑` / `↓` (`k`/`j`)| Move within the focused side                                              |
+| `space`            | Toggle the cursor stream's subscription on/off (Streams list focused)     |
+| `pgup` / `pgdn`    | Page through the waterfall                                                |
+| `g` / `G`          | Jump to top / bottom of the waterfall                                     |
+| `r`                | Reverse chronological order (newest↔oldest)                               |
+| **New Item pane:** |                                                                           |
+| `tab` / `shift+tab`| Move between form fields                                                  |
+| `enter`            | Advance, then submit on the last field                                    |
+| `esc`              | Clear the form                                                            |
+| `n` (after submit) | Reset for another item                                                    |
+
+### What you see by default
+
+On launch every catalog stream is auto-subscribed, so events start
+flowing immediately. The header right side shows the current
+connection state and the server-time clock. The footer shows the
+context-relevant key hints for the active pane.
+
+The Monitor pane left column shows each stream as `[x] <id>` for
+active or `[ ] <id>` for inactive. Toggling with `space` sends a
+subscribe/unsubscribe over the WebSocket; the optimistic local state
+flips immediately, the server's reply reconciles any rejection.
+
+### Bursts (server-side coalescing)
+
+When the server sees many events of the same stream within a 500 ms
+window (the typical case during a block close, when thousands of
+items + commitments fan out at once), it coalesces them into a single
+`<resource>.burst` summary push. The waterfall renders that as one
+row preserving the count + per-kind breakdown:
+
+```
+14:42:11.500  item.burst              [items.team]   437 events in 500ms  created=250 deleted=37 updated=150
+```
+
+Slow streams (blocks, entropy, external commitments) almost never
+trigger this — the first-event-immediate rule means a burst only
+emerges when input rate genuinely warrants summarization.
+
+### Reconnect
+
+If the network blips or the server restarts, the client reconnects
+automatically with exponential backoff (`1s → 2s → 5s → 10s → 30s`,
+capped). The header shows a live countdown — `reconnecting in 7s
+(attempt 4)` — and outage markers (`⚠ server.down`) drop into the
+waterfall every 10 seconds during the outage so you can scroll back
+later and see exactly when data went missing. On reconnect, all
+previously active subscriptions are re-issued automatically.
+
+### Logs
+
+Transport diagnostics (read EOFs during a server restart, dial
+attempts during reconnect, frame decode errors) write to a rotated
+JSON-lines log file rather than the UI:
+
+```sh
+# macOS
+tail -f ~/Library/Caches/truestamp/console.log | jq .
+
+# Linux
+tail -f ~/.cache/truestamp/console.log | jq .
+```
+
+Defaults: 10 MB rotation, 14-day retention, 5 backups, gzip-compressed.
+The Connection pane shows the live path. **The api_key is redacted**
+before any error or log line touches the file or screen.
+
+### Hand-rolled testing
+
+The wire protocol is plain JSON arrays over Phoenix Channels V2 and
+is fully driveable from `websocat` / `wscat` — see
+[docs/engineering/console.md](docs/engineering/console.md) for the
+client-side architecture details and
+[truestamp-v2/docs/console_channel.md](https://github.com/truestamp/truestamp-v2/blob/main/docs/console_channel.md)
+for the authoritative wire protocol reference (commands, events,
+catalog, limits, hand-rolled testing recipe).
 
 ---
 
