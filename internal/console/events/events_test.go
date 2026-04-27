@@ -11,7 +11,8 @@ import (
 )
 
 // TestProjectBlock checks the canonical Block row shape: id is
-// 13-char prefix, detail surfaces state + truncated hash.
+// the full ULID (no truncation — operators need the whole value to
+// copy-paste into queries), detail surfaces state + truncated hash.
 func TestProjectBlock(t *testing.T) {
 	t.Parallel()
 
@@ -27,8 +28,8 @@ func TestProjectBlock(t *testing.T) {
 	if row.Kind != "block.created" {
 		t.Errorf("Kind = %q, want block.created", row.Kind)
 	}
-	if got, want := row.ID, "01KQ88MP3GTM6"; got != want {
-		t.Errorf("ID = %q, want %q (13-char prefix)", got, want)
+	if got, want := row.ID, "01KQ88MP3GTM6XNHSCBVR12345"; got != want {
+		t.Errorf("ID = %q, want %q (full ULID, untruncated)", got, want)
 	}
 	if !strings.Contains(row.Detail, "state=finalized") {
 		t.Errorf("Detail missing state= field: %q", row.Detail)
