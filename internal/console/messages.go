@@ -76,6 +76,22 @@ type connectFailedMsg struct {
 	Err error
 }
 
+// healthCheckResultMsg carries one completed health-check result up
+// to the model. The connection pane batches these into its result
+// table; ordering is preserved by the embedded Index field so the
+// renderer can update rows in place rather than re-sorting on every
+// arrival (rendering sort happens at View time).
+type healthCheckResultMsg struct {
+	Index  int
+	Result healthResult
+}
+
+// healthCheckTickMsg drives the 30-second poll loop while the
+// Connection pane is the active pane. The pane re-arms the next
+// tick on each fire; tabbing away cancels the loop because the
+// pane stops returning the tick command.
+type healthCheckTickMsg struct{}
+
 // Welcome is the parsed shape of the join reply for `console:lobby`.
 type Welcome struct {
 	Scope   ScopeSummary `json:"scope"`

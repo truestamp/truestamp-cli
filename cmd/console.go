@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/spf13/cobra"
+	"github.com/truestamp/truestamp-cli/internal/config"
 	"github.com/truestamp/truestamp-cli/internal/console"
 	"github.com/truestamp/truestamp-cli/internal/logging"
 )
@@ -73,10 +74,12 @@ func runConsole(cmd *cobra.Command, _ []string) error {
 		"version", cmd.Root().Version)
 
 	return console.Run(cmd.Context(), console.Options{
-		WSURL:       wsURL,
-		APIKey:      appConfig.APIKey,
-		Logger:      logger,
-		LogFilePath: logPath,
+		WSURL:          wsURL,
+		APIKey:         appConfig.APIKey,
+		Logger:         logger,
+		LogFilePath:    logPath,
+		ConfigFilePath: config.ConfigFilePath(),
+		HealthTargets:  console.DefaultHealthTargets(appConfig.APIURL, appConfig.KeyringURL),
 	})
 }
 
