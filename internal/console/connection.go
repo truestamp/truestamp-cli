@@ -34,6 +34,12 @@ type connectionModel struct {
 	// logFilePath is shown so the user can `tail -f` it for live
 	// transport diagnostics or grep it post-incident.
 	logFilePath string
+
+	// activeStreams is the count of currently-subscribed streams.
+	// Mirrored from the Monitor pane via setActiveStreams; lives
+	// here (rather than the header) so ambient chrome stays focused
+	// on liveness state.
+	activeStreams int
 }
 
 func newConnectionModel(logFilePath string) *connectionModel {
@@ -65,6 +71,13 @@ func (m *connectionModel) recordReconnect(downtime time.Duration) {
 	m.totalDowntime += downtime
 }
 
+// setActiveStreams mirrors the active-stream count from the Monitor
+// pane. Called by the root model so the Connection pane can surface
+// the number that used to live in the header.
+func (m *connectionModel) setActiveStreams(n int) {
+	m.activeStreams = n
+}
+
 // =====================================================================
 // Rendering
 // =====================================================================
@@ -94,6 +107,11 @@ func (m *connectionModel) View(width, height int) string {
 // renderScopeSection prints the session's scope as a 2-column k/v
 // table. lipgloss/v2/table aligns the value column automatically so
 // the labels line up regardless of value width.
+//
+// "Active streams" lives here rather than the header because the
+// number is reference data — it changes when the user toggles
+// subscriptions and is otherwise stable. Ambient chrome should carry
+// liveness state only.
 func (m *connectionModel) renderScopeSection() string {
 	rows := [][]string{
 		{"user", m.welcome.Scope.UserID},
@@ -104,6 +122,7 @@ func (m *connectionModel) renderScopeSection() string {
 	if !m.connectedAt.IsZero() {
 		rows = append(rows, []string{"connected for", time.Since(m.connectedAt).Truncate(time.Second).String()})
 	}
+	rows = append(rows, []string{"active streams", fmt.Sprintf("%d", m.activeStreams)})
 
 	tbl := keyValueTable(rows)
 
