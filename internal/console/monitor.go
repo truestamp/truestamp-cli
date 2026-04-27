@@ -84,6 +84,11 @@ func newMonitorModel(client *wschannel.Client, log *slog.Logger) *monitorModel {
 		pending:      make(map[string]bool),
 		reverseOrder: true,
 		selected:     -1,
+		// Default focus is the waterfall (Events). The stream list
+		// on the left is rarely the user's first action; the events
+		// stream is what they came here to watch. ←/h shifts focus
+		// to the list when they want to toggle subscriptions.
+		focus: focusWaterfall,
 	}
 }
 
