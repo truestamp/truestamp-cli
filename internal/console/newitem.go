@@ -94,8 +94,16 @@ func newNewItemModel(client *wschannel.Client) *newItemModel {
 }
 
 // makeForm constructs a fresh huh.Form bound to the model's value
-// fields. Validators run on field commit (tab/enter), so the user
-// gets immediate feedback rather than only on submit.
+// fields.
+//
+// Validators are intentionally NOT attached to the huh fields. huh
+// blocks tab/enter when a field's validator returns an error, which
+// produces deadlocks when one field's validity depends on another
+// (e.g. hash length depends on hash type — you can't change the
+// type without first making the hash valid for the OLD type, but
+// changing the type is exactly what would make the hash valid). We
+// validate at submit time instead, render a single error string in
+// the pane, and keep tab/shift+tab freely navigable in all states.
 func (m *newItemModel) makeForm() *huh.Form {
 	form := huh.NewForm(
 		huh.NewGroup(
@@ -103,7 +111,6 @@ func (m *newItemModel) makeForm() *huh.Form {
 				Title("Name").
 				Description("Required. Free-form label, ≤ 200 chars.").
 				CharLimit(200).
-				Validate(requiredString("name")).
 				Value(&m.formName),
 
 			huh.NewText().
@@ -116,7 +123,6 @@ func (m *newItemModel) makeForm() *huh.Form {
 				Title("Hash").
 				Description("Hex digest of the data being timestamped (sha256 = 64 hex chars).").
 				CharLimit(128).
-				Validate(validateHash(&m.formHashType)).
 				Value(&m.formHash),
 
 			huh.NewSelect[string]().
@@ -189,10 +195,16 @@ func (m *newItemModel) Update(msg tea.Msg) (*newItemModel, tea.Cmd) {
 		return m, m.form.Init()
 
 	case tea.KeyPressMsg:
-		// In watching mode `n` resets the form. The form pane has no
-		// other watching-mode bindings — the lifecycle card is
-		// passive while we wait for transitions to arrive.
+		// Watching mode: `n` resets back to a fresh form.
 		if m.state == formWatching && tmsg.String() == "n" {
+			return m, func() tea.Msg { return resetFormMsg{} }
+		}
+		// Entering mode: esc clears the form. We intercept before
+		// huh sees the key — huh's Quit binding (ctrl+c) sets
+		// StateAborted internally, but esc is otherwise a no-op
+		// inside huh which made the previously-advertised "esc:
+		// clear" footer hint a lie. Convert it into a real reset.
+		if m.state == formEntering && tmsg.String() == "esc" {
 			return m, func() tea.Msg { return resetFormMsg{} }
 		}
 	}

@@ -13,6 +13,7 @@ import (
 	"charm.land/bubbles/v2/help"
 	"charm.land/bubbles/v2/key"
 	tea "charm.land/bubbletea/v2"
+	lipgloss "charm.land/lipgloss/v2"
 	"github.com/truestamp/truestamp-cli/internal/console/chrome"
 	"github.com/truestamp/truestamp-cli/internal/console/keys"
 	"github.com/truestamp/truestamp-cli/internal/logging"
@@ -151,6 +152,12 @@ type model struct {
 	newItemKeys keys.NewItemKeys
 	connKeys    keys.ConnectionKeys
 
+	// confirmingQuit is true while the "Really quit? y/n" prompt is
+	// up. Set by q (when the active pane isn't accepting text input)
+	// or by ctrl+c. y/Y/enter confirms; any other key cancels;
+	// double-ctrl+c hard-quits without further confirmation.
+	confirmingQuit bool
+
 	// Pane-specific state.
 	monitor    *monitorModel
 	newItem    *newItemModel
@@ -221,13 +228,44 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, nil
 
 	case tea.KeyPressMsg:
+		// Quit-confirmation prompt has the highest precedence — it
+		// pre-empts every other binding so the user can answer
+		// without being misinterpreted by pane handlers.
+		if m.confirmingQuit {
+			switch msg.String() {
+			case "y", "Y", "enter":
+				return m, tea.Quit
+			case "ctrl+c":
+				// Double-ctrl+c bypasses confirmation as a panic
+				// quit.
+				return m, tea.Quit
+			default:
+				m.confirmingQuit = false
+				return m, nil
+			}
+		}
+
 		// Global bindings handled at the root. Plain `tab` is
 		// deliberately NOT handled here — it falls through to the
 		// active pane (the New Item form needs it for field
 		// navigation). Pane switching uses `]` / `[` / `1` / `2` / `3`.
+		//
+		// `q` and `ctrl+c` both raise the quit-confirmation prompt.
+		// `q` is only consumed when the active pane isn't expecting
+		// typed text — otherwise the user couldn't type "q" into a
+		// form field. `ctrl+c` is always consumed.
+		switch keyStr := msg.String(); keyStr {
+		case "ctrl+c":
+			m.confirmingQuit = true
+			return m, nil
+		case "q":
+			if !m.activePaneAcceptsTextInput() {
+				m.confirmingQuit = true
+				return m, nil
+			}
+		}
+
 		switch {
-		case key.Matches(msg, m.appKeys.Quit):
-			return m, tea.Quit
 		case key.Matches(msg, m.appKeys.NextPane):
 			m.active = (m.active + 1) % 3
 			return m, nil
@@ -354,7 +392,7 @@ func (m *model) View() tea.View {
 	// means the help-toggle grows downward into the body instead of
 	// pushing rows off the bottom of the screen.
 	header := m.renderHeader()
-	footer := m.footer.Render(m.width, m.activeKeyMap())
+	footer := m.renderFooter()
 
 	page := chrome.Page{Width: m.width, Height: m.height, Theme: m.theme}
 	bodyW, bodyH := page.BodyArea(header, footer)
@@ -398,6 +436,46 @@ func (m *model) activeKeyMap() help.KeyMap {
 		return m.connKeys
 	}
 	return chrome.EmptyKeyMap{}
+}
+
+// activePaneAcceptsTextInput reports whether the active pane is in a
+// state where typed characters become field values. Used to gate the
+// `q` quit-confirmation so users can still type "q" into form fields
+// without raising a confirm prompt.
+func (m *model) activePaneAcceptsTextInput() bool {
+	return m.active == paneNewItem && m.newItem.state == formEntering
+}
+
+// renderFooter returns the footer row(s). Default path delegates to
+// the bubbles/help-driven Footer component; the quit-confirmation
+// prompt overrides it with a single bold row so the user's eye lands
+// on the question rather than the (now irrelevant) keybinding list.
+func (m *model) renderFooter() string {
+	if m.confirmingQuit {
+		return m.renderQuitConfirmFooter()
+	}
+	return m.footer.Render(m.width, m.activeKeyMap())
+}
+
+// renderQuitConfirmFooter draws the quit-confirmation prompt over
+// the footer area. Single row, theme-themed warning color, padded to
+// page width so the chrome alignment doesn't shift when the prompt
+// appears.
+func (m *model) renderQuitConfirmFooter() string {
+	prompt := lipgloss.NewStyle().
+		Bold(true).
+		Foreground(m.theme.WarnFg).
+		Render("Really quit?")
+
+	options := lipgloss.NewStyle().
+		Foreground(m.theme.MutedFg).
+		Render("y / enter: confirm   any other key: cancel")
+
+	row := prompt + "  " + options
+	return lipgloss.NewStyle().
+		Padding(0, 1).
+		Width(m.width).
+		Render(row)
 }
 
 func (m *model) renderHeader() string {
