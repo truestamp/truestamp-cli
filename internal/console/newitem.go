@@ -137,16 +137,17 @@ func newNewItemModel(client *wschannel.Client) *newItemModel {
 }
 
 // makeForm constructs a fresh huh.Form bound to the model's value
-// fields.
+// fields. Validators are attached so huh renders error text inline
+// at the offending field and keeps focus there until it's resolved
+// — that's the bubbles/huh native UX.
 //
-// Validators are intentionally NOT attached to the huh fields. huh
-// blocks tab/enter when a field's validator returns an error, which
-// produces deadlocks when one field's validity depends on another
-// (e.g. hash length depends on hash type — you can't change the
-// type without first making the hash valid for the OLD type, but
-// changing the type is exactly what would make the hash valid). We
-// validate at submit time instead, render a single error string in
-// the pane, and keep tab/shift+tab freely navigable in all states.
+// Field order matters. The cross-field dependency (Hash length
+// depends on Hash type) is resolved by putting Hash type BEFORE
+// Hash: the user picks an algorithm first, then provides a digest
+// for it. If they change their mind about the algorithm they can
+// shift+tab back to Hash type — Prev navigation is never blocked
+// by huh, only Next/Submit is, so the form never deadlocks the way
+// it would if Hash came before Hash type.
 func (m *newItemModel) makeForm() *huh.Form {
 	form := huh.NewForm(
 		huh.NewGroup(
@@ -154,6 +155,7 @@ func (m *newItemModel) makeForm() *huh.Form {
 				Title("Name").
 				Description("Required. Free-form label, ≤ 200 chars.").
 				CharLimit(200).
+				Validate(requiredString("name")).
 				Value(&m.formName),
 
 			huh.NewText().
@@ -162,17 +164,18 @@ func (m *newItemModel) makeForm() *huh.Form {
 				CharLimit(1000).
 				Value(&m.formDescription),
 
-			huh.NewInput().
-				Title("Hash").
-				Description("Hex digest of the data being timestamped (sha256 = 64 hex chars).").
-				CharLimit(128).
-				Value(&m.formHash),
-
 			huh.NewSelect[string]().
 				Title("Hash type").
 				Description("Selects which algorithm produced the hash; sets the expected hex length.").
 				Options(hashTypeSelectOptions()...).
 				Value(&m.formHashType),
+
+			huh.NewInput().
+				Title("Hash").
+				Description("Hex digest of the data being timestamped. Must be even-length hex of the size matching the chosen Hash type.").
+				CharLimit(128).
+				Validate(validateHash(&m.formHashType)).
+				Value(&m.formHash),
 		),
 	).
 		WithShowHelp(false). // we render help in the page footer
@@ -299,19 +302,9 @@ func (m *newItemModel) Update(msg tea.Msg) (*newItemModel, tea.Cmd) {
 	}
 
 	if m.form.State == huh.StateCompleted {
-		// Run validators one more time at the model level so we can
-		// surface a single error string in the pane (huh inlines per-
-		// field, but a final summary is friendlier post-submit).
-		if err := requiredString("name")(m.formName); err != nil {
-			m.formError = err.Error()
-			m.form = m.makeForm()
-			return m, m.form.Init()
-		}
-		if err := validateHash(&m.formHashType)(m.formHash); err != nil {
-			m.formError = err.Error()
-			m.form = m.makeForm()
-			return m, m.form.Init()
-		}
+		// huh's per-field validators ran on every Next/Submit. If we
+		// reach StateCompleted, every field passed its own validator
+		// — no model-level re-run needed.
 		m.formError = ""
 		m.state = formSubmitting
 		return m, m.submit()
