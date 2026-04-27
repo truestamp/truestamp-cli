@@ -200,17 +200,26 @@ func requiredString(name string) func(string) error {
 	}
 }
 
-var hexHash = regexp.MustCompile(`^[0-9a-fA-F]+$`)
+// hexHash matches a non-empty hex string of EVEN length. The pair
+// match (`{2}+`) implicitly rejects single-char inputs and odd-
+// length strings (which can't represent a whole-byte digest) even
+// when the hashType is unknown — defense in depth, since downstream
+// table-driven length checking is skipped for unknown algorithms.
+var hexHash = regexp.MustCompile(`^([0-9a-fA-F]{2})+$`)
 
-// validateHash enforces:
-//   - non-empty
-//   - hex-only
-//   - exact byte length matching the chosen hash type's HexLen
+// validateHash enforces, in order:
+//
+//  1. non-empty
+//  2. hex-only AND even length (one or more `[0-9a-fA-F]{2}` pairs)
+//  3. exact byte length matching the chosen hash type's HexLen
+//     (when the hash type is known to the canonical table)
 //
 // The hashType lookup is table-driven from hashTypeOptions, so the
 // length check covers every algorithm the server accepts. An unknown
-// hashType falls through to length-skipped validation; the server's
-// own constraint regex catches it.
+// hashType falls through to length-skipped validation, but the
+// even-length pair regex above still rules out malformed input; the
+// server's own constraint regex catches algorithm mismatches the
+// CLI doesn't know about.
 func validateHash(hashType *string) func(string) error {
 	return func(s string) error {
 		s = strings.ToLower(strings.TrimSpace(s))
@@ -218,7 +227,7 @@ func validateHash(hashType *string) func(string) error {
 			return fmt.Errorf("hash is required")
 		}
 		if !hexHash.MatchString(s) {
-			return fmt.Errorf("hash must be a hex string")
+			return fmt.Errorf("hash must be an even-length hex string")
 		}
 		if hashType == nil || *hashType == "" {
 			return nil

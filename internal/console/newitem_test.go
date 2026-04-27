@@ -125,3 +125,79 @@ func TestValidateHashRejectsNonHex(t *testing.T) {
 		}
 	}
 }
+
+// TestValidateHashRejectsOddLengthEvenWithoutHashType confirms the
+// pair-regex catches odd-length input regardless of hashType. This
+// is the defence-in-depth case: an unknown hashType skips the
+// table-driven length check, so the regex must enforce
+// even-byte-pairs by itself.
+func TestValidateHashRejectsOddLengthEvenWithoutHashType(t *testing.T) {
+	t.Parallel()
+
+	// Empty hashType — table lookup is skipped, but even-length
+	// must still be enforced.
+	emptyHT := ""
+	validate := validateHash(&emptyHT)
+
+	cases := []string{
+		"a",                               // 1 char
+		"abc",                             // 3 chars
+		strings.Repeat("a", 63),           // 63 = sha256 byte size minus 1
+		strings.Repeat("a", 41),           // 41 = sha1 byte size plus 1
+		"deadbee",                         // 7 chars
+	}
+	for _, in := range cases {
+		if err := validate(in); err == nil {
+			t.Errorf("validateHash accepted odd-length %q (len=%d) with empty hashType",
+				in, len(in))
+		}
+	}
+
+	// Unknown hashType (not in our canonical table) — same
+	// defence-in-depth pathway must still reject odd-length.
+	unknownHT := "ripemd160"
+	validate = validateHash(&unknownHT)
+
+	if err := validate(strings.Repeat("a", 39)); err == nil {
+		t.Errorf("validateHash accepted odd-length input with unknown hashType %q", unknownHT)
+	}
+	// And: even-length input with unknown hashType is allowed
+	// (we defer to the server's constraint regex for algorithm
+	// validity).
+	if err := validate(strings.Repeat("a", 40)); err != nil {
+		t.Errorf("validateHash rejected even-length hex with unknown hashType: %v", err)
+	}
+}
+
+// TestValidateHashEnforcesAllThreeChecks pins the three composed
+// invariants (hex-only, even length, table-driven length) by walking
+// the matrix of failure modes for a representative algorithm.
+func TestValidateHashEnforcesAllThreeChecks(t *testing.T) {
+	t.Parallel()
+
+	ht := "sha256" // 64 hex chars
+	validate := validateHash(&ht)
+
+	cases := []struct {
+		name string
+		in   string
+		ok   bool
+	}{
+		{"empty", "", false},
+		{"odd length", strings.Repeat("a", 63), false},
+		{"even length but wrong size", strings.Repeat("a", 32), false},
+		{"non-hex same length", strings.Repeat("z", 64), false},
+		{"correct", strings.Repeat("a", 64), true},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			err := validate(tc.in)
+			if tc.ok && err != nil {
+				t.Errorf("expected accept, got %v", err)
+			}
+			if !tc.ok && err == nil {
+				t.Errorf("expected reject, got nil")
+			}
+		})
+	}
+}
