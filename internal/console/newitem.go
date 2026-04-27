@@ -19,6 +19,49 @@ import (
 	"github.com/truestamp/truestamp-cli/internal/wschannel"
 )
 
+// hashTypeOption describes one supported `hash_type` value the
+// server accepts on items.create. Mirrors lib/truestamp/hash.ex's
+// @hash_types map on the v2 backend — keep in sync if the server
+// adds or drops algorithms.
+//
+// Ordering: secure-modern first (recommended defaults at the top),
+// then secure-legacy SHA-3 + BLAKE families, then insecure legacy
+// algorithms at the bottom. The user picks via huh.NewSelect; the
+// list order is what they see in the dropdown.
+type hashTypeOption struct {
+	Value  string // wire value sent to the server
+	Label  string // human-readable Select label
+	HexLen int    // exact length the hash field must match (2 × byte size)
+	Secure bool   // false flags md5 / sha1; UI may surface a warning
+}
+
+var hashTypeOptions = []hashTypeOption{
+	{Value: "sha256", Label: "SHA-256 (64 hex chars) — recommended", HexLen: 64, Secure: true},
+	{Value: "sha512", Label: "SHA-512 (128 hex chars)", HexLen: 128, Secure: true},
+	{Value: "sha384", Label: "SHA-384 (96 hex chars)", HexLen: 96, Secure: true},
+	{Value: "sha224", Label: "SHA-224 (56 hex chars)", HexLen: 56, Secure: true},
+	{Value: "sha3_256", Label: "SHA3-256 (64 hex chars)", HexLen: 64, Secure: true},
+	{Value: "sha3_512", Label: "SHA3-512 (128 hex chars)", HexLen: 128, Secure: true},
+	{Value: "sha3_384", Label: "SHA3-384 (96 hex chars)", HexLen: 96, Secure: true},
+	{Value: "sha3_224", Label: "SHA3-224 (56 hex chars)", HexLen: 56, Secure: true},
+	{Value: "blake2b", Label: "BLAKE2b (128 hex chars)", HexLen: 128, Secure: true},
+	{Value: "blake2s", Label: "BLAKE2s (64 hex chars)", HexLen: 64, Secure: true},
+	{Value: "sha1", Label: "SHA-1 (40 hex chars) — legacy / insecure", HexLen: 40, Secure: false},
+	{Value: "md5", Label: "MD5 (32 hex chars) — legacy / insecure", HexLen: 32, Secure: false},
+}
+
+// lookupHashType resolves a wire value to its canonical option.
+// Returns nil for unknown types so the caller can decide whether
+// to fail or fall through.
+func lookupHashType(value string) *hashTypeOption {
+	for i := range hashTypeOptions {
+		if hashTypeOptions[i].Value == value {
+			return &hashTypeOptions[i]
+		}
+	}
+	return nil
+}
+
 // newItemModel implements the form pane. The form fields are owned by
 // a huh.Form so tab/shift-tab navigation, validators, and field
 // chrome are all standard charm widgets — no hand-rolled textinput
@@ -127,16 +170,25 @@ func (m *newItemModel) makeForm() *huh.Form {
 
 			huh.NewSelect[string]().
 				Title("Hash type").
-				Description("Determines the expected hex length of the hash.").
-				Options(
-					huh.NewOption("sha256 (64 hex chars)", "sha256"),
-				).
+				Description("Selects which algorithm produced the hash; sets the expected hex length.").
+				Options(hashTypeSelectOptions()...).
 				Value(&m.formHashType),
 		),
 	).
 		WithShowHelp(false). // we render help in the page footer
 		WithShowErrors(true)
 	return form
+}
+
+// hashTypeSelectOptions converts the canonical hashTypeOptions slice
+// into huh.Option values for the Select field. Built once per form
+// constructor — cheap, but kept as a helper to keep makeForm readable.
+func hashTypeSelectOptions() []huh.Option[string] {
+	opts := make([]huh.Option[string], len(hashTypeOptions))
+	for i, h := range hashTypeOptions {
+		opts[i] = huh.NewOption(h.Label, h.Value)
+	}
+	return opts
 }
 
 func requiredString(name string) func(string) error {
@@ -150,6 +202,15 @@ func requiredString(name string) func(string) error {
 
 var hexHash = regexp.MustCompile(`^[0-9a-fA-F]+$`)
 
+// validateHash enforces:
+//   - non-empty
+//   - hex-only
+//   - exact byte length matching the chosen hash type's HexLen
+//
+// The hashType lookup is table-driven from hashTypeOptions, so the
+// length check covers every algorithm the server accepts. An unknown
+// hashType falls through to length-skipped validation; the server's
+// own constraint regex catches it.
 func validateHash(hashType *string) func(string) error {
 	return func(s string) error {
 		s = strings.ToLower(strings.TrimSpace(s))
@@ -159,8 +220,16 @@ func validateHash(hashType *string) func(string) error {
 		if !hexHash.MatchString(s) {
 			return fmt.Errorf("hash must be a hex string")
 		}
-		if hashType != nil && *hashType == "sha256" && len(s) != 64 {
-			return fmt.Errorf("sha256 hash must be 64 hex characters")
+		if hashType == nil || *hashType == "" {
+			return nil
+		}
+		entry := lookupHashType(*hashType)
+		if entry == nil {
+			return nil
+		}
+		if len(s) != entry.HexLen {
+			return fmt.Errorf("%s hash must be %d hex characters (got %d)",
+				entry.Value, entry.HexLen, len(s))
 		}
 		return nil
 	}
