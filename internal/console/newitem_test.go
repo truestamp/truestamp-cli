@@ -126,46 +126,64 @@ func TestValidateHashRejectsNonHex(t *testing.T) {
 	}
 }
 
-// TestValidateHashRejectsOddLengthEvenWithoutHashType confirms the
-// pair-regex catches odd-length input regardless of hashType. This
-// is the defence-in-depth case: an unknown hashType skips the
-// table-driven length check, so the regex must enforce
-// even-byte-pairs by itself.
-func TestValidateHashRejectsOddLengthEvenWithoutHashType(t *testing.T) {
+// TestValidateHashEmptyHashTypeIsRejected confirms an empty hashType
+// is no longer a soft-fail — even with otherwise-valid hex input,
+// the validator demands a chosen algorithm so the table-driven
+// length check can run.
+func TestValidateHashEmptyHashTypeIsRejected(t *testing.T) {
 	t.Parallel()
 
-	// Empty hashType — table lookup is skipped, but even-length
-	// must still be enforced.
 	emptyHT := ""
 	validate := validateHash(&emptyHT)
 
-	cases := []string{
-		"a",                               // 1 char
-		"abc",                             // 3 chars
-		strings.Repeat("a", 63),           // 63 = sha256 byte size minus 1
-		strings.Repeat("a", 41),           // 41 = sha1 byte size plus 1
-		"deadbee",                         // 7 chars
-	}
-	for _, in := range cases {
-		if err := validate(in); err == nil {
-			t.Errorf("validateHash accepted odd-length %q (len=%d) with empty hashType",
-				in, len(in))
-		}
+	// Even-length valid hex still rejected — algorithm must be
+	// chosen so the length is checked against an expected size.
+	if err := validate(strings.Repeat("a", 64)); err == nil {
+		t.Error("validateHash accepted input with empty hashType")
 	}
 
-	// Unknown hashType (not in our canonical table) — same
-	// defence-in-depth pathway must still reject odd-length.
+	// Odd-length still also rejected (regex bites first).
+	if err := validate(strings.Repeat("a", 63)); err == nil {
+		t.Error("validateHash accepted odd-length input with empty hashType")
+	}
+}
+
+// TestValidateHashUnknownHashTypeIsRejected confirms a hashType not
+// in our canonical table is rejected with a clear "unknown hash type"
+// error, not silently skipped.
+func TestValidateHashUnknownHashTypeIsRejected(t *testing.T) {
+	t.Parallel()
+
 	unknownHT := "ripemd160"
-	validate = validateHash(&unknownHT)
+	validate := validateHash(&unknownHT)
 
-	if err := validate(strings.Repeat("a", 39)); err == nil {
-		t.Errorf("validateHash accepted odd-length input with unknown hashType %q", unknownHT)
+	if err := validate(strings.Repeat("a", 40)); err == nil {
+		t.Errorf("validateHash accepted input with unknown hashType %q", unknownHT)
 	}
-	// And: even-length input with unknown hashType is allowed
-	// (we defer to the server's constraint regex for algorithm
-	// validity).
-	if err := validate(strings.Repeat("a", 40)); err != nil {
-		t.Errorf("validateHash rejected even-length hex with unknown hashType: %v", err)
+}
+
+// TestValidateHashRejectsOddLengthForAllInputs confirms the pair-
+// regex catches odd-length hex regardless of hashType. The regex
+// runs before the table lookup so an empty / unknown hashType
+// surfaces as the regex error first when the input is malformed.
+func TestValidateHashRejectsOddLengthForAllInputs(t *testing.T) {
+	t.Parallel()
+
+	for _, ht := range []string{"sha256", "sha512", "blake2b", "sha1", "md5"} {
+		validate := validateHash(&ht)
+		cases := []string{
+			"a",                     // 1 char
+			"abc",                   // 3 chars
+			strings.Repeat("a", 63), // 63 chars (sha256 minus 1)
+			strings.Repeat("a", 41), // 41 chars (sha1 plus 1)
+			"deadbee",               // 7 chars
+		}
+		for _, in := range cases {
+			if err := validate(in); err == nil {
+				t.Errorf("hashType=%s: validateHash accepted odd-length %q (len=%d)",
+					ht, in, len(in))
+			}
+		}
 	}
 }
 

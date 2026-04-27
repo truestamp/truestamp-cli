@@ -207,19 +207,18 @@ func requiredString(name string) func(string) error {
 // table-driven length checking is skipped for unknown algorithms.
 var hexHash = regexp.MustCompile(`^([0-9a-fA-F]{2})+$`)
 
-// validateHash enforces, in order:
+// validateHash enforces three invariants. All three are mandatory;
+// none is skipped on any input path.
 //
 //  1. non-empty
 //  2. hex-only AND even length (one or more `[0-9a-fA-F]{2}` pairs)
 //  3. exact byte length matching the chosen hash type's HexLen
-//     (when the hash type is known to the canonical table)
 //
-// The hashType lookup is table-driven from hashTypeOptions, so the
-// length check covers every algorithm the server accepts. An unknown
-// hashType falls through to length-skipped validation, but the
-// even-length pair regex above still rules out malformed input; the
-// server's own constraint regex catches algorithm mismatches the
-// CLI doesn't know about.
+// hashType is always one of hashTypeOptions when the form is driven
+// through the UI Select. An empty or unknown hashType is rejected
+// loudly rather than skipped — defense in depth against any future
+// caller that bypasses the Select. There is no "soft-fail" path:
+// if any of the three checks fails, the validator returns an error.
 func validateHash(hashType *string) func(string) error {
 	return func(s string) error {
 		s = strings.ToLower(strings.TrimSpace(s))
@@ -230,11 +229,11 @@ func validateHash(hashType *string) func(string) error {
 			return fmt.Errorf("hash must be an even-length hex string")
 		}
 		if hashType == nil || *hashType == "" {
-			return nil
+			return fmt.Errorf("hash type is required")
 		}
 		entry := lookupHashType(*hashType)
 		if entry == nil {
-			return nil
+			return fmt.Errorf("unknown hash type %q", *hashType)
 		}
 		if len(s) != entry.HexLen {
 			return fmt.Errorf("%s hash must be %d hex characters (got %d)",
