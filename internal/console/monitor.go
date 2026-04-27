@@ -462,12 +462,6 @@ func (m *monitorModel) activeStreams() []string {
 // =====================================================================
 
 var (
-	// Local color styles used by the scroll indicator. App-level
-	// status colors live in chrome.Theme; this is the same palette,
-	// just named for the contexts in which monitor uses them.
-	statusOK  = lipgloss.NewStyle().Foreground(ui.Green)
-	statusErr = lipgloss.NewStyle().Foreground(ui.Red)
-
 	streamSelectedStyle = lipgloss.NewStyle().Bold(true).Foreground(ui.Blue)
 	streamPendingStyle  = lipgloss.NewStyle().Foreground(ui.Yellow)
 	streamCursorStyle   = lipgloss.NewStyle().Reverse(true)
@@ -552,23 +546,26 @@ func (m *monitorModel) renderStreamList(width int) string {
 func (m *monitorModel) renderWaterfall(width, height int) string {
 	_ = width
 
-	var title string
+	var titleText string
 	if m.focus == focusWaterfall {
-		title = focusedTitleStyle.Render("▸ Events")
+		titleText = focusedTitleStyle.Render("▸ Events")
 	} else {
-		title = unfocusedTitleStyle.Render("  Events")
+		titleText = unfocusedTitleStyle.Render("  Events")
 	}
 
 	if len(m.events) == 0 {
-		return title + "\n\n" + emptyWaterfallStyle.Render(
+		// No events: render the title row with no indicator (no
+		// scrolling state to surface) and a placeholder body.
+		return titleText + "\n\n" + emptyWaterfallStyle.Render(
 			"No events yet.\n\n"+
 				"Toggle a stream on the left with space to start receiving events.\n"+
 				"Use →/← (or h/l) to focus this pane and ↑/↓ to scroll once events arrive.")
 	}
 
-	// Reserve a line for the title and a line for the position indicator
-	// below the event rows.
-	rows := height - 4
+	// rows = title + blank + N table rows. Indicator sits on the
+	// title row (right of the title) so it doesn't move when the
+	// table grows or shrinks.
+	rows := height - 2
 	if rows < 1 {
 		rows = 1
 	}
@@ -655,19 +652,28 @@ func (m *monitorModel) renderWaterfall(width, height int) string {
 
 	rendered := tbl.Render()
 
-	// Pad to fixed `rows` height so the indicator stays anchored.
+	// Indent the entire table by 2 columns so the first cell aligns
+	// with the "E" in "Events" above it. Without this the title text
+	// and the table's first column sit at different offsets and the
+	// pane reads as visually broken.
+	rendered = lipgloss.NewStyle().PaddingLeft(2).Render(rendered)
+
+	// Pad to fixed `rows` height so the body fills the pane evenly
+	// even when fewer events than fit are buffered.
 	renderedLines := strings.Count(rendered, "\n")
 	if renderedLines < rows {
 		rendered += strings.Repeat("\n", rows-renderedLines)
 	}
 
+	// Title row carries the indicator on the right side so its
+	// position is anchored to the top of the pane and never shifts
+	// as the table grows / shrinks below.
+	indicator := m.scrollIndicator(m.viewStart, end, total)
+	titleRow := titleText + "   " + indicator
+
 	var sb strings.Builder
-	sb.WriteString(title + "\n\n")
+	sb.WriteString(titleRow + "\n\n")
 	sb.WriteString(rendered)
-	if !strings.HasSuffix(rendered, "\n") {
-		sb.WriteString("\n")
-	}
-	sb.WriteString(m.scrollIndicator(m.viewStart, end, total))
 	return sb.String()
 }
 
@@ -718,6 +724,12 @@ func kindStyleFor(kind string) lipgloss.Style {
 	return lipgloss.NewStyle()
 }
 
+// scrollIndicator renders the live/scrolled status, range, and
+// chronological order in a faint, subtle style — closer to the
+// header clock's treatment than to a status pill. The live/scrolled
+// glyph keeps its color cue (green dot / yellow pause) so it's
+// scannable at a glance, but the surrounding text is dim so the
+// title and the table content stay primary.
 func (m *monitorModel) scrollIndicator(start, end, total int) string {
 	live := m.atLive()
 	order := "oldest→newest"
@@ -725,15 +737,25 @@ func (m *monitorModel) scrollIndicator(start, end, total int) string {
 		order = "newest→oldest"
 	}
 
-	var status string
+	var glyph string
 	if live {
-		status = statusOK.Render("● live")
+		glyph = lipgloss.NewStyle().Foreground(ui.Green).Render("●")
 	} else {
-		status = statusErr.Render("⏸ scrolled")
+		glyph = lipgloss.NewStyle().Foreground(ui.Yellow).Render("⏸")
 	}
 
-	rng := fmt.Sprintf("events %d-%d / %d (last 24h)", start+1, end, total)
-	return fmt.Sprintf("%s  %s  (%s)", status, rng, order)
+	faint := lipgloss.NewStyle().Foreground(ui.Dim)
+	statusWord := "live"
+	if !live {
+		statusWord = "scrolled"
+	}
+
+	parts := []string{
+		glyph + " " + faint.Render(statusWord),
+		faint.Render(fmt.Sprintf("events %d-%d / %d", start+1, end, total)),
+		faint.Render(order),
+	}
+	return strings.Join(parts, faint.Render("  •  "))
 }
 
 func paneStyle(w, h int) lipgloss.Style {
