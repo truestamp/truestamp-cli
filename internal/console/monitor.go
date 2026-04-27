@@ -457,17 +457,6 @@ func (m *monitorModel) activeStreams() []string {
 	return out
 }
 
-// shortHash returns a left-truncated hash with an ellipsis suffix,
-// for the New Item card. The Monitor table uses events.Project's own
-// width-aware truncation, but the form pane's "Claims hash" /
-// "Item hash" lines fit a fixed 12-char + ellipsis budget.
-func shortHash(h string) string {
-	if len(h) <= 12 {
-		return h
-	}
-	return h[:12] + "…"
-}
-
 // =====================================================================
 // Rendering
 // =====================================================================

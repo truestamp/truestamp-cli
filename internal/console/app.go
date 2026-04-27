@@ -145,12 +145,13 @@ type model struct {
 
 	// Page chrome — owns header/footer rendering and theme. Built
 	// once at startup; pane Views render into the body area.
-	theme       *chrome.Theme
-	footer      chrome.Footer
-	appKeys     keys.AppKeys
-	monitorKeys keys.MonitorKeys
-	newItemKeys keys.NewItemKeys
-	connKeys    keys.ConnectionKeys
+	theme               *chrome.Theme
+	footer              chrome.Footer
+	appKeys             keys.AppKeys
+	monitorKeys         keys.MonitorKeys
+	newItemKeys         keys.NewItemKeys
+	newItemWatchingKeys keys.NewItemWatchingKeys
+	connKeys            keys.ConnectionKeys
 
 	// confirmingQuit is true while the "Really quit? y/n" prompt is
 	// up. Set by q (when the active pane isn't accepting text input)
@@ -178,17 +179,18 @@ func newModel(client *wschannel.Client, opts Options, log *slog.Logger) *model {
 	theme := chrome.NewTheme()
 	appKeys := keys.NewAppKeys()
 	m := &model{
-		client:      client,
-		opts:        opts,
-		log:         log,
-		state:       connConnecting,
-		active:      paneMonitor,
-		theme:       theme,
-		footer:      chrome.NewFooter(theme),
-		appKeys:     appKeys,
-		monitorKeys: keys.NewMonitorKeys(appKeys),
-		newItemKeys: keys.NewNewItemKeys(appKeys),
-		connKeys:    keys.NewConnectionKeys(appKeys),
+		client:              client,
+		opts:                opts,
+		log:                 log,
+		state:               connConnecting,
+		active:              paneMonitor,
+		theme:               theme,
+		footer:              chrome.NewFooter(theme),
+		appKeys:             appKeys,
+		monitorKeys:         keys.NewMonitorKeys(appKeys),
+		newItemKeys:         keys.NewNewItemKeys(appKeys),
+		newItemWatchingKeys: keys.NewNewItemWatchingKeys(appKeys),
+		connKeys:            keys.NewConnectionKeys(appKeys),
 	}
 	m.monitor = newMonitorModel(client, log)
 	m.newItem = newNewItemModel(client)
@@ -425,12 +427,19 @@ func (m *model) View() tea.View {
 }
 
 // activeKeyMap returns the help.KeyMap for the currently-focused pane.
-// Drives the footer's auto-rendered help row.
+// Drives the footer's auto-rendered help row. Some panes have
+// state-dependent keymaps (e.g. the New Item pane swaps between
+// form-entry bindings and a watch-mode "n: new item" binding once
+// the item has been submitted) so this function inspects pane state,
+// not just the active pane id.
 func (m *model) activeKeyMap() help.KeyMap {
 	switch m.active {
 	case paneMonitor:
 		return m.monitorKeys
 	case paneNewItem:
+		if m.newItem.state == formWatching {
+			return m.newItemWatchingKeys
+		}
 		return m.newItemKeys
 	case paneConnection:
 		return m.connKeys

@@ -210,6 +210,45 @@ func (k NewItemKeys) FullHelp() [][]key.Binding {
 	}
 }
 
+// NewItemWatchingKeys covers the New Item pane after a successful
+// items.create — the form is gone, the lifecycle card is up, and
+// the only pane-local action is starting over with `n`. We surface
+// a separate keymap for this state so the footer doesn't continue
+// to advertise tab/shift+tab/enter/esc, none of which apply.
+type NewItemWatchingKeys struct {
+	NewForm key.Binding
+	App     AppKeys
+}
+
+// NewNewItemWatchingKeys returns the watching-state bindings.
+func NewNewItemWatchingKeys(app AppKeys) NewItemWatchingKeys {
+	return NewItemWatchingKeys{
+		App: app,
+		NewForm: key.NewBinding(
+			key.WithKeys("n"),
+			key.WithHelp("n", "new item"),
+		),
+	}
+}
+
+// ShortHelp implements help.KeyMap.
+func (k NewItemWatchingKeys) ShortHelp() []key.Binding {
+	return []key.Binding{
+		k.NewForm,
+		k.App.ToggleHelp,
+		k.App.Quit,
+	}
+}
+
+// FullHelp implements help.KeyMap.
+func (k NewItemWatchingKeys) FullHelp() [][]key.Binding {
+	return [][]key.Binding{
+		{k.NewForm},
+		{k.App.NextPane, k.App.PrevPane, k.App.GoMonitor, k.App.GoNewItem, k.App.GoConnection},
+		{k.App.ToggleHelp, k.App.Quit},
+	}
+}
+
 // ConnectionKeys covers the Connection pane (read-only diagnostics
 // today; reserved for refresh / actions later).
 type ConnectionKeys struct {
