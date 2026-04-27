@@ -8,12 +8,13 @@ import (
 	"encoding/json"
 	"fmt"
 	"log/slog"
-	"sort"
 	"strings"
 	"time"
 
 	tea "charm.land/bubbletea/v2"
 	lipgloss "charm.land/lipgloss/v2"
+	ltable "charm.land/lipgloss/v2/table"
+	"github.com/truestamp/truestamp-cli/internal/console/events"
 	"github.com/truestamp/truestamp-cli/internal/ui"
 	"github.com/truestamp/truestamp-cli/internal/wschannel"
 )
@@ -28,7 +29,7 @@ type monitorModel struct {
 	streams []StreamMeta
 	active  map[string]bool // local mirror of server-side subscription set
 	cursor  int             // index into streams (left list)
-	events  []eventLine     // bounded ring of recent events
+	events  []events.Row    // bounded ring of recent events
 	pending map[string]bool // streams with an inflight subscribe/unsubscribe
 
 	// Waterfall selection + viewport state.
@@ -64,15 +65,6 @@ const (
 	focusList monitorFocus = iota
 	focusWaterfall
 )
-
-// eventLine is a single row in the waterfall.
-type eventLine struct {
-	when   time.Time
-	stream string
-	kind   string
-	detail string
-	outage bool // true for synthetic "server down" markers
-}
 
 // subscribeReplyMsg is dispatched after a subscribe/unsubscribe round-trip.
 type subscribeReplyMsg struct {
@@ -374,27 +366,9 @@ func (m *monitorModel) subscribeAllStreams() tea.Cmd {
 // flips the marker into a "resumed" line, dropped once when the
 // connection comes back, capping the gap visually.
 func (m *monitorModel) appendOutageMarker(since, at time.Time, closing bool) {
-	dur := at.Sub(since).Round(time.Second)
-
-	var detail, kind string
-	if closing {
-		detail = fmt.Sprintf("connection restored after %s", dur)
-		kind = "server.up"
-	} else {
-		detail = fmt.Sprintf("server unreachable for %s", dur)
-		kind = "server.down"
-	}
-
-	line := eventLine{
-		when:   at,
-		stream: "_outage",
-		kind:   kind,
-		detail: detail,
-		outage: true,
-	}
-
+	row := events.Outage(at, since, closing)
 	wasLive := m.atLive()
-	m.events = append(m.events, line)
+	m.events = append(m.events, row)
 	m.evictAged()
 	if wasLive {
 		m.selected = len(m.events) - 1
@@ -408,7 +382,7 @@ func (m *monitorModel) appendOutageMarker(since, at time.Time, closing bool) {
 func (m *monitorModel) evictAged() {
 	cutoff := time.Now().Add(-eventRetention)
 	drop := 0
-	for drop < len(m.events) && m.events[drop].when.Before(cutoff) {
+	for drop < len(m.events) && m.events[drop].When.Before(cutoff) {
 		drop++
 	}
 	if remaining := len(m.events) - drop; remaining > eventHardCap {
@@ -460,20 +434,15 @@ func (m *monitorModel) handlePush(msg pushMsg) {
 	if msg.Event != "stream" {
 		return
 	}
-	var p streamPushPayload
+	var p events.Push
 	if err := json.Unmarshal(msg.Payload, &p); err != nil {
 		return
 	}
 
-	line := eventLine{
-		when:   time.Now(),
-		stream: p.Stream,
-		kind:   p.Kind,
-		detail: summarizeEvent(p),
-	}
+	row := events.Project(time.Now(), p)
 
 	wasLive := m.atLive()
-	m.events = append(m.events, line)
+	m.events = append(m.events, row)
 	m.evictAged()
 	if wasLive {
 		m.selected = len(m.events) - 1
@@ -488,110 +457,10 @@ func (m *monitorModel) activeStreams() []string {
 	return out
 }
 
-// streamPushPayload mirrors the wire shape produced by ConsoleProjector
-// + ConsoleChannel.push_stream/4.
-type streamPushPayload struct {
-	Stream string          `json:"stream"`
-	Kind   string          `json:"kind"`
-	At     string          `json:"at"`
-	Data   json.RawMessage `json:"data"`
-}
-
-// summarizeEvent picks a one-line human-readable summary based on the
-// kind. Best-effort — unknown kinds fall back to a JSON-truncated dump
-// so new event types still render something useful.
-//
-// Burst events take precedence: their kind shares a resource prefix
-// with individual events (e.g. "commitment.burst" vs "commitment.*"),
-// so we have to check `.burst` before the per-kind switch or every
-// burst row gets misformatted with empty individual-event fields.
-func summarizeEvent(p streamPushPayload) string {
-	if strings.HasSuffix(p.Kind, ".burst") {
-		return summarizeBurst(p)
-	}
-
-	switch {
-	case strings.HasPrefix(p.Kind, "block."):
-		var b struct {
-			ID         string `json:"id"`
-			State      string `json:"state"`
-			BlockHash  string `json:"block_hash"`
-			MerkleRoot string `json:"merkle_root"`
-		}
-		_ = json.Unmarshal(p.Data, &b)
-		return fmt.Sprintf("%s  state=%s  hash=%s", shortID(b.ID), b.State, shortHash(b.BlockHash))
-
-	case strings.HasPrefix(p.Kind, "commitment."):
-		var c struct {
-			ID      string `json:"id"`
-			BlockID string `json:"block_id"`
-		}
-		_ = json.Unmarshal(p.Data, &c)
-		return fmt.Sprintf("%s  block=%s", shortID(c.ID), shortID(c.BlockID))
-
-	case strings.HasPrefix(p.Kind, "external_commitment."):
-		var ec struct {
-			ID      string `json:"id"`
-			Method  string `json:"method"`
-			BlockID string `json:"block_id"`
-		}
-		_ = json.Unmarshal(p.Data, &ec)
-		return fmt.Sprintf("method=%s  block=%s", ec.Method, shortID(ec.BlockID))
-
-	case strings.HasPrefix(p.Kind, "entropy."):
-		var e struct {
-			ObservationHash string `json:"observation_hash"`
-		}
-		_ = json.Unmarshal(p.Data, &e)
-		return e.ObservationHash
-
-	case strings.HasPrefix(p.Kind, "item."):
-		var it struct {
-			ID     string `json:"id"`
-			State  string `json:"state"`
-			Claims struct {
-				Name string `json:"name"`
-			} `json:"claims"`
-		}
-		_ = json.Unmarshal(p.Data, &it)
-		return fmt.Sprintf("%s  state=%s  name=%s", shortID(it.ID), it.State, truncate(it.Claims.Name, 30))
-	}
-
-	return truncate(string(p.Data), 80)
-}
-
-// summarizeBurst renders a coalesced server-side burst (one summary
-// push standing in for many same-stream events that arrived faster
-// than the human-reading-speed window). Preserves the count + per-kind
-// breakdown so the user can still see what happened during the window
-// they would have otherwise been flooded by.
-func summarizeBurst(p streamPushPayload) string {
-	var b struct {
-		Count    int            `json:"count"`
-		WindowMs int            `json:"window_ms"`
-		ByKind   map[string]int `json:"by_kind"`
-		ByState  map[string]int `json:"by_state"`
-	}
-	_ = json.Unmarshal(p.Data, &b)
-
-	parts := make([]string, 0, len(b.ByKind))
-	for k, n := range b.ByKind {
-		short := strings.TrimPrefix(k, strings.SplitN(k, ".", 2)[0]+".")
-		parts = append(parts, fmt.Sprintf("%s=%d", short, n))
-	}
-	sort.Strings(parts)
-
-	return fmt.Sprintf("%d events in %dms  %s",
-		b.Count, b.WindowMs, strings.Join(parts, " "))
-}
-
-func shortID(id string) string {
-	if len(id) <= 12 {
-		return id
-	}
-	return id[:8] + "…"
-}
-
+// shortHash returns a left-truncated hash with an ellipsis suffix,
+// for the New Item card. The Monitor table uses events.Project's own
+// width-aware truncation, but the form pane's "Claims hash" /
+// "Item hash" lines fit a fixed 12-char + ellipsis budget.
 func shortHash(h string) string {
 	if len(h) <= 12 {
 		return h
@@ -615,15 +484,16 @@ var (
 	streamCursorStyle   = lipgloss.NewStyle().Reverse(true)
 	focusedTitleStyle   = lipgloss.NewStyle().Bold(true).Foreground(ui.Yellow)
 	unfocusedTitleStyle = lipgloss.NewStyle().Bold(true).Faint(true)
-	selectedRowStyle    = lipgloss.NewStyle().Reverse(true)
 	outageRowStyle      = lipgloss.NewStyle().Foreground(ui.Red).Italic(true)
 
 	kindBlockStyle      = lipgloss.NewStyle().Foreground(ui.Blue)
 	kindCommitStyle     = lipgloss.NewStyle().Foreground(ui.Green)
 	kindEntropyStyle    = lipgloss.NewStyle().Foreground(ui.Accent)
 	kindItemStyle       = lipgloss.NewStyle().Foreground(ui.Yellow)
-	timestampStyle      = lipgloss.NewStyle().Faint(true)
-	streamTagStyle      = lipgloss.NewStyle().Faint(true)
+	timestampStyle      = lipgloss.NewStyle().Foreground(ui.Dim)
+	idStyle             = lipgloss.NewStyle().Foreground(ui.Label)
+	burstCountStyle     = lipgloss.NewStyle().Foreground(ui.Yellow).Italic(true)
+	detailStyle         = lipgloss.NewStyle().Foreground(ui.Value)
 	leftPaneStyle       = lipgloss.NewStyle().BorderStyle(lipgloss.NormalBorder()).BorderRight(true).PaddingRight(1)
 	emptyWaterfallStyle = lipgloss.NewStyle().Faint(true).Padding(1, 2)
 )
@@ -749,38 +619,114 @@ func (m *monitorModel) renderWaterfall(width, height int) string {
 		}
 	}
 
-	// Render rows into a fixed-height block: pad with blank lines so the
-	// status indicator below always lands at the same screen row, even
+	// Build the rendered block via lipgloss/v2/table. Each visible
+	// event maps to one [time, kind, id, detail] row; the StyleFunc
+	// applies per-row severity styling and selection highlight. The
+	// table renders to a single string; we pad with blank lines so
+	// the scroll indicator below lands at the same screen row even
 	// when the buffer holds fewer events than fit.
-	var rowsBuf strings.Builder
-	for _, abs := range visibleAbs {
+	tableData := make([][]string, len(visibleAbs))
+	for i, abs := range visibleAbs {
 		e := m.events[abs]
-		ts := timestampStyle.Render(e.when.Format("15:04:05.000"))
-		var line string
-		if e.outage {
-			line = outageRowStyle.Render(fmt.Sprintf("%s  ⚠ %-22s %s", ts, e.kind, e.detail))
-		} else {
-			kind := styleKind(e.kind)
-			stream := streamTagStyle.Render("[" + e.stream + "]")
-			line = fmt.Sprintf("%s  %s  %s  %s", ts, kind, stream, e.detail)
+		tableData[i] = []string{
+			e.When.Format("15:04:05.000"),
+			e.Kind,
+			e.ID,
+			e.Detail,
 		}
-
-		if abs == m.selected && m.focus == focusWaterfall {
-			line = selectedRowStyle.Render(line)
-		}
-
-		rowsBuf.WriteString(line)
-		rowsBuf.WriteString("\n")
 	}
-	for i := len(visibleAbs); i < rows; i++ {
-		rowsBuf.WriteString("\n")
+
+	tbl := ltable.New().
+		Border(lipgloss.HiddenBorder()).
+		BorderTop(false).
+		BorderBottom(false).
+		BorderLeft(false).
+		BorderRight(false).
+		BorderColumn(false).
+		BorderRow(false).
+		BorderHeader(false).
+		Rows(tableData...).
+		StyleFunc(func(row, col int) lipgloss.Style {
+			// table row indices are 0-based for data when no header
+			// is set; with our `BorderHeader(false)` and no Headers,
+			// row 0 is the first data row. Adjust if we add headers.
+			if row < 0 || row >= len(visibleAbs) {
+				return lipgloss.NewStyle()
+			}
+			abs := visibleAbs[row]
+			e := m.events[abs]
+			selected := abs == m.selected && m.focus == focusWaterfall
+
+			base := columnStyle(col, e)
+			if selected {
+				base = base.Reverse(true)
+			}
+			return base
+		})
+
+	rendered := tbl.Render()
+
+	// Pad to fixed `rows` height so the indicator stays anchored.
+	renderedLines := strings.Count(rendered, "\n")
+	if renderedLines < rows {
+		rendered += strings.Repeat("\n", rows-renderedLines)
 	}
 
 	var sb strings.Builder
 	sb.WriteString(title + "\n\n")
-	sb.WriteString(rowsBuf.String())
+	sb.WriteString(rendered)
+	if !strings.HasSuffix(rendered, "\n") {
+		sb.WriteString("\n")
+	}
 	sb.WriteString(m.scrollIndicator(m.viewStart, end, total))
 	return sb.String()
+}
+
+// columnStyle picks the per-cell style based on the column index
+// (Time / Kind / ID / Detail) and the row's severity (Normal / Burst /
+// Outage). Selection highlighting wraps this style in a Reverse(true)
+// at the call site.
+func columnStyle(col int, e events.Row) lipgloss.Style {
+	if e.Severity == events.SeverityOutage {
+		// All cells in an outage row share one italic-red treatment so
+		// the line reads as a connection event, not a data event.
+		return outageRowStyle
+	}
+
+	switch col {
+	case 0: // Time
+		return timestampStyle.PaddingRight(2)
+	case 1: // Kind
+		return kindStyleFor(e.Kind).PaddingRight(2)
+	case 2: // ID
+		if e.Severity == events.SeverityBurst {
+			return burstCountStyle.PaddingRight(2)
+		}
+		return idStyle.PaddingRight(2)
+	case 3: // Detail
+		return detailStyle
+	}
+	return lipgloss.NewStyle()
+}
+
+// kindStyleFor returns the resource-colored style for a `kind`.
+// Bursts inherit the resource family color (commitment.burst stays
+// green, item.burst stays yellow, etc.) so the rhythm of the table
+// is consistent across bursts and individuals.
+func kindStyleFor(kind string) lipgloss.Style {
+	switch {
+	case strings.HasPrefix(kind, "block."):
+		return kindBlockStyle
+	case strings.HasPrefix(kind, "commitment.") || strings.HasPrefix(kind, "external_commitment."):
+		return kindCommitStyle
+	case strings.HasPrefix(kind, "entropy."):
+		return kindEntropyStyle
+	case strings.HasPrefix(kind, "item."):
+		return kindItemStyle
+	case strings.HasPrefix(kind, "server."):
+		return outageRowStyle
+	}
+	return lipgloss.NewStyle()
 }
 
 func (m *monitorModel) scrollIndicator(start, end, total int) string {
@@ -799,20 +745,6 @@ func (m *monitorModel) scrollIndicator(start, end, total int) string {
 
 	rng := fmt.Sprintf("events %d-%d / %d (last 24h)", start+1, end, total)
 	return fmt.Sprintf("%s  %s  (%s)", status, rng, order)
-}
-
-func styleKind(kind string) string {
-	switch {
-	case strings.HasPrefix(kind, "block."):
-		return kindBlockStyle.Render(fmt.Sprintf("%-22s", kind))
-	case strings.HasPrefix(kind, "commitment.") || strings.HasPrefix(kind, "external_commitment."):
-		return kindCommitStyle.Render(fmt.Sprintf("%-22s", kind))
-	case strings.HasPrefix(kind, "entropy."):
-		return kindEntropyStyle.Render(fmt.Sprintf("%-22s", kind))
-	case strings.HasPrefix(kind, "item."):
-		return kindItemStyle.Render(fmt.Sprintf("%-22s", kind))
-	}
-	return fmt.Sprintf("%-22s", kind)
 }
 
 func paneStyle(w, h int) lipgloss.Style {

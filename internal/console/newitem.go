@@ -14,6 +14,7 @@ import (
 	"charm.land/bubbles/v2/textinput"
 	tea "charm.land/bubbletea/v2"
 	lipgloss "charm.land/lipgloss/v2"
+	"github.com/truestamp/truestamp-cli/internal/console/events"
 	"github.com/truestamp/truestamp-cli/internal/ui"
 	"github.com/truestamp/truestamp-cli/internal/wschannel"
 )
@@ -252,7 +253,7 @@ func (m *newItemModel) handlePush(msg pushMsg) {
 	if msg.Event != "stream" {
 		return
 	}
-	var p streamPushPayload
+	var p events.Push
 	if err := json.Unmarshal(msg.Payload, &p); err != nil {
 		return
 	}
