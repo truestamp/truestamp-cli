@@ -350,6 +350,12 @@ func (m *model) View() tea.View {
 	page := chrome.Page{Width: m.width, Height: m.height, Theme: m.theme}
 	bodyW, bodyH := page.BodyArea()
 
+	// Connection pane mirrors the Monitor's subscription count so the
+	// number appears alongside the rest of the scope info. The Monitor
+	// is the source of truth for active subscriptions; the Connection
+	// pane is read-only.
+	m.connection.setActiveStreams(len(m.monitor.activeStreams()))
+
 	var body string
 	switch m.active {
 	case paneMonitor:
@@ -434,14 +440,16 @@ func (m *model) clockText() string {
 }
 
 // statusText returns the header's status string and a StatusKind
-// so the chrome can color the right-side pill appropriately.
+// so the chrome can color the right-side pill appropriately. The
+// header carries only liveness state — plan tier and the active
+// stream count belong on the Connection pane where the user can
+// look them up deliberately, not in every-frame ambient chrome.
 func (m *model) statusText() (string, chrome.StatusKind) {
 	switch m.state {
 	case connConnecting:
 		return "connecting…", chrome.StatusKindWarn
 	case connConnected:
-		return fmt.Sprintf("connected • %s • %d streams",
-			m.welcome.Scope.Plan, len(m.monitor.activeStreams())), chrome.StatusKindOK
+		return "connected", chrome.StatusKindOK
 	case connReconnecting:
 		return m.reconnectingText(), chrome.StatusKindErr
 	case connClosed:
