@@ -108,6 +108,28 @@ const (
 
 func (m *monitorModel) Update(msg tea.Msg) (*monitorModel, tea.Cmd) {
 	switch msg := msg.(type) {
+	case tea.MouseWheelMsg:
+		// Trackpad / mouse wheel always means "move the cursor in
+		// screen-up / screen-down direction", regardless of the
+		// reverseOrder flag. Mirrors the ↑/↓ key handler which
+		// already does the chrono-vs-screen translation.
+		mw := msg.Mouse()
+		screenUpDelta := -1
+		screenDnDelta := 1
+		if m.reverseOrder {
+			screenUpDelta, screenDnDelta = 1, -1
+		}
+		switch mw.Button {
+		case tea.MouseWheelUp:
+			m.moveSelected(screenUpDelta)
+		case tea.MouseWheelDown:
+			m.moveSelected(screenDnDelta)
+		case tea.MouseWheelLeft, tea.MouseWheelRight:
+			// Horizontal wheel events are ignored — the waterfall
+			// has no horizontal scrolling. Falls through silently.
+		}
+		return m, nil
+
 	case tea.KeyPressMsg:
 		key := msg.String()
 

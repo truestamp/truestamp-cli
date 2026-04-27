@@ -37,6 +37,11 @@ func Run(ctx context.Context, opts Options) error {
 
 	mdl := newModel(client, opts, logger)
 
+	// Mouse mode is set on tea.View per render in bubbletea v2 (see
+	// model.View — `v.MouseMode = tea.MouseModeCellMotion`). Wheel
+	// events arrive as MouseWheelMsg; the Monitor pane handles them
+	// in its Update so trackpad scroll works in the waterfall
+	// without conflicting with the form pane's field navigation.
 	p := tea.NewProgram(mdl, tea.WithContext(ctx))
 
 	// Run Connect in a goroutine after the program has started, so the
@@ -356,6 +361,10 @@ func (m *model) View() tea.View {
 
 	v := tea.NewView(content)
 	v.AltScreen = true
+	// CellMotion = wheel + click events. Wheel events route to the
+	// active pane in Update; clicks aren't yet wired (clickable
+	// regions are a future bubblezone follow-up).
+	v.MouseMode = tea.MouseModeCellMotion
 	return v
 }
 
