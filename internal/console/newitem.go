@@ -11,7 +11,7 @@ import (
 	"strings"
 	"time"
 
-	"charm.land/bubbles/v2/textinput"
+	"charm.land/huh/v2"
 	tea "charm.land/bubbletea/v2"
 	lipgloss "charm.land/lipgloss/v2"
 	"github.com/truestamp/truestamp-cli/internal/console/events"
@@ -19,19 +19,26 @@ import (
 	"github.com/truestamp/truestamp-cli/internal/wschannel"
 )
 
-// newItemModel implements the form pane. It walks through four fields
-// (name, description, hash, hash_type) and submits an items.create
-// command. After submission it switches into "watching" mode and
-// surfaces lifecycle pushes (item.created → item.updated → item.committed)
-// for that specific item.
+// newItemModel implements the form pane. The form fields are owned by
+// a huh.Form so tab/shift-tab navigation, validators, and field
+// chrome are all standard charm widgets — no hand-rolled textinput
+// management.
+//
+// After submission the pane switches into "watching" mode and surfaces
+// lifecycle pushes (item.created → item.updated → item.committed) for
+// the just-created item.
 type newItemModel struct {
 	client *wschannel.Client
 
 	state newItemState
+	form  *huh.Form
 
-	// Form state.
-	fields []textinput.Model
-	cursor int
+	// Form values bound to the huh.Form fields. Filled by the form's
+	// own bindings (Value(&...)).
+	formName        string
+	formDescription string
+	formHash        string
+	formHashType    string
 
 	// Created item state.
 	created     *createdItem
@@ -78,79 +85,89 @@ type resetFormMsg struct{}
 
 func newNewItemModel(client *wschannel.Client) *newItemModel {
 	m := &newItemModel{
-		client: client,
-		state:  formEntering,
+		client:       client,
+		state:        formEntering,
+		formHashType: "sha256",
 	}
-	m.makeForm()
+	m.form = m.makeForm()
 	return m
 }
 
-func (m *newItemModel) makeForm() {
-	labels := []struct {
-		placeholder string
-		width       int
-		charLimit   int
-	}{
-		{"name (required)", 60, 200},
-		{"description (optional)", 60, 1000},
-		{"hash (64 hex chars for sha256)", 70, 128},
-		{"hash type (sha256)", 30, 32},
+// makeForm constructs a fresh huh.Form bound to the model's value
+// fields. Validators run on field commit (tab/enter), so the user
+// gets immediate feedback rather than only on submit.
+func (m *newItemModel) makeForm() *huh.Form {
+	form := huh.NewForm(
+		huh.NewGroup(
+			huh.NewInput().
+				Title("Name").
+				Description("Required. Free-form label, ≤ 200 chars.").
+				CharLimit(200).
+				Validate(requiredString("name")).
+				Value(&m.formName),
+
+			huh.NewText().
+				Title("Description").
+				Description("Optional context for the item.").
+				CharLimit(1000).
+				Value(&m.formDescription),
+
+			huh.NewInput().
+				Title("Hash").
+				Description("Hex digest of the data being timestamped (sha256 = 64 hex chars).").
+				CharLimit(128).
+				Validate(validateHash(&m.formHashType)).
+				Value(&m.formHash),
+
+			huh.NewSelect[string]().
+				Title("Hash type").
+				Description("Determines the expected hex length of the hash.").
+				Options(
+					huh.NewOption("sha256 (64 hex chars)", "sha256"),
+				).
+				Value(&m.formHashType),
+		),
+	).
+		WithShowHelp(false). // we render help in the page footer
+		WithShowErrors(true)
+	return form
+}
+
+func requiredString(name string) func(string) error {
+	return func(s string) error {
+		if strings.TrimSpace(s) == "" {
+			return fmt.Errorf("%s is required", name)
+		}
+		return nil
 	}
-	m.fields = make([]textinput.Model, len(labels))
-	for i, l := range labels {
-		ti := textinput.New()
-		ti.Placeholder = l.placeholder
-		ti.CharLimit = l.charLimit
-		ti.SetWidth(l.width)
-		m.fields[i] = ti
+}
+
+var hexHash = regexp.MustCompile(`^[0-9a-fA-F]+$`)
+
+func validateHash(hashType *string) func(string) error {
+	return func(s string) error {
+		s = strings.ToLower(strings.TrimSpace(s))
+		if s == "" {
+			return fmt.Errorf("hash is required")
+		}
+		if !hexHash.MatchString(s) {
+			return fmt.Errorf("hash must be a hex string")
+		}
+		if hashType != nil && *hashType == "sha256" && len(s) != 64 {
+			return fmt.Errorf("sha256 hash must be 64 hex characters")
+		}
+		return nil
 	}
-	m.fields[3].SetValue("sha256")
-	m.fields[0].Focus()
-	m.cursor = 0
-	m.formError = ""
 }
 
 func (m *newItemModel) Update(msg tea.Msg) (*newItemModel, tea.Cmd) {
 	switch tmsg := msg.(type) {
-	case tea.KeyPressMsg:
-		key := tmsg.String()
-
-		switch m.state {
-		case formEntering:
-			switch key {
-			case "tab", "down":
-				m.advanceCursor(1)
-				return m, nil
-			case "shift+tab", "up":
-				m.advanceCursor(-1)
-				return m, nil
-			case "enter":
-				if m.cursor < len(m.fields)-1 {
-					m.advanceCursor(1)
-					return m, nil
-				}
-				return m, m.submit()
-			case "esc":
-				// Clear form.
-				m.makeForm()
-				return m, nil
-			}
-
-		case formWatching:
-			if key == "n" {
-				m.created = nil
-				m.transitions = nil
-				m.makeForm()
-				m.state = formEntering
-				return m, nil
-			}
-		}
-
 	case itemCreateReplyMsg:
 		if tmsg.err != nil {
 			m.state = formEntering
 			m.formError = tmsg.err.Error()
-			return m, nil
+			m.form = m.makeForm()
+			return m, m.form.Init()
 		}
 		m.state = formWatching
 		m.created = tmsg.item
@@ -162,58 +179,65 @@ func (m *newItemModel) Update(msg tea.Msg) (*newItemModel, tea.Cmd) {
 	case resetFormMsg:
 		m.created = nil
 		m.transitions = nil
-		m.makeForm()
+		m.formName = ""
+		m.formDescription = ""
+		m.formHash = ""
+		m.formHashType = "sha256"
+		m.formError = ""
 		m.state = formEntering
+		m.form = m.makeForm()
+		return m, m.form.Init()
+
+	case tea.KeyPressMsg:
+		// In watching mode `n` resets the form. The form pane has no
+		// other watching-mode bindings — the lifecycle card is
+		// passive while we wait for transitions to arrive.
+		if m.state == formWatching && tmsg.String() == "n" {
+			return m, func() tea.Msg { return resetFormMsg{} }
+		}
+	}
+
+	if m.state != formEntering {
 		return m, nil
 	}
 
-	if m.state == formEntering {
-		var cmd tea.Cmd
-		m.fields[m.cursor], cmd = m.fields[m.cursor].Update(msg)
-		return m, cmd
+	// Delegate everything else to the huh.Form. It handles
+	// tab/shift-tab between fields, enter to submit, esc to abort,
+	// validators, and inline error rendering.
+	form, cmd := m.form.Update(msg)
+	if f, ok := form.(*huh.Form); ok {
+		m.form = f
 	}
-	return m, nil
-}
 
-func (m *newItemModel) advanceCursor(delta int) {
-	m.fields[m.cursor].Blur()
-	m.cursor = (m.cursor + delta + len(m.fields)) % len(m.fields)
-	m.fields[m.cursor].Focus()
-}
+	if m.form.State == huh.StateCompleted {
+		// Run validators one more time at the model level so we can
+		// surface a single error string in the pane (huh inlines per-
+		// field, but a final summary is friendlier post-submit).
+		if err := requiredString("name")(m.formName); err != nil {
+			m.formError = err.Error()
+			m.form = m.makeForm()
+			return m, m.form.Init()
+		}
+		if err := validateHash(&m.formHashType)(m.formHash); err != nil {
+			m.formError = err.Error()
+			m.form = m.makeForm()
+			return m, m.form.Init()
+		}
+		m.formError = ""
+		m.state = formSubmitting
+		return m, m.submit()
+	}
 
-var hexHash = regexp.MustCompile(`^[0-9a-fA-F]+$`)
+	return m, cmd
+}
 
 func (m *newItemModel) submit() tea.Cmd {
-	name := strings.TrimSpace(m.fields[0].Value())
-	description := strings.TrimSpace(m.fields[1].Value())
-	hash := strings.ToLower(strings.TrimSpace(m.fields[2].Value()))
-	hashType := strings.TrimSpace(m.fields[3].Value())
-
-	if name == "" {
-		m.formError = "name is required"
-		return nil
-	}
-	if hashType == "" {
-		hashType = "sha256"
-	}
-	if hash == "" || !hexHash.MatchString(hash) {
-		m.formError = "hash must be a hex string"
-		return nil
-	}
-	if hashType == "sha256" && len(hash) != 64 {
-		m.formError = "sha256 hash must be 64 hex characters"
-		return nil
-	}
-
-	m.formError = ""
-	m.state = formSubmitting
-
 	client := m.client
 	payload := map[string]any{
-		"name":        name,
-		"description": description,
-		"hash":        hash,
-		"hash_type":   hashType,
+		"name":        strings.TrimSpace(m.formName),
+		"description": strings.TrimSpace(m.formDescription),
+		"hash":        strings.ToLower(strings.TrimSpace(m.formHash)),
+		"hash_type":   m.formHashType,
 		"watch":       true,
 	}
 
@@ -288,8 +312,7 @@ const maxTransitions = 100
 // =====================================================================
 
 var (
-	formLabelStyle  = lipgloss.NewStyle().Bold(true)
-	formActiveStyle = lipgloss.NewStyle().Foreground(ui.Blue)
+	formTitleStyle  = lipgloss.NewStyle().Bold(true).Foreground(ui.Accent)
 	formErrorStyle  = lipgloss.NewStyle().Foreground(ui.Red)
 	cardBoxStyle    = lipgloss.NewStyle().BorderStyle(lipgloss.RoundedBorder()).
 			BorderForeground(ui.Green).Padding(1, 2)
@@ -309,26 +332,22 @@ func (m *newItemModel) View(width, height int) string {
 
 func (m *newItemModel) renderForm(width, height int) string {
 	var sb strings.Builder
-	sb.WriteString(formLabelStyle.Render("Create a new timestamped item") + "\n\n")
+	sb.WriteString(formTitleStyle.Render("Create a new timestamped item") + "\n\n")
 
-	for i, ti := range m.fields {
-		label := []string{"Name:", "Description:", "Hash:", "Hash type:"}[i]
-		if i == m.cursor {
-			label = formActiveStyle.Render(label)
-		}
-		sb.WriteString(label + "\n")
-		sb.WriteString("  " + ti.View() + "\n\n")
-	}
+	// huh's own rendering owns the field chrome — labels, focus,
+	// inline errors, prev/next field affordances. We just give it a
+	// width hint and place its output beneath the page-level title.
+	m.form.WithWidth(min(width-4, 80))
+	sb.WriteString(m.form.View())
 
 	if m.formError != "" {
-		sb.WriteString(formErrorStyle.Render("✗ "+m.formError) + "\n\n")
+		sb.WriteString("\n")
+		sb.WriteString(formErrorStyle.Render("✗ " + m.formError))
+		sb.WriteString("\n")
 	}
 
 	if m.state == formSubmitting {
-		sb.WriteString(formLabelStyle.Render("submitting…") + "\n")
-	} else {
-		sb.WriteString(lipgloss.NewStyle().Faint(true).Render(
-			"tab: next field   shift+tab: previous   enter: submit   esc: clear"))
+		sb.WriteString("\n" + lipgloss.NewStyle().Bold(true).Render("submitting…"))
 	}
 
 	return paneStyle(width, height).Render(sb.String())
@@ -340,7 +359,7 @@ func (m *newItemModel) renderWatching(width, height int) string {
 	}
 
 	var sb strings.Builder
-	sb.WriteString(formLabelStyle.Render("Submitted") + "\n\n")
+	sb.WriteString(formTitleStyle.Render("Submitted") + "\n\n")
 
 	currentState := m.created.State
 	if len(m.transitions) > 0 {
@@ -364,12 +383,12 @@ func (m *newItemModel) renderWatching(width, height int) string {
 	sb.WriteString(cardBoxStyle.Render(card))
 	sb.WriteString("\n\n")
 
-	sb.WriteString(formLabelStyle.Render("Lifecycle (live)") + "\n\n")
+	sb.WriteString(formTitleStyle.Render("Lifecycle (live)") + "\n\n")
 	for _, t := range m.transitions {
-		sb.WriteString(fmt.Sprintf("  %s  %s  %s\n",
+		fmt.Fprintf(&sb, "  %s  %s  %s\n",
 			t.when.Format("15:04:05.000"),
 			transitionStyle.Render(t.kind),
-			t.state))
+			t.state)
 	}
 	if len(m.transitions) == 1 {
 		sb.WriteString("\n  ")

@@ -189,7 +189,12 @@ func newModel(client *wschannel.Client, opts Options, log *slog.Logger) *model {
 	return m
 }
 
-func (m *model) Init() tea.Cmd { return nil }
+func (m *model) Init() tea.Cmd {
+	// huh.Form needs its Init() called before it can produce output.
+	// Batching the form's Init at the root keeps the New Item pane
+	// in a renderable state from the first frame.
+	return m.newItem.form.Init()
+}
 
 // outageMarkerInterval gates how often we drop a synthetic "server
 // down" line into the Monitor's waterfall while the session is in
