@@ -488,6 +488,7 @@ func (m *newItemModel) renderWatching(width, height int) string {
 	}
 	fields = append(fields,
 		cardField{label: "State", value: stateStyle.Render(currentState)},
+		cardField{label: "Hash type", value: m.created.Claims.HashType},
 		cardField{label: "Hash", value: m.created.Claims.Hash},
 		cardField{label: "Item hash", value: m.created.ItemHash},
 	)
