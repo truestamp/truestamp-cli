@@ -14,10 +14,59 @@ import (
 	"regexp"
 	"strconv"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/coder/websocket"
 )
+
+// Status describes the lifecycle state of a Client. Returned by Status().
+//
+// The state machine:
+//
+//	StatusInit         (New() returned, Connect() not called yet)
+//	    │
+//	    ▼
+//	StatusConnecting   ◄────┐  (initial dial + first phx_join)
+//	    │                   │
+//	    ▼                   │
+//	StatusConnected ────────┤  (socket live AND every joined topic re-joined)
+//	    │                   │
+//	    ▼                   │
+//	StatusReconnecting ─────┘  (post-first-connect outage; backing off)
+//	    │
+//	    ▼
+//	StatusClosed       (Close() called; terminal)
+//
+// StatusConnecting covers both the very first dial AND the welcome-envelope
+// window before topics are replayed. StatusReconnecting is reserved for
+// outages after the first successful connect, so callers can tell "haven't
+// connected yet" apart from "lost the connection".
+type Status int
+
+const (
+	StatusInit Status = iota
+	StatusConnecting
+	StatusConnected
+	StatusReconnecting
+	StatusClosed
+)
+
+func (s Status) String() string {
+	switch s {
+	case StatusInit:
+		return "init"
+	case StatusConnecting:
+		return "connecting"
+	case StatusConnected:
+		return "connected"
+	case StatusReconnecting:
+		return "reconnecting"
+	case StatusClosed:
+		return "closed"
+	}
+	return "unknown"
+}
 
 // Push is a server-initiated channel event delivered to the application
 // loop (Bubble Tea, etc.) via Pushes().
@@ -104,9 +153,26 @@ type Client struct {
 
 	pushes chan Push
 
-	closeOnce sync.Once
-	done      chan struct{}
-	wg        sync.WaitGroup
+	closeOnce       sync.Once
+	closePushesOnce sync.Once
+	done            chan struct{}
+	wg              sync.WaitGroup
+
+	// disconnect is an edge-triggered, buffered (size 1) signal published
+	// by dropConn when the active socket dies. The session loop receives
+	// from it to wake up and start reconnecting. Multiple dropConn calls
+	// during a single outage coalesce into one wake-up.
+	disconnect chan struct{}
+
+	// connectStarted flips to true the instant Connect() is entered.
+	// firstConnectDone flips to true once Connect() has opened the
+	// session gate. Together they let Status() distinguish:
+	//
+	//   StatusInit         — connectStarted == false
+	//   StatusConnecting   — connectStarted == true, firstConnectDone == false
+	//   StatusReconnecting — firstConnectDone == true, session gate closed
+	connectStarted   atomic.Bool
+	firstConnectDone atomic.Bool
 
 	// runCtx scopes goroutine-internal I/O to the client's lifetime;
 	// cancelled on Close so reads/writes/heartbeats abort cleanly.
@@ -189,6 +255,7 @@ func New(opts Options) (*Client, error) {
 		out:               make(chan Frame, 64),
 		socketReady:       make(chan struct{}),
 		sessionReady:      make(chan struct{}),
+		disconnect:        make(chan struct{}, 1),
 	}
 	return c, nil
 }
@@ -212,6 +279,7 @@ var reconnectBackoff = []time.Duration{
 // per topic so the application can resync any in-channel state the
 // server doesn't remember (subscriptions, item watches).
 func (c *Client) Connect(ctx context.Context) (json.RawMessage, error) {
+	c.connectStarted.Store(true)
 	if err := c.dial(ctx); err != nil {
 		return nil, err
 	}
@@ -232,7 +300,29 @@ func (c *Client) Connect(ctx context.Context) (json.RawMessage, error) {
 		return nil, err
 	}
 	c.openSessionGate()
+	c.firstConnectDone.Store(true)
 	return welcome, nil
+}
+
+// Status returns the current connection lifecycle state. Cheap and
+// race-safe; suitable for tight polling from external callers (UI status
+// bar, --script mode readiness gate, integration tests).
+func (c *Client) Status() Status {
+	if c.isClosed() {
+		return StatusClosed
+	}
+	if !c.connectStarted.Load() {
+		return StatusInit
+	}
+	select {
+	case <-c.sessionGate():
+		return StatusConnected
+	default:
+	}
+	if !c.firstConnectDone.Load() {
+		return StatusConnecting
+	}
+	return StatusReconnecting
 }
 
 // dial opens a single WebSocket and installs it as the active conn.
@@ -339,7 +429,7 @@ func (c *Client) sessionLoop() {
 			return
 		case <-c.runCtx.Done():
 			return
-		case <-c.disconnectSignal():
+		case <-c.disconnect:
 			// Disconnected — fall through to reconnect.
 		}
 
@@ -384,30 +474,6 @@ func (c *Client) sessionLoop() {
 			break
 		}
 	}
-}
-
-// disconnectSignal returns a channel that fires when the read loop has
-// observed the socket dying. Implemented by polling the active-conn
-// pointer; cheap because the read loop nils it on exit.
-func (c *Client) disconnectSignal() <-chan struct{} {
-	ch := make(chan struct{})
-	go func() {
-		t := time.NewTicker(200 * time.Millisecond)
-		defer t.Stop()
-		for {
-			select {
-			case <-c.done:
-				close(ch)
-				return
-			case <-t.C:
-				if c.activeConn() == nil {
-					close(ch)
-					return
-				}
-			}
-		}
-	}()
-	return ch
 }
 
 func (c *Client) isClosed() bool {
@@ -469,6 +535,12 @@ func (c *Client) dropConn(code websocket.StatusCode, reason string) {
 		_ = conn.Close(code, reason)
 	}
 	c.resetGates()
+	// Edge-triggered wake-up for the session loop. Coalesces multiple
+	// dropConn calls during the same outage into a single reconnect.
+	select {
+	case c.disconnect <- struct{}{}:
+	default:
+	}
 }
 
 // JoinTopic joins an additional channel topic on the existing socket.
@@ -578,6 +650,10 @@ func (c *Client) Pushes() <-chan Push { return c.pushes }
 func (c *Client) Close() error {
 	c.shutdown(websocket.StatusNormalClosure, "client close")
 	c.wg.Wait()
+	// Close pushes only after every goroutine that might write to it has
+	// drained (readLoop, sessionLoop's emitReconnecting, rejoinAllTopics).
+	// closePushesOnce makes this safe across multiple Close() calls.
+	c.closePushesOnce.Do(func() { close(c.pushes) })
 	return nil
 }
 
@@ -848,9 +924,8 @@ func (c *Client) shutdown(code websocket.StatusCode, reason string) {
 		close(c.done)
 		c.runCancel()
 		c.dropConn(code, reason)
-		// Pushes() callers see the channel closed, signalling
-		// permanent end-of-stream (distinct from a transient
-		// disconnect, which the session loop handles transparently).
-		close(c.pushes)
+		// pushes is NOT closed here — sessionLoop / readLoop may still
+		// be running and could attempt to write to it. Close() does it
+		// after wg.Wait().
 	})
 }
