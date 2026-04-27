@@ -116,6 +116,11 @@ tasks:
     cmds:
       - go test -v ./...
 
+  test-chaos:
+    desc: Run wschannel chaos tests under -race (no live server needed)
+    cmds:
+      - go test -tags=chaos -count=1 -race -timeout=120s ./internal/wschannel/...
+
   test-coverage:
     desc: Run tests with coverage summary
     cmds:
