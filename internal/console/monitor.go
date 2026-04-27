@@ -658,11 +658,17 @@ func (m *monitorModel) renderWaterfall(width, height int) string {
 	// pane reads as visually broken.
 	rendered = lipgloss.NewStyle().PaddingLeft(2).Render(rendered)
 
-	// Pad to fixed `rows` height so the body fills the pane evenly
-	// even when fewer events than fit are buffered.
+	// Pad to exactly `rows` lines so the body fills the pane evenly
+	// when fewer events than fit are buffered. A `rows`-line block
+	// has `rows - 1` internal newlines (no trailing newline). The
+	// previous formulation padded to `rows` newlines, producing
+	// `rows + 1` lines — one row too tall. That overflow pushed the
+	// footer past the bottom of the screen and made the global
+	// `esc` / `q` bindings appear unresponsive once the table got
+	// any content.
 	renderedLines := strings.Count(rendered, "\n")
-	if renderedLines < rows {
-		rendered += strings.Repeat("\n", rows-renderedLines)
+	if want := rows - 1; renderedLines < want {
+		rendered += strings.Repeat("\n", want-renderedLines)
 	}
 
 	// Title row carries the indicator on the right side so its
