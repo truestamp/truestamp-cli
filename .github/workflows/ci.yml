@@ -80,6 +80,24 @@ jobs:
         # implicitly. Heavy `task fuzz-deep` stays local/manual.
         run: go test -race -coverprofile=coverage.out -covermode=atomic ./...
 
+      - name: Test (chaos)
+        # Reconnect-under-stress cases gated behind the `chaos` build tag
+        # so they don't pad every plain `go test` run. They take ~10s due
+        # to deliberate reconnect-backoff sleeps; we want them to fire on
+        # every PR to catch regressions in the wschannel session loop.
+        run: go test -tags=chaos -count=1 -race -timeout=120s ./internal/wschannel/...
+
+      - name: Fuzz (codec)
+        # Active mutation fuzzing — the seed corpus is already replayed
+        # by the regular Test step above. 30s per target × 3 targets is
+        # the upper bound on wall-clock impact. Linux only: macOS would
+        # double runner-minutes for the same coverage signal.
+        if: matrix.os == 'ubuntu-latest'
+        run: |
+          go test -run=^$ -fuzz=FuzzFrameUnmarshal -fuzztime=30s ./internal/wschannel/
+          go test -run=^$ -fuzz=FuzzParseReply -fuzztime=30s ./internal/wschannel/
+          go test -run=^$ -fuzz=FuzzRedactSecrets -fuzztime=30s ./internal/wschannel/
+
       - name: Build
         run: go build ./...
 
