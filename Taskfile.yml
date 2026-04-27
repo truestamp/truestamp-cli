@@ -121,6 +121,13 @@ tasks:
     cmds:
       - go test -tags=chaos -count=1 -race -timeout=120s ./internal/wschannel/...
 
+  fuzz-codec:
+    desc: Fuzz wschannel JSON codec and redactor (30s per target)
+    cmds:
+      - go test -run=^$ -fuzz=FuzzFrameUnmarshal -fuzztime=30s ./internal/wschannel/
+      - go test -run=^$ -fuzz=FuzzParseReply -fuzztime=30s ./internal/wschannel/
+      - go test -run=^$ -fuzz=FuzzRedactSecrets -fuzztime=30s ./internal/wschannel/
+
   test-coverage:
     desc: Run tests with coverage summary
     cmds:
