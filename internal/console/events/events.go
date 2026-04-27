@@ -42,7 +42,7 @@ const (
 type Row struct {
 	When     time.Time
 	Kind     string // e.g. "block.created", "commitment.burst"
-	ID       string // 13-char ULID prefix, or "(N)" for bursts, or "" for outages
+	ID       string // full ULID/UUID for the row's primary resource, "(N events)" for bursts, "" for outages
 	Detail   string // ≤ 60 chars, schema documented per resource below
 	Stream   string // populated only when stream and kind don't share a prefix
 	Severity Severity
@@ -58,10 +58,12 @@ type Push struct {
 	Data   json.RawMessage `json:"data"`
 }
 
-// idPrefixLen is the number of characters of a ULID we surface in
-// the ID column. 13 chars covers the entire 48-bit timestamp prefix
-// plus 1 byte of randomness — collision-resistant for events 1ms
-// apart and still narrow enough to fit alongside Detail at 80 cols.
+// idPrefixLen is the number of characters of a ULID we surface for
+// IDs that appear inside the Detail column (block=…, item=…, etc).
+// The PRIMARY ID column carries the full 26-char ULID / 36-char
+// UUID without truncation — operators need the whole identifier to
+// copy-paste into queries. Detail-column references stay shortened
+// so the field doesn't blow past detailMaxLen at typical widths.
 const idPrefixLen = 13
 
 // detailMaxLen caps the Detail column. Truncation happens here so
@@ -159,7 +161,7 @@ func projectBlock(now time.Time, p Push) Row {
 	return Row{
 		When:   now,
 		Kind:   p.Kind,
-		ID:     prefix(d.ID, idPrefixLen),
+		ID:     d.ID,
 		Detail: truncate(strings.Join(parts, "  "), detailMaxLen),
 		Stream: streamTag(p.Stream, p.Kind),
 	}
@@ -191,7 +193,7 @@ func projectCommitment(now time.Time, p Push) Row {
 	return Row{
 		When:   now,
 		Kind:   p.Kind,
-		ID:     prefix(d.ID, idPrefixLen),
+		ID:     d.ID,
 		Detail: truncate(strings.Join(parts, "  "), detailMaxLen),
 		Stream: streamTag(p.Stream, p.Kind),
 	}
@@ -216,7 +218,7 @@ func projectExternalCommitment(now time.Time, p Push) Row {
 	return Row{
 		When:   now,
 		Kind:   p.Kind,
-		ID:     prefix(d.ID, idPrefixLen),
+		ID:     d.ID,
 		Detail: truncate(strings.Join(parts, "  "), detailMaxLen),
 		Stream: streamTag(p.Stream, p.Kind),
 	}
@@ -249,7 +251,7 @@ func projectEntropy(now time.Time, p Push) Row {
 	return Row{
 		When:   now,
 		Kind:   p.Kind,
-		ID:     prefix(d.ID, idPrefixLen),
+		ID:     d.ID,
 		Detail: truncate(strings.Join(parts, "  "), detailMaxLen),
 		Stream: streamTag(p.Stream, p.Kind),
 	}
@@ -276,7 +278,7 @@ func projectItem(now time.Time, p Push) Row {
 	return Row{
 		When:   now,
 		Kind:   p.Kind,
-		ID:     prefix(d.ID, idPrefixLen),
+		ID:     d.ID,
 		Detail: truncate(strings.Join(parts, "  "), detailMaxLen),
 		Stream: streamTag(p.Stream, p.Kind),
 	}
