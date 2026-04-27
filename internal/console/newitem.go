@@ -275,9 +275,16 @@ func (m *newItemModel) Update(msg tea.Msg) (*newItemModel, tea.Cmd) {
 		return m, m.form.Init()
 
 	case tea.KeyPressMsg:
-		// Watching mode: `n` resets back to a fresh form.
-		if m.state == formWatching && tmsg.String() == "n" {
-			return m, func() tea.Msg { return resetFormMsg{} }
+		// Watching mode: `n` or `esc` both return to a fresh form.
+		// `n` is the discoverable mnemonic surfaced in the help
+		// keymap; `esc` mirrors the form-mode "esc clears" semantics
+		// so the user has one muscle-memory key for "go back / start
+		// over" no matter which sub-state of the pane they're in.
+		if m.state == formWatching {
+			switch tmsg.String() {
+			case "n", "esc":
+				return m, func() tea.Msg { return resetFormMsg{} }
+			}
 		}
 		// Entering mode: esc clears the form. We intercept before
 		// huh sees the key — huh's Quit binding (ctrl+c) sets
@@ -396,8 +403,6 @@ const maxTransitions = 100
 var (
 	formTitleStyle  = lipgloss.NewStyle().Bold(true).Foreground(ui.Accent)
 	formErrorStyle  = lipgloss.NewStyle().Foreground(ui.Red)
-	cardBoxStyle    = lipgloss.NewStyle().BorderStyle(lipgloss.RoundedBorder()).
-			BorderForeground(ui.Green).Padding(1, 2)
 	transitionStyle = lipgloss.NewStyle().Foreground(ui.Yellow)
 	stateStyle      = lipgloss.NewStyle().Bold(true).Foreground(ui.Blue)
 )
@@ -445,10 +450,9 @@ func (m *newItemModel) renderWatching(width, height int) string {
 		currentState = m.transitions[len(m.transitions)-1].state
 	}
 
-	// Title carries the item name + state inline so the user
-	// doesn't have to scan into the card to know what they just did.
-	// Green checkmark prefix communicates "submitted successfully"
-	// at a glance.
+	// Title carries the item name inline so the user doesn't have
+	// to scan into the field list to know what they just submitted.
+	// Green checkmark prefix communicates success at a glance.
 	title := lipgloss.NewStyle().
 		Bold(true).
 		Foreground(ui.Green).
@@ -457,35 +461,40 @@ func (m *newItemModel) renderWatching(width, height int) string {
 		title += "  " + lipgloss.NewStyle().Bold(true).Render(name)
 	}
 
-	// Card width sized to fit comfortably inside the body area.
-	// The lipgloss Border style adds 2 chars (one each side); pad
-	// + label column take 2 + 14; the rest is value column where
-	// long fields wrap.
-	cardOuterWidth := min(width-4, 80)
-	if cardOuterWidth < 30 {
-		cardOuterWidth = 30
+	// Wrap width for prose fields (Description). Hashes and IDs are
+	// rendered single-line — wrapping a hex digest at character
+	// boundaries breaks copy-paste and produces ugly mid-line
+	// continuations, and the terminal's own soft-wrap handles
+	// edge cases at narrow widths.
+	const labelCol = 14
+	descWrapWidth := width - labelCol - 4
+	if descWrapWidth < 20 {
+		descWrapWidth = 20
 	}
-	valueWidth := cardOuterWidth - 2 - 2 - 14 // border + indent + label
-	if valueWidth < 10 {
-		valueWidth = 10
+	if descWrapWidth > 100 {
+		descWrapWidth = 100
 	}
 
 	fields := []cardField{
-		{"ID", m.created.ID},
-		{"Name", m.created.Claims.Name},
+		{label: "ID", value: m.created.ID},
+		{label: "Name", value: m.created.Claims.Name},
 	}
 	if desc := strings.TrimSpace(m.created.Claims.Description); desc != "" {
-		fields = append(fields, cardField{"Description", desc})
+		fields = append(fields, cardField{
+			label: "Description",
+			value: desc,
+			wrap:  descWrapWidth,
+		})
 	}
-	fields = append(fields, cardField{"State", stateStyle.Render(currentState)})
-	fields = append(fields, cardField{"Hash", m.created.Claims.Hash})
-	fields = append(fields, cardField{"Item hash", m.created.ItemHash})
-
-	cardBody := renderCardFields(fields, valueWidth)
+	fields = append(fields,
+		cardField{label: "State", value: stateStyle.Render(currentState)},
+		cardField{label: "Hash", value: m.created.Claims.Hash},
+		cardField{label: "Item hash", value: m.created.ItemHash},
+	)
 
 	var sb strings.Builder
 	sb.WriteString(title + "\n\n")
-	sb.WriteString(cardBoxStyle.Width(cardOuterWidth).Render(cardBody))
+	sb.WriteString(renderCardFields(fields, labelCol))
 	sb.WriteString("\n\n")
 
 	sb.WriteString(formTitleStyle.Render("Lifecycle (live)") + "\n\n")
@@ -501,31 +510,47 @@ func (m *newItemModel) renderWatching(width, height int) string {
 			"waiting for state transitions… (will arrive when the item is committed to a block)"))
 	}
 
-	// Note: the bottom hint ("press n: new item   tab: switch pane")
-	// is intentionally gone. The footer's keymap is state-aware and
-	// the help component renders the right bindings for this state
-	// — duplicating them in the body is noise.
 	return paneStyle(width, height).Render(sb.String())
 }
 
-// cardField is a single labelled row in the watching-mode card.
+// cardField is a single labelled row in the watching-mode field list.
+//
+// `wrap` is the value-column wrap width in characters; zero means
+// "render single-line, let the terminal handle any soft wrap". Used
+// only for prose fields (Description) where breaking at word
+// boundaries is helpful. Hash / ID values stay single-line so
+// copy-paste yields the literal string the server sent.
 type cardField struct {
 	label string
 	value string
+	wrap  int
 }
 
-// renderCardFields lays out a labelled-value list with wrapping in
-// the value column. Long values (e.g. a multi-line description, a
-// 64-hex hash that doesn't fit at narrow widths) break across lines
-// and align under the value column on continuation rows.
-func renderCardFields(fields []cardField, valueWidth int) string {
+// renderCardFields lays out a labelled-value list with consistent
+// label column alignment. No card border, no per-field indent —
+// the label column itself provides the visual rhythm.
+//
+// For wrapped fields, continuation lines are aligned under the
+// value column so the layout reads as columns rather than blocks.
+func renderCardFields(fields []cardField, labelCol int) string {
+	labelFmt := fmt.Sprintf("%%-%ds  ", labelCol)
+	indentFmt := fmt.Sprintf("%%-%ds  ", labelCol) // same width, blank label
 	var sb strings.Builder
 	for i, f := range fields {
-		wrappedValue := lipgloss.NewStyle().Width(valueWidth).Render(f.value)
-		lines := strings.Split(wrappedValue, "\n")
-		fmt.Fprintf(&sb, "%-13s %s", f.label, lines[0])
+		value := f.value
+		var lines []string
+		if f.wrap > 0 {
+			value = lipgloss.NewStyle().Width(f.wrap).Render(value)
+			lines = strings.Split(value, "\n")
+		} else {
+			lines = []string{value}
+		}
+		fmt.Fprintf(&sb, labelFmt, f.label)
+		sb.WriteString(lines[0])
 		for _, cont := range lines[1:] {
-			fmt.Fprintf(&sb, "\n%-13s %s", "", cont)
+			sb.WriteByte('\n')
+			fmt.Fprintf(&sb, indentFmt, "")
+			sb.WriteString(cont)
 		}
 		if i < len(fields)-1 {
 			sb.WriteByte('\n')

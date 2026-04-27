@@ -221,12 +221,14 @@ type NewItemWatchingKeys struct {
 }
 
 // NewNewItemWatchingKeys returns the watching-state bindings.
+// `n` is the discoverable mnemonic; `esc` is the muscle-memory
+// "go back" pair with the form-mode "esc clears" binding.
 func NewNewItemWatchingKeys(app AppKeys) NewItemWatchingKeys {
 	return NewItemWatchingKeys{
 		App: app,
 		NewForm: key.NewBinding(
-			key.WithKeys("n"),
-			key.WithHelp("n", "new item"),
+			key.WithKeys("n", "esc"),
+			key.WithHelp("n / esc", "new item"),
 		),
 	}
 }
