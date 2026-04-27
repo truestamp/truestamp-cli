@@ -9,21 +9,50 @@ import (
 )
 
 // TestPageBodyAreaSubtractsChrome verifies that BodyArea returns the
-// terminal size minus the configured header + footer rows. This is
+// terminal size minus the rendered header + footer heights. This is
 // the contract panes rely on to compute their own internal layouts.
 func TestPageBodyAreaSubtractsChrome(t *testing.T) {
 	t.Parallel()
 
 	theme := NewTheme()
 	p := Page{Width: 100, Height: 40, Theme: theme}
-	w, h := p.BodyArea()
+
+	// 2-row header, 1-row footer.
+	header := "tab1\nrule"
+	footer := "key: hint"
+
+	w, h := p.BodyArea(header, footer)
 
 	if w != 100 {
 		t.Errorf("BodyArea width = %d, want 100", w)
 	}
-	wantHeight := 40 - theme.HeaderHeight - theme.FooterHeight
-	if h != wantHeight {
-		t.Errorf("BodyArea height = %d, want %d", h, wantHeight)
+	if h != 40-2-1 {
+		t.Errorf("BodyArea height = %d, want %d", h, 40-2-1)
+	}
+}
+
+// TestPageBodyAreaShrinksWithExpandedFooter verifies that when the
+// footer grows (e.g. help.ShowAll = true), the body shrinks by the
+// same amount — the help toggle expands into the body, never past
+// the bottom of the screen.
+func TestPageBodyAreaShrinksWithExpandedFooter(t *testing.T) {
+	t.Parallel()
+
+	p := Page{Width: 100, Height: 40, Theme: NewTheme()}
+
+	header := "tab1\nrule"
+	shortFooter := "k: hint"
+	expandedFooter := "k1: a\nk2: b\nk3: c\nk4: d"
+
+	_, hShort := p.BodyArea(header, shortFooter)
+	_, hExpanded := p.BodyArea(header, expandedFooter)
+
+	if hExpanded >= hShort {
+		t.Errorf("expanded footer should shrink body: hShort=%d hExpanded=%d", hShort, hExpanded)
+	}
+	if hShort-hExpanded != 3 {
+		t.Errorf("body should shrink by exactly the footer growth (3 rows), got hShort=%d hExpanded=%d",
+			hShort, hExpanded)
 	}
 }
 
@@ -34,11 +63,10 @@ func TestPageBodyAreaClampMinimum(t *testing.T) {
 
 	theme := NewTheme()
 	p := Page{Width: 0, Height: 0, Theme: theme}
-	w, h := p.BodyArea()
+	w, h := p.BodyArea("", "")
 
 	if w < 1 || h < 1 {
-		t.Errorf("BodyArea(%d, %d) returned (%d, %d), expected ≥1 in both dims",
-			0, 0, w, h)
+		t.Errorf("BodyArea returned (%d, %d), expected ≥1 in both dims", w, h)
 	}
 }
 
