@@ -25,6 +25,7 @@ func TestKeyMapsImplementHelpKeyMap(t *testing.T) {
 	}{
 		{"MonitorKeys", NewMonitorKeys(app)},
 		{"NewItemKeys", NewNewItemKeys(app)},
+		{"NewItemWatchingKeys", NewNewItemWatchingKeys(app)},
 		{"ConnectionKeys", NewConnectionKeys(app)},
 	}
 

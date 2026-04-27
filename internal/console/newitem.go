@@ -440,29 +440,52 @@ func (m *newItemModel) renderWatching(width, height int) string {
 		return paneStyle(width, height).Render("(no item yet)")
 	}
 
-	var sb strings.Builder
-	sb.WriteString(formTitleStyle.Render("Submitted") + "\n\n")
-
 	currentState := m.created.State
 	if len(m.transitions) > 0 {
 		currentState = m.transitions[len(m.transitions)-1].state
 	}
 
-	card := fmt.Sprintf(
-		"  ID            %s\n"+
-			"  Name          %s\n"+
-			"  State         %s\n"+
-			"  Hash          %s\n"+
-			"  Claims hash   %s\n"+
-			"  Item hash     %s",
-		m.created.ID,
-		m.created.Claims.Name,
-		stateStyle.Render(currentState),
-		m.created.Claims.Hash,
-		shortHash(m.created.ClaimsHash),
-		shortHash(m.created.ItemHash),
-	)
-	sb.WriteString(cardBoxStyle.Render(card))
+	// Title carries the item name + state inline so the user
+	// doesn't have to scan into the card to know what they just did.
+	// Green checkmark prefix communicates "submitted successfully"
+	// at a glance.
+	title := lipgloss.NewStyle().
+		Bold(true).
+		Foreground(ui.Green).
+		Render("✓ Submitted")
+	if name := strings.TrimSpace(m.created.Claims.Name); name != "" {
+		title += "  " + lipgloss.NewStyle().Bold(true).Render(name)
+	}
+
+	// Card width sized to fit comfortably inside the body area.
+	// The lipgloss Border style adds 2 chars (one each side); pad
+	// + label column take 2 + 14; the rest is value column where
+	// long fields wrap.
+	cardOuterWidth := min(width-4, 80)
+	if cardOuterWidth < 30 {
+		cardOuterWidth = 30
+	}
+	valueWidth := cardOuterWidth - 2 - 2 - 14 // border + indent + label
+	if valueWidth < 10 {
+		valueWidth = 10
+	}
+
+	fields := []cardField{
+		{"ID", m.created.ID},
+		{"Name", m.created.Claims.Name},
+	}
+	if desc := strings.TrimSpace(m.created.Claims.Description); desc != "" {
+		fields = append(fields, cardField{"Description", desc})
+	}
+	fields = append(fields, cardField{"State", stateStyle.Render(currentState)})
+	fields = append(fields, cardField{"Hash", m.created.Claims.Hash})
+	fields = append(fields, cardField{"Item hash", m.created.ItemHash})
+
+	cardBody := renderCardFields(fields, valueWidth)
+
+	var sb strings.Builder
+	sb.WriteString(title + "\n\n")
+	sb.WriteString(cardBoxStyle.Width(cardOuterWidth).Render(cardBody))
 	sb.WriteString("\n\n")
 
 	sb.WriteString(formTitleStyle.Render("Lifecycle (live)") + "\n\n")
@@ -478,8 +501,35 @@ func (m *newItemModel) renderWatching(width, height int) string {
 			"waiting for state transitions… (will arrive when the item is committed to a block)"))
 	}
 
-	sb.WriteString("\n\n")
-	sb.WriteString(lipgloss.NewStyle().Faint(true).Render("press n: new item   tab: switch pane"))
-
+	// Note: the bottom hint ("press n: new item   tab: switch pane")
+	// is intentionally gone. The footer's keymap is state-aware and
+	// the help component renders the right bindings for this state
+	// — duplicating them in the body is noise.
 	return paneStyle(width, height).Render(sb.String())
+}
+
+// cardField is a single labelled row in the watching-mode card.
+type cardField struct {
+	label string
+	value string
+}
+
+// renderCardFields lays out a labelled-value list with wrapping in
+// the value column. Long values (e.g. a multi-line description, a
+// 64-hex hash that doesn't fit at narrow widths) break across lines
+// and align under the value column on continuation rows.
+func renderCardFields(fields []cardField, valueWidth int) string {
+	var sb strings.Builder
+	for i, f := range fields {
+		wrappedValue := lipgloss.NewStyle().Width(valueWidth).Render(f.value)
+		lines := strings.Split(wrappedValue, "\n")
+		fmt.Fprintf(&sb, "%-13s %s", f.label, lines[0])
+		for _, cont := range lines[1:] {
+			fmt.Fprintf(&sb, "\n%-13s %s", "", cont)
+		}
+		if i < len(fields)-1 {
+			sb.WriteByte('\n')
+		}
+	}
+	return sb.String()
 }
