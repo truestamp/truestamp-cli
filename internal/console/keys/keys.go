@@ -251,20 +251,29 @@ func (k NewItemWatchingKeys) FullHelp() [][]key.Binding {
 	}
 }
 
-// ConnectionKeys covers the Connection pane (read-only diagnostics
-// today; reserved for refresh / actions later).
+// ConnectionKeys covers the Connection pane: pane-local refresh of
+// the external-services health checks plus the cross-pane app
+// bindings.
 type ConnectionKeys struct {
-	App AppKeys
+	App     AppKeys
+	Refresh key.Binding
 }
 
 // NewConnectionKeys returns the Connection pane bindings.
 func NewConnectionKeys(app AppKeys) ConnectionKeys {
-	return ConnectionKeys{App: app}
+	return ConnectionKeys{
+		App: app,
+		Refresh: key.NewBinding(
+			key.WithKeys("r"),
+			key.WithHelp("r", "refresh health checks"),
+		),
+	}
 }
 
 // ShortHelp implements help.KeyMap.
 func (k ConnectionKeys) ShortHelp() []key.Binding {
 	return []key.Binding{
+		k.Refresh,
 		k.App.NextPane, k.App.PrevPane,
 		k.App.ToggleHelp, k.App.Quit,
 	}
@@ -273,6 +282,7 @@ func (k ConnectionKeys) ShortHelp() []key.Binding {
 // FullHelp implements help.KeyMap.
 func (k ConnectionKeys) FullHelp() [][]key.Binding {
 	return [][]key.Binding{
+		{k.Refresh},
 		{k.App.NextPane, k.App.PrevPane, k.App.GoMonitor, k.App.GoNewItem, k.App.GoConnection},
 		{k.App.ToggleHelp, k.App.Quit},
 	}

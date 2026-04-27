@@ -88,6 +88,20 @@ type Options struct {
 	// LogFilePath is shown on the Connection pane so the user can
 	// `tail -f` it if they need to debug something.
 	LogFilePath string
+
+	// ConfigFilePath is the path to the user's TOML settings file
+	// (e.g. ~/.config/truestamp/config.toml on macOS/Linux). Surfaced
+	// on the Connection pane so a user who can't sign in can find
+	// the file and edit it directly without knowing CLI internals.
+	// May be empty when the platform's home directory can't be
+	// resolved; the pane suppresses the line in that case.
+	ConfigFilePath string
+
+	// HealthTargets is the list of services the Connection pane
+	// probes for liveness. Populated by cmd/console.go from the
+	// active configuration so user-overridden api_url / keyring_url
+	// values are honored. Empty disables the section entirely.
+	HealthTargets []HealthTarget
 }
 
 // pane identifies the active pane.
@@ -194,7 +208,7 @@ func newModel(client *wschannel.Client, opts Options, log *slog.Logger) *model {
 	}
 	m.monitor = newMonitorModel(client, log)
 	m.newItem = newNewItemModel(client)
-	m.connection = newConnectionModel(opts.LogFilePath)
+	m.connection = newConnectionModel(opts.LogFilePath, opts.ConfigFilePath, opts.HealthTargets)
 	return m
 }
 
@@ -269,22 +283,28 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 		switch {
 		case key.Matches(msg, m.appKeys.NextPane):
-			m.active = (m.active + 1) % 3
-			return m, nil
+			return m, m.activatePane((m.active + 1) % 3)
 		case key.Matches(msg, m.appKeys.PrevPane):
-			m.active = (m.active + 2) % 3
-			return m, nil
+			return m, m.activatePane((m.active + 2) % 3)
 		case key.Matches(msg, m.appKeys.GoMonitor):
-			m.active = paneMonitor
-			return m, nil
+			return m, m.activatePane(paneMonitor)
 		case key.Matches(msg, m.appKeys.GoNewItem):
-			m.active = paneNewItem
-			return m, nil
+			return m, m.activatePane(paneNewItem)
 		case key.Matches(msg, m.appKeys.GoConnection):
-			m.active = paneConnection
-			return m, nil
+			return m, m.activatePane(paneConnection)
 		case key.Matches(msg, m.appKeys.ToggleHelp):
 			m.footer.SetShowAll(!m.footer.ShowAll())
+			return m, nil
+		}
+
+		// Connection-pane-specific keys (only when that pane is
+		// active). Refresh triggers an immediate health-check
+		// re-poll, throttled by canRunManualHealthCheck so a held
+		// key can't hammer external services.
+		if m.active == paneConnection && key.Matches(msg, m.connKeys.Refresh) {
+			if m.connection.canRunManualHealthCheck() {
+				return m, m.connection.dispatchAllChecks(context.Background())
+			}
 			return m, nil
 		}
 
@@ -301,6 +321,25 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case connectFailedMsg:
 		m.state = connFailed
 		m.connErr = msg.Err
+		m.connection.setConnError(msg.Err, m.opts.WSURL)
+		// Surface the diagnostic pane so the user sees the friendly
+		// error explanation immediately, not a cryptic header banner.
+		// They can still tab back to Monitor / New Item if they want
+		// to read the empty-state placeholders. activatePane also
+		// arms the health-check poll loop so the user sees right
+		// away whether their internet or just the Truestamp service
+		// is the problem.
+		return m, m.activatePane(paneConnection)
+
+	case healthCheckTickMsg:
+		// Tick fired while the user is on the Connection pane: kick
+		// off another wave and re-arm. tickHealthChecks returns nil
+		// if the user has tabbed away in the meantime, breaking
+		// the chain.
+		return m, m.connection.tickHealthChecks(context.Background())
+
+	case healthCheckResultMsg:
+		m.connection.applyHealthResult(msg)
 		return m, nil
 
 	case closedMsg:
@@ -426,6 +465,25 @@ func (m *model) View() tea.View {
 	return v
 }
 
+// activatePane switches the active pane and starts/stops side-effect
+// loops that should only run while a particular pane is visible.
+//
+// Today the only side-effect is the Connection pane's 30-second
+// health-check poll: we start it on entry and stop it on exit so we
+// don't hammer third-party services while the user is on the
+// Monitor or New Item pane. Returns the tea.Cmd to fire the first
+// poll wave (nil for non-Connection panes).
+func (m *model) activatePane(p pane) tea.Cmd {
+	if m.active == paneConnection && p != paneConnection {
+		m.connection.stopHealthPolling()
+	}
+	m.active = p
+	if p == paneConnection {
+		return m.connection.startHealthPolling(context.Background())
+	}
+	return nil
+}
+
 // activeKeyMap returns the help.KeyMap for the currently-focused pane.
 // Drives the footer's auto-rendered help row. Some panes have
 // state-dependent keymaps (e.g. the New Item pane swaps between
@@ -549,14 +607,7 @@ func (m *model) statusText() (string, chrome.StatusKind) {
 	case connClosed:
 		return "disconnected", chrome.StatusKindErr
 	case connFailed:
-		return "error: " + truncate(m.connErr.Error(), 40), chrome.StatusKindErr
+		return classifyConnError(m.connErr).shortStatus(), chrome.StatusKindErr
 	}
 	return "", chrome.StatusKindNeutral
-}
-
-func truncate(s string, n int) string {
-	if len(s) <= n {
-		return s
-	}
-	return s[:n-1] + "…"
 }

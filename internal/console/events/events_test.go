@@ -42,6 +42,43 @@ func TestProjectBlock(t *testing.T) {
 	}
 }
 
+// TestProjectBeacon checks the beacon row shape: id is the full
+// UUIDv7, detail surfaces the truncated block hash and previous hash.
+// The stream tag is dropped because stream `beacons` and kind
+// `beacon.created` share the singular root.
+func TestProjectBeacon(t *testing.T) {
+	t.Parallel()
+
+	now := time.Date(2026, 4, 29, 12, 0, 0, 0, time.UTC)
+	p := makePush(t, "beacons", "beacon.created", map[string]any{
+		"id":            "019db702-b08c-73dc-a7cd-2c5e011f1dad",
+		"hash":          "ffe86dc05a0c7b42279f7fa6afb016cd6928980d24673051fc58731492ce2a1b",
+		"previous_hash": "1c4812bdfec2bf29333136d86bc996f866e38177acc90565a0554c7ec698029b",
+		"timestamp":     "2026-04-29T12:00:00.000000Z",
+	})
+
+	row := Project(now, p)
+
+	if row.Kind != "beacon.created" {
+		t.Errorf("Kind = %q, want beacon.created", row.Kind)
+	}
+	if got, want := row.ID, "019db702-b08c-73dc-a7cd-2c5e011f1dad"; got != want {
+		t.Errorf("ID = %q, want %q (full UUIDv7)", got, want)
+	}
+	if !strings.Contains(row.Detail, "hash=ffe86dc05a0c7b42") {
+		t.Errorf("Detail missing 16-char hash prefix: %q", row.Detail)
+	}
+	if !strings.Contains(row.Detail, "prev=1c4812bdfec2") {
+		t.Errorf("Detail missing 12-char previous-hash prefix: %q", row.Detail)
+	}
+	if strings.Contains(row.Detail, "[beacons]") {
+		t.Errorf("Detail leaked redundant stream tag: %q", row.Detail)
+	}
+	if row.Severity != SeverityNormal {
+		t.Errorf("Severity = %v, want SeverityNormal", row.Severity)
+	}
+}
+
 // TestProjectCommitmentDropsRedundantStream verifies the "stream tag
 // dropped when stream and kind share a resource prefix" invariant:
 // stream `commitments.internal` against kind `commitment.created`

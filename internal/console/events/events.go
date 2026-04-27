@@ -87,6 +87,8 @@ func Project(now time.Time, p Push) Row {
 		row = projectBurst(now, p)
 	case strings.HasPrefix(p.Kind, "block."):
 		row = projectBlock(now, p)
+	case strings.HasPrefix(p.Kind, "beacon."):
+		row = projectBeacon(now, p)
 	case strings.HasPrefix(p.Kind, "commitment."):
 		row = projectCommitment(now, p)
 	case strings.HasPrefix(p.Kind, "external_commitment."):
@@ -156,6 +158,31 @@ func projectBlock(now time.Time, p Push) Row {
 	}
 	if d.BlockHash != "" {
 		parts = append(parts, "hash="+shortHash(d.BlockHash, 12))
+	}
+
+	return Row{
+		When:   now,
+		Kind:   p.Kind,
+		ID:     d.ID,
+		Detail: truncate(strings.Join(parts, "  "), detailMaxLen),
+		Stream: streamTag(p.Stream, p.Kind),
+	}
+}
+
+func projectBeacon(now time.Time, p Push) Row {
+	var d struct {
+		ID           string `json:"id"`
+		Hash         string `json:"hash"`
+		PreviousHash string `json:"previous_hash"`
+	}
+	_ = json.Unmarshal(p.Data, &d)
+
+	parts := []string{}
+	if d.Hash != "" {
+		parts = append(parts, "hash="+shortHash(d.Hash, 16))
+	}
+	if d.PreviousHash != "" {
+		parts = append(parts, "prev="+shortHash(d.PreviousHash, 12))
 	}
 
 	return Row{
