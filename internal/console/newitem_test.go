@@ -8,6 +8,73 @@ import (
 	"testing"
 )
 
+// TestHashTypeDisplayMatchesServerCanonical pins each algorithm's
+// Display name to the v2 server's @hash_types[*].name field. The
+// dropdown picker, the watching-screen summary, and any future
+// surface that renders a hash type all flow through this Display
+// value, so drift between client and server canonical names breaks
+// the user's mental model.
+func TestHashTypeDisplayMatchesServerCanonical(t *testing.T) {
+	t.Parallel()
+
+	// Mirror of lib/truestamp/hash.ex's @hash_types[*].name strings.
+	serverNames := map[string]string{
+		"md5":      "MD5",
+		"sha1":     "SHA-1",
+		"sha224":   "SHA-224",
+		"sha256":   "SHA-256",
+		"sha384":   "SHA-384",
+		"sha512":   "SHA-512",
+		"sha3_224": "SHA3-224",
+		"sha3_256": "SHA3-256",
+		"sha3_384": "SHA3-384",
+		"sha3_512": "SHA3-512",
+		"blake2s":  "BLAKE2s",
+		"blake2b":  "BLAKE2b",
+	}
+
+	for _, h := range hashTypeOptions {
+		want, ok := serverNames[h.Value]
+		if !ok {
+			t.Errorf("hashTypeOptions has %q which is not in the server map", h.Value)
+			continue
+		}
+		if h.Display != want {
+			t.Errorf("%s Display = %q, want %q (server canonical name)",
+				h.Value, h.Display, want)
+		}
+	}
+}
+
+// TestSelectLabelStartsWithDisplayName verifies the dropdown label
+// is derived from the canonical Display name — the algorithm name
+// the user sees first in the picker is the same string that appears
+// on the watching screen.
+func TestSelectLabelStartsWithDisplayName(t *testing.T) {
+	t.Parallel()
+
+	for _, h := range hashTypeOptions {
+		if !strings.HasPrefix(h.selectLabel(), h.Display) {
+			t.Errorf("%s selectLabel = %q does not start with Display %q",
+				h.Value, h.selectLabel(), h.Display)
+		}
+	}
+}
+
+// TestDisplayHashTypeFallsBackToWireValue confirms the lookup is
+// best-effort: an unknown wire value renders as itself rather than
+// blanking the watching-screen field.
+func TestDisplayHashTypeFallsBackToWireValue(t *testing.T) {
+	t.Parallel()
+
+	if got := displayHashType("sha256"); got != "SHA-256" {
+		t.Errorf("displayHashType(\"sha256\") = %q, want SHA-256", got)
+	}
+	if got := displayHashType("ripemd160"); got != "ripemd160" {
+		t.Errorf("displayHashType of unknown should pass through, got %q", got)
+	}
+}
+
 // TestHashTypeOptionsCoverServerAcceptedTypes pins the canonical set
 // the v2 backend accepts (lib/truestamp/hash.ex @hash_types). If the
 // server adds an algorithm and we forget to mirror it, the new type

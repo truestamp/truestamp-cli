@@ -21,33 +21,61 @@ import (
 
 // hashTypeOption describes one supported `hash_type` value the
 // server accepts on items.create. Mirrors lib/truestamp/hash.ex's
-// @hash_types map on the v2 backend — keep in sync if the server
-// adds or drops algorithms.
+// @hash_types map on the v2 backend — Display matches the server's
+// `name` field exactly so the same canonical string ("SHA-256",
+// "BLAKE2b", "MD5", …) appears everywhere this hash type is shown:
+// the form's algorithm picker, the watching-screen summary, and any
+// future surfaces. Keep in sync with the server if names change.
 //
 // Ordering: secure-modern first (recommended defaults at the top),
 // then secure-legacy SHA-3 + BLAKE families, then insecure legacy
 // algorithms at the bottom. The user picks via huh.NewSelect; the
 // list order is what they see in the dropdown.
 type hashTypeOption struct {
-	Value  string // wire value sent to the server
-	Label  string // human-readable Select label
-	HexLen int    // exact length the hash field must match (2 × byte size)
-	Secure bool   // false flags md5 / sha1; UI may surface a warning
+	Value   string // wire value sent to the server (e.g. "sha256")
+	Display string // canonical display name (e.g. "SHA-256")
+	HexLen  int    // exact length the hash field must match (2 × byte size)
+	Secure  bool   // false flags md5 / sha1
+	Note    string // optional dropdown suffix ("recommended", "legacy / insecure")
 }
 
 var hashTypeOptions = []hashTypeOption{
-	{Value: "sha256", Label: "SHA-256 (64 hex chars) — recommended", HexLen: 64, Secure: true},
-	{Value: "sha512", Label: "SHA-512 (128 hex chars)", HexLen: 128, Secure: true},
-	{Value: "sha384", Label: "SHA-384 (96 hex chars)", HexLen: 96, Secure: true},
-	{Value: "sha224", Label: "SHA-224 (56 hex chars)", HexLen: 56, Secure: true},
-	{Value: "sha3_256", Label: "SHA3-256 (64 hex chars)", HexLen: 64, Secure: true},
-	{Value: "sha3_512", Label: "SHA3-512 (128 hex chars)", HexLen: 128, Secure: true},
-	{Value: "sha3_384", Label: "SHA3-384 (96 hex chars)", HexLen: 96, Secure: true},
-	{Value: "sha3_224", Label: "SHA3-224 (56 hex chars)", HexLen: 56, Secure: true},
-	{Value: "blake2b", Label: "BLAKE2b (128 hex chars)", HexLen: 128, Secure: true},
-	{Value: "blake2s", Label: "BLAKE2s (64 hex chars)", HexLen: 64, Secure: true},
-	{Value: "sha1", Label: "SHA-1 (40 hex chars) — legacy / insecure", HexLen: 40, Secure: false},
-	{Value: "md5", Label: "MD5 (32 hex chars) — legacy / insecure", HexLen: 32, Secure: false},
+	{Value: "sha256", Display: "SHA-256", HexLen: 64, Secure: true, Note: "recommended"},
+	{Value: "sha512", Display: "SHA-512", HexLen: 128, Secure: true},
+	{Value: "sha384", Display: "SHA-384", HexLen: 96, Secure: true},
+	{Value: "sha224", Display: "SHA-224", HexLen: 56, Secure: true},
+	{Value: "sha3_256", Display: "SHA3-256", HexLen: 64, Secure: true},
+	{Value: "sha3_512", Display: "SHA3-512", HexLen: 128, Secure: true},
+	{Value: "sha3_384", Display: "SHA3-384", HexLen: 96, Secure: true},
+	{Value: "sha3_224", Display: "SHA3-224", HexLen: 56, Secure: true},
+	{Value: "blake2b", Display: "BLAKE2b", HexLen: 128, Secure: true},
+	{Value: "blake2s", Display: "BLAKE2s", HexLen: 64, Secure: true},
+	{Value: "sha1", Display: "SHA-1", HexLen: 40, Secure: false, Note: "legacy / insecure"},
+	{Value: "md5", Display: "MD5", HexLen: 32, Secure: false, Note: "legacy / insecure"},
+}
+
+// selectLabel renders the dropdown label for the form's Select
+// widget: canonical Display name + the expected hex length + an
+// optional Note ("recommended" / "legacy / insecure"). Derives
+// from the canonical Display so the form picker and the watching
+// screen agree on the same name with no possibility of drift.
+func (h hashTypeOption) selectLabel() string {
+	label := fmt.Sprintf("%s (%d hex chars)", h.Display, h.HexLen)
+	if h.Note != "" {
+		label += " — " + h.Note
+	}
+	return label
+}
+
+// displayHashType returns the canonical Display name for a wire
+// value. Falls back to the wire value verbatim for unknown types
+// — the lookup is best-effort so older items whose hash_type predates
+// our table still render something rather than blanking the field.
+func displayHashType(value string) string {
+	if entry := lookupHashType(value); entry != nil {
+		return entry.Display
+	}
+	return value
 }
 
 // lookupHashType resolves a wire value to its canonical option.
@@ -184,12 +212,13 @@ func (m *newItemModel) makeForm() *huh.Form {
 }
 
 // hashTypeSelectOptions converts the canonical hashTypeOptions slice
-// into huh.Option values for the Select field. Built once per form
-// constructor — cheap, but kept as a helper to keep makeForm readable.
+// into huh.Option values for the Select field. Labels are derived
+// from the canonical Display name via selectLabel so the picker and
+// the watching-screen summary stay in lockstep.
 func hashTypeSelectOptions() []huh.Option[string] {
 	opts := make([]huh.Option[string], len(hashTypeOptions))
 	for i, h := range hashTypeOptions {
-		opts[i] = huh.NewOption(h.Label, h.Value)
+		opts[i] = huh.NewOption(h.selectLabel(), h.Value)
 	}
 	return opts
 }
@@ -488,7 +517,7 @@ func (m *newItemModel) renderWatching(width, height int) string {
 	}
 	fields = append(fields,
 		cardField{label: "State", value: stateStyle.Render(currentState)},
-		cardField{label: "Hash type", value: m.created.Claims.HashType},
+		cardField{label: "Hash type", value: displayHashType(m.created.Claims.HashType)},
 		cardField{label: "Hash", value: m.created.Claims.Hash},
 		cardField{label: "Item hash", value: m.created.ItemHash},
 	)
