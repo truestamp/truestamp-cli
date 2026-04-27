@@ -20,14 +20,22 @@ type Page struct {
 	Theme  *Theme
 }
 
-// BodyArea returns the inner-content rectangle the active pane should
-// render into. Computed by subtracting the chrome rows from the
-// terminal height; clamped to a 1x1 minimum so a tiny terminal still
+// BodyArea returns the inner-content rectangle for a given header
+// and footer. Caller passes the already-rendered chrome strings;
+// BodyArea measures their actual height (which can vary — the
+// footer's bubbles/help expands when ShowAll toggles on) and
+// subtracts. Clamped to a 1x1 minimum so a tiny terminal still
 // produces something renderable rather than panicking on negative
 // dimensions.
-func (p Page) BodyArea() (width, height int) {
+//
+// The Theme.HeaderHeight / Theme.FooterHeight constants are kept as
+// defaults for tests and for callers that don't want to render
+// chrome up-front, but the runtime View path uses this dynamic
+// measurement so the help-toggle can grow the footer without
+// truncating the body.
+func (p Page) BodyArea(header, footer string) (width, height int) {
 	width = p.Width
-	height = p.Height - p.Theme.HeaderHeight - p.Theme.FooterHeight
+	height = p.Height - lipgloss.Height(header) - lipgloss.Height(footer)
 	if width < 1 {
 		width = 1
 	}
@@ -39,16 +47,13 @@ func (p Page) BodyArea() (width, height int) {
 
 // Render assembles the three chrome sections into a single string the
 // program can hand to tea.NewView. Header and footer are expected to
-// have already been width-padded to p.Width by the caller; the body
-// is height-clamped here so a pane that under-renders doesn't push the
-// footer up the screen.
+// have already been width-padded to p.Width by the caller. The body
+// is height-clamped here so a pane that under-renders doesn't push
+// the footer up the screen, and an over-rendering pane gets its
+// trailing rows truncated rather than pushing the footer offscreen.
 func (p Page) Render(header, body, footer string) string {
-	_, bodyHeight := p.BodyArea()
+	_, bodyHeight := p.BodyArea(header, footer)
 
-	// The Height(...) clamp truncates over-rendering panes (rather
-	// than letting them push the footer offscreen) and right-pads
-	// under-rendering panes (so the footer stays at the bottom of
-	// the terminal even on a sparse view).
 	body = lipgloss.NewStyle().
 		Width(p.Width).
 		Height(bodyHeight).

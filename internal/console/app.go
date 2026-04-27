@@ -347,8 +347,17 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (m *model) View() tea.View {
+	// Render header + footer first so we know their actual heights.
+	// Footer height varies: the help component is one row when
+	// short, multiple rows when expanded via `?`. Computing the body
+	// area from real heights (rather than fixed Theme constants)
+	// means the help-toggle grows downward into the body instead of
+	// pushing rows off the bottom of the screen.
+	header := m.renderHeader()
+	footer := m.footer.Render(m.width, m.activeKeyMap())
+
 	page := chrome.Page{Width: m.width, Height: m.height, Theme: m.theme}
-	bodyW, bodyH := page.BodyArea()
+	bodyW, bodyH := page.BodyArea(header, footer)
 
 	// Connection pane mirrors the Monitor's subscription count so the
 	// number appears alongside the rest of the scope info. The Monitor
@@ -366,8 +375,6 @@ func (m *model) View() tea.View {
 		body = m.connection.View(bodyW, bodyH)
 	}
 
-	header := m.renderHeader()
-	footer := m.footer.Render(m.width, m.activeKeyMap())
 	content := page.Render(header, body, footer)
 
 	v := tea.NewView(content)
