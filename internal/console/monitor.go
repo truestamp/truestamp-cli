@@ -582,6 +582,12 @@ func shortHash(h string) string {
 // =====================================================================
 
 var (
+	// Local color styles used by the scroll indicator. App-level
+	// status colors live in chrome.Theme; this is the same palette,
+	// just named for the contexts in which monitor uses them.
+	statusOK  = lipgloss.NewStyle().Foreground(ui.Green)
+	statusErr = lipgloss.NewStyle().Foreground(ui.Red)
+
 	streamSelectedStyle = lipgloss.NewStyle().Bold(true).Foreground(ui.Blue)
 	streamPendingStyle  = lipgloss.NewStyle().Foreground(ui.Yellow)
 	streamCursorStyle   = lipgloss.NewStyle().Reverse(true)

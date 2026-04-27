@@ -8,13 +8,14 @@ import (
 	"encoding/json"
 	"fmt"
 	"log/slog"
-	"strings"
 	"time"
 
+	"charm.land/bubbles/v2/help"
+	"charm.land/bubbles/v2/key"
 	tea "charm.land/bubbletea/v2"
-	lipgloss "charm.land/lipgloss/v2"
+	"github.com/truestamp/truestamp-cli/internal/console/chrome"
+	"github.com/truestamp/truestamp-cli/internal/console/keys"
 	"github.com/truestamp/truestamp-cli/internal/logging"
-	"github.com/truestamp/truestamp-cli/internal/ui"
 	"github.com/truestamp/truestamp-cli/internal/wschannel"
 )
 
@@ -136,6 +137,15 @@ type model struct {
 	// Window size.
 	width, height int
 
+	// Page chrome — owns header/footer rendering and theme. Built
+	// once at startup; pane Views render into the body area.
+	theme       *chrome.Theme
+	footer      chrome.Footer
+	appKeys     keys.AppKeys
+	monitorKeys keys.MonitorKeys
+	newItemKeys keys.NewItemKeys
+	connKeys    keys.ConnectionKeys
+
 	// Pane-specific state.
 	monitor    *monitorModel
 	newItem    *newItemModel
@@ -153,12 +163,20 @@ const (
 )
 
 func newModel(client *wschannel.Client, opts Options, log *slog.Logger) *model {
+	theme := chrome.NewTheme()
+	appKeys := keys.NewAppKeys()
 	m := &model{
-		client: client,
-		opts:   opts,
-		log:    log,
-		state:  connConnecting,
-		active: paneMonitor,
+		client:      client,
+		opts:        opts,
+		log:         log,
+		state:       connConnecting,
+		active:      paneMonitor,
+		theme:       theme,
+		footer:      chrome.NewFooter(theme),
+		appKeys:     appKeys,
+		monitorKeys: keys.NewMonitorKeys(appKeys),
+		newItemKeys: keys.NewNewItemKeys(appKeys),
+		connKeys:    keys.NewConnectionKeys(appKeys),
 	}
 	m.monitor = newMonitorModel(client, log)
 	m.newItem = newNewItemModel(client)
@@ -193,20 +211,30 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, nil
 
 	case tea.KeyPressMsg:
-		switch msg.String() {
-		case "ctrl+c", "q":
+		// Global bindings handled at the root. Plain `tab` is
+		// deliberately NOT handled here — it falls through to the
+		// active pane (the New Item form needs it for field
+		// navigation). Pane switching uses `]` / `[` / `1` / `2` / `3`.
+		switch {
+		case key.Matches(msg, m.appKeys.Quit):
 			return m, tea.Quit
-		case "tab":
+		case key.Matches(msg, m.appKeys.NextPane):
 			m.active = (m.active + 1) % 3
 			return m, nil
-		case "1":
+		case key.Matches(msg, m.appKeys.PrevPane):
+			m.active = (m.active + 2) % 3
+			return m, nil
+		case key.Matches(msg, m.appKeys.GoMonitor):
 			m.active = paneMonitor
 			return m, nil
-		case "2":
+		case key.Matches(msg, m.appKeys.GoNewItem):
 			m.active = paneNewItem
 			return m, nil
-		case "3":
+		case key.Matches(msg, m.appKeys.GoConnection):
 			m.active = paneConnection
+			return m, nil
+		case key.Matches(msg, m.appKeys.ToggleHelp):
+			m.footer.SetShowAll(!m.footer.ShowAll())
 			return m, nil
 		}
 
@@ -309,61 +337,62 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (m *model) View() tea.View {
-	bodyHeight := m.height - 3
-	if bodyHeight < 1 {
-		bodyHeight = 1
-	}
+	page := chrome.Page{Width: m.width, Height: m.height, Theme: m.theme}
+	bodyW, bodyH := page.BodyArea()
 
 	var body string
 	switch m.active {
 	case paneMonitor:
-		body = m.monitor.View(m.width, bodyHeight)
+		body = m.monitor.View(bodyW, bodyH)
 	case paneNewItem:
-		body = m.newItem.View(m.width, bodyHeight)
+		body = m.newItem.View(bodyW, bodyH)
 	case paneConnection:
-		body = m.connection.View(m.width, bodyHeight)
+		body = m.connection.View(bodyW, bodyH)
 	}
 
 	header := m.renderHeader()
-	footer := m.renderFooter()
-	content := lipgloss.JoinVertical(lipgloss.Left, header, body, footer)
+	footer := m.footer.Render(m.width, m.activeKeyMap())
+	content := page.Render(header, body, footer)
 
 	v := tea.NewView(content)
 	v.AltScreen = true
 	return v
 }
 
-var (
-	tabActiveStyle   = lipgloss.NewStyle().Bold(true).Padding(0, 1).Underline(true)
-	tabInactiveStyle = lipgloss.NewStyle().Faint(true).Padding(0, 1)
-	headerBarStyle   = lipgloss.NewStyle().Padding(0, 1)
-	footerStyle      = lipgloss.NewStyle().Faint(true).Padding(0, 1)
-	statusOK         = lipgloss.NewStyle().Foreground(ui.Green)
-	statusErr        = lipgloss.NewStyle().Foreground(ui.Red)
-	clockStyle       = lipgloss.NewStyle().Faint(true)
-)
+// activeKeyMap returns the help.KeyMap for the currently-focused pane.
+// Drives the footer's auto-rendered help row.
+func (m *model) activeKeyMap() help.KeyMap {
+	switch m.active {
+	case paneMonitor:
+		return m.monitorKeys
+	case paneNewItem:
+		return m.newItemKeys
+	case paneConnection:
+		return m.connKeys
+	}
+	return chrome.EmptyKeyMap{}
+}
 
 func (m *model) renderHeader() string {
-	tabs := []string{}
+	tabs := make([]chrome.TabItem, 0, 3)
 	for _, p := range []pane{paneMonitor, paneNewItem, paneConnection} {
-		label := fmt.Sprintf("[%d] %s", int(p)+1, p.title())
-		if p == m.active {
-			tabs = append(tabs, tabActiveStyle.Render(label))
-		} else {
-			tabs = append(tabs, tabInactiveStyle.Render(label))
-		}
-	}
-	tabBar := strings.Join(tabs, "  ")
-
-	right := m.statusText()
-	if clock := m.clockText(); clock != "" {
-		right = right + "  •  " + clock
+		tabs = append(tabs, chrome.TabItem{
+			Number: int(p) + 1,
+			Title:  p.title(),
+			Active: p == m.active,
+		})
 	}
 
-	rightSide := headerBarStyle.Render(right)
-	leftSide := headerBarStyle.Render(tabBar)
-	gap := strings.Repeat(" ", maxInt(0, m.width-lipgloss.Width(leftSide)-lipgloss.Width(rightSide)))
-	return leftSide + gap + rightSide
+	status, kind := m.statusText()
+
+	return chrome.Render(chrome.HeaderInput{
+		Width:      m.width,
+		Tabs:       tabs,
+		Status:     status,
+		StatusKind: kind,
+		Clock:      m.clockText(),
+		Theme:      m.theme,
+	})
 }
 
 // reconnectingText renders the header status while a reconnect is in
@@ -387,37 +416,26 @@ func (m *model) clockText() string {
 	if m.serverTime.IsZero() {
 		return ""
 	}
-	return clockStyle.Render(m.serverTime.UTC().Format("2006-01-02T15:04:05Z"))
+	return m.serverTime.UTC().Format("2006-01-02T15:04:05Z")
 }
 
-func (m *model) statusText() string {
+// statusText returns the header's status string and a StatusKind
+// so the chrome can color the right-side pill appropriately.
+func (m *model) statusText() (string, chrome.StatusKind) {
 	switch m.state {
 	case connConnecting:
-		return "connecting…"
+		return "connecting…", chrome.StatusKindWarn
 	case connConnected:
-		s := fmt.Sprintf("connected • %s • %d streams", m.welcome.Scope.Plan, len(m.monitor.activeStreams()))
-		return statusOK.Render(s)
+		return fmt.Sprintf("connected • %s • %d streams",
+			m.welcome.Scope.Plan, len(m.monitor.activeStreams())), chrome.StatusKindOK
 	case connReconnecting:
-		return statusErr.Render(m.reconnectingText())
+		return m.reconnectingText(), chrome.StatusKindErr
 	case connClosed:
-		return statusErr.Render("disconnected")
+		return "disconnected", chrome.StatusKindErr
 	case connFailed:
-		return statusErr.Render("error: " + truncate(m.connErr.Error(), 40))
+		return "error: " + truncate(m.connErr.Error(), 40), chrome.StatusKindErr
 	}
-	return ""
-}
-
-func (m *model) renderFooter() string {
-	hints := "tab: switch pane   1/2/3: go to pane   q: quit"
-	switch m.active {
-	case paneMonitor:
-		hints = "tab: pane   ←/→: focus   ↑/↓: scroll   pgup/pgdn: page   g/G: ends   space: toggle   r: reverse   q: quit"
-	case paneNewItem:
-		hints = "tab: switch pane   enter: submit   esc: cancel   q: quit"
-	case paneConnection:
-		hints = "tab: switch pane   r: send ping   q: quit"
-	}
-	return footerStyle.Render(hints)
+	return "", chrome.StatusKindNeutral
 }
 
 func truncate(s string, n int) string {
@@ -425,11 +443,4 @@ func truncate(s string, n int) string {
 		return s
 	}
 	return s[:n-1] + "…"
-}
-
-func maxInt(a, b int) int {
-	if a > b {
-		return a
-	}
-	return b
 }
