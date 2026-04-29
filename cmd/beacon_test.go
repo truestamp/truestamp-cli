@@ -30,19 +30,21 @@ const (
 func startBeaconServer(t *testing.T) (string, func()) {
 	t.Helper()
 	mux := http.NewServeMux()
-	mux.HandleFunc("/beacons/latest", func(w http.ResponseWriter, r *http.Request) {
+	// Routes mirror the production layout under <base_url>/api/json/...
+	// so tests pass --base-url <srv.URL> just like real users would.
+	mux.HandleFunc("/api/json/beacons/latest", func(w http.ResponseWriter, r *http.Request) {
 		requireBearer(t, r)
 		_, _ = w.Write([]byte(testBeaconJSON))
 	})
-	mux.HandleFunc("/beacons/"+testBeaconID, func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc("/api/json/beacons/"+testBeaconID, func(w http.ResponseWriter, r *http.Request) {
 		requireBearer(t, r)
 		_, _ = w.Write([]byte(testBeaconJSON))
 	})
-	mux.HandleFunc("/beacons/by-hash/"+testBeaconHash, func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc("/api/json/beacons/by-hash/"+testBeaconHash, func(w http.ResponseWriter, r *http.Request) {
 		requireBearer(t, r)
 		_, _ = w.Write([]byte(testBeaconJSON))
 	})
-	mux.HandleFunc("/beacons", func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc("/api/json/beacons", func(w http.ResponseWriter, r *http.Request) {
 		requireBearer(t, r)
 		_, _ = w.Write([]byte(`[` + testBeaconJSON + `,` + testBeaconJSON + `]`))
 	})
@@ -170,7 +172,7 @@ func TestCLI_Beacon_Latest_HashOnly(t *testing.T) {
 	defer stop()
 
 	stdout, _, exit := runCLI(t,
-		"--api-url", url, "--api-key", "test-key",
+		"--base-url", url, "--api-key", "test-key",
 		"beacon", "latest", "--hash-only")
 	if exit != 0 {
 		t.Fatalf("exit=%d, stdout=%q", exit, stdout)
@@ -187,7 +189,7 @@ func TestCLI_Beacon_Default_IsLatest(t *testing.T) {
 	defer stop()
 
 	stdout, _, exit := runCLI(t,
-		"--api-url", url, "--api-key", "test-key",
+		"--base-url", url, "--api-key", "test-key",
 		"beacon", "--hash-only")
 	if exit != 0 {
 		t.Fatalf("exit=%d", exit)
@@ -202,7 +204,7 @@ func TestCLI_Beacon_Latest_JSON(t *testing.T) {
 	defer stop()
 
 	stdout, _, exit := runCLI(t,
-		"--api-url", url, "--api-key", "test-key",
+		"--base-url", url, "--api-key", "test-key",
 		"beacon", "latest", "--json")
 	if exit != 0 {
 		t.Fatalf("exit=%d", exit)
@@ -231,7 +233,7 @@ func TestCLI_Beacon_List_JSON(t *testing.T) {
 	defer stop()
 
 	stdout, _, exit := runCLI(t,
-		"--api-url", url, "--api-key", "test-key",
+		"--base-url", url, "--api-key", "test-key",
 		"beacon", "list", "--limit", "2", "--json")
 	if exit != 0 {
 		t.Fatalf("exit=%d, stdout=%q", exit, stdout)
@@ -250,7 +252,7 @@ func TestCLI_Beacon_List_HashOnly_Rejected(t *testing.T) {
 	defer stop()
 
 	_, stderr, exit := runCLI(t,
-		"--api-url", url, "--api-key", "test-key",
+		"--base-url", url, "--api-key", "test-key",
 		"beacon", "list", "--hash-only")
 	if exit == 0 {
 		t.Fatal("expected non-zero exit")
@@ -265,7 +267,7 @@ func TestCLI_Beacon_Get_HashOnly(t *testing.T) {
 	defer stop()
 
 	stdout, _, exit := runCLI(t,
-		"--api-url", url, "--api-key", "test-key",
+		"--base-url", url, "--api-key", "test-key",
 		"beacon", "get", testBeaconID, "--hash-only")
 	if exit != 0 {
 		t.Fatalf("exit=%d", exit)
@@ -280,7 +282,7 @@ func TestCLI_Beacon_ByHash_HashOnly(t *testing.T) {
 	defer stop()
 
 	stdout, _, exit := runCLI(t,
-		"--api-url", url, "--api-key", "test-key",
+		"--base-url", url, "--api-key", "test-key",
 		"beacon", "by-hash", testBeaconHash, "--hash-only")
 	if exit != 0 {
 		t.Fatalf("exit=%d", exit)
@@ -299,7 +301,7 @@ func TestCLI_Beacon_Get_BadUUIDClientSide(t *testing.T) {
 	defer srv.Close()
 
 	_, stderr, exit := runCLI(t,
-		"--api-url", srv.URL, "--api-key", "test-key",
+		"--base-url", srv.URL, "--api-key", "test-key",
 		"beacon", "get", "not-a-uuid")
 	if exit == 0 {
 		t.Fatal("expected non-zero exit")
@@ -320,7 +322,7 @@ func TestCLI_Beacon_ByHash_BadHashClientSide(t *testing.T) {
 	defer srv.Close()
 
 	_, stderr, exit := runCLI(t,
-		"--api-url", srv.URL, "--api-key", "test-key",
+		"--base-url", srv.URL, "--api-key", "test-key",
 		"beacon", "by-hash", "ABCDEF")
 	if exit == 0 {
 		t.Fatal("expected non-zero exit")
@@ -343,7 +345,7 @@ func TestCLI_Beacon_MissingAPIKey_NotAuthenticated(t *testing.T) {
 	defer srv.Close()
 
 	_, stderr, exit := runCLI(t,
-		"--api-url", srv.URL,
+		"--base-url", srv.URL,
 		"beacon", "latest")
 	if exit == 0 {
 		t.Fatal("expected non-zero exit")

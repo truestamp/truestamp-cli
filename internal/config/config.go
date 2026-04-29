@@ -10,6 +10,7 @@ package config
 import (
 	_ "embed"
 	"fmt"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
@@ -28,11 +29,28 @@ import (
 var DefaultTOML string
 
 // Config holds the resolved configuration for the CLI.
+//
+// All Truestamp service URLs derive from a single BaseURL — the JSON
+// API, keyring, console WebSocket, and health endpoint paths are
+// fixed by the server and computed from BaseURL during Load. Callers
+// that need a specific URL read the corresponding field directly
+// (cfg.APIURL, cfg.KeyringURL, etc.); they should not be re-derived
+// from BaseURL ad hoc, so the path layout stays in one place.
 type Config struct {
-	APIURL      string `koanf:"api_url"`
+	// BaseURL is the user-configurable origin (scheme + host + port)
+	// for all Truestamp services. Default https://www.truestamp.com.
+	// Settable via base_url in config.toml, TRUESTAMP_BASE_URL env,
+	// or --base-url flag.
+	BaseURL string `koanf:"base_url"`
+
+	// Computed from BaseURL during Load — not user-settable.
+	APIURL       string `koanf:"-"`
+	KeyringURL   string `koanf:"-"`
+	WebSocketURL string `koanf:"-"`
+	HealthURL    string `koanf:"-"`
+
 	APIKey      string `koanf:"api_key"`
 	Team        string `koanf:"team"`
-	KeyringURL  string `koanf:"keyring_url"`
 	HTTPTimeout string `koanf:"http_timeout"`
 	// CosignPath pins the cosign binary used during `truestamp upgrade`.
 	// Must be an absolute path to an executable when set; empty means
@@ -85,10 +103,9 @@ var sectionPrefixes = []string{"verify", "hash", "convert"}
 // convert under "convert.".
 var flagKeyMap = map[string]string{
 	// Root persistent flags
-	"api-url":      "api_url",
+	"base-url":     "base_url",
 	"api-key":      "api_key",
 	"team":         "team",
-	"keyring-url":  "keyring_url",
 	"http-timeout": "http_timeout",
 	// Verify subcommand flags
 	"silent":          "verify.silent",
@@ -113,10 +130,9 @@ func Load(configPath string, flags *pflag.FlagSet) (*Config, error) {
 
 	// 1. Compiled defaults
 	defaults := map[string]interface{}{
-		"api_url":                "https://www.truestamp.com/api/json",
+		"base_url":               "https://www.truestamp.com",
 		"api_key":                "",
 		"team":                   "",
-		"keyring_url":            "https://www.truestamp.com/.well-known/keyring.json",
 		"http_timeout":           "10s",
 		"cosign_path":            "",
 		"verify.silent":          false,
@@ -176,9 +192,25 @@ func Load(configPath string, flags *pflag.FlagSet) (*Config, error) {
 		}
 	}
 
+	// Detect legacy keys still lingering in the user's TOML / env / flags
+	// (api_url, keyring_url, --api-url, --keyring-url) and warn once on
+	// stderr. We don't error on them — the defaults are correct for the
+	// production www.truestamp.com host — but the user should know they
+	// are no longer load-bearing so they can clean up their config.
+	warnLegacyURLKeys(k)
+
 	var cfg Config
 	if err := k.Unmarshal("", &cfg); err != nil {
 		return nil, fmt.Errorf("unmarshaling config: %w", err)
+	}
+
+	// Compose the canonical Truestamp service URLs from BaseURL. The path
+	// layout is fixed by the server (lib/truestamp_web/router.ex) so we
+	// own it here as a single source of truth. Failure to parse BaseURL
+	// surfaces as an error rather than a silent fallback so the user sees
+	// the typo in their config.
+	if err := composeTruestampURLs(&cfg); err != nil {
+		return nil, err
 	}
 
 	// Validate http_timeout is parseable and positive. A zero or negative
@@ -203,6 +235,72 @@ func Load(configPath string, flags *pflag.FlagSet) (*Config, error) {
 	}
 
 	return &cfg, nil
+}
+
+// truestampPaths centralises the well-known path components served by
+// the Truestamp Phoenix backend. Callers compose <BaseURL> + path to
+// build a full URL; nothing else in the CLI hardcodes these strings.
+const (
+	truestampAPIPath       = "/api/json"
+	truestampKeyringPath   = "/.well-known/keyring.json"
+	truestampWebSocketPath = "/console/websocket"
+	truestampHealthPath    = "/health"
+)
+
+// composeTruestampURLs derives the per-service URLs from cfg.BaseURL
+// and stores them on the struct. The BaseURL must include a scheme
+// and host; trailing slashes / paths / queries / fragments are
+// discarded so a user setting `https://www.truestamp.com/foo` still
+// gets correct service URLs.
+func composeTruestampURLs(cfg *Config) error {
+	if cfg.BaseURL == "" {
+		return fmt.Errorf("base_url is empty; set it in config.toml, TRUESTAMP_BASE_URL, or --base-url")
+	}
+	u, err := url.Parse(cfg.BaseURL)
+	if err != nil {
+		return fmt.Errorf("invalid base_url %q: %w", cfg.BaseURL, err)
+	}
+	if u.Scheme == "" || u.Host == "" {
+		return fmt.Errorf("invalid base_url %q: must include scheme and host (e.g. https://www.truestamp.com)", cfg.BaseURL)
+	}
+	// Normalise: keep only scheme + host, drop everything else so
+	// composition is deterministic.
+	origin := (&url.URL{Scheme: u.Scheme, Host: u.Host}).String()
+	cfg.BaseURL = origin
+	cfg.APIURL = origin + truestampAPIPath
+	cfg.KeyringURL = origin + truestampKeyringPath
+	cfg.HealthURL = origin + truestampHealthPath
+	cfg.WebSocketURL = wsScheme(u.Scheme) + "://" + u.Host + truestampWebSocketPath
+	return nil
+}
+
+// wsScheme maps an http(s) scheme to its WebSocket counterpart.
+// Anything else passes through unchanged so an explicit ws:// /
+// wss:// scheme in BaseURL is preserved.
+func wsScheme(s string) string {
+	switch strings.ToLower(s) {
+	case "http":
+		return "ws"
+	case "https":
+		return "wss"
+	}
+	return s
+}
+
+// warnLegacyURLKeys emits a one-line stderr warning if any of the
+// retired URL knobs (api_url, keyring_url, --api-url, --keyring-url,
+// or their TRUESTAMP_* env equivalents) are still set. This is a
+// transition aid: the keys have no effect on the resolved config —
+// callers should set base_url instead.
+func warnLegacyURLKeys(k *koanf.Koanf) {
+	hasOld := k.Exists("api_url") || k.Exists("keyring_url")
+	if !hasOld {
+		return
+	}
+	fmt.Fprintln(os.Stderr,
+		"warning: 'api_url' and 'keyring_url' are no longer recognized; set 'base_url' instead.")
+	fmt.Fprintln(os.Stderr,
+		"         All Truestamp service URLs (API, keyring, console, health) derive from base_url.")
 }
 
 // ConfigDir returns the config directory path. The implementation is
@@ -253,10 +351,9 @@ func (c *Config) ToTOML(maskAPIKey bool) string {
 		}
 	}
 
-	return fmt.Sprintf(`api_url = %q
+	return fmt.Sprintf(`base_url = %q
 api_key = %q
 team = %q
-keyring_url = %q
 http_timeout = %q
 cosign_path = %q
 
@@ -274,7 +371,7 @@ style = %q
 
 [convert]
 time_zone = %q
-`, c.APIURL, apiKey, c.Team, c.KeyringURL, c.HTTPTimeout, c.CosignPath,
+`, c.BaseURL, apiKey, c.Team, c.HTTPTimeout, c.CosignPath,
 		c.Verify.Silent, c.Verify.JSON,
 		c.Verify.SkipExternal, c.Verify.SkipSignatures, c.Verify.Remote,
 		c.Hash.Algorithm, c.Hash.Encoding, c.Hash.Style,

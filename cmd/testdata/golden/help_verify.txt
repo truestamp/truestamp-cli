@@ -44,10 +44,9 @@ Flags:
 
 Global Flags:
       --api-key string        API key for authenticating with the Truestamp API
-      --api-url string        Base URL of the Truestamp API
+      --base-url string       Origin of the Truestamp service (scheme + host, e.g. https://www.truestamp.com)
       --config string         Path to config file (default: <home>/config.toml)
       --http-timeout string   HTTP timeout for external API calls (e.g. 10s, 30s, 1m)
-      --keyring-url string    URL of the Truestamp keyring endpoint
       --no-color              Disable color output
       --no-upgrade-check      Disable the once-per-day 'new version available' notice
       --team string           Team ID for multi-tenant API operations

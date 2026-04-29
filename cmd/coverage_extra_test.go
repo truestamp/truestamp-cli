@@ -128,7 +128,7 @@ func TestCLI_Create_WithMockAPI(t *testing.T) {
 
 	// Text output (presentCreate)
 	cmd := exec.Command(binaryPath, "create", path,
-		"--api-url", srv.URL, "--api-key", "key")
+		"--base-url", srv.URL, "--api-key", "key")
 	out, err := cmd.CombinedOutput()
 	if err != nil {
 		t.Fatalf("create text: %s\n%s", err, out)
@@ -139,7 +139,7 @@ func TestCLI_Create_WithMockAPI(t *testing.T) {
 
 	// JSON output (printCreateJSON)
 	cmd = exec.Command(binaryPath, "create", path, "--json",
-		"--api-url", srv.URL, "--api-key", "key")
+		"--base-url", srv.URL, "--api-key", "key")
 	out, err = cmd.CombinedOutput()
 	if err != nil {
 		t.Fatalf("create json: %s\n%s", err, out)
@@ -171,7 +171,7 @@ func TestCLI_Download_BasicProof(t *testing.T) {
 	cmd := exec.Command(binaryPath, "download",
 		"01HJHB01T8FYZ7YTR9P5N62K5B",
 		"-o", filepath.Join(t.TempDir(), "out.json"),
-		"--api-url", srv.URL, "--api-key", "key")
+		"--base-url", srv.URL, "--api-key", "key")
 	out, _ := cmd.CombinedOutput()
 	// Any outcome reaches presentDownload / formatSize.
 	_ = out

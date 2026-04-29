@@ -161,7 +161,7 @@ func TestCLI_Create_AutoHash_MatchesSHA256(t *testing.T) {
 	// Run create with a fake API (will fail at API call, but we can check
 	// the hash via --json mode's error output). Instead, test the validation
 	// passes by checking the error is an API error (not a validation error).
-	cmd := exec.Command(binaryPath, "create", path, "--json", "--api-key", "fake", "--api-url", "http://localhost:1")
+	cmd := exec.Command(binaryPath, "create", path, "--json", "--api-key", "fake", "--base-url", "http://localhost:1")
 	out, _ := cmd.CombinedOutput()
 	output := string(out)
 
@@ -187,7 +187,7 @@ func TestCLI_Create_ClaimsFile_ParsesJSON(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	cmd := exec.Command(binaryPath, "create", "--claims="+path, "--api-key", "fake", "--api-url", "http://localhost:1")
+	cmd := exec.Command(binaryPath, "create", "--claims="+path, "--api-key", "fake", "--base-url", "http://localhost:1")
 	out, _ := cmd.CombinedOutput()
 	output := string(out)
 
@@ -215,7 +215,7 @@ func TestCLI_Create_ClaimsFile_InvalidJSON_Error(t *testing.T) {
 func TestCLI_Create_ClaimsStdin_ParsesJSON(t *testing.T) {
 	claims := `{"hash":"abcd","hash_type":"sha256","name":"From Stdin"}`
 
-	cmd := exec.Command(binaryPath, "create", "-C", "--api-key", "fake", "--api-url", "http://localhost:1")
+	cmd := exec.Command(binaryPath, "create", "-C", "--api-key", "fake", "--base-url", "http://localhost:1")
 	cmd.Stdin = strings.NewReader(claims)
 	out, _ := cmd.CombinedOutput()
 	output := string(out)
@@ -237,7 +237,7 @@ func TestCLI_Create_ClaimsStdin_InvalidJSON_Error(t *testing.T) {
 // --- File stdin input ---
 
 func TestCLI_Create_FileStdin_RequiresName(t *testing.T) {
-	cmd := exec.Command(binaryPath, "create", "-F", "--api-key", "fake", "--api-url", "http://localhost:1")
+	cmd := exec.Command(binaryPath, "create", "-F", "--api-key", "fake", "--base-url", "http://localhost:1")
 	cmd.Stdin = strings.NewReader("raw file content")
 	out, _ := cmd.CombinedOutput()
 	if !containsString(string(out), "name is required") {
@@ -248,7 +248,7 @@ func TestCLI_Create_FileStdin_RequiresName(t *testing.T) {
 func TestCLI_Create_FileStdin_WithName_HashesContent(t *testing.T) {
 	content := "raw file content for hashing"
 
-	cmd := exec.Command(binaryPath, "create", "-F", "-n", "Stdin File", "--api-key", "fake", "--api-url", "http://localhost:1")
+	cmd := exec.Command(binaryPath, "create", "-F", "-n", "Stdin File", "--api-key", "fake", "--base-url", "http://localhost:1")
 	cmd.Stdin = strings.NewReader(content)
 	out, _ := cmd.CombinedOutput()
 	output := string(out)
@@ -269,7 +269,7 @@ func TestCLI_Create_FlagOverridesAutoHash(t *testing.T) {
 	}
 
 	// Override name from auto-hash
-	cmd := exec.Command(binaryPath, "create", path, "-n", "Custom Name", "--api-key", "fake", "--api-url", "http://localhost:1")
+	cmd := exec.Command(binaryPath, "create", path, "-n", "Custom Name", "--api-key", "fake", "--base-url", "http://localhost:1")
 	out, _ := cmd.CombinedOutput()
 	output := string(out)
 
@@ -287,7 +287,7 @@ func TestCLI_Create_FlagOverridesClaimsFile(t *testing.T) {
 	}
 
 	// Override visibility from claims file
-	cmd := exec.Command(binaryPath, "create", "--claims="+path, "-v", "public", "--api-key", "fake", "--api-url", "http://localhost:1")
+	cmd := exec.Command(binaryPath, "create", "--claims="+path, "-v", "public", "--api-key", "fake", "--base-url", "http://localhost:1")
 	out, _ := cmd.CombinedOutput()
 	output := string(out)
 
@@ -305,7 +305,7 @@ func TestCLI_Create_FileFlag_HashesFile(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	cmd := exec.Command(binaryPath, "create", "--file="+path, "--api-key", "fake", "--api-url", "http://localhost:1")
+	cmd := exec.Command(binaryPath, "create", "--file="+path, "--api-key", "fake", "--base-url", "http://localhost:1")
 	out, _ := cmd.CombinedOutput()
 	output := string(out)
 
@@ -349,7 +349,7 @@ func TestCLI_Create_TagsParsing(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	cmd := exec.Command(binaryPath, "create", path, "-t", " a , b , c ", "--api-key", "fake", "--api-url", "http://localhost:1")
+	cmd := exec.Command(binaryPath, "create", path, "-t", " a , b , c ", "--api-key", "fake", "--base-url", "http://localhost:1")
 	out, _ := cmd.CombinedOutput()
 	output := string(out)
 
@@ -363,7 +363,7 @@ func TestCLI_Create_TagsParsing(t *testing.T) {
 
 func TestCLI_Create_HashNormalizedToLowercase(t *testing.T) {
 	// Uppercase hex should be normalized to lowercase
-	cmd := exec.Command(binaryPath, "create", "-n", "Test", "--hash", "ABCD", "--api-key", "fake", "--api-url", "http://localhost:1")
+	cmd := exec.Command(binaryPath, "create", "-n", "Test", "--hash", "ABCD", "--api-key", "fake", "--base-url", "http://localhost:1")
 	out, _ := cmd.CombinedOutput()
 	output := string(out)
 
@@ -377,7 +377,7 @@ func TestCLI_Create_HashNormalizedToLowercase(t *testing.T) {
 
 func TestCLI_Create_DefaultHashType(t *testing.T) {
 	// When --hash is provided without --hash-type, default to sha256
-	cmd := exec.Command(binaryPath, "create", "-n", "Test", "--hash", "abcd", "--api-key", "fake", "--api-url", "http://localhost:1")
+	cmd := exec.Command(binaryPath, "create", "-n", "Test", "--hash", "abcd", "--api-key", "fake", "--base-url", "http://localhost:1")
 	out, _ := cmd.CombinedOutput()
 	output := string(out)
 
@@ -396,7 +396,7 @@ func TestCLI_Create_ClaimsAndFlags_Merge(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	cmd := exec.Command(binaryPath, "create", "--claims="+path, "-d", "Added desc", "--api-key", "fake", "--api-url", "http://localhost:1")
+	cmd := exec.Command(binaryPath, "create", "--claims="+path, "-d", "Added desc", "--api-key", "fake", "--base-url", "http://localhost:1")
 	out, _ := cmd.CombinedOutput()
 	output := string(out)
 

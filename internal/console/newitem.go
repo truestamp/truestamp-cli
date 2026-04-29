@@ -11,8 +11,8 @@ import (
 	"strings"
 	"time"
 
-	"charm.land/huh/v2"
 	tea "charm.land/bubbletea/v2"
+	"charm.land/huh/v2"
 	lipgloss "charm.land/lipgloss/v2"
 	"github.com/truestamp/truestamp-cli/internal/console/events"
 	"github.com/truestamp/truestamp-cli/internal/ui"

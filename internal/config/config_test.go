@@ -38,8 +38,8 @@ func TestLoad_DefaultsOnly(t *testing.T) {
 
 	// Isolate env. t.Setenv-then-Unsetenv preserves auto-restore.
 	for _, v := range []string{
-		"TRUESTAMP_API_URL", "TRUESTAMP_API_KEY", "TRUESTAMP_TEAM",
-		"TRUESTAMP_KEYRING_URL", "TRUESTAMP_HTTP_TIMEOUT",
+		"TRUESTAMP_BASE_URL", "TRUESTAMP_API_KEY", "TRUESTAMP_TEAM",
+		"TRUESTAMP_HTTP_TIMEOUT",
 		"TRUESTAMP_HASH_ALGORITHM", "TRUESTAMP_HASH_ENCODING",
 		"TRUESTAMP_HASH_STYLE", "TRUESTAMP_CONVERT_TIME_ZONE",
 		"TRUESTAMP_VERIFY_SILENT", "TRUESTAMP_VERIFY_JSON",
@@ -52,8 +52,20 @@ func TestLoad_DefaultsOnly(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Load: %v", err)
 	}
+	if cfg.BaseURL != "https://www.truestamp.com" {
+		t.Errorf("default base_url: got %q", cfg.BaseURL)
+	}
 	if cfg.APIURL != "https://www.truestamp.com/api/json" {
-		t.Errorf("default api_url: got %q", cfg.APIURL)
+		t.Errorf("computed api_url: got %q", cfg.APIURL)
+	}
+	if cfg.KeyringURL != "https://www.truestamp.com/.well-known/keyring.json" {
+		t.Errorf("computed keyring_url: got %q", cfg.KeyringURL)
+	}
+	if cfg.WebSocketURL != "wss://www.truestamp.com/console/websocket" {
+		t.Errorf("computed websocket_url: got %q", cfg.WebSocketURL)
+	}
+	if cfg.HealthURL != "https://www.truestamp.com/health" {
+		t.Errorf("computed health_url: got %q", cfg.HealthURL)
 	}
 	if cfg.HTTPTimeout != "10s" {
 		t.Errorf("default http_timeout: got %q", cfg.HTTPTimeout)
@@ -67,7 +79,7 @@ func TestLoad_FileOverridesDefaults(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "config.toml")
 	tomlBody := `
-api_url = "https://file.example.com/api"
+base_url = "https://file.example.com"
 http_timeout = "25s"
 [hash]
 algorithm = "sha512"
@@ -79,8 +91,11 @@ algorithm = "sha512"
 	if err != nil {
 		t.Fatalf("Load: %v", err)
 	}
-	if cfg.APIURL != "https://file.example.com/api" {
-		t.Errorf("api_url: got %q", cfg.APIURL)
+	if cfg.BaseURL != "https://file.example.com" {
+		t.Errorf("base_url: got %q", cfg.BaseURL)
+	}
+	if cfg.APIURL != "https://file.example.com/api/json" {
+		t.Errorf("computed api_url: got %q", cfg.APIURL)
 	}
 	if cfg.HTTPTimeout != "25s" {
 		t.Errorf("http_timeout: got %q", cfg.HTTPTimeout)
@@ -93,16 +108,16 @@ algorithm = "sha512"
 func TestLoad_EnvOverridesFile(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "config.toml")
-	_ = os.WriteFile(path, []byte(`api_url = "file"`), 0644)
-	t.Setenv("TRUESTAMP_API_URL", "from-env")
+	_ = os.WriteFile(path, []byte(`base_url = "https://file.example.com"`), 0644)
+	t.Setenv("TRUESTAMP_BASE_URL", "https://from-env.example.com")
 	t.Setenv("TRUESTAMP_HASH_ALGORITHM", "sha3-256")
 
 	cfg, err := Load(path, nil)
 	if err != nil {
 		t.Fatalf("Load: %v", err)
 	}
-	if cfg.APIURL != "from-env" {
-		t.Errorf("env should override file: got %q", cfg.APIURL)
+	if cfg.BaseURL != "https://from-env.example.com" {
+		t.Errorf("env should override file: got %q", cfg.BaseURL)
 	}
 	if cfg.Hash.Algorithm != "sha3-256" {
 		t.Errorf("hash.algorithm env: got %q", cfg.Hash.Algorithm)
@@ -112,13 +127,13 @@ func TestLoad_EnvOverridesFile(t *testing.T) {
 func TestLoad_FlagOverridesEnv(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "config.toml")
-	_ = os.WriteFile(path, []byte(`api_url = "file"`), 0644)
-	t.Setenv("TRUESTAMP_API_URL", "from-env")
+	_ = os.WriteFile(path, []byte(`base_url = "https://file.example.com"`), 0644)
+	t.Setenv("TRUESTAMP_BASE_URL", "https://from-env.example.com")
 
 	flags := pflag.NewFlagSet("test", pflag.ContinueOnError)
-	flags.String("api-url", "", "")
+	flags.String("base-url", "", "")
 	flags.String("algorithm", "", "")
-	if err := flags.Parse([]string{"--api-url", "from-flag", "--algorithm", "blake2b-512"}); err != nil {
+	if err := flags.Parse([]string{"--base-url", "https://from-flag.example.com", "--algorithm", "blake2b-512"}); err != nil {
 		t.Fatal(err)
 	}
 
@@ -126,11 +141,137 @@ func TestLoad_FlagOverridesEnv(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Load: %v", err)
 	}
-	if cfg.APIURL != "from-flag" {
-		t.Errorf("flag should override env: got %q", cfg.APIURL)
+	if cfg.BaseURL != "https://from-flag.example.com" {
+		t.Errorf("flag should override env: got %q", cfg.BaseURL)
 	}
 	if cfg.Hash.Algorithm != "blake2b-512" {
 		t.Errorf("flag hash.algorithm: got %q", cfg.Hash.Algorithm)
+	}
+}
+
+// TestLoad_ComposesAllServiceURLs checks that BaseURL drives every
+// derived URL — JSON API, keyring, console WebSocket (with scheme
+// swap), and health — and that paths/queries on the configured base
+// are normalised away so composition is deterministic.
+func TestLoad_ComposesAllServiceURLs(t *testing.T) {
+	cases := []struct {
+		name           string
+		base           string
+		wantAPI        string
+		wantKeyring    string
+		wantWebSocket  string
+		wantHealth     string
+		wantNormalised string // BaseURL after Load (path stripped)
+	}{
+		{
+			name:           "https origin",
+			base:           "https://www.truestamp.com",
+			wantAPI:        "https://www.truestamp.com/api/json",
+			wantKeyring:    "https://www.truestamp.com/.well-known/keyring.json",
+			wantWebSocket:  "wss://www.truestamp.com/console/websocket",
+			wantHealth:     "https://www.truestamp.com/health",
+			wantNormalised: "https://www.truestamp.com",
+		},
+		{
+			name:           "http localhost preview",
+			base:           "http://localhost:4010",
+			wantAPI:        "http://localhost:4010/api/json",
+			wantKeyring:    "http://localhost:4010/.well-known/keyring.json",
+			wantWebSocket:  "ws://localhost:4010/console/websocket",
+			wantHealth:     "http://localhost:4010/health",
+			wantNormalised: "http://localhost:4010",
+		},
+		{
+			name:           "trailing path stripped",
+			base:           "https://staging.example.com/whatever?x=1",
+			wantAPI:        "https://staging.example.com/api/json",
+			wantKeyring:    "https://staging.example.com/.well-known/keyring.json",
+			wantWebSocket:  "wss://staging.example.com/console/websocket",
+			wantHealth:     "https://staging.example.com/health",
+			wantNormalised: "https://staging.example.com",
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			dir := t.TempDir()
+			path := filepath.Join(dir, "config.toml")
+			_ = os.WriteFile(path, []byte(`base_url = `+`"`+tc.base+`"`), 0644)
+			cfg, err := Load(path, nil)
+			if err != nil {
+				t.Fatalf("Load: %v", err)
+			}
+			if cfg.BaseURL != tc.wantNormalised {
+				t.Errorf("BaseURL normalised: got %q, want %q", cfg.BaseURL, tc.wantNormalised)
+			}
+			if cfg.APIURL != tc.wantAPI {
+				t.Errorf("APIURL: got %q, want %q", cfg.APIURL, tc.wantAPI)
+			}
+			if cfg.KeyringURL != tc.wantKeyring {
+				t.Errorf("KeyringURL: got %q, want %q", cfg.KeyringURL, tc.wantKeyring)
+			}
+			if cfg.WebSocketURL != tc.wantWebSocket {
+				t.Errorf("WebSocketURL: got %q, want %q", cfg.WebSocketURL, tc.wantWebSocket)
+			}
+			if cfg.HealthURL != tc.wantHealth {
+				t.Errorf("HealthURL: got %q, want %q", cfg.HealthURL, tc.wantHealth)
+			}
+		})
+	}
+}
+
+// TestLoad_BaseURLValidation rejects a base_url that is not a real
+// origin (missing scheme or host). A typo should surface at Load
+// rather than degrade to a silent fallback at request time.
+func TestLoad_BaseURLValidation(t *testing.T) {
+	cases := []string{
+		`base_url = ""`,
+		`base_url = "not-a-url"`,
+		`base_url = "://broken"`,
+	}
+	for _, body := range cases {
+		dir := t.TempDir()
+		path := filepath.Join(dir, "config.toml")
+		_ = os.WriteFile(path, []byte(body), 0644)
+		if _, err := Load(path, nil); err == nil {
+			t.Errorf("Load(%q): expected validation error, got nil", body)
+		}
+	}
+}
+
+// TestLoad_LegacyKeysWarn confirms the migration aid: a config still
+// using api_url / keyring_url loads without erroring (the values are
+// ignored — defaults take over) but a stderr warning fires so the
+// user knows to migrate.
+func TestLoad_LegacyKeysWarn(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "config.toml")
+	_ = os.WriteFile(path, []byte(`
+api_url = "https://old.example/api/json"
+keyring_url = "https://old.example/keyring.json"
+`), 0644)
+
+	// Capture stderr.
+	origStderr := os.Stderr
+	r, w, _ := os.Pipe()
+	os.Stderr = w
+	defer func() { os.Stderr = origStderr }()
+
+	cfg, err := Load(path, nil)
+	w.Close()
+	os.Stderr = origStderr
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	// Defaults take effect; the legacy values are ignored.
+	if cfg.BaseURL != "https://www.truestamp.com" {
+		t.Errorf("legacy api_url should not change BaseURL: got %q", cfg.BaseURL)
+	}
+
+	buf := make([]byte, 4096)
+	n, _ := r.Read(buf)
+	stderr := string(buf[:n])
+	if !strings.Contains(stderr, "no longer recognized") || !strings.Contains(stderr, "base_url") {
+		t.Errorf("expected legacy-keys warning on stderr, got:\n%s", stderr)
 	}
 }
 
@@ -235,10 +376,9 @@ func TestLoad_InvalidTOML(t *testing.T) {
 
 func TestToTOML_IncludesAllSections(t *testing.T) {
 	c := &Config{
-		APIURL:      "https://x/y",
+		BaseURL:     "https://x.example.com",
 		APIKey:      "abcdef1234567890",
 		Team:        "t",
-		KeyringURL:  "https://x/keyring",
 		HTTPTimeout: "15s",
 		Verify:      VerifyConfig{Silent: true, JSON: true, SkipExternal: true},
 		Hash:        HashConfig{Algorithm: "sha256", Encoding: "hex", Style: "gnu"},
@@ -246,7 +386,7 @@ func TestToTOML_IncludesAllSections(t *testing.T) {
 	}
 	out := c.ToTOML(false)
 	for _, want := range []string{
-		`api_url = "https://x/y"`,
+		`base_url = "https://x.example.com"`,
 		`api_key = "abcdef1234567890"`,
 		`team = "t"`,
 		`[verify]`,
@@ -258,6 +398,14 @@ func TestToTOML_IncludesAllSections(t *testing.T) {
 	} {
 		if !strings.Contains(out, want) {
 			t.Errorf("ToTOML missing %q, full output:\n%s", want, out)
+		}
+	}
+	// Computed URL fields should NOT leak into rendered TOML — copying
+	// the output back to a config file would otherwise hardcode stale
+	// derived URLs that base_url no longer drives.
+	for _, leak := range []string{`api_url`, `keyring_url`, `health_url`, `websocket_url`} {
+		if strings.Contains(out, leak+" =") {
+			t.Errorf("ToTOML leaked computed field %q:\n%s", leak, out)
 		}
 	}
 }
@@ -342,8 +490,11 @@ func TestLoad_DefaultPathFallback(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Load(\"\"): %v", err)
 	}
+	if cfg.BaseURL == "" {
+		t.Error("expected defaults to populate BaseURL")
+	}
 	if cfg.APIURL == "" {
-		t.Error("expected defaults to populate APIURL")
+		t.Error("expected defaults to populate computed APIURL")
 	}
 }
 

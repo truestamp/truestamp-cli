@@ -64,7 +64,8 @@ func startProofServer(t *testing.T, responseBody string) (string, *string, func(
 	t.Helper()
 	var lastBody string
 	mux := http.NewServeMux()
-	mux.HandleFunc("/proof/generate", func(w http.ResponseWriter, r *http.Request) {
+	// Mirror production layout: <base_url>/api/json/proof/generate.
+	mux.HandleFunc("/api/json/proof/generate", func(w http.ResponseWriter, r *http.Request) {
 		auth := r.Header.Get("Authorization")
 		if !strings.HasPrefix(auth, "Bearer ") {
 			t.Errorf("missing Bearer header")
@@ -100,7 +101,7 @@ func TestCLI_Download_SmartDefaultULIDItem(t *testing.T) {
 	dir := withTempCWD(t)
 
 	_, stderr, exit := runCLI(t,
-		"--api-url", url, "--api-key", "test-key",
+		"--base-url", url, "--api-key", "test-key",
 		"download", "01HJHB01T8FYZ7YTR9P5N62K5B")
 	if exit != 0 {
 		t.Fatalf("exit=%d, stderr=%q", exit, stderr)
@@ -123,7 +124,7 @@ func TestCLI_Download_NoTypeUUIDv7Errors(t *testing.T) {
 	_ = withTempCWD(t)
 
 	_, stderr, exit := runCLI(t,
-		"--api-url", srv.URL, "--api-key", "test-key",
+		"--base-url", srv.URL, "--api-key", "test-key",
 		"download", "019db702-b08c-73dc-a7cd-2c5e011f1dad")
 	if exit == 0 {
 		t.Fatal("expected non-zero exit")
@@ -142,7 +143,7 @@ func TestCLI_Download_TypeBlock(t *testing.T) {
 	dir := withTempCWD(t)
 
 	_, _, exit := runCLI(t,
-		"--api-url", url, "--api-key", "test-key",
+		"--base-url", url, "--api-key", "test-key",
 		"download", "--type", "block", "019db702-b08c-73dc-a7cd-2c5e011f1dad")
 	if exit != 0 {
 		t.Fatalf("exit=%d", exit)
@@ -164,7 +165,7 @@ func TestCLI_Download_TypeBeacon_SendsBeacon(t *testing.T) {
 	dir := withTempCWD(t)
 
 	_, _, exit := runCLI(t,
-		"--api-url", url, "--api-key", "test-key",
+		"--base-url", url, "--api-key", "test-key",
 		"download", "--type", "beacon", "019db702-b08c-73dc-a7cd-2c5e011f1dad")
 	if exit != 0 {
 		t.Fatalf("exit=%d", exit)
@@ -182,7 +183,7 @@ func TestCLI_Download_TypeItem(t *testing.T) {
 	dir := withTempCWD(t)
 
 	_, _, exit := runCLI(t,
-		"--api-url", url, "--api-key", "test-key",
+		"--base-url", url, "--api-key", "test-key",
 		"download", "--type", "item", "01HJHB01T8FYZ7YTR9P5N62K5B")
 	if exit != 0 {
 		t.Fatalf("exit=%d", exit)
@@ -202,7 +203,7 @@ func TestCLI_Download_TypeEntropyStellar(t *testing.T) {
 	dir := withTempCWD(t)
 
 	_, _, exit := runCLI(t,
-		"--api-url", url, "--api-key", "test-key",
+		"--base-url", url, "--api-key", "test-key",
 		"download", "--type", "entropy_stellar", "019db702-b08c-73dc-a7cd-2c5e011f1dad")
 	if exit != 0 {
 		t.Fatalf("exit=%d", exit)
@@ -228,7 +229,7 @@ func TestCLI_Download_TypeEntropyNIST_CBOR(t *testing.T) {
 	dir := withTempCWD(t)
 
 	_, _, exit := runCLI(t,
-		"--api-url", url, "--api-key", "test-key",
+		"--base-url", url, "--api-key", "test-key",
 		"download", "--type", "entropy_nist", "-f", "cbor",
 		"019db702-b08c-73dc-a7cd-2c5e011f1dad")
 	if exit != 0 {
@@ -248,7 +249,7 @@ func TestCLI_Download_OutputFlagWins(t *testing.T) {
 
 	custom := filepath.Join(dir, "custom-name.json")
 	_, _, exit := runCLI(t,
-		"--api-url", url, "--api-key", "test-key",
+		"--base-url", url, "--api-key", "test-key",
 		"download", "--type", "beacon", "-o", custom,
 		"019db702-b08c-73dc-a7cd-2c5e011f1dad")
 	if exit != 0 {
@@ -306,7 +307,7 @@ func TestCLI_Download_TypeItemWithUUIDv7(t *testing.T) {
 	_ = withTempCWD(t)
 
 	_, stderr, exit := runCLI(t,
-		"--api-url", srv.URL, "--api-key", "test-key",
+		"--base-url", srv.URL, "--api-key", "test-key",
 		"download", "--type", "item", "019db702-b08c-73dc-a7cd-2c5e011f1dad")
 	if exit == 0 {
 		t.Fatal("expected non-zero exit")
@@ -330,7 +331,7 @@ func TestCLI_Download_TypeBlockWithULID(t *testing.T) {
 	_ = withTempCWD(t)
 
 	_, stderr, exit := runCLI(t,
-		"--api-url", srv.URL, "--api-key", "test-key",
+		"--base-url", srv.URL, "--api-key", "test-key",
 		"download", "--type", "block", "01HJHB01T8FYZ7YTR9P5N62K5B")
 	if exit == 0 {
 		t.Fatal("expected non-zero exit")
@@ -355,7 +356,7 @@ func TestCLI_Download_NotCommittedError(t *testing.T) {
 	_ = withTempCWD(t)
 
 	_, stderr, exit := runCLI(t,
-		"--api-url", srv.URL, "--api-key", "test-key",
+		"--base-url", srv.URL, "--api-key", "test-key",
 		"download", "--type", "block", "019db702-b08c-73dc-a7cd-2c5e011f1dad")
 	if exit == 0 {
 		t.Fatal("expected non-zero exit")
@@ -377,7 +378,7 @@ func TestCLI_Download_SubjectTypeMismatchError(t *testing.T) {
 	_ = withTempCWD(t)
 
 	_, stderr, exit := runCLI(t,
-		"--api-url", srv.URL, "--api-key", "test-key",
+		"--base-url", srv.URL, "--api-key", "test-key",
 		"download", "--type", "entropy_nist", "019db702-b08c-73dc-a7cd-2c5e011f1dad")
 	if exit == 0 {
 		t.Fatal("expected non-zero exit")

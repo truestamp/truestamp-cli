@@ -98,11 +98,12 @@ func TestCheckHealthTarget_Unreachable(t *testing.T) {
 // TestDefaultHealthTargets_HonorsConfig verifies the canonical list
 // uses caller-provided URLs (so user overrides flow through) and
 // always pins the third-party verification endpoints. The Truestamp
-// row points at the host's /health endpoint, derived from api_url.
+// rows are passed in pre-composed by package config (HealthURL +
+// KeyringURL fields derived from base_url).
 func TestDefaultHealthTargets_HonorsConfig(t *testing.T) {
 	t.Parallel()
 
-	got := DefaultHealthTargets("https://api.example/api/json", "https://kr.example/keyring.json")
+	got := DefaultHealthTargets("https://api.example/health", "https://kr.example/keyring.json")
 
 	wantURLs := map[string]bool{
 		"https://api.example/health":                     false,
@@ -123,33 +124,9 @@ func TestDefaultHealthTargets_HonorsConfig(t *testing.T) {
 	}
 }
 
-// TestDeriveHealthURL covers the canonical mappings users expect:
-// the production API, a local preview server on a non-standard
-// port, and a deployment with a custom path. Each one should map
-// to the same host's /health endpoint.
-func TestDeriveHealthURL(t *testing.T) {
-	t.Parallel()
-
-	cases := []struct {
-		in, want string
-	}{
-		{"https://www.truestamp.com/api/json", "https://www.truestamp.com/health"},
-		{"http://localhost:4010/api/json", "http://localhost:4010/health"},
-		{"http://localhost:4000", "http://localhost:4000/health"},
-		{"https://staging.example.com:8443/v1/api?x=y", "https://staging.example.com:8443/health"},
-		{"", ""},
-		{"not-a-url", ""},         // no scheme or host
-		{"file:///etc/hosts", ""}, // no host
-	}
-	for _, tc := range cases {
-		if got := deriveHealthURL(tc.in); got != tc.want {
-			t.Errorf("deriveHealthURL(%q) = %q, want %q", tc.in, got, tc.want)
-		}
-	}
-}
-
-// TestDefaultHealthTargets_OmitsEmpty: if the user has no api_url
-// configured we shouldn't add an empty-URL row to the table.
+// TestDefaultHealthTargets_OmitsEmpty: if the caller passed empty
+// health/keyring URLs (e.g. base_url not set) we shouldn't add empty
+// rows to the table.
 func TestDefaultHealthTargets_OmitsEmpty(t *testing.T) {
 	t.Parallel()
 

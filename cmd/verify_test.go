@@ -309,7 +309,7 @@ func TestCLI_ConfigShow(t *testing.T) {
 
 func TestCLI_EnvVarOverride(t *testing.T) {
 	cmd := exec.Command(binaryPath, "config", "show")
-	cmd.Env = append(os.Environ(), "TRUESTAMP_API_URL=https://custom.example.com")
+	cmd.Env = append(os.Environ(), "TRUESTAMP_BASE_URL=https://custom.example.com")
 	out, err := cmd.CombinedOutput()
 	if err != nil {
 		t.Fatalf("config show failed: %s\n%s", err, out)
@@ -321,8 +321,8 @@ func TestCLI_EnvVarOverride(t *testing.T) {
 }
 
 func TestCLI_FlagOverridesEnv(t *testing.T) {
-	cmd := exec.Command(binaryPath, "config", "show", "--api-url=https://flag.example.com")
-	cmd.Env = append(os.Environ(), "TRUESTAMP_API_URL=https://env.example.com")
+	cmd := exec.Command(binaryPath, "config", "show", "--base-url=https://flag.example.com")
+	cmd.Env = append(os.Environ(), "TRUESTAMP_BASE_URL=https://env.example.com")
 	out, err := cmd.CombinedOutput()
 	if err != nil {
 		t.Fatalf("config show failed: %s\n%s", err, out)
