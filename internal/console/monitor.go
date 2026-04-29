@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log/slog"
+	"sort"
 	"strings"
 	"time"
 
@@ -57,6 +58,10 @@ type monitorModel struct {
 	// cross-pane Tab at the app level still cycles the outer panes
 	// (Monitor → New Item → Connection); focus is internal to Monitor.
 	focus monitorFocus
+
+	// detailPanelHidden collapses the Detail Panel below the
+	// waterfall. Default false (panel visible). `d` toggles it.
+	detailPanelHidden bool
 }
 
 type monitorFocus int
@@ -105,28 +110,6 @@ const (
 
 func (m *monitorModel) Update(msg tea.Msg) (*monitorModel, tea.Cmd) {
 	switch msg := msg.(type) {
-	case tea.MouseWheelMsg:
-		// Trackpad / mouse wheel always means "move the cursor in
-		// screen-up / screen-down direction", regardless of the
-		// reverseOrder flag. Mirrors the ↑/↓ key handler which
-		// already does the chrono-vs-screen translation.
-		mw := msg.Mouse()
-		screenUpDelta := -1
-		screenDnDelta := 1
-		if m.reverseOrder {
-			screenUpDelta, screenDnDelta = 1, -1
-		}
-		switch mw.Button {
-		case tea.MouseWheelUp:
-			m.moveSelected(screenUpDelta)
-		case tea.MouseWheelDown:
-			m.moveSelected(screenDnDelta)
-		case tea.MouseWheelLeft, tea.MouseWheelRight:
-			// Horizontal wheel events are ignored — the waterfall
-			// has no horizontal scrolling. Falls through silently.
-		}
-		return m, nil
-
 	case tea.KeyPressMsg:
 		key := msg.String()
 
@@ -145,6 +128,15 @@ func (m *monitorModel) Update(msg tea.Msg) (*monitorModel, tea.Cmd) {
 		// so users don't have to remember to focus first.
 		if key == "r" {
 			m.reverseOrder = !m.reverseOrder
+			return m, nil
+		}
+
+		// Detail Panel toggle: works regardless of focus so users
+		// can collapse/expand from any state. Hidden state survives
+		// pane switches — once a user opts out, we don't re-show
+		// until they ask.
+		if key == "d" {
+			m.detailPanelHidden = !m.detailPanelHidden
 			return m, nil
 		}
 
@@ -475,15 +467,29 @@ var (
 	outageRowStyle      = lipgloss.NewStyle().Foreground(ui.Red).Italic(true)
 
 	kindBlockStyle      = lipgloss.NewStyle().Foreground(ui.Blue)
+	kindBeaconStyle     = lipgloss.NewStyle().Foreground(ui.Cyan)
 	kindCommitStyle     = lipgloss.NewStyle().Foreground(ui.Green)
 	kindEntropyStyle    = lipgloss.NewStyle().Foreground(ui.Accent)
 	kindItemStyle       = lipgloss.NewStyle().Foreground(ui.Yellow)
+	kindHealingStyle    = lipgloss.NewStyle().Foreground(ui.Accent).Italic(true)
+	tableHeaderStyle    = lipgloss.NewStyle().Foreground(ui.Dim).Faint(true)
 	timestampStyle      = lipgloss.NewStyle().Foreground(ui.Dim)
 	idStyle             = lipgloss.NewStyle().Foreground(ui.Label)
 	burstCountStyle     = lipgloss.NewStyle().Foreground(ui.Yellow).Italic(true)
-	detailStyle         = lipgloss.NewStyle().Foreground(ui.Value)
+	panelLabelStyle     = lipgloss.NewStyle().Foreground(ui.Label)
+	panelValueStyle     = lipgloss.NewStyle().Foreground(ui.Value)
+	panelRuleStyle      = lipgloss.NewStyle().Foreground(ui.Dim).Faint(true)
+	panelHintStyle      = lipgloss.NewStyle().Faint(true).Foreground(ui.Dim)
 	leftPaneStyle       = lipgloss.NewStyle().BorderStyle(lipgloss.NormalBorder()).BorderRight(true).PaddingRight(1)
 	emptyWaterfallStyle = lipgloss.NewStyle().Faint(true).Padding(1, 2)
+)
+
+// Layout constants for the waterfall + detail panel split. The Kind
+// column width is anchored by the longest token compactKind can
+// produce; events_test.go's TestKindMaxWidth keeps it honest.
+const (
+	detailPanelHeight   = 8 // body lines, exclusive of the rule + blank
+	detailPanelOverhead = 2 // rule row + leading blank line
 )
 
 func (m *monitorModel) View(width, height int) string {
@@ -549,8 +555,6 @@ func (m *monitorModel) renderStreamList(width int) string {
 }
 
 func (m *monitorModel) renderWaterfall(width, height int) string {
-	_ = width
-
 	var titleText string
 	if m.focus == focusWaterfall {
 		titleText = focusedTitleStyle.Render("▸ Events")
@@ -558,19 +562,29 @@ func (m *monitorModel) renderWaterfall(width, height int) string {
 		titleText = unfocusedTitleStyle.Render("  Events")
 	}
 
+	// Reserve fixed vertical space for the Detail Panel (off when
+	// hidden). Layout from top: 1 title row + 1 blank + waterfall
+	// rows + (panelOverhead + panelHeight when visible).
+	panelTotal := 0
+	if !m.detailPanelHidden {
+		panelTotal = detailPanelHeight + detailPanelOverhead
+	}
+
 	if len(m.events) == 0 {
-		// No events: render the title row with no indicator (no
-		// scrolling state to surface) and a placeholder body.
+		// No events yet: just the title and an empty-state hint.
+		// The Detail Panel has no row to render to, so we collapse
+		// it for the empty case too.
 		return titleText + "\n\n" + emptyWaterfallStyle.Render(
 			"No events yet.\n\n"+
 				"Toggle a stream on the left with space to start receiving events.\n"+
 				"Use →/← (or h/l) to focus this pane and ↑/↓ to scroll once events arrive.")
 	}
 
-	// rows = title + blank + N table rows. Indicator sits on the
-	// title row (right of the title) so it doesn't move when the
-	// table grows or shrinks.
-	rows := height - 2
+	// Waterfall body rows = total height - title - blank - header -
+	// (panel rule + blank + panel body).
+	// The table renders its own header line via Headers() so we
+	// subtract one row for that.
+	rows := height - 2 /* title + blank */ - 1 /* table header */ - panelTotal
 	if rows < 1 {
 		rows = 1
 	}
@@ -611,11 +625,9 @@ func (m *monitorModel) renderWaterfall(width, height int) string {
 	}
 
 	// Build the rendered block via lipgloss/v2/table. Each visible
-	// event maps to one [time, kind, id, detail] row; the StyleFunc
-	// applies per-row severity styling and selection highlight. The
-	// table renders to a single string; we pad with blank lines so
-	// the scroll indicator below lands at the same screen row even
-	// when the buffer holds fewer events than fit.
+	// event maps to one [time, kind, id] row — Detail moved to the
+	// per-selection panel below. A faint header row labels the
+	// columns.
 	tableData := make([][]string, len(visibleAbs))
 	for i, abs := range visibleAbs {
 		e := m.events[abs]
@@ -623,7 +635,6 @@ func (m *monitorModel) renderWaterfall(width, height int) string {
 			e.When.Format("15:04:05.000"),
 			e.Kind,
 			e.ID,
-			e.Detail,
 		}
 	}
 
@@ -636,11 +647,14 @@ func (m *monitorModel) renderWaterfall(width, height int) string {
 		BorderColumn(false).
 		BorderRow(false).
 		BorderHeader(false).
+		Headers("Time", "Kind", "ID").
 		Rows(tableData...).
 		StyleFunc(func(row, col int) lipgloss.Style {
-			// table row indices are 0-based for data when no header
-			// is set; with our `BorderHeader(false)` and no Headers,
-			// row 0 is the first data row. Adjust if we add headers.
+			// lipgloss/v2/table uses row -1 for the header row when
+			// Headers() is set. Row 0+ is the first data row.
+			if row == ltable.HeaderRow {
+				return tableHeaderStyle.PaddingRight(2)
+			}
 			if row < 0 || row >= len(visibleAbs) {
 				return lipgloss.NewStyle()
 			}
@@ -658,21 +672,14 @@ func (m *monitorModel) renderWaterfall(width, height int) string {
 	rendered := tbl.Render()
 
 	// Indent the entire table by 2 columns so the first cell aligns
-	// with the "E" in "Events" above it. Without this the title text
-	// and the table's first column sit at different offsets and the
-	// pane reads as visually broken.
+	// with the "E" in "Events" above it.
 	rendered = lipgloss.NewStyle().PaddingLeft(2).Render(rendered)
 
-	// Pad to exactly `rows` lines so the body fills the pane evenly
-	// when fewer events than fit are buffered. A `rows`-line block
-	// has `rows - 1` internal newlines (no trailing newline). The
-	// previous formulation padded to `rows` newlines, producing
-	// `rows + 1` lines — one row too tall. That overflow pushed the
-	// footer past the bottom of the screen and made the global
-	// `esc` / `q` bindings appear unresponsive once the table got
-	// any content.
+	// Pad to exactly `rows + 1` lines (1 header + rows data) so the
+	// Detail Panel below lands at a stable screen row regardless of
+	// how many events fit.
 	renderedLines := strings.Count(rendered, "\n")
-	if want := rows - 1; renderedLines < want {
+	if want := rows; renderedLines < want {
 		rendered += strings.Repeat("\n", want-renderedLines)
 	}
 
@@ -685,11 +692,270 @@ func (m *monitorModel) renderWaterfall(width, height int) string {
 	var sb strings.Builder
 	sb.WriteString(titleRow + "\n\n")
 	sb.WriteString(rendered)
+
+	if !m.detailPanelHidden {
+		sb.WriteString("\n")
+		sb.WriteString(m.renderDetailPanel(width, detailPanelHeight))
+	}
 	return sb.String()
 }
 
+// renderDetailPanel draws the fixed-height panel below the waterfall
+// that shows the FULL payload of the currently-selected row with no
+// truncation. Long values (64-char hashes, ULID/UUID lists, etc.) wrap
+// onto continuation lines indented under their field name. The panel
+// is bounded by `height` body rows; if the selected row has more
+// content than fits, a faint "(N more lines — d hides panel)" footer
+// replaces the last line.
+func (m *monitorModel) renderDetailPanel(width, height int) string {
+	rule := panelRuleStyle.Render("── Selected " + strings.Repeat("─", maxInt(0, width-len("── Selected ")-2)))
+
+	if m.selected < 0 || m.selected >= len(m.events) {
+		body := panelHintStyle.Render("  Select a row to see full payload")
+		return rule + "\n" + body + strings.Repeat("\n", maxInt(0, height-1))
+	}
+
+	e := m.events[m.selected]
+	lines := buildPanelLines(e, width)
+
+	var sb strings.Builder
+	sb.WriteString(rule)
+	sb.WriteString("\n")
+
+	rendered := 0
+	for _, line := range lines {
+		if rendered >= height {
+			break
+		}
+		// If we're about to clip and there's more content, replace
+		// this last visible line with a "(N more lines)" hint so
+		// the operator knows there's something they're missing.
+		if rendered == height-1 && len(lines) > height {
+			more := len(lines) - rendered
+			hint := fmt.Sprintf("  %s", panelHintStyle.Render(
+				fmt.Sprintf("(%d more lines — d hides panel)", more)))
+			sb.WriteString(hint)
+			sb.WriteString("\n")
+			rendered++
+			break
+		}
+		sb.WriteString(line)
+		sb.WriteString("\n")
+		rendered++
+	}
+
+	if rendered < height {
+		sb.WriteString(strings.Repeat("\n", height-rendered))
+	}
+	return sb.String()
+}
+
+// buildPanelLines turns a Row into the rendered key/value lines the
+// Detail Panel displays. Lines are pre-styled (label + value pieces)
+// and respect `width` for value wrapping; long values produce one
+// label-bearing line plus N indented continuation lines.
+func buildPanelLines(e events.Row, width int) []string {
+	const labelW = 16
+	const indentLeft = 2
+
+	availForValue := width - indentLeft - labelW - 1
+	if availForValue < 20 {
+		availForValue = 20
+	}
+	contIndent := strings.Repeat(" ", indentLeft+labelW+1)
+	leftIndent := strings.Repeat(" ", indentLeft)
+
+	var lines []string
+	addField := func(label, value string) {
+		labelStr := panelLabelStyle.Render(fmt.Sprintf("%-*s", labelW, label))
+		first, rest := wrapValue(value, availForValue)
+		if first == "" {
+			first = panelHintStyle.Render("(none)")
+		} else {
+			first = panelValueStyle.Render(first)
+		}
+		lines = append(lines, leftIndent+labelStr+" "+first)
+		for _, c := range rest {
+			lines = append(lines, contIndent+panelValueStyle.Render(c))
+		}
+	}
+
+	// Top synthetic fields — always on, in canonical order.
+	addField("kind", e.RawKind)
+	addField("id", e.ID)
+	if e.Stream != "" {
+		addField("stream", e.Stream)
+	}
+	addField("at", formatPanelAt(e))
+
+	// Payload fields. Skip "id" since we surfaced it above; skip
+	// "kind"/"stream"/"at" if the server snuck them into Data
+	// (defensive — they should only be at the Push level).
+	skip := map[string]bool{"id": true, "kind": true, "stream": true, "at": true}
+
+	for _, key := range orderedPayloadKeys(e.Payload, skip) {
+		v := e.Payload[key]
+		// Handle the nested `latest` projection inside burst payloads
+		// by flattening it into the top level under "latest.<key>".
+		if key == "latest" {
+			if nested, ok := v.(map[string]any); ok {
+				for _, lk := range orderedPayloadKeys(nested, nil) {
+					addField("latest."+lk, formatPanelValue(nested[lk]))
+				}
+				continue
+			}
+		}
+		// Maps (by_kind / by_state / claims) flatten one level deep.
+		if nested, ok := v.(map[string]any); ok {
+			lk := orderedPayloadKeys(nested, nil)
+			if len(lk) == 0 {
+				addField(key, "")
+				continue
+			}
+			for _, sub := range lk {
+				addField(key+"."+sub, formatPanelValue(nested[sub]))
+			}
+			continue
+		}
+		addField(key, formatPanelValue(v))
+	}
+
+	return lines
+}
+
+// orderedPayloadKeys returns map keys in a stable, scannable order:
+// known important fields first (state, *_id, hash-like, timestamps),
+// then everything else alphabetically.
+func orderedPayloadKeys(m map[string]any, skip map[string]bool) []string {
+	if len(m) == 0 {
+		return nil
+	}
+	priority := []string{
+		"state", "visibility", "method", "direction", "reason", "from_state", "to_state",
+		"source", "capture_method",
+		"count", "window_ms", "first_at", "last_at", "by_kind", "by_state",
+		"team_id", "owner_kind", "owner_id", "creator_id",
+		"block_id", "previous_block_id", "item_id", "entropy_observation_id", "epoch_id",
+		"merkle_root", "block_hash", "previous_hash", "hash",
+		"observation_hash", "entropy_hash", "claims_hash", "item_hash", "commitment_hash",
+		"claims", "tags",
+		"timestamp", "captured_at", "inserted_at",
+		"node", "evidence",
+		"latest",
+		"since", "duration", "message",
+	}
+	seen := map[string]bool{}
+	var out []string
+	for _, k := range priority {
+		if skip != nil && skip[k] {
+			continue
+		}
+		if _, ok := m[k]; ok {
+			out = append(out, k)
+			seen[k] = true
+		}
+	}
+	// Remaining keys alphabetically.
+	rest := make([]string, 0, len(m))
+	for k := range m {
+		if seen[k] {
+			continue
+		}
+		if skip != nil && skip[k] {
+			continue
+		}
+		rest = append(rest, k)
+	}
+	sort.Strings(rest)
+	out = append(out, rest...)
+	return out
+}
+
+// formatPanelValue renders any payload value as a panel-friendly
+// string. Strings pass through; numbers, bools, nils are stringified;
+// arrays render as `[a, b, c]`; nested maps are handled by the caller
+// (flattened one level).
+func formatPanelValue(v any) string {
+	if v == nil {
+		return ""
+	}
+	switch x := v.(type) {
+	case string:
+		return x
+	case float64:
+		// JSON numbers decode to float64 — render integer-shaped
+		// numbers without a decimal tail.
+		if x == float64(int64(x)) {
+			return fmt.Sprintf("%d", int64(x))
+		}
+		return fmt.Sprintf("%g", x)
+	case bool:
+		return fmt.Sprintf("%t", x)
+	case []any:
+		if len(x) == 0 {
+			return "[]"
+		}
+		parts := make([]string, len(x))
+		for i, item := range x {
+			parts[i] = formatPanelValue(item)
+		}
+		return "[" + strings.Join(parts, ", ") + "]"
+	case map[string]any:
+		// Caller flattens these one level; this branch only fires for
+		// maps nested two-deep, which we render compactly.
+		raw, err := json.Marshal(x)
+		if err != nil {
+			return fmt.Sprintf("%v", x)
+		}
+		return string(raw)
+	}
+	return fmt.Sprintf("%v", v)
+}
+
+// formatPanelAt renders the row's server timestamp + a relative
+// receive-skew suffix when the gap is meaningful (> 0).
+func formatPanelAt(e events.Row) string {
+	at := e.When.UTC().Format(time.RFC3339Nano)
+	skew := e.ReceivedAt.Sub(e.When)
+	switch {
+	case skew >= 5*time.Millisecond:
+		return at + "   " + panelHintStyle.Render(fmt.Sprintf("(received +%s)", skew.Round(time.Millisecond)))
+	case skew <= -5*time.Millisecond:
+		return at + "   " + panelHintStyle.Render(fmt.Sprintf("(received %s)", skew.Round(time.Millisecond)))
+	}
+	return at
+}
+
+// wrapValue splits a value string into a first-line chunk plus N
+// continuation chunks, each ≤ width characters.
+func wrapValue(s string, width int) (first string, rest []string) {
+	if width < 1 {
+		return s, nil
+	}
+	if len(s) <= width {
+		return s, nil
+	}
+	first = s[:width]
+	remaining := s[width:]
+	for len(remaining) > width {
+		rest = append(rest, remaining[:width])
+		remaining = remaining[width:]
+	}
+	if remaining != "" {
+		rest = append(rest, remaining)
+	}
+	return first, rest
+}
+
+func maxInt(a, b int) int {
+	if a > b {
+		return a
+	}
+	return b
+}
+
 // columnStyle picks the per-cell style based on the column index
-// (Time / Kind / ID / Detail) and the row's severity (Normal / Burst /
+// (Time / Kind / ID) and the row's severity (Normal / Burst /
 // Outage). Selection highlighting wraps this style in a Reverse(true)
 // at the call site.
 func columnStyle(col int, e events.Row) lipgloss.Style {
@@ -709,25 +975,32 @@ func columnStyle(col int, e events.Row) lipgloss.Style {
 			return burstCountStyle.PaddingRight(2)
 		}
 		return idStyle.PaddingRight(2)
-	case 3: // Detail
-		return detailStyle
 	}
 	return lipgloss.NewStyle()
 }
 
-// kindStyleFor returns the resource-colored style for a `kind`.
-// Bursts inherit the resource family color (commitment.burst stays
-// green, item.burst stays yellow, etc.) so the rhythm of the table
-// is consistent across bursts and individuals.
+// kindStyleFor returns the resource-colored style for a compact kind
+// token. Bursts inherit the resource family color (commitment.burst
+// stays green, item.burst stays yellow, etc.) so the rhythm of the
+// table is consistent across bursts and individuals. Compact kinds
+// for resources without a verb suffix (e.g. plain "block", "beacon",
+// "item", "commitment") still match the prefix-with-trailing-dot
+// branches because we also match the bare root.
 func kindStyleFor(kind string) lipgloss.Style {
 	switch {
-	case strings.HasPrefix(kind, "block."):
+	case kind == "block" || strings.HasPrefix(kind, "block."):
 		return kindBlockStyle
-	case strings.HasPrefix(kind, "commitment.") || strings.HasPrefix(kind, "external_commitment."):
+	case kind == "beacon" || strings.HasPrefix(kind, "beacon."):
+		return kindBeaconStyle
+	case kind == "block_healing" || strings.HasPrefix(kind, "block_healing."):
+		return kindHealingStyle
+	case kind == "commitment" || strings.HasPrefix(kind, "commitment."):
 		return kindCommitStyle
-	case strings.HasPrefix(kind, "entropy."):
+	case kind == "external_commitment" || strings.HasPrefix(kind, "external_commitment."):
+		return kindCommitStyle
+	case kind == "entropy" || strings.HasPrefix(kind, "entropy."):
 		return kindEntropyStyle
-	case strings.HasPrefix(kind, "item."):
+	case kind == "item" || strings.HasPrefix(kind, "item."):
 		return kindItemStyle
 	case strings.HasPrefix(kind, "server."):
 		return outageRowStyle
