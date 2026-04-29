@@ -73,17 +73,17 @@ func NewAppKeys() AppKeys {
 // MonitorKeys covers the Monitor pane: focus left/right, scroll the
 // waterfall, toggle subscriptions on the stream list.
 type MonitorKeys struct {
-	FocusLeft     key.Binding
-	FocusRight    key.Binding
-	Up            key.Binding
-	Down          key.Binding
-	PageUp        key.Binding
-	PageDown      key.Binding
-	Top           key.Binding
-	Bottom        key.Binding
-	ToggleStream  key.Binding
-	ReverseOrder  key.Binding
-	App           AppKeys
+	FocusLeft    key.Binding
+	FocusRight   key.Binding
+	Up           key.Binding
+	Down         key.Binding
+	PageUp       key.Binding
+	PageDown     key.Binding
+	Top          key.Binding
+	Bottom       key.Binding
+	ToggleStream key.Binding
+	ReverseOrder key.Binding
+	App          AppKeys
 }
 
 // NewMonitorKeys returns the Monitor pane's bindings.

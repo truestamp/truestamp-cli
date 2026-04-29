@@ -48,7 +48,7 @@ func TestRenderErrorSectionShowsFriendlyContent(t *testing.T) {
 	jargonNoNos := []string{
 		"task serve",
 		"task serve-preview",
-		"--api-url",
+		"--base-url",
 		"DNS",
 		"TLS handshake",
 		"WebSocket upgrade",

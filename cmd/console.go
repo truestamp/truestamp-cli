@@ -5,8 +5,6 @@ package cmd
 
 import (
 	"fmt"
-	"net/url"
-	"strings"
 
 	"github.com/spf13/cobra"
 	"github.com/truestamp/truestamp-cli/internal/config"
@@ -39,7 +37,7 @@ UI. The path is shown on the Connection pane.`,
 
 func init() {
 	f := consoleCmd.Flags()
-	f.String("ws-url", "", "WebSocket URL (default derived from --api-url)")
+	f.String("ws-url", "", "WebSocket URL override (default derived from --base-url)")
 	f.String("log-level", "info", "Log level: debug, info, warn, error")
 	f.String("log-file", "", "Override log file path (default: "+logging.DefaultPath()+")")
 	rootCmd.AddCommand(consoleCmd)
@@ -50,9 +48,12 @@ func runConsole(cmd *cobra.Command, _ []string) error {
 		return fmt.Errorf("no API key configured — run `truestamp auth login` or set TRUESTAMP_API_KEY")
 	}
 
+	// Resolve the WebSocket URL. Default comes from base_url via Config;
+	// --ws-url stays as an explicit per-invocation escape hatch for
+	// debugging or pointing at a non-standard WS path.
 	wsURL, _ := cmd.Flags().GetString("ws-url")
 	if wsURL == "" {
-		wsURL = deriveWSURL(appConfig.APIURL)
+		wsURL = appConfig.WebSocketURL
 	}
 
 	logLevel, _ := cmd.Flags().GetString("log-level")
@@ -79,34 +80,6 @@ func runConsole(cmd *cobra.Command, _ []string) error {
 		Logger:         logger,
 		LogFilePath:    logPath,
 		ConfigFilePath: config.ConfigFilePath(),
-		HealthTargets:  console.DefaultHealthTargets(appConfig.APIURL, appConfig.KeyringURL),
+		HealthTargets:  console.DefaultHealthTargets(appConfig.HealthURL, appConfig.KeyringURL),
 	})
-}
-
-// deriveWSURL maps an HTTP(S) API base URL to the corresponding WS(S)
-// console endpoint. The transformations:
-//
-//	https://www.truestamp.com/api/json   →   wss://www.truestamp.com/console/websocket
-//	http://localhost:4000/api/json       →   ws://localhost:4000/console/websocket
-//	https://example.com                  →   wss://example.com/console/websocket
-//
-// On parse failure, returns the empty string — the caller will surface a
-// clearer error from the WebSocket dial than from a synthetic guess.
-func deriveWSURL(apiURL string) string {
-	u, err := url.Parse(apiURL)
-	if err != nil {
-		return ""
-	}
-	switch strings.ToLower(u.Scheme) {
-	case "https":
-		u.Scheme = "wss"
-	case "http":
-		u.Scheme = "ws"
-	default:
-		return ""
-	}
-	u.Path = "/console/websocket"
-	u.RawQuery = ""
-	u.Fragment = ""
-	return u.String()
 }

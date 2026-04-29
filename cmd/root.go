@@ -69,10 +69,9 @@ func init() {
 	rootCmd.SetVersionTemplate(version.Full() + "\n")
 
 	rootCmd.PersistentFlags().StringVar(&configFile, "config", "", "Path to config file (default: "+config.ConfigFilePath()+")")
-	rootCmd.PersistentFlags().String("api-url", "", "Base URL of the Truestamp API")
+	rootCmd.PersistentFlags().String("base-url", "", "Origin of the Truestamp service (scheme + host, e.g. https://www.truestamp.com)")
 	rootCmd.PersistentFlags().String("api-key", "", "API key for authenticating with the Truestamp API")
 	rootCmd.PersistentFlags().String("team", "", "Team ID for multi-tenant API operations")
-	rootCmd.PersistentFlags().String("keyring-url", "", "URL of the Truestamp keyring endpoint")
 	rootCmd.PersistentFlags().String("http-timeout", "", "HTTP timeout for external API calls (e.g. 10s, 30s, 1m)")
 	rootCmd.PersistentFlags().Bool("no-color", false, "Disable color output")
 	rootCmd.PersistentFlags().Bool("no-upgrade-check", false, "Disable the once-per-day 'new version available' notice")

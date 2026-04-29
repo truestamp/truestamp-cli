@@ -62,39 +62,36 @@ type healthResult struct {
 const healthCheckTimeout = 5 * time.Second
 
 // healthCheckPollInterval is the cadence at which we re-probe each
-// target while the Connection pane is open. Thirty seconds is a
+// target while the Connection pane is open. One minute is a
 // usability/respect tradeoff: long enough to avoid hammering third
 // parties when a user lingers on the pane, short enough that a
-// transient outage clears within one poll after it resolves.
-const healthCheckPollInterval = 30 * time.Second
+// transient outage clears within a poll or two after it resolves.
+const healthCheckPollInterval = 1 * time.Minute
 
 // healthCheckMinInterval rate-limits manual refreshes so a user
 // holding down `r` can't hammer external services.
 const healthCheckMinInterval = 3 * time.Second
 
 // DefaultHealthTargets returns the canonical list of services the
-// CLI calls during normal operation. Caller passes in the resolved
-// API and keyring URLs from config so we honor user overrides.
+// Connection pane probes for liveness. The Truestamp health and
+// keyring URLs are passed in (they're computed from base_url over
+// in package config) so user overrides flow through; the third-
+// party verification endpoints (NIST, Stellar, Blockstream) use
+// production URLs by design — we don't have testnet URLs in the
+// CLI's config surface, and a user verifying a mainnet item would
+// always pull from these regardless.
 //
-// For the Truestamp service we point at the dedicated /health
-// endpoint rather than the api_url itself: the server returns 200
-// only when the database is reachable AND the app is up, so a green
-// row here is a much stronger signal than "any HTTP response from
-// the api_url host". /health is derived from the api_url's host so
-// users running against staging or a local preview server still get
-// a meaningful probe.
-//
-// Third-party verification endpoints (NIST, Stellar, Blockstream)
-// use the production URLs by design — we don't have testnet URLs
-// in the CLI's config surface, and a user hitting a Truestamp
-// mainnet item would always pull from the production third parties
-// anyway.
+// Probing /health (instead of the api_url root) gives a much
+// stronger green-light signal: the server only returns 200 when
+// the app is up AND its database is reachable. A 5xx here means
+// the user's machine reached the host fine but Truestamp itself
+// is sick, which is exactly the diagnostic we want to surface.
 //
 // Exported because cmd/console.go calls it to populate
 // console.Options before invoking console.Run.
-func DefaultHealthTargets(apiURL, keyringURL string) []HealthTarget {
+func DefaultHealthTargets(healthURL, keyringURL string) []HealthTarget {
 	targets := []HealthTarget{}
-	if healthURL := deriveHealthURL(apiURL); healthURL != "" {
+	if healthURL != "" {
 		targets = append(targets, HealthTarget{Name: "Truestamp service", URL: healthURL})
 	}
 	if keyringURL != "" {
@@ -106,33 +103,6 @@ func DefaultHealthTargets(apiURL, keyringURL string) []HealthTarget {
 		HealthTarget{Name: "Bitcoin network (verification)", URL: "https://blockstream.info/api/blocks/tip/height"},
 	)
 	return targets
-}
-
-// deriveHealthURL maps the user's api_url to the corresponding
-// /health endpoint by replacing the path. The /health route is
-// mounted at the server root in TruestampWeb.Router (above the
-// /api/json scope), so the transformation is uniform across all
-// deployments:
-//
-//	https://www.truestamp.com/api/json → https://www.truestamp.com/health
-//	http://localhost:4010/api/json    → http://localhost:4010/health
-//	https://staging.example.com/v1     → https://staging.example.com/health
-//
-// Returns "" if the input doesn't parse or lacks a scheme/host —
-// the caller suppresses the row in that case so the pane doesn't
-// surface a meaningless probe.
-func deriveHealthURL(apiURL string) string {
-	if apiURL == "" {
-		return ""
-	}
-	u, err := url.Parse(apiURL)
-	if err != nil || u.Scheme == "" || u.Host == "" {
-		return ""
-	}
-	u.Path = "/health"
-	u.RawQuery = ""
-	u.Fragment = ""
-	return u.String()
 }
 
 // checkHealthTarget performs a single probe and returns a populated

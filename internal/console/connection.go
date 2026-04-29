@@ -326,9 +326,10 @@ func (m *connectionModel) renderReconnectsSection() string {
 // first so the user's eye lands on the broken row even on a long
 // list.
 //
-// The "as of HH:MM:SS" footer keeps users from misreading a stale
-// snapshot — the pane refreshes every 30s while it's the active
-// pane, but a paused tab would still show old data without it.
+// The "checked at HH:MM:SS" footer keeps users from misreading a
+// stale snapshot. The pane re-probes every healthCheckPollInterval
+// while it is the active pane; switching to another pane pauses
+// the loop, so a paused tab would still show old data otherwise.
 func (m *connectionModel) renderHealthSection() string {
 	var b strings.Builder
 	b.WriteString(connSectionTitle.Render("External services"))
@@ -354,11 +355,21 @@ func (m *connectionModel) renderHealthSection() string {
 
 	if !m.lastHealthRunAt.IsZero() {
 		b.WriteString("  ")
-		b.WriteString(connFaintStyle.Render(fmt.Sprintf("checked at %s · refreshes every %ds (press r to refresh now)",
+		b.WriteString(connFaintStyle.Render(fmt.Sprintf("checked at %s · refreshes every %s (press r to refresh now)",
 			m.lastHealthRunAt.Format("15:04:05"),
-			int(healthCheckPollInterval.Seconds()))))
+			formatPollInterval(healthCheckPollInterval))))
 	}
 	return b.String()
+}
+
+// formatPollInterval renders the health-check cadence as the
+// shortest human-readable string: "1m" / "5m" for whole minutes,
+// "30s" otherwise. Avoids time.Duration's default "1m0s".
+func formatPollInterval(d time.Duration) string {
+	if d >= time.Minute && d%time.Minute == 0 {
+		return fmt.Sprintf("%dm", int(d/time.Minute))
+	}
+	return fmt.Sprintf("%ds", int(d/time.Second))
 }
 
 // healthIcon returns a colored ✓ / ✗ / spinner for the row's state.

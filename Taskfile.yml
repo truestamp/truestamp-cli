@@ -40,6 +40,10 @@ tasks:
       - go build -ldflags "{{.LDFLAGS}}" -o build/{{.BINARY}} ./cmd/truestamp
     sources:
       - "**/*.go"
+      # go:embed pulls non-Go files into the binary at compile time
+      # (e.g. internal/config/defaults/config.toml). Track them here
+      # so editing one invalidates the cache and forces a rebuild.
+      - "internal/config/defaults/*.toml"
       - go.mod
       - go.sum
     generates:

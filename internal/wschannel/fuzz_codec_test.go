@@ -32,11 +32,11 @@ func FuzzFrameUnmarshal(f *testing.F) {
 		`[`,
 		`null`,
 		`{"oops":true}`,
-		`["1","1","topic","event"]`,                 // 4-element, missing payload
-		`["1","1","topic","event",{},"extra"]`,      // 6-element
-		`[1,1,"topic","event",{}]`,                  // numeric refs (Phoenix uses string)
-		`[null,null,null,null,null]`,                // all-null
-		`["a","b",123,"event",{}]`,                  // non-string topic
+		`["1","1","topic","event"]`,            // 4-element, missing payload
+		`["1","1","topic","event",{},"extra"]`, // 6-element
+		`[1,1,"topic","event",{}]`,             // numeric refs (Phoenix uses string)
+		`[null,null,null,null,null]`,           // all-null
+		`["a","b",123,"event",{}]`,             // non-string topic
 		"[null,null,\"t\",\"e\",{}]\n[null,null]\n", // multi-line paste
 		"\n",
 		"",
