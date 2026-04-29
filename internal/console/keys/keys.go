@@ -83,6 +83,7 @@ type MonitorKeys struct {
 	Bottom       key.Binding
 	ToggleStream key.Binding
 	ReverseOrder key.Binding
+	ToggleDetail key.Binding
 	App          AppKeys
 }
 
@@ -130,6 +131,10 @@ func NewMonitorKeys(app AppKeys) MonitorKeys {
 			key.WithKeys("r"),
 			key.WithHelp("r", "reverse order"),
 		),
+		ToggleDetail: key.NewBinding(
+			key.WithKeys("d"),
+			key.WithHelp("d", "toggle detail panel"),
+		),
 	}
 }
 
@@ -137,7 +142,7 @@ func NewMonitorKeys(app AppKeys) MonitorKeys {
 func (k MonitorKeys) ShortHelp() []key.Binding {
 	return []key.Binding{
 		k.FocusLeft, k.FocusRight, k.Up, k.Down,
-		k.ToggleStream, k.ReverseOrder,
+		k.ToggleStream, k.ReverseOrder, k.ToggleDetail,
 		k.App.ToggleHelp, k.App.Quit,
 	}
 }
@@ -146,7 +151,7 @@ func (k MonitorKeys) ShortHelp() []key.Binding {
 func (k MonitorKeys) FullHelp() [][]key.Binding {
 	return [][]key.Binding{
 		{k.FocusLeft, k.FocusRight, k.Up, k.Down, k.PageUp, k.PageDown, k.Top, k.Bottom},
-		{k.ToggleStream, k.ReverseOrder},
+		{k.ToggleStream, k.ReverseOrder, k.ToggleDetail},
 		{k.App.NextPane, k.App.PrevPane, k.App.GoMonitor, k.App.GoNewItem, k.App.GoConnection},
 		{k.App.ToggleHelp, k.App.Quit},
 	}
