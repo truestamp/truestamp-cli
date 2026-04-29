@@ -47,6 +47,8 @@ Global Flags:
       --base-url string       Origin of the Truestamp service (scheme + host, e.g. https://www.truestamp.com)
       --config string         Path to config file (default: <home>/config.toml)
       --http-timeout string   HTTP timeout for external API calls (e.g. 10s, 30s, 1m)
+      --log-file string       JSON log file path (default: <cache>/truestamp/truestamp.log)
+      --log-level string      Log level: debug | info | warn | error (default: info)
       --no-color              Disable color output
       --no-upgrade-check      Disable the once-per-day 'new version available' notice
       --team string           Team ID for multi-tenant API operations

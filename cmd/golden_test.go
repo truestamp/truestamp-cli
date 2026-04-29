@@ -189,17 +189,20 @@ func canonicalJSON(t *testing.T, raw []byte) string {
 
 // stableHelp strips runner-specific content from --help output so the
 // golden fixture doesn't pick up $HOME or absolute paths. Cobra prints
-// the default --config path as `(default: ...)`; we mask it.
+// `(default: <path>)` for path-defaulted flags (--config, --log-file);
+// we mask each one to its symbolic form.
 func stableHelp(s string) string {
-	// Normalize the --config default line, which includes $HOME.
 	lines := strings.Split(s, "\n")
 	for i, line := range lines {
-		if strings.Contains(line, "default:") && strings.Contains(line, "/config.toml") {
-			// Keep the flag text up to "default:", replace the path.
-			idx := strings.Index(line, "(default:")
-			if idx >= 0 {
-				lines[i] = line[:idx] + "(default: <home>/config.toml)"
-			}
+		idx := strings.Index(line, "(default:")
+		if idx < 0 {
+			continue
+		}
+		switch {
+		case strings.Contains(line, "/config.toml"):
+			lines[i] = line[:idx] + "(default: <home>/config.toml)"
+		case strings.Contains(line, "/truestamp.log"):
+			lines[i] = line[:idx] + "(default: <cache>/truestamp/truestamp.log)"
 		}
 	}
 	return strings.Join(lines, "\n")

@@ -11,13 +11,13 @@ import (
 	"io"
 	"log/slog"
 	"net/url"
-	"regexp"
 	"strconv"
 	"sync"
 	"sync/atomic"
 	"time"
 
 	"github.com/coder/websocket"
+	"github.com/truestamp/truestamp-cli/internal/redact"
 )
 
 // Status describes the lifecycle state of a Client. Returned by Status().
@@ -342,7 +342,7 @@ func (c *Client) dial(ctx context.Context) error {
 		// The library's error embeds the upgrade URL — including our
 		// api_key — verbatim. Redact eagerly so the cleartext token
 		// can't reach an upstream caller's UI or logger.
-		return fmt.Errorf("dial: %s", redactSecrets(err.Error()))
+		return fmt.Errorf("dial: %s", redact.Error(err))
 	}
 	conn.SetReadLimit(1 << 20)
 
@@ -861,22 +861,13 @@ func (c *Client) allocRef() string {
 	return strconv.FormatInt(n, 10)
 }
 
-// apiKeyRe matches the `api_key=…` query-string fragment that
-// websocket.Dial errors echo verbatim from the upgrade URL. Without
-// redaction the user's key would land in the log and in any wrapped
-// error a caller persists.
-var apiKeyRe = regexp.MustCompile(`api_key=[^&"\s]*`)
-
-func redactSecrets(s string) string {
-	return apiKeyRe.ReplaceAllString(s, "api_key=REDACTED")
-}
-
 // logErr is the canonical "something went wrong but it's not fatal"
-// path inside the client. All transport noise flows through here so
-// it never leaks into the UI; redaction guarantees the api_key never
-// hits disk in cleartext.
+// path inside the client. All transport noise flows through here so it
+// never leaks into the UI. Per-call redaction is retained as a
+// belt-and-braces measure even though the root logger now wraps a
+// RedactingHandler that would catch the same secret on its way to disk.
 func (c *Client) logErr(level slog.Level, msg string, err error, attrs ...any) {
-	out := []any{"err", redactSecrets(err.Error())}
+	out := []any{"err", redact.Error(err)}
 	out = append(out, attrs...)
 	c.log.Log(c.runCtx, level, msg, out...)
 }

@@ -10,6 +10,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/truestamp/truestamp-cli/internal/redact"
 )
 
 // TestRedactAPIKey confirms the api_key never appears verbatim in any
@@ -72,9 +74,13 @@ func TestRedactConnectError(t *testing.T) {
 	}
 }
 
-// TestRedactSecretsHelper exercises the regex directly so we know it
-// covers the obvious shapes the websocket library spits out.
-func TestRedactSecretsHelper(t *testing.T) {
+// TestRedactSecretsIntegration exercises the shared redact package
+// through the wschannel import path so that "the wschannel client uses
+// the canonical redactor" is regression-tested at the right boundary.
+// The regex's own correctness lives in internal/redact/redact_test.go;
+// this file's role is to confirm wschannel hasn't quietly forked off a
+// local redactor again.
+func TestRedactSecretsIntegration(t *testing.T) {
 	cases := []struct {
 		name string
 		in   string
@@ -98,7 +104,7 @@ func TestRedactSecretsHelper(t *testing.T) {
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			if got := redactSecrets(tc.in); got != tc.want {
+			if got := redact.String(tc.in); got != tc.want {
 				t.Errorf("got %q, want %q", got, tc.want)
 			}
 		})

@@ -103,10 +103,17 @@ Requires --api-key to be set (via flag, env, or config file).`,
 		}
 
 		// Create the item
+		appLogger.Info("create_request",
+			"visibility", visibility,
+			"tag_count", len(tags),
+			"claim_keys", len(claims),
+		)
 		resp, err := items.CreateItemCtx(cmd.Context(), cfg.APIURL, cfg.APIKey, cfg.Team, claims, visibility, tags)
 		if err != nil {
+			appLogger.Error("create_failed", "err", err.Error())
 			return err
 		}
+		appLogger.Info("create_completed", "id", resp.ID)
 
 		// Output
 		if jsonOutput {

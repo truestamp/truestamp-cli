@@ -9,7 +9,6 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/truestamp/truestamp-cli/internal/config"
 	"github.com/truestamp/truestamp-cli/internal/console"
-	"github.com/truestamp/truestamp-cli/internal/logging"
 )
 
 var consoleCmd = &cobra.Command{
@@ -27,8 +26,9 @@ truestamp commands). The wire protocol is Phoenix Channels' V2 JSON-array
 format and is hand-writable from websocat for scripting.
 
 Transport diagnostics (read EOFs, dial-attempt failures during reconnect,
-frame decode errors) are written to a rotated log file rather than the
-UI. The path is shown on the Connection pane.`,
+frame decode errors) are written to the same JSON log file every other
+truestamp subcommand uses. The path is shown on the Connection pane and
+honors the --log-file / --log-level persistent flags.`,
 	Args:          cobra.NoArgs,
 	SilenceUsage:  true,
 	SilenceErrors: true,
@@ -38,8 +38,6 @@ UI. The path is shown on the Connection pane.`,
 func init() {
 	f := consoleCmd.Flags()
 	f.String("ws-url", "", "WebSocket URL override (default derived from --base-url)")
-	f.String("log-level", "info", "Log level: debug, info, warn, error")
-	f.String("log-file", "", "Override log file path (default: "+logging.DefaultPath()+")")
 	rootCmd.AddCommand(consoleCmd)
 }
 
@@ -56,29 +54,20 @@ func runConsole(cmd *cobra.Command, _ []string) error {
 		wsURL = appConfig.WebSocketURL
 	}
 
-	logLevel, _ := cmd.Flags().GetString("log-level")
-	logFile, _ := cmd.Flags().GetString("log-file")
-
-	logger, logPath, err := logging.New(logging.Options{
-		Path:  logFile,
-		Level: logLevel,
-	})
-	if err != nil {
-		// Non-fatal: continue with a discard logger. The TUI still
-		// runs; the user just won't have a postmortem trail.
-		fmt.Fprintf(cmd.ErrOrStderr(), "warning: log file disabled: %v\n", err)
-	}
-
-	logger.Info("console session start",
+	// The root PersistentPreRunE has already constructed appLogger,
+	// resolved appLogPath, and tagged records with component=console
+	// (logging.Options.Component = cmd.Name()). The console subcommand
+	// just consumes the result.
+	appLogger.Info("console session start",
 		"ws_url", wsURL,
-		"log_path", logPath,
+		"log_path", appLogPath,
 		"version", cmd.Root().Version)
 
 	return console.Run(cmd.Context(), console.Options{
 		WSURL:          wsURL,
 		APIKey:         appConfig.APIKey,
-		Logger:         logger,
-		LogFilePath:    logPath,
+		Logger:         appLogger,
+		LogFilePath:    appLogPath,
 		ConfigFilePath: config.ConfigFilePath(),
 		HealthTargets:  console.DefaultHealthTargets(appConfig.HealthURL, appConfig.KeyringURL),
 	})

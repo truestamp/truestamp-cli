@@ -60,6 +60,33 @@ type Config struct {
 	Verify     VerifyConfig  `koanf:"verify"`
 	Hash       HashConfig    `koanf:"hash"`
 	Convert    ConvertConfig `koanf:"convert"`
+	Logging    LoggingConfig `koanf:"logging"`
+}
+
+// LoggingConfig holds CLI-wide logging settings. The logger is
+// constructed once at the cobra root and shared by every subcommand
+// (one-shot tools and the long-lived console TUI) so a single rotated
+// JSON file captures every invocation.
+type LoggingConfig struct {
+	// File overrides the platform-default log file path. Empty means
+	// fall back to logging.DefaultPath() (~/Library/Caches/truestamp/
+	// truestamp.log on macOS, ~/.cache/truestamp/truestamp.log on
+	// Linux, %LOCALAPPDATA%\truestamp\Cache\truestamp.log on Windows).
+	File string `koanf:"file"`
+
+	// Level filters output: "debug" | "info" | "warn" | "error".
+	// Empty defaults to "info".
+	Level string `koanf:"level"`
+
+	// MaxSizeMB is the lumberjack rotation threshold. 0 = library
+	// default (10 MB).
+	MaxSizeMB int `koanf:"max_size_mb"`
+
+	// MaxBackups is the count of rotated files retained. 0 = 5.
+	MaxBackups int `koanf:"max_backups"`
+
+	// MaxAgeDays is how long rotated files are kept. 0 = 14.
+	MaxAgeDays int `koanf:"max_age_days"`
 }
 
 // Timeout parses the HTTPTimeout string as a Go duration. A zero or
@@ -96,17 +123,19 @@ type ConvertConfig struct {
 }
 
 // sectionPrefixes lists known TOML section names for env var mapping.
-var sectionPrefixes = []string{"verify", "hash", "convert"}
+var sectionPrefixes = []string{"verify", "hash", "convert", "logging"}
 
 // flagKeyMap maps CLI flag names to their koanf key paths.
 // Verify-subcommand flags are scoped under "verify."; hash under "hash.";
-// convert under "convert.".
+// convert under "convert."; logging under "logging.".
 var flagKeyMap = map[string]string{
 	// Root persistent flags
 	"base-url":     "base_url",
 	"api-key":      "api_key",
 	"team":         "team",
 	"http-timeout": "http_timeout",
+	"log-file":     "logging.file",
+	"log-level":    "logging.level",
 	// Verify subcommand flags
 	"silent":          "verify.silent",
 	"json":            "verify.json",
@@ -144,6 +173,11 @@ func Load(configPath string, flags *pflag.FlagSet) (*Config, error) {
 		"hash.encoding":          "hex",
 		"hash.style":             "gnu",
 		"convert.time_zone":      "UTC",
+		"logging.file":           "",
+		"logging.level":          "info",
+		"logging.max_size_mb":    10,
+		"logging.max_backups":    5,
+		"logging.max_age_days":   14,
 	}
 	if err := k.Load(confmap.Provider(defaults, "."), nil); err != nil {
 		return nil, fmt.Errorf("loading defaults: %w", err)
@@ -371,9 +405,18 @@ style = %q
 
 [convert]
 time_zone = %q
+
+[logging]
+file = %q
+level = %q
+max_size_mb = %d
+max_backups = %d
+max_age_days = %d
 `, c.BaseURL, apiKey, c.Team, c.HTTPTimeout, c.CosignPath,
 		c.Verify.Silent, c.Verify.JSON,
 		c.Verify.SkipExternal, c.Verify.SkipSignatures, c.Verify.Remote,
 		c.Hash.Algorithm, c.Hash.Encoding, c.Hash.Style,
-		c.Convert.TimeZone)
+		c.Convert.TimeZone,
+		c.Logging.File, c.Logging.Level,
+		c.Logging.MaxSizeMB, c.Logging.MaxBackups, c.Logging.MaxAgeDays)
 }
