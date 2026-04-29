@@ -123,6 +123,9 @@ func runAuthLogin(cmd *cobra.Command, _ []string) error {
 		return err
 	}
 
+	// Log the action — never the key bytes. The redacting handler
+	// would catch a leak, but we don't put the key into attrs at all.
+	appLogger.Info("auth_login", "config_path", config.ConfigFilePath())
 	fmt.Fprintln(out, ui.SuccessBanner("Logged in — API key saved to "+config.ConfigFilePath()))
 	return nil
 }
@@ -163,6 +166,7 @@ func runAuthLogout(cmd *cobra.Command, _ []string) error {
 		return err
 	}
 
+	appLogger.Info("auth_logout", "config_path", config.ConfigFilePath())
 	fmt.Fprintln(out, ui.SuccessBanner("Logged out — API key removed"))
 	return nil
 }

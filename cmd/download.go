@@ -158,8 +158,10 @@ output file).`,
 
 		// Wire-send typeFlag verbatim. Beacon is a first-class server type
 		// now (returns t=11), not a client-side alias.
+		appLogger.Info("download_request", "id", id, "type", typeFlag, "format", format)
 		data, err := proof.GenerateCtx(cmd.Context(), cfg.APIURL, cfg.APIKey, cfg.Team, id, typeFlag, format)
 		if err != nil {
+			appLogger.Error("download_failed", "id", id, "type", typeFlag, "err", err.Error())
 			return err
 		}
 
@@ -171,8 +173,17 @@ output file).`,
 		}
 
 		if err := os.WriteFile(output, data, 0644); err != nil {
+			appLogger.Error("download_failed", "id", id, "type", typeFlag, "stage", "write", "err", err.Error())
 			return fmt.Errorf("writing file: %w", err)
 		}
+
+		appLogger.Info("download_completed",
+			"id", id,
+			"type", typeFlag,
+			"format", format,
+			"size_bytes", len(data),
+			"output", output,
+		)
 
 		presentDownload(output, format, id, typeFlag, len(data))
 		return nil

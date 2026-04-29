@@ -72,3 +72,27 @@ style = "gnu"
 # (override with --to-zone). Accepts UTC, Local, or any IANA name.
 # Env: TRUESTAMP_CONVERT_TIME_ZONE
 time_zone = "UTC"
+
+[logging]
+# JSON log file path. Empty = platform default:
+#   macOS:   ~/Library/Caches/truestamp/truestamp.log
+#   Linux:   ~/.cache/truestamp/truestamp.log
+#   Windows: %LOCALAPPDATA%\truestamp\Cache\truestamp.log
+# Env: TRUESTAMP_LOGGING_FILE
+file = ""
+
+# Log level: debug, info, warn, error.
+# Env: TRUESTAMP_LOGGING_LEVEL
+level = "info"
+
+# Rotate the log file once it reaches this many megabytes.
+# Env: TRUESTAMP_LOGGING_MAX_SIZE_MB
+max_size_mb = 10
+
+# Retain this many rotated (compressed) backups.
+# Env: TRUESTAMP_LOGGING_MAX_BACKUPS
+max_backups = 5
+
+# Delete rotated backups older than this many days.
+# Env: TRUESTAMP_LOGGING_MAX_AGE_DAYS
+max_age_days = 14

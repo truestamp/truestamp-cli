@@ -176,11 +176,27 @@ Exit code 0 on success, 1 on verification failure.`,
 		}
 
 		if err != nil {
+			appLogger.Error("verify_failed",
+				"source", string(src.Type),
+				"display_name", displayName,
+				"remote", cfg.Verify.Remote,
+				"err", err.Error(),
+			)
 			if cfg.Verify.Silent {
 				return errSilentFail
 			}
 			return err
 		}
+
+		appLogger.Info("verify_completed",
+			"source", string(src.Type),
+			"display_name", displayName,
+			"remote", cfg.Verify.Remote,
+			"subject_type", report.SubjectType,
+			"passed", report.Passed(),
+			"failed_step_count", report.FailedCount(),
+			"inferred_type", inferredType,
+		)
 
 		switch {
 		case cfg.Verify.JSON:

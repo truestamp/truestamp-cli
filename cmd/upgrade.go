@@ -147,20 +147,25 @@ func printUpgradeInstruction(out io.Writer, method install.Method, command strin
 }
 
 func runCheck(ctx context.Context, out io.Writer, opts selfupgrade.Options) error {
+	appLogger.Info("upgrade_check_started", "current", opts.CurrentVersion)
 	result, err := selfupgrade.Check(ctx, opts)
 	if errors.Is(err, selfupgrade.ErrPreRelease) {
 		latest := selfupgrade.Display(result.LatestVersion)
+		appLogger.Warn("upgrade_check_prerelease", "latest", result.LatestVersion)
 		fmt.Fprintf(out, "note: latest release %s is a pre-release; pass --version %s to install it explicitly, or wait for the next stable release.\n", latest, result.LatestVersion)
 		return exitWith(checkExitPreRelease)
 	}
 	if err != nil {
+		appLogger.Error("upgrade_check_failed", "err", err.Error())
 		fmt.Fprintf(out, "upgrade check failed: %v\n", err)
 		return exitWith(checkExitNetworkErr)
 	}
 	if result.UpgradeAvail {
+		appLogger.Info("upgrade_check_result", "available", true, "latest", result.LatestVersion, "current", result.CurrentVersion)
 		fmt.Fprintf(out, "truestamp %s is available (current: %s)\n", selfupgrade.Display(result.LatestVersion), selfupgrade.Display(result.CurrentVersion))
 		return exitWith(checkExitUpgradeAvail)
 	}
+	appLogger.Info("upgrade_check_result", "available", false, "current", result.CurrentVersion)
 	fmt.Fprintf(out, "truestamp is up to date (%s)\n", selfupgrade.Display(result.CurrentVersion))
 	return nil
 }
@@ -195,15 +200,19 @@ func runInPlaceUpgrade(ctx context.Context, cmd *cobra.Command, opts selfupgrade
 		}
 	}
 
+	appLogger.Info("upgrade_started", "from", result.CurrentVersion, "to", target)
 	installed, backup, err := selfupgrade.Upgrade(ctx, opts)
 	if errors.Is(err, selfupgrade.ErrAlreadyCurrent) {
+		appLogger.Info("upgrade_skipped_already_current", "version", installed)
 		fmt.Fprintf(out, "truestamp is already at %s\n", selfupgrade.Display(installed))
 		return nil
 	}
 	if err != nil {
+		appLogger.Error("upgrade_failed", "from", result.CurrentVersion, "to", target, "err", err.Error())
 		return err
 	}
 
+	appLogger.Info("upgrade_completed", "from", result.CurrentVersion, "to", installed, "backup", backup)
 	successStyle := lipgloss.NewStyle().Foreground(ui.Green).Bold(true)
 	fmt.Fprintf(out, "%s upgraded %s → %s\n", successStyle.Render("✓"), selfupgrade.Display(result.CurrentVersion), selfupgrade.Display(installed))
 	if backup != "" {

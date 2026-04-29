@@ -7,6 +7,8 @@ import (
 	"encoding/json"
 	"strings"
 	"testing"
+
+	"github.com/truestamp/truestamp-cli/internal/redact"
 )
 
 // FuzzFrameUnmarshal feeds arbitrary bytes to Frame.UnmarshalJSON and
@@ -109,16 +111,19 @@ func FuzzParseReply(f *testing.F) {
 	})
 }
 
-// FuzzRedactSecrets ensures the api_key redaction regex is correct
-// across arbitrary URL-shaped inputs. Specifically:
+// FuzzRedactSecrets ensures the api_key redaction (now provided by
+// internal/redact) is correct across arbitrary URL-shaped inputs.
+// Specifically:
 //   - never panics
 //   - if the input contains "api_key=truestamp_..." the output must
 //     not contain that literal token verbatim
 //
-// The regex `api_key=[^&"\s]*` is bounded (negated character class, no
-// backtracking), so this is mostly a regression net rather than a bug
-// hunt — it pins behavior so a future "improvement" can't accidentally
-// reintroduce a leak.
+// The shared regex `api_key=[^&"\s]*` is bounded (negated character
+// class, no backtracking), so this is mostly a regression net rather
+// than a bug hunt — it pins behavior so a future "improvement" can't
+// accidentally reintroduce a leak. Lives in wschannel as well as in
+// the redact package itself because the WebSocket dial path is the
+// historically attested leak path the regex was added to plug.
 //
 // Run:
 //
@@ -139,7 +144,7 @@ func FuzzRedactSecrets(f *testing.F) {
 	}
 
 	f.Fuzz(func(t *testing.T, in string) {
-		out := redactSecrets(in)
+		out := redact.String(in)
 
 		// Invariant: any "api_key=truestamp_..." token in the input must
 		// not appear verbatim in the output.
@@ -162,7 +167,7 @@ func FuzzRedactSecrets(f *testing.F) {
 			}
 			token := in[start:end]
 			if token != "api_key=truestamp_" && strings.Contains(out, token) {
-				t.Fatalf("redactSecrets leaked token %q from input %q (output %q)",
+				t.Fatalf("redact.String leaked token %q from input %q (output %q)",
 					token, in, out)
 			}
 			idx = end

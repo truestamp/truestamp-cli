@@ -26,6 +26,7 @@ require (
 	github.com/spf13/pflag v1.0.10
 	golang.org/x/crypto v0.50.0
 	golang.org/x/mod v0.35.0
+	gopkg.in/natefinch/lumberjack.v2 v2.2.1
 )
 
 require (
@@ -61,5 +62,4 @@ require (
 	github.com/xo/terminfo v0.0.0-20220910002029-abceb7e1c41e // indirect
 	golang.org/x/sync v0.20.0 // indirect
 	golang.org/x/sys v0.43.0 // indirect
-	gopkg.in/natefinch/lumberjack.v2 v2.2.1 // indirect
 )
