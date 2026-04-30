@@ -81,6 +81,17 @@ type Options struct {
 	WSURL  string
 	APIKey string
 
+	// APIURL is the base JSON:API URL (e.g. https://www.truestamp.com/api/json).
+	// Threaded into the Teams pane so it can call ListMyMemberships /
+	// GetTeam without re-importing the top-level config package.
+	APIURL string
+
+	// ActiveTeamID is the team id currently stored in config.toml. The
+	// Teams pane uses this to mark the row in the membership list and
+	// drive the access-loss check on startup. May be empty when no
+	// team has been configured yet.
+	ActiveTeamID string
+
 	// Logger receives diagnostic / postmortem entries from the
 	// wschannel transport and from the TUI itself. May be nil — the
 	// TUI substitutes a discard logger so panes can call Log methods
@@ -112,8 +123,14 @@ type pane int
 const (
 	paneMonitor pane = iota
 	paneNewItem
+	paneTeam
 	paneConnection
 )
+
+// numPanes is the count of registered panes — used for cyclic
+// next/prev navigation in Update. Adding a new pane requires
+// updating this constant alongside the enum and the title() switch.
+const numPanes = 4
 
 func (p pane) title() string {
 	switch p {
@@ -121,6 +138,8 @@ func (p pane) title() string {
 		return "Monitor"
 	case paneNewItem:
 		return "New Item"
+	case paneTeam:
+		return "Teams"
 	case paneConnection:
 		return "Connection"
 	default:
@@ -167,6 +186,7 @@ type model struct {
 	monitorKeys         keys.MonitorKeys
 	newItemKeys         keys.NewItemKeys
 	newItemWatchingKeys keys.NewItemWatchingKeys
+	teamKeys            keys.TeamKeys
 	connKeys            keys.ConnectionKeys
 
 	// confirmingQuit is true while the "Really quit? y/n" prompt is
@@ -175,9 +195,17 @@ type model struct {
 	// double-ctrl+c hard-quits without further confirmation.
 	confirmingQuit bool
 
+	// scope is the canonical "what team am I on" state, shared across
+	// the chrome header, the Connection pane's scope rows, and the
+	// Teams pane's renderer. Mutated only inside Update via the
+	// applyWelcome / applyTeamAccess / applyTeamSwitched helpers on
+	// activeScope. Panes read from it in their View().
+	scope activeScope
+
 	// Pane-specific state.
 	monitor    *monitorModel
 	newItem    *newItemModel
+	team       *teamModel
 	connection *connectionModel
 }
 
@@ -206,19 +234,28 @@ func newModel(client *wschannel.Client, opts Options, log *slog.Logger) *model {
 		monitorKeys:         keys.NewMonitorKeys(appKeys),
 		newItemKeys:         keys.NewNewItemKeys(appKeys),
 		newItemWatchingKeys: keys.NewNewItemWatchingKeys(appKeys),
+		teamKeys:            keys.NewTeamKeys(appKeys),
 		connKeys:            keys.NewConnectionKeys(appKeys),
 	}
+	// Seed the shared active-team state with the user's config-time
+	// preference. Welcome / scope.switch_team replies fill in the
+	// rest.
+	m.scope = activeScope{PreferredID: opts.ActiveTeamID}
 	m.monitor = newMonitorModel(client, log)
 	m.newItem = newNewItemModel(client)
-	m.connection = newConnectionModel(opts.LogFilePath, opts.ConfigFilePath, opts.HealthTargets)
+	m.team = newTeamModel(opts.APIURL, opts.APIKey, &m.scope, client)
+	m.connection = newConnectionModel(opts.LogFilePath, opts.ConfigFilePath, opts.HealthTargets, &m.scope)
 	return m
 }
 
 func (m *model) Init() tea.Cmd {
 	// huh.Form needs its Init() called before it can produce output.
 	// Batching the form's Init at the root keeps the New Item pane
-	// in a renderable state from the first frame.
-	return m.newItem.form.Init()
+	// in a renderable state from the first frame. The Teams pane
+	// also kicks off its initial GET /memberships + access-check
+	// fetches so the membership table populates while the WS dial
+	// proceeds in parallel.
+	return tea.Batch(m.newItem.form.Init(), m.team.Init())
 }
 
 // outageMarkerInterval gates how often we drop a synthetic "server
@@ -285,13 +322,15 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 		switch {
 		case key.Matches(msg, m.appKeys.NextPane):
-			return m, m.activatePane((m.active + 1) % 3)
+			return m, m.activatePane((m.active + 1) % numPanes)
 		case key.Matches(msg, m.appKeys.PrevPane):
-			return m, m.activatePane((m.active + 2) % 3)
+			return m, m.activatePane((m.active + numPanes - 1) % numPanes)
 		case key.Matches(msg, m.appKeys.GoMonitor):
 			return m, m.activatePane(paneMonitor)
 		case key.Matches(msg, m.appKeys.GoNewItem):
 			return m, m.activatePane(paneNewItem)
+		case key.Matches(msg, m.appKeys.GoTeam):
+			return m, m.activatePane(paneTeam)
 		case key.Matches(msg, m.appKeys.GoConnection):
 			return m, m.activatePane(paneConnection)
 		case key.Matches(msg, m.appKeys.ToggleHelp):
@@ -315,8 +354,17 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.welcome = msg.Welcome
 		m.monitor.applyWelcome(msg.Welcome)
 		m.connection.applyWelcome(msg.Welcome)
+		// Reconcile the shared scope state with the welcome envelope.
+		// Two outcomes: if the user's config preference matches the
+		// server scope, fetch team details over REST so the header /
+		// Connection / Teams panes have name + role to render. If
+		// they differ, fire scope.switch_team to align the server to
+		// the user's config preference. Either way, all panes read
+		// the resulting state from m.scope.
+		teamCmd := m.applyWelcomeToScope(msg.Welcome)
 		return m, tea.Batch(
 			m.monitor.subscribeAllStreams(),
+			teamCmd,
 			waitForPush(m.client),
 		)
 
@@ -412,6 +460,41 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.newItem.handlePush(msg)
 		m.connection.recordPush(msg.Event)
 		return m, waitForPush(m.client)
+
+	case teamMembershipsMsg:
+		// Teams pane owns the membership list lifecycle.
+		var cmd tea.Cmd
+		m.team, cmd = m.team.Update(msg)
+		return m, cmd
+
+	case teamAccessMsg:
+		// Source of truth: update m.scope. Auto-focus the Teams pane
+		// on access loss so the user lands on the corrective UI.
+		m.scope.applyTeamAccess(msg)
+		if msg.TeamID != "" && !msg.Found {
+			return m, m.activatePane(paneTeam)
+		}
+		return m, nil
+
+	case teamSwitchedMsg:
+		// Source of truth: m.scope. Cached welcome envelope follows
+		// (so the Connection pane's user_id / plan rows pick up the
+		// post-switch values). The Teams pane needs to refresh its
+		// membership list, so route the message through it too.
+		m.scope.applyTeamSwitched(msg.Reply)
+		if msg.Reply != nil {
+			m.welcome.Scope.UserID = msg.Reply.UserID
+			m.welcome.Scope.TeamID = msg.Reply.TeamID
+			m.welcome.Scope.Plan = msg.Reply.Plan
+		}
+		var teamCmd tea.Cmd
+		m.team, teamCmd = m.team.Update(msg)
+		return m, teamCmd
+
+	case teamSwitchFailedMsg:
+		var cmd tea.Cmd
+		m.team, cmd = m.team.Update(msg)
+		return m, cmd
 	}
 
 	// Forward other messages (e.g. form keystrokes) to the active pane.
@@ -421,6 +504,8 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.monitor, cmd = m.monitor.Update(msg)
 	case paneNewItem:
 		m.newItem, cmd = m.newItem.Update(msg)
+	case paneTeam:
+		m.team, cmd = m.team.Update(msg)
 	case paneConnection:
 		m.connection, cmd = m.connection.Update(msg)
 	}
@@ -452,6 +537,8 @@ func (m *model) View() tea.View {
 		body = m.monitor.View(bodyW, bodyH)
 	case paneNewItem:
 		body = m.newItem.View(bodyW, bodyH)
+	case paneTeam:
+		body = m.team.View(bodyW, bodyH)
 	case paneConnection:
 		body = m.connection.View(bodyW, bodyH)
 	}
@@ -464,6 +551,43 @@ func (m *model) View() tea.View {
 	// click-drag text selection natively. See the comment on
 	// tea.NewProgram above for the rationale.
 	return v
+}
+
+// applyWelcomeToScope reconciles the welcome envelope with the
+// shared activeScope. Two outcomes:
+//
+//   - When the user's persisted PreferredID matches (or isn't set),
+//     fire fetchActiveDetailsCmd to populate name + role over REST.
+//
+//   - When PreferredID differs from the welcome's scope, fire
+//     scope.switch_team to align the server scope to the user's
+//     preference. The reply mutates m.scope via teamSwitchedMsg.
+//
+// AccessLost is reset on each welcome — a successful reconnect
+// re-establishes the scope and any prior access-loss banner is no
+// longer relevant until proven again.
+func (m *model) applyWelcomeToScope(w Welcome) tea.Cmd {
+	if m.scope.TeamID != w.Scope.TeamID {
+		// Active id changed — clear stale name/role so the renderers
+		// don't flash the wrong label until the follow-up arrives.
+		m.scope.Name = ""
+		m.scope.Personal = false
+		m.scope.Role = ""
+	}
+	m.scope.UserID = w.Scope.UserID
+	m.scope.Plan = w.Scope.Plan
+	m.scope.TeamID = w.Scope.TeamID
+	m.scope.AccessLost = false
+	if m.scope.PreferredID != "" && m.scope.PreferredID != w.Scope.TeamID {
+		// Silent variant: this alignment is internal bookkeeping
+		// (the WS opens on Personal by server policy, we move it to
+		// the user's configured team). The user didn't ask for it
+		// and shouldn't see a flash-then-disappear "Switched to"
+		// notice that would later shift the layout when they press
+		// up/down.
+		return m.team.silentSwitchCmd(m.scope.PreferredID)
+	}
+	return m.team.fetchActiveDetailsCmd(w.Scope.TeamID)
 }
 
 // activatePane switches the active pane and starts/stops side-effect
@@ -500,6 +624,8 @@ func (m *model) activeKeyMap() help.KeyMap {
 			return m.newItemWatchingKeys
 		}
 		return m.newItemKeys
+	case paneTeam:
+		return m.teamKeys
 	case paneConnection:
 		return m.connKeys
 	}
@@ -547,8 +673,8 @@ func (m *model) renderQuitConfirmFooter() string {
 }
 
 func (m *model) renderHeader() string {
-	tabs := make([]chrome.TabItem, 0, 3)
-	for _, p := range []pane{paneMonitor, paneNewItem, paneConnection} {
+	tabs := make([]chrome.TabItem, 0, numPanes)
+	for _, p := range []pane{paneMonitor, paneNewItem, paneTeam, paneConnection} {
 		tabs = append(tabs, chrome.TabItem{
 			Number: int(p) + 1,
 			Title:  p.title(),
@@ -559,8 +685,12 @@ func (m *model) renderHeader() string {
 	status, kind := m.statusText()
 
 	return chrome.Render(chrome.HeaderInput{
-		Width:      m.width,
-		Tabs:       tabs,
+		Width: m.width,
+		Tabs:  tabs,
+		// Active team label comes from the shared scope. Empty
+		// until welcome arrives — the header just shows the status
+		// pill in that case.
+		Team:       m.scope.HeaderLabel(),
 		Status:     status,
 		StatusKind: kind,
 		Clock:      m.clockText(),

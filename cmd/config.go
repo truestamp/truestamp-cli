@@ -4,12 +4,16 @@
 package cmd
 
 import (
+	"context"
 	"fmt"
 	"strings"
+	"time"
 
 	lipgloss "charm.land/lipgloss/v2"
+	"charm.land/lipgloss/v2/table"
 	"github.com/spf13/cobra"
 	"github.com/truestamp/truestamp-cli/internal/config"
+	"github.com/truestamp/truestamp-cli/internal/teams"
 	"github.com/truestamp/truestamp-cli/internal/ui"
 )
 
@@ -73,7 +77,18 @@ func presentConfig(cfg *config.Config) {
 		StyleFunc(configStyleFunc).
 		Row("API URL", cfg.APIURL).
 		Row("API Key", maskAPIKey(cfg.APIKey)).
-		Row("Team", valueOrNotSet(cfg.Team)).
+		Row("Team", valueOrNotSet(cfg.Team))
+
+	// Resolve the team's name + role online when both an api key and a
+	// team id are configured. Best-effort: a network or auth failure
+	// suppresses the extra rows in favor of a faint hint, so `config
+	// show` stays useful when offline. Capped to half the configured
+	// HTTP timeout so the command stays snappy.
+	if cfg.APIKey != "" && cfg.Team != "" {
+		general = appendTeamDetailRows(general, cfg)
+	}
+
+	general = general.
 		Row("Keyring URL", cfg.KeyringURL).
 		Row("HTTP Timeout", cfg.HTTPTimeout).
 		Row("Cosign Path", cosignPathDisplay(cfg.CosignPath))
@@ -152,6 +167,54 @@ func cosignPathDisplay(v string) string {
 		return "(auto: $PATH lookup)"
 	}
 	return v
+}
+
+// configTeamLookupTimeout caps the wall time spent resolving team
+// name + role in `config show`. Half the configured HTTP timeout
+// (10s default) → 5s default, which is short enough that an offline
+// or wedged server doesn't make `config show` feel broken.
+func configTeamLookupTimeout(cfg *config.Config) time.Duration {
+	d := cfg.Timeout() / 2
+	if d <= 0 {
+		return 5 * time.Second
+	}
+	return d
+}
+
+// appendTeamDetailRows tries to fetch the configured team's name +
+// role and append them as extra rows. On any error (network, auth,
+// not-found) it appends a single faint hint row instead of breaking
+// the whole output. The function only runs when both api_key and
+// team are set; the caller gates that.
+func appendTeamDetailRows(tbl *table.Table, cfg *config.Config) *table.Table {
+	ctx, cancel := context.WithTimeout(context.Background(), configTeamLookupTimeout(cfg))
+	defer cancel()
+
+	clientCfg := teams.Config{APIURL: cfg.APIURL, APIKey: cfg.APIKey, Team: cfg.Team}
+
+	team, err := teams.GetTeam(ctx, clientCfg, cfg.Team)
+	if err != nil {
+		// Faint hint row — keep the column count consistent so the
+		// table stylefunc doesn't have to special-case empty cells.
+		return tbl.Row("Team Name", "(unavailable — try 'truestamp auth status')")
+	}
+	tbl = tbl.Row("Team Name", teamNameWithPersonal(team))
+
+	role, err := teams.GetMyRoleOnTeam(ctx, clientCfg, cfg.Team)
+	if err != nil || role == "" {
+		return tbl.Row("Team Role", "(unavailable)")
+	}
+	return tbl.Row("Team Role", teams.FormatRole(role))
+}
+
+func teamNameWithPersonal(t *teams.Team) string {
+	if t == nil {
+		return "(unknown)"
+	}
+	if t.Personal {
+		return t.Name + " (personal)"
+	}
+	return t.Name
 }
 
 func init() {

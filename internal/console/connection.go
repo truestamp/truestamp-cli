@@ -30,6 +30,11 @@ type connectionModel struct {
 	pushCounts  map[string]int
 	connectedAt time.Time
 
+	// scope points at the root model's activeScope. The pane reads
+	// the active team's name / role / access state from there
+	// during render — no local copies kept in sync.
+	scope *activeScope
+
 	// Reconnect bookkeeping. Updated by the root model on each
 	// observed reconnect cycle so the user can see at-a-glance how
 	// stable the session has been since they connected.
@@ -81,13 +86,14 @@ type connectionModel struct {
 	pollActive bool
 }
 
-func newConnectionModel(logFilePath, configFilePath string, healthTargets []HealthTarget) *connectionModel {
+func newConnectionModel(logFilePath, configFilePath string, healthTargets []HealthTarget, scope *activeScope) *connectionModel {
 	results := make([]healthResult, len(healthTargets))
 	for i, t := range healthTargets {
 		results[i] = healthResult{Target: t, State: healthUnknown}
 	}
 	return &connectionModel{
 		pushCounts:     make(map[string]int),
+		scope:          scope,
 		logFilePath:    logFilePath,
 		configFilePath: configFilePath,
 		healthTargets:  healthTargets,
@@ -95,6 +101,10 @@ func newConnectionModel(logFilePath, configFilePath string, healthTargets []Heal
 	}
 }
 
+// Update is a no-op for the connection pane today — the scope state
+// it depends on is mutated by the root Update via the shared
+// activeScope. Health checks flow through dedicated message types
+// handled at the root.
 func (m *connectionModel) Update(msg tea.Msg) (*connectionModel, tea.Cmd) {
 	_ = msg
 	return m, nil
@@ -263,12 +273,32 @@ func (m *connectionModel) View(width, height int) string {
 // subscriptions and is otherwise stable. Ambient chrome should carry
 // liveness state only.
 func (m *connectionModel) renderScopeSection() string {
+	teamCell := m.welcome.Scope.TeamID
+	if m.scope.Name != "" {
+		label := m.scope.Name
+		if m.scope.Personal {
+			label += " (personal)"
+		}
+		teamCell = fmt.Sprintf("%s  [%s]", label, m.welcome.Scope.TeamID)
+	}
+	if m.scope.AccessLost {
+		teamCell = connHealthFail.Render(teamCell + " — membership lost; press 3 to switch team")
+	}
+
 	rows := [][]string{
 		{"user", m.welcome.Scope.UserID},
-		{"team", m.welcome.Scope.TeamID},
-		{"plan", m.welcome.Scope.Plan},
-		{"server", m.welcome.Server.Version},
+		{"team", teamCell},
 	}
+	if m.scope.Role != "" {
+		// Use the same teams.FormatRole humanization the CLI surfaces
+		// elsewhere. Imported lazily via a thin local helper to avoid
+		// adding the teams import to connection.go.
+		rows = append(rows, []string{"role", connFormatRole(m.scope.Role)})
+	}
+	rows = append(rows,
+		[]string{"plan", m.welcome.Scope.Plan},
+		[]string{"server", m.welcome.Server.Version},
+	)
 	if !m.connectedAt.IsZero() {
 		rows = append(rows, []string{"connected for", time.Since(m.connectedAt).Truncate(time.Second).String()})
 	}
@@ -277,6 +307,23 @@ func (m *connectionModel) renderScopeSection() string {
 	tbl := keyValueTable(rows)
 
 	return connSectionTitle.Render("Scope") + "\n" + tbl.Render()
+}
+
+// connFormatRole humanizes role atoms for the scope row. Mirrors
+// teams.FormatRole verbatim — duplicated here to keep connection.go
+// from depending on internal/teams (which is a CLI-side HTTP client).
+func connFormatRole(role string) string {
+	switch role {
+	case "team_owner":
+		return "Owner"
+	case "team_admin":
+		return "Admin"
+	case "team_member":
+		return "Member"
+	case "team_viewer":
+		return "Viewer"
+	}
+	return role
 }
 
 // renderPushCountsSection prints the push event counts as a 2-column

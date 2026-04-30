@@ -19,6 +19,7 @@ import (
 	"github.com/truestamp/truestamp-cli/internal/selfupgrade"
 	"github.com/truestamp/truestamp-cli/internal/ui"
 	"github.com/truestamp/truestamp-cli/internal/version"
+	"golang.org/x/term"
 )
 
 // Exit codes for --check. The user-facing contract lives in cmd so
@@ -234,12 +235,15 @@ func readYes(r io.Reader) bool {
 	return resp == "" || resp == "y" || resp == "yes"
 }
 
+// stdinIsTerminal reports whether the program's stdin is attached to
+// a real interactive terminal. The earlier `(info.Mode() & os.ModeCharDevice) != 0`
+// check was too lax — `/dev/null` is also a character device, so any
+// `cmd < /dev/null` invocation incorrectly looked like a TTY and the
+// CLI would happily try to spawn an interactive picker that then read
+// EOF immediately. golang.org/x/term.IsTerminal goes through tcgetattr,
+// which is the right contract for "can I prompt the user?".
 func stdinIsTerminal() bool {
-	info, err := os.Stdin.Stat()
-	if err != nil {
-		return false
-	}
-	return (info.Mode() & os.ModeCharDevice) != 0
+	return term.IsTerminal(int(os.Stdin.Fd()))
 }
 
 // exitCodeErr carries a specific exit code through to Execute() without

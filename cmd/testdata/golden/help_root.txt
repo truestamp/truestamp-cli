@@ -20,6 +20,7 @@ Available Commands:
   hash        Compute cryptographic digests (SHA-2 / SHA-3 / BLAKE2 / MD5 / SHA-1)
   help        Help about any command
   jcs         Canonicalize JSON per RFC 8785 (JSON Canonicalization Scheme)
+  team        Manage the active Truestamp team context
   upgrade     Upgrade the truestamp CLI to the latest release
   verify      Verify a Truestamp proof bundle
   version     Print detailed version, build, and runtime information

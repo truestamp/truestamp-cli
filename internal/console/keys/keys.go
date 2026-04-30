@@ -28,6 +28,7 @@ type AppKeys struct {
 	PrevPane     key.Binding
 	GoMonitor    key.Binding
 	GoNewItem    key.Binding
+	GoTeam       key.Binding
 	GoConnection key.Binding
 	ToggleHelp   key.Binding
 	Quit         key.Binding
@@ -36,7 +37,7 @@ type AppKeys struct {
 // NewAppKeys returns the canonical app-level bindings. Plain `tab` is
 // reserved for pane-internal navigation; pane switching uses `]` /
 // `[` (vi-adjacent), `ctrl+tab` / `ctrl+shift+tab` (browser-adjacent),
-// and the numeric `1` / `2` / `3` quick-jumps.
+// and the numeric `1` / `2` / `3` / `4` quick-jumps.
 func NewAppKeys() AppKeys {
 	return AppKeys{
 		NextPane: key.NewBinding(
@@ -55,9 +56,13 @@ func NewAppKeys() AppKeys {
 			key.WithKeys("2"),
 			key.WithHelp("2", "new item"),
 		),
-		GoConnection: key.NewBinding(
+		GoTeam: key.NewBinding(
 			key.WithKeys("3"),
-			key.WithHelp("3", "connection"),
+			key.WithHelp("3", "teams"),
+		),
+		GoConnection: key.NewBinding(
+			key.WithKeys("4"),
+			key.WithHelp("4", "connection"),
 		),
 		ToggleHelp: key.NewBinding(
 			key.WithKeys("?"),
@@ -152,7 +157,7 @@ func (k MonitorKeys) FullHelp() [][]key.Binding {
 	return [][]key.Binding{
 		{k.FocusLeft, k.FocusRight, k.Up, k.Down, k.PageUp, k.PageDown, k.Top, k.Bottom},
 		{k.ToggleStream, k.ReverseOrder, k.ToggleDetail},
-		{k.App.NextPane, k.App.PrevPane, k.App.GoMonitor, k.App.GoNewItem, k.App.GoConnection},
+		{k.App.NextPane, k.App.PrevPane, k.App.GoMonitor, k.App.GoNewItem, k.App.GoTeam, k.App.GoConnection},
 		{k.App.ToggleHelp, k.App.Quit},
 	}
 }
@@ -210,7 +215,7 @@ func (k NewItemKeys) ShortHelp() []key.Binding {
 func (k NewItemKeys) FullHelp() [][]key.Binding {
 	return [][]key.Binding{
 		{k.NextField, k.PrevField, k.Submit, k.Clear, k.NewForm},
-		{k.App.NextPane, k.App.PrevPane, k.App.GoMonitor, k.App.GoNewItem, k.App.GoConnection},
+		{k.App.NextPane, k.App.PrevPane, k.App.GoMonitor, k.App.GoNewItem, k.App.GoTeam, k.App.GoConnection},
 		{k.App.ToggleHelp, k.App.Quit},
 	}
 }
@@ -251,7 +256,60 @@ func (k NewItemWatchingKeys) ShortHelp() []key.Binding {
 func (k NewItemWatchingKeys) FullHelp() [][]key.Binding {
 	return [][]key.Binding{
 		{k.NewForm},
-		{k.App.NextPane, k.App.PrevPane, k.App.GoMonitor, k.App.GoNewItem, k.App.GoConnection},
+		{k.App.NextPane, k.App.PrevPane, k.App.GoMonitor, k.App.GoNewItem, k.App.GoTeam, k.App.GoConnection},
+		{k.App.ToggleHelp, k.App.Quit},
+	}
+}
+
+// TeamKeys covers the Teams pane: cursor up/down through the
+// memberships table, set-as-active on `enter` (single press; the
+// cursor's deliberate placement makes a separate confirm step
+// redundant), and refresh-list (`r`). Pane switching is handled at
+// the root.
+type TeamKeys struct {
+	App     AppKeys
+	Up      key.Binding
+	Down    key.Binding
+	Set     key.Binding
+	Refresh key.Binding
+}
+
+// NewTeamKeys returns the Teams pane bindings.
+func NewTeamKeys(app AppKeys) TeamKeys {
+	return TeamKeys{
+		App: app,
+		Up: key.NewBinding(
+			key.WithKeys("up", "k"),
+			key.WithHelp("↑/k", "up"),
+		),
+		Down: key.NewBinding(
+			key.WithKeys("down", "j"),
+			key.WithHelp("↓/j", "down"),
+		),
+		Set: key.NewBinding(
+			key.WithKeys("enter"),
+			key.WithHelp("enter", "set as active"),
+		),
+		Refresh: key.NewBinding(
+			key.WithKeys("r"),
+			key.WithHelp("r", "refresh"),
+		),
+	}
+}
+
+// ShortHelp implements help.KeyMap.
+func (k TeamKeys) ShortHelp() []key.Binding {
+	return []key.Binding{
+		k.Up, k.Down, k.Set, k.Refresh,
+		k.App.ToggleHelp, k.App.Quit,
+	}
+}
+
+// FullHelp implements help.KeyMap.
+func (k TeamKeys) FullHelp() [][]key.Binding {
+	return [][]key.Binding{
+		{k.Up, k.Down, k.Set, k.Refresh},
+		{k.App.NextPane, k.App.PrevPane, k.App.GoMonitor, k.App.GoNewItem, k.App.GoTeam, k.App.GoConnection},
 		{k.App.ToggleHelp, k.App.Quit},
 	}
 }
@@ -288,7 +346,7 @@ func (k ConnectionKeys) ShortHelp() []key.Binding {
 func (k ConnectionKeys) FullHelp() [][]key.Binding {
 	return [][]key.Binding{
 		{k.Refresh},
-		{k.App.NextPane, k.App.PrevPane, k.App.GoMonitor, k.App.GoNewItem, k.App.GoConnection},
+		{k.App.NextPane, k.App.PrevPane, k.App.GoMonitor, k.App.GoNewItem, k.App.GoTeam, k.App.GoConnection},
 		{k.App.ToggleHelp, k.App.Quit},
 	}
 }

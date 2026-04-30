@@ -8,7 +8,9 @@ Go CLI tool that cryptographically verifies Truestamp proof bundle JSON files. C
 
 Beyond verification, the CLI exposes five Unix-y, pipe-friendly sub-commands that replace the common external tool chain (`sha256sum`, `shasum`, `xxd`, `base64`, `jq`, `date`): `truestamp hash` (digests), `truestamp encode` / `truestamp decode` (byte encodings), `truestamp jcs` (RFC 8785 canonicalization), `truestamp convert {time, proof, id, keyid, merkle}` (domain conversions). `truestamp create` registers a new timestamped item.
 
-`truestamp console` opens an interactive Bubble Tea TUI that holds a long-lived authenticated WebSocket to the backend (multiplexed Phoenix Channels: `console:lobby` for commands + stream events, `console:clock` for server-time ticks). Three panes — Monitor (toggleable stream subscriptions + scrollable waterfall), New Item (form + live lifecycle), Connection (diagnostics + log file path). Reconnect-with-backoff, server-side first-event-immediate event coalescing into `<resource>.burst` summaries, and 24h time-windowed event retention. Full architecture, limits, logging, and testing in [docs/engineering/console.md](docs/engineering/console.md). Server wire protocol authoritative reference in [truestamp-v2/docs/console_channel.md](https://github.com/truestamp/truestamp-v2/blob/main/docs/console_channel.md).
+`truestamp console` opens an interactive Bubble Tea TUI that holds a long-lived authenticated WebSocket to the backend (multiplexed Phoenix Channels: `console:lobby` for commands + stream events, `console:clock` for server-time ticks). Four panes — Monitor (toggleable stream subscriptions + scrollable waterfall), New Item (form + live lifecycle), Teams (membership list + in-place team switch via `scope.switch_team` channel push), Connection (diagnostics + log file path). Reconnect-with-backoff, server-side first-event-immediate event coalescing into `<resource>.burst` summaries, and 24h time-windowed event retention. Full architecture, limits, logging, and testing in [docs/engineering/console.md](docs/engineering/console.md). Server wire protocol authoritative reference in [truestamp-v2/docs/console_channel.md](https://github.com/truestamp/truestamp-v2/blob/main/docs/console_channel.md).
+
+The `truestamp team` subcommand (`team list / show / set / unset`) and the in-TUI Teams pane share a single source of truth: the top-level `team` key in `~/.config/truestamp/config.toml`. `team set` validates the id by reading the team from `/api/json/teams/{id}` before persisting, so a typo or revoked membership refuses to write. The console pane's `s`-to-set confirmation pushes `scope.switch_team` over the live WebSocket, persists on success, and never reconnects — catalog stream subscriptions get rebound against the new tenant server-side, while item watches keep their original team binding. See "Team management surfaces" below.
 
 ## How to Build and Run
 
@@ -23,6 +25,10 @@ task build                    # -> build/truestamp
 ./build/truestamp decode [--from <enc>] [--to <enc>] [file]            # hex|base64|base64url|binary
 ./build/truestamp jcs [--newline] [file]                               # RFC 8785 canonicalization
 ./build/truestamp convert time|proof|id|keyid|merkle ...               # domain conversions (see subcommand help)
+./build/truestamp team [list]                                          # default = list
+./build/truestamp team show [id]                                       # detail card for active team (or arg)
+./build/truestamp team set [id]                                        # validate + persist; interactive picker if no id
+./build/truestamp team unset                                           # clear active team in config.toml
 ./build/truestamp config path|show|init
 ./build/truestamp upgrade [--check] [--yes] [--version vX.Y.Z]
 ./build/truestamp version      # includes detected install method (homebrew / go install / install.sh / unknown)
@@ -442,6 +448,19 @@ v(1) || t(2) || kid(4) || ts_ms(8) || subject_hash(32) || block_hash(32) || N(2)
 - `ts_ms` = milliseconds since Unix epoch (uint64 BE) from `ts` ISO 8601.
 - For `t == 10`, `subject_hash == block_hash`.
 - Signed as: `Ed25519.verify(SHA256(0x61 || payload), pk)`.
+
+## Team management surfaces
+
+The CLI exposes team discovery and selection in two places that share the same on-disk source of truth (the top-level `team` key in `config.toml`):
+
+* **`truestamp team`** subcommand — `list`, `show [id]`, `set [id]`, `unset`. `team list` emits a four-column `★/ID/NAME/ROLE` table over `GET /api/json/memberships?include=team`; the policy on the server side filters memberships to the actor's own ([truestamp-v2:lib/truestamp/teams/membership.ex:218-224](https://github.com/truestamp/truestamp-v2/blob/main/lib/truestamp/teams/membership.ex)). `team set <id>` validates by reading `/teams/{id}` first, so a typo or revoked membership refuses to write. `team set` with no arg opens a `huh.NewSelect` picker; cancelled (Esc) does not persist. `team unset` clears the key, reverting to the server's personal-team auto-fallback.
+* **Console `Teams` pane** (key `3`) — same membership table, plus an `s`-to-set confirmation that pushes [`scope.switch_team`](https://github.com/truestamp/truestamp-v2/blob/main/docs/console_channel.md) over the live WebSocket. On success the catalog stream subscriptions get rebound server-side against the new tenant, item watches keep their original team binding, and `config.SetTeam(id)` persists. The pane auto-activates when the on-startup access check shows the configured team is no longer reachable, surfacing a red "membership lost" banner with a corrective hint.
+
+`config show` and `auth status` both render `Team Name` and `Team Role` rows in addition to the bare id, falling back to a faint `(unavailable)` hint when offline so `config show` stays useful when the network or API key is degraded. The role lookup uses the same `internal/teams.GetMyRoleOnTeam` helper across all three surfaces so `team list`, `auth status`, and the Connection pane's scope row never disagree.
+
+The first-run team picker fires only in two places: `truestamp team set` with no arg, and `truestamp console` launch when `cfg.Team` is empty *and* stdin is a TTY. Other commands keep their current pipe-friendly behaviour (read `cfg.Team` and call the API). Picking "Personal" stores the personal team's UUID explicitly so subsequent requests carry the `tenant` header instead of relying on the server's personal-team auto-fallback.
+
+The CLI does **not** create teams. `team list`'s empty-state and the "no memberships" picker render a hint pointing at the public-web `/teams` URL — creation lives in the web app today.
 
 ## Relationship to the Truestamp service
 

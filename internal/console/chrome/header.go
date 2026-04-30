@@ -36,6 +36,7 @@ const (
 type HeaderInput struct {
 	Width      int
 	Tabs       []TabItem
+	Team       string     // optional active team label, rendered to the left of the status pill so the user can see scope on every pane
 	Status     string     // primary status text (e.g. "connected • pro • 7 streams")
 	StatusKind StatusKind // colors the status pill
 	Clock      string     // optional trailing server-time, faint-styled
@@ -57,7 +58,7 @@ func Render(in HeaderInput) string {
 	}
 
 	tabBar := renderTabs(in.Tabs, in.Theme)
-	right := renderStatus(in.Status, in.StatusKind, in.Clock, in.Theme)
+	right := renderStatus(in.Team, in.Status, in.StatusKind, in.Clock, in.Theme)
 
 	leftWidth := lipgloss.Width(tabBar)
 	rightWidth := lipgloss.Width(right)
@@ -117,7 +118,7 @@ func numberGlyph(n int) string {
 	return ""
 }
 
-func renderStatus(status string, kind StatusKind, clock string, theme *Theme) string {
+func renderStatus(team, status string, kind StatusKind, clock string, theme *Theme) string {
 	var styled string
 	switch kind {
 	case StatusKindOK:
@@ -130,10 +131,17 @@ func renderStatus(status string, kind StatusKind, clock string, theme *Theme) st
 		styled = theme.StatusPill.Render(status)
 	}
 
-	if clock == "" {
-		return styled
-	}
-
 	sep := theme.HeaderUnderln.Render(" • ")
-	return styled + sep + theme.HeaderUnderln.Render(clock)
+	parts := []string{}
+	if team != "" {
+		// Team label rendered in the same faint underline color as
+		// the clock so the eye still parks on the colored status
+		// pill, not the surrounding context labels.
+		parts = append(parts, theme.HeaderUnderln.Render(team))
+	}
+	parts = append(parts, styled)
+	if clock != "" {
+		parts = append(parts, theme.HeaderUnderln.Render(clock))
+	}
+	return strings.Join(parts, sep)
 }

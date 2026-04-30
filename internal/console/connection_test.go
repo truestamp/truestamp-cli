@@ -18,7 +18,7 @@ import (
 func TestRenderErrorSectionShowsFriendlyContent(t *testing.T) {
 	t.Parallel()
 
-	m := newConnectionModel("/tmp/log", "/home/alice/.config/truestamp/config.toml", nil)
+	m := newConnectionModel("/tmp/log", "/home/alice/.config/truestamp/config.toml", nil, &activeScope{})
 	m.setConnError(
 		errors.New(`dial: failed to WebSocket dial: failed to send handshake request: Get "ws://localhost:9999/console/websocket": dial tcp [::1]:9999: connect: connection refused`),
 		"ws://localhost:9999/console/websocket",
@@ -69,7 +69,7 @@ func TestRenderErrorSectionShowsFriendlyContent(t *testing.T) {
 func TestRenderErrorSectionAuthFailure(t *testing.T) {
 	t.Parallel()
 
-	m := newConnectionModel("", "", nil)
+	m := newConnectionModel("", "", nil, &activeScope{})
 	m.setConnError(
 		errors.New(`dial: failed to WebSocket dial: expected handshake response status code 101 but got 401`),
 		"wss://www.truestamp.com/console/websocket",
@@ -98,7 +98,7 @@ func TestRenderErrorSectionAuthFailure(t *testing.T) {
 func TestViewSwitchesToErrorOnlyWhenSet(t *testing.T) {
 	t.Parallel()
 
-	m := newConnectionModel("", "", nil)
+	m := newConnectionModel("", "", nil, &activeScope{})
 	healthy := stripANSI(m.View(120, 30))
 	if !strings.Contains(healthy, "Scope") {
 		t.Errorf("healthy pane missing Scope section: %s", healthy)

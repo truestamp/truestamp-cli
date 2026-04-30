@@ -12,14 +12,36 @@ import (
 	"strings"
 )
 
-// apiKeyLineRe matches a top-level `api_key = "..."` TOML assignment.
-var apiKeyLineRe = regexp.MustCompile(`^(\s*)api_key(\s*)=(\s*).*$`)
+// keyLineRe builds a regex matching a top-level `<key> = ...` TOML line.
+// Used by replaceTopLevelKey to find and rewrite a specific assignment
+// outside any [section] header.
+func keyLineRe(key string) *regexp.Regexp {
+	return regexp.MustCompile(`^(\s*)` + regexp.QuoteMeta(key) + `(\s*)=(\s*).*$`)
+}
 
 // SetAPIKey writes key as the top-level api_key value in the user's config
 // file, preserving comments and other settings. Creates the file from the
 // embedded default if it does not yet exist, and tightens permissions to
 // 0600 because the file now contains a secret.
 func SetAPIKey(key string) error {
+	return setTopLevelString("api_key", key, 0600)
+}
+
+// SetTeam writes id as the top-level team value in the user's config
+// file, preserving comments and other settings. Creates the file from
+// the embedded default if it does not yet exist. Permissions are kept
+// at 0600 to match SetAPIKey — the file co-exists with the api_key
+// secret, so a less-tight regime would only loosen security on the
+// shared file.
+func SetTeam(id string) error {
+	return setTopLevelString("team", id, 0600)
+}
+
+// setTopLevelString is the shared write path used by SetAPIKey + SetTeam.
+// It reads the existing file (creating from the embedded default if
+// missing), rewrites a single top-level assignment, and writes the
+// result with the given permissions.
+func setTopLevelString(key, value string, perm os.FileMode) error {
 	if _, err := EnsureDefaultConfig(); err != nil {
 		return err
 	}
@@ -30,26 +52,35 @@ func SetAPIKey(key string) error {
 		return fmt.Errorf("reading config: %w", err)
 	}
 
-	replaced, err := replaceTopLevelAPIKey(contents, key)
+	replaced, err := replaceTopLevelKey(contents, key, value)
 	if err != nil {
 		return err
 	}
 
-	if err := os.WriteFile(path, replaced, 0600); err != nil {
+	if err := os.WriteFile(path, replaced, perm); err != nil {
 		return fmt.Errorf("writing config: %w", err)
 	}
-	if err := os.Chmod(path, 0600); err != nil {
+	if err := os.Chmod(path, perm); err != nil {
 		return fmt.Errorf("securing config: %w", err)
 	}
 	return nil
 }
 
-// replaceTopLevelAPIKey finds the `api_key` assignment in the top-level
+// replaceTopLevelAPIKey is kept as a thin pass-through for the existing
+// test suite. New code should call replaceTopLevelKey directly.
+func replaceTopLevelAPIKey(contents []byte, key string) ([]byte, error) {
+	return replaceTopLevelKey(contents, "api_key", key)
+}
+
+// replaceTopLevelKey finds the `<key>` assignment in the top-level
 // TOML section and rewrites it. If no such line exists, a new line is
 // inserted just before the first `[section]` header, or appended if the
-// file has no sections.
-func replaceTopLevelAPIKey(contents []byte, key string) ([]byte, error) {
-	newLine := fmt.Sprintf("api_key = %s", tomlQuote(key))
+// file has no sections. Lines inside any `[section]` are never touched
+// — `api_key = "..."` inside `[verify]` would be a different setting
+// even though it shares a name.
+func replaceTopLevelKey(contents []byte, key, value string) ([]byte, error) {
+	newLine := fmt.Sprintf("%s = %s", key, tomlQuote(value))
+	re := keyLineRe(key)
 
 	var out bytes.Buffer
 	scanner := bufio.NewScanner(bytes.NewReader(contents))
@@ -75,7 +106,7 @@ func replaceTopLevelAPIKey(contents []byte, key string) ([]byte, error) {
 			continue
 		}
 
-		if inTopLevel && !replaced && apiKeyLineRe.MatchString(line) {
+		if inTopLevel && !replaced && re.MatchString(line) {
 			out.WriteString(newLine)
 			out.WriteByte('\n')
 			replaced = true
