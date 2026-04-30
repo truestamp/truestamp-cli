@@ -17,6 +17,7 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/truestamp/truestamp-cli/internal/config"
 	"github.com/truestamp/truestamp-cli/internal/httpclient"
+	"github.com/truestamp/truestamp-cli/internal/teams"
 	"github.com/truestamp/truestamp-cli/internal/ui"
 )
 
@@ -243,10 +244,20 @@ func runAuthStatus(cmd *cobra.Command, _ []string) error {
 			fmt.Fprintln(out, labelStyle.Render(fmt.Sprintf("    HTTP %d — the team id may be wrong, or this user is not a member.", teamResult.httpStatus)))
 			return errSilentFail
 		}
+		// Best-effort role lookup. We've already proven the team is
+		// accessible; if the membership endpoint is degraded we still
+		// want to render the success banner with id+name. Soft-fail
+		// the role specifically.
+		role, _ := teams.GetMyRoleOnTeam(ctx, teams.Config{
+			APIURL: apiURL, APIKey: cfg.APIKey, Team: cfg.Team,
+		}, cfg.Team)
+		teamResult.role = role
 	}
 
 	fmt.Fprintln(out, ui.SuccessBanner("Authenticated as "+formatUserIdentity(userResult)))
-	fmt.Fprintln(out, labelStyle.Render("    Team: "+formatTeam(cfg.Team, teamResult)))
+	for _, line := range formatTeamLines(cfg.Team, teamResult) {
+		fmt.Fprintln(out, labelStyle.Render("    "+line))
+	}
 	return nil
 }
 
@@ -266,6 +277,8 @@ func formatUserIdentity(r *authCheckResult) string {
 }
 
 // formatTeam renders the resolved team context shown on success.
+// Retained for the pre-existing single-line consumers (none after the
+// refactor below, but kept callable so external tests don't break).
 func formatTeam(teamID string, r *teamCheckResult) string {
 	if teamID == "" {
 		return "personal team (no tenant header sent)"
@@ -278,6 +291,29 @@ func formatTeam(teamID string, r *teamCheckResult) string {
 		label += " (personal)"
 	}
 	return fmt.Sprintf("%s  [%s]", label, teamID)
+}
+
+// formatTeamLines renders the team context as up-to-three lines for
+// the success-banner subblock: id, name (with optional `(personal)`
+// suffix), and role. Returns a single-line fallback when no team is
+// configured. Empty/unknown fields are skipped so the output stays
+// dense — we never render `Team Role: (unknown)`.
+func formatTeamLines(teamID string, r *teamCheckResult) []string {
+	if teamID == "" {
+		return []string{"Team: personal team (no tenant header sent)"}
+	}
+	out := []string{"Team Id:   " + teamID}
+	if r != nil && r.name != "" {
+		name := r.name
+		if r.personal {
+			name += " (personal)"
+		}
+		out = append(out, "Team Name: "+name)
+	}
+	if r != nil && r.role != "" {
+		out = append(out, "Team Role: "+teams.FormatRole(r.role))
+	}
+	return out
 }
 
 // authCheckResult summarizes the outcome of the /users probe.
@@ -293,11 +329,16 @@ type authCheckResult struct {
 
 // teamCheckResult summarizes the outcome of the /teams/{id} probe. found
 // is true only on a 2xx response; 401/403/404 all return found=false.
+// role is populated by a parallel call to /memberships?filter[team_id]
+// — empty when the lookup failed or no membership exists. The empty-
+// string fallback degrades cleanly: the success banner still renders,
+// just without the role row.
 type teamCheckResult struct {
 	found      bool
 	httpStatus int
 	name       string
 	personal   bool
+	role       string
 	message    string
 }
 

@@ -144,6 +144,127 @@ func TestSetAPIKey_ReadError(t *testing.T) {
 	}
 }
 
+func TestReplaceTopLevelKey_GenericKeyReplace(t *testing.T) {
+	in := []byte(`base_url = "https://www.truestamp.com"
+api_key = "sekrit"
+team = "old-team"
+
+[verify]
+team = "should-not-touch"
+`)
+	out, err := replaceTopLevelKey(in, "team", "new-team-id")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	s := string(out)
+	if !strings.Contains(s, `team = "new-team-id"`) {
+		t.Errorf("expected replaced team line, got:\n%s", s)
+	}
+	if !strings.Contains(s, `team = "should-not-touch"`) {
+		t.Errorf("must not rewrite team inside [verify] section, got:\n%s", s)
+	}
+	if !strings.Contains(s, `api_key = "sekrit"`) {
+		t.Errorf("api_key must be untouched, got:\n%s", s)
+	}
+}
+
+func TestReplaceTopLevelKey_PreservesAPIKeyTests(t *testing.T) {
+	// Confirm the refactored replaceTopLevelKey routes the api_key
+	// path identically to the historical behavior covered by the
+	// `replaceTopLevelAPIKey` tests above.
+	in := []byte(`api_key = ""
+team = ""
+`)
+	out, err := replaceTopLevelKey(in, "api_key", "ts_xyz")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !strings.Contains(string(out), `api_key = "ts_xyz"`) {
+		t.Errorf("api_key path regressed: %s", out)
+	}
+}
+
+func TestSetTeam_EndToEnd(t *testing.T) {
+	dir := t.TempDir()
+	t.Setenv("XDG_CONFIG_HOME", dir)
+	t.Setenv("HOME", dir)
+
+	teamID := "019dbd00-0000-7000-8000-000000000000"
+	if err := SetTeam(teamID); err != nil {
+		t.Fatalf("SetTeam: %v", err)
+	}
+
+	path := ConfigFilePath()
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("read: %v", err)
+	}
+	if !strings.Contains(string(data), `team = "`+teamID+`"`) {
+		t.Errorf("written config missing team, got:\n%s", data)
+	}
+
+	// Permissions match SetAPIKey — file co-exists with the api_key
+	// secret so 0600 is the right floor.
+	info, err := os.Stat(path)
+	if err != nil {
+		t.Fatalf("stat: %v", err)
+	}
+	if mode := info.Mode().Perm(); mode != 0600 {
+		t.Errorf("expected 0600 permissions, got %o", mode)
+	}
+
+	// Clearing leaves the file intact with an empty team.
+	if err := SetTeam(""); err != nil {
+		t.Fatalf("SetTeam empty: %v", err)
+	}
+	data2, _ := os.ReadFile(path)
+	if !strings.Contains(string(data2), `team = ""`) {
+		t.Errorf("cleared config missing empty team, got:\n%s", data2)
+	}
+}
+
+func TestSetTeam_PreservesOtherSettings(t *testing.T) {
+	dir := t.TempDir()
+	t.Setenv("XDG_CONFIG_HOME", dir)
+	t.Setenv("HOME", dir)
+
+	// Pre-populate the file with a custom api_key and a non-default
+	// section setting; SetTeam must touch only the team line.
+	cfgDir := filepath.Join(dir, "truestamp")
+	if err := os.MkdirAll(cfgDir, 0755); err != nil {
+		t.Fatal(err)
+	}
+	original := `base_url = "https://www.truestamp.com"
+api_key = "my-secret-key"
+team = "old-team"
+
+[verify]
+silent = true
+`
+	if err := os.WriteFile(filepath.Join(cfgDir, "config.toml"), []byte(original), 0600); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := SetTeam("new-team-id"); err != nil {
+		t.Fatalf("SetTeam: %v", err)
+	}
+
+	data, err := os.ReadFile(filepath.Join(cfgDir, "config.toml"))
+	if err != nil {
+		t.Fatalf("read: %v", err)
+	}
+	got := string(data)
+	if !strings.Contains(got, `api_key = "my-secret-key"`) {
+		t.Errorf("api_key clobbered: %s", got)
+	}
+	if !strings.Contains(got, `team = "new-team-id"`) {
+		t.Errorf("team not updated: %s", got)
+	}
+	if !strings.Contains(got, "silent = true") {
+		t.Errorf("verify.silent clobbered: %s", got)
+	}
+}
+
 func TestSetAPIKey_EndToEnd(t *testing.T) {
 	dir := t.TempDir()
 	t.Setenv("XDG_CONFIG_HOME", dir)

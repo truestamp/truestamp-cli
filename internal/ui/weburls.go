@@ -97,3 +97,25 @@ func BeaconDetailURL(apiURL, hash string) string {
 func BeaconVerifyURL(apiURL, id string) string {
 	return SubjectVerifyURL(apiURL, "beacon", id)
 }
+
+// TeamDetailURL returns the public-web team detail page URL,
+// `{host}/teams/<id>`. Used by `truestamp team show` and the empty-
+// state hint of `truestamp team list`.
+func TeamDetailURL(apiURL, teamID string) string {
+	base := publicWebBase(apiURL)
+	if base == "" || teamID == "" {
+		return ""
+	}
+	return base + "/teams/" + teamID
+}
+
+// TeamCreateURL returns the public-web URL the user should visit to
+// create a new team. The CLI uses this in the empty-state hint of
+// `truestamp team list` because team creation is web-only today.
+func TeamCreateURL(apiURL string) string {
+	base := publicWebBase(apiURL)
+	if base == "" {
+		return ""
+	}
+	return base + "/teams"
+}

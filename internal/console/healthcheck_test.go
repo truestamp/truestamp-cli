@@ -173,7 +173,7 @@ func TestRenderHealthSection_IconsAndDetails(t *testing.T) {
 		{Name: "Down host", URL: "http://down.example"},
 		{Name: "Pending", URL: "http://slow.example"},
 	}
-	m := newConnectionModel("", "", targets)
+	m := newConnectionModel("", "", targets, &activeScope{})
 	m.healthResults[0].State = healthOK
 	m.healthResults[0].Latency = 42_000_000 // 42ms in nanoseconds
 	m.healthResults[1].State = healthDegraded
@@ -208,7 +208,7 @@ func TestRenderHealthSection_IconsAndDetails(t *testing.T) {
 func TestCanRunManualHealthCheckThrottles(t *testing.T) {
 	t.Parallel()
 
-	m := newConnectionModel("", "", []HealthTarget{{Name: "x", URL: "http://x"}})
+	m := newConnectionModel("", "", []HealthTarget{{Name: "x", URL: "http://x"}}, &activeScope{})
 	if !m.canRunManualHealthCheck() {
 		t.Errorf("zero-value lastHealthRunAt should always allow a manual run")
 	}

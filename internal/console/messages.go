@@ -92,6 +92,79 @@ type healthCheckResultMsg struct {
 // pane stops returning the tick command.
 type healthCheckTickMsg struct{}
 
+// teamMembershipsMsg carries the result of an asynchronous
+// `GET /memberships` fetch from the Teams pane. Sent both at console
+// startup (to populate the membership list) and on manual refresh.
+// On error, Memberships is nil and Err is non-nil.
+type teamMembershipsMsg struct {
+	Memberships []teamRow
+	Err         error
+}
+
+// teamAccessMsg carries the on-startup access check for the
+// configured team: did the user lose membership, and if not, what's
+// the role + team name to display? Empty TeamID means no team was
+// configured (i.e. the check didn't run).
+type teamAccessMsg struct {
+	TeamID   string
+	Found    bool
+	Name     string
+	Role     string
+	Personal bool
+	Err      error
+}
+
+// teamSwitchedMsg fires after a successful `scope.switch_team` channel
+// push. Carries the new welcome-shaped reply so the root model can
+// update m.welcome and propagate the new context to every dependent
+// pane in one place.
+//
+// Silent suppresses the in-pane "Switched to X" notice. Set when the
+// switch was an automatic alignment fired by applyWelcomeToScope to
+// reconcile the server-side default scope (always Personal at WS
+// connect time) with the user's persisted config preference — that
+// reconciliation is supposed to be invisible. User-initiated
+// switches (enter on a row) leave Silent false so the user gets the
+// confirmation feedback.
+type teamSwitchedMsg struct {
+	Reply  *teamSwitchReply
+	Silent bool
+}
+
+// teamSwitchFailedMsg fires when the channel push returned an error.
+// The pane renders the error code + message in red without persisting
+// the change to config.
+type teamSwitchFailedMsg struct {
+	TeamID  string
+	Code    string
+	Message string
+}
+
+// teamRow is the in-pane projection of a membership: just the
+// fields rendered in the table. Decouples the pane from the
+// internal/teams package's wire shape so test fixtures stay tight.
+type teamRow struct {
+	TeamID   string
+	Name     string
+	Role     string
+	Personal bool
+}
+
+// teamSwitchReply mirrors the wschannel.SwitchTeamReply struct without
+// importing it into messages.go (which would create an import cycle in
+// some test layouts). The pane code converts at the boundary.
+type teamSwitchReply struct {
+	UserID         string
+	TeamID         string
+	Plan           string
+	TeamName       string
+	TeamPersonal   bool
+	OwnershipModel string
+	Role           string
+	CatalogStreams []string
+	ItemStreams    []string
+}
+
 // Welcome is the parsed shape of the join reply for `console:lobby`.
 type Welcome struct {
 	Scope   ScopeSummary `json:"scope"`
