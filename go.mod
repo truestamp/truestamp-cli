@@ -9,7 +9,7 @@ require (
 	github.com/btcsuite/btcd/chaincfg/chainhash v1.1.0
 	github.com/catppuccin/go v0.3.0
 	github.com/charmbracelet/colorprofile v0.4.3
-	github.com/fxamacker/cbor/v2 v2.9.1
+	github.com/fxamacker/cbor/v2 v2.9.2
 	github.com/gofrs/uuid/v5 v5.4.0
 	github.com/gowebpki/jcs v1.0.1
 	github.com/knadh/koanf/parsers/toml/v2 v2.2.0
