@@ -286,3 +286,126 @@ func TestValidateHashEnforcesAllThreeChecks(t *testing.T) {
 		})
 	}
 }
+
+// --- Claims-as-source-of-truth mode ---
+
+// TestValidateDescription_ExternalMode_AlwaysOK confirms the description
+// validator is a no-op in external-hash mode regardless of length.
+func TestValidateDescription_ExternalMode_AlwaysOK(t *testing.T) {
+	t.Parallel()
+
+	mode := formModeExternal
+	validate := validateDescription(&mode)
+
+	for _, in := range []string{"", "short", strings.Repeat("x", 1000)} {
+		if err := validate(in); err != nil {
+			t.Errorf("external mode should accept any description, rejected %q: %v", in, err)
+		}
+	}
+}
+
+// TestValidateDescription_ClaimsOnly_RejectsShort confirms the local
+// meaningful-content rule fires in claims-content mode when the
+// description is too short.
+func TestValidateDescription_ClaimsOnly_RejectsShort(t *testing.T) {
+	t.Parallel()
+
+	mode := formModeClaimsOnly
+	validate := validateDescription(&mode)
+
+	tooShort := []string{
+		"",
+		"x",
+		strings.Repeat("x", claimsOnlyMinDescription-1),
+		"   " + strings.Repeat("x", claimsOnlyMinDescription-1) + "   ", // padded whitespace
+	}
+	for _, in := range tooShort {
+		if err := validate(in); err == nil {
+			t.Errorf("claims-only mode should reject %q (trimmed len %d)", in, len(strings.TrimSpace(in)))
+		}
+	}
+}
+
+// TestValidateDescription_ClaimsOnly_AcceptsLong confirms a description
+// at or above the threshold passes the claims-content validator.
+func TestValidateDescription_ClaimsOnly_AcceptsLong(t *testing.T) {
+	t.Parallel()
+
+	mode := formModeClaimsOnly
+	validate := validateDescription(&mode)
+
+	atThreshold := strings.Repeat("x", claimsOnlyMinDescription)
+	if err := validate(atThreshold); err != nil {
+		t.Errorf("exactly %d chars should pass, got %v", claimsOnlyMinDescription, err)
+	}
+	above := "On this day I claim the following novel approach as my own original work."
+	if err := validate(above); err != nil {
+		t.Errorf("above-threshold description should pass, got %v", err)
+	}
+}
+
+// TestBuildCreateItemPayload_External includes hash + hash_type in the
+// outgoing payload, lowercased and whitespace-trimmed.
+func TestBuildCreateItemPayload_External(t *testing.T) {
+	t.Parallel()
+
+	payload := buildCreateItemPayload(formModeExternal, "  Doc  ", "  some context  ",
+		"  ABCDEF"+strings.Repeat("0", 58)+"  ", "sha256")
+
+	if payload["name"] != "Doc" {
+		t.Errorf("name should be trimmed, got %q", payload["name"])
+	}
+	if payload["description"] != "some context" {
+		t.Errorf("description should be trimmed, got %q", payload["description"])
+	}
+	if h, ok := payload["hash"].(string); !ok || h != "abcdef"+strings.Repeat("0", 58) {
+		t.Errorf("hash should be lowercased + trimmed, got %v", payload["hash"])
+	}
+	if payload["hash_type"] != "sha256" {
+		t.Errorf("hash_type should be set, got %v", payload["hash_type"])
+	}
+	if payload["watch"] != true {
+		t.Errorf("watch should be true, got %v", payload["watch"])
+	}
+}
+
+// TestBuildCreateItemPayload_ClaimsOnly omits hash + hash_type so the
+// server treats them as cleanly absent (claims-as-source-of-truth mode).
+func TestBuildCreateItemPayload_ClaimsOnly(t *testing.T) {
+	t.Parallel()
+
+	payload := buildCreateItemPayload(formModeClaimsOnly, "Invention",
+		"On this day I claim the following novel approach.", "", "")
+
+	if _, has := payload["hash"]; has {
+		t.Errorf("claims-only payload must not carry hash key, got: %v", payload)
+	}
+	if _, has := payload["hash_type"]; has {
+		t.Errorf("claims-only payload must not carry hash_type key, got: %v", payload)
+	}
+	if payload["name"] != "Invention" {
+		t.Errorf("name should be present, got %v", payload["name"])
+	}
+	if payload["watch"] != true {
+		t.Errorf("watch should be true, got %v", payload["watch"])
+	}
+}
+
+// TestBuildCreateItemPayload_ClaimsOnly_IgnoresHashFields confirms that
+// even if the form fields somehow carry stale hash values (e.g. user
+// flipped from external to claims-only mid-form), claims-only mode
+// strips them before sending — the mode bit is the only thing that
+// gates these fields server-side.
+func TestBuildCreateItemPayload_ClaimsOnly_IgnoresHashFields(t *testing.T) {
+	t.Parallel()
+
+	payload := buildCreateItemPayload(formModeClaimsOnly, "Doc", "Long enough description content.",
+		"deadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeef", "sha256")
+
+	if _, has := payload["hash"]; has {
+		t.Errorf("claims-only payload must drop stale hash, got: %v", payload)
+	}
+	if _, has := payload["hash_type"]; has {
+		t.Errorf("claims-only payload must drop stale hash_type, got: %v", payload)
+	}
+}

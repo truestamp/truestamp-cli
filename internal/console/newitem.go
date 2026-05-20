@@ -90,6 +90,22 @@ func lookupHashType(value string) *hashTypeOption {
 	return nil
 }
 
+// Submission-mode wire values for the form. Must match the mode
+// semantics in cmd/create.go: external-hash mode sends claims.hash +
+// claims.hash_type; claims-only mode omits both and timestamps the
+// claims content itself.
+const (
+	formModeExternal   = "external"
+	formModeClaimsOnly = "claims_only"
+)
+
+// claimsOnlyMinDescription is the minimum description length (in
+// non-whitespace characters after trimming) for claims-only submissions.
+// Mirrors the server-side threshold enforced in
+// lib/truestamp/items/validations/validate_claims_only_content.ex and the
+// matching CLI constant in cmd/create.go.
+const claimsOnlyMinDescription = 32
+
 // newItemModel implements the form pane. The form fields are owned by
 // a huh.Form so tab/shift-tab navigation, validators, and field
 // chrome are all standard charm widgets — no hand-rolled textinput
@@ -106,6 +122,7 @@ type newItemModel struct {
 
 	// Form values bound to the huh.Form fields. Filled by the form's
 	// own bindings (Value(&...)).
+	formMode        string // formModeExternal | formModeClaimsOnly
 	formName        string
 	formDescription string
 	formHash        string
@@ -158,6 +175,7 @@ func newNewItemModel(client *wschannel.Client) *newItemModel {
 	m := &newItemModel{
 		client:       client,
 		state:        formEntering,
+		formMode:     formModeExternal,
 		formHashType: "sha256",
 	}
 	m.form = m.makeForm()
@@ -169,16 +187,34 @@ func newNewItemModel(client *wschannel.Client) *newItemModel {
 // at the offending field and keeps focus there until it's resolved
 // — that's the bubbles/huh native UX.
 //
-// Field order matters. The cross-field dependency (Hash length
-// depends on Hash type) is resolved by putting Hash type BEFORE
-// Hash: the user picks an algorithm first, then provides a digest
-// for it. If they change their mind about the algorithm they can
-// shift+tab back to Hash type — Prev navigation is never blocked
-// by huh, only Next/Submit is, so the form never deadlocks the way
-// it would if Hash came before Hash type.
+// The form is split into two huh groups so the hash fields can be
+// hidden in claims-as-source-of-truth mode:
+//
+//   - Group A (always shown): Submission mode, Name, Description.
+//   - Group B (only when external-hash mode is selected): Hash type,
+//     Hash. WithHideFunc skips the whole group when the user picks
+//     "Claims content as source" on the mode field, so the user
+//     never has to fill or skip past hash inputs in that mode.
+//
+// Field order within Group B matters. The cross-field dependency
+// (Hash length depends on Hash type) is resolved by putting Hash type
+// BEFORE Hash: the user picks an algorithm first, then provides a
+// digest for it. Prev navigation is never blocked by huh, only
+// Next/Submit is, so the form never deadlocks if they change their
+// mind.
 func (m *newItemModel) makeForm() *huh.Form {
 	form := huh.NewForm(
 		huh.NewGroup(
+			huh.NewSelect[string]().
+				Title("Submission mode").
+				Description("External hash timestamps a hash of a file you keep locally. "+
+					"Claims content timestamps the claims object itself (no external file).").
+				Options(
+					huh.NewOption("External hash", formModeExternal),
+					huh.NewOption("Claims content as source of truth", formModeClaimsOnly),
+				).
+				Value(&m.formMode),
+
 			huh.NewInput().
 				Title("Name").
 				Description("Required. Free-form label, ≤ 200 chars.").
@@ -188,10 +224,12 @@ func (m *newItemModel) makeForm() *huh.Form {
 
 			huh.NewText().
 				Title("Description").
-				Description("Optional context for the item.").
+				DescriptionFunc(descriptionFieldHint(&m.formMode), &m.formMode).
 				CharLimit(1000).
+				Validate(validateDescription(&m.formMode)).
 				Value(&m.formDescription),
-
+		),
+		huh.NewGroup(
 			huh.NewSelect[string]().
 				Title("Hash type").
 				Description("Selects which algorithm produced the hash; sets the expected hex length.").
@@ -204,11 +242,49 @@ func (m *newItemModel) makeForm() *huh.Form {
 				CharLimit(128).
 				Validate(validateHash(&m.formHashType)).
 				Value(&m.formHash),
-		),
+		).WithHideFunc(func() bool {
+			// Skip the hash group entirely in claims-only mode.
+			return m.formMode != formModeExternal
+		}),
 	).
 		WithShowHelp(false). // we render help in the page footer
 		WithShowErrors(true)
 	return form
+}
+
+// descriptionFieldHint returns a dynamic description for the
+// Description field. In external-hash mode it stays optional; in
+// claims-as-source-of-truth mode it surfaces the 32-char rule so the
+// user sees it before they hit submit.
+func descriptionFieldHint(mode *string) func() string {
+	return func() string {
+		if mode != nil && *mode == formModeClaimsOnly {
+			return fmt.Sprintf(
+				"In claims-content mode the description IS the data being timestamped. "+
+					"Required: at least %d non-whitespace characters.",
+				claimsOnlyMinDescription)
+		}
+		return "Optional context for the item."
+	}
+}
+
+// validateDescription enforces the meaningful-content rule for
+// claims-only mode locally so users see the error inline instead of
+// after a network round-trip. In external-hash mode the description
+// is unconditionally optional.
+func validateDescription(mode *string) func(string) error {
+	return func(s string) error {
+		if mode == nil || *mode != formModeClaimsOnly {
+			return nil
+		}
+		trimmed := strings.TrimSpace(s)
+		if len(trimmed) < claimsOnlyMinDescription {
+			return fmt.Errorf(
+				"description must be at least %d characters in claims-content mode (got %d)",
+				claimsOnlyMinDescription, len(trimmed))
+		}
+		return nil
+	}
 }
 
 // hashTypeSelectOptions converts the canonical hashTypeOptions slice
@@ -294,6 +370,7 @@ func (m *newItemModel) Update(msg tea.Msg) (*newItemModel, tea.Cmd) {
 	case resetFormMsg:
 		m.created = nil
 		m.transitions = nil
+		m.formMode = formModeExternal
 		m.formName = ""
 		m.formDescription = ""
 		m.formHash = ""
@@ -349,15 +426,25 @@ func (m *newItemModel) Update(msg tea.Msg) (*newItemModel, tea.Cmd) {
 	return m, cmd
 }
 
-func (m *newItemModel) submit() tea.Cmd {
-	client := m.client
+// buildCreateItemPayload builds the items.create wire payload from form
+// state. In claims-only mode the hash + hash_type keys are omitted (not
+// set to empty strings) so the server treats them as cleanly absent.
+func buildCreateItemPayload(mode, name, description, hash, hashType string) map[string]any {
 	payload := map[string]any{
-		"name":        strings.TrimSpace(m.formName),
-		"description": strings.TrimSpace(m.formDescription),
-		"hash":        strings.ToLower(strings.TrimSpace(m.formHash)),
-		"hash_type":   m.formHashType,
+		"name":        strings.TrimSpace(name),
+		"description": strings.TrimSpace(description),
 		"watch":       true,
 	}
+	if mode == formModeExternal {
+		payload["hash"] = strings.ToLower(strings.TrimSpace(hash))
+		payload["hash_type"] = hashType
+	}
+	return payload
+}
+
+func (m *newItemModel) submit() tea.Cmd {
+	client := m.client
+	payload := buildCreateItemPayload(m.formMode, m.formName, m.formDescription, m.formHash, m.formHashType)
 
 	return func() tea.Msg {
 		ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
@@ -515,12 +602,17 @@ func (m *newItemModel) renderWatching(width, height int) string {
 			wrap:  descWrapWidth,
 		})
 	}
-	fields = append(fields,
-		cardField{label: "State", value: stateStyle.Render(currentState)},
-		cardField{label: "Hash type", value: displayHashType(m.created.Claims.HashType)},
-		cardField{label: "Hash", value: m.created.Claims.Hash},
-		cardField{label: "Item hash", value: m.created.ItemHash},
-	)
+	fields = append(fields, cardField{label: "State", value: stateStyle.Render(currentState)})
+	// Hash type and Hash are only meaningful in external-hash mode. For
+	// claims-as-source-of-truth items the server returns no hash, so
+	// rendering empty rows would be misleading — omit them entirely.
+	if h := strings.TrimSpace(m.created.Claims.Hash); h != "" {
+		fields = append(fields,
+			cardField{label: "Hash type", value: displayHashType(m.created.Claims.HashType)},
+			cardField{label: "Hash", value: h},
+		)
+	}
+	fields = append(fields, cardField{label: "Item hash", value: m.created.ItemHash})
 
 	var sb strings.Builder
 	sb.WriteString(title + "\n\n")

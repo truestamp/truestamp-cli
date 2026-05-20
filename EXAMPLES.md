@@ -189,6 +189,24 @@ truestamp verify contract.proof.json
 
 Submit a new timestamp item. Needs `--api-key` (via flag, env, or config).
 
+Truestamp supports two submission modes. Both produce
+byte-shape-identical proofs; the only wire-level difference is
+whether `claims.hash` / `claims.hash_type` are populated.
+
+* **External-hash mode** — for files you keep on your own device.
+  The file's SHA-256 is submitted; the file itself never leaves your
+  machine.
+* **Claims-as-source-of-truth mode** — for things that don't have a
+  file (statements, invention disclosures, dated facts, release
+  notes). The claims content is what gets timestamped, so there's
+  nothing to preserve alongside the proof.
+
+The `--hash` and `--hash-type` flags are co-required: both supplied
+together (external-hash mode) or both omitted (claims-as-source-of-
+truth mode). Submitting exactly one is rejected.
+
+### External-hash mode
+
 ```sh
 # Hash a file and submit in one step (filename becomes the item name,
 # SHA-256 becomes the hash)
@@ -223,6 +241,64 @@ truestamp create contract.pdf \
   --tags legal,q2 \
   --visibility private
 ```
+
+### Claims-as-source-of-truth mode
+
+The claims content IS the timestamped data, so the server requires
+the submission to carry meaningful content. Either:
+
+* `claims.description` of at least 32 non-whitespace characters
+  (after trimming), or
+* a non-empty `claims.metadata` object.
+
+The CLI enforces this locally before any network round-trip.
+
+```sh
+# Simplest claims-only submission — name plus a description
+truestamp create -n "Invention" \
+  -d "On this day I claim the following novel approach as my own original work."
+
+# Same, machine-readable. hash / hash_type keys are omitted from the
+# JSON output entirely (use jq 'has("hash")' to branch on the mode).
+truestamp create -n "Invention" -d "..." --json
+
+# Metadata escape hatch — no long description needed if metadata
+# carries the content
+truestamp create -n "Release v1.2" \
+  --metadata '{"version":"1.2.0","sha":"deadbeef","notes":"…"}'
+
+# Claims JSON file with no hash/hash_type — the server treats both as
+# absent and the proof commits to the claims bytes directly
+truestamp create --claims claim-only.json
+```
+
+A claims-only `claim-only.json` looks like:
+
+```json
+{
+  "name": "Invention",
+  "description": "On this day I claim the following novel approach as my own original work.",
+  "timestamp": "2026-05-20T15:00:00Z"
+}
+```
+
+Note that `hash` and `hash_type` are absent. If your file carries
+those keys, you're in external-hash mode and the values must satisfy
+the usual hex/length checks.
+
+### Common errors
+
+| You did this                                          | You'll see                                                          |
+| ----------------------------------------------------- | ------------------------------------------------------------------- |
+| `--hash-type sha256` without `--hash`                 | `hash is required when hash_type is supplied`                       |
+| `--hash …` without `--hash-type` in a claims file     | `hash_type is required when hash is supplied`                       |
+| Claims-only with short description, no metadata       | `claims content is required: provide --description of at least 32…` |
+| Claims-only with > plan-budget bytes                  | `Claims content size (…) exceeds the team owner's plan limit of …`  |
+| `--metadata 'not json'`                               | `--metadata must be valid JSON`                                     |
+
+The plan-budget error comes back from the server (the CLI can't
+predict the team owner's plan locally); the others are caught
+client-side before any network round-trip.
 
 ---
 
@@ -883,6 +959,13 @@ actual="$(truestamp hash -a sha256 --style bare contract.pdf)"
 [ "$expected" = "$actual" ] && echo "match" || echo "MISMATCH"
 ```
 
+This recipe is **external-hash mode only**. For
+claims-as-source-of-truth proofs there's no separate file to
+compare — the claims content itself is what the proof commits to.
+You can spot a claims-only proof at a glance with
+`jq 'has("hash") | not' < <(jq .s.d proof.json)`; the verify report
+also omits the Hash row for claims-only items.
+
 ### Verify a proof while passing the expected hash inline
 
 ```sh
@@ -957,10 +1040,16 @@ truestamp verify proof.json --json | jq -r .result
 expected="$(truestamp hash -a sha256 --json contract.pdf | jq -r .digest.hex)"
 truestamp verify proof.json --hash "$expected"
 
-# Compare the claims.hash field in a proof against a fresh local hash
+# Compare the claims.hash field in a proof against a fresh local hash.
+# Works for external-hash proofs only; claims-only proofs have no
+# .s.d.hash field (jq returns "null") and don't need this comparison
+# — the claims content is already in s.d.
 proof_hash="$(jq -r .s.d.hash proof.json)"
 fresh_hash="$(truestamp hash -a sha256 --json contract.pdf | jq -r .digest.hex)"
 [ "$proof_hash" = "$fresh_hash" ] && echo "✓ match" || echo "✗ MISMATCH"
+
+# Branch on submission mode at the jq layer
+jq 'if .s.d | has("hash") then "external-hash mode" else "claims-only mode" end' proof.json
 
 # Tag-style report of every commitment's type, network, and timestamp
 jq -r '.cx[] | "\(.t) (\(.net)) committed at \(.ts)"' proof.json

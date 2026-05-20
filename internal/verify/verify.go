@@ -126,7 +126,12 @@ func runBundle(bundle *proof.ProofBundle, filename string, fileSize int64, opts 
 			fmt.Sprintf("--hash flag is not applicable to %s proofs", subjectType))
 	}
 	if isItem {
-		if opts.ExpectedHash != "" {
+		switch {
+		case opts.ExpectedHash != "":
+			// User explicitly supplied a hash to compare; pass/fail
+			// stays under groupHashComparison so the rest of the
+			// presenter (HashMatched, ProofPassed, hash-mismatch
+			// detail) continues to find it where it expects.
 			r.HashProvided = opts.ExpectedHash
 			if tscrypto.HexEqual(opts.ExpectedHash, r.Claims.Hash) {
 				r.pass(groupHashComparison, CatDataIntegrity, "Provided hash matches claims.hash")
@@ -135,13 +140,31 @@ func runBundle(bundle *proof.ProofBundle, filename string, fileSize int64, opts 
 					"Provided hash does not match claims.hash (expected: %s, proof: %s)",
 					opts.ExpectedHash, r.Claims.Hash))
 			}
-		} else if r.Claims.Hash != "" {
+
+		case r.Claims.Hash != "":
+			// External-hash item, no --hash supplied. The proof is
+			// verified cryptographically; what's NOT yet confirmed is
+			// whether a local file matches the timestamped hash. That
+			// is a workflow concern, not a proof defect, so it lives
+			// under groupVerificationNotes and renders in its own
+			// section rather than under "Issues".
 			hashType := r.Claims.HashType
 			if hashType == "" {
 				hashType = "sha256"
 			}
-			r.warn(groupHashComparison, CatDataIntegrity, fmt.Sprintf(
-				"Claims hash not verified (use --hash <%s_hash_of_your_data> to confirm)", hashType))
+			r.warn(groupVerificationNotes, CatDataIntegrity, fmt.Sprintf(
+				"External-hash item: pass --hash <%s_hex> to confirm a local file matches the timestamped hash (the proof itself is verified)",
+				hashType))
+
+		default:
+			// Claims-as-source-of-truth item (no s.d.hash). Make the
+			// mode explicit so the absence of a Hash row in the Item
+			// Claims section is explained rather than left as a silent
+			// gap. This is informational only — there is nothing the
+			// user can verify additionally, since the claims content
+			// itself is what was timestamped.
+			r.info(groupVerificationNotes, CatDataIntegrity,
+				"Claims-only item: the claims content itself is what was timestamped — no external file to compare")
 		}
 	}
 
@@ -222,6 +245,15 @@ const (
 	groupBitcoin        = "Bitcoin Commitment"
 	groupTemporal       = "Temporal Window"
 	groupEntropySource  = "Entropy Source"
+
+	// groupVerificationNotes holds informational and workflow-level
+	// observations that are NOT defects in the proof itself. The
+	// presenter renders these in their own section rather than under
+	// "Issues" so that, for example, "you can pass --hash to confirm
+	// a local file" reads as an optional follow-up rather than a
+	// failed check. The cryptographic proof is fully verified
+	// independent of anything in this group.
+	groupVerificationNotes = "Verification Notes"
 )
 
 // --- Step 1: Signing Key ---

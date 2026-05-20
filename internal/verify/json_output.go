@@ -6,15 +6,27 @@ package verify
 // JSONOutput is the structured output for --json mode.
 // It mirrors the visual terminal output sections.
 type JSONOutput struct {
-	Result         string           `json:"result"`
-	SubjectType    string           `json:"subject_type"`
-	SubjectID      string           `json:"subject_id"`
-	Subject        any              `json:"subject"`
-	HashComparison *HashComparison  `json:"hash_comparison,omitempty"`
-	Timeline       *JSONTimeline    `json:"timeline,omitempty"`
-	Commitments    *JSONCommitments `json:"commitments,omitempty"`
-	Issues         []JSONIssue      `json:"issues,omitempty"`
-	Summary        JSONSummary      `json:"summary"`
+	Result            string           `json:"result"`
+	SubjectType       string           `json:"subject_type"`
+	SubjectID         string           `json:"subject_id"`
+	Subject           any              `json:"subject"`
+	HashComparison    *HashComparison  `json:"hash_comparison,omitempty"`
+	Timeline          *JSONTimeline    `json:"timeline,omitempty"`
+	Commitments       *JSONCommitments `json:"commitments,omitempty"`
+	VerificationNotes []JSONNote       `json:"verification_notes,omitempty"`
+	Issues            []JSONIssue      `json:"issues,omitempty"`
+	Summary           JSONSummary      `json:"summary"`
+}
+
+// JSONNote is a workflow-level observation about the verify session
+// that is NOT a proof defect. Examples: "you can pass --hash to
+// confirm a local file" (severity warning), or "this is a claims-only
+// item, no external file to compare" (severity info). Notes are
+// emitted separately from issues so consumers can render them as
+// optional follow-ups rather than failed checks.
+type JSONNote struct {
+	Severity string `json:"severity"` // "warning" | "info"
+	Message  string `json:"message"`
 }
 
 // HashComparison shows the result of --hash verification.
@@ -140,9 +152,14 @@ func BuildJSONOutput(r *Report) *JSONOutput {
 		out.Commitments = c
 	}
 
-	// Issues (failures and warnings only)
+	// Issues (failures and warnings only). Verification Notes are
+	// emitted separately below so they don't muddy the "issues"
+	// array with workflow nudges.
 	for _, s := range r.Steps {
 		if s.Status != StatusFail && s.Status != StatusWarn {
+			continue
+		}
+		if s.Group == "Verification Notes" {
 			continue
 		}
 		severity := "error"
@@ -158,6 +175,23 @@ func BuildJSONOutput(r *Report) *JSONOutput {
 			Category: cat,
 			Message:  s.Message,
 			Detail:   lookupFailureDetail(s.Message),
+		})
+	}
+
+	// Verification Notes — workflow-level observations that aren't
+	// proof defects. Mirrors the new "Verification Notes" section in
+	// the styled output.
+	for _, s := range r.Steps {
+		if s.Group != "Verification Notes" {
+			continue
+		}
+		severity := "info"
+		if s.Status == StatusWarn {
+			severity = "warning"
+		}
+		out.VerificationNotes = append(out.VerificationNotes, JSONNote{
+			Severity: severity,
+			Message:  s.Message,
 		})
 	}
 
