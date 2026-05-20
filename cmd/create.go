@@ -19,30 +19,49 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/truestamp/truestamp-cli/internal/inputsrc"
 	"github.com/truestamp/truestamp-cli/internal/items"
+	"github.com/truestamp/truestamp-cli/internal/tscrypto"
 	"github.com/truestamp/truestamp-cli/internal/ui"
 )
+
+// claimsOnlyMinDescription is the minimum length (in non-whitespace
+// characters, after trimming) of claims.description for an item submitted
+// without an external hash. Mirrors the threshold enforced server-side in
+// lib/truestamp/items/validations/validate_claims_only_content.ex — do not
+// drift from this value without coordinating with the backend.
+const claimsOnlyMinDescription = 32
 
 var createCmd = &cobra.Command{
 	Use:   "create [file]",
 	Short: "Create a new Truestamp item",
 	Long: `Create a new cryptographic timestamp item.
 
-The simplest usage hashes a file and creates an item in one step:
-  truestamp create document.pdf
+Truestamp supports two submission modes:
 
-This computes SHA-256 of the file, uses the filename as the item name,
-and submits it to the Truestamp API. The item will be included in the
-next block for cryptographic commitment.
+  External-hash mode (default for files):
+    truestamp create document.pdf
+  Computes SHA-256 of the file locally and submits the hash. The file
+  itself never leaves your device. Use this for any file you can keep.
+
+  Claims-as-source-of-truth mode:
+    truestamp create -n "Invention" -d "On this day I claim ..."
+  No external file. The claims content itself is timestamped. Requires
+  at least a 32-character description (or non-empty --metadata) so the
+  proof commits to meaningful content.
+
+Submitting exactly one of --hash / --hash-type is rejected; the pair
+must be both supplied (external-hash mode) or both omitted
+(claims-as-source-of-truth mode).
 
 Input methods (resolved in priority order):
-  truestamp create document.pdf              Hash file (SHA-256, filename as name)
-  truestamp create --file document.pdf       Explicit file path to hash
-  truestamp create --file                    Interactive file picker to hash
-  cat doc.pdf | truestamp create -F -n Doc   Hash file content from stdin
-  truestamp create -c claims.json            Load claims from JSON file
+  truestamp create document.pdf              External hash: hash file, filename as name
+  truestamp create --file document.pdf       External hash: explicit file path
+  truestamp create --file                    External hash: interactive file picker
+  cat doc.pdf | truestamp create -F -n Doc   External hash: hash file content from stdin
+  truestamp create -c claims.json            Either mode: load claims from JSON file
   truestamp create --claims                  Interactive claims JSON file picker
   cat claims.json | truestamp create -C      Read claims JSON from stdin
-  truestamp create -n "Doc" --hash abc...    Build claims from flags
+  truestamp create -n "Doc" --hash abc...    External hash: build claims from flags
+  truestamp create -n "Doc" -d "long desc"   Claims-only: timestamp the claims content
 
 Flags override values from file/auto-hash, enabling combinations like:
   truestamp create report.pdf -n "Q1 Report" -v public -t finance
@@ -360,32 +379,79 @@ func overlayFlags(cmd *cobra.Command, claims map[string]any) error {
 }
 
 // validateClaims performs client-side validation before sending to the API.
+//
+// Two submission modes are supported, mirroring the server contract:
+//
+//   - External-hash mode: claims.hash + claims.hash_type are both present.
+//     Hash must be valid hex of the correct length for hash_type.
+//   - Claims-as-source-of-truth mode: claims.hash + claims.hash_type are
+//     both absent. The claims content itself is what gets timestamped.
+//     To prevent meaningless empty submissions, either claims.description
+//     must be >= claimsOnlyMinDescription non-whitespace characters or
+//     claims.metadata must be a non-empty object.
+//
+// Submitting exactly one of hash / hash_type is rejected (co-required pair).
+// Whitespace-only strings are treated as absent, matching the server.
 func validateClaims(claims map[string]any) error {
 	name, _ := claims["name"].(string)
-	hash, _ := claims["hash"].(string)
-	hashType, _ := claims["hash_type"].(string)
-
+	name = strings.TrimSpace(name)
 	if name == "" {
 		return fmt.Errorf("claims name is required (use --name or provide via file/auto-hash)")
 	}
+	claims["name"] = name
+
+	rawHash, _ := claims["hash"].(string)
+	rawHashType, _ := claims["hash_type"].(string)
+	hash := strings.TrimSpace(rawHash)
+	hashType := strings.TrimSpace(rawHashType)
+
+	// Treat whitespace-only as absent. Strip the keys so the outgoing
+	// payload doesn't carry empty strings — the server treats empty as
+	// nil but explicit omission is cleaner over the wire.
 	if hash == "" {
-		return fmt.Errorf("claims hash is required (use --hash or provide a file to auto-hash)")
+		delete(claims, "hash")
 	}
 	if hashType == "" {
-		return fmt.Errorf("claims hash_type is required")
+		delete(claims, "hash_type")
 	}
 
-	// Validate hash is hex
-	hash = strings.ToLower(hash)
-	claims["hash"] = hash
-	if len(hash)%2 != 0 {
-		return fmt.Errorf("claims hash must be even-length hex string")
-	}
-	if _, err := hex.DecodeString(hash); err != nil {
-		return fmt.Errorf("claims hash contains invalid hex: %w", err)
+	switch {
+	// External-hash mode: both supplied.
+	case hash != "" && hashType != "":
+		hash = strings.ToLower(hash)
+		claims["hash"] = hash
+		if len(hash)%2 != 0 {
+			return fmt.Errorf("claims hash must be even-length hex string")
+		}
+		if _, err := hex.DecodeString(hash); err != nil {
+			return fmt.Errorf("claims hash contains invalid hex: %w", err)
+		}
+		// Same length-vs-algorithm check the verify path uses, so the two
+		// modes share the same hash-shape rule and "sha256 but 32 hex
+		// chars" is caught locally instead of at the server.
+		if err := tscrypto.ValidateClaimsHash(hash, hashType); err != nil {
+			return fmt.Errorf("claims hash: %w", err)
+		}
+
+	// Co-required violations: exactly one of the pair is supplied.
+	case hash != "" && hashType == "":
+		return fmt.Errorf("claims hash_type is required when hash is supplied")
+	case hash == "" && hashType != "":
+		return fmt.Errorf("claims hash is required when hash_type is supplied")
+
+	// Claims-as-source-of-truth mode: both absent. Mirror the server's
+	// "meaningful content" rule locally so users get inline feedback
+	// instead of a round-trip for an obvious mistake.
+	default:
+		if !hasMeaningfulClaimsContent(claims) {
+			return fmt.Errorf(
+				"claims content is required: provide --description of at least %d characters or non-empty --metadata "+
+					"(or pass --hash + --hash-type to use external-hash mode)",
+				claimsOnlyMinDescription)
+		}
 	}
 
-	// Validate URL if present
+	// Validate URL if present (applies to both modes).
 	if urlStr, ok := claims["url"].(string); ok && urlStr != "" {
 		if !strings.HasPrefix(urlStr, "https://") {
 			return fmt.Errorf("claims url must start with https://")
@@ -395,15 +461,38 @@ func validateClaims(claims map[string]any) error {
 	return nil
 }
 
+// hasMeaningfulClaimsContent reports whether a claims-only submission
+// carries enough content to be useful. Either description (>=
+// claimsOnlyMinDescription non-whitespace characters after trimming) or
+// non-empty metadata is required. Mirrors the server-side validator.
+func hasMeaningfulClaimsContent(claims map[string]any) bool {
+	if desc, _ := claims["description"].(string); strings.TrimSpace(desc) != "" {
+		if len(strings.TrimSpace(desc)) >= claimsOnlyMinDescription {
+			return true
+		}
+	}
+	if meta, ok := claims["metadata"].(map[string]any); ok && len(meta) > 0 {
+		return true
+	}
+	return false
+}
+
 // printCreateJSON outputs the creation result as JSON for scripting.
+// hash and hash_type are omitted when the response carries no external
+// hash (claims-as-source-of-truth mode), matching the verify JSON output
+// convention and the styled table presenter.
 func printCreateJSON(resp *items.CreateItemResponse) error {
 	out := map[string]any{
 		"id":         resp.ID,
 		"name":       resp.Name,
-		"hash":       resp.Hash,
-		"hash_type":  resp.HashType,
 		"visibility": resp.Visibility,
 		"team_id":    resp.TeamID,
+	}
+	if resp.Hash != "" {
+		out["hash"] = resp.Hash
+	}
+	if resp.HashType != "" {
+		out["hash_type"] = resp.HashType
 	}
 	if len(resp.Tags) > 0 {
 		out["tags"] = resp.Tags

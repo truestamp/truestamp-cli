@@ -12,6 +12,8 @@ import (
 	"strings"
 	"testing"
 
+	lipgloss "charm.land/lipgloss/v2"
+	"github.com/charmbracelet/colorprofile"
 	"github.com/truestamp/truestamp-cli/internal/proof"
 	"github.com/truestamp/truestamp-cli/internal/proof/ptype"
 )
@@ -1222,6 +1224,298 @@ func TestRun_RealItemProof(t *testing.T) {
 	if report.SubjectType != "item" {
 		t.Errorf("SubjectType: got %q, want item", report.SubjectType)
 	}
+}
+
+// TestRun_RealItemProof_ClaimsOnly exercises a real item proof generated
+// in claims-as-source-of-truth mode (no s.d.hash / s.d.hash_type). The
+// fixture was generated against a live test server and committed to a
+// block; this is the empirical regression that confirms the verify
+// pipeline is content-agnostic.
+//
+// Expectations:
+//   - Report passes cleanly (no fails, no warnings about claims hash
+//     validation, no warning about "Claims hash not verified" since
+//     there is no hash to compare against).
+//   - The Claims struct on the report has empty Hash and HashType
+//     fields, but a non-empty Name and Description.
+func TestRun_RealItemProof_ClaimsOnly(t *testing.T) {
+	report, err := Run("testdata/proof_item_claims_only.json", Options{SkipExternal: true})
+	if err != nil {
+		t.Fatalf("unexpected error: %s", err)
+	}
+	if !report.Passed() {
+		for _, s := range report.Steps {
+			if s.Status == StatusFail {
+				t.Errorf("FAIL: [%s] %s", s.Group, s.Message)
+			}
+		}
+		t.Fatal("claims-only item proof should pass all checks")
+	}
+	if report.SubjectType != "item" {
+		t.Errorf("SubjectType: got %q, want item", report.SubjectType)
+	}
+	if report.Claims.Hash != "" {
+		t.Errorf("Claims.Hash should be empty for claims-only proof, got %q", report.Claims.Hash)
+	}
+	if report.Claims.HashType != "" {
+		t.Errorf("Claims.HashType should be empty for claims-only proof, got %q", report.Claims.HashType)
+	}
+	if report.Claims.Name == "" {
+		t.Error("Claims.Name should be populated for claims-only proof")
+	}
+	if report.Claims.Description == "" {
+		t.Error("Claims.Description should be populated for claims-only proof (it IS the data)")
+	}
+
+	// The old "Claims hash not verified" warning never fires for
+	// claims-only proofs — it was external-hash-specific and now
+	// lives in groupVerificationNotes anyway.
+	for _, s := range report.Steps {
+		if containsStr(s.Message, "Claims hash not verified") {
+			t.Errorf("claims-only proof should not emit legacy 'Claims hash not verified' warning, got: %s", s.Message)
+		}
+	}
+
+	// Claims-only proofs SHOULD emit an info-level note explaining
+	// the mode (so the absence of a Hash row in the Item Claims
+	// section is acknowledged rather than left silent).
+	hasModeNote := false
+	for _, s := range report.Steps {
+		if s.Group == "Verification Notes" && s.Status == StatusInfo &&
+			containsStr(s.Message, "Claims-only item") {
+			hasModeNote = true
+			break
+		}
+	}
+	if !hasModeNote {
+		t.Error("claims-only proof should emit an info note under Verification Notes naming the mode")
+	}
+}
+
+// TestRun_ExternalHash_NoHashFlag_EmitsWorkflowNote confirms an
+// external-hash proof verified without --hash emits a warning under
+// "Verification Notes" (not "Issues"). The proof itself is fully
+// verified; the note is a workflow nudge about confirming a local
+// file against the timestamped hash.
+func TestRun_ExternalHash_NoHashFlag_EmitsWorkflowNote(t *testing.T) {
+	report, err := Run("testdata/proof_item.json", Options{SkipExternal: true})
+	if err != nil {
+		t.Fatalf("unexpected error: %s", err)
+	}
+	if !report.Passed() {
+		t.Fatal("external-hash proof should pass with --skip-external")
+	}
+
+	var note *Step
+	for i := range report.Steps {
+		if report.Steps[i].Group == "Verification Notes" && report.Steps[i].Status == StatusWarn {
+			note = &report.Steps[i]
+			break
+		}
+	}
+	if note == nil {
+		t.Fatal("external-hash proof without --hash should emit a warn-level note under Verification Notes")
+	}
+	if !containsStr(note.Message, "External-hash item") || !containsStr(note.Message, "--hash") {
+		t.Errorf("note text should reference External-hash and --hash, got: %s", note.Message)
+	}
+
+	// No Verification Notes step should appear under the legacy
+	// groupHashComparison group — the move-out has to be complete or
+	// the presenter's "Issues" section will keep rendering it as a
+	// data-integrity issue.
+	for _, s := range report.Steps {
+		if s.Group == "Hash Comparison" && s.Status == StatusWarn {
+			t.Errorf("warn under Hash Comparison group is now expected to be under Verification Notes, got: %s", s.Message)
+		}
+	}
+}
+
+// TestRun_ExternalHash_WithHashFlag_NoWorkflowNote confirms supplying
+// --hash drops the workflow note entirely — the pass/fail under
+// Hash Comparison group covers it.
+func TestRun_ExternalHash_WithHashFlag_NoWorkflowNote(t *testing.T) {
+	data, err := os.ReadFile("testdata/proof_item.json")
+	if err != nil {
+		t.Fatalf("reading test proof: %s", err)
+	}
+	bundle, err := proof.ParseBytes(data)
+	if err != nil {
+		t.Fatalf("parsing proof: %s", err)
+	}
+	claims := parseClaims(bundle.RawData)
+	report, err := Run("testdata/proof_item.json", Options{
+		SkipExternal: true,
+		ExpectedHash: claims.Hash,
+	})
+	if err != nil {
+		t.Fatalf("unexpected error: %s", err)
+	}
+	for _, s := range report.Steps {
+		if s.Group == "Verification Notes" {
+			t.Errorf("--hash supplied: no Verification Notes step expected, got: [%v] %s",
+				s.Status, s.Message)
+		}
+	}
+}
+
+// TestPresent_VerificationNotes_RendersOwnSection asserts the rendered
+// output for an external-hash proof without --hash contains a
+// "Verification Notes" section header AND the warning text moved into
+// that section — and importantly, does NOT show the warning under
+// the "Issues" section. This is the user-visible expression of the
+// Option B reframe.
+func TestPresent_VerificationNotes_RendersOwnSection(t *testing.T) {
+	report, err := Run("testdata/proof_item.json", Options{SkipExternal: true})
+	if err != nil {
+		t.Fatalf("unexpected error: %s", err)
+	}
+	captured := captureLipglossOutput(t, func() { Present(report) })
+
+	if !strings.Contains(captured, "Verification Notes") {
+		t.Errorf("expected 'Verification Notes' section header in rendered output:\n%s", captured)
+	}
+	if !strings.Contains(captured, "External-hash item") {
+		t.Errorf("expected new warn wording in rendered output:\n%s", captured)
+	}
+	// The "Issues" section should NOT contain the workflow warning.
+	// Find any Issues section and confirm the workflow note isn't in
+	// its body.
+	if idx := strings.Index(captured, "Issues"); idx >= 0 {
+		issuesBody := captured[idx:]
+		if strings.Contains(issuesBody, "External-hash item") {
+			t.Errorf("external-hash workflow note should not appear under 'Issues' section:\n%s", captured)
+		}
+	}
+}
+
+// TestPresent_ClaimsOnly_VerificationNotes asserts a claims-only proof
+// renders the info note in "Verification Notes".
+func TestPresent_ClaimsOnly_VerificationNotes(t *testing.T) {
+	report, err := Run("testdata/proof_item_claims_only.json", Options{SkipExternal: true})
+	if err != nil {
+		t.Fatalf("unexpected error: %s", err)
+	}
+	captured := captureLipglossOutput(t, func() { Present(report) })
+	if !strings.Contains(captured, "Verification Notes") {
+		t.Errorf("expected 'Verification Notes' section header for claims-only proof:\n%s", captured)
+	}
+	if !strings.Contains(captured, "Claims-only item") {
+		t.Errorf("expected claims-only mode acknowledgment in rendered output:\n%s", captured)
+	}
+}
+
+// TestBuildJSONOutput_VerificationNotes_ExternalHash confirms the
+// JSON output mirrors the styled split: external-hash + no --hash
+// produces a warning in verification_notes, and no equivalent entry
+// in issues.
+func TestBuildJSONOutput_VerificationNotes_ExternalHash(t *testing.T) {
+	report, err := Run("testdata/proof_item.json", Options{SkipExternal: true})
+	if err != nil {
+		t.Fatalf("unexpected error: %s", err)
+	}
+	out := BuildJSONOutput(report)
+	if len(out.VerificationNotes) == 0 {
+		t.Fatal("expected at least one verification_notes entry")
+	}
+	if out.VerificationNotes[0].Severity != "warning" {
+		t.Errorf("severity: got %q, want warning", out.VerificationNotes[0].Severity)
+	}
+	if !strings.Contains(out.VerificationNotes[0].Message, "External-hash item") {
+		t.Errorf("message: got %q", out.VerificationNotes[0].Message)
+	}
+	// The note must NOT also appear in issues — that's the
+	// presentation split.
+	for _, iss := range out.Issues {
+		if strings.Contains(iss.Message, "External-hash item") {
+			t.Errorf("workflow note leaked into issues array: %v", iss)
+		}
+	}
+}
+
+// TestBuildJSONOutput_VerificationNotes_ClaimsOnly confirms the JSON
+// output carries an info-level note for claims-only proofs.
+func TestBuildJSONOutput_VerificationNotes_ClaimsOnly(t *testing.T) {
+	report, err := Run("testdata/proof_item_claims_only.json", Options{SkipExternal: true})
+	if err != nil {
+		t.Fatalf("unexpected error: %s", err)
+	}
+	out := BuildJSONOutput(report)
+	if len(out.VerificationNotes) == 0 {
+		t.Fatal("expected at least one verification_notes entry for claims-only")
+	}
+	if out.VerificationNotes[0].Severity != "info" {
+		t.Errorf("severity: got %q, want info", out.VerificationNotes[0].Severity)
+	}
+	if !strings.Contains(out.VerificationNotes[0].Message, "Claims-only item") {
+		t.Errorf("message: got %q", out.VerificationNotes[0].Message)
+	}
+}
+
+// TestRunFromBytes_ClaimsOnly_CBOR exercises the CBOR variant of the
+// claims-only fixture, confirming the parser handles the absence of
+// hash / hash_type byte-string fields cleanly.
+func TestRunFromBytes_ClaimsOnly_CBOR(t *testing.T) {
+	data, err := os.ReadFile("testdata/proof_item_claims_only.cbor")
+	if err != nil {
+		t.Fatalf("reading CBOR fixture: %s", err)
+	}
+	report, err := RunFromBytes(data, "claims-only.cbor", Options{SkipExternal: true})
+	if err != nil {
+		t.Fatalf("unexpected error: %s", err)
+	}
+	if !report.Passed() {
+		for _, s := range report.Steps {
+			if s.Status == StatusFail {
+				t.Errorf("FAIL: [%s] %s", s.Group, s.Message)
+			}
+		}
+		t.Fatal("CBOR claims-only proof should pass all checks")
+	}
+	if report.Claims.Hash != "" {
+		t.Errorf("Claims.Hash should be empty in CBOR claims-only proof, got %q", report.Claims.Hash)
+	}
+}
+
+// TestPresent_ClaimsOnly_OmitsHashRow walks the presenter against the
+// claims-only fixture and confirms the rendered report does NOT include
+// a "Hash" row — the existing `if r.Claims.Hash != ""` guard at
+// presenter.go remains correct after the wire-shape change.
+func TestPresent_ClaimsOnly_OmitsHashRow(t *testing.T) {
+	report, err := Run("testdata/proof_item_claims_only.json", Options{SkipExternal: true})
+	if err != nil {
+		t.Fatalf("unexpected error: %s", err)
+	}
+	// Render to string by intercepting lipgloss output. This catches
+	// the case where a future presenter change might start emitting a
+	// "Hash:" row unconditionally.
+	captured := captureLipglossOutput(t, func() { Present(report) })
+	if strings.Contains(captured, "\nHash  ") || strings.Contains(captured, "Hash:") {
+		t.Errorf("claims-only render should not contain a Hash row, got:\n%s", captured)
+	}
+	// Sanity: it should still render the Name and Description rows.
+	if !strings.Contains(captured, "Name") {
+		t.Error("expected Name in rendered output")
+	}
+	if !strings.Contains(captured, "Description") {
+		t.Error("expected Description in rendered output")
+	}
+}
+
+// captureLipglossOutput temporarily redirects lipgloss.Writer to a
+// buffer, runs fn, and returns what was written. The verify presenter
+// emits everything via lipgloss.Println which writes to the package's
+// internal Writer (a colorprofile.Writer wrapping os.Stdout captured
+// at init time), so redirecting os.Stdout has no effect — we have to
+// swap the lipgloss.Writer target itself.
+func captureLipglossOutput(t *testing.T, fn func()) string {
+	t.Helper()
+	var buf strings.Builder
+	orig := lipgloss.Writer
+	lipgloss.Writer = colorprofile.NewWriter(&buf, os.Environ())
+	defer func() { lipgloss.Writer = orig }()
+	fn()
+	return buf.String()
 }
 
 func TestPresent_EntropyReport(t *testing.T) {

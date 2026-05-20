@@ -65,6 +65,15 @@ func Present(r *Report) {
 		}
 	}
 
+	// Verification Notes — workflow-level observations that are NOT
+	// proof defects (e.g. external-hash item without --hash, or a
+	// claims-only item explaining its mode). Sits before "Issues" so
+	// the user sees it on every successful verify; the Issues section
+	// stays reserved for actual problems.
+	if notes := renderVerificationNotes(r); notes != "" {
+		sections = append(sections, "", notes)
+	}
+
 	// Issues (only when there are failures or warnings)
 	if issues := renderIssues(r); issues != "" {
 		sections = append(sections, "", issues)
@@ -418,15 +427,72 @@ func renderHashMismatchDetail(r *Report) string {
 	return tbl.String()
 }
 
+// --- Verification Notes Section ---
+//
+// Workflow-level observations rendered between "Commitments" and
+// "Issues". Notes are emitted by verify.go under
+// groupVerificationNotes — they are NOT proof defects, just things
+// worth surfacing about the verify session itself:
+//
+//   - External-hash item without --hash: a workflow nudge that the
+//     user can additionally confirm a local file against the
+//     timestamped hash.
+//   - Claims-only item: an explicit acknowledgment that the
+//     timestamped data is embedded in s.d, so there is nothing
+//     external to compare.
+//
+// Rendering is intentionally simpler than renderIssues: a flat list
+// with !/i icons. Notes do not have categories or detail lookups
+// because they aren't failures; the message is the whole content.
+func renderVerificationNotes(r *Report) string {
+	var notes []Step
+	for _, s := range r.Steps {
+		if s.Group == "Verification Notes" {
+			notes = append(notes, s)
+		}
+	}
+	if len(notes) == 0 {
+		return ""
+	}
+
+	header := ui.SectionHeader("Verification Notes")
+	warnStyle := lipgloss.NewStyle().Foreground(ui.Yellow)
+	infoStyle := lipgloss.NewStyle().Foreground(ui.Dim)
+
+	var lines []string
+	for _, s := range notes {
+		switch s.Status {
+		case StatusWarn:
+			lines = append(lines, warnStyle.Render("  ! "+s.Message))
+		case StatusInfo:
+			lines = append(lines, infoStyle.Render("  i "+s.Message))
+		default:
+			// Fallback rendering for unexpected statuses — kept
+			// defensive so a future caller using this group with a
+			// pass/fail/skip status still renders something readable
+			// rather than dropping the line silently.
+			lines = append(lines, infoStyle.Render("  · "+s.Message))
+		}
+	}
+
+	return header + "\n" + strings.Join(lines, "\n")
+}
+
 // --- Issues Section ---
 
 func renderIssues(r *Report) string {
 	// Collect all non-passing steps (failures, warnings, skipped, info)
+	// EXCEPT those that belong to the Verification Notes group, which
+	// are rendered in their own section and are not proof defects.
 	var issues []Step
 	for _, s := range r.Steps {
-		if s.Status != StatusPass {
-			issues = append(issues, s)
+		if s.Status == StatusPass {
+			continue
 		}
+		if s.Group == "Verification Notes" {
+			continue
+		}
+		issues = append(issues, s)
 	}
 
 	if len(issues) == 0 {

@@ -102,30 +102,60 @@ The three main commands — `create`, `download`, `verify` — form the full lif
 
 ### Create an item
 
-Hash a file and submit it in one step:
+Truestamp supports two submission modes. Pick whichever fits the
+shape of the thing you're timestamping.
+
+**External-hash mode** — for files you can keep around. The file
+never leaves your device; only its SHA-256 is submitted.
 
 ```sh
 truestamp create document.pdf
 ```
 
-Under the hood this computes SHA-256 of the file, uses the filename as the item name, and registers it with the Truestamp API so it'll be included in the next block.
+Under the hood this computes SHA-256 of the file, uses the filename
+as the item name, and registers the hash with the Truestamp API so
+it'll be included in the next block.
+
+**Claims-as-source-of-truth mode** — for things that don't have a
+file. Written statements, invention disclosures, dated facts,
+release notes. The claims content itself is what gets timestamped,
+so no file needs to be preserved alongside the proof.
+
+```sh
+truestamp create -n "Invention" \
+  -d "On this day I claim the following novel approach as my own original work."
+```
+
+The server requires the claims content to be meaningful in this
+mode: at least a 32-character description (or non-empty
+`--metadata`). The CLI checks this locally before any network
+round-trip.
 
 Other input styles:
 
 ```sh
-truestamp create --file document.pdf                     # Explicit file path
-truestamp create --file                                  # Interactive file picker
-truestamp create -c claims.json                          # Claims from a JSON file
-cat claims.json | truestamp create -C                    # Claims from stdin
-truestamp create -n "Q1 Report" --hash abc123... \       # Build claims from flags
+truestamp create --file document.pdf                     # External hash: explicit file
+truestamp create --file                                  # External hash: interactive picker
+truestamp create -c claims.json                          # Either mode: claims from JSON file
+cat claims.json | truestamp create -C                    # Either mode: claims from stdin
+truestamp create -n "Q1 Report" --hash abc123... \       # External hash: build from flags
   -v public -t finance,reports
+truestamp create -n "Title" --metadata '{"k":"v"}'       # Claims-only: metadata satisfies the rule
 ```
+
+The `--hash` and `--hash-type` flags are co-required: supply both
+(external-hash mode) or neither (claims-as-source-of-truth mode).
+Submitting exactly one is rejected.
 
 JSON output for scripting:
 
 ```sh
 truestamp create document.pdf --json
 ```
+
+In claims-as-source-of-truth mode the JSON output omits the `hash`
+and `hash_type` keys; scripts can use `jq 'has("hash")'` to branch
+on the mode.
 
 ### Download a proof bundle
 
