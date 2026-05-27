@@ -44,7 +44,8 @@ func Replace(destPath, newBinPath string) (backupPath string, err error) {
 	// Create backup if a prior binary exists. We keep a timestamped copy
 	// so users can manually revert if the new binary misbehaves.
 	if _, err := os.Stat(destPath); err == nil {
-		backupPath = destPath + ".bak." + time.Now().UTC().Format("20060102T150405Z")
+		now := time.Now()
+		backupPath = destPath + ".bak." + now.UTC().Format("20060102T150405Z")
 		if err := os.Rename(destPath, backupPath); err != nil {
 			// Cross-filesystem rename fails with EXDEV; fall back to copy.
 			if err := copyFile(destPath, backupPath); err != nil {
@@ -54,6 +55,13 @@ func Replace(destPath, newBinPath string) (backupPath string, err error) {
 			// the rename below will error out more usefully if this fails.
 			_ = os.Remove(destPath)
 		}
+		// Rename inherits the source file's mtime, so a backup of a
+		// binary installed weeks ago would arrive already past
+		// pruneOldBackups' 7-day cutoff and be reaped within this call.
+		// Touch the backup so its mtime reflects the actual
+		// backup-creation time. Best-effort: the safety net is mostly
+		// for manual rollback, never load-bearing.
+		_ = os.Chtimes(backupPath, now, now)
 	}
 
 	// Atomic-replace step: rename the new binary into place.
