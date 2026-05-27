@@ -190,7 +190,7 @@ tasks:
       - go vet ./...
 
   lint:
-    desc: "All quality checks: vet + fmt-check + staticcheck + gosec. Install the last two via: go install honnef.co/go/tools/cmd/staticcheck@latest && go install github.com/securego/gosec/v2/cmd/gosec@latest"
+    desc: "All quality checks: vet + fmt-check + staticcheck + gosec. staticcheck and gosec are pinned in .tool-versions and installed by `mise install`."
     deps: [vet, fmt-check]
     cmds:
       - staticcheck ./...
@@ -212,7 +212,7 @@ tasks:
       - gosec -quiet -exclude-dir=testdata -exclude=G104,G115,G301,G302,G306,G304,G401,G501,G505,G204,G704 ./...
 
   vuln-check:
-    desc: "Scan go.mod deps for known vulnerabilities. Install via: go install golang.org/x/vuln/cmd/govulncheck@latest"
+    desc: "Scan go.mod deps for known vulnerabilities. govulncheck is pinned in .tool-versions and installed by `mise install`."
     cmds:
       - govulncheck ./...
 
