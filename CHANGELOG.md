@@ -7,6 +7,32 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.8.1] — 2026-05-27
+
+### Fixed
+- **Self-upgrade backup vanished for binaries older than 7 days.**
+  `selfupgrade.Replace` creates the timestamped `.bak.<rfc3339>`
+  rollback file via `os.Rename(destPath, backupPath)`. On Unix,
+  `rename(2)` leaves the file's mtime untouched, so the backup
+  arrived carrying the previous binary's install-time mtime. When
+  the previous install was more than 7 days old — the common case
+  for users upgrading between releases — the `pruneOldBackups` call
+  that ends `Replace` reaped the freshly-created backup before
+  `Replace` returned. The CLI continued to announce the backup path
+  on stderr while the file was already gone, silently breaking the
+  manual-rollback safety net. Fix: `os.Chtimes(backupPath, now, now)`
+  immediately after the backup is in place, so its mtime reflects
+  the actual backup-creation time. Regression test
+  `TestReplace_BackupSurvivesAgedPriorBinary` backdates the source
+  file 30 days before calling `Replace` and asserts the backup
+  survives with the old contents and a refreshed mtime — the
+  failure shape the previous test
+  (`TestReplace_WithExistingBinary_CreatesBackup`) couldn't catch
+  because its `os.WriteFile`'d destination always had a near-now
+  mtime well inside the 7-day window. Discovered while verifying
+  the v0.8.0 release upgrade against a 33-day-old `install.sh`
+  binary.
+
 ## [0.8.0] — 2026-05-27
 
 ### Added
