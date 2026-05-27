@@ -7,6 +7,169 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.8.0] — 2026-05-27
+
+### Added
+- **`truestamp console` interactive TUI.** New subcommand opens a
+  long-lived, authenticated WebSocket to the Truestamp backend
+  (multiplexed Phoenix Channels: `console:lobby` for commands +
+  stream events, `console:clock` for server-time ticks) and renders
+  four panes — **Monitor** (toggleable stream subscriptions with a
+  scrollable, reversible event waterfall; 24h time-windowed
+  retention, 100k hard cap), **New Item** (form + live
+  `items.created → items.committed` lifecycle card with a leading
+  "Submission mode" Select for external-hash vs.
+  claims-as-source-of-truth), **Teams** (membership list + in-place
+  team switch via `scope.switch_team`), and **Connection**
+  (diagnostics with reconnect countdown, server-time clock, push
+  counters, log file path, and a live third-party health-check
+  table). Reconnect-with-backoff (1→2→5→10→30s), server-side
+  first-event-immediate event coalescing into `<resource>.burst`
+  summaries, two-stage readiness gate (socketReady / sessionReady).
+  Architecture and wire-protocol notes in
+  [docs/engineering/console.md](docs/engineering/console.md).
+- **`truestamp beacon` subcommand.** Read-only access to the
+  Truestamp beacons JSON:API at `/api/json/beacons/*`: `beacon`
+  (default = `latest`), `beacon list`, `beacon get <uuidv7>`,
+  `beacon by-hash <64-hex>`. Output is plain Unix-friendly text by
+  default with optional `--json` / `--hash-only` / `-s` modes. The
+  single-beacon card emits two shareable public-web links
+  (`Details → {host}/beacons/<hash>` and
+  `Verify → {host}/verify/beacon/<id>`) and renders unconditionally
+  — localhost and plain-http hosts too — so links work when
+  developing against a local server.
+- **`truestamp team` subcommand.** `team list / show / set /
+  unset`. `team list` emits a four-column `★/ID/NAME/ROLE` table
+  over `GET /api/json/memberships?include=team`; `team set <id>`
+  validates by reading `/teams/{id}` first so a typo or revoked
+  membership refuses to write; `team set` with no arg opens an
+  interactive picker; `team unset` reverts to the server's
+  personal-team auto-fallback. Active selection persists in the
+  top-level `team` key in `~/.config/truestamp/config.toml`. The
+  console Teams pane (key `3`) is wired to the same source of
+  truth, and `config show` / `auth status` both surface `Team Name`
+  / `Team Role` rows alongside the bare id.
+- **Claims-as-source-of-truth submission mode for `truestamp
+  create`.** A second submission mode where no external file is
+  required — the claims content itself is what gets timestamped,
+  gated by a server-side meaningful-content rule (≥ 32-char
+  description or non-empty metadata). The `--hash` / `--hash-type`
+  pair is now co-required: both supplied (external-hash mode) or
+  both omitted (claims-content mode). Mirrored in the console New
+  Item pane via a leading `Submission mode` Select; hash + hash_type
+  fields auto-hide in claims-content mode and the description field
+  enforces the ≥ 32-char rule inline.
+- **CLI-wide JSON logger with redaction and panic recovery.**
+  `internal/logging` extends a single structured `slog` JSON logger
+  across every subcommand. `internal/redact` scrubs api_key
+  patterns from log payloads (security-critical — covered by the
+  `TestRedactSecrets` fuzz target). A top-level panic recovery
+  installs a `slog.Error("panic", ...)` handler that captures
+  goroutine stacks before the process exits, so the console's
+  Bubble Tea event loop never leaks an uncaught panic to a black
+  terminal.
+- **Third-party health checks in the Connection pane.** Probes
+  Truestamp service (`{base_url}/health`), Truestamp keyring,
+  NIST Beacon, Stellar Horizon (mainnet), and Blockstream every
+  minute while the pane is open. Results sort problems first
+  (failed → degraded → checking → unknown → ok). Manual refresh
+  rate-limited to one run per 3 seconds.
+- **`/release` Claude Code skill.** Canonical end-to-end release
+  flow for this repo, documented at
+  [.claude/skills/release/SKILL.md](.claude/skills/release/SKILL.md).
+  Walks the full playbook (pre-flight quality gate, GoReleaser
+  dry-run, CHANGELOG update, release PR + CI, signed annotated tag,
+  release.yml watch, post-release artifact verification) and
+  delegates partial-failure recovery to a sibling reference doc.
+  `CONTRIBUTING.md` points at the skill as the normal way to ship.
+
+### Changed
+- **URL config consolidated into a single `base_url`.** Previous
+  configs surfaced multiple endpoint URLs (api_url, keyring_url,
+  websocket_url, health_url) that all derived from the same
+  Truestamp deployment. The new `base_url` (default
+  `https://www.truestamp.com`) is the single dial — `api_url`,
+  `keyring_url`, the console WebSocket URL, and the health-check
+  URL are all derived from it at config load, with the per-URL
+  flags / env vars preserved for explicit override. `config show`
+  renders the derived values alongside `base_url` so the source of
+  truth is obvious.
+- **Console monitor waterfall redesigned.** Table-driven layout
+  via `lipgloss/v2/table`, mouse-wheel scrolling, deterministic
+  reverse-chronological event ordering, ID column no longer
+  truncates the primary id, scroll indicator anchored to the title
+  row, footer state-aware to whichever pane is focused. Default
+  focus on app launch goes straight to the events waterfall so
+  `j/k`/arrows scroll without a leading Tab. Header status trimmed
+  — plan + stream count moved to the Connection pane to declutter
+  the Monitor.
+- **New Item form ergonomics.** Migrated to `huh/v2`, the
+  hash-type Select uses the canonical Display names shared with
+  the watching screen, validation runs inline at the offending
+  field with the three checks (algorithm registered, even-length
+  hex, length matches algorithm) mandatory in every code path,
+  `?` toggles help by growing the body (no longer resizing the
+  screen), watching screen drops the card border + fixes line
+  wrap, esc returns cleanly to the form, and quit prompts for
+  confirmation so an accidental ctrl-C doesn't lose a submission
+  in flight.
+- **Go toolchain pinned to 1.26.3.** `.tool-versions` (single
+  source of truth for CI via `mise`) and `go.mod` both bumped from
+  1.26.2 — see Security below.
+
+### Fixed
+- **Health-check latency flake on fast loopback.** The Connection
+  pane's `checkHealthTarget` rounded `time.Since(start)` to
+  milliseconds at storage time. On a fast macOS runner the
+  in-process httptest.Server round-trip completes in under 500µs,
+  so the value collapsed to `0s` and broke
+  `TestCheckHealthTarget_OK`'s positive-latency assertion. The
+  renderer in `connection.go` already rounds at display time, and
+  `TestRenderHealthSection_IconsAndDetails` documents the storage
+  contract by setting `r.Latency = 42_000_000` (42ms in
+  nanoseconds). Storage-time rounding was wrong on both counts:
+  it lost sub-ms signal and made "too-fast-to-measure"
+  indistinguishable from "never measured". Removed.
+
+### Security
+- **Go 1.26.2 → 1.26.3** clears two stdlib advisories surfaced by
+  `task vuln-check`: **GO-2026-4971** (panic in `net.Dial` /
+  `LookupPort` on Windows NUL bytes; reachable via
+  `httpclient.DownloadBytesCtx`) and **GO-2026-4918** (infinite
+  loop in `net/http/internal/http2` on a bad
+  `SETTINGS_MAX_FRAME_SIZE`). Both fixed in 1.26.3. The
+  `.tool-versions` comment block records the bump rationale so
+  future Go bumps can compare against a known baseline.
+
+### Developer experience / tests
+- **wschannel chaos test suite.** New `internal/wschannel` chaos
+  tests under a `chaos` build tag exercise reconnect-with-backoff,
+  topic rejoin replay, pending-call drain on disconnect, and
+  api_key redaction under failure. `task test-chaos` runs them
+  locally; the CI workflow runs them on every PR alongside the
+  main test matrix.
+- **wschannel codec fuzz tests.** Three new `FuzzXxx` targets
+  cover Phoenix V2 array-form `Frame` unmarshal, reply parsing,
+  and the api_key redactor. Seeds committed; CI replays them on
+  every run plus runs each for 30s of active mutation per push as
+  part of the existing fuzz step.
+- **Phased TUI refactor (six phases).** Migration to lipgloss/v2 +
+  bubbletea/v2 + huh/v2 broken into reviewable slices: chrome
+  package + keymap-driven footer (Phase 1), mouse wheel scroll on
+  Monitor (Phase 2), canonical event projector + lipgloss/v2/table
+  for the waterfall (Phase 3), New Item form migration to huh/v2
+  (Phase 4), Connection pane polish via lipgloss/v2/table (Phase
+  5), tests for chrome / events projector / keymaps (Phase 6).
+
+### Dependencies
+- `golang.org/x/crypto` 0.50.0 → 0.52.0
+- `golang.org/x/mod` 0.35.0 → 0.36.0
+- `github.com/btcsuite/btcd/chaincfg/chainhash` 1.1.0 → 1.2.0
+- `github.com/fxamacker/cbor/v2` 2.9.1 → 2.9.2
+- `github.com/knadh/koanf/parsers/toml/v2` 2.2.0 → 2.2.1
+- `github/codeql-action` (workflow) 4.35.2 → 4.35.3
+- `goreleaser/goreleaser-action` (workflow) patch bump
+
 ## [0.7.1] — 2026-04-23
 
 ### Changed
