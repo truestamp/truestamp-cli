@@ -71,6 +71,54 @@ func TestReplace_WithExistingBinary_CreatesBackup(t *testing.T) {
 	}
 }
 
+// TestReplace_BackupSurvivesAgedPriorBinary guards against a regression
+// where a backup of a binary installed weeks ago vanished within the same
+// Replace() call: os.Rename inherits the source's mtime, so the backup
+// arrived already past pruneOldBackups' 7-day cutoff and was reaped
+// before Replace returned. The fix calls os.Chtimes on the backup so its
+// mtime reflects the actual backup-creation time.
+func TestReplace_BackupSurvivesAgedPriorBinary(t *testing.T) {
+	dir := t.TempDir()
+	dest := filepath.Join(dir, "truestamp")
+	if err := os.WriteFile(dest, []byte("old"), 0755); err != nil {
+		t.Fatal(err)
+	}
+	// Mimic a binary installed 30 days ago.
+	monthAgo := time.Now().Add(-30 * 24 * time.Hour)
+	if err := os.Chtimes(dest, monthAgo, monthAgo); err != nil {
+		t.Fatal(err)
+	}
+	newBin := filepath.Join(dir, "truestamp-new")
+	if err := os.WriteFile(newBin, []byte("new"), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	backup, err := Replace(dest, newBin)
+	if err != nil {
+		t.Fatalf("Replace: %v", err)
+	}
+	if backup == "" {
+		t.Fatal("expected a backup path")
+	}
+	body, err := os.ReadFile(backup)
+	if err != nil {
+		t.Fatalf("backup file should still exist after Replace, got: %v", err)
+	}
+	if string(body) != "old" {
+		t.Errorf("backup contents: got %q, want %q", body, "old")
+	}
+	info, err := os.Stat(backup)
+	if err != nil {
+		t.Fatalf("stat backup: %v", err)
+	}
+	// Sanity-check the Chtimes touched the mtime forward: should be
+	// well within the 7-day prune window now.
+	if time.Since(info.ModTime()) > 24*time.Hour {
+		t.Errorf("backup mtime not refreshed: age=%v (expected < 24h)",
+			time.Since(info.ModTime()))
+	}
+}
+
 func TestReplace_MissingNewBin(t *testing.T) {
 	dir := t.TempDir()
 	dest := filepath.Join(dir, "truestamp")
