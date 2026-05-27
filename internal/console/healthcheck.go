@@ -131,7 +131,11 @@ func checkHealthTarget(ctx context.Context, t HealthTarget) healthResult {
 	if err == nil && statusCode == http.StatusMethodNotAllowed {
 		statusCode, err = probeOnce(checkCtx, http.MethodGet, t.URL)
 	}
-	r.Latency = time.Since(start).Round(time.Millisecond)
+	// Store full-precision elapsed time. The renderer rounds to
+	// milliseconds at display time (connection.go); rounding here
+	// would collapse sub-millisecond loopback round-trips to 0,
+	// indistinguishable from "never measured".
+	r.Latency = time.Since(start)
 
 	// We're probing for liveness ("is this host reachable from
 	// here?"), not for endpoint correctness. Any HTTP response
