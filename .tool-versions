@@ -14,6 +14,17 @@ cosign 3.0.6
 shellcheck 0.11.0
 syft 1.42.4
 caddy 2.11.2
+# Go quality and vulnerability tooling consumed by `task lint` (staticcheck +
+# gosec) and `task vuln-check` (govulncheck). Pinning via mise — rather than
+# `go install ...@latest` — keeps these reproducible across machines and
+# survives Go toolchain bumps (a `go install` binary lives in the active
+# Go's bin dir and is shadowed the moment Go's version moves). staticcheck
+# and gosec install as aqua-verified prebuilt binaries; govulncheck has no
+# aqua prebuilt and compiles from source via the `go:` backend. Bump these
+# intentionally — re-run `task lint && task vuln-check` after each bump.
+staticcheck 2026.1
+aqua:securego/gosec 2.26.1
+go:golang.org/x/vuln/cmd/govulncheck 1.3.0
 # websocat: hand-rolled WebSocket testing for the `truestamp console`
 # wire protocol. See docs/engineering/console.md and the upstream
 # truestamp-v2/docs/console_channel.md "Hand-rolled testing" recipe.
