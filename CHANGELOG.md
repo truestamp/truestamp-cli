@@ -7,6 +7,44 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Security
+- **Go toolchain 1.26.3 → 1.26.4.** Picks up three stdlib CVE fixes
+  that all sit on this CLI's HTTPS client path: CVE-2026-42504
+  (net/textproto — attacker-controlled server could inject unescaped
+  content into errors surfaced by net/http clients reading MIME
+  headers), CVE-2026-42507 (mime — CPU exhaustion decoding malicious
+  MIME headers), and CVE-2026-27145 (crypto/x509 — quadratic
+  `VerifyHostname` cost on large DNS SAN lists during TLS
+  verification). `task vuln-check` is clean on 1.26.4.
+
+### Changed
+- **Toolchain pins bumped in `.tool-versions`** after vetting each
+  upstream changelog: goreleaser 2.15.2 → 2.16.0 (XZ archive support,
+  secret-redaction hardening in 2.15.3; the newly-deprecated `brews:`
+  config section does not affect us — `.goreleaser.yaml` already uses
+  `homebrew_casks`, and `goreleaser check` validates clean), cosign
+  3.0.6 → 3.1.1 (Sigstore bundle format now the default; legacy
+  detached-signature `verify-blob` used by `truestamp upgrade` and
+  `install.sh` keeps working in v3 — flag removals land in cosign v4),
+  syft 1.42.4 → 1.45.1, caddy 2.11.2 → 2.11.4 (upstream security
+  patches; dev-docs server only). shellcheck and websocat were already
+  current.
+- **Go module dependencies updated across the board**: bubbletea
+  v2.0.7 (mouse-handling race fixes that directly benefit
+  `truestamp console`), koanf v2.3.5, x/crypto v0.53.0, x/mod v0.37.0,
+  x/term v0.44.0, and notable indirects btcec v2.5.0 + btcutil v1.2.0
+  (first releases on btcsuite's post-module-split graph — the new
+  `chainhash/v2` module enters the graph via btcec; the breaking
+  `*/v2.0.0` btcsuite line was deliberately *not* taken), fsnotify
+  v1.10.1, x/sys v0.46.0. No breaking changes per upstream release
+  notes. Verified with the full test suite between each update group,
+  `task precommit-full`, and `task fuzz-deep` across all 64 fuzz
+  targets with no new reproducers.
+- **Go lint/vuln tooling pinned via mise** (`staticcheck`, `gosec`,
+  `govulncheck` in `.tool-versions`) instead of `go install ...@latest`,
+  keeping `task lint` and `task vuln-check` reproducible across
+  machines and Go toolchain bumps (#19).
+
 ## [0.8.1] — 2026-05-27
 
 ### Fixed
