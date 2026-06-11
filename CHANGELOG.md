@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.8.2] — 2026-06-11
+
 ### Security
 - **Go toolchain 1.26.3 → 1.26.4.** Picks up three stdlib CVE fixes
   that all sit on this CLI's HTTPS client path: CVE-2026-42504
