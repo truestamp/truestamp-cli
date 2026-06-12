@@ -12,6 +12,24 @@ Beyond verification, the CLI exposes five Unix-y, pipe-friendly sub-commands tha
 
 The `truestamp team` subcommand (`team list / show / set / unset`) and the in-TUI Teams pane share a single source of truth: the top-level `team` key in `~/.config/truestamp/config.toml`. `team set` validates the id by reading the team from `/api/json/teams/{id}` before persisting, so a typo or revoked membership refuses to write. The console pane's `s`-to-set confirmation pushes `scope.switch_team` over the live WebSocket, persists on success, and never reconnects — catalog stream subscriptions get rebound against the new tenant server-side, while item watches keep their original team binding. See "Team management surfaces" below.
 
+## Version control workflow
+
+This repo is managed with **[Jujutsu (jj)](https://jj-vcs.github.io/)**, colocated on top of the git repo. The working copy is always a jj change, so `git status` reports `Not currently on any branch` (detached HEAD) as the normal steady state — **do not warn about it and do not try to "fix" it by creating a git branch**. Prefer jj commands for everything Claude does in this repo:
+
+| Need | Use | Avoid |
+| ---- | --- | ----- |
+| See working-copy state | `jj st` / `jj log` | `git status` |
+| See the diff | `jj diff [-r @]` | `git diff` (works but jj is canonical) |
+| Set / amend the commit message | `jj desc -r @ -m '...'` (via the `/jj-desc` skill) | `git commit -m`, `git commit --amend` |
+| Start a new logical change | `jj new` | `git checkout -b` |
+| Move work between changes | `jj squash` / `jj split` / `jj move` | `git rebase -i`, `git reset` |
+| Push a branch / bookmark | `jj git push` | `git push` |
+| Inspect history | `jj log` | `git log` (also fine; both views agree) |
+
+Read-only `git log`, `git show`, `git diff`, `git blame`, and `gh ...` commands are fine — jj and git share the same object store. **Mutating git commands** (`git commit`, `git checkout -b`, `git reset`, `git rebase`, `git push`) should be avoided in favour of their jj equivalents so the jj operation log and bookmarks stay coherent.
+
+**Writing commit descriptions:** use the [`jj-desc`](.claude/skills/jj-desc/SKILL.md) skill — it analyses the diff, drafts a 50/72 message in imperative mood, and runs `jj desc -r <ID> -m '...'` after a single confirmation. Never add `Co-Authored-By` or other attribution lines to commits in this repo.
+
 ## How to Build and Run
 
 ```bash

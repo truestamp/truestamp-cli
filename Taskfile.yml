@@ -287,10 +287,11 @@ tasks:
       - test -z "$(gofmt -l .)" || (echo "Files need formatting:" && gofmt -l . && exit 1)
 
   precommit:
-    desc: "Fast pre-commit checks (fmt + lint + test + build). Target <10s on a hot cache. Note: 'task test' already replays every FuzzXxx seed corpus as part of the regular test suite, so no separate fuzz step is needed here."
+    desc: "Fast pre-commit checks (fmt + lint + vuln-check + test + build). Target <10s on a hot cache. Note: 'task test' already replays every FuzzXxx seed corpus as part of the regular test suite, so no separate fuzz step is needed here."
     cmds:
       - task: fmt
       - task: lint
+      - task: vuln-check
       - task: test
       - task: build
 
