@@ -6,12 +6,12 @@ require (
 	charm.land/bubbles/v2 v2.1.0
 	charm.land/bubbletea/v2 v2.0.7
 	charm.land/huh/v2 v2.0.3
-	charm.land/lipgloss/v2 v2.0.3
+	charm.land/lipgloss/v2 v2.0.4
 	github.com/btcsuite/btcd v0.25.0
 	github.com/btcsuite/btcd/chaincfg/chainhash v1.2.0
 	github.com/catppuccin/go v0.3.0
 	github.com/charmbracelet/colorprofile v0.4.3
-	github.com/coder/websocket v1.8.14
+	github.com/coder/websocket v1.8.15
 	github.com/fxamacker/cbor/v2 v2.9.2
 	github.com/gofrs/uuid/v5 v5.4.0
 	github.com/gowebpki/jcs v1.0.1
