@@ -93,7 +93,7 @@ Examples:
   truestamp download --type entropy_stellar 019cf813-99b8-730a-84f1-5a711a9c355e
   truestamp download -o proof.json 01KNN33GX5E470CB9TRWAYF9DD
 
-Requires --api-key to be set (via flag, env, or config file).
+Requires authentication — run 'truestamp auth login', or set TRUESTAMP_API_KEY / --api-key for headless/CI use.
 
 Exit code 0 on success, 1 on any error (validation failure, network
 error, missing API key, server rejection, or failure to write the
@@ -109,8 +109,8 @@ output file).`,
 		cfg := appConfig
 		id := args[0]
 
-		if cfg.APIKey == "" {
-			return fmt.Errorf("API key required (use --api-key or set TRUESTAMP_API_KEY)")
+		if !authConfigured() {
+			return fmt.Errorf("not authenticated — run `truestamp auth login`, or set TRUESTAMP_API_KEY / --api-key for headless use")
 		}
 
 		format, _ := cmd.Flags().GetString("format")
@@ -159,7 +159,7 @@ output file).`,
 		// Wire-send typeFlag verbatim. Beacon is a first-class server type
 		// now (returns t=11), not a client-side alias.
 		appLogger.Info("download_request", "id", id, "type", typeFlag, "format", format)
-		data, err := proof.GenerateCtx(cmd.Context(), cfg.APIURL, cfg.APIKey, cfg.Team, id, typeFlag, format)
+		data, err := proof.GenerateCtx(cmd.Context(), cfg.APIURL, cfg.Team, id, typeFlag, format)
 		if err != nil {
 			appLogger.Error("download_failed", "id", id, "type", typeFlag, "err", err.Error())
 			return err

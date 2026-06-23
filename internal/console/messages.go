@@ -64,6 +64,18 @@ type reconnectingMsg struct {
 // passed since the last outage marker to inject a fresh one.
 type reconnectTickMsg struct{}
 
+// tokenRefreshingMsg fires when the server signalled OAuth access-token
+// expiry and the client is transparently re-dialling with a refreshed
+// token. Informational; the reconnect messages carry the visible status.
+type tokenRefreshingMsg struct{}
+
+// authFailedMsg fires when the OAuth session is permanently dead (refresh
+// token expired/revoked) and the client has stopped reconnecting. The user
+// must re-authenticate.
+type authFailedMsg struct {
+	Reason string
+}
+
 // welcomeMsg is dispatched after a successful Connect — it carries the
 // initial welcome envelope from the server (scope summary, stream catalog,
 // server build info).
@@ -234,6 +246,18 @@ func waitForPush(client *wschannel.Client) tea.Cmd {
 				at, _ := time.Parse(time.RFC3339Nano, s.NextAttemptAt)
 				return reconnectingMsg{Attempt: s.Attempt, NextAttemptAt: at}
 			}
+		}
+
+		// OAuth token lifecycle events from the transport.
+		if p.Event == wschannel.TokenRefreshEvent {
+			return tokenRefreshingMsg{}
+		}
+		if p.Event == wschannel.AuthFailedEvent {
+			var s struct {
+				Reason string `json:"reason"`
+			}
+			_ = json.Unmarshal(p.Payload, &s)
+			return authFailedMsg{Reason: s.Reason}
 		}
 
 		return pushMsg{Topic: p.Topic, Event: p.Event, Payload: p.Payload}

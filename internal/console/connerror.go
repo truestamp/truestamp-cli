@@ -4,7 +4,10 @@
 package console
 
 import (
+	"errors"
 	"strings"
+
+	"github.com/truestamp/truestamp-cli/internal/auth"
 )
 
 // connErrorKind classifies common WebSocket connect-time failures so
@@ -37,6 +40,12 @@ const (
 func classifyConnError(err error) connErrorKind {
 	if err == nil {
 		return connErrorUnknown
+	}
+	// A dead or absent OAuth session is an auth failure, not a generic
+	// transport error — route it to the auth kind so the user is told to
+	// re-authenticate rather than to check their network.
+	if errors.Is(err, auth.ErrSessionExpired) || errors.Is(err, auth.ErrNoCredentials) {
+		return connErrorAuth
 	}
 	s := err.Error()
 
@@ -117,7 +126,7 @@ func (k connErrorKind) title() string {
 	case connErrorTLS:
 		return "TLS / certificate verification failed."
 	case connErrorAuth:
-		return "The server rejected your API key."
+		return "The server rejected your credentials."
 	case connErrorNotFound:
 		return "The server is reachable but does not expose a console endpoint at this URL."
 	case connErrorServerError:

@@ -92,6 +92,23 @@ const ReconnectedEvent = "rejoined"
 // not associated with any channel topic).
 const ReconnectingEvent = "reconnecting"
 
+// TokenRefreshEvent is a synthetic event emitted when the server signals
+// OAuth access-token expiry (its `token_expired` push). The client is
+// re-dialling with a refreshed token; applications can show a transient
+// "refreshing session" hint. Topic is empty.
+const TokenRefreshEvent = "token_refreshing"
+
+// AuthFailedEvent is emitted when reconnection cannot proceed because the
+// OAuth session is permanently dead (refresh token expired/revoked/reused).
+// The client stops retrying; the user must re-authenticate. Payload carries
+// a redacted `reason`. Topic is empty.
+const AuthFailedEvent = "auth_failed"
+
+// tokenRefreshCommand is the channel command the client pushes to refresh its
+// OAuth access token IN-BAND (the proactive keep-alive) without reconnecting.
+// The server re-validates the new token and reschedules its expiry timer.
+const tokenRefreshCommand = "token.refresh"
+
 // Client is a Phoenix Channel session multiplexing one or more topics
 // over a single WebSocket. It maintains the connection, a heartbeat,
 // ref → reply correlation, and a fan-out of server pushes from every
@@ -115,6 +132,10 @@ const ReconnectingEvent = "reconnecting"
 type Client struct {
 	url               string
 	apiKey            string
+	bearerToken       func(context.Context) (string, error)
+	fatalDialErr      func(error) bool
+	forceRefresh      func(context.Context) error
+	accessTokenExpiry func() time.Time
 	primaryTopic      string
 	heartbeatInterval time.Duration
 	log               *slog.Logger
@@ -173,6 +194,12 @@ type Client struct {
 	//   StatusReconnecting — firstConnectDone == true, session gate closed
 	connectStarted   atomic.Bool
 	firstConnectDone atomic.Bool
+	// authDead is set when the OAuth session is permanently dead (a
+	// forced refresh on token_expired returned a fatal error). The session
+	// loop checks it and stops reconnecting instead of re-dialing with a
+	// locally-still-"valid" but server-rejected access token (the
+	// clock-skew loop).
+	authDead atomic.Bool
 
 	// runCtx scopes goroutine-internal I/O to the client's lifetime;
 	// cancelled on Close so reads/writes/heartbeats abort cleanly.
@@ -192,8 +219,38 @@ type Options struct {
 	URL string
 
 	// APIKey is the Truestamp API key. Sent as a query parameter to the
-	// Socket.connect/3 callback on the server.
+	// Socket.connect/3 callback on the server. Mutually exclusive with
+	// BearerToken; when BearerToken is set it takes precedence.
 	APIKey string
+
+	// BearerToken, when set, switches the client to OAuth mode: a fresh
+	// access token is fetched on every (re)dial and sent as the
+	// `access_token` query param on the WebSocket upgrade. (A Phoenix
+	// upgrade can't expose the Authorization header to the socket's
+	// connect/3, so the token rides the query like the api_key does.)
+	// Pulling the token per-dial means a reconnect after a token_expired
+	// automatically carries a refreshed credential.
+	BearerToken func(context.Context) (string, error)
+
+	// FatalDialErr classifies a dial error as permanently fatal (e.g. a
+	// dead OAuth session). When it returns true the session loop stops
+	// retrying and emits AuthFailedEvent instead of looping forever.
+	// Nil means "no dial error is fatal" (always retry).
+	FatalDialErr func(error) bool
+
+	// ForceRefresh, when set, is invoked on a server `token_expired` push
+	// to obtain a brand-new access token *before* the reconnect re-dials —
+	// so the new socket never reuses the just-rejected token (which would
+	// otherwise loop when local/server clocks disagree). Nil disables it.
+	ForceRefresh func(context.Context) error
+
+	// AccessTokenExpiry, when set alongside BearerToken+ForceRefresh,
+	// enables the proactive in-band keep-alive: a background loop refreshes
+	// the access token and pushes `token.refresh` over the live socket
+	// shortly before this expiry, so a long session never hits the server's
+	// token_expired disconnect. Returns the zero time when unknown. Nil
+	// disables the keep-alive (the reactive token_expired path still works).
+	AccessTokenExpiry func() time.Time
 
 	// Topic is the primary channel topic Connect joins. Defaults to
 	// "console:lobby" when empty. Additional topics can be joined later
@@ -220,8 +277,8 @@ func New(opts Options) (*Client, error) {
 	if opts.URL == "" {
 		return nil, errors.New("wschannel: URL is required")
 	}
-	if opts.APIKey == "" {
-		return nil, errors.New("wschannel: APIKey is required")
+	if opts.APIKey == "" && opts.BearerToken == nil {
+		return nil, errors.New("wschannel: APIKey or BearerToken is required")
 	}
 	topic := opts.Topic
 	if topic == "" {
@@ -243,6 +300,10 @@ func New(opts Options) (*Client, error) {
 	c := &Client{
 		url:               opts.URL,
 		apiKey:            opts.APIKey,
+		bearerToken:       opts.BearerToken,
+		fatalDialErr:      opts.FatalDialErr,
+		forceRefresh:      opts.ForceRefresh,
+		accessTokenExpiry: opts.AccessTokenExpiry,
 		primaryTopic:      topic,
 		heartbeatInterval: hb,
 		log:               logger,
@@ -294,6 +355,14 @@ func (c *Client) Connect(ctx context.Context) (json.RawMessage, error) {
 	c.wg.Add(1)
 	go c.sessionLoop()
 
+	// Proactive in-band token keep-alive (OAuth only, when the caller wired
+	// the token funcs). Refreshes before expiry over the live socket so a
+	// long session never hits the server's token_expired disconnect.
+	if c.bearerToken != nil && c.forceRefresh != nil && c.accessTokenExpiry != nil {
+		c.wg.Add(1)
+		go c.keepAliveLoop()
+	}
+
 	c.openSocketGate()
 	welcome, err := c.joinTopicOnSocket(ctx, c.primaryTopic)
 	if err != nil {
@@ -334,14 +403,35 @@ func (c *Client) dial(ctx context.Context) error {
 	}
 	q := u.Query()
 	q.Set("vsn", "2.0.0")
-	q.Set("api_key", c.apiKey)
+
+	if c.bearerToken != nil {
+		// OAuth mode: pass the access token as the `access_token` query
+		// param. A Phoenix WS upgrade can't expose the Authorization header
+		// to Socket.connect/3 (Phoenix's `:x_headers` only captures `x-*`
+		// headers), so the token rides the query string exactly like
+		// `?api_key=`. Pulled fresh each dial so a reconnect after
+		// token_expired carries a refreshed credential; a token error (e.g.
+		// dead session) propagates to the session loop, which may classify
+		// it fatal via FatalDialErr. Redaction covers `access_token=` in any
+		// logged URL/error.
+		tok, terr := c.bearerToken(ctx)
+		if terr != nil {
+			// Keep the error chain intact so FatalDialErr can still classify
+			// a dead session; the message is redacted.
+			return redact.WrapError(terr)
+		}
+		q.Set("access_token", tok)
+	} else {
+		// API-key mode: query param, as Socket.connect/3 expects.
+		q.Set("api_key", c.apiKey)
+	}
 	u.RawQuery = q.Encode()
 
 	conn, _, err := websocket.Dial(ctx, u.String(), nil)
 	if err != nil {
-		// The library's error embeds the upgrade URL — including our
-		// api_key — verbatim. Redact eagerly so the cleartext token
-		// can't reach an upstream caller's UI or logger.
+		// The library's error embeds the upgrade URL — which includes our
+		// api_key or access_token — verbatim. Redact eagerly so the
+		// cleartext credential can't reach an upstream caller's UI or logger.
 		return fmt.Errorf("dial: %s", redact.Error(err))
 	}
 	conn.SetReadLimit(1 << 20)
@@ -433,6 +523,12 @@ func (c *Client) sessionLoop() {
 			// Disconnected — fall through to reconnect.
 		}
 
+		// A permanently-dead OAuth session must not be retried — the
+		// reconnect would re-present a token the server already rejected.
+		if c.authDead.Load() {
+			return
+		}
+
 		c.resetGates()
 
 		attempt := 0
@@ -454,6 +550,14 @@ func (c *Client) sessionLoop() {
 			err := c.dial(dialCtx)
 			cancel()
 			if err != nil {
+				if c.fatalDialErr != nil && c.fatalDialErr(err) {
+					// Dead OAuth session — retrying can't help. Surface
+					// it and stop the reconnect loop; the UI prompts the
+					// user to re-authenticate.
+					c.logErr(slog.LevelWarn, "fatal auth error; stopping reconnect", err)
+					c.emitAuthFailed(err)
+					return
+				}
 				c.logErr(slog.LevelInfo, "reconnect dial failed", err, "attempt", attempt)
 				continue
 			}
@@ -539,6 +643,27 @@ func (c *Client) dropConn(code websocket.StatusCode, reason string) {
 	// dropConn calls during the same outage into a single reconnect.
 	select {
 	case c.disconnect <- struct{}{}:
+	default:
+	}
+}
+
+// emitTokenRefreshing surfaces a transient "refreshing session" hint when
+// the server signals OAuth token expiry. Best-effort; dropped if the push
+// buffer is full (the subsequent reconnect events still inform the UI).
+func (c *Client) emitTokenRefreshing(payload json.RawMessage) {
+	select {
+	case c.pushes <- Push{Event: TokenRefreshEvent, Payload: payload}:
+	default:
+	}
+}
+
+// emitAuthFailed surfaces a terminal auth failure (dead OAuth session) so
+// the UI can prompt re-login. The reason is redacted before it leaves the
+// client.
+func (c *Client) emitAuthFailed(err error) {
+	payload, _ := json.Marshal(map[string]string{"reason": redact.String(err.Error())})
+	select {
+	case c.pushes <- Push{Event: AuthFailedEvent, Payload: payload}:
 	default:
 	}
 }
@@ -812,6 +937,39 @@ func (c *Client) readLoop() {
 			}
 		}
 
+		// OAuth access-token expiry. The server pushes token_expired on
+		// the joined topic, then stops that channel. Because the token is
+		// validated at *connect* (not at channel join), a re-join alone
+		// won't re-authenticate — we must re-dial the whole socket with a
+		// fresh token. Surface a "refreshing" hint, then drop the conn to
+		// trigger the reconnect path, whose dial pulls a refreshed token.
+		if f.Event == "token_expired" {
+			c.emitTokenRefreshing(f.Payload)
+			// Force a token refresh now so the upcoming reconnect dials
+			// with a genuinely new access token instead of re-presenting
+			// the just-rejected one (which would loop under clock skew).
+			// A dead session surfaces on the reconnect dial via FatalDialErr.
+			if c.forceRefresh != nil {
+				rctx, cancel := context.WithTimeout(c.runCtx, 30*time.Second)
+				rerr := c.forceRefresh(rctx)
+				cancel()
+				if rerr != nil {
+					if c.fatalDialErr != nil && c.fatalDialErr(rerr) {
+						// Dead session: stop now rather than letting the
+						// reconnect re-present a locally-"valid" but
+						// server-rejected token in a tight loop.
+						c.authDead.Store(true)
+						c.emitAuthFailed(rerr)
+					} else {
+						c.logErr(slog.LevelInfo, "token refresh on expiry failed (reconnect will retry)", rerr)
+					}
+				}
+			}
+			c.dropConn(websocket.StatusNormalClosure, "oauth token expired")
+			c.drainPending()
+			continue
+		}
+
 		// Ignore phx_close / phx_error here for V1 — the read error
 		// path will handle disconnects.
 		if f.Event == "phx_close" || f.Event == "phx_error" {
@@ -851,6 +1009,110 @@ func (c *Client) heartbeatLoop(interval time.Duration) {
 			cancel()
 		}
 	}
+}
+
+// keepAliveLoop proactively refreshes the OAuth access token IN-BAND over the
+// live socket shortly before it expires, so a long console session never hits
+// the server's token_expired disconnect. It pushes a `token.refresh` command
+// (the server re-validates the new token and reschedules its expiry timer)
+// instead of reconnecting. On any failure it does nothing and lets the
+// reactive token_expired/reconnect path take over. Polling (rather than a
+// per-token timer) keeps it trivially correct across reconnects, where the
+// token and its expiry change underneath us.
+func (c *Client) keepAliveLoop() {
+	defer c.wg.Done()
+	const (
+		poll = 15 * time.Second
+		lead = 60 * time.Second
+	)
+	t := time.NewTicker(poll)
+	defer t.Stop()
+	for {
+		select {
+		case <-c.done:
+			return
+		case <-c.runCtx.Done():
+			return
+		case <-t.C:
+			if c.authDead.Load() || !c.sessionReadyNow() {
+				continue
+			}
+			if !keepAliveDue(c.accessTokenExpiry(), time.Now(), lead) {
+				continue
+			}
+			c.inBandRefresh()
+		}
+	}
+}
+
+// keepAliveDue reports whether a proactive in-band refresh should fire: the
+// access token has a known expiry within lead of now.
+func keepAliveDue(exp, now time.Time, lead time.Duration) bool {
+	return !exp.IsZero() && exp.Sub(now) <= lead
+}
+
+// sessionReadyNow non-blockingly reports whether the session is fully
+// established (socket live AND all topics joined).
+func (c *Client) sessionReadyNow() bool {
+	select {
+	case <-c.sessionGate():
+		return true
+	default:
+		return false
+	}
+}
+
+// inBandRefresh mints a fresh access token and pushes it to the server over
+// the live socket. On success the server keeps the connection alive and
+// reschedules its expiry timer (no reconnect, no re-join). On any failure it
+// falls back to the reactive path: a dead session stops reconnect, a rejected
+// token forces a reconnect (which re-validates at connect with the fresh
+// token), and a transient delivery failure leaves the server's existing timer
+// to fire token_expired.
+func (c *Client) inBandRefresh() {
+	ctx, cancel := context.WithTimeout(c.runCtx, 30*time.Second)
+	defer cancel()
+
+	c.log.Info("oauth access token near expiry; refreshing in-band")
+
+	if err := c.forceRefresh(ctx); err != nil {
+		if c.fatalDialErr != nil && c.fatalDialErr(err) {
+			c.authDead.Store(true)
+			c.emitAuthFailed(err)
+			c.dropConn(websocket.StatusNormalClosure, "oauth session expired")
+			return
+		}
+		// Transient: leave the server's timer to fire token_expired, which
+		// the reconnect path handles.
+		c.logErr(slog.LevelWarn, "in-band refresh: token refresh failed (token_expired will recover)", err)
+		return
+	}
+
+	tok, err := c.bearerToken(ctx)
+	if err != nil {
+		c.logErr(slog.LevelWarn, "in-band refresh: could not read refreshed token", err)
+		return
+	}
+
+	reply, err := c.Push(ctx, c.primaryTopic, tokenRefreshCommand, map[string]string{"access_token": tok})
+	if err != nil {
+		// Couldn't deliver (socket hiccup) — the reconnect / token_expired
+		// path re-establishes with the already-refreshed token.
+		c.logErr(slog.LevelWarn, "in-band refresh: token.refresh push failed (reconnect will recover)", err)
+		return
+	}
+	if reply.Status != "ok" {
+		var perr struct {
+			Code    string `json:"code"`
+			Message string `json:"message"`
+		}
+		_ = json.Unmarshal(reply.Response, &perr)
+		c.logErr(slog.LevelInfo, "in-band token.refresh rejected; reconnecting",
+			fmt.Errorf("%s: %s", perr.Code, perr.Message))
+		c.dropConn(websocket.StatusNormalClosure, "in-band token refresh rejected")
+		return
+	}
+	c.log.Info("oauth token refreshed in-band; console session kept alive")
 }
 
 func (c *Client) allocRef() string {

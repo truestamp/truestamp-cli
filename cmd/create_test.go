@@ -59,10 +59,12 @@ func TestCLI_Create_Help_ShowsAllFlags(t *testing.T) {
 
 func TestCLI_Create_NoAPIKey_Error(t *testing.T) {
 	cmd := exec.Command(binaryPath, "create", "-n", "Test", "--hash", validSHA256Hex)
-	cmd.Env = append(os.Environ(), "TRUESTAMP_API_KEY=", "TRUESTAMP_API_URL=http://localhost:0")
+	// Empty API key + a loopback base_url with no stored OAuth session ⇒
+	// no credential ⇒ the "not authenticated" guard fires.
+	cmd.Env = append(os.Environ(), "TRUESTAMP_API_KEY=", "TRUESTAMP_BASE_URL=http://127.0.0.1:0")
 	out, _ := cmd.CombinedOutput()
-	if !containsString(string(out), "API key required") {
-		t.Errorf("expected API key error, got: %s", out)
+	if !containsString(string(out), "not authenticated") {
+		t.Errorf("expected not-authenticated error, got: %s", out)
 	}
 }
 

@@ -17,10 +17,9 @@ import (
 
 var teamListCmd = &cobra.Command{
 	Use:   "list",
-	Short: "Show all teams the API key has membership in",
-	Long: `List the teams the current API key is a member of, with the user's role
-in each. The active team (the one stored under 'team' in config.toml)
-is marked with a star.
+	Short: "Show all teams you're a member of",
+	Long: `List the teams you're a member of, with your role in each. The active
+team (the one stored under 'team' in config.toml) is marked with a star.
 
 Examples:
   truestamp team list
@@ -111,7 +110,7 @@ func renderEmptyTeamList(w io.Writer, apiURL string) {
 	body := []string{
 		header,
 		"",
-		"  " + ui.FaintStyle().Render("No teams found for this API key."),
+		"  " + ui.FaintStyle().Render("No teams found for your account."),
 	}
 	if url := ui.TeamCreateURL(apiURL); url != "" {
 		body = append(body,

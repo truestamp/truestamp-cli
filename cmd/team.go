@@ -45,18 +45,17 @@ the right URL automatically.`,
 // first printing a "not authenticated" banner to stderr (unless silent).
 func teamConfig(cmd *cobra.Command) (teams.Config, error) {
 	cfg := appConfig
-	if cfg.APIKey == "" {
+	if !authConfigured() {
 		silent, _ := cmd.Flags().GetBool("silent")
 		if !silent {
 			fmt.Fprintln(cmd.ErrOrStderr(), ui.FailureBanner("Not authenticated"))
 			fmt.Fprintln(cmd.ErrOrStderr(), ui.FaintStyle().Render(
-				"    Run 'truestamp auth login' to store an API key."))
+				"    Run 'truestamp auth login' to sign in (or set TRUESTAMP_API_KEY)."))
 		}
 		return teams.Config{}, errSilentFail
 	}
 	return teams.Config{
 		APIURL: cfg.APIURL,
-		APIKey: cfg.APIKey,
 		Team:   cfg.Team,
 	}, nil
 }
@@ -70,7 +69,7 @@ func teamRenderError(cmd *cobra.Command, err error, silent bool) error {
 		if !silent {
 			fmt.Fprintln(cmd.ErrOrStderr(), ui.FailureBanner("Not authenticated"))
 			fmt.Fprintln(cmd.ErrOrStderr(), ui.FaintStyle().Render(
-				"    The API key was rejected. Run 'truestamp auth login' to store a fresh key."))
+				"    Your credential was rejected. Run 'truestamp auth login' to sign in again."))
 		}
 		return errSilentFail
 	}
@@ -78,7 +77,7 @@ func teamRenderError(cmd *cobra.Command, err error, silent bool) error {
 		if !silent {
 			fmt.Fprintln(cmd.ErrOrStderr(), ui.FailureBanner("Access denied"))
 			fmt.Fprintln(cmd.ErrOrStderr(), ui.FaintStyle().Render(
-				"    Your API key is valid, but you do not have access to that team."))
+				"    You're authenticated, but you do not have access to that team."))
 			fmt.Fprintln(cmd.ErrOrStderr(), ui.FaintStyle().Render(
 				"    Run 'truestamp team list' to see the teams you are a member of."))
 		}

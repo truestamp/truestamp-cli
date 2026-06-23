@@ -21,6 +21,7 @@ import (
 	"strconv"
 
 	"github.com/gofrs/uuid/v5"
+	"github.com/truestamp/truestamp-cli/internal/auth"
 	"github.com/truestamp/truestamp-cli/internal/httpclient"
 )
 
@@ -65,10 +66,11 @@ func (e *APIError) Error() string {
 func (e *APIError) Unwrap() error { return e.sentinel }
 
 // Config carries the subset of runtime configuration needed for a request.
-// Kept small to avoid importing the top-level config package.
+// Kept small to avoid importing the top-level config package. The
+// credential is supplied out-of-band by the process-wide [auth.Authorizer]
+// (set in cmd/root); only the tenant scoping lives here.
 type Config struct {
 	APIURL string // e.g. https://www.truestamp.com/api/json
-	APIKey string // Bearer token (never logged)
 	Team   string // optional tenant id
 }
 
@@ -123,15 +125,17 @@ func ByHash(ctx context.Context, cfg Config, hash string) (*Beacon, error) {
 // doGet issues an authenticated GET and returns the response body on 2xx.
 // On non-2xx returns an *APIError wrapping one of the class sentinels.
 func doGet(ctx context.Context, cfg Config, path string) ([]byte, error) {
-	if cfg.APIKey == "" {
-		return nil, &APIError{Status: 401, Detail: "API key not set", sentinel: ErrUnauthorized}
+	if auth.Default().Mode() == auth.ModeNone {
+		return nil, &APIError{Status: 401, Detail: "not authenticated", sentinel: ErrUnauthorized}
 	}
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, cfg.APIURL+path, nil)
 	if err != nil {
 		return nil, fmt.Errorf("creating request: %w", err)
 	}
 	req.Header.Set("Accept", "application/vnd.api+json")
-	req.Header.Set("Authorization", "Bearer "+cfg.APIKey)
+	if err := auth.AuthorizeRequest(ctx, req); err != nil {
+		return nil, &APIError{Status: 401, Detail: err.Error(), sentinel: ErrUnauthorized}
+	}
 	if cfg.Team != "" {
 		req.Header.Set("tenant", cfg.Team)
 	}

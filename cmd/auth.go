@@ -11,10 +11,12 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
+	"time"
 
 	"charm.land/huh/v2"
 	lipgloss "charm.land/lipgloss/v2"
 	"github.com/spf13/cobra"
+	"github.com/truestamp/truestamp-cli/internal/auth"
 	"github.com/truestamp/truestamp-cli/internal/config"
 	"github.com/truestamp/truestamp-cli/internal/httpclient"
 	"github.com/truestamp/truestamp-cli/internal/teams"
@@ -23,43 +25,58 @@ import (
 
 var authCmd = &cobra.Command{
 	Use:   "auth",
-	Short: "Manage Truestamp API authentication",
-	Long:  "Log in to store your Truestamp API key in the config file, or log out to remove it.",
+	Short: "Manage Truestamp authentication",
+	Long: `Sign in to Truestamp.
+
+By default 'auth login' opens your browser for a secure OAuth sign-in
+(Authorization Code + PKCE). The resulting session uses a short-lived
+access token that the CLI refreshes automatically, and the refresh token
+is stored in your OS keychain (with a 0600 file fallback).
+
+For CI and other headless environments, set a long-lived API key via the
+TRUESTAMP_API_KEY env var or the --api-key flag; an explicitly-provided API
+key takes precedence over an OAuth session. 'auth login --api-key' stores a
+key in your config file interactively.`,
 }
+
+var authLoginAPIKey bool
 
 var authLoginCmd = &cobra.Command{
 	Use:   "login",
-	Short: "Store an API key in the config file",
-	Long: `Log in by pasting a Truestamp API key.
+	Short: "Sign in via your browser (OAuth), or store an API key with --api-key",
+	Long: `Sign in to Truestamp.
 
-Visit the API keys page in the Truestamp web app, create a new key, and copy
-it immediately — existing keys cannot be copied after creation. Paste the
-new key into the interactive prompt. The key is stored in your local config
-file with 0600 permissions. For security, there is no command-line flag to
-accept the key — it must be pasted into the hidden-input prompt.`,
+Default: opens your browser to authorize the CLI (OAuth 2.1 Authorization
+Code + PKCE). On success a session is stored in your OS keychain (0600 file
+fallback) and refreshed automatically.
+
+--api-key: instead prompts for a long-lived API key and stores it in the
+config file with 0600 permissions (the headless/CI path).`,
 	Args:          cobra.NoArgs,
 	SilenceUsage:  true,
 	SilenceErrors: true,
 	RunE:          runAuthLogin,
 }
 
+var authLogoutAPIKey bool
+
 var authLogoutCmd = &cobra.Command{
 	Use:   "logout",
-	Short: "Remove the stored API key from the config file",
+	Short: "Sign out — revoke the OAuth session and/or remove the stored API key",
 	Args:  cobra.NoArgs,
 	RunE:  runAuthLogout,
 }
 
 var authStatusCmd = &cobra.Command{
 	Use:   "status",
-	Short: "Report whether an API key is configured and valid",
-	Long: `Report whether an API key is configured and validate it by calling
-the Truestamp API. This is inherently an online operation; no offline mode
-is offered.
+	Short: "Report the active credential and validate it against the API",
+	Long: `Report which credential is active (OAuth session or API key) and
+validate it by calling the Truestamp API. This is inherently an online
+operation; no offline mode is offered.
 
 Exit codes:
-  0  valid (key is set and accepted by the API)
-  1  no key, invalid key, or network error`,
+  0  valid (a credential is active and accepted by the API)
+  1  no credential, invalid credential, or network error`,
 	Args:          cobra.NoArgs,
 	SilenceUsage:  true,
 	SilenceErrors: true,
@@ -67,15 +84,84 @@ Exit codes:
 }
 
 func init() {
+	authLoginCmd.Flags().BoolVar(&authLoginAPIKey, "api-key", false, "Store a long-lived API key interactively instead of OAuth sign-in")
+	authLogoutCmd.Flags().BoolVar(&authLogoutAPIKey, "api-key", false, "Remove the stored API key (in addition to clearing any OAuth session)")
 	authCmd.AddCommand(authLoginCmd)
 	authCmd.AddCommand(authLogoutCmd)
 	authCmd.AddCommand(authStatusCmd)
 	rootCmd.AddCommand(authCmd)
 }
 
+// runAuthLogin dispatches to the browser OAuth flow (default) or the
+// interactive API-key paste path (--api-key).
 func runAuthLogin(cmd *cobra.Command, _ []string) error {
+	if authLoginAPIKey {
+		return runAPIKeyLogin(cmd)
+	}
+	return runOAuthLogin(cmd)
+}
+
+// runOAuthLogin runs the browser-based loopback OAuth flow.
+func runOAuthLogin(cmd *cobra.Command) error {
+	out := cmd.OutOrStdout()
+	cfg := appConfig
+	store := auth.NewStore(cfg.BaseURL)
+
+	// The browser flow needs an interactive session to be useful, but we
+	// don't hard-require a TTY: the URL is printed so a user on a headless
+	// box can copy it. We do warn if an explicit API key will shadow the
+	// session for actual API calls.
+	if cfg.APIKeyExplicit {
+		fmt.Fprintln(cmd.ErrOrStderr(), ui.FaintStyle().Render(
+			"note: TRUESTAMP_API_KEY/--api-key is set and takes precedence over an OAuth session for API calls."))
+	}
+
+	fmt.Fprintln(out, ui.HeaderBox("Truestamp Sign-In", "Authorizing via your browser"))
+	fmt.Fprintln(out)
+
+	ctx, cancel := context.WithTimeout(cmd.Context(), 5*time.Minute)
+	defer cancel()
+
+	sess, err := auth.Login(ctx, cfg.BaseURL, store, auth.LoginOptions{Out: out})
+	if err != nil {
+		return fmt.Errorf("login failed: %w", err)
+	}
+	appLogger.Info("auth_login_oauth", "issuer", sess.Issuer, "scope", sess.Scope)
+
+	// Re-resolve the process authorizer so subsequent calls (and the probe
+	// below) see the new session.
+	auth.SetDefault(auth.Resolve(
+		auth.Credentials{APIKey: cfg.APIKey, APIKeyExplicit: cfg.APIKeyExplicit}, store))
+
+	// Best-effort identity probe using the freshly-minted OAuth session
+	// specifically (ignoring any api-key precedence) so the confirmation
+	// reflects who you just signed in as.
+	probe := auth.Resolve(auth.Credentials{}, store)
+	identity := ""
+	if res, perr := checkAuth(ctx, probe, cfg.APIURL, cfg.Team); perr == nil && res.ok {
+		identity = formatUserIdentity(res)
+	}
+
+	labelStyle := lipgloss.NewStyle().Foreground(ui.Label)
+	if identity != "" {
+		fmt.Fprintln(out, ui.SuccessBanner("Signed in as "+identity))
+	} else {
+		fmt.Fprintln(out, ui.SuccessBanner("Signed in"))
+	}
+	if sess.Scope != "" {
+		fmt.Fprintln(out, labelStyle.Render("    Scopes:  "+sess.Scope))
+	}
+	if !sess.Expiry.IsZero() {
+		fmt.Fprintln(out, labelStyle.Render("    Expires: "+sess.Expiry.Local().Format(time.RFC1123)+" (auto-refreshed)"))
+	}
+	fmt.Fprintln(out, labelStyle.Render("    Stored:  "+store.Location()))
+	return nil
+}
+
+// runAPIKeyLogin is the legacy interactive paste-a-key path (--api-key).
+func runAPIKeyLogin(cmd *cobra.Command) error {
 	if !stdinIsTerminal() {
-		return fmt.Errorf("auth login requires an interactive terminal")
+		return fmt.Errorf("auth login --api-key requires an interactive terminal (set TRUESTAMP_API_KEY directly in CI)")
 	}
 
 	keysURL, err := apiKeysURL(appConfig.APIURL)
@@ -124,52 +210,98 @@ func runAuthLogin(cmd *cobra.Command, _ []string) error {
 		return err
 	}
 
-	// Log the action — never the key bytes. The redacting handler
-	// would catch a leak, but we don't put the key into attrs at all.
-	appLogger.Info("auth_login", "config_path", config.ConfigFilePath())
-	fmt.Fprintln(out, ui.SuccessBanner("Logged in — API key saved to "+config.ConfigFilePath()))
+	// Log the action — never the key bytes.
+	appLogger.Info("auth_login_apikey", "config_path", config.ConfigFilePath())
+	fmt.Fprintln(out, ui.SuccessBanner("API key saved to "+config.ConfigFilePath()))
 	return nil
 }
 
+// runAuthLogout revokes any OAuth session and optionally clears a stored
+// API key. By default it clears whatever credential is active; --api-key
+// additionally removes the stored config-file key.
 func runAuthLogout(cmd *cobra.Command, _ []string) error {
 	out := cmd.OutOrStdout()
+	cfg := appConfig
+	store := auth.NewStore(cfg.BaseURL)
 
-	if appConfig.APIKey == "" {
-		fmt.Fprintln(out, ui.FaintStyle().Render("  No API key is currently stored."))
+	_, oauthErr := store.Load()
+	hasOAuth := oauthErr == nil
+	hasFileKey := cfg.APIKey != "" && !cfg.APIKeyExplicit
+
+	if !hasOAuth && !hasFileKey {
+		if cfg.APIKeyExplicit {
+			fmt.Fprintln(out, ui.FaintStyle().Render(
+				"  Authenticated via TRUESTAMP_API_KEY/--api-key — nothing is stored to clear."))
+			fmt.Fprintln(out, ui.FaintStyle().Render(
+				"  Unset it in your environment to sign out."))
+		} else {
+			fmt.Fprintln(out, ui.FaintStyle().Render("  Not logged in."))
+		}
 		return nil
 	}
 
-	if !stdinIsTerminal() {
-		return fmt.Errorf("auth logout requires an interactive terminal")
+	if stdinIsTerminal() {
+		var confirmed bool
+		desc := logoutDescription(hasOAuth, hasFileKey || authLogoutAPIKey)
+		if err := huh.NewForm(
+			huh.NewGroup(
+				huh.NewConfirm().
+					Title("Sign out?").
+					Description(desc).
+					Affirmative("Yes, sign out").
+					Negative("Cancel").
+					Value(&confirmed),
+			),
+		).WithTheme(ui.HuhTheme()).Run(); err != nil {
+			return fmt.Errorf("confirmation: %w", err)
+		}
+		if !confirmed {
+			fmt.Fprintln(out, ui.FaintStyle().Render("  Cancelled."))
+			return nil
+		}
 	}
 
-	var confirmed bool
-	err := huh.NewForm(
-		huh.NewGroup(
-			huh.NewConfirm().
-				Title("Remove the stored API key?").
-				Description("This clears api_key in " + config.ConfigFilePath()).
-				Affirmative("Yes, log out").
-				Negative("Cancel").
-				Value(&confirmed),
-		),
-	).WithTheme(ui.HuhTheme()).Run()
-	if err != nil {
-		return fmt.Errorf("confirmation: %w", err)
+	ctx, cancel := context.WithTimeout(cmd.Context(), 20*time.Second)
+	defer cancel()
+
+	if hasOAuth {
+		revoked, err := auth.Logout(ctx, store)
+		if err != nil {
+			return fmt.Errorf("clearing OAuth session: %w", err)
+		}
+		appLogger.Info("auth_logout_oauth", "revoked", revoked)
+		if revoked {
+			fmt.Fprintln(out, ui.SuccessBanner("Signed out — OAuth session revoked and cleared"))
+		} else {
+			fmt.Fprintln(out, ui.SuccessBanner("Signed out — OAuth session cleared (server revocation best-effort)"))
+		}
 	}
 
-	if !confirmed {
-		fmt.Fprintln(out, ui.FaintStyle().Render("  Cancelled."))
-		return nil
+	if hasFileKey || authLogoutAPIKey {
+		if err := config.SetAPIKey(""); err != nil {
+			return err
+		}
+		appLogger.Info("auth_logout_apikey", "config_path", config.ConfigFilePath())
+		fmt.Fprintln(out, ui.SuccessBanner("Stored API key removed from "+config.ConfigFilePath()))
+	} else if hasOAuth && cfg.APIKey != "" {
+		fmt.Fprintln(out, ui.FaintStyle().Render(
+			"  Note: a config-file API key is still set; run 'truestamp auth logout --api-key' to remove it."))
 	}
 
-	if err := config.SetAPIKey(""); err != nil {
-		return err
-	}
-
-	appLogger.Info("auth_logout", "config_path", config.ConfigFilePath())
-	fmt.Fprintln(out, ui.SuccessBanner("Logged out — API key removed"))
+	auth.SetDefault(auth.Resolve(
+		auth.Credentials{APIKey: "", APIKeyExplicit: cfg.APIKeyExplicit}, store))
 	return nil
+}
+
+func logoutDescription(hasOAuth, clearsKey bool) string {
+	switch {
+	case hasOAuth && clearsKey:
+		return "Revoke the OAuth session and remove the stored API key."
+	case hasOAuth:
+		return "Revoke and clear the OAuth session."
+	default:
+		return "Clear the stored API key in " + config.ConfigFilePath() + "."
+	}
 }
 
 func runAuthStatus(cmd *cobra.Command, _ []string) error {
@@ -178,6 +310,7 @@ func runAuthStatus(cmd *cobra.Command, _ []string) error {
 	cfg := appConfig
 	apiURL := cfg.APIURL
 	checkURL := apiURL + "/users"
+	azr := auth.Default()
 
 	labelStyle := lipgloss.NewStyle().Foreground(ui.Label)
 
@@ -186,22 +319,38 @@ func runAuthStatus(cmd *cobra.Command, _ []string) error {
 		Row("Config File", config.ConfigFilePath()).
 		Row("API URL", apiURL).
 		Row("Check URL", checkURL).
-		Row("API Key", maskAPIKey(cfg.APIKey)).
-		Row("Team In Scope", teamInScope(cfg.Team))
+		Row("Auth Mode", authModeDisplay())
+
+	// OAuth session detail rows — only when OAuth is the ACTIVE credential,
+	// so the displayed scope/expiry always matches the Auth Mode (an
+	// explicit API key can override a still-stored session).
+	store := auth.NewStore(cfg.BaseURL)
+	if azr.Mode() == auth.ModeOAuth {
+		if sess, serr := store.Load(); serr == nil {
+			if sess.Scope != "" {
+				t = t.Row("Scopes", sess.Scope)
+			}
+			t = t.Row("Token Expiry", formatTokenExpiry(sess.Expiry))
+		}
+	}
+	if cfg.APIKey != "" {
+		t = t.Row("API Key", maskAPIKey(cfg.APIKey))
+	}
+	t = t.Row("Team In Scope", teamInScope(cfg.Team))
 
 	fmt.Fprintln(out, ui.HeaderBox("Truestamp Auth Status", "Validating with the API"))
 	fmt.Fprintln(out)
 	fmt.Fprintln(out, t.String())
 
-	if cfg.APIKey == "" {
-		fmt.Fprintln(out, ui.FailureBanner("Not logged in"))
-		fmt.Fprintln(out, labelStyle.Render("    Run 'truestamp auth login' to store an API key."))
+	if azr.Mode() == auth.ModeNone {
+		fmt.Fprintln(out, ui.FailureBanner("Not authenticated"))
+		fmt.Fprintln(out, labelStyle.Render("    Run 'truestamp auth login' to sign in (or set TRUESTAMP_API_KEY)."))
 		return errSilentFail
 	}
 
 	ctx := cmd.Context()
 
-	userResult, err := checkAPIKey(ctx, apiURL, cfg.APIKey, cfg.Team)
+	userResult, err := checkAuth(ctx, azr, apiURL, cfg.Team)
 	if err != nil {
 		fmt.Fprintln(out, ui.FailureBanner("Could not reach the API"))
 		fmt.Fprintln(out, labelStyle.Render("    "+err.Error()))
@@ -210,11 +359,11 @@ func runAuthStatus(cmd *cobra.Command, _ []string) error {
 
 	switch {
 	case userResult.unauthorized:
-		fmt.Fprintln(out, ui.FailureBanner("API key rejected by the server"))
+		fmt.Fprintln(out, ui.FailureBanner("Credential rejected by the server"))
 		if userResult.message != "" {
 			fmt.Fprintln(out, labelStyle.Render("    "+userResult.message))
 		} else {
-			fmt.Fprintf(out, "    %s\n", labelStyle.Render(fmt.Sprintf("HTTP %d — run 'truestamp auth login' to replace the key.", userResult.httpStatus)))
+			fmt.Fprintf(out, "    %s\n", labelStyle.Render(fmt.Sprintf("HTTP %d — run 'truestamp auth login' to re-authenticate.", userResult.httpStatus)))
 		}
 		return errSilentFail
 
@@ -226,11 +375,10 @@ func runAuthStatus(cmd *cobra.Command, _ []string) error {
 		return errSilentFail
 	}
 
-	// User is authenticated. Resolve the team when one is configured, and
-	// surface an auth-style failure if the team is not accessible.
+	// Authenticated. Resolve the team when one is configured.
 	var teamResult *teamCheckResult
 	if cfg.Team != "" {
-		teamResult, err = fetchTeam(ctx, apiURL, cfg.APIKey, cfg.Team)
+		teamResult, err = fetchTeam(ctx, azr, apiURL, cfg.Team)
 		if err != nil {
 			fmt.Fprintln(out, ui.FailureBanner("Could not look up team"))
 			fmt.Fprintln(out, labelStyle.Render("    "+err.Error()))
@@ -244,12 +392,8 @@ func runAuthStatus(cmd *cobra.Command, _ []string) error {
 			fmt.Fprintln(out, labelStyle.Render(fmt.Sprintf("    HTTP %d — the team id may be wrong, or this user is not a member.", teamResult.httpStatus)))
 			return errSilentFail
 		}
-		// Best-effort role lookup. We've already proven the team is
-		// accessible; if the membership endpoint is degraded we still
-		// want to render the success banner with id+name. Soft-fail
-		// the role specifically.
 		role, _ := teams.GetMyRoleOnTeam(ctx, teams.Config{
-			APIURL: apiURL, APIKey: cfg.APIKey, Team: cfg.Team,
+			APIURL: apiURL, Team: cfg.Team,
 		}, cfg.Team)
 		teamResult.role = role
 	}
@@ -277,8 +421,6 @@ func formatUserIdentity(r *authCheckResult) string {
 }
 
 // formatTeam renders the resolved team context shown on success.
-// Retained for the pre-existing single-line consumers (none after the
-// refactor below, but kept callable so external tests don't break).
 func formatTeam(teamID string, r *teamCheckResult) string {
 	if teamID == "" {
 		return "personal team (no tenant header sent)"
@@ -293,11 +435,8 @@ func formatTeam(teamID string, r *teamCheckResult) string {
 	return fmt.Sprintf("%s  [%s]", label, teamID)
 }
 
-// formatTeamLines renders the team context as up-to-three lines for
-// the success-banner subblock: id, name (with optional `(personal)`
-// suffix), and role. Returns a single-line fallback when no team is
-// configured. Empty/unknown fields are skipped so the output stays
-// dense — we never render `Team Role: (unknown)`.
+// formatTeamLines renders the team context as up-to-three lines for the
+// success-banner subblock.
 func formatTeamLines(teamID string, r *teamCheckResult) []string {
 	if teamID == "" {
 		return []string{"Team: personal team (no tenant header sent)"}
@@ -316,6 +455,20 @@ func formatTeamLines(teamID string, r *teamCheckResult) []string {
 	return out
 }
 
+// formatTokenExpiry renders the access-token expiry for `auth status`.
+// Access tokens are short-lived (~1h) and auto-refreshed, so a past
+// timestamp is normal — annotate it so it doesn't read as a broken session.
+func formatTokenExpiry(exp time.Time) string {
+	switch {
+	case exp.IsZero():
+		return "(unknown) — auto-refreshes on next use"
+	case exp.Before(time.Now()):
+		return "expired — auto-refreshes on next use"
+	default:
+		return exp.Local().Format(time.RFC1123) + " (auto-refreshed)"
+	}
+}
+
 // authCheckResult summarizes the outcome of the /users probe.
 type authCheckResult struct {
 	ok           bool
@@ -327,12 +480,7 @@ type authCheckResult struct {
 	fullName     string
 }
 
-// teamCheckResult summarizes the outcome of the /teams/{id} probe. found
-// is true only on a 2xx response; 401/403/404 all return found=false.
-// role is populated by a parallel call to /memberships?filter[team_id]
-// — empty when the lookup failed or no membership exists. The empty-
-// string fallback degrades cleanly: the success banner still renders,
-// just without the role row.
+// teamCheckResult summarizes the outcome of the /teams/{id} probe.
 type teamCheckResult struct {
 	found      bool
 	httpStatus int
@@ -342,23 +490,23 @@ type teamCheckResult struct {
 	message    string
 }
 
-// checkAPIKey sends GET {apiURL}/users with the given bearer token and
-// interprets the response. Returns a non-nil error only for transport-level
-// failures (DNS, timeout, connection refused). All other outcomes — 2xx,
-// 4xx, 5xx — are reported in the result.
-func checkAPIKey(ctx context.Context, apiURL, apiKey, team string) (*authCheckResult, error) {
+// checkAuth sends GET {apiURL}/users authorized by azr and interprets the
+// response. Returns a non-nil error only for transport-level failures and
+// for a dead/unconfigured credential (azr.Authorize failing). All HTTP
+// outcomes — 2xx, 4xx, 5xx — are reported in the result.
+func checkAuth(ctx context.Context, azr auth.Authorizer, apiURL, team string) (*authCheckResult, error) {
 	if ctx == nil {
 		ctx = context.Background()
 	}
-	// Keep the response small and sparse-fielded — an admin caller would
-	// otherwise see every user on the system here.
 	reqURL := apiURL + "/users?page[limit]=1&fields[user]=email,first_name,last_name,full_name"
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, reqURL, nil)
 	if err != nil {
 		return nil, fmt.Errorf("creating request: %w", err)
 	}
 	req.Header.Set("Accept", "application/vnd.api+json")
-	req.Header.Set("Authorization", "Bearer "+apiKey)
+	if err := azr.Authorize(ctx, req); err != nil {
+		return nil, err
+	}
 	if team != "" {
 		req.Header.Set("tenant", team)
 	}
@@ -390,10 +538,8 @@ func checkAPIKey(ctx context.Context, apiURL, apiKey, team string) (*authCheckRe
 }
 
 // fetchTeam sends GET {apiURL}/teams/{id} and reports whether the caller
-// can see that team. A 401/403/404 is treated as "not accessible" (the
-// caller could not find it or lacks membership) rather than a transport
-// error. 5xx surfaces in message with found=false.
-func fetchTeam(ctx context.Context, apiURL, apiKey, teamID string) (*teamCheckResult, error) {
+// can see that team.
+func fetchTeam(ctx context.Context, azr auth.Authorizer, apiURL, teamID string) (*teamCheckResult, error) {
 	if ctx == nil {
 		ctx = context.Background()
 	}
@@ -403,7 +549,9 @@ func fetchTeam(ctx context.Context, apiURL, apiKey, teamID string) (*teamCheckRe
 		return nil, fmt.Errorf("creating request: %w", err)
 	}
 	req.Header.Set("Accept", "application/vnd.api+json")
-	req.Header.Set("Authorization", "Bearer "+apiKey)
+	if err := azr.Authorize(ctx, req); err != nil {
+		return nil, err
+	}
 	req.Header.Set("tenant", teamID)
 
 	resp, err := httpclient.Do(req)
@@ -429,8 +577,7 @@ func fetchTeam(ctx context.Context, apiURL, apiKey, teamID string) (*teamCheckRe
 
 // extractUserIdentity pulls id, email, and a display name out of a
 // JSON:API response whose `data` may be either a single resource or an
-// array. Prefers the server-computed `full_name` attribute, then falls
-// back to `first_name last_name`. Missing fields return empty strings.
+// array.
 func extractUserIdentity(body []byte) (id, email, fullName string) {
 	first := firstJSONAPIResource(body)
 	if first == nil {
@@ -515,8 +662,7 @@ func extractAPIErrorMessage(body []byte) string {
 
 // teamInScope returns the tenant header value the CLI will send, or a
 // placeholder noting that the personal team will be used when no team has
-// been configured. The API assigns requests without a tenant to the
-// caller's personal team.
+// been configured.
 func teamInScope(team string) string {
 	if team == "" {
 		return "(personal team — set TRUESTAMP_TEAM or --team to override)"
@@ -534,11 +680,7 @@ func stringAttr(m map[string]any, key string) string {
 	return ""
 }
 
-// apiKeysURL derives the web app's API keys page from the API base URL by
-// keeping the scheme and host and replacing the path with /api-keys. A
-// default `https://www.truestamp.com/api/json` therefore maps to
-// `https://www.truestamp.com/api-keys`, and a local `http://localhost:4000/api/json`
-// maps to `http://localhost:4000/api-keys`.
+// apiKeysURL derives the web app's API keys page from the API base URL.
 func apiKeysURL(apiURL string) (string, error) {
 	u, err := url.Parse(apiURL)
 	if err != nil || u.Scheme == "" || u.Host == "" {

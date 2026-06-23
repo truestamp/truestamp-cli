@@ -101,6 +101,47 @@ func TestStringBearer(t *testing.T) {
 	}
 }
 
+func TestStringOAuth(t *testing.T) {
+	cases := []struct {
+		name string
+		in   string
+		want string
+	}{
+		{
+			name: "access_token query param",
+			in:   `callback ?access_token=jwt.abc.def&state=x`,
+			want: `callback ?access_token=REDACTED&state=x`,
+		},
+		{
+			name: "refresh_token value redacted, grant_type label kept",
+			in:   `grant_type=refresh_token&refresh_token=rt_secret&client_id=c`,
+			want: `grant_type=refresh_token&refresh_token=REDACTED&client_id=c`,
+		},
+		{
+			name: "code_verifier and code params",
+			in:   `code_verifier=abc123&code=xyz`,
+			want: `code_verifier=REDACTED&code=REDACTED`,
+		},
+		{
+			name: "json token response body",
+			in:   `{"access_token":"jwt","refresh_token":"rt","token_type":"Bearer"}`,
+			want: `{"access_token":"REDACTED","refresh_token":"REDACTED","token_type":"Bearer"}`,
+		},
+		{
+			name: "invalid_grant error body is not over-redacted",
+			in:   `{"error":"invalid_grant"}`,
+			want: `{"error":"invalid_grant"}`,
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := String(tc.in); got != tc.want {
+				t.Errorf("got %q, want %q", got, tc.want)
+			}
+		})
+	}
+}
+
 func TestStringBoth(t *testing.T) {
 	in := `dial wss://x?api_key=truestamp_a&vsn=2.0.0; tried Authorization: Bearer truestamp_b`
 	got := String(in)
@@ -151,6 +192,9 @@ func FuzzRedact(f *testing.F) {
 		"api_key=a&vsn=1\nAuthorization: Bearer y",
 		"api_key=\x00\x01\x02&vsn=1",
 		"api_key=" + strings.Repeat("A", 1000),
+		"access_token=jwt&refresh_token=rt&code=c&code_verifier=v",
+		`{"access_token":"x","refresh_token":"y"}`,
+		"grant_type=refresh_token&refresh_token=rt",
 	}
 	for _, s := range seeds {
 		f.Add(s)
@@ -173,6 +217,16 @@ func FuzzRedact(f *testing.F) {
 			// remaining match should equal that exactly.
 			if m != "Bearer "+REDACTED {
 				t.Fatalf("Bearer match not redacted: %q (in %q)", m, out)
+			}
+		}
+		for _, m := range oauthQueryRe.FindAllString(out, -1) {
+			if !strings.HasSuffix(m, "="+REDACTED) {
+				t.Fatalf("oauth query match not redacted: %q (in %q)", m, out)
+			}
+		}
+		for _, m := range oauthJSONRe.FindAllString(out, -1) {
+			if !strings.Contains(m, REDACTED) {
+				t.Fatalf("oauth json match not redacted: %q (in %q)", m, out)
 			}
 		}
 	})

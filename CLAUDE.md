@@ -8,7 +8,9 @@ Go CLI tool that cryptographically verifies Truestamp proof bundle JSON files. C
 
 Beyond verification, the CLI exposes five Unix-y, pipe-friendly sub-commands that replace the common external tool chain (`sha256sum`, `shasum`, `xxd`, `base64`, `jq`, `date`): `truestamp hash` (digests), `truestamp encode` / `truestamp decode` (byte encodings), `truestamp jcs` (RFC 8785 canonicalization), `truestamp convert {time, proof, id, keyid, merkle}` (domain conversions). `truestamp create` registers a new timestamped item in either of two modes: **external-hash** (the user submits a hash of a file they keep locally) or **claims-as-source-of-truth** (no external file — the claims content itself is what gets timestamped, gated by a server-side meaningful-content rule requiring ≥ 32-char description or non-empty metadata). The pair `claims.hash` / `claims.hash_type` is co-required: both supplied or both omitted.
 
-`truestamp console` opens an interactive Bubble Tea TUI that holds a long-lived authenticated WebSocket to the backend (multiplexed Phoenix Channels: `console:lobby` for commands + stream events, `console:clock` for server-time ticks). Four panes — Monitor (toggleable stream subscriptions + scrollable waterfall), New Item (two-mode form — external-hash or claims-as-source-of-truth, picked via a leading `Submission mode` Select; hash + hash_type fields are auto-hidden in claims-content mode and the description field enforces the ≥ 32-char rule inline — plus live `items.created → items.committed` lifecycle card), Teams (membership list + in-place team switch via `scope.switch_team` channel push), Connection (diagnostics + log file path). Reconnect-with-backoff, server-side first-event-immediate event coalescing into `<resource>.burst` summaries, and 24h time-windowed event retention. Full architecture, limits, logging, and testing in [docs/engineering/console.md](docs/engineering/console.md). Server wire protocol authoritative reference in [truestamp-v2/docs/console_channel.md](https://github.com/truestamp/truestamp-v2/blob/main/docs/console_channel.md).
+Authentication is **OAuth-first, API-key-second**. `truestamp auth login` opens the browser and runs a loopback Authorization Code + PKCE flow (OAuth 2.1), storing a short-lived access token plus a rotating refresh token in the OS keychain (with a 0600-file fallback). A long-lived API key (`--api-key` / `TRUESTAMP_API_KEY`, or `auth login --api-key` written to config.toml) remains the CI/headless fallback and, when supplied explicitly, takes precedence over a stored OAuth session. The core lives in the new [`internal/auth`](internal/auth/) package, which unifies both credentials behind a single process-wide `Authorizer`. See "Authentication" below.
+
+`truestamp console` opens an interactive Bubble Tea TUI that holds a long-lived authenticated WebSocket to the backend (multiplexed Phoenix Channels: `console:lobby` for commands + stream events, `console:clock` for server-time ticks). The WebSocket sends the OAuth access token as an `?access_token=<jwt>` query param on the upgrade (a Phoenix upgrade can't read the `Authorization` header; an API key stays a `?api_key=` query param); on the server's `token_expired` push it force-refreshes the token, re-dials, and re-joins topics, while a dead session (`invalid_grant`) stops reconnect and prompts re-login. Four panes — Monitor (toggleable stream subscriptions + scrollable waterfall), New Item (two-mode form — external-hash or claims-as-source-of-truth, picked via a leading `Submission mode` Select; hash + hash_type fields are auto-hidden in claims-content mode and the description field enforces the ≥ 32-char rule inline — plus live `items.created → items.committed` lifecycle card), Teams (membership list + in-place team switch via `scope.switch_team` channel push), Connection (diagnostics + log file path). Reconnect-with-backoff, server-side first-event-immediate event coalescing into `<resource>.burst` summaries, and 24h time-windowed event retention. Full architecture, limits, logging, and testing in [docs/engineering/console.md](docs/engineering/console.md). Server wire protocol authoritative reference in [truestamp-v2/docs/console_channel.md](https://github.com/truestamp/truestamp-v2/blob/main/docs/console_channel.md).
 
 The `truestamp team` subcommand (`team list / show / set / unset`) and the in-TUI Teams pane share a single source of truth: the top-level `team` key in `~/.config/truestamp/config.toml`. `team set` validates the id by reading the team from `/api/json/teams/{id}` before persisting, so a typo or revoked membership refuses to write. The console pane's `s`-to-set confirmation pushes `scope.switch_team` over the live WebSocket, persists on success, and never reconnects — catalog stream subscriptions get rebound against the new tenant server-side, while item watches keep their original team binding. See "Team management surfaces" below.
 
@@ -50,6 +52,9 @@ task build                    # -> build/truestamp
 ./build/truestamp team show [id]                                       # detail card for active team (or arg)
 ./build/truestamp team set [id]                                        # validate + persist; interactive picker if no id
 ./build/truestamp team unset                                           # clear active team in config.toml
+./build/truestamp auth login [--api-key]                               # browser OAuth (default); --api-key = interactive paste into config.toml
+./build/truestamp auth logout [--api-key]                             # revoke + clear OAuth session; --api-key also clears the stored key
+./build/truestamp auth status                                         # mode-aware: Auth Mode, scopes, token expiry, team
 ./build/truestamp config path|show|init
 ./build/truestamp upgrade [--check] [--yes] [--version vX.Y.Z]
 ./build/truestamp version      # includes detected install method (homebrew / go install / install.sh / unknown)
@@ -97,6 +102,8 @@ Settings are resolved in priority order (highest priority last):
 3. Environment variables (`TRUESTAMP_` prefix)
 4. CLI flags (only explicitly set flags override)
 
+Authentication is OAuth-first: the access/refresh token pair lives in the **OS keychain** (0600-file fallback), *not* in config.toml. The config-file `api_key` and the explicit `--api-key` / `TRUESTAMP_API_KEY` are the CI/headless path only; an explicit key (env or flag, tracked as `config.Config.APIKeyExplicit`, computed in `config.Load`) overrides a stored OAuth session, while a config-file key is consulted only after the OAuth session. See "Authentication" below for the full precedence.
+
 ### Config Commands
 
 | Command | Description |
@@ -111,7 +118,7 @@ Settings are resolved in priority order (highest priority last):
 | ---- | ------- | ------- | ----------- |
 | `--config` | | `~/.config/truestamp/config.toml` | Path to config file |
 | `--api-url` | `TRUESTAMP_API_URL` | `https://www.truestamp.com/api/json` | Base URL of the Truestamp API |
-| `--api-key` | `TRUESTAMP_API_KEY` | `""` | API key for authentication |
+| `--api-key` | `TRUESTAMP_API_KEY` | `""` | Long-lived API key — the CI/headless fallback. Supplying it explicitly (this flag or the env var) overrides any stored OAuth session; a config-file `api_key` ranks below the OAuth session. OAuth is the default; prefer `truestamp auth login`. |
 | `--keyring-url` | `TRUESTAMP_KEYRING_URL` | `https://www.truestamp.com/.well-known/keyring.json` | URL of keyring endpoint |
 | `--http-timeout` | `TRUESTAMP_HTTP_TIMEOUT` | `10s` | HTTP timeout for external API calls |
 | `--no-color` | `NO_COLOR` | `false` | Disable all color and ANSI output |
@@ -199,6 +206,39 @@ Every post-action card uses `ui.CompactTable()` which returns a lipgloss table w
 | `convert merkle [ip-value]` | `--json`, `--silent` (positional or stdin) |
 
 Env vars: `TRUESTAMP_CONVERT_TIME_ZONE` sets the default `--to-zone` for `convert time` and `convert id`.
+
+## Authentication
+
+Authentication is **OAuth-first, API-key-second**, unified behind a single `auth.Authorizer` ([`internal/auth/auth.go`](internal/auth/auth.go)). One `Authorizer` is resolved once in `cmd/root.go`'s `PersistentPreRunE` and installed process-wide via `auth.SetDefault`; every authenticated call site draws from `auth.Default()`.
+
+**Precedence** ([`internal/auth.Resolve`](internal/auth/resolve.go)):
+
+1. **Explicit API key** — `--api-key` flag or `TRUESTAMP_API_KEY` env (`Credentials.APIKeyExplicit`). Wins outright so CI/headless is deterministic.
+2. **Stored OAuth session** — access token, auto-refreshed via the rotating refresh token.
+3. **Config-file `api_key`** — a key sitting in config.toml (not "explicit").
+4. **None** — unauthenticated; public requests still go out, the server 401s on protected ones.
+
+Both an OAuth access token and an API key are presented to the JSON API as `Authorization: Bearer <value>`; the server accepts either.
+
+**OAuth flow** — browser-based loopback Authorization Code + PKCE (S256 only), `golang.org/x/oauth2`. Public client: the `client_id` `019ef661-6737-71ec-abd0-ac8f4684ce45` (a UUIDv7 — the server's `oauth_clients` PK type rejects non-v7 ids) is baked in ([`auth.ClientID`](internal/auth/auth.go), `token_endpoint_auth_method=none` — PKCE is the per-flow secret); every endpoint (issuer / authorize / token / revocation) comes from RFC 8414 discovery ([`discovery.go`](internal/auth/discovery.go)), validated with issuer-match + same-origin endpoint pinning. The loopback redirect binds **fixed ports** `127.0.0.1:8976` (primary) → `:8765` (fallback), exact-matched server-side ([`login.go`](internal/auth/login.go) `loopbackPorts`). Requested `Scopes` = `api:read api:write console:read console:write` (no `mcp:*`).
+
+**Commands** ([`cmd/auth.go`](cmd/auth.go)):
+
+- `auth login` — browser OAuth by default; `--api-key` switches to an interactive paste-a-key path that writes the key to config.toml (0600).
+- `auth logout` — best-effort RFC 7009 `/oauth/revoke` of the refresh token + clear the local session; `--api-key` additionally removes the stored config-file key. Idempotent.
+- `auth status` — mode-aware: renders **Auth Mode**, plus (in OAuth mode) scopes and token expiry, then validates the credential against `/users` and resolves the team. `config show` also gained an **Auth Mode** row (`cmd/config.go` `authModeDisplay`).
+
+**Storage** ([`store.go`](internal/auth/store.go)) — `Session` (access + rotating refresh token + cached endpoint URLs + scope/expiry) persisted per server origin in the OS keychain (`zalando/go-keyring`), transparently falling back to a 0600 JSON file under the user cache dir (`truestamp/oauth.json`) on a keychain-less host. The refresh token rotates on every refresh; the rotated value is persisted best-effort after each grant ([`resolve.go`](internal/auth/resolve.go) `oauthAuthorizer.token`).
+
+**Reactive 401 retry** — `auth.NewRetryTransport(nil)` is layered onto the shared HTTP client (`httpclient.SetTransport`, wired in `cmd/root.go`). In OAuth mode a `401` on a request *we* authenticated triggers one `ForceRefresh` + retry; the server's OAuth→API-key fallback means an expired token can surface as a bare 401 with no `WWW-Authenticate`, so the contract is "any 401 in OAuth mode ⇒ refresh-and-retry-once" — centralized here for every call site. A dead session (`invalid_grant` ⇒ `ErrSessionExpired`) is not retried.
+
+**Call-site routing** — the six former Bearer-header sites (`cmd/auth.go` `checkAuth`/`fetchTeam`, `internal/teams`, `internal/beacons`, `internal/items`, `internal/proof/download.go`, `internal/verify/remote.go`) now authorize through `auth.AuthorizeRequest` / `auth.Default()`; their `Config`/params no longer carry an api key.
+
+**WebSocket** — see "Console" below: OAuth sends the access token as an `?access_token=` query param on the upgrade (a Phoenix upgrade can't read the `Authorization` header; api key stays `?api_key=`), with a `token_expired` → force-refresh → re-dial → re-join recovery and a dead-session stop.
+
+**Secret redaction** ([`internal/redact`](internal/redact/redact.go)) — the single redaction source (used by `internal/logging` and `internal/wschannel`) was extended to scrub `access_token` / `refresh_token` / `code` / `code_verifier` (query-string and JSON forms) alongside the existing `api_key=…` / `Bearer …` patterns, plus `redact.WrapError` (redacts `Error()` while preserving `errors.Is`/`errors.As` through the chain — used so a token error stays `errors.Is(ErrSessionExpired)` for the WS fatal-session check without leaking bytes).
+
+**In-band keep-alive** — `internal/wschannel`'s `keepAliveLoop` polls and, ~60s before the access token expires, force-refreshes it and pushes `token.refresh {"access_token": <jwt>}` on `console:lobby` over the live socket. The server re-validates and reschedules its disconnect timer (`{:ok, %{exp}}`), so a long console session re-authenticates **without** reconnecting and `token_expired` never fires. Any failure (dead session, rejected token, delivery hiccup) falls back to the reactive `token_expired` → re-dial path. Wired via `wschannel.Options.AccessTokenExpiry` ← `auth.Authorizer.AccessTokenExpiry`.
 
 ## Proof Bundle Format
 
@@ -321,10 +361,10 @@ Bitcoin regtest has no public API -- local crypto verification only.
 ```
 main.go                         Entry point
 cmd/
-  root.go                       Cobra root command, persistent flags, config loading, PostRun hook for passive upgrade notices
+  root.go                       Cobra root command, persistent flags, config loading; PersistentPreRunE resolves + installs the process-wide auth.Authorizer and layers httpclient.SetTransport(auth.NewRetryTransport(nil)); PostRun hook for passive upgrade notices
   verify.go                     Verify subcommand (uses inputsrc for the six-mode input resolver)
   create.go                     Create subcommand (item registration; shares inputsrc sentinels)
-  auth.go                       Auth login/logout/status subcommand
+  auth.go                       Auth login/logout/status subcommand (OAuth-first; --api-key paste path, best-effort revoke on logout, mode-aware status; authorizes /users + /teams probes through auth.Authorizer)
   beacon.go                     beacon parent + `latest` default (maps `truestamp beacon` → latest)
   beacon_list.go                beacon list (table rendering, TTY-aware hash truncation)
   beacon_get.go                 beacon get (client-side UUIDv7 validation)
@@ -341,7 +381,7 @@ cmd/
   convert_keyid.go              convert keyid (Ed25519 pubkey -> 4-byte Truestamp kid)
   convert_merkle.go             convert merkle (decode compact base64url Merkle proof)
   config.go                     Config subcommand (path, show, init)
-  console.go                    Console subcommand (Bubble Tea TUI over authenticated WebSocket; --ws-url, --log-level, --log-file flags). See docs/engineering/console.md.
+  console.go                    Console subcommand (Bubble Tea TUI over authenticated WebSocket; --ws-url, --log-level, --log-file flags); passes auth.Default() to console.Options.Authorizer. See docs/engineering/console.md.
   upgrade.go                    Upgrade subcommand + flags (install-method routing, exitCodeErr contract)
   upgrade_test.go               upgradeInstructionFor routing + readYes + ExitCode tests
   verify_test.go                CLI integration tests (builds binary, tests exit codes)
@@ -349,8 +389,15 @@ cmd/
   codec_test.go                 encode/decode/jcs integration tests
   convert_test.go               convert integration tests (time zones, ID extraction, proof round-trip)
 internal/
+  auth/
+    auth.go                     Authorizer interface + Mode; process-wide Default/SetDefault/AuthorizeRequest; baked-in public ClientID, Scopes, fixed loopback ports, ErrNoCredentials/ErrSessionExpired
+    discovery.go                RFC 8414 metadata Fetch + Validate (issuer-match + same-origin endpoint pinning)
+    login.go                    Browser loopback Authorization Code + PKCE (S256) flow; Logout + RFC 7009 revoke
+    store.go                    Session + per-origin store (OS keychain via zalando/go-keyring, 0600-file fallback)
+    resolve.go                  Credentials, Resolve precedence, the 3 Authorizer impls (apiKey/none/oauth), self-managed token cache with ForceRefresh, reactive 401-retry RoundTripper (NewRetryTransport), IsInvalidGrant
+    auth_test.go                Resolve precedence + discovery validation + retry-transport + store round-trip tests
   config/
-    config.go                   koanf-based config loading, XDG paths, validation
+    config.go                   koanf-based config loading, XDG paths, validation; computes APIKeyExplicit (env/flag = explicit, config-file = not) for the auth resolver
     defaults/
       config.toml               Embedded default config (go:embed)
   beacons/
@@ -407,22 +454,26 @@ internal/
     bitcoin.go                  GET Blockstream API
     external_test.go            HTTP mock tests (httptest)
   httpclient/
-    client.go                   Shared HTTP client, GetJSONCtx for small JSON responses
+    client.go                   Shared HTTP client, GetJSONCtx for small JSON responses; SetTransport installs the auth 401-retry RoundTripper
     download.go                 DownloadCtx (streams to disk, 200MB cap) + DownloadBytesCtx (in-memory, cap configurable)
     download_test.go            httptest-server tests for happy path, oversize, HTTP error, context cancellation
   console/
-    app.go                      Bubble Tea root model, header (with reconnect countdown + server-time clock), footer key hints, pane switching
+    app.go                      Bubble Tea root model, header (with reconnect countdown + server-time clock), footer key hints, pane switching; maps Options.Authorizer → wschannel.Options (OAuth ⇒ BearerToken/ForceRefresh/FatalDialErr; API key ⇒ resolved once for the query param)
     monitor.go                  Monitor pane: stream toggle list + scrollable / reversible event waterfall (24h time-windowed retention, 100k hard cap)
     newitem.go                  New Item form pane: 4-field input + items.create round-trip + per-item lifecycle card (capped at 100 transitions)
     connection.go               Connection pane: scope, push counts, reconnect summary, log file path
-    messages.go                 tea.Msg types + waitForPush bridge between WS reader goroutine and tea.Update; routes server-time ticks, rejoin events, reconnect status
+    connerror.go                Dial-error classifier; a dead/absent OAuth session (ErrSessionExpired/ErrNoCredentials) routes to the "re-authenticate" hint instead of a network error
+    messages.go                 tea.Msg types + waitForPush bridge between WS reader goroutine and tea.Update; routes server-time ticks, rejoin events, reconnect status, plus tokenRefreshingMsg / authFailedMsg from the OAuth refresh path
   wschannel/
-    client.go                   Homegrown Phoenix Channels V2 client. Multi-topic on one socket; reconnect-with-backoff (1→2→5→10→30s); rejoinAllTopics replay; api_key redaction; two-stage readiness gate (socketReady / sessionReady); pending-call drain on disconnect
+    client.go                   Homegrown Phoenix Channels V2 client. Multi-topic on one socket; reconnect-with-backoff (1→2→5→10→30s); rejoinAllTopics replay; redaction; two-stage readiness gate (socketReady / sessionReady); pending-call drain on disconnect. Options.{BearerToken,ForceRefresh,FatalDialErr,AccessTokenExpiry} drive OAuth: access_token query param on the upgrade (api key stays ?api_key=), token_expired → force-refresh → re-dial → re-join, dead session (authDead) stops reconnect via TokenRefreshEvent / AuthFailedEvent, plus the proactive in-band token.refresh keep-alive
     codec.go                    Phoenix V2 array-form Frame encoder/decoder + ParseReply
-    redact_test.go              Security-critical: api_key never leaks in logs OR returned errors
+    redact_test.go              Security-critical: api_key / Bearer token never leaks in logs OR returned errors
     smoke_test.go               Live-server tests gated behind `smoke` build tag (TestSmokeConsoleLobby, TestSmokeClockTopic, TestSmokeLiveBlock, TestSmokeReconnect)
+  redact/
+    redact.go                   Single redaction source (used by logging + wschannel): api_key=… / Bearer … plus OAuth access_token/refresh_token/code/code_verifier (query + JSON); String/Error/WrapError (WrapError redacts Error() while preserving errors.Is/As)
+    redact_test.go              Asserts every secret pattern is scrubbed in query, JSON, and error-chain forms
   logging/
-    logging.go                  slog + lumberjack file logger (10MB rotation, 5 backups, 14d retention, gzip). Default path: $UserCacheDir/truestamp/console.log. Also exports DefaultPath() for flag help text.
+    logging.go                  slog + lumberjack file logger (10MB rotation, 5 backups, 14d retention, gzip). Default path: $UserCacheDir/truestamp/console.log. Also exports DefaultPath() for flag help text. RedactingHandler routes every attribute through internal/redact.
   ui/
     ui.go                       Shared lipgloss v2 styling: renderer, adaptive colors, components
   verify/
@@ -430,12 +481,13 @@ internal/
     report.go                   Step, Status, Report types
     presenter.go                Lipgloss v2 rendering of Report (table, list, tree)
     json_output.go              Structured JSON output for --json mode
-    remote.go                   Remote API verification
+    remote.go                   Remote API verification (authorizes the /proof/verify POST through auth.Default())
     verify_test.go              Orchestrator unit tests
 ```
 
 ## Architecture Notes
 
+- **Authentication is a single process-wide chokepoint**: `cmd/root.go`'s `PersistentPreRunE` resolves one `auth.Authorizer` via `auth.Resolve` (precedence: explicit `--api-key`/`TRUESTAMP_API_KEY` → stored OAuth session → config-file `api_key` → none) and installs it with `auth.SetDefault`, mirroring `httpclient`'s package-global pattern so the existing call sites authorize via `auth.AuthorizeRequest`/`auth.Default()` without threading an authorizer through every signature. OAuth and the API key are unified behind the same `Authorizer` (both presented as `Authorization: Bearer <value>` to the JSON API). A reactive **401 → ForceRefresh → retry-once** `http.RoundTripper` (`auth.NewRetryTransport`) is layered onto the shared client via `httpclient.SetTransport`, so a server-rejected OAuth access token self-heals without a spurious auth failure; only OAuth-mode requests *we* authenticated are retried, and a dead session (`invalid_grant` ⇒ `ErrSessionExpired`) is not. OAuth tokens live in the OS keychain (0600-file fallback), never config.toml; the refresh token rotates on every refresh. Full model in the "Authentication" section above.
 - **Logic/presentation separation**: `verify.go` builds a `Report` with `Step` entries (pure logic, no I/O). `presenter.go` renders the report to stdout using lipgloss v2 table/list/tree. `report.go` defines the types and `Passed()`/`FailedCount()` methods.
 - **Shared UI package**: `internal/ui/ui.go` provides the shared lipgloss v2 styling foundation (adaptive color palette, HeaderBox, SectionHeader, banners). Uses `compat.AdaptiveColor` for light/dark terminal support. `--no-color` flag sets `lipgloss.Writer.Profile = NoTTY` to strip all ANSI. The `NO_COLOR` env var is natively respected by lipgloss.
 - **`tscrypto` package**: Named to avoid shadowing Go's stdlib `crypto` package. No import alias needed.

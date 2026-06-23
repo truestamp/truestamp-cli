@@ -92,7 +92,7 @@ func runTeamSet(cmd *cobra.Command, args []string) error {
 	// valid to use as the tenant header on these reads. Soft-fail
 	// the role lookup so a degraded server-side response doesn't
 	// suppress the success confirmation.
-	postSwitchCfg := teams.Config{APIURL: cfg.APIURL, APIKey: cfg.APIKey, Team: targetID}
+	postSwitchCfg := teams.Config{APIURL: cfg.APIURL, Team: targetID}
 	team, err := teams.GetTeam(cmd.Context(), postSwitchCfg, targetID)
 	if err != nil {
 		fmt.Fprintln(cmd.OutOrStdout(),

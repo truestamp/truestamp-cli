@@ -12,6 +12,7 @@ import (
 	lipgloss "charm.land/lipgloss/v2"
 	"charm.land/lipgloss/v2/table"
 	"github.com/spf13/cobra"
+	"github.com/truestamp/truestamp-cli/internal/auth"
 	"github.com/truestamp/truestamp-cli/internal/config"
 	"github.com/truestamp/truestamp-cli/internal/teams"
 	"github.com/truestamp/truestamp-cli/internal/ui"
@@ -76,6 +77,7 @@ func presentConfig(cfg *config.Config) {
 	general := ui.CompactTable().
 		StyleFunc(configStyleFunc).
 		Row("API URL", cfg.APIURL).
+		Row("Auth Mode", authModeDisplay()).
 		Row("API Key", maskAPIKey(cfg.APIKey)).
 		Row("Team", valueOrNotSet(cfg.Team))
 
@@ -84,7 +86,7 @@ func presentConfig(cfg *config.Config) {
 	// suppresses the extra rows in favor of a faint hint, so `config
 	// show` stays useful when offline. Capped to half the configured
 	// HTTP timeout so the command stays snappy.
-	if cfg.APIKey != "" && cfg.Team != "" {
+	if authConfigured() && cfg.Team != "" {
 		general = appendTeamDetailRows(general, cfg)
 	}
 
@@ -142,6 +144,18 @@ func configStyleFunc(row, col int) lipgloss.Style {
 	return lipgloss.NewStyle().Foreground(ui.Value)
 }
 
+// authModeDisplay renders the active credential mode for `config show`.
+func authModeDisplay() string {
+	switch auth.Default().Mode() {
+	case auth.ModeOAuth:
+		return "OAuth (browser sign-in)"
+	case auth.ModeAPIKey:
+		return "API key"
+	default:
+		return "none — run 'truestamp auth login'"
+	}
+}
+
 func maskAPIKey(key string) string {
 	if key == "" {
 		return "(not set)"
@@ -190,7 +204,7 @@ func appendTeamDetailRows(tbl *table.Table, cfg *config.Config) *table.Table {
 	ctx, cancel := context.WithTimeout(context.Background(), configTeamLookupTimeout(cfg))
 	defer cancel()
 
-	clientCfg := teams.Config{APIURL: cfg.APIURL, APIKey: cfg.APIKey, Team: cfg.Team}
+	clientCfg := teams.Config{APIURL: cfg.APIURL, Team: cfg.Team}
 
 	team, err := teams.GetTeam(ctx, clientCfg, cfg.Team)
 	if err != nil {

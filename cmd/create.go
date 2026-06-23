@@ -66,7 +66,7 @@ Input methods (resolved in priority order):
 Flags override values from file/auto-hash, enabling combinations like:
   truestamp create report.pdf -n "Q1 Report" -v public -t finance
 
-Requires --api-key to be set (via flag, env, or config file).`,
+Requires authentication — run 'truestamp auth login', or set TRUESTAMP_API_KEY / --api-key for headless/CI use.`,
 	Args:          cobra.MaximumNArgs(1),
 	SilenceUsage:  true,
 	SilenceErrors: true,
@@ -83,8 +83,8 @@ Requires --api-key to be set (via flag, env, or config file).`,
 		}
 
 		cfg := appConfig
-		if cfg.APIKey == "" {
-			return fmt.Errorf("API key required (use --api-key or set TRUESTAMP_API_KEY)")
+		if !authConfigured() {
+			return fmt.Errorf("not authenticated — run `truestamp auth login`, or set TRUESTAMP_API_KEY / --api-key for headless use")
 		}
 
 		jsonOutput, _ := cmd.Flags().GetBool("json")
@@ -127,7 +127,7 @@ Requires --api-key to be set (via flag, env, or config file).`,
 			"tag_count", len(tags),
 			"claim_keys", len(claims),
 		)
-		resp, err := items.CreateItemCtx(cmd.Context(), cfg.APIURL, cfg.APIKey, cfg.Team, claims, visibility, tags)
+		resp, err := items.CreateItemCtx(cmd.Context(), cfg.APIURL, cfg.Team, claims, visibility, tags)
 		if err != nil {
 			appLogger.Error("create_failed", "err", err.Error())
 			return err

@@ -7,7 +7,7 @@ Usage:
   truestamp [command]
 
 Available Commands:
-  auth        Manage Truestamp API authentication
+  auth        Manage Truestamp authentication
   beacon      Inspect Truestamp block beacons
   completion  Generate the autocompletion script for the specified shell
   config      Manage CLI configuration

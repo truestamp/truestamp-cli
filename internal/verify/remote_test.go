@@ -10,7 +10,21 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+
+	"github.com/truestamp/truestamp-cli/internal/auth"
 )
+
+// TestMain installs an api-key Authorizer for the whole package so
+// RunRemote stamps the Authorization header. The key matches the
+// "Bearer test-key" header TestRunRemote_Success asserts; tests that
+// pass other key strings to RemoteOptions no longer carry a credential
+// of their own (the field was removed) and rely on this default.
+func TestMain(m *testing.M) {
+	auth.SetDefault(auth.APIKeyAuthorizer("test-key"))
+	code := m.Run()
+	auth.SetDefault(nil)
+	os.Exit(code)
+}
 
 // makeProofFile writes a minimal valid compact-format JSON proof to a temp file.
 func makeProofFile(t *testing.T) string {
@@ -86,7 +100,6 @@ func TestRunRemote_Success(t *testing.T) {
 
 	report, err := RunRemote(proofFile, RemoteOptions{
 		APIURL: server.URL,
-		APIKey: "test-key",
 		Team:   "team-123",
 	})
 	if err != nil {
@@ -139,7 +152,6 @@ func TestRunRemote_VerificationFailed(t *testing.T) {
 
 	report, err := RunRemote(makeProofFile(t), RemoteOptions{
 		APIURL: server.URL,
-		APIKey: "test-key",
 	})
 	if err != nil {
 		t.Fatalf("RunRemote error: %v", err)
@@ -166,7 +178,6 @@ func TestRunRemote_NoTenantHeader_WhenTeamEmpty(t *testing.T) {
 
 	_, err := RunRemote(makeProofFile(t), RemoteOptions{
 		APIURL: server.URL,
-		APIKey: "test-key",
 		Team:   "",
 	})
 	if err != nil {
@@ -183,7 +194,6 @@ func TestRunRemote_APIError401(t *testing.T) {
 
 	_, err := RunRemote(makeProofFile(t), RemoteOptions{
 		APIURL: server.URL,
-		APIKey: "bad-key",
 	})
 	if err == nil {
 		t.Fatal("expected error for 401")
@@ -202,7 +212,6 @@ func TestRunRemote_APIError400(t *testing.T) {
 
 	_, err := RunRemote(makeProofFile(t), RemoteOptions{
 		APIURL: server.URL,
-		APIKey: "test-key",
 	})
 	if err == nil {
 		t.Fatal("expected error for 400")
@@ -212,7 +221,6 @@ func TestRunRemote_APIError400(t *testing.T) {
 func TestRunRemote_MissingFile(t *testing.T) {
 	_, err := RunRemote("/nonexistent/proof.json", RemoteOptions{
 		APIURL: "http://localhost",
-		APIKey: "test-key",
 	})
 	if err == nil {
 		t.Fatal("expected error for missing file")
@@ -225,7 +233,6 @@ func TestRunRemote_InvalidJSON(t *testing.T) {
 
 	_, err := RunRemote(path, RemoteOptions{
 		APIURL: "http://localhost",
-		APIKey: "test-key",
 	})
 	if err == nil {
 		t.Fatal("expected error for invalid JSON")
@@ -308,7 +315,6 @@ func TestRunRemote_ItemProof_SubjectType(t *testing.T) {
 
 	report, err := RunRemote(makeProofFile(t), RemoteOptions{
 		APIURL: server.URL,
-		APIKey: "test-key",
 	})
 	if err != nil {
 		t.Fatalf("RunRemote error: %v", err)
@@ -338,7 +344,6 @@ func TestRunRemote_EntropyProof_SubjectType(t *testing.T) {
 
 	report, err := RunRemote(makeEntropyProofFile(t), RemoteOptions{
 		APIURL: server.URL,
-		APIKey: "test-key",
 	})
 	if err != nil {
 		t.Fatalf("RunRemote error: %v", err)
@@ -430,7 +435,7 @@ func TestRunRemote_CBORInput(t *testing.T) {
 	}))
 	defer server.Close()
 
-	_, err = RunRemote(cborPath, RemoteOptions{APIURL: server.URL, APIKey: "k"})
+	_, err = RunRemote(cborPath, RemoteOptions{APIURL: server.URL})
 	if err != nil {
 		t.Fatalf("RunRemote(cbor): %v", err)
 	}
@@ -442,7 +447,7 @@ func TestRunRemote_MalformedJSONResponse(t *testing.T) {
 		_, _ = w.Write([]byte("not json"))
 	}))
 	defer server.Close()
-	_, err := RunRemote(makeProofFile(t), RemoteOptions{APIURL: server.URL, APIKey: "k"})
+	_, err := RunRemote(makeProofFile(t), RemoteOptions{APIURL: server.URL})
 	if err == nil {
 		t.Fatal("expected parse error for non-JSON response")
 	}
@@ -453,7 +458,7 @@ func TestRunRemote_EmptyResultField(t *testing.T) {
 		_, _ = w.Write([]byte(`{"errors":[]}`))
 	}))
 	defer server.Close()
-	_, err := RunRemote(makeProofFile(t), RemoteOptions{APIURL: server.URL, APIKey: "k"})
+	_, err := RunRemote(makeProofFile(t), RemoteOptions{APIURL: server.URL})
 	if err == nil || !contains(err.Error(), "result") {
 		t.Errorf("expected result-missing error, got %v", err)
 	}
@@ -462,7 +467,6 @@ func TestRunRemote_EmptyResultField(t *testing.T) {
 func TestRunRemote_UnreachableHost(t *testing.T) {
 	_, err := RunRemote(makeProofFile(t), RemoteOptions{
 		APIURL: "http://127.0.0.1:1",
-		APIKey: "k",
 	})
 	if err == nil {
 		t.Fatal("expected connection error")
@@ -486,7 +490,6 @@ func TestRunRemote_ExpectedHashIncluded(t *testing.T) {
 
 	_, err := RunRemote(makeProofFile(t), RemoteOptions{
 		APIURL:       server.URL,
-		APIKey:       "k",
 		ExpectedHash: "deadbeef",
 	})
 	if err != nil {

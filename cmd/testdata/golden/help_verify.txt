@@ -23,7 +23,8 @@ plain block proof (both verify on their own, but only --type beacon
 catches the swap).
 
 Use --remote to delegate verification to the Truestamp server API instead
-of performing local computation. Requires --api-key to be set.
+of performing local computation. Requires authentication — run
+'truestamp auth login', or set TRUESTAMP_API_KEY / --api-key for headless/CI use.
 
 Exit code 0 on success, 1 on verification failure.
 

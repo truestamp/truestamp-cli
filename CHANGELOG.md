@@ -7,6 +7,52 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- **OAuth 2.1 browser sign-in, now the primary authentication method.**
+  `truestamp auth login` opens the browser and runs a loopback
+  Authorization Code + PKCE (S256) flow, storing a short-lived access
+  token plus a rotating refresh token in the OS keychain (with a 0600
+  file fallback). A new `internal/auth` package unifies OAuth and the
+  long-lived API key behind a single process-wide `Authorizer`:
+  discovery-driven endpoints (RFC 8414) validated with issuer and
+  same-origin pinning, a self-managed token cache that refreshes
+  proactively and on demand, automatic single-use refresh-token
+  rotation, and a reactive 401 → refresh → retry-once transport on the
+  shared HTTP client. The six existing API call sites (`auth`, `team`,
+  `beacon`, `create`, `download`, `verify --remote`) and the `console`
+  WebSocket all authenticate through it. `auth login --api-key` keeps
+  the interactive paste-a-key path; `auth logout` revokes the refresh
+  token (RFC 7009) and clears the session; `auth status` and
+  `config show` report the active credential, scopes, and token expiry.
+- **Console WebSocket OAuth with an in-band keep-alive.** The console
+  authenticates on the upgrade with an `access_token` query param and
+  keeps a long session alive across token rotation without
+  reconnecting: it proactively refreshes and pushes `token.refresh`
+  over the live socket before expiry, with the server's `token_expired`
+  push as a reactive refresh-and-redial safety net and a
+  stop-and-prompt-re-login path for a dead session.
+
+### Changed
+- **Authentication is OAuth-first, API-key-second.** A long-lived API
+  key remains the CI/headless path via `--api-key` or
+  `TRUESTAMP_API_KEY`; an explicitly-provided key takes precedence over
+  a stored OAuth session so automated environments stay deterministic.
+  Help text, `config show`, and the "not authenticated" guidance across
+  `team` / `beacon` / `create` / `download` / `verify` / `console` were
+  reworded for the new model. Secret redaction was extended to OAuth
+  access/refresh tokens, authorization codes, and PKCE verifiers in both
+  query-string and JSON forms. New fuzz targets `FuzzDiscoveryValidate`
+  and `FuzzSessionDecode` harden the discovery-document and token-store
+  parsers.
+
+### Security
+- New dependencies `golang.org/x/oauth2`, `github.com/zalando/go-keyring`,
+  and `github.com/cli/browser`. Refresh tokens live in the OS keychain
+  (0600 file fallback), never in `config.toml`; access tokens are
+  short-lived; the loopback callback enforces the PKCE `state` before
+  accepting an authorization code; and the discovery document's endpoints
+  are pinned to the configured origin.
+
 ## [0.8.2] — 2026-06-11
 
 ### Security

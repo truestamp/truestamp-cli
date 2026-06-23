@@ -43,7 +43,7 @@ Shared flags:
   --hash-only    Print only the hash field + newline (for shell substitution)
   -s, --silent   No output, exit code only
 
-Requires --api-key to be set (via flag, env, or config file).`,
+Requires authentication — run 'truestamp auth login', or set TRUESTAMP_API_KEY / --api-key for headless/CI use.`,
 	Args:          cobra.NoArgs,
 	SilenceUsage:  true,
 	SilenceErrors: true,
@@ -103,18 +103,17 @@ func beaconSharedFlags(cmd *cobra.Command) (jsonOut, hashOnly, silent bool, err 
 // first printing a "not authenticated" banner to stderr (unless silent).
 func beaconConfig(cmd *cobra.Command) (beacons.Config, error) {
 	cfg := appConfig
-	if cfg.APIKey == "" {
+	if !authConfigured() {
 		silent, _ := cmd.Flags().GetBool("silent")
 		if !silent {
 			fmt.Fprintln(cmd.ErrOrStderr(), ui.FailureBanner("Not authenticated"))
 			fmt.Fprintln(cmd.ErrOrStderr(), ui.FaintStyle().Render(
-				"    Run 'truestamp auth login' to store an API key."))
+				"    Run 'truestamp auth login' to sign in (or set TRUESTAMP_API_KEY)."))
 		}
 		return beacons.Config{}, errSilentFail
 	}
 	return beacons.Config{
 		APIURL: cfg.APIURL,
-		APIKey: cfg.APIKey,
 		Team:   cfg.Team,
 	}, nil
 }
@@ -128,7 +127,7 @@ func beaconRenderError(cmd *cobra.Command, err error, silent bool) error {
 		if !silent {
 			fmt.Fprintln(cmd.ErrOrStderr(), ui.FailureBanner("Not authenticated"))
 			fmt.Fprintln(cmd.ErrOrStderr(), ui.FaintStyle().Render(
-				"    Run 'truestamp auth login' to store an API key."))
+				"    Run 'truestamp auth login' to sign in (or set TRUESTAMP_API_KEY)."))
 		}
 		return errSilentFail
 	}

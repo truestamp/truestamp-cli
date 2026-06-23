@@ -9,9 +9,22 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"strings"
 	"testing"
+
+	"github.com/truestamp/truestamp-cli/internal/auth"
 )
+
+// TestMain installs an api-key Authorizer for the whole package so
+// CreateItem/CreateItemCtx stamp the Authorization header. The key
+// matches the "Bearer key" header TestCreateItem_Success asserts.
+func TestMain(m *testing.M) {
+	auth.SetDefault(auth.APIKeyAuthorizer("key"))
+	code := m.Run()
+	auth.SetDefault(nil)
+	os.Exit(code)
+}
 
 // --- parseResponse ---------------------------------------------------
 
@@ -151,7 +164,7 @@ func TestCreateItem_Success(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	r, err := CreateItem(srv.URL, "key", "team-1",
+	r, err := CreateItem(srv.URL, "team-1",
 		map[string]any{"hash": "aa", "hash_type": "sha256", "name": "x"},
 		"public", []string{"foo"})
 	if err != nil {
@@ -171,7 +184,7 @@ func TestCreateItem_NoTenantWhenEmpty(t *testing.T) {
 		_, _ = w.Write([]byte(`{"data":{"id":"x"}}`))
 	}))
 	defer srv.Close()
-	_, err := CreateItemCtx(context.Background(), srv.URL, "key", "",
+	_, err := CreateItemCtx(context.Background(), srv.URL, "",
 		map[string]any{}, "", nil)
 	if err != nil {
 		t.Fatal(err)
@@ -184,14 +197,14 @@ func TestCreateItem_APIError(t *testing.T) {
 		_, _ = w.Write([]byte(`{"errors":[{"detail":"bad request"}]}`))
 	}))
 	defer srv.Close()
-	_, err := CreateItem(srv.URL, "key", "", map[string]any{}, "", nil)
+	_, err := CreateItem(srv.URL, "", map[string]any{}, "", nil)
 	if err == nil || !strings.Contains(err.Error(), "bad request") {
 		t.Errorf("expected API error, got %v", err)
 	}
 }
 
 func TestCreateItem_UnreachableHost(t *testing.T) {
-	_, err := CreateItem("http://127.0.0.1:1", "key", "", map[string]any{}, "", nil)
+	_, err := CreateItem("http://127.0.0.1:1", "", map[string]any{}, "", nil)
 	if err == nil {
 		t.Error("expected connection error")
 	}
@@ -202,7 +215,7 @@ func TestCreateItem_MalformedResponse(t *testing.T) {
 		_, _ = w.Write([]byte("not json"))
 	}))
 	defer srv.Close()
-	_, err := CreateItem(srv.URL, "key", "", map[string]any{}, "", nil)
+	_, err := CreateItem(srv.URL, "", map[string]any{}, "", nil)
 	if err == nil {
 		t.Error("expected parse error")
 	}
@@ -215,7 +228,7 @@ func TestCreateItem_TagsEchoedInRequest(t *testing.T) {
 		_, _ = w.Write([]byte(`{"data":{"id":"x"}}`))
 	}))
 	defer srv.Close()
-	_, err := CreateItem(srv.URL, "key", "", map[string]any{"x": 1}, "private",
+	_, err := CreateItem(srv.URL, "", map[string]any{"x": 1}, "private",
 		[]string{"a", "b"})
 	if err != nil {
 		t.Fatal(err)

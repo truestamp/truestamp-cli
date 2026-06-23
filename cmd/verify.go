@@ -52,7 +52,8 @@ plain block proof (both verify on their own, but only --type beacon
 catches the swap).
 
 Use --remote to delegate verification to the Truestamp server API instead
-of performing local computation. Requires --api-key to be set.
+of performing local computation. Requires authentication — run
+'truestamp auth login', or set TRUESTAMP_API_KEY / --api-key for headless/CI use.
 
 Exit code 0 on success, 1 on verification failure.`,
 	Args:          cobra.MaximumNArgs(1),
@@ -137,8 +138,8 @@ Exit code 0 on success, 1 on verification failure.`,
 			if cfg.Verify.SkipExternal || cfg.Verify.SkipSignatures {
 				return fmt.Errorf("--skip-external and --skip-signatures cannot be used with --remote (server always runs full verification)")
 			}
-			if cfg.APIKey == "" {
-				return fmt.Errorf("API key required for --remote verification (use --api-key or set TRUESTAMP_API_KEY)")
+			if !authConfigured() {
+				return fmt.Errorf("not authenticated — --remote verification needs `truestamp auth login`, or TRUESTAMP_API_KEY / --api-key for headless use")
 			}
 
 			// Remote verification needs a file on disk. For non-file
@@ -156,9 +157,8 @@ Exit code 0 on success, 1 on verification failure.`,
 				defer os.Remove(tmpPath)
 			}
 
-			report, err = verify.RunRemote(sourceFile, verify.RemoteOptions{
+			report, err = verify.RunRemoteCtx(cmd.Context(), sourceFile, verify.RemoteOptions{
 				APIURL:              cfg.APIURL,
-				APIKey:              cfg.APIKey,
 				Team:                cfg.Team,
 				ExpectedHash:        hashFlag,
 				ExpectedSubjectType: typeFlag,

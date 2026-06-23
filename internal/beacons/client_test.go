@@ -8,9 +8,23 @@ import (
 	"errors"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"strings"
 	"testing"
+
+	"github.com/truestamp/truestamp-cli/internal/auth"
 )
+
+// TestMain installs an api-key Authorizer for the whole package so the
+// beacons client authorizes outbound requests (it 401s when
+// auth.Default().Mode() == auth.ModeNone). The key matches the
+// "Bearer test-key" header these tests assert.
+func TestMain(m *testing.M) {
+	auth.SetDefault(auth.APIKeyAuthorizer("test-key"))
+	code := m.Run()
+	auth.SetDefault(nil)
+	os.Exit(code)
+}
 
 const (
 	validID    = "019db702-b08c-73dc-a7cd-2c5e011f1dad"
@@ -24,7 +38,7 @@ const (
 func newServer(t *testing.T, fn http.HandlerFunc) (Config, func()) {
 	t.Helper()
 	srv := httptest.NewServer(fn)
-	return Config{APIURL: srv.URL, APIKey: "test-key"}, srv.Close
+	return Config{APIURL: srv.URL}, srv.Close
 }
 
 func TestLatest_Bare(t *testing.T) {
@@ -229,6 +243,12 @@ func TestError_5xx(t *testing.T) {
 }
 
 func TestError_MissingAPIKey(t *testing.T) {
+	// With no Authorizer (ModeNone), the client must short-circuit with
+	// ErrUnauthorized before touching the network. Restore the
+	// package-wide api-key authorizer afterward.
+	auth.SetDefault(nil)
+	t.Cleanup(func() { auth.SetDefault(auth.APIKeyAuthorizer("test-key")) })
+
 	_, err := Latest(context.Background(), Config{APIURL: "http://unused"})
 	if !errors.Is(err, ErrUnauthorized) {
 		t.Fatalf("expected ErrUnauthorized, got %v", err)

@@ -8,9 +8,23 @@ import (
 	"errors"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"strings"
 	"testing"
+
+	"github.com/truestamp/truestamp-cli/internal/auth"
 )
+
+// TestMain installs an api-key Authorizer for the whole package so the
+// JSON:API client authorizes outbound requests (the teams client
+// 401s when auth.Default().Mode() == auth.ModeNone). The key matches
+// the "Bearer test-key" header these tests assert.
+func TestMain(m *testing.M) {
+	auth.SetDefault(auth.APIKeyAuthorizer("test-key"))
+	code := m.Run()
+	auth.SetDefault(nil)
+	os.Exit(code)
+}
 
 const (
 	personalTeamID = "019db702-b08c-73dc-a7cd-2c5e011f1dad"
@@ -76,7 +90,7 @@ const jsonAPISingleTeamBody = `{
 func newServer(t *testing.T, fn http.HandlerFunc) (Config, func()) {
 	t.Helper()
 	srv := httptest.NewServer(fn)
-	return Config{APIURL: srv.URL, APIKey: "test-key"}, srv.Close
+	return Config{APIURL: srv.URL}, srv.Close
 }
 
 // twoEndpointMux serves both /memberships and /teams against the
@@ -109,7 +123,7 @@ func twoEndpointMux(t *testing.T, membershipsBody, teamsBody string) (Config, fu
 		_, _ = w.Write([]byte(teamsBody))
 	})
 	srv := httptest.NewServer(mux)
-	return Config{APIURL: srv.URL, APIKey: "test-key"}, srv.Close
+	return Config{APIURL: srv.URL}, srv.Close
 }
 
 func TestListMyMemberships_HappyPath(t *testing.T) {
@@ -194,7 +208,7 @@ func TestListMyMemberships_TeamsCallReturnsError(t *testing.T) {
 	})
 	srv := httptest.NewServer(mux)
 	defer srv.Close()
-	cfg := Config{APIURL: srv.URL, APIKey: "test-key"}
+	cfg := Config{APIURL: srv.URL}
 
 	if _, err := ListMyMemberships(context.Background(), cfg); err == nil {
 		t.Fatal("expected error when /teams 500s")
@@ -215,7 +229,7 @@ func TestListMyMemberships_MembershipsCallSoftFails(t *testing.T) {
 	})
 	srv := httptest.NewServer(mux)
 	defer srv.Close()
-	cfg := Config{APIURL: srv.URL, APIKey: "test-key"}
+	cfg := Config{APIURL: srv.URL}
 
 	got, err := ListMyMemberships(context.Background(), cfg)
 	if err != nil {
@@ -264,7 +278,7 @@ func TestListMyMemberships_PaginationWalksMultiplePages(t *testing.T) {
 	srv := httptest.NewServer(mux)
 	defer srv.Close()
 	_ = page
-	cfg := Config{APIURL: srv.URL, APIKey: "test-key"}
+	cfg := Config{APIURL: srv.URL}
 
 	got, err := ListMyMemberships(context.Background(), cfg)
 	if err != nil {
@@ -313,7 +327,7 @@ func TestListMyMemberships_TenantHeaderForwarded(t *testing.T) {
 	mux.HandleFunc("/teams", check("teams"))
 	srv := httptest.NewServer(mux)
 	defer srv.Close()
-	cfg := Config{APIURL: srv.URL, APIKey: "test-key", Team: personalTeamID}
+	cfg := Config{APIURL: srv.URL, Team: personalTeamID}
 
 	if _, err := ListMyMemberships(context.Background(), cfg); err != nil {
 		t.Fatalf("ListMyMemberships: %v", err)
@@ -354,14 +368,19 @@ func TestGetTeam_EmptyIDRejectedClientSide(t *testing.T) {
 
 func TestDoGet_NoAPIKeyShortCircuit(t *testing.T) {
 	cfg, stop := newServer(t, func(_ http.ResponseWriter, _ *http.Request) {
-		t.Fatal("server should not be called when api key is empty")
+		t.Fatal("server should not be called when no credential is configured")
 	})
 	defer stop()
-	cfg.APIKey = ""
+
+	// With no Authorizer (ModeNone), the client must short-circuit
+	// with ErrUnauthorized before touching the network. Restore the
+	// package-wide api-key authorizer afterward.
+	auth.SetDefault(nil)
+	t.Cleanup(func() { auth.SetDefault(auth.APIKeyAuthorizer("test-key")) })
 
 	_, err := ListMyMemberships(context.Background(), cfg)
 	if err == nil {
-		t.Fatal("expected error for empty api key")
+		t.Fatal("expected error when no credential is configured")
 	}
 	if !errors.Is(err, ErrUnauthorized) {
 		t.Errorf("err should wrap ErrUnauthorized, got %v", err)
