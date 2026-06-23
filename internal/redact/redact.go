@@ -35,6 +35,19 @@ var (
 	// and others don't. Stops at the next whitespace or quote so a
 	// surrounding error message stays readable.
 	bearerRe = regexp.MustCompile(`(?i)Bearer\s+[^"\s]+`)
+
+	// oauthQueryRe matches the OAuth-flow secrets that can appear in a
+	// query string or form body echoed by an HTTP error (the access /
+	// refresh token, the PKCE verifier, an authorization code, or a
+	// client secret). Stops at the next delimiter so neighbouring params
+	// survive.
+	oauthQueryRe = regexp.MustCompile(`(?i)(access_token|refresh_token|code_verifier|client_secret|\bcode)=[^&"'\s]*`)
+
+	// oauthJSONRe matches the same secrets as JSON string values
+	// (`"refresh_token":"…"`), the shape of a token-endpoint response body
+	// that a RetrieveError may surface. `code` is intentionally excluded
+	// here — as a JSON key it is too often an innocuous error/status code.
+	oauthJSONRe = regexp.MustCompile(`(?i)("(?:access_token|refresh_token|code_verifier|client_secret)"\s*:\s*")[^"]*(")`)
 )
 
 // String applies every redaction pattern to s and returns the cleaned
@@ -47,6 +60,8 @@ func String(s string) string {
 	}
 	s = apiKeyRe.ReplaceAllString(s, "api_key="+REDACTED)
 	s = bearerRe.ReplaceAllString(s, "Bearer "+REDACTED)
+	s = oauthQueryRe.ReplaceAllString(s, "${1}="+REDACTED)
+	s = oauthJSONRe.ReplaceAllString(s, "${1}"+REDACTED+"${2}")
 	return s
 }
 
@@ -60,3 +75,21 @@ func Error(err error) string {
 	}
 	return String(err.Error())
 }
+
+// WrapError returns an error whose Error() string is redacted but which
+// still unwraps to err, so errors.Is / errors.As keep working through it.
+// Use this (instead of fmt.Errorf with %s + Error) when an error must be
+// both redacted for display AND remain classifiable by the caller — e.g.
+// a token error that has to stay errors.Is(ErrSessionExpired) for the
+// WebSocket's fatal-session detection while never leaking token bytes.
+func WrapError(err error) error {
+	if err == nil {
+		return nil
+	}
+	return wrappedError{err: err}
+}
+
+type wrappedError struct{ err error }
+
+func (w wrappedError) Error() string { return String(w.err.Error()) }
+func (w wrappedError) Unwrap() error { return w.err }

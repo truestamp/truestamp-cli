@@ -64,7 +64,6 @@ type teamSwitcher interface {
 //     console catches up to where they left off.
 type teamModel struct {
 	apiURL string
-	apiKey string
 	client teamSwitcher
 
 	// scope points at the root model's activeScope so the pane
@@ -86,10 +85,9 @@ type teamModel struct {
 	noticeError bool
 }
 
-func newTeamModel(apiURL, apiKey string, scope *activeScope, client teamSwitcher) *teamModel {
+func newTeamModel(apiURL string, scope *activeScope, client teamSwitcher) *teamModel {
 	return &teamModel{
 		apiURL: apiURL,
-		apiKey: apiKey,
 		scope:  scope,
 		client: client,
 		state:  teamPaneLoading,
@@ -105,11 +103,11 @@ func (m *teamModel) fetchActiveDetailsCmd(teamID string) tea.Cmd {
 	if teamID == "" {
 		return func() tea.Msg { return teamAccessMsg{TeamID: "", Found: true} }
 	}
-	apiURL, apiKey := m.apiURL, m.apiKey
+	apiURL := m.apiURL
 	return func() tea.Msg {
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cancel()
-		cfg := teams.Config{APIURL: apiURL, APIKey: apiKey, Team: teamID}
+		cfg := teams.Config{APIURL: apiURL, Team: teamID}
 		t, err := teams.GetTeam(ctx, cfg, teamID)
 		if err != nil {
 			return teamAccessMsg{TeamID: teamID, Found: false, Err: err}
@@ -134,7 +132,7 @@ func (m *teamModel) fetchMembershipsCmd() tea.Cmd {
 		defer cancel()
 
 		ms, err := teams.ListMyMemberships(ctx, teams.Config{
-			APIURL: m.apiURL, APIKey: m.apiKey, Team: m.scope.TeamID,
+			APIURL: m.apiURL, Team: m.scope.TeamID,
 		})
 		if err != nil {
 			return teamMembershipsMsg{Err: err}

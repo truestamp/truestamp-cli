@@ -78,7 +78,7 @@ func TestRenderErrorSectionAuthFailure(t *testing.T) {
 	out := stripANSI(m.renderErrorSection(120))
 
 	wantParts := []string{
-		"The server rejected your API key.",
+		"The server rejected your credentials.",
 		"truestamp auth login",
 	}
 	for _, want := range wantParts {

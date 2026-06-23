@@ -6,6 +6,7 @@ package console
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log/slog"
 	"time"
@@ -14,6 +15,7 @@ import (
 	"charm.land/bubbles/v2/key"
 	tea "charm.land/bubbletea/v2"
 	lipgloss "charm.land/lipgloss/v2"
+	"github.com/truestamp/truestamp-cli/internal/auth"
 	"github.com/truestamp/truestamp-cli/internal/console/chrome"
 	"github.com/truestamp/truestamp-cli/internal/console/keys"
 	"github.com/truestamp/truestamp-cli/internal/logging"
@@ -27,11 +29,25 @@ func Run(ctx context.Context, opts Options) error {
 		logger = logging.Discard()
 	}
 
-	client, err := wschannel.New(wschannel.Options{
-		URL:    opts.WSURL,
-		APIKey: opts.APIKey,
-		Logger: logger,
-	})
+	wsOpts := wschannel.Options{URL: opts.WSURL, Logger: logger}
+	switch {
+	case opts.Authorizer != nil && opts.Authorizer.Mode() == auth.ModeOAuth:
+		// OAuth: header auth with a per-dial fresh token, and a dead
+		// session is fatal (stop retrying → prompt re-login).
+		wsOpts.BearerToken = opts.Authorizer.BearerToken
+		wsOpts.ForceRefresh = opts.Authorizer.ForceRefresh
+		wsOpts.AccessTokenExpiry = opts.Authorizer.AccessTokenExpiry
+		wsOpts.FatalDialErr = func(err error) bool { return errors.Is(err, auth.ErrSessionExpired) }
+	case opts.Authorizer != nil:
+		// API-key mode: resolve the key once for query-param auth.
+		key, kerr := opts.Authorizer.BearerToken(ctx)
+		if kerr != nil {
+			return fmt.Errorf("resolving credential: %w", kerr)
+		}
+		wsOpts.APIKey = key
+	}
+
+	client, err := wschannel.New(wsOpts)
 	if err != nil {
 		return fmt.Errorf("wschannel.New: %w", err)
 	}
@@ -54,6 +70,7 @@ func Run(ctx context.Context, opts Options) error {
 		defer cancel()
 		raw, err := client.Connect(connectCtx)
 		if err != nil {
+			logger.Warn("console connect failed", "err", err.Error())
 			p.Send(connectFailedMsg{Err: err})
 			return
 		}
@@ -62,6 +79,7 @@ func Run(ctx context.Context, opts Options) error {
 			p.Send(connectFailedMsg{Err: fmt.Errorf("decode welcome: %w", jerr)})
 			return
 		}
+		logger.Info("console connected", "ws_url", opts.WSURL)
 		// Join the auxiliary clock topic on the same socket. Any
 		// failure here is non-fatal: the lobby still works without the
 		// header clock; log it and move on.
@@ -78,8 +96,12 @@ func Run(ctx context.Context, opts Options) error {
 
 // Options carries the runtime configuration into the TUI.
 type Options struct {
-	WSURL  string
-	APIKey string
+	WSURL string
+
+	// Authorizer supplies the WebSocket credential: OAuth (Bearer header,
+	// auto-refreshed) or API key (query param). The Teams pane's HTTP
+	// calls use the process-wide auth.Default() independently.
+	Authorizer auth.Authorizer
 
 	// APIURL is the base JSON:API URL (e.g. https://www.truestamp.com/api/json).
 	// Threaded into the Teams pane so it can call ListMyMemberships /
@@ -243,7 +265,7 @@ func newModel(client *wschannel.Client, opts Options, log *slog.Logger) *model {
 	m.scope = activeScope{PreferredID: opts.ActiveTeamID}
 	m.monitor = newMonitorModel(client, log)
 	m.newItem = newNewItemModel(client)
-	m.team = newTeamModel(opts.APIURL, opts.APIKey, &m.scope, client)
+	m.team = newTeamModel(opts.APIURL, &m.scope, client)
 	m.connection = newConnectionModel(opts.LogFilePath, opts.ConfigFilePath, opts.HealthTargets, &m.scope)
 	return m
 }
@@ -454,6 +476,23 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.lastOutageMark = now
 		}
 		return m, reconnectTickCmd()
+
+	case tokenRefreshingMsg:
+		// The OAuth access token expired; the client is transparently
+		// re-dialling with a refreshed token. The reconnect events that
+		// follow drive the visible header status — just keep pumping.
+		m.log.Info("oauth access token expired; refreshing session in-band")
+		return m, waitForPush(m.client)
+
+	case authFailedMsg:
+		// The OAuth session is permanently dead; the client stopped
+		// reconnecting. Surface a clear re-login prompt on the
+		// Connection pane.
+		m.state = connFailed
+		m.connErr = fmt.Errorf("OAuth session expired — run `truestamp auth login`, then reopen the console")
+		m.connection.setConnError(m.connErr, m.opts.WSURL)
+		m.log.Warn("oauth session dead; reconnect stopped", "reason", msg.Reason)
+		return m, m.activatePane(paneConnection)
 
 	case pushMsg:
 		m.monitor.handlePush(msg)

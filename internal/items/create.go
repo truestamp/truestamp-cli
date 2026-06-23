@@ -12,6 +12,7 @@ import (
 	"io"
 	"net/http"
 
+	"github.com/truestamp/truestamp-cli/internal/auth"
 	"github.com/truestamp/truestamp-cli/internal/httpclient"
 )
 
@@ -30,14 +31,15 @@ type CreateItemResponse struct {
 }
 
 // CreateItem calls [CreateItemCtx] with [context.Background].
-func CreateItem(apiURL, apiKey, team string, claims map[string]any, visibility string, tags []string) (*CreateItemResponse, error) {
-	return CreateItemCtx(context.Background(), apiURL, apiKey, team, claims, visibility, tags)
+func CreateItem(apiURL, team string, claims map[string]any, visibility string, tags []string) (*CreateItemResponse, error) {
+	return CreateItemCtx(context.Background(), apiURL, team, claims, visibility, tags)
 }
 
 // CreateItemCtx sends a JSON:API POST request to create a new item. claims
 // is the nested claims map (hash, hash_type, name, etc.); visibility and
 // tags are top-level item attributes. ctx cancels the in-flight request.
-func CreateItemCtx(ctx context.Context, apiURL, apiKey, team string, claims map[string]any, visibility string, tags []string) (*CreateItemResponse, error) {
+// The credential is applied by the process-wide [auth.Authorizer].
+func CreateItemCtx(ctx context.Context, apiURL, team string, claims map[string]any, visibility string, tags []string) (*CreateItemResponse, error) {
 	// Build JSON:API envelope
 	attributes := map[string]any{
 		"claims": claims,
@@ -67,7 +69,9 @@ func CreateItemCtx(ctx context.Context, apiURL, apiKey, team string, claims map[
 		return nil, fmt.Errorf("creating request: %w", err)
 	}
 	req.Header.Set("Content-Type", "application/vnd.api+json")
-	req.Header.Set("Authorization", "Bearer "+apiKey)
+	if err := auth.AuthorizeRequest(ctx, req); err != nil {
+		return nil, err
+	}
 	if team != "" {
 		req.Header.Set("tenant", team)
 	}

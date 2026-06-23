@@ -17,6 +17,7 @@ import (
 	"time"
 
 	"github.com/spf13/cobra"
+	"github.com/truestamp/truestamp-cli/internal/auth"
 	"github.com/truestamp/truestamp-cli/internal/config"
 	"github.com/truestamp/truestamp-cli/internal/httpclient"
 	"github.com/truestamp/truestamp-cli/internal/install"
@@ -86,6 +87,19 @@ var rootCmd = &cobra.Command{
 		appConfig = cfg
 		httpclient.Init(cfg.Timeout())
 		httpclient.SetUserAgent(version.Version)
+
+		// Resolve the active credential once (explicit API key → OAuth
+		// session → config-file API key → none) and install it as the
+		// process-wide Authorizer that every HTTP call site and the
+		// console WebSocket draw from.
+		auth.SetDefault(auth.Resolve(
+			auth.Credentials{APIKey: cfg.APIKey, APIKeyExplicit: cfg.APIKeyExplicit},
+			auth.NewStore(cfg.BaseURL),
+		))
+		// Layer reactive 401 → refresh → retry-once on the shared client so
+		// every authenticated HTTP call recovers from a server-rejected
+		// access token without surfacing a spurious auth failure.
+		httpclient.SetTransport(auth.NewRetryTransport(nil))
 
 		// Build the process-wide logger once config has been resolved
 		// so user-supplied --log-file / TRUESTAMP_LOGGING_FILE / TOML
@@ -167,6 +181,12 @@ func LoggerFrom(ctx context.Context) *slog.Logger {
 	}
 	return logging.Discard()
 }
+
+// authConfigured reports whether any credential — an OAuth session or an
+// API key — is active for this invocation. Subcommands gate on it before
+// making authenticated calls so the user gets a clear "log in" message
+// instead of a raw 401.
+func authConfigured() bool { return auth.Default().Mode() != auth.ModeNone }
 
 // maybeEmitUpgradeNotice runs after any successful subcommand and may
 // write a one-line "upgrade available" notice to stderr. It is a no-op

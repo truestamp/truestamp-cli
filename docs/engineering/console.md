@@ -13,19 +13,22 @@ live in [truestamp-v2/docs/console_channel.md](https://github.com/truestamp/true
 ## Anatomy
 
 ```
-cmd/console.go                       Cobra registration + flag plumbing
+cmd/console.go                       Cobra registration + flag plumbing; passes auth.Default() as Options.Authorizer
 internal/console/                    The TUI
-  app.go                             Bubble Tea root model, header/footer, pane switching
+  app.go                             Bubble Tea root model, header/footer, pane switching; maps Options.Authorizer → wschannel OAuth/API-key options
   monitor.go                         Monitor pane: stream toggles + scrollable waterfall
   newitem.go                         New Item pane: form + lifecycle card
   connection.go                      Connection pane: scope, push counts, reconnect summary, log path
-  messages.go                        tea.Msg types + waitForPush bridge
-internal/wschannel/                  Phoenix Channel V2 client (homegrown, ~600 LOC)
-  client.go                          Connection lifecycle, multi-topic, reconnect, redaction
+  connerror.go                       Dial-error classifier; a dead/absent OAuth session routes to the "re-authenticate" hint
+  messages.go                        tea.Msg types + waitForPush bridge; routes tokenRefreshingMsg / authFailedMsg
+internal/auth/                       OAuth 2.1 client + Authorizer abstraction (see CLAUDE.md "Authentication")
+internal/wschannel/                  Phoenix Channel V2 client (homegrown)
+  client.go                          Connection lifecycle, multi-topic, reconnect, OAuth Bearer auth + token_expired recovery, redaction
   codec.go                           Frame encoder/decoder
-  redact_test.go                     api_key never leaks
+  redact_test.go                     api_key / Bearer token never leaks
   smoke_test.go                      Opt-in live-server tests (build tag: smoke)
-internal/logging/logging.go          slog + lumberjack file logger
+internal/redact/redact.go            Single redaction source (api_key, Bearer, OAuth tokens/code/verifier)
+internal/logging/logging.go          slog + lumberjack file logger (redacts via internal/redact)
 ```
 
 The **server** documentation in `truestamp-v2/docs/console_channel.md`
@@ -63,10 +66,64 @@ context-sensitive key hints.
 
 ## WebSocket client (`internal/wschannel`)
 
-Homegrown ~600-line Phoenix Channels V2 client. The wire format is so
-small a third-party client (e.g. `nshafer/phx`) is more code than the
-problem; controlling reconnect/heartbeat behavior precisely matters
+Homegrown Phoenix Channels V2 client (`client.go` ~1k LOC). The wire
+format is so small a third-party client (e.g. `nshafer/phx`) is more code
+than the problem; controlling reconnect/heartbeat behavior — and the
+OAuth `?access_token=` upgrade + `token_expired` recovery below — precisely matters
 for a long-running TUI.
+
+### Authentication (OAuth Bearer + `token_expired` recovery)
+
+The console draws its credential from the process-wide `auth.Authorizer`
+(`cmd/console.go` passes `auth.Default()` as `Options.Authorizer`;
+`internal/console/app.go` maps it onto the wschannel options). Two modes:
+
+- **OAuth** (`Authorizer.Mode() == ModeOAuth`): the access token is sent
+  as the `?access_token=<jwt>` query param on the WebSocket **upgrade**
+  (a Phoenix upgrade can't expose the `Authorization` header to the
+  socket's `connect/3` — `:x_headers` only captures `x-*` headers — so
+  the token rides the query like `?api_key=` does). The client wires
+  `Options.BearerToken = Authorizer.BearerToken` and pulls a *fresh*
+  token on every (re)dial, so a reconnect after a token refresh
+  automatically carries the new credential.
+- **API key** (`ModeAPIKey`): unchanged — the key is resolved once and
+  sent as the `?api_key=` query param to the server's `connect/3`
+  callback.
+
+OAuth access tokens are short-lived; the token is validated at *connect*
+(not at channel join), so re-authenticating means re-dialling the whole
+socket. The recovery flow on a server `token_expired` push:
+
+1. Emit a synthetic `token_refreshing` push (the TUI shows a transient
+   "refreshing session" hint via `tokenRefreshingMsg`).
+2. Call `Options.ForceRefresh` (the authorizer's `ForceRefresh`) **now**,
+   so the upcoming reconnect dials with a genuinely new access token
+   rather than re-presenting the just-rejected one (which would loop
+   under client/server clock skew).
+3. `dropConn` → the normal reconnect-with-backoff path re-dials with the
+   refreshed token and re-joins every topic.
+
+**Fatal dead-session stop**: if the forced refresh fails because the
+refresh token is expired/revoked/reused (`invalid_grant` →
+`auth.ErrSessionExpired`), `Options.FatalDialErr` classifies it as
+permanently fatal. The client sets `authDead`, stops retrying, and emits
+`auth_failed` (`authFailedMsg`) instead of looping forever re-presenting a
+locally-"valid" but server-rejected token. The TUI surfaces a re-login
+prompt; `connerror.go` also maps `ErrSessionExpired` / `ErrNoCredentials`
+on the dial to the "re-authenticate" hint rather than a network error.
+
+**In-band keep-alive** (`keepAliveLoop` + `inBandRefresh`). When the caller
+wires `wschannel.Options.AccessTokenExpiry` (the console does, from
+`auth.Authorizer.AccessTokenExpiry`), a background loop polls and, ~60s
+before the access token expires, force-refreshes it and pushes
+`token.refresh {"access_token": <jwt>}` on `console:lobby` over the *live*
+socket. The server re-validates the new token and reschedules its
+disconnect timer (`{:ok, %{exp}}`), so a long session re-authenticates
+**without** dropping/reconnecting and `token_expired` never fires. On any
+failure — dead session (`{:error, invalid_token}` → stop + re-login),
+rejected token, or a delivery hiccup — it falls back to the reactive
+`token_expired` → re-dial path above. The `token_expired` path remains the
+safety net for the asleep-past-expiry case.
 
 ### What it guarantees
 
@@ -104,17 +161,24 @@ for a long-running TUI.
   if the consumer falls behind, frames are dropped (logged at
   `warn`) rather than blocking the reader (which would also block
   the heartbeat).
-- **API-key redaction**. The websocket library's dial errors echo the
-  upgrade URL verbatim, including `api_key=…`. `wschannel` redacts
-  every error before returning to the caller AND before logging via
-  the slog logger. The `truestamp_…` token can never reach the UI,
-  the log file, or any stderr the host process owns.
+- **Secret redaction**. The websocket library's dial errors echo the
+  upgrade URL (and, in OAuth mode, the `Authorization` header) verbatim,
+  including `api_key=…` and `Bearer <jwt>`. `wschannel` flows every
+  error through `internal/redact` before returning to the caller AND
+  before logging via the slog logger. Neither the `truestamp_…` key nor
+  an OAuth access/refresh token can reach the UI, the log file, or any
+  stderr the host process owns. `redact` is the single source of truth
+  (shared with `internal/logging`); see CLAUDE.md "Authentication" for
+  the full pattern set.
 
 ### What it does NOT do
 
-- No automatic reauthentication on a `4401` close. If the server
-  rejects the API key, reconnect attempts will keep failing — fix
-  the key, restart the CLI.
+- **OAuth**: token *expiry* is recovered automatically (see
+  Authentication above — `token_expired` → force-refresh → re-dial →
+  re-join). A genuinely dead session (refresh token revoked/expired)
+  stops reconnect and prompts re-login rather than looping.
+- **API key**: no automatic reauthentication. If the server rejects the
+  key, reconnect attempts keep failing — fix the key, restart the CLI.
 - No exponential backoff jitter. Fine at single-user scale; would
   matter at thousand-client thundering-herd scale.
 - No subscription persistence across CLI restarts. Each launch
@@ -122,16 +186,20 @@ for a long-running TUI.
 
 ### Sentinel push events
 
-`internal/wschannel` exports two synthetic event-name constants used
-by application code to special-case reconnect lifecycle:
+`internal/wschannel` exports synthetic event-name constants used by
+application code to special-case reconnect and OAuth lifecycle:
 
-| Constant                      | Wire value      | When                                                                |
-| ----------------------------- | --------------- | ------------------------------------------------------------------- |
-| `wschannel.ReconnectingEvent` | `"reconnecting"`| Emitted before each dial attempt during a reconnect cycle.          |
-| `wschannel.ReconnectedEvent`  | `"rejoined"`    | Emitted per topic after a successful redial+rejoin.                 |
+| Constant                      | Wire value         | When                                                                |
+| ----------------------------- | ------------------ | ------------------------------------------------------------------- |
+| `wschannel.ReconnectingEvent` | `"reconnecting"`   | Emitted before each dial attempt during a reconnect cycle.          |
+| `wschannel.ReconnectedEvent`  | `"rejoined"`       | Emitted per topic after a successful redial+rejoin.                 |
+| `wschannel.TokenRefreshEvent` | `"token_refreshing"`| Emitted on a server `token_expired` push while the client force-refreshes the OAuth token and re-dials. |
+| `wschannel.AuthFailedEvent`   | `"auth_failed"`    | Emitted when the OAuth session is permanently dead (`invalid_grant`); reconnect stops and the user must re-authenticate. |
 
-Neither is sent by the server; both are synthetic, injected by the
-client into `Pushes()` for the application to observe.
+None are sent by the server; all are synthetic, injected by the client
+into `Pushes()` for the application to observe. (The server's own
+`token_expired` push is the *input* that triggers `token_refreshing` /
+`auth_failed`.)
 
 ## Logging (`internal/logging`)
 
@@ -314,10 +382,12 @@ task test          # everything
 task precommit     # full gate (gofmt + vet + staticcheck + gosec + tests + build)
 ```
 
-`internal/wschannel/redact_test.go` is the security-critical test:
-asserts the API key never leaks into logs OR into errors returned
-to callers, even when the underlying websocket library echoes the
-upgrade URL verbatim.
+`internal/wschannel/redact_test.go` (plus `internal/redact/redact_test.go`,
+the source-of-truth redactor it relies on) is the security-critical test:
+asserts that neither the API key nor an OAuth access/refresh token leaks
+into logs OR into errors returned to callers, even when the underlying
+websocket library echoes the upgrade URL or `Authorization` header
+verbatim.
 
 ### Live smoke tests (gated behind `smoke` build tag)
 

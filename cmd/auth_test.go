@@ -11,6 +11,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/truestamp/truestamp-cli/internal/auth"
 	"github.com/truestamp/truestamp-cli/internal/httpclient"
 )
 
@@ -128,7 +129,7 @@ func TestCheckAPIKey(t *testing.T) {
 			}))
 			t.Cleanup(srv.Close)
 
-			res, err := checkAPIKey(context.Background(), srv.URL+"/api/json", "test-key", "")
+			res, err := checkAuth(context.Background(), auth.APIKeyAuthorizer("test-key"), srv.URL+"/api/json", "")
 			if err != nil {
 				t.Fatalf("unexpected error: %v", err)
 			}
@@ -215,7 +216,7 @@ func TestFetchTeam(t *testing.T) {
 			}))
 			t.Cleanup(srv.Close)
 
-			res, err := fetchTeam(context.Background(), srv.URL+"/api/json", "k", "team_42")
+			res, err := fetchTeam(context.Background(), auth.APIKeyAuthorizer("k"), srv.URL+"/api/json", "team_42")
 			if err != nil {
 				t.Fatalf("unexpected error: %v", err)
 			}
@@ -285,7 +286,7 @@ func TestCheckAPIKey_SendsTenantHeaderWhenTeamSet(t *testing.T) {
 	}))
 	t.Cleanup(srv.Close)
 
-	if _, err := checkAPIKey(context.Background(), srv.URL+"/api/json", "k", "team_42"); err != nil {
+	if _, err := checkAuth(context.Background(), auth.APIKeyAuthorizer("k"), srv.URL+"/api/json", "team_42"); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 }
@@ -293,7 +294,7 @@ func TestCheckAPIKey_SendsTenantHeaderWhenTeamSet(t *testing.T) {
 func TestCheckAPIKey_TransportErrorReturnsError(t *testing.T) {
 	httpclient.Init(100 * time.Millisecond)
 	// Point at a TCP port we're not listening on.
-	res, err := checkAPIKey(context.Background(), "http://127.0.0.1:1/api/json", "k", "")
+	res, err := checkAuth(context.Background(), auth.APIKeyAuthorizer("k"), "http://127.0.0.1:1/api/json", "")
 	if err == nil {
 		t.Fatalf("expected transport-level error, got result: %+v", res)
 	}

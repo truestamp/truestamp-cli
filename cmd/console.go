@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/spf13/cobra"
+	"github.com/truestamp/truestamp-cli/internal/auth"
 	"github.com/truestamp/truestamp-cli/internal/config"
 	"github.com/truestamp/truestamp-cli/internal/console"
 	"github.com/truestamp/truestamp-cli/internal/teams"
@@ -26,8 +27,9 @@ var consoleCmd = &cobra.Command{
   • New Item   — create a timestamped item and watch its lifecycle live
   • Connection — diagnostics, scope, push counts, log file path
 
-Authentication uses your existing API key (same key used by all other
-truestamp commands). The wire protocol is Phoenix Channels' V2 JSON-array
+Authentication uses your active Truestamp session — an OAuth sign-in (run
+'truestamp auth login') or, for headless/CI use, an API key via
+TRUESTAMP_API_KEY. The wire protocol is Phoenix Channels' V2 JSON-array
 format and is hand-writable from websocat for scripting.
 
 Transport diagnostics (read EOFs, dial-attempt failures during reconnect,
@@ -47,8 +49,8 @@ func init() {
 }
 
 func runConsole(cmd *cobra.Command, _ []string) error {
-	if appConfig.APIKey == "" {
-		return fmt.Errorf("no API key configured — run `truestamp auth login` or set TRUESTAMP_API_KEY")
+	if !authConfigured() {
+		return fmt.Errorf("not authenticated — run `truestamp auth login` (or set TRUESTAMP_API_KEY)")
 	}
 
 	// Resolve the WebSocket URL. Default comes from base_url via Config;
@@ -91,7 +93,7 @@ func runConsole(cmd *cobra.Command, _ []string) error {
 
 	return console.Run(cmd.Context(), console.Options{
 		WSURL:          wsURL,
-		APIKey:         appConfig.APIKey,
+		Authorizer:     auth.Default(),
 		APIURL:         appConfig.APIURL,
 		ActiveTeamID:   activeTeamID,
 		Logger:         appLogger,
@@ -112,7 +114,6 @@ func promptForFirstRunTeam(ctx context.Context) (string, error) {
 
 	cfg := teams.Config{
 		APIURL: appConfig.APIURL,
-		APIKey: appConfig.APIKey,
 	}
 	memberships, err := teams.ListMyMemberships(pctx, cfg)
 	if err != nil {

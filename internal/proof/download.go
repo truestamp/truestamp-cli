@@ -13,6 +13,7 @@ import (
 	"net/http"
 	"net/url"
 
+	"github.com/truestamp/truestamp-cli/internal/auth"
 	"github.com/truestamp/truestamp-cli/internal/httpclient"
 	"github.com/truestamp/truestamp-cli/internal/proof/ptype"
 )
@@ -62,8 +63,8 @@ func DownloadCtx(ctx context.Context, rawURL string) ([]byte, error) {
 }
 
 // Generate calls [GenerateCtx] with [context.Background].
-func Generate(apiURL, apiKey, team, id, subjectType, format string) ([]byte, error) {
-	return GenerateCtx(context.Background(), apiURL, apiKey, team, id, subjectType, format)
+func Generate(apiURL, team, id, subjectType, format string) ([]byte, error) {
+	return GenerateCtx(context.Background(), apiURL, team, id, subjectType, format)
 }
 
 // GenerateCtx requests a proof bundle from the Truestamp API for the given
@@ -79,7 +80,8 @@ func Generate(apiURL, apiKey, team, id, subjectType, format string) ([]byte, err
 //
 // format is "json" or "cbor". Returns raw bytes ready to write to a file
 // (pretty JSON or decoded CBOR binary). ctx cancels the in-flight request.
-func GenerateCtx(ctx context.Context, apiURL, apiKey, team, id, subjectType, format string) ([]byte, error) {
+// The credential is applied by the process-wide [auth.Authorizer].
+func GenerateCtx(ctx context.Context, apiURL, team, id, subjectType, format string) ([]byte, error) {
 	dataFields := map[string]string{"id": id}
 	if format != "" && format != "json" {
 		dataFields["format"] = format
@@ -99,7 +101,9 @@ func GenerateCtx(ctx context.Context, apiURL, apiKey, team, id, subjectType, for
 		return nil, fmt.Errorf("creating request: %w", err)
 	}
 	req.Header.Set("Content-Type", "application/vnd.api+json")
-	req.Header.Set("Authorization", "Bearer "+apiKey)
+	if err := auth.AuthorizeRequest(ctx, req); err != nil {
+		return nil, err
+	}
 	if team != "" {
 		req.Header.Set("tenant", team)
 	}

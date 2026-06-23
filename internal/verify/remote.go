@@ -5,6 +5,7 @@ package verify
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -12,6 +13,7 @@ import (
 	"os"
 	"strings"
 
+	"github.com/truestamp/truestamp-cli/internal/auth"
 	"github.com/truestamp/truestamp-cli/internal/bitcoin"
 	"github.com/truestamp/truestamp-cli/internal/httpclient"
 	"github.com/truestamp/truestamp-cli/internal/proof"
@@ -19,10 +21,11 @@ import (
 	"github.com/truestamp/truestamp-cli/internal/tscrypto"
 )
 
-// RemoteOptions holds configuration for remote verification.
+// RemoteOptions holds configuration for remote verification. The
+// credential is applied by the process-wide [auth.Authorizer]; only the
+// tenant scoping is carried here.
 type RemoteOptions struct {
 	APIURL       string
-	APIKey       string
 	Team         string // team ID, sent as tenant header
 	ExpectedHash string // hex hash to compare against claims.hash
 
@@ -64,9 +67,15 @@ type apiError struct {
 	Detail string `json:"detail"`
 }
 
-// RunRemote sends the proof to the Truestamp API for server-side verification
-// and returns a Report compatible with the local verification output.
+// RunRemote calls [RunRemoteCtx] with [context.Background].
 func RunRemote(filename string, opts RemoteOptions) (*Report, error) {
+	return RunRemoteCtx(context.Background(), filename, opts)
+}
+
+// RunRemoteCtx sends the proof to the Truestamp API for server-side
+// verification and returns a Report compatible with the local verification
+// output. ctx cancels the in-flight request and bounds any token refresh.
+func RunRemoteCtx(ctx context.Context, filename string, opts RemoteOptions) (*Report, error) {
 	data, err := os.ReadFile(filename)
 	if err != nil {
 		return nil, fmt.Errorf("reading proof file: %w", err)
@@ -117,12 +126,14 @@ func RunRemote(filename string, opts RemoteOptions) (*Report, error) {
 
 	// POST to the API
 	url := opts.APIURL + endpoint
-	req, err := http.NewRequest("POST", url, bytes.NewReader(bodyBytes))
+	req, err := http.NewRequestWithContext(ctx, "POST", url, bytes.NewReader(bodyBytes))
 	if err != nil {
 		return nil, fmt.Errorf("creating request: %w", err)
 	}
 	req.Header.Set("Content-Type", "application/vnd.api+json")
-	req.Header.Set("Authorization", "Bearer "+opts.APIKey)
+	if err := auth.AuthorizeRequest(ctx, req); err != nil {
+		return nil, err
+	}
 	if opts.Team != "" {
 		req.Header.Set("tenant", opts.Team)
 	}

@@ -32,6 +32,16 @@ func Init(timeout time.Duration) {
 	httpClient = &http.Client{Timeout: timeout}
 }
 
+// SetTransport installs rt as the round-tripper for the shared client. The
+// CLI uses it to layer the auth package's reactive 401 → refresh →
+// retry-once behavior on top of the default transport. Call after [Init],
+// which replaces the client.
+func SetTransport(rt http.RoundTripper) {
+	if httpClient != nil {
+		httpClient.Transport = rt
+	}
+}
+
 // SetUserAgent configures the User-Agent header stamped onto every
 // outbound request through [Do]. Typical value:
 // "truestamp-cli/<version> (<os>/<arch>)". Pass an empty string to

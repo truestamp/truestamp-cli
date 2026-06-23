@@ -49,7 +49,14 @@ type Config struct {
 	WebSocketURL string `koanf:"-"`
 	HealthURL    string `koanf:"-"`
 
-	APIKey      string `koanf:"api_key"`
+	APIKey string `koanf:"api_key"`
+	// APIKeyExplicit is true when api_key came from an intentional
+	// override — the --api-key flag or the TRUESTAMP_API_KEY env var —
+	// rather than the config file. An explicit key wins over a stored
+	// OAuth session so CI/headless behavior stays deterministic. Computed
+	// during Load; not user-settable.
+	APIKeyExplicit bool `koanf:"-"`
+
 	Team        string `koanf:"team"`
 	HTTPTimeout string `koanf:"http_timeout"`
 	// CosignPath pins the cosign binary used during `truestamp upgrade`.
@@ -237,6 +244,12 @@ func Load(configPath string, flags *pflag.FlagSet) (*Config, error) {
 	if err := k.Unmarshal("", &cfg); err != nil {
 		return nil, fmt.Errorf("unmarshaling config: %w", err)
 	}
+
+	// Record whether the API key was supplied explicitly (env or flag) so
+	// the auth resolver can let an explicit key override a stored OAuth
+	// session. A key sitting in the config file is not "explicit".
+	cfg.APIKeyExplicit = os.Getenv("TRUESTAMP_API_KEY") != "" ||
+		(flags != nil && flags.Lookup("api-key") != nil && flags.Changed("api-key"))
 
 	// Compose the canonical Truestamp service URLs from BaseURL. The path
 	// layout is fixed by the server (lib/truestamp_web/router.ex) so we
