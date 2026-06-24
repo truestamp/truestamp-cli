@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.9.0] — 2026-06-24
+
 ### Added
 - **OAuth 2.1 browser sign-in, now the primary authentication method.**
   `truestamp auth login` opens the browser and runs a loopback
