@@ -109,9 +109,10 @@ func TeamDetailURL(apiURL, teamID string) string {
 	return base + "/teams/" + teamID
 }
 
-// TeamCreateURL returns the public-web URL the user should visit to
-// create a new team. The CLI uses this in the empty-state hint of
-// `truestamp team list` because team creation is web-only today.
+// TeamCreateURL returns the public-web teams URL. The CLI now creates teams
+// itself (truestamp team create), so this is used as the "manage teams &
+// plans" pointer in the plan-limit-reached hint rather than as the only
+// creation path.
 func TeamCreateURL(apiURL string) string {
 	base := publicWebBase(apiURL)
 	if base == "" {

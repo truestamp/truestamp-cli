@@ -209,6 +209,7 @@ type model struct {
 	newItemKeys         keys.NewItemKeys
 	newItemWatchingKeys keys.NewItemWatchingKeys
 	teamKeys            keys.TeamKeys
+	teamCreateKeys      keys.TeamCreateKeys
 	connKeys            keys.ConnectionKeys
 
 	// confirmingQuit is true while the "Really quit? y/n" prompt is
@@ -257,6 +258,7 @@ func newModel(client *wschannel.Client, opts Options, log *slog.Logger) *model {
 		newItemKeys:         keys.NewNewItemKeys(appKeys),
 		newItemWatchingKeys: keys.NewNewItemWatchingKeys(appKeys),
 		teamKeys:            keys.NewTeamKeys(appKeys),
+		teamCreateKeys:      keys.NewTeamCreateKeys(appKeys),
 		connKeys:            keys.NewConnectionKeys(appKeys),
 	}
 	// Seed the shared active-team state with the user's config-time
@@ -342,20 +344,26 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 		}
 
+		// Pane navigation + help toggle. While the create-team modal is
+		// open it is fully modal — it captures every key (except ctrl+c)
+		// so the plain-key pane bindings (1-4, [, ], ?) land in the name
+		// field instead of switching panes (a team named "Q3" must be
+		// typable). ctrl+tab / ctrl+shift+tab still switch panes.
+		modalOpen := m.teamModalOpen()
 		switch {
-		case key.Matches(msg, m.appKeys.NextPane):
+		case key.Matches(msg, m.appKeys.NextPane) && (!modalOpen || msg.String() == "ctrl+tab"):
 			return m, m.activatePane((m.active + 1) % numPanes)
-		case key.Matches(msg, m.appKeys.PrevPane):
+		case key.Matches(msg, m.appKeys.PrevPane) && (!modalOpen || msg.String() == "ctrl+shift+tab"):
 			return m, m.activatePane((m.active + numPanes - 1) % numPanes)
-		case key.Matches(msg, m.appKeys.GoMonitor):
+		case !modalOpen && key.Matches(msg, m.appKeys.GoMonitor):
 			return m, m.activatePane(paneMonitor)
-		case key.Matches(msg, m.appKeys.GoNewItem):
+		case !modalOpen && key.Matches(msg, m.appKeys.GoNewItem):
 			return m, m.activatePane(paneNewItem)
-		case key.Matches(msg, m.appKeys.GoTeam):
+		case !modalOpen && key.Matches(msg, m.appKeys.GoTeam):
 			return m, m.activatePane(paneTeam)
-		case key.Matches(msg, m.appKeys.GoConnection):
+		case !modalOpen && key.Matches(msg, m.appKeys.GoConnection):
 			return m, m.activatePane(paneConnection)
-		case key.Matches(msg, m.appKeys.ToggleHelp):
+		case !modalOpen && key.Matches(msg, m.appKeys.ToggleHelp):
 			m.footer.SetShowAll(!m.footer.ShowAll())
 			return m, nil
 		}
@@ -534,6 +542,14 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		var cmd tea.Cmd
 		m.team, cmd = m.team.Update(msg)
 		return m, cmd
+
+	case teamCreatedMsg, teamCreateFailedMsg:
+		// Create-team lifecycle. Routed unconditionally to the Teams pane
+		// (not just when active) so an in-flight create still completes if
+		// the user tabs away.
+		var cmd tea.Cmd
+		m.team, cmd = m.team.Update(msg)
+		return m, cmd
 	}
 
 	// Forward other messages (e.g. form keystrokes) to the active pane.
@@ -586,9 +602,9 @@ func (m *model) View() tea.View {
 
 	v := tea.NewView(content)
 	v.AltScreen = true
-	// MouseMode left at MouseModeNone so the terminal handles
-	// click-drag text selection natively. See the comment on
-	// tea.NewProgram above for the rationale.
+	// MouseMode left at MouseModeNone so the terminal handles click-drag
+	// text selection natively. See the comment on tea.NewProgram above for
+	// the rationale.
 	return v
 }
 
@@ -664,6 +680,9 @@ func (m *model) activeKeyMap() help.KeyMap {
 		}
 		return m.newItemKeys
 	case paneTeam:
+		if m.team.create != nil {
+			return m.teamCreateKeys
+		}
 		return m.teamKeys
 	case paneConnection:
 		return m.connKeys
@@ -675,8 +694,18 @@ func (m *model) activeKeyMap() help.KeyMap {
 // state where typed characters become field values. Used to gate the
 // `q` quit-confirmation so users can still type "q" into form fields
 // without raising a confirm prompt.
+// teamModalOpen reports whether the create-team modal is open on the Teams
+// pane — the one fully-modal state, which captures every key (except ctrl+c)
+// so pane-nav digits / brackets reach the name field instead of switching panes.
+func (m *model) teamModalOpen() bool {
+	return m.active == paneTeam && m.team.create != nil
+}
+
 func (m *model) activePaneAcceptsTextInput() bool {
-	return m.active == paneNewItem && m.newItem.state == formEntering
+	if m.active == paneNewItem && m.newItem.state == formEntering {
+		return true
+	}
+	return m.teamModalOpen()
 }
 
 // renderFooter returns the footer row(s). Default path delegates to

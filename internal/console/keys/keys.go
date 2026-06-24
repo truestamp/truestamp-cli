@@ -271,6 +271,7 @@ type TeamKeys struct {
 	Up      key.Binding
 	Down    key.Binding
 	Set     key.Binding
+	Create  key.Binding
 	Refresh key.Binding
 }
 
@@ -290,6 +291,10 @@ func NewTeamKeys(app AppKeys) TeamKeys {
 			key.WithKeys("enter"),
 			key.WithHelp("enter", "set as active"),
 		),
+		Create: key.NewBinding(
+			key.WithKeys("c"),
+			key.WithHelp("c", "new team"),
+		),
 		Refresh: key.NewBinding(
 			key.WithKeys("r"),
 			key.WithHelp("r", "refresh"),
@@ -300,7 +305,7 @@ func NewTeamKeys(app AppKeys) TeamKeys {
 // ShortHelp implements help.KeyMap.
 func (k TeamKeys) ShortHelp() []key.Binding {
 	return []key.Binding{
-		k.Up, k.Down, k.Set, k.Refresh,
+		k.Up, k.Down, k.Set, k.Create, k.Refresh,
 		k.App.ToggleHelp, k.App.Quit,
 	}
 }
@@ -308,9 +313,65 @@ func (k TeamKeys) ShortHelp() []key.Binding {
 // FullHelp implements help.KeyMap.
 func (k TeamKeys) FullHelp() [][]key.Binding {
 	return [][]key.Binding{
-		{k.Up, k.Down, k.Set, k.Refresh},
+		{k.Up, k.Down, k.Set, k.Create, k.Refresh},
 		{k.App.NextPane, k.App.PrevPane, k.App.GoMonitor, k.App.GoNewItem, k.App.GoTeam, k.App.GoConnection},
 		{k.App.ToggleHelp, k.App.Quit},
+	}
+}
+
+// TeamCreateKeys covers the create-team modal: move focus between the
+// name field, ownership radio, and buttons; change the ownership choice;
+// submit; cancel. Surfaced in the footer while the modal is open.
+type TeamCreateKeys struct {
+	App       AppKeys
+	Field     key.Binding
+	Ownership key.Binding
+	Submit    key.Binding
+	Cancel    key.Binding
+	Quit      key.Binding
+}
+
+// NewTeamCreateKeys returns the create-modal bindings. The modal captures
+// every key (including q, 1-4, [, ], ?) into the form, so quit is advertised
+// as ctrl+c — the only key that still quits while the modal is open.
+func NewTeamCreateKeys(app AppKeys) TeamCreateKeys {
+	return TeamCreateKeys{
+		App: app,
+		Field: key.NewBinding(
+			key.WithKeys("tab", "shift+tab", "up", "down"),
+			key.WithHelp("tab/⇧tab", "move field"),
+		),
+		Ownership: key.NewBinding(
+			key.WithKeys("left", "right"),
+			key.WithHelp("←/→", "ownership"),
+		),
+		Submit: key.NewBinding(
+			key.WithKeys("enter"),
+			key.WithHelp("enter", "create"),
+		),
+		Cancel: key.NewBinding(
+			key.WithKeys("esc"),
+			key.WithHelp("esc", "cancel"),
+		),
+		Quit: key.NewBinding(
+			key.WithKeys("ctrl+c"),
+			key.WithHelp("ctrl+c", "quit"),
+		),
+	}
+}
+
+// ShortHelp implements help.KeyMap.
+func (k TeamCreateKeys) ShortHelp() []key.Binding {
+	return []key.Binding{
+		k.Field, k.Ownership, k.Submit, k.Cancel, k.Quit,
+	}
+}
+
+// FullHelp implements help.KeyMap.
+func (k TeamCreateKeys) FullHelp() [][]key.Binding {
+	return [][]key.Binding{
+		{k.Field, k.Ownership, k.Submit, k.Cancel},
+		{k.Quit},
 	}
 }
 
