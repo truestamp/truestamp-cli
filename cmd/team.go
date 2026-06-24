@@ -26,14 +26,11 @@ applies across CLI invocations.
 Sub-commands:
   list    Show all teams the API key has membership in
   show    Show the currently-configured team in detail
+  create  Create a new team (interactive prompt if no name given)
   set     Set the active team (interactive picker if no id provided)
   unset   Clear the active team (server falls back to the personal team)
 
-Invoking 'truestamp team' with no subcommand is an alias for 'team list'.
-
-Team creation is currently web-only — visit '{public-web}/teams' in
-your browser to create a new team. The CLI's empty-state hint surfaces
-the right URL automatically.`,
+Invoking 'truestamp team' with no subcommand is an alias for 'team list'.`,
 	Args:          cobra.NoArgs,
 	SilenceUsage:  true,
 	SilenceErrors: true,

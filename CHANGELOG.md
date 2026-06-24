@@ -7,6 +7,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- **Create teams from the CLI and the console.** A new `truestamp team
+  create [name]` subcommand and a keyboard-driven create-team modal in the
+  console Teams pane (open with `c`) both create a team via
+  `POST /api/json/teams` — the authenticated user becomes the owner and the
+  owner membership is created server-side. The subcommand takes
+  `--ownership-model creator_retains|team_retains`, `--set` (make the new
+  team active), and `--json` (including a parseable error object on
+  failure); with no name on an interactive terminal it prompts for the name
+  and ownership model. Creation is plan-gated server-side: the CLI attempts
+  the create and renders the server's self-describing error, discriminating
+  the plan-limit rejection (`teams.ErrTeamLimitReached`) from the
+  ownership-entitlement rejection (`teams.ErrOwnershipNotEntitled`, marked by
+  an `ownership_model` JSON:API `source.pointer`) and surfacing the server's
+  actionable detail under a tailored banner. (Previously team creation was
+  web-only.)
+
+### Fixed
+- **Console: keys typed into the create-team name field no longer switch
+  panes.** While the create modal is open it is fully modal — the numeric
+  pane-jump keys (`1`-`4`), `[` / `]`, and `?` land in the name field (so a
+  team named "Q3" is typable); `ctrl+tab` / `ctrl+shift+tab` still switch
+  panes, and `ctrl+c` still quits.
+
 ## [0.9.0] — 2026-06-24
 
 ### Added

@@ -12,6 +12,7 @@ import (
 	"time"
 
 	tea "charm.land/bubbletea/v2"
+	"github.com/truestamp/truestamp-cli/internal/teams"
 	"github.com/truestamp/truestamp-cli/internal/wschannel"
 )
 
@@ -151,6 +152,14 @@ type teamSwitchFailedMsg struct {
 	Code    string
 	Message string
 }
+
+// teamCreatedMsg fires after a successful POST /teams. Carries the created
+// team so the pane can confirm and refresh the membership list.
+type teamCreatedMsg struct{ Team *teams.Team }
+
+// teamCreateFailedMsg fires when POST /teams fails. The modal surfaces the
+// (friendly-mapped) error and lets the user retry or cancel.
+type teamCreateFailedMsg struct{ Err error }
 
 // teamRow is the in-pane projection of a membership: just the
 // fields rendered in the table. Decouples the pane from the

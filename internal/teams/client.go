@@ -14,6 +14,7 @@
 package teams
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -26,6 +27,7 @@ import (
 
 	"github.com/truestamp/truestamp-cli/internal/auth"
 	"github.com/truestamp/truestamp-cli/internal/httpclient"
+	"github.com/truestamp/truestamp-cli/internal/redact"
 )
 
 // Team is the subset of a JSON:API team resource the CLI consumes.
@@ -65,6 +67,15 @@ var (
 	ErrBadRequest   = errors.New("bad request")
 	ErrRateLimited  = errors.New("rate limited")
 	ErrServer       = errors.New("server error")
+
+	// ErrTeamLimitReached is returned by CreateTeam when the actor's plan
+	// team quota is exhausted (a distinct, user-actionable case: upgrade the
+	// plan). Identified by the server's stable machine error code, not prose.
+	ErrTeamLimitReached = errors.New("team limit reached")
+	// ErrOwnershipNotEntitled is returned by CreateTeam when the requested
+	// ownership_model (e.g. team_retains) requires a plan entitlement the
+	// actor lacks — distinct from the team-count limit.
+	ErrOwnershipNotEntitled = errors.New("ownership model not entitled")
 )
 
 // APIError carries HTTP status + preserved `errors[].detail` from the
@@ -73,6 +84,7 @@ var (
 // the detail text.
 type APIError struct {
 	Status     int
+	Pointer    string // JSON:API errors[].source.pointer, when present
 	Detail     string // preferred; falls back to Title
 	RetryAfter string // verbatim Retry-After header on 429
 	sentinel   error
@@ -382,17 +394,144 @@ func GetMyRoleOnTeam(ctx context.Context, cfg Config, teamID string) (string, er
 	return "", nil
 }
 
-// doGet issues an authenticated GET and returns the response body on 2xx.
-// On non-2xx returns an *APIError wrapping one of the class sentinels.
-func doGet(ctx context.Context, cfg Config, path string) ([]byte, error) {
+// --- Team creation (JSON:API) ------------------------------------------
+//
+// The server exposes a single `:create` action over POST /api/json/teams and,
+// by design, mints NO bespoke error codes for it. The two create-time policy
+// rejections are discriminated structurally from the JSON:API error: an
+// ownership_model source.pointer marks the entitlement rejection, and a
+// pointer-less 4xx whose detail names the team limit marks the plan-limit
+// rejection. See internal/teams/create_test.go for the shapes.
+
+const createTeamPath = "/teams"
+
+// ownershipModelPointer is the JSON:API errors[].source.pointer the server
+// sets on the ownership-entitlement validation error — the stable structural
+// discriminator separating it from the (pointer-less) plan-limit error.
+const ownershipModelPointer = "/data/attributes/ownership_model"
+
+// Ownership models accepted by [CreateTeam]. creator_retains is the
+// free-tier-compatible default; team_retains requires a plan entitlement
+// (the team, not the creator, retains ownership across membership changes).
+const (
+	OwnershipCreatorRetains = "creator_retains"
+	OwnershipTeamRetains    = "team_retains"
+)
+
+// OwnershipLabel returns a short, title-cased label for an ownership model,
+// suitable for selects and cards. Unknown values pass through unchanged.
+func OwnershipLabel(model string) string {
+	switch model {
+	case OwnershipCreatorRetains:
+		return "Creator-retained"
+	case OwnershipTeamRetains:
+		return "Team-retained"
+	}
+	return model
+}
+
+// OwnershipDescription returns a one-line explanation of an ownership model
+// for help text and form field descriptions.
+func OwnershipDescription(model string) string {
+	switch model {
+	case OwnershipCreatorRetains:
+		return "Items you create stay yours — you keep them if you leave the team."
+	case OwnershipTeamRetains:
+		return "Items you create belong to the team — they stay if you leave or are removed."
+	}
+	return ""
+}
+
+// OwnershipModels returns the ownership models a client may offer, in display
+// order. Both surfaces (the `team create` subcommand and the console modal)
+// build their pickers from this single source so a future model is added once.
+func OwnershipModels() []string {
+	return []string{OwnershipCreatorRetains, OwnershipTeamRetains}
+}
+
+// CreateTeam creates a new (non-personal) team owned by the authenticated
+// actor. ownershipModel is [OwnershipCreatorRetains] or
+// [OwnershipTeamRetains] (the latter requires a plan entitlement); an empty
+// string lets the server apply its default. The server derives the creator
+// from the actor and auto-creates the owner Membership, so neither is sent.
+//
+// The tenant header is cleared because creating a team is an account-level
+// action, not an operation within an existing team context. On a plan-limit
+// rejection the error satisfies errors.Is(err, [ErrTeamLimitReached]); on an
+// ownership-entitlement rejection, errors.Is(err, [ErrOwnershipNotEntitled]).
+func CreateTeam(ctx context.Context, cfg Config, name, ownershipModel string) (*Team, error) {
+	name = strings.TrimSpace(name)
+	if name == "" {
+		return nil, fmt.Errorf("team name is required")
+	}
+	cfg.Team = ""
+
+	attrs := map[string]any{"name": name}
+	if ownershipModel != "" {
+		attrs["ownership_model"] = ownershipModel
+	}
+	payload := map[string]any{
+		"data": map[string]any{
+			"type":       "team",
+			"attributes": attrs,
+		},
+	}
+
+	body, err := doPost(ctx, cfg, createTeamPath, payload)
+	if err != nil {
+		return nil, mapCreateError(err)
+	}
+	return parseTeam(body)
+}
+
+// mapCreateError upgrades a generic *APIError from POST /teams into a specific
+// sentinel using the server's structural discriminators (it mints no bespoke
+// error codes for :create): an ownership_model source.pointer marks the
+// entitlement rejection, while a pointer-less 4xx whose detail names the team
+// limit marks the plan-limit rejection. The original detail is preserved.
+func mapCreateError(err error) error {
+	var ae *APIError
+	if !errors.As(err, &ae) {
+		return err
+	}
+	switch {
+	case ae.Pointer == ownershipModelPointer:
+		ae.sentinel = ErrOwnershipNotEntitled
+	case ae.Status >= 400 && ae.Status < 500 && mentionsTeamLimit(ae.Detail):
+		ae.sentinel = ErrTeamLimitReached
+	}
+	return ae
+}
+
+// mentionsTeamLimit reports whether a server error detail describes the plan
+// team-count limit — the documented signal for the (structurally unmarked)
+// plan-limit rejection.
+func mentionsTeamLimit(detail string) bool {
+	return strings.Contains(strings.ToLower(detail), "team limit")
+}
+
+// doRequest issues an authenticated request to the JSON:API — an optional
+// JSON body for writes — and returns the response body on 2xx, or an
+// *APIError wrapping a class sentinel on non-2xx (with errors[].source.pointer
+// captured for create-error discrimination, and Retry-After on 429). doGet and
+// doPost are thin wrappers so the auth gate, tenant header, body cap, and
+// error decoding live in exactly one place.
+func doRequest(ctx context.Context, cfg Config, method, path string, body []byte) ([]byte, error) {
 	if auth.Default().Mode() == auth.ModeNone {
 		return nil, &APIError{Status: 401, Detail: "not authenticated", sentinel: ErrUnauthorized}
 	}
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, cfg.APIURL+path, nil)
+	var rdr io.Reader
+	if body != nil {
+		rdr = bytes.NewReader(body)
+	}
+	req, err := http.NewRequestWithContext(ctx, method, cfg.APIURL+path, rdr)
 	if err != nil {
 		return nil, fmt.Errorf("creating request: %w", err)
 	}
 	req.Header.Set("Accept", "application/vnd.api+json")
+	if body != nil {
+		req.Header.Set("Content-Type", "application/vnd.api+json")
+	}
 	if err := auth.AuthorizeRequest(ctx, req); err != nil {
 		return nil, &APIError{Status: 401, Detail: err.Error(), sentinel: ErrUnauthorized}
 	}
@@ -406,20 +545,37 @@ func doGet(ctx context.Context, cfg Config, path string) ([]byte, error) {
 	}
 	defer resp.Body.Close()
 
-	body, err := io.ReadAll(io.LimitReader(resp.Body, httpclient.MaxResponseSize))
+	respBody, err := io.ReadAll(io.LimitReader(resp.Body, httpclient.MaxResponseSize))
 	if err != nil {
 		return nil, fmt.Errorf("reading API response: %w", err)
 	}
 
 	if resp.StatusCode >= 200 && resp.StatusCode < 300 {
-		return body, nil
+		return respBody, nil
 	}
 
-	apiErr := parseAPIError(resp.StatusCode, body)
+	apiErr := parseAPIError(resp.StatusCode, respBody)
 	if resp.StatusCode == http.StatusTooManyRequests {
 		apiErr.RetryAfter = resp.Header.Get("Retry-After")
 	}
 	return nil, apiErr
+}
+
+// doPost marshals payload as a JSON:API write body and POSTs it. On non-2xx
+// the *APIError carries errors[].source.pointer, used by mapCreateError to
+// discriminate the create-specific policy rejections.
+func doPost(ctx context.Context, cfg Config, path string, payload any) ([]byte, error) {
+	body, err := json.Marshal(payload)
+	if err != nil {
+		return nil, fmt.Errorf("encoding request: %w", err)
+	}
+	return doRequest(ctx, cfg, http.MethodPost, path, body)
+}
+
+// doGet issues an authenticated GET and returns the response body on 2xx.
+// On non-2xx returns an *APIError wrapping one of the class sentinels.
+func doGet(ctx context.Context, cfg Config, path string) ([]byte, error) {
+	return doRequest(ctx, cfg, http.MethodGet, path, nil)
 }
 
 func parseAPIError(status int, body []byte) *APIError {
@@ -428,22 +584,42 @@ func parseAPIError(status int, body []byte) *APIError {
 		Errors []struct {
 			Detail string `json:"detail"`
 			Title  string `json:"title"`
+			Source struct {
+				Pointer string `json:"pointer"`
+			} `json:"source"`
 		} `json:"errors"`
 	}
 	if err := json.Unmarshal(body, &envelope); err == nil && len(envelope.Errors) > 0 {
-		first := envelope.Errors[0]
+		// Prefer an error carrying a source.pointer — the structural
+		// discriminator. The server can return MULTIPLE errors at once (a
+		// free-plan user requesting team_retains trips both the plan-limit
+		// and the ownership-entitlement rejection), so we classify on the
+		// pointer-bearing error regardless of its position in the array.
+		chosen := envelope.Errors[0]
+		for i := range envelope.Errors {
+			if envelope.Errors[i].Source.Pointer != "" {
+				chosen = envelope.Errors[i]
+				break
+			}
+		}
+		e.Pointer = chosen.Source.Pointer
 		switch {
-		case first.Detail != "":
-			e.Detail = first.Detail
-		case first.Title != "":
-			e.Detail = first.Title
+		case chosen.Detail != "":
+			e.Detail = chosen.Detail
+		case chosen.Title != "":
+			e.Detail = chosen.Title
 		}
 	}
-	if e.Detail == "" && len(body) > 0 && body[0] == '<' {
-		e.Detail = "server returned HTML error page"
-	}
 	if e.Detail == "" {
-		e.Detail = httpclient.Truncate(string(body), 200)
+		// Defense in depth: a server-/attacker-controlled raw body (including
+		// a reflected request) is truncated AND run through the secret
+		// redactor before it can reach a log or the terminal.
+		trimmed := bytes.TrimSpace(body)
+		if len(trimmed) > 0 && trimmed[0] == '<' {
+			e.Detail = "server returned HTML error page"
+		} else {
+			e.Detail = redact.String(httpclient.Truncate(string(body), 200))
+		}
 	}
 	return e
 }

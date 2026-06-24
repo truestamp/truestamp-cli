@@ -83,6 +83,11 @@ type teamModel struct {
 	// last switch, etc). Cleared on the next user input.
 	notice      string
 	noticeError bool
+
+	// create is the open create-team modal (nil when closed). While
+	// non-nil the pane renders the modal instead of the membership list
+	// and routes input to it.
+	create *teamCreateModel
 }
 
 func newTeamModel(apiURL string, scope *activeScope, client teamSwitcher) *teamModel {
@@ -177,6 +182,13 @@ func (m *teamModel) Init() tea.Cmd {
 // pane only mutates pane-local state (cursor, notice, memberships,
 // state machine).
 func (m *teamModel) Update(msg tea.Msg) (*teamModel, tea.Cmd) {
+	// Create-modal sub-loop: while the modal is open it owns keyboard +
+	// cursor-blink input. Create-lifecycle and membership messages are
+	// still handled there so the list underneath is fresh when it closes.
+	if m.create != nil {
+		return m.updateCreating(msg)
+	}
+
 	switch msg := msg.(type) {
 	case teamMembershipsMsg:
 		if msg.Err != nil {
@@ -218,6 +230,20 @@ func (m *teamModel) Update(msg tea.Msg) (*teamModel, tea.Cmd) {
 		m.noticeError = true
 		return m, nil
 
+	case teamCreatedMsg:
+		// Reaches the top level only when the modal is already closed (an
+		// open modal handles this in updateCreating). Honors the
+		// "create completes even if you tab away" contract: confirm +
+		// refresh the membership list.
+		m.notice = "Created " + teamCreatedName(msg.Team) + "."
+		m.noticeError = false
+		return m, m.fetchMembershipsCmd()
+
+	case teamCreateFailedMsg:
+		m.notice = "Create failed: " + friendlyCreateError(msg.Err)
+		m.noticeError = true
+		return m, nil
+
 	case tea.KeyPressMsg:
 		return m.handleKey(msg)
 	}
@@ -246,6 +272,9 @@ func (m *teamModel) handleKey(msg tea.KeyPressMsg) (*teamModel, tea.Cmd) {
 		return m, tea.Batch(m.fetchMembershipsCmd(), m.fetchActiveDetailsCmd(m.scope.TeamID))
 	case "enter":
 		return m.handleSetActive()
+	case "c":
+		m.notice = ""
+		return m, m.openCreate()
 	}
 	return m, nil
 }
@@ -374,24 +403,23 @@ func teamRowDisplayName(r teamRow) string {
 // at runtime; assigned in the package init below.
 var persistTeamSelection func(string) error
 
-// View renders the active pane to the body area.
+// View renders the active pane to the body area: the create modal when
+// open, otherwise the active-team card, an optional access-loss banner and
+// notice, the "+ New team" hint, and the memberships table.
 func (m *teamModel) View(width, height int) string {
+	if m.create != nil {
+		return paneStyle(width, height).Render(m.create.render(width))
+	}
+
 	var sections []string
-
-	// Lead with the active-team card (or a "no team configured" hint).
 	sections = append(sections, m.renderActiveSection())
-
-	// Optional access-loss banner if the configured team is unreachable.
 	if m.scope.AccessLost && m.scope.TeamID != "" {
 		sections = append(sections, m.renderAccessLoss())
 	}
-
-	// Optional notice line.
 	if m.notice != "" {
 		sections = append(sections, m.renderNotice())
 	}
-
-	// Memberships table or its loading/error variants.
+	sections = append(sections, m.renderCreateHint())
 	switch m.state {
 	case teamPaneLoading:
 		sections = append(sections, m.renderLoading())
@@ -400,9 +428,13 @@ func (m *teamModel) View(width, height int) string {
 	case teamPaneReady:
 		sections = append(sections, m.renderMemberships())
 	}
+	return paneStyle(width, height).Render(strings.Join(sections, "\n\n"))
+}
 
-	body := strings.Join(sections, "\n\n")
-	return paneStyle(width, height).Render(body)
+// renderCreateHint shows the "+ New team" affordance and its `c` mnemonic.
+func (m *teamModel) renderCreateHint() string {
+	return teamCreateBtn.Render("+ New team") +
+		teamFaintStyle.Render("  press c to create a new team")
 }
 
 // activeMembership returns the current row for the active team id, if
@@ -488,18 +520,12 @@ func (m *teamModel) renderListError() string {
 
 func (m *teamModel) renderMemberships() string {
 	if len(m.memberships) == 0 {
-		body := teamSectionTitle.Render("Memberships") + "\n  " +
-			teamFaintStyle.Render("No teams found for this API key.")
-		if url := ui.TeamCreateURL(m.apiURL); url != "" {
-			body += "\n  " + teamFaintStyle.Render("Visit "+url+" in your browser to create one.")
-		}
-		return body
+		return teamSectionTitle.Render("Memberships") + "\n  " +
+			teamFaintStyle.Render("No teams yet — press c to create one.")
 	}
 
-	// Two leading marker columns, each exactly one cell wide, so
-	// rows never shift horizontally when scrolling: column 0 is the
-	// cursor (▸ or space), column 1 is the active-team star (★ or
-	// space). They can both be set on the same row without colliding.
+	// Two leading one-cell marker columns keep rows from shifting:
+	// column 0 = cursor (▸), column 1 = active-team star (★).
 	rows := make([][]string, 0, len(m.memberships)+1)
 	rows = append(rows, []string{"", "", "NAME", "ROLE", "TEAM ID"})
 	for i, r := range m.memberships {
@@ -528,20 +554,12 @@ func (m *teamModel) renderMemberships() string {
 				return base.Foreground(ui.Label).Bold(true)
 			}
 			if row-1 == m.cursor {
-				// Bold the cursor cell so the indicator stands out
-				// while the rest of the row keeps the accent color.
 				return base.Foreground(ui.Accent).Bold(col == 0)
 			}
 			return base.Foreground(ui.Value)
 		}).
 		Rows(rows...)
 
-	// Hints live exclusively in the root chrome footer (driven by
-	// TeamKeys.ShortHelp / FullHelp). The pane used to also render
-	// its own "enter: set as active   r: refresh" line, but it
-	// duplicated the bottom-of-screen footer and broke the "footer
-	// row is in the same place on every pane" expectation. Don't
-	// re-add it without first making the chrome footer go away.
 	return teamSectionTitle.Render("Memberships") + "\n" + tbl.Render()
 }
 
