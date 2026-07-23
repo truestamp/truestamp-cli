@@ -7,6 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.11.1] — 2026-07-23
+
+### Changed
+- **Dependency and toolchain refresh.** Brought the bundled Go modules up to
+  their latest compatible versions — notably `golang.org/x/crypto` and the
+  Charm TUI libraries (bubbletea / bubbles / lipgloss) — and migrated the
+  Bitcoin commitment parsing onto btcsuite/btcd's v0.26.0 `/v2` submodules.
+  The btcd change is a behavior-preserving module restructure (same package
+  APIs), verified byte-identical against the real-transaction, txoutproof, and
+  BIP 37 partial-merkle-tree test vectors. No user-facing behavior changes.
+- **Build and CI hardening.** Refreshed the pinned developer toolchain
+  (goreleaser, cosign, syft, gosec, govulncheck) and the GitHub Actions, and
+  made CI run the mise-pinned lint / vulnerability tools through the Taskfile
+  tasks instead of `go install ...@latest`, so CI and local checks share a
+  single source of truth for tool versions and can no longer drift.
+
 ## [0.11.0] — 2026-07-23
 
 ### Changed
