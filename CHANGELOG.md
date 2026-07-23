@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.11.0] — 2026-07-23
+
 ### Changed
 - **Entropy observation timestamp is now `inserted_at`, following a server
   rename.** The Truestamp service renamed the entropy observation's record
@@ -20,6 +22,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   to `.timeline.inserted_at`. The entropy subject's own `captured_at` (the
   upstream NIST pulse / Bitcoin block / Stellar close time) is a distinct
   value the server did not rename and keeps its name.
+
+### Security
+- **Go toolchain bumped to 1.26.5.** Picks up the standard-library
+  `crypto/tls` fix for GO-2026-5856 (an Encrypted Client Hello privacy leak).
+  Release binaries and `go install` builds are now produced with the patched
+  toolchain.
 
 ## [0.10.0] — 2026-06-24
 
