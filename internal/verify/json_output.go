@@ -36,11 +36,15 @@ type HashComparison struct {
 	Matched  bool   `json:"matched"`
 }
 
-// JSONTimeline holds the verified temporal bracket.
+// JSONTimeline holds the verified temporal bracket. CapturedAt carries the
+// observation's record-into-Truestamp time and is emitted as `inserted_at`
+// to match the server's renamed wire key; the Go field keeps its CapturedAt
+// name, mirroring TemporalSummary. (Distinct from the entropy subject's own
+// source-capture time in buildSubject, which stays `captured_at`.)
 type JSONTimeline struct {
 	ClaimedAt   string `json:"claimed_at,omitempty"`
 	SubmittedAt string `json:"submitted_at,omitempty"`
-	CapturedAt  string `json:"captured_at,omitempty"`
+	CapturedAt  string `json:"inserted_at,omitempty"`
 	CommittedAt string `json:"committed_at,omitempty"`
 }
 
@@ -229,6 +233,10 @@ func buildSubject(r *Report) any {
 		if r.EntropySubject.RawSource != "" {
 			m["source"] = r.EntropySubject.RawSource
 		}
+		// Source capture time (NIST pulse / BTC block / Stellar close): when the
+		// entropy was produced upstream. This is NOT the server's renamed
+		// inserted_at (Truestamp record time, in timeline) — it maps to the
+		// server's unchanged source-chain `timestamp`, so it stays captured_at.
 		if r.EntropySubject.CapturedAt != "" {
 			m["captured_at"] = r.EntropySubject.CapturedAt
 		}

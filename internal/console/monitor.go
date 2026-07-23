@@ -839,7 +839,7 @@ func orderedPayloadKeys(m map[string]any, skip map[string]bool) []string {
 		"merkle_root", "block_hash", "previous_hash", "hash",
 		"observation_hash", "entropy_hash", "claims_hash", "item_hash", "commitment_hash",
 		"claims", "tags",
-		"timestamp", "captured_at", "inserted_at",
+		"timestamp", "inserted_at",
 		"node", "evidence",
 		"latest",
 		"since", "duration", "message",

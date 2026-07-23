@@ -366,6 +366,34 @@ func TestRunRemote_EntropyProof_SubjectType(t *testing.T) {
 	if report.ChainLength != 1 {
 		t.Errorf("ChainLength: got %d, want 1", report.ChainLength)
 	}
+	// The server sent no temporal object, so the observation timestamp must
+	// fall back to the subject-id (UUIDv7) derivation in populateFromBundle.
+	if report.Temporal.CapturedAt == "" {
+		t.Error("Temporal.CapturedAt: expected local subject-id fallback when server omits temporal, got empty")
+	}
+}
+
+// TestRunRemote_EntropyProof_InsertedAtTemporal asserts the CLI reads the
+// server's renamed entropy temporal key `inserted_at` into its report. The
+// server value is distinct from the subject-id-derived local fallback, so a
+// match proves the wire value flowed through (and was not overwritten by
+// populateFromBundle). Raw JSON is written so the real wire key is exercised
+// rather than a Go struct round-trip.
+func TestRunRemote_EntropyProof_InsertedAtTemporal(t *testing.T) {
+	const wantTemporal = "2020-01-02T03:04:05Z"
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(201)
+		w.Write([]byte(`{"result":{"passed":true,"temporal":{"inserted_at":"` + wantTemporal + `","committed_at":"2026-04-06T23:25:06Z"}}}`))
+	}))
+	defer server.Close()
+
+	report, err := RunRemote(makeEntropyProofFile(t), RemoteOptions{APIURL: server.URL})
+	if err != nil {
+		t.Fatalf("RunRemote error: %v", err)
+	}
+	if report.Temporal.CapturedAt != wantTemporal {
+		t.Errorf("Temporal.CapturedAt: got %q, want %q (server's inserted_at key must map through)", report.Temporal.CapturedAt, wantTemporal)
+	}
 }
 
 func intPtr(i int) *int       { return &i }

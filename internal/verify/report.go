@@ -99,11 +99,15 @@ type Step struct {
 	Message  string `json:"message"`
 }
 
-// TemporalSummary holds the verified temporal bracket timestamps.
+// TemporalSummary holds the verified temporal bracket timestamps. Its JSON
+// tags decode the server's /proof/verify `temporal` object (they are never
+// marshaled outbound — the --json surface uses JSONTimeline). The entropy
+// observation timestamp arrives on the wire as `inserted_at`; the CLI keeps
+// naming it CapturedAt and surfacing it under a "Captured" label.
 type TemporalSummary struct {
 	ClaimedAt   string `json:"claimed_at,omitempty"`
 	SubmittedAt string `json:"submitted_at,omitempty"`
-	CapturedAt  string `json:"captured_at,omitempty"`
+	CapturedAt  string `json:"inserted_at,omitempty"`
 	CommittedAt string `json:"committed_at,omitempty"`
 }
 

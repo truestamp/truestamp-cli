@@ -1452,6 +1452,48 @@ func TestBuildJSONOutput_VerificationNotes_ClaimsOnly(t *testing.T) {
 	}
 }
 
+// TestBuildJSONOutput_EntropyTemporalKeys pins the wire-key cutover in the
+// --json surface: the timeline's Truestamp record-time is emitted under
+// inserted_at (the server's renamed key), while the entropy subject's
+// upstream source-capture time stays captured_at — a distinct value the
+// server never renamed. The two timestamps differ so the assertions can tell
+// the keys apart.
+func TestBuildJSONOutput_EntropyTemporalKeys(t *testing.T) {
+	report := &Report{
+		SubjectType: "entropy_nist",
+		SubjectID:   "019d2ae3-865c-7651-9923-b14c55bc8e33",
+		Temporal: TemporalSummary{
+			CapturedAt:  "2026-03-26T16:02:03Z", // Truestamp record time -> inserted_at
+			CommittedAt: "2026-03-26T16:05:00Z",
+		},
+		EntropySubject: EntropySubject{
+			RawSource:  "entropy_nist",
+			Source:     "NIST Beacon",
+			CapturedAt: "2026-03-26T16:02:00Z", // upstream source time -> captured_at
+			PulseIndex: 100,
+		},
+		ChainLength: 1,
+	}
+
+	data, err := json.Marshal(BuildJSONOutput(report))
+	if err != nil {
+		t.Fatalf("marshal: %v", err)
+	}
+	got := string(data)
+
+	// Timeline record-time cuts over to inserted_at, never the old captured_at.
+	if !strings.Contains(got, `"inserted_at":"2026-03-26T16:02:03Z"`) {
+		t.Errorf("timeline record-time should emit inserted_at, got:\n%s", got)
+	}
+	if strings.Contains(got, `"captured_at":"2026-03-26T16:02:03Z"`) {
+		t.Errorf("timeline record-time must not use the old captured_at key, got:\n%s", got)
+	}
+	// The entropy subject's upstream source-capture time stays captured_at.
+	if !strings.Contains(got, `"captured_at":"2026-03-26T16:02:00Z"`) {
+		t.Errorf("entropy subject source time should keep captured_at, got:\n%s", got)
+	}
+}
+
 // TestRunFromBytes_ClaimsOnly_CBOR exercises the CBOR variant of the
 // claims-only fixture, confirming the parser handles the absence of
 // hash / hash_type byte-string fields cleanly.

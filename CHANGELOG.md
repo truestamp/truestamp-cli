@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+- **Entropy observation timestamp is now `inserted_at`, following a server
+  rename.** The Truestamp service renamed the entropy observation's record
+  timestamp from `captured_at` to `inserted_at` (the Ash default). It is the
+  same value — the moment Truestamp recorded the observation — and no hash or
+  signature covers it, so proof verification is completely unaffected.
+  `truestamp verify --remote` now reads the server's `inserted_at` temporal
+  key, and the `--json` verification output emits the timeline timestamp under
+  `inserted_at` instead of `captured_at`. No dual-key back-compat is kept.
+  Scripts that parse `.timeline.captured_at` from `--json` output must switch
+  to `.timeline.inserted_at`. The entropy subject's own `captured_at` (the
+  upstream NIST pulse / Bitcoin block / Stellar close time) is a distinct
+  value the server did not rename and keeps its name.
+
 ## [0.10.0] — 2026-06-24
 
 ### Added
