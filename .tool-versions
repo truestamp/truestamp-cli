@@ -15,13 +15,24 @@ cosign 3.1.2
 shellcheck 0.11.0
 syft 1.49.0
 caddy 2.11.4
-# Go quality and vulnerability tooling consumed by `task lint` (staticcheck +
-# gosec) and `task vuln-check` (govulncheck). Pinning via mise — rather than
-# `go install ...@latest` — keeps these reproducible across machines and
-# survives Go toolchain bumps (a `go install` binary lives in the active
-# Go's bin dir and is shadowed the moment Go's version moves). staticcheck
-# and gosec install as aqua-verified prebuilt binaries; govulncheck has no
-# aqua prebuilt and compiles from source via the `go:` backend. Bump these
+# go-task (the `task` runner). Pinned so CI installs it via mise and runs the
+# exact same Taskfile tasks developers run locally (`task lint`, `task gosec`,
+# `task vuln-check`, ...). This makes .tool-versions the single source of truth
+# for every tool version in both places: CI no longer `go install`s any linter
+# at `@latest`, so a fresh tool release can't break CI on unchanged code and a
+# local run can never disagree with CI on tool versions.
+aqua:go-task/task 3.52.0
+# Go quality and vulnerability tooling, run by `task lint` (staticcheck +
+# gosec) and `task vuln-check` (govulncheck) both locally AND in CI (CI invokes
+# these same tasks — see .github/workflows/ci.yml). Pinning via mise — rather
+# than `go install ...@latest` in CI — keeps them reproducible across machines,
+# survives Go toolchain bumps (a `go install` binary lives in the active Go's
+# bin dir and is shadowed the moment Go's version moves), and stops a new lint
+# rule in a fresh gosec/staticcheck release from breaking CI on unchanged code.
+# staticcheck and gosec install as aqua-verified prebuilt binaries; govulncheck
+# has no aqua prebuilt and compiles from source via the `go:` backend. Pinning
+# govulncheck does NOT reduce CVE coverage: it queries the live vuln.go.dev
+# database at run time, so newly-published CVEs are still caught. Bump these
 # intentionally — re-run `task lint && task vuln-check` after each bump.
 staticcheck 2026.1
 aqua:securego/gosec 2.28.0

@@ -189,11 +189,14 @@ tasks:
     cmds:
       - go vet ./...
 
-  lint:
-    desc: "All quality checks: vet + fmt-check + staticcheck + gosec. staticcheck and gosec are pinned in .tool-versions and installed by `mise install`."
-    deps: [vet, fmt-check]
+  staticcheck:
+    desc: "Run staticcheck (pinned in .tool-versions, installed by `mise install`). CI runs this exact task, so the version can't drift from local."
     cmds:
       - staticcheck ./...
+
+  gosec:
+    desc: "Run the gosec security scanner (pinned in .tool-versions, installed by `mise install`). CI runs this exact task, so both the version AND the exclusion list below are single-sourced here — do not duplicate them in ci.yml."
+    cmds:
       # gosec exclusions, justified:
       #   G104: unhandled lipgloss.Println / fmt.Fprintf to stdout — errors there
       #         are not actionable in a CLI.
@@ -211,8 +214,16 @@ tasks:
       #         (Horizon, Blockstream, keyring); not user-controlled.
       - gosec -quiet -exclude-dir=testdata -exclude=G104,G115,G301,G302,G306,G304,G401,G501,G505,G204,G704 ./...
 
+  lint:
+    desc: "All quality checks: vet + fmt-check + staticcheck + gosec. Every tool is pinned in .tool-versions (mise); CI runs these same tasks, so nothing drifts between local and CI."
+    cmds:
+      - task: vet
+      - task: fmt-check
+      - task: staticcheck
+      - task: gosec
+
   vuln-check:
-    desc: "Scan go.mod deps for known vulnerabilities. govulncheck is pinned in .tool-versions and installed by `mise install`."
+    desc: "Scan go.mod deps for known vulnerabilities. govulncheck is pinned in .tool-versions and installed by `mise install`; CI runs this exact task. The pin does not reduce coverage: govulncheck queries the live vuln.go.dev database at run time, so newly-published CVEs are still caught (a stale pin only misses analysis-engine improvements, never vulnerability data)."
     cmds:
       - govulncheck ./...
 
