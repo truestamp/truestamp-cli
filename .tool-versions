@@ -8,7 +8,7 @@
 # NUL bytes; GO-2026-4918 infinite loop in net/http/internal/http2 on bad
 # SETTINGS_MAX_FRAME_SIZE); 1.26.1 carried six (5 in crypto/x509, 1 in
 # html/template). Re-run `task vuln-check` after every Go bump.
-go 1.26.4
+go 1.26.5
 goreleaser 2.16.0
 cosign 3.1.1
 shellcheck 0.11.0
