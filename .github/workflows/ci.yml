@@ -43,36 +43,25 @@ jobs:
       - name: Smoke-test install.sh
         run: sh docs/install.test.sh
 
+      # Lint / vuln steps invoke the Taskfile tasks so CI and local dev share a
+      # single source of truth: tool versions come from .tool-versions (mise
+      # installed them above), and invocations/exclusions live in Taskfile.yml.
+      # No `go install ...@latest` here — that shadowed the mise pins and made
+      # CI break on unchanged code when a new tool release shipped a new rule.
       - name: gofmt
-        run: |
-          unformatted=$(gofmt -l .)
-          if [ -n "$unformatted" ]; then
-            echo "The following files are not gofmt'd:"
-            echo "$unformatted"
-            exit 1
-          fi
+        run: task fmt-check
 
       - name: go vet
-        run: go vet ./...
+        run: task vet
 
       - name: staticcheck
-        run: |
-          go install honnef.co/go/tools/cmd/staticcheck@latest
-          staticcheck ./...
+        run: task staticcheck
 
       - name: gosec
-        # Exclusions mirror `task lint` in Taskfile.yml; each code is
-        # justified there. Keep the two lists in sync when editing.
-        run: |
-          go install github.com/securego/gosec/v2/cmd/gosec@latest
-          gosec -quiet -exclude-dir=testdata \
-            -exclude=G104,G115,G301,G302,G306,G304,G401,G501,G505,G204,G704 \
-            ./...
+        run: task gosec
 
       - name: govulncheck
-        run: |
-          go install golang.org/x/vuln/cmd/govulncheck@latest
-          govulncheck ./...
+        run: task vuln-check
 
       - name: Test
         # -race runs the full suite; seed-corpus fuzz targets replay as
