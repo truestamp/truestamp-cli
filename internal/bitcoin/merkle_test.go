@@ -8,8 +8,8 @@ import (
 	"encoding/hex"
 	"testing"
 
-	"github.com/btcsuite/btcd/chaincfg/chainhash"
-	"github.com/btcsuite/btcd/wire"
+	"github.com/btcsuite/btcd/chainhash/v2"
+	"github.com/btcsuite/btcd/wire/v2"
 )
 
 const testTxoutproofHex = "0000002026cf000a60782b1b57c018b6482e6837c1165d5e2aa06f92d199163481b6c07b150edc6623b16f07e3239de42b6f67d08f5d71b4d06e35685dcaab533f951d5e395ab869ffff7f200000000002000000028205b7caabd985090d0ba024a7d2ce998e53d49122989f8eac68b6f25558bbee52877124271894f27729ada539c4834cfdf4b3972d39a0e189ff108c578ec3290105"

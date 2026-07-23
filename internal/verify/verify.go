@@ -13,7 +13,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/btcsuite/btcd/chaincfg/chainhash"
+	"github.com/btcsuite/btcd/chainhash/v2"
 	"github.com/gowebpki/jcs"
 	"github.com/truestamp/truestamp-cli/internal/bitcoin"
 	"github.com/truestamp/truestamp-cli/internal/external"
