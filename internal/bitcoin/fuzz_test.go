@@ -6,7 +6,7 @@ package bitcoin
 import (
 	"testing"
 
-	"github.com/btcsuite/btcd/chaincfg/chainhash"
+	"github.com/btcsuite/btcd/chainhash/v2"
 )
 
 // Bitcoin's parsers operate on attacker-controlled hex strings pulled

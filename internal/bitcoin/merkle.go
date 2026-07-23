@@ -8,7 +8,7 @@ package bitcoin
 import (
 	"math"
 
-	"github.com/btcsuite/btcd/chaincfg/chainhash"
+	"github.com/btcsuite/btcd/chainhash/v2"
 )
 
 // MerkleResult holds the result of a partial merkle tree verification.
