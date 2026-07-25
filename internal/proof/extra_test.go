@@ -6,6 +6,7 @@ package proof
 import (
 	"encoding/hex"
 	"encoding/json"
+	"math"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -53,76 +54,61 @@ func TestDetectIDType(t *testing.T) {
 	}
 }
 
-// --- types.go (FindCommitByType) -------------------------------------------
-
-func TestFindCommitByType(t *testing.T) {
-	commits := []ExternalCommit{
-		{Type: ptype.CommitmentStellar, TransactionHash: "aa"},
-		{Type: ptype.CommitmentBitcoin, TransactionHash: "bb"},
-	}
-	if got := FindCommitByType(commits, ptype.CommitmentStellar); got == nil || got.TransactionHash != "aa" {
-		t.Errorf("FindCommitByType(stellar) = %+v", got)
-	}
-	if got := FindCommitByType(commits, ptype.CommitmentBitcoin); got == nil || got.TransactionHash != "bb" {
-		t.Errorf("FindCommitByType(bitcoin) = %+v", got)
-	}
-	if got := FindCommitByType(commits, ptype.Code(99)); got != nil {
-		t.Errorf("FindCommitByType(other) should return nil, got %+v", got)
-	}
-	if got := FindCommitByType(nil, ptype.CommitmentStellar); got != nil {
-		t.Errorf("FindCommitByType(nil, ...) should return nil")
-	}
-}
-
 // --- binary.go helpers -----------------------------------------------------
 
-func TestIsHexString(t *testing.T) {
+// TestCborInteger pins the integer / non-integer split E.6 grades `t` on.
+// A float is never an integer, however whole its value: truncating one let a
+// CBOR `v` of 1.9 report "Proof version 1" and a `t` of 20.5 verify.
+func TestCborInteger(t *testing.T) {
+	t.Parallel()
 	cases := []struct {
-		in string
-		ok bool
+		in    any
+		ok    bool
+		text  string
+		fits  bool
+		value int64
 	}{
-		{"", false},
-		{"a", false}, // odd
-		{"ab", true},
-		{"AB", true},
-		{"FF", true},
-		{"ff00aa", true},
-		{"zz", false},
-		{"ab cd", false}, // space
+		{uint64(42), true, "42", true, 42},
+		{int64(-1), true, "-1", true, -1},
+		{int(42), true, "42", true, 42},
+		{uint64(math.MaxUint64), true, "18446744073709551615", false, 0},
+		{float64(42), false, "", false, 0},
+		{float64(1.9), false, "", false, 0},
+		{"20", false, "", false, 0},
+		{nil, false, "", false, 0},
 	}
 	for _, c := range cases {
-		if got := isHexString(c.in); got != c.ok {
-			t.Errorf("isHexString(%q) = %v, want %v", c.in, got, c.ok)
+		got, ok := cborInteger(c.in)
+		if ok != c.ok {
+			t.Errorf("cborInteger(%v) ok = %v, want %v", c.in, ok, c.ok)
+			continue
+		}
+		if !ok {
+			continue
+		}
+		if got.Text != c.text || got.Fits != c.fits || (c.fits && got.N != c.value) {
+			t.Errorf("cborInteger(%v) = %+v, want text %q fits %v value %d", c.in, got, c.text, c.fits, c.value)
 		}
 	}
 }
 
-func TestToInt(t *testing.T) {
+func TestCborIntOrZero(t *testing.T) {
+	t.Parallel()
 	cases := []struct {
 		in   any
 		want int
 	}{
-		{uint64(42), 42},
-		{int64(42), 42},
-		{float64(42), 42},
-		{int(42), 42},
-		{"string", 0}, // unknown type → 0
+		{uint64(7), 7},
+		{int64(7), 7},
+		{float64(7), 0}, // a float is not an integer
+		{"x", 0},
+		{uint64(math.MaxUint64), 0}, // an integer, but not one that fits
 		{nil, 0},
 	}
 	for _, c := range cases {
-		if got := toInt(c.in); got != c.want {
-			t.Errorf("toInt(%v) = %d, want %d", c.in, got, c.want)
+		if got := cborIntOrZero(c.in); got != c.want {
+			t.Errorf("cborIntOrZero(%v) = %d, want %d", c.in, got, c.want)
 		}
-	}
-}
-
-func TestGetInt(t *testing.T) {
-	m := map[any]any{"a": uint64(7), "b": "x"}
-	if got := getInt(m, "a"); got != 7 {
-		t.Errorf("getInt present: got %d", got)
-	}
-	if got := getInt(m, "missing"); got != 0 {
-		t.Errorf("getInt missing: got %d", got)
 	}
 }
 
@@ -136,76 +122,117 @@ func TestGetString(t *testing.T) {
 	}
 }
 
-func TestGetStringField(t *testing.T) {
+func TestCborStringField(t *testing.T) {
 	m := map[string]any{
-		"s": "text",
-		"b": []byte{0x01, 0x02, 0x03},
-		"n": 42,
+		"s":     "text",
+		"b":     []byte{0x01, 0x02, 0x03},
+		"empty": "",
+		"n":     42,
 	}
-	if got := getStringField(m, "s"); got != "text" {
-		t.Errorf("string: got %q", got)
+	cases := []struct {
+		key  string
+		want string
+		ok   bool
+	}{
+		{"s", "text", true},
+		{"b", "AQID", true}, // base64url raw
+		{"empty", "", true}, // present-and-empty is still present
+		{"n", "", false},
+		{"missing", "", false},
 	}
-	if got := getStringField(m, "b"); got != "AQID" { // base64url raw
-		t.Errorf("bytes: got %q", got)
-	}
-	if got := getStringField(m, "n"); got != "" {
-		t.Errorf("unsupported type should yield empty, got %q", got)
-	}
-	if got := getStringField(m, "missing"); got != "" {
-		t.Errorf("missing: got %q", got)
+	for _, c := range cases {
+		got, ok := cborStringField(m, c.key)
+		if got != c.want || ok != c.ok {
+			t.Errorf("cborStringField(%q) = (%q, %v), want (%q, %v)", c.key, got, ok, c.want, c.ok)
+		}
 	}
 }
 
+func TestCborFieldCarried(t *testing.T) {
+	m := map[string]any{"present": "x", "empty": "", "null": nil}
+	cases := []struct {
+		key  string
+		want bool
+	}{
+		{"present", true},
+		{"empty", true}, // an empty string counts as carried
+		{"null", false}, // a null value counts as absent
+		{"missing", false},
+	}
+	for _, c := range cases {
+		if got := cborFieldCarried(m, c.key); got != c.want {
+			t.Errorf("cborFieldCarried(%q) = %v, want %v", c.key, got, c.want)
+		}
+	}
+}
+
+// TestBytesFieldToHex_Variants pins E.3's byte-string correspondence: only a
+// CBOR byte string carries one of these fields. Accepting hex text as well
+// gave every such field three spellings under one signature — bytes,
+// lowercase hex text, and uppercase hex text.
 func TestBytesFieldToHex_Variants(t *testing.T) {
+	t.Parallel()
 	m := map[any]any{
 		"raw":       []byte{0xde, 0xad, 0xbe, 0xef},
 		"hex":       "deadbeef",
+		"upperHex":  "DEADBEEF",
 		"notHex":    "Not Hex!",
 		"nonString": 42,
 	}
 	if got := bytesFieldToHex(m, "raw"); got != "deadbeef" {
 		t.Errorf("raw bytes: got %q", got)
 	}
-	if got := bytesFieldToHex(m, "hex"); got != "deadbeef" {
-		t.Errorf("hex passthrough: got %q", got)
-	}
-	// Non-hex string becomes hex-encoded bytes
-	if got := bytesFieldToHex(m, "notHex"); got == "" {
-		t.Error("non-hex string should be hex-encoded")
-	}
-	if got := bytesFieldToHex(m, "nonString"); got != "" {
-		t.Errorf("non-string type should yield empty, got %q", got)
-	}
-	if got := bytesFieldToHex(m, "missing"); got != "" {
-		t.Errorf("missing: got %q", got)
+	for _, key := range []string{"hex", "upperHex", "notHex", "nonString", "missing"} {
+		if got := bytesFieldToHex(m, key); got != "" {
+			t.Errorf("%s: got %q, want empty — E.3 lists this field as a byte string", key, got)
+		}
 	}
 }
 
-func TestBytesToBase64_Variants(t *testing.T) {
-	// []byte input
+func TestCborBytesToBase64_Variants(t *testing.T) {
+	t.Parallel()
 	m := map[string]any{"k": []byte{1, 2, 3}}
-	if got, _ := bytesToBase64(m, "k"); got != "AQID" {
+	if got := cborBytesToBase64(m, "k"); got != "AQID" {
 		t.Errorf("bytes: got %q", got)
 	}
-	// short string (<=64) that isn't hex → treated as raw bytes
-	m2 := map[string]any{"k": "Hi!"}
-	if got, _ := bytesToBase64(m2, "k"); got != "SGkh" {
-		t.Errorf("short non-hex string: got %q", got)
+	// E.3 lists pk / sig as byte strings. A text value is not one, and the
+	// heuristic that used to sort text into "base64 already" and "raw bytes"
+	// double-encoded correctly formed base64.
+	for _, v := range []any{"Hi!", strings.Repeat("a", 100), "AQID", 42} {
+		if got := cborBytesToBase64(map[string]any{"k": v}, "k"); got != "" {
+			t.Errorf("text/other pk value %v: got %q, want empty", v, got)
+		}
 	}
-	// long string → passthrough
-	m3 := map[string]any{"k": strings.Repeat("a", 100)}
-	got, _ := bytesToBase64(m3, "k")
-	if got != strings.Repeat("a", 100) {
-		t.Errorf("long string should pass through, got %q", got)
+	// A missing or wrong-typed pk / sig is not a rejection — E.9 and E.16
+	// report it — so it yields "" instead of an error.
+	if got := cborBytesToBase64(m, "missing"); got != "" {
+		t.Errorf("missing key: got %q, want empty", got)
 	}
-	// missing key
-	if _, err := bytesToBase64(m, "missing"); err == nil {
-		t.Error("missing key should error")
+}
+
+func TestTextFieldToString(t *testing.T) {
+	m := map[any]any{
+		"b64url": "AQIDBA",
+		"hex":    "01020304",
+		"bytes":  []byte{0x01, 0x02},
+		"n":      42,
 	}
-	// unsupported type
-	m4 := map[string]any{"k": 42}
-	if _, err := bytesToBase64(m4, "k"); err == nil {
-		t.Error("unsupported type should error")
+	// A base64url text value must survive verbatim — hex-encoding it would
+	// corrupt it into hex-of-ASCII.
+	if got := textFieldToString(m, "b64url"); got != "AQIDBA" {
+		t.Errorf("base64url text: got %q, want AQIDBA", got)
+	}
+	if got := textFieldToString(m, "hex"); got != "01020304" {
+		t.Errorf("hex text: got %q", got)
+	}
+	if got := textFieldToString(m, "bytes"); got != "0102" {
+		t.Errorf("byte string: got %q", got)
+	}
+	if got := textFieldToString(m, "n"); got != "" {
+		t.Errorf("unsupported type: got %q", got)
+	}
+	if got := textFieldToString(m, "missing"); got != "" {
+		t.Errorf("missing: got %q", got)
 	}
 }
 
@@ -248,15 +275,19 @@ func TestParseCBOR_Malformed(t *testing.T) {
 	}
 }
 
-func TestParseCBOR_MissingPK(t *testing.T) {
-	// Valid CBOR map with v+t but without pk.
+// TestParseCBOR_MissingPKIsNotARejection mirrors the JSON path: a missing
+// `pk` is not one of E.6's hard rejections, so the bundle must reach the
+// report (this one still aborts, but on `s` — the first authorised gate it
+// actually trips).
+func TestParseCBOR_MissingPKIsNotARejection(t *testing.T) {
 	m := map[string]any{"v": 1, "t": uint16(20), "sig": []byte{0x01}}
 	data, err := cbor.Marshal(m)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := ParseCBOR(data); err == nil {
-		t.Error("missing pk should error")
+	_, err = ParseCBOR(data)
+	if got := RejectionCode(err); got != CodeMissingBlock {
+		t.Errorf("RejectionCode = %q, want %q (err: %v)", got, CodeMissingBlock, err)
 	}
 }
 
@@ -477,8 +508,8 @@ func TestGenerateCtx_CBORSuccess(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Generate(cbor): %v", err)
 	}
-	if !IsCBORProof(data) {
-		t.Errorf("expected CBOR bytes, got %x", data[:min(10, len(data))])
+	if !HasCBORTag(data) {
+		t.Errorf("expected tagged CBOR bytes, got %x", data[:min(10, len(data))])
 	}
 }
 
@@ -651,8 +682,9 @@ func TestMarshalCBOR_BadCommitFields(t *testing.T) {
 		f    mut
 	}{
 		{"op", func(b *ProofBundle) { b.Commitments[0].OpReturn = "zz" }},
-		{"rtx", func(b *ProofBundle) { b.Commitments[0].RawTxHex = "zz" }},
-		{"txp", func(b *ProofBundle) { b.Commitments[0].TxoutproofHex = "zz" }},
+		// rtx / txp are absent here on purpose: E.3 makes them text
+		// strings carrying base64url *or* hex, so they are emitted
+		// verbatim and have no hex-decode branch to fail.
 		{"bmr", func(b *ProofBundle) { b.Commitments[0].BlockMerkleRoot = "zz" }},
 		{"memo", func(b *ProofBundle) { b.Commitments[0].MemoHash = "zz" }},
 		{"ep", func(b *ProofBundle) { b.Commitments[0].EpochProof = "!!!" }},

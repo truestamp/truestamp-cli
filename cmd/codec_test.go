@@ -143,6 +143,126 @@ func TestCLI_JCS_HashEquivalence(t *testing.T) {
 	}
 }
 
+// --- Oversized integers (Appendix C.2a / E.4) -------------------------------
+
+// TestCLI_JCS_PreservesOversizedInteger pins Appendix C.2a's normative pair:
+// 2^53 is exactly representable and 2^53 + 1 is not, and the two must
+// canonicalize to distinct strings. `truestamp jcs` is documented as the way
+// to recompute a claims_hash locally, so a strict RFC 8785 round-trip through
+// a float64 here silently returned the wrong digest for the second row.
+func TestCLI_JCS_PreservesOversizedInteger(t *testing.T) {
+	cases := []struct {
+		in         string
+		want       string
+		wantWarn   bool
+		warnNumber string
+	}{
+		{`{"n":9007199254740992}`, `{"n":9007199254740992}`, false, ""},
+		{`{"n":9007199254740993}`, `{"n":9007199254740993}`, true, "9007199254740993"},
+		{`{"n":-9007199254740993}`, `{"n":-9007199254740993}`, true, "-9007199254740993"},
+		{`{"n":18446744073709551615}`, `{"n":18446744073709551615}`, true, "18446744073709551615"},
+		// Floats are lossy by construction and are never flagged.
+		{`{"n":1.5}`, `{"n":1.5}`, false, ""},
+	}
+	for _, c := range cases {
+		cmd := exec.Command(binaryPath, "jcs")
+		cmd.Stdin = strings.NewReader(c.in)
+		var stdout, stderr bytes.Buffer
+		cmd.Stdout = &stdout
+		cmd.Stderr = &stderr
+		if err := cmd.Run(); err != nil {
+			t.Fatalf("%s: %v (stderr: %s)", c.in, err, stderr.String())
+		}
+		if stdout.String() != c.want {
+			t.Errorf("%s: got %q, want %q", c.in, stdout.String(), c.want)
+		}
+		gotWarn := strings.Contains(stderr.String(), "not portably verifiable")
+		if gotWarn != c.wantWarn {
+			t.Errorf("%s: portability warning = %v, want %v (stderr: %q)",
+				c.in, gotWarn, c.wantWarn, stderr.String())
+		}
+		if c.wantWarn && !strings.Contains(stderr.String(), c.warnNumber) {
+			t.Errorf("%s: warning should name %s, got: %q", c.in, c.warnNumber, stderr.String())
+		}
+	}
+}
+
+// TestCLI_JCS_OversizedWarningIsAdvisory: the digest above the warning is the
+// correct one, so the warning must not move the exit code, and it must stay
+// off stdout so `truestamp jcs | truestamp hash` is unaffected.
+func TestCLI_JCS_OversizedWarningIsAdvisory(t *testing.T) {
+	cmd := exec.Command(binaryPath, "jcs")
+	cmd.Stdin = strings.NewReader(`{"n":9007199254740993}`)
+	var stdout, stderr bytes.Buffer
+	cmd.Stdout = &stdout
+	cmd.Stderr = &stderr
+	if err := cmd.Run(); err != nil {
+		t.Fatalf("exit should stay 0 for an advisory warning, got %v", err)
+	}
+	if strings.Contains(stdout.String(), "warning") {
+		t.Errorf("the warning leaked onto stdout: %q", stdout.String())
+	}
+}
+
+// TestCLI_JCS_OversizedSuppressedUnderSilentAndJSON: --silent means no
+// output at all, and --json routes the same fact through a structured field
+// so machine consumers do not have to scrape stderr.
+func TestCLI_JCS_OversizedSuppressedUnderSilentAndJSON(t *testing.T) {
+	const input = `{"n":9007199254740993}`
+
+	silent := exec.Command(binaryPath, "jcs", "--silent")
+	silent.Stdin = strings.NewReader(input)
+	var sOut, sErr bytes.Buffer
+	silent.Stdout = &sOut
+	silent.Stderr = &sErr
+	if err := silent.Run(); err != nil {
+		t.Fatalf("--silent: %v", err)
+	}
+	if sOut.Len() != 0 || sErr.Len() != 0 {
+		t.Errorf("--silent must emit nothing, got stdout=%q stderr=%q", sOut.String(), sErr.String())
+	}
+
+	jsonCmd := exec.Command(binaryPath, "jcs", "--json")
+	jsonCmd.Stdin = strings.NewReader(input)
+	var jOut, jErr bytes.Buffer
+	jsonCmd.Stdout = &jOut
+	jsonCmd.Stderr = &jErr
+	if err := jsonCmd.Run(); err != nil {
+		t.Fatalf("--json: %v", err)
+	}
+	if jErr.Len() != 0 {
+		t.Errorf("--json must not write the warning to stderr, got %q", jErr.String())
+	}
+	var parsed struct {
+		Output            string   `json:"output"`
+		OversizedIntegers []string `json:"oversized_integers"`
+	}
+	if err := json.Unmarshal(jOut.Bytes(), &parsed); err != nil {
+		t.Fatalf("parsing --json output: %v\n%s", err, jOut.String())
+	}
+	if parsed.Output != `{"n":9007199254740993}` {
+		t.Errorf("output: got %q", parsed.Output)
+	}
+	if len(parsed.OversizedIntegers) != 1 || parsed.OversizedIntegers[0] != "9007199254740993" {
+		t.Errorf("oversized_integers: got %v, want [9007199254740993]", parsed.OversizedIntegers)
+	}
+}
+
+// TestCLI_JCS_NoOversizedFieldWhenSafe: the field is omitempty so a document
+// inside the safe range produces no key at all, not an empty array a consumer
+// would have to distinguish from "not reported".
+func TestCLI_JCS_NoOversizedFieldWhenSafe(t *testing.T) {
+	cmd := exec.Command(binaryPath, "jcs", "--json")
+	cmd.Stdin = strings.NewReader(`{"b":2,"a":1}`)
+	out, err := cmd.Output()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if bytes.Contains(out, []byte("oversized_integers")) {
+		t.Errorf("safe document should carry no oversized_integers key, got: %s", out)
+	}
+}
+
 // TestCLI_Encode_JSON_Shape confirms the --json envelope for encode.
 func TestCLI_Encode_JSON_Shape(t *testing.T) {
 	cmd := exec.Command(binaryPath, "encode", "--to", "hex", "--json")

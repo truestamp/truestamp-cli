@@ -4,6 +4,7 @@
 package cmd
 
 import (
+	"bytes"
 	"encoding/json"
 	"os"
 	"os/exec"
@@ -220,6 +221,139 @@ func TestCLI_Hash_PrefixMatchesJCS(t *testing.T) {
 	}
 	if strings.TrimSpace(string(outA)) != strings.TrimSpace(string(outB)) {
 		t.Errorf("the two JCS paths disagree:\n  buffered: %s  piped:    %s", outA, outB)
+	}
+}
+
+// TestCLI_Hash_JCS_OversizedIntegerDigest pins Appendix C.2a end to end
+// through the flagship claims_hash recipe. The two rows differ by one in the
+// last digit and must produce different digests; a strict RFC 8785 round-trip
+// through a float64 collapses them onto the 2^53 value, which is the wrong
+// answer for the second. Expected digests were computed independently as
+// sha256(0x11 || <literal bytes>).
+func TestCLI_Hash_JCS_OversizedIntegerDigest(t *testing.T) {
+	cases := []struct {
+		in   string
+		want string
+	}{
+		{`{"n":9007199254740992}`, "c2c43fad296f3c57c36919c193d533f212f5aeb88431960512c87d3db2a49fe6"},
+		{`{"n":9007199254740993}`, "f49f563152ef5c20c0aee41405be6342de6fbbb201985d7adc5bfebda9382407"},
+	}
+	seen := map[string]string{}
+	for _, c := range cases {
+		cmd := exec.Command(binaryPath, "hash", "--prefix", "0x11", "--jcs",
+			"-a", "sha256", "--style", "bare", "--no-filename")
+		cmd.Stdin = strings.NewReader(c.in)
+		out, err := cmd.Output()
+		if err != nil {
+			t.Fatalf("%s: %s", c.in, err)
+		}
+		got := strings.TrimSpace(string(out))
+		if got != c.want {
+			t.Errorf("%s: digest = %s, want %s", c.in, got, c.want)
+		}
+		if prev, dup := seen[got]; dup {
+			t.Errorf("%s and %s collapsed onto the same digest %s", prev, c.in, got)
+		}
+		seen[got] = c.in
+	}
+}
+
+// TestCLI_Hash_JCS_OversizedWarning: the E.4 portability signal reaches the
+// user on stderr without moving the exit code or contaminating the digest on
+// stdout, mirroring how the legacy-algorithm notice behaves.
+func TestCLI_Hash_JCS_OversizedWarning(t *testing.T) {
+	cmd := exec.Command(binaryPath, "hash", "--jcs", "--style", "bare", "--no-filename")
+	cmd.Stdin = strings.NewReader(`{"n":9007199254740993}`)
+	var stdout, stderr bytes.Buffer
+	cmd.Stdout = &stdout
+	cmd.Stderr = &stderr
+	if err := cmd.Run(); err != nil {
+		t.Fatalf("advisory warning must not change the exit code, got %v", err)
+	}
+	if !strings.Contains(stderr.String(), "not portably verifiable") ||
+		!strings.Contains(stderr.String(), "9007199254740993") {
+		t.Errorf("expected the portability warning naming the literal, got: %q", stderr.String())
+	}
+	if strings.Contains(stdout.String(), "warning") {
+		t.Errorf("warning leaked onto stdout: %q", stdout.String())
+	}
+}
+
+// TestCLI_Hash_JCS_OversizedJSONField: --json suppresses the stderr line, so
+// the same fact has to travel as structured data or a scripted caller loses
+// it entirely. The field is per-input because runHash may hash several files.
+func TestCLI_Hash_JCS_OversizedJSONField(t *testing.T) {
+	dir := t.TempDir()
+	big := filepath.Join(dir, "big.json")
+	safe := filepath.Join(dir, "safe.json")
+	if err := os.WriteFile(big, []byte(`{"n":9007199254740993}`), 0644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(safe, []byte(`{"n":1}`), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	cmd := exec.Command(binaryPath, "hash", "--jcs", "--json", big, safe)
+	var stdout, stderr bytes.Buffer
+	cmd.Stdout = &stdout
+	cmd.Stderr = &stderr
+	if err := cmd.Run(); err != nil {
+		t.Fatalf("hash --jcs --json: %v (stderr: %s)", err, stderr.String())
+	}
+	if stderr.Len() != 0 {
+		t.Errorf("--json must not also write the warning to stderr, got %q", stderr.String())
+	}
+	var results []struct {
+		OversizedIntegers []string `json:"oversized_integers"`
+		Input             struct {
+			Path string `json:"path"`
+		} `json:"input"`
+	}
+	if err := json.Unmarshal(stdout.Bytes(), &results); err != nil {
+		t.Fatalf("parsing --json output: %v\n%s", err, stdout.String())
+	}
+	if len(results) != 2 {
+		t.Fatalf("expected 2 results, got %d", len(results))
+	}
+	for _, r := range results {
+		switch {
+		case strings.HasSuffix(r.Input.Path, "big.json"):
+			if len(r.OversizedIntegers) != 1 || r.OversizedIntegers[0] != "9007199254740993" {
+				t.Errorf("big.json: oversized_integers = %v", r.OversizedIntegers)
+			}
+		case strings.HasSuffix(r.Input.Path, "safe.json"):
+			if len(r.OversizedIntegers) != 0 {
+				t.Errorf("safe.json should report none, got %v", r.OversizedIntegers)
+			}
+		default:
+			t.Errorf("unexpected input path %q", r.Input.Path)
+		}
+	}
+}
+
+// TestCLI_Hash_JCS_MultiInputWarningNamesTheFile: with several inputs a bare
+// warning would not say which document is unportable, so the line is labelled.
+func TestCLI_Hash_JCS_MultiInputWarningNamesTheFile(t *testing.T) {
+	dir := t.TempDir()
+	big := filepath.Join(dir, "big.json")
+	safe := filepath.Join(dir, "safe.json")
+	if err := os.WriteFile(big, []byte(`{"n":9007199254740993}`), 0644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(safe, []byte(`{"n":1}`), 0644); err != nil {
+		t.Fatal(err)
+	}
+	cmd := exec.Command(binaryPath, "hash", "--jcs", big, safe)
+	var stderr bytes.Buffer
+	cmd.Stderr = &stderr
+	if err := cmd.Run(); err != nil {
+		t.Fatalf("hash --jcs: %v (stderr: %s)", err, stderr.String())
+	}
+	if !strings.Contains(stderr.String(), "big.json:") {
+		t.Errorf("multi-input warning should name the file, got: %q", stderr.String())
+	}
+	if strings.Contains(stderr.String(), "safe.json:") {
+		t.Errorf("safe input should not be warned about, got: %q", stderr.String())
 	}
 }
 

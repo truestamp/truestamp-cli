@@ -48,18 +48,32 @@ func DecodeTransaction(rawTxHex string) (*wire.MsgTx, error) {
 }
 
 // ExtractOpReturn parses a raw transaction and returns the OP_RETURN data as hex.
+//
+// Appendix E.19 of the whitepaper fixes the selection rule: the payload is the
+// push data of the FIRST output whose script begins with 0x6a. Selection is
+// therefore on the leading opcode alone, not on txscript.IsNullData, which
+// additionally enforces a single push and the 80-byte MaxDataCarrierSize
+// policy limit. Once that output is chosen the parse runs on it and nothing
+// else — scanning past a malformed or oversized first OP_RETURN to a later,
+// well-formed one would let a crafted transaction present a payload
+// generation never emitted.
 func ExtractOpReturn(rawTxHex string) (string, error) {
 	tx, err := DecodeTransaction(rawTxHex)
 	if err != nil {
 		return "", err
 	}
 	for _, txout := range tx.TxOut {
-		if txscript.IsNullData(txout.PkScript) {
-			pushes, err := txscript.PushedData(txout.PkScript)
-			if err == nil && len(pushes) > 0 {
-				return hex.EncodeToString(pushes[0]), nil
-			}
+		if len(txout.PkScript) == 0 || txout.PkScript[0] != txscript.OP_RETURN {
+			continue
 		}
+		pushes, err := txscript.PushedData(txout.PkScript)
+		if err != nil {
+			return "", fmt.Errorf("OP_RETURN output does not parse: %w", err)
+		}
+		if len(pushes) == 0 {
+			return "", fmt.Errorf("OP_RETURN output carries no push data")
+		}
+		return hex.EncodeToString(pushes[0]), nil
 	}
 	return "", fmt.Errorf("no OP_RETURN output found")
 }

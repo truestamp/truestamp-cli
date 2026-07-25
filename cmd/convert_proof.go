@@ -170,14 +170,22 @@ func looksLikeJSON(data []byte) bool {
 	return len(trimmed) > 0 && trimmed[0] == '{'
 }
 
-// prettyJSON re-renders a JSON object with two-space indent. Preserves
-// key order as emitted by the Go json encoder (alphabetical).
+// prettyJSON re-indents raw with two spaces without re-encoding it.
+//
+// json.Indent rewrites whitespace only, so every number survives as the
+// literal the bundle carried. The previous implementation round-tripped
+// through `any`, which decodes every number into a float64 and silently
+// rounded any integer above 2^53 — and pretty output is the default for
+// --to json, so `truestamp convert proof` could quietly change the bytes
+// a claims_hash is computed over. Not re-encoding also preserves the
+// bundle's own key order instead of re-sorting it alphabetically, so the
+// output stays a faithful rendering of the wire form.
 func prettyJSON(raw []byte) ([]byte, error) {
-	var v any
-	if err := json.Unmarshal(raw, &v); err != nil {
+	var buf bytes.Buffer
+	if err := json.Indent(&buf, raw, "", "  "); err != nil {
 		return nil, fmt.Errorf("prettyJSON: %w", err)
 	}
-	return json.MarshalIndent(v, "", "  ")
+	return buf.Bytes(), nil
 }
 
 // base64URLEncode wraps encoding.Encode for the binary-CBOR-inside-JSON

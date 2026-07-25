@@ -13,6 +13,7 @@ import (
 
 	"github.com/truestamp/truestamp-cli/internal/auth"
 	"github.com/truestamp/truestamp-cli/internal/httpclient"
+	"github.com/truestamp/truestamp-cli/internal/teams"
 )
 
 func TestAPIKeysURL(t *testing.T) {
@@ -256,22 +257,37 @@ func TestFormatUserIdentity(t *testing.T) {
 	}
 }
 
-func TestFormatTeam(t *testing.T) {
+// formatTeamLines is the renderer `auth status` actually calls;
+// TestFormatTeam used to cover a single-line variant no command reached.
+func TestFormatTeamLines(t *testing.T) {
 	cases := []struct {
+		name   string
 		teamID string
 		r      *teamCheckResult
-		want   string
+		want   []string
 	}{
-		{"", nil, "personal team (no tenant header sent)"},
-		{"team_42", nil, "team_42"},
-		{"team_42", &teamCheckResult{}, "team_42"},
-		{"team_42", &teamCheckResult{name: "Acme Corp"}, "Acme Corp  [team_42]"},
-		{"team_me", &teamCheckResult{name: "Alice's Team", personal: true}, "Alice's Team (personal)  [team_me]"},
+		{"no team", "", nil, []string{"Team: personal team (no tenant header sent)"}},
+		{"id only, no lookup", "team_42", nil, []string{"Team Id:   team_42"}},
+		{"id only, empty lookup", "team_42", &teamCheckResult{}, []string{"Team Id:   team_42"}},
+		{"named", "team_42", &teamCheckResult{name: "Acme Corp"},
+			[]string{"Team Id:   team_42", "Team Name: Acme Corp"}},
+		{"personal is annotated", "team_me", &teamCheckResult{name: "Alice's Team", personal: true},
+			[]string{"Team Id:   team_me", "Team Name: Alice's Team (personal)"}},
+		{"role included when known", "team_42", &teamCheckResult{name: "Acme Corp", role: "team_owner"},
+			[]string{"Team Id:   team_42", "Team Name: Acme Corp", "Team Role: " + teams.FormatRole("team_owner")}},
 	}
 	for _, c := range cases {
-		if got := formatTeam(c.teamID, c.r); got != c.want {
-			t.Errorf("formatTeam(%q, %+v) = %q, want %q", c.teamID, c.r, got, c.want)
-		}
+		t.Run(c.name, func(t *testing.T) {
+			got := formatTeamLines(c.teamID, c.r)
+			if len(got) != len(c.want) {
+				t.Fatalf("formatTeamLines = %q, want %q", got, c.want)
+			}
+			for i := range got {
+				if got[i] != c.want[i] {
+					t.Errorf("line %d = %q, want %q", i, got[i], c.want[i])
+				}
+			}
+		})
 	}
 }
 

@@ -175,6 +175,36 @@ func TestVerifyPartialMerkleTree_DuplicateChildHashes(t *testing.T) {
 	}
 }
 
+// TestHashEqualMatchesBtcdIsEqual is the regression net that keeps the
+// constant-time wrapper honest: HashEqual replaced every call to btcd's
+// short-circuiting IsEqual, so it must agree with it on every input shape,
+// nil handling included.
+func TestHashEqualMatchesBtcdIsEqual(t *testing.T) {
+	t.Parallel()
+	var h1, h2, h1Copy chainhash.Hash
+	h1[0] = 0xAA
+	h1Copy[0] = 0xAA
+	h2[31] = 0xAA // differs only in the LAST byte
+
+	cases := []struct {
+		name string
+		a, b *chainhash.Hash
+	}{
+		{"both nil", nil, nil},
+		{"nil and hash", nil, &h1},
+		{"hash and nil", &h1, nil},
+		{"same pointer", &h1, &h1},
+		{"equal values", &h1, &h1Copy},
+		{"differ in last byte", &h1, &h2},
+	}
+	for _, tc := range cases {
+		want := tc.a.IsEqual(tc.b)
+		if got := HashEqual(tc.a, tc.b); got != want {
+			t.Errorf("%s: HashEqual = %v, btcd IsEqual = %v", tc.name, got, want)
+		}
+	}
+}
+
 func TestParseBlockHash(t *testing.T) {
 	t.Parallel()
 	blockHash, err := ParseBlockHash(testTxoutproofHex)

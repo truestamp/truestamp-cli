@@ -4,9 +4,11 @@
 package cmd
 
 import (
+	"bytes"
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -19,6 +21,7 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/truestamp/truestamp-cli/internal/inputsrc"
 	"github.com/truestamp/truestamp-cli/internal/items"
+	"github.com/truestamp/truestamp-cli/internal/jcs"
 	"github.com/truestamp/truestamp-cli/internal/tscrypto"
 	"github.com/truestamp/truestamp-cli/internal/ui"
 )
@@ -91,6 +94,14 @@ Requires authentication — run 'truestamp auth login', or set TRUESTAMP_API_KEY
 
 		// Overlay flag values onto claims
 		if err := overlayFlags(cmd, claims); err != nil {
+			return err
+		}
+
+		// Portability guard. Runs after the overlay so a value injected by
+		// --metadata is checked alongside one read from a claims file, and
+		// before any network call so the user never spends a round-trip to
+		// learn something we can prove locally.
+		if err := checkClaimsPortability(cmd, claims, jsonOutput); err != nil {
 			return err
 		}
 
@@ -249,14 +260,61 @@ func autoHashFile(path string) (map[string]any, error) {
 	}, nil
 }
 
+// decodeUserJSON parses a user-supplied JSON object into a map, preserving
+// every number as the literal the user actually typed.
+//
+// This is the single reason the command does not use json.Unmarshal: without
+// UseNumber, encoding/json decodes every JSON number into a float64, which
+// silently rewrites any integer outside +/- 2^53 before a single line of
+// validation or presentation code can see it. A user timestamping a 64-bit id
+// would get a proof committing to a DIFFERENT number than the one they
+// submitted — 18446744073709551615 became 18446744073709552000 on the wire —
+// and a server-side portability rejection would name a value they never wrote.
+// json.Number carries the literal text and encoding/json re-emits it verbatim
+// when marshaling, so the bytes the user wrote are the bytes that get signed.
+//
+// Fixing the guard without fixing this would be worse than useless: the
+// validator in [checkClaimsPortability] would inspect the already-rounded
+// value and pass it.
+//
+// json.Decoder is also more permissive than json.Unmarshal about trailing
+// content, so the extra Token call restores Unmarshal's "exactly one document"
+// rule — a truncated or concatenated claims file must be an error, never a
+// silently accepted prefix.
+func decodeUserJSON(data []byte) (map[string]any, error) {
+	// json.Decoder reports empty input as a bare io.EOF, where json.Unmarshal
+	// said "unexpected end of JSON input". Keep the intelligible message.
+	if len(bytes.TrimSpace(data)) == 0 {
+		return nil, fmt.Errorf("unexpected end of JSON input")
+	}
+
+	dec := json.NewDecoder(bytes.NewReader(data))
+	dec.UseNumber()
+
+	var out map[string]any
+	if err := dec.Decode(&out); err != nil {
+		return nil, err
+	}
+	if _, err := dec.Token(); !errors.Is(err, io.EOF) {
+		return nil, fmt.Errorf("unexpected trailing data after JSON document")
+	}
+	// A literal `null` unmarshals into a nil map without error, which then
+	// reads downstream as "no claims supplied" and exits successfully having
+	// done nothing. Claims must be an object.
+	if out == nil {
+		return nil, fmt.Errorf("expected a JSON object, got null")
+	}
+	return out, nil
+}
+
 // readClaimsFile reads and parses a JSON claims file.
 func readClaimsFile(path string) (map[string]any, error) {
 	data, err := os.ReadFile(path)
 	if err != nil {
 		return nil, fmt.Errorf("reading claims file: %w", err)
 	}
-	var claims map[string]any
-	if err := json.Unmarshal(data, &claims); err != nil {
+	claims, err := decodeUserJSON(data)
+	if err != nil {
 		return nil, fmt.Errorf("parsing claims JSON: %w", err)
 	}
 	return claims, nil
@@ -271,8 +329,8 @@ func readClaimsStdin() (map[string]any, error) {
 	if len(data) == 0 {
 		return nil, fmt.Errorf("no data received on stdin")
 	}
-	var claims map[string]any
-	if err := json.Unmarshal(data, &claims); err != nil {
+	claims, err := decodeUserJSON(data)
+	if err != nil {
 		return nil, fmt.Errorf("parsing claims JSON from stdin: %w", err)
 	}
 	return claims, nil
@@ -340,11 +398,13 @@ func overlayFlags(cmd *cobra.Command, claims map[string]any) error {
 		claims["timestamp"] = normalized
 	}
 
-	// Metadata: parse JSON string
+	// Metadata: parse JSON string. Decoded with the same literal-preserving
+	// reader as a claims file — a big integer injected through this flag is
+	// exactly as destructible as one read from disk.
 	if cmd.Flags().Changed("metadata") {
 		metaStr, _ := cmd.Flags().GetString("metadata")
-		var meta map[string]any
-		if err := json.Unmarshal([]byte(metaStr), &meta); err != nil {
+		meta, err := decodeUserJSON([]byte(metaStr))
+		if err != nil {
 			return fmt.Errorf("--metadata must be valid JSON: %w", err)
 		}
 		claims["metadata"] = meta
@@ -459,6 +519,120 @@ func validateClaims(claims map[string]any) error {
 	}
 
 	return nil
+}
+
+// checkClaimsPortability rejects claims carrying an integer that JCS cannot
+// canonicalize portably, mirroring the server's ValidateClaimsSafeIntegers so
+// the failure lands locally with the same wording instead of as a 422.
+//
+// The threshold is the PRODUCER bound, jcs.MaxSafeInteger (2^53 - 1) — one
+// stricter than the verifier's jcs.MaxExactInteger. See the comment on those
+// constants before touching either.
+//
+// Every violation is reported, not just the first the server would name, so a
+// claims file with several offenders is fixed in one pass.
+func checkClaimsPortability(cmd *cobra.Command, claims map[string]any, jsonOutput bool) error {
+	found := jcs.UnsafeIntegers("claims", claims)
+	if len(found) == 0 {
+		// The unsafe-integer walk is about values that survive canonicalization
+		// but mean something different afterwards. It says nothing about values
+		// that cannot be canonicalized at all — a float literal overflowing a
+		// double (1e1000) is legal JSON, passes the walk, and then fails
+		// jcs.Canonicalize, which is what verification runs over s.d. Refusing
+		// to submit what we could never verify is the stronger invariant, so
+		// close the gap with the canonicalizer itself rather than a bespoke
+		// float check.
+		encoded, err := json.Marshal(claims)
+		if err != nil {
+			return fmt.Errorf("encoding claims: %w", err)
+		}
+		if _, _, err := jcs.Canonicalize(encoded); err != nil {
+			return fmt.Errorf("claims cannot be canonicalized (RFC 8785), so the resulting proof could not be verified: %w", err)
+		}
+		return nil
+	}
+
+	paths := make([]string, len(found))
+	for i, v := range found {
+		paths[i] = v.Path
+	}
+	appLogger.Error("create_rejected_unsafe_integers",
+		"count", len(found),
+		"paths", strings.Join(paths, ","),
+	)
+
+	if jsonOutput {
+		if err := emitJSON(cmd.OutOrStdout(), buildUnsafeIntegerJSON(found)); err != nil {
+			return err
+		}
+		// The structured object above is the whole report; returning the
+		// sentinel exits 1 without also printing an English copy on stderr.
+		return errSilentFail
+	}
+	return errors.New(unsafeIntegerText(found))
+}
+
+// unsafeIntegerJSON is the --json shape for a portability rejection.
+type unsafeIntegerJSON struct {
+	Error      string               `json:"error"`
+	Message    string               `json:"message"`
+	Violations []unsafeIntegerEntry `json:"violations"`
+}
+
+// unsafeIntegerEntry locates one offending value.
+//
+// Value, Min and Max are JSON STRINGS on purpose. Emitting them as numbers
+// would hand a consumer that parses JSON with doubles — every JavaScript
+// caller, jq included — the rounded value, so the report warning about lossy
+// integers would itself be lossy.
+type unsafeIntegerEntry struct {
+	Path  string `json:"path"`
+	Value string `json:"value"`
+	Min   string `json:"min"`
+	Max   string `json:"max"`
+}
+
+func buildUnsafeIntegerJSON(found []jcs.UnsafeInteger) unsafeIntegerJSON {
+	minStr := strconv.FormatInt(-jcs.MaxSafeInteger, 10)
+	maxStr := strconv.FormatInt(jcs.MaxSafeInteger, 10)
+
+	entries := make([]unsafeIntegerEntry, len(found))
+	for i, v := range found {
+		entries[i] = unsafeIntegerEntry{
+			Path:  v.Path,
+			Value: v.Literal,
+			Min:   minStr,
+			Max:   maxStr,
+		}
+	}
+	return unsafeIntegerJSON{
+		Error:      "unsafe_integer",
+		Message:    unsafeIntegerText(found),
+		Violations: entries,
+	}
+}
+
+// unsafeIntegerText renders the human-readable rejection.
+//
+// A single violation gets the server's sentence verbatim, so the local and
+// remote errors are byte-identical for the case the server also reports.
+// Several violations get one line each — repeating the shared explanation per
+// value would bury the paths — followed by that explanation once.
+func unsafeIntegerText(found []jcs.UnsafeInteger) string {
+	if len(found) == 1 {
+		return jcs.UnsafeIntegerMessage(found[0].Path, found[0].Literal)
+	}
+
+	var b strings.Builder
+	fmt.Fprintf(&b, "%d integers in claims are outside the range %d to %d (+/- 2^53 - 1):",
+		len(found), -jcs.MaxSafeInteger, jcs.MaxSafeInteger)
+	for _, v := range found {
+		fmt.Fprintf(&b, "\n  %s = %s", v.Path, v.Literal)
+	}
+	b.WriteString("\nA value outside this range cannot be reproduced by a verifier that parses " +
+		"JSON numbers as IEEE-754 doubles, which is most of them, so the resulting proof would " +
+		"not be portably verifiable. Send each value as a string instead.")
+	return b.String()
 }
 
 // hasMeaningfulClaimsContent reports whether a claims-only submission

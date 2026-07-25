@@ -46,8 +46,10 @@ func Present(r *Report) {
 		renderSubject(r),
 	}
 
-	// Hash mismatch detail (between Subject and Timeline)
-	if r.HashProvided != "" && !r.HashMatched() && r.ProofPassed() {
+	// Hash mismatch detail (between Subject and Timeline). Gated on the
+	// verdict, not on a hand-rolled predicate, so the expected/found
+	// table appears exactly when the summary says HASH MISMATCH.
+	if r.Verdict() == VerdictHashMismatch {
 		sections = append(sections, "", renderHashMismatchDetail(r))
 	}
 
@@ -162,7 +164,10 @@ func renderBlockSubject(r *Report) string {
 		StyleFunc(metadataStyleFunc)
 
 	tbl = tbl.Row("Block ID", r.SubjectID)
-	tbl = tbl.Row("Signing Key", r.SigningKeyID)
+	// The block's own b.kid — this section describes block fields. The
+	// key that signed the proof (E.9's pk-derived id, which may differ
+	// under rotation) is named in the Commitments section instead.
+	tbl = tbl.Row("Signing Key", r.BlockKeyID())
 	if r.Temporal.CommittedAt != "" {
 		tbl = tbl.Row("Committed", truncateToSecond(r.Temporal.CommittedAt))
 	}
@@ -369,12 +374,7 @@ func renderCommitments(r *Report) string {
 		switch ci.Method {
 		case "stellar":
 			label := "Stellar"
-			if ci.Skipped {
-				tbl = tbl.Row(label, fmt.Sprintf("Ledger %d on %s (external verification skipped)", ci.Ledger, ci.Network))
-			} else {
-				ts := formatCommitmentTimestamp(ci.Timestamp)
-				tbl = tbl.Row(label, fmt.Sprintf("Ledger %d on %s (%s)", ci.Ledger, ci.Network, ts))
-			}
+			tbl = tbl.Row(label, fmt.Sprintf("Ledger %d on %s %s", ci.Ledger, ci.Network, externalCheckSuffix(ci)))
 			tbl = tbl.Row("", dim.Render("tx: "+ci.TxHash))
 			if ci.CommittedHash != "" {
 				tbl = tbl.Row("", dim.Render("memo_hash (hex): "+ci.CommittedHash))
@@ -382,12 +382,7 @@ func renderCommitments(r *Report) string {
 			}
 		case "bitcoin":
 			label := "Bitcoin"
-			if ci.Skipped {
-				tbl = tbl.Row(label, fmt.Sprintf("Block %d on %s (external verification skipped)", ci.Height, ci.Network))
-			} else {
-				ts := formatCommitmentTimestamp(ci.Timestamp)
-				tbl = tbl.Row(label, fmt.Sprintf("Block %d on %s (%s)", ci.Height, ci.Network, ts))
-			}
+			tbl = tbl.Row(label, fmt.Sprintf("Block %d on %s %s", ci.Height, ci.Network, externalCheckSuffix(ci)))
 			tbl = tbl.Row("", dim.Render("tx: "+ci.TxHash))
 			if ci.CommittedHash != "" {
 				tbl = tbl.Row("", dim.Render("op_return (hex): "+ci.CommittedHash))
@@ -407,6 +402,23 @@ func formatCommitmentTimestamp(ts string) string {
 		return "timestamp unavailable"
 	}
 	return truncateToSecond(ts)
+}
+
+// externalCheckSuffix renders the parenthetical that follows a
+// commitment's chain position. All three [ExternalStatus] values get
+// their own wording: a lookup that never ran and a lookup that ran and
+// disagreed are different facts, and printing "external verification
+// skipped" for the second one is the same collapse that made
+// externally_verified untrustworthy in the --json output.
+func externalCheckSuffix(ci CommitmentInfo) string {
+	switch ci.ExternalCheck {
+	case ExternalSkipped:
+		return "(external verification skipped)"
+	case ExternalFailed:
+		return "(external verification failed)"
+	default:
+		return "(" + formatCommitmentTimestamp(ci.Timestamp) + ")"
+	}
 }
 
 // --- Hash Mismatch Detail ---
@@ -441,13 +453,19 @@ func renderHashMismatchDetail(r *Report) string {
 //     timestamped data is embedded in s.d, so there is nothing
 //     external to compare.
 //
+// Every StatusInfo step lands here too, whatever group it belongs to.
+// An info row states something true about the proof — "the claims hash
+// is well formed", "the signature was verified with the embedded key" —
+// and rendering it under the "Issues" heading turns a positive
+// assertion into an apparent defect.
+//
 // Rendering is intentionally simpler than renderIssues: a flat list
 // with !/i icons. Notes do not have categories or detail lookups
 // because they aren't failures; the message is the whole content.
 func renderVerificationNotes(r *Report) string {
 	var notes []Step
 	for _, s := range r.Steps {
-		if s.Group == "Verification Notes" {
+		if s.Group == groupVerificationNotes || s.Status == StatusInfo {
 			notes = append(notes, s)
 		}
 	}
@@ -481,15 +499,16 @@ func renderVerificationNotes(r *Report) string {
 // --- Issues Section ---
 
 func renderIssues(r *Report) string {
-	// Collect all non-passing steps (failures, warnings, skipped, info)
-	// EXCEPT those that belong to the Verification Notes group, which
-	// are rendered in their own section and are not proof defects.
+	// Collect failures, warnings and skips. Passing steps are omitted,
+	// and so are info steps and the Verification Notes group — both are
+	// rendered by renderVerificationNotes, because neither is a proof
+	// defect and listing them under "Issues" misreports them.
 	var issues []Step
 	for _, s := range r.Steps {
-		if s.Status == StatusPass {
+		if s.Status == StatusPass || s.Status == StatusInfo {
 			continue
 		}
-		if s.Group == "Verification Notes" {
+		if s.Group == groupVerificationNotes {
 			continue
 		}
 		issues = append(issues, s)
@@ -514,11 +533,7 @@ func renderIssues(r *Report) string {
 			cat = CatStructural // fallback
 		}
 		if _, ok := catMap[cat]; !ok {
-			order, exists := CategoryOrder[cat]
-			if !exists {
-				order = 99
-			}
-			catMap[cat] = &catGroup{name: cat, order: order}
+			catMap[cat] = &catGroup{name: cat, order: categoryRank(cat)}
 		}
 		catMap[cat].steps = append(catMap[cat].steps, s)
 	}
@@ -530,10 +545,21 @@ func renderIssues(r *Report) string {
 	}
 	sort.Slice(cats, func(i, j int) bool { return cats[i].order < cats[j].order })
 
-	// Sort steps within each category: failures first, then warnings
+	// Sort steps within each category by severity: failures, then the
+	// warnings that qualify the verdict, then the checks that were not
+	// attempted at all.
+	//
+	// Sorting on the Status value itself is what this used to do, and its
+	// comment ("StatusFail(1) before StatusWarn(3)") named only the two
+	// endpoints — StatusSkip is 2, so every warn rendered BELOW every
+	// skip. Under --skip-external that buries "this run establishes
+	// nothing about who signed the proof" under a run of unattempted
+	// external checks. The iota ordering of Status is a declaration
+	// order, not a severity ranking, so the ranking is stated here
+	// explicitly rather than inherited from it.
 	for _, g := range cats {
 		sort.SliceStable(g.steps, func(i, j int) bool {
-			return g.steps[i].Status < g.steps[j].Status // StatusFail(1) before StatusWarn(3)
+			return issueSeverityRank(g.steps[i].Status) < issueSeverityRank(g.steps[j].Status)
 		})
 	}
 
@@ -554,10 +580,10 @@ func renderIssues(r *Report) string {
 				line = failStyle.Render("    x " + s.Message)
 			case StatusWarn:
 				line = warnStyle.Render("    ! " + s.Message)
-			case StatusSkip:
+			default:
+				// Skips, and defensively anything else that reaches
+				// here, so no step is dropped without a line.
 				line = skipStyle.Render("    - " + s.Message)
-			case StatusInfo:
-				line = skipStyle.Render("    i " + s.Message)
 			}
 			lines = append(lines, line)
 
@@ -574,29 +600,96 @@ func renderIssues(r *Report) string {
 	return header + "\n" + strings.Join(sections, "\n\n")
 }
 
-// failureDetails maps message keywords to user-friendly explanations.
-var failureDetails = map[string]string{
-	"proof signature":     "The proof may have been tampered with or signed with a different key.",
-	"merkle proof":        "The item cannot be verified as belonging to the committed block.",
-	"block hash":          "The chain integrity cannot be confirmed.",
-	"chain link":          "The blocks are not properly connected.",
-	"keyring":             "The keyring confirms the signing key is a trusted Truestamp key.",
-	"hash does not match": "The proof covers different data than what you provided.",
-	"stellar":             "The Stellar blockchain could not confirm this transaction.",
-	"bitcoin":             "The Bitcoin blockchain could not confirm this transaction.",
-	"temporal ordering":   "Block timestamps are not in ascending order.",
-	"submitted after":     "The item appears before the previous block was created.",
-	"submitted before":    "The item appears after the committed block was created.",
-	"captured after":      "The entropy observation appears before the previous block was created.",
-	"captured before":     "The entropy observation appears after the committed block was created.",
-	"future-dated":        "The claimed timestamp is after the submission time.",
+// issueSeverityRank orders the three statuses the Issues section can
+// carry. Pass and Info never reach it (renderIssues filters them), but
+// they are ranked last anyway so an unexpected row sorts to the bottom
+// rather than to the top.
+func issueSeverityRank(s Status) int {
+	switch s {
+	case StatusFail:
+		return 0
+	case StatusWarn:
+		return 1
+	case StatusSkip:
+		return 2
+	default:
+		return 3
+	}
+}
+
+// inclusionDetail explains a failed leaf-to-root walk over the
+// Truestamp block's Merkle tree. It says "subject" rather than "item"
+// because the same walk runs over entropy observations, whose failure
+// used to be reported as an item's.
+const inclusionDetail = "The subject cannot be verified as belonging to the committed block."
+
+// btcMerkleDetail explains a failure inside a Bitcoin block's own
+// partial Merkle tree. It is a separate statement from inclusionDetail:
+// these steps are about a transaction's place in a Bitcoin header, not a
+// subject's place in a Truestamp block, and reports carrying them
+// routinely carry a PASSING Inclusion Proof row at the same time.
+const btcMerkleDetail = "The Bitcoin transaction cannot be tied to the block header the entry carries."
+
+// failureDetails maps a keyword in a failure message to a plain-language
+// explanation of the consequence.
+//
+// It is an ordered slice and not a map because lookup is a
+// case-insensitive substring scan and many messages match more than one
+// keyword — "Cannot verify proof signature (missing derived data): no
+// block hash" matches two, "Bitcoin merkle proof root does NOT match
+// cx.bmr" matches three. Go randomizes map iteration, so those messages
+// drew a different detail from run to run. The first entry that matches
+// wins, so the order is the disambiguation rule: most specific cause
+// first, and the local derivations (merkle, block hash) ahead of the
+// chain names, so a failed local walk over a Stellar commitment is not
+// blamed on Horizon.
+//
+// Every entry must be reachable from a message the pipeline can actually
+// emit, and must be true of every message that reaches it — a detail is
+// asserted alongside the message, so a detail that overstates undoes a
+// message that was carefully hedged. Both properties are pinned by
+// TestFailureDetails_EveryKeywordIsReachable and
+// TestLookupFailureDetail_ProductionMessages.
+var failureDetails = []struct {
+	keyword string
+	detail  string
+}{
+	{"hash does not match", "The proof covers different data than what you provided."},
+	// Before the generic signature entry: these arms are reached
+	// because an EARLIER step could not produce an input, so nothing
+	// about the signature — or about tampering — was established. The
+	// generic detail below asserted tampering over messages whose whole
+	// point was to say only that an input was missing.
+	{"cannot verify proof signature", "An input this check needs was never derived, so the signature was neither confirmed nor refuted."},
+	{"proof signature", "The proof may have been tampered with or signed with a different key."},
+	{"keyring", "The published Truestamp keyring does not vouch for this signing key."},
+	{"future-dated", "The claimed timestamp is after the submission time."},
+	// E.20's ordering failure. The four entries that used to sit here
+	// ("submitted after", "submitted before", "captured after",
+	// "captured before") matched no message the pipeline emits, so this
+	// failure rendered with no detail at all in either surface — and
+	// their texts were inverted relative to their keys, describing "the
+	// previous block", which the message never mentions.
+	{"submission-window ordering violation", "The subject's own identifier is timestamped after the block that commits it, so the submission window does not hold."},
+	// Bitcoin's own merkle steps, ahead of the generic merkle entry:
+	// they are about a transaction's place in a Bitcoin block header,
+	// not about a subject's place in a Truestamp block, and were being
+	// explained as an inclusion-proof failure in reports whose
+	// Inclusion Proof row was simultaneously passing.
+	{"bitcoin partial merkle proof", btcMerkleDetail},
+	{"bitcoin merkle", btcMerkleDetail},
+	{"inclusion proof", inclusionDetail},
+	{"epoch proof", "The block cannot be shown to map to the value committed on the public chain."},
+	{"block hash", "The chain integrity cannot be confirmed."},
+	{"stellar", "The Stellar blockchain could not confirm this transaction."},
+	{"bitcoin", "The Bitcoin blockchain could not confirm this transaction."},
 }
 
 func lookupFailureDetail(msg string) string {
 	lower := strings.ToLower(msg)
-	for keyword, detail := range failureDetails {
-		if strings.Contains(lower, keyword) {
-			return detail
+	for _, d := range failureDetails {
+		if strings.Contains(lower, d.keyword) {
+			return d.detail
 		}
 	}
 	return ""
@@ -629,8 +722,13 @@ func renderVerificationSummary(r *Report) string {
 	dimStyle := lipgloss.NewStyle().Foreground(ui.Dim)
 	faint := ui.FaintStyle()
 
+	// "steps", not "cryptographic checks": the denominator counts Hash
+	// Comparison (data_integrity), Structure (structural), Submission
+	// Window (timing) and the two commitment rows (blockchain) — four of
+	// E.22's five categories are not cryptographic. It also counts info
+	// rows now, so the line reconciles with the --json `steps` array.
 	parts := []string{
-		passStyle.Render(fmt.Sprintf("  %d of %d cryptographic checks passed", c.Passed, c.Total)),
+		passStyle.Render(fmt.Sprintf("  %d of %d verification steps passed", c.Passed, c.Total)),
 	}
 	if c.Failed > 0 {
 		parts = append(parts, failStyle.Render(fmt.Sprintf("  %d failed", c.Failed)))
@@ -641,23 +739,39 @@ func renderVerificationSummary(r *Report) string {
 	if c.Skipped > 0 {
 		parts = append(parts, dimStyle.Render(fmt.Sprintf("  %d skipped", c.Skipped)))
 	}
+	if c.Info > 0 {
+		parts = append(parts, dimStyle.Render(fmt.Sprintf("  %d info", c.Info)))
+	}
 	checksLine := strings.Join(parts, "")
 
-	// Verdict line
-	proofOK := r.ProofPassed()
-	hashProvided := r.HashProvided != ""
-	hashOK := r.HashMatched()
-
+	// Verdict line. Read from Report.Verdict so the printed wording and
+	// the process exit code (Report.Passed) cannot disagree.
+	//
+	// A passing verdict additionally discloses a run that never checked
+	// the signature. E.25 does not list E.16 among the steps a verifier
+	// MAY skip and still call a run verified, and without the
+	// disclosure the strongest assertion this tool makes — "proof is
+	// valid" — printed identically for a genuine bundle and for one
+	// whose Ed25519 signature had been forged.
+	skippedSigs := r.SignaturesSkipped()
 	var verdict string
-	switch {
-	case !proofOK:
+	switch r.Verdict() {
+	case VerdictFailed:
 		verdict = failStyle.Render("  FAILED") + faint.Render(" - proof verification failed")
-	case hashProvided && !hashOK:
+	case VerdictHashMismatch:
 		verdict = failStyle.Render("  HASH MISMATCH") + faint.Render(" - proof is valid but does not match your data")
-	case hashProvided && hashOK:
-		verdict = passStyle.Render("  VERIFIED") + faint.Render(" - proof is valid and matches your data")
+	case VerdictFullyVerified:
+		if skippedSigs {
+			verdict = passStyle.Render("  VERIFIED") + faint.Render(" - matches your data, but the signature was NOT checked (--skip-signatures)")
+		} else {
+			verdict = passStyle.Render("  VERIFIED") + faint.Render(" - proof is valid and matches your data")
+		}
 	default:
-		verdict = passStyle.Render("  VERIFIED") + faint.Render(" - proof is valid")
+		if skippedSigs {
+			verdict = passStyle.Render("  VERIFIED") + faint.Render(" - but the signature was NOT checked (--skip-signatures)")
+		} else {
+			verdict = passStyle.Render("  VERIFIED") + faint.Render(" - proof is valid")
+		}
 	}
 
 	lines := []string{header, "", verdict, "", checksLine}
@@ -665,6 +779,9 @@ func renderVerificationSummary(r *Report) string {
 	// Contextual notes
 	if r.SkippedExternal {
 		lines = append(lines, faint.Render("  Skipped external blockchain verification (--skip-external)"))
+	}
+	if skippedSigs {
+		lines = append(lines, faint.Render("  Skipped Ed25519 signature verification (--skip-signatures); nothing here establishes who signed this proof"))
 	}
 
 	return strings.Join(lines, "\n")

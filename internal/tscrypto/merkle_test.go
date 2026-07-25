@@ -10,7 +10,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/gowebpki/jcs"
+	"github.com/truestamp/truestamp-cli/internal/jcs"
 )
 
 func TestVerifyMerkleProof_SingleLeaf(t *testing.T) {
@@ -266,6 +266,10 @@ func TestDecodeAndVerifyMerkleProof_RealProof(t *testing.T) {
 	if err != nil {
 		t.Fatalf("marshaling claims: %s", err)
 	}
+	// internal/jcs, not github.com/gowebpki/jcs: the wrapper deliberately
+	// diverges from the library for integer literals beyond +/-2^53, and this
+	// end-to-end vector is only evidence about production digests if it walks
+	// the same canonicalizer production does.
 	jcsBytes, err := jcs.Transform(claimsJSON)
 	if err != nil {
 		t.Fatalf("JCS transform: %s", err)

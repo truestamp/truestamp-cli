@@ -9,13 +9,11 @@ import (
 	"errors"
 	"fmt"
 	"os"
-	"path"
-	"path/filepath"
 	"strings"
 
 	"github.com/spf13/cobra"
 	"github.com/truestamp/truestamp-cli/internal/inputsrc"
-	"github.com/truestamp/truestamp-cli/internal/ui"
+	"github.com/truestamp/truestamp-cli/internal/proof"
 	"github.com/truestamp/truestamp-cli/internal/verify"
 )
 
@@ -42,14 +40,13 @@ Proof input can be provided as:
   truestamp verify --url                Interactive URL prompt
   cat proof.json | truestamp verify     Pipe from stdin
 
-Pass --type to assert the expected subject type. If the bundle's t
-doesn't match, the report surfaces a Subject Type failure (local
-mode) or the server rejects the request with subject_type_mismatch
-(--remote mode). Values: item | entropy_nist | entropy_stellar |
-entropy_bitcoin | block | beacon. Useful as a guard against verifying
-the wrong file — e.g. a beacon-named file that was swapped with a
-plain block proof (both verify on their own, but only --type beacon
-catches the swap).
+The subject type is always read from the bundle's own signed 't'
+field; the filename is never consulted. Pass --type to additionally
+assert which type you expected. If the bundle's t doesn't match, the
+report surfaces a Subject Type failure (local mode) or the server
+rejects the request with subject_type_mismatch (--remote mode).
+Values: item | entropy_nist | entropy_stellar | entropy_bitcoin |
+block | beacon.
 
 Use --remote to delegate verification to the Truestamp server API instead
 of performing local computation. Requires authentication — run
@@ -106,6 +103,15 @@ Exit code 0 on success, 1 on verification failure.`,
 			}
 		}
 
+		// typeFlag is the value of --type and nothing else. Appendix E.24
+		// requires a verifier to read the subject type from the bundle's
+		// signed `t`, never from the downloaded filename: the beacon show
+		// page legitimately names a t=10 block proof
+		// `truestamp-beacon-<id>.json`, so deriving an assertion from the
+		// stem failed sound proofs on the basis of a rename. The swap the
+		// old inference claimed to catch is already caught anyway — `t` is
+		// inside the signed payload (E.16), so relabelling a bundle breaks
+		// its signature.
 		typeFlag, _ := cmd.Flags().GetString("type")
 		typeFlag = strings.ToLower(strings.TrimSpace(typeFlag))
 		if typeFlag != "" && !validDownloadType(typeFlag) {
@@ -113,23 +119,12 @@ Exit code 0 on success, 1 on verification failure.`,
 				strings.Join(downloadTypeValues, " | "), typeFlag)
 		}
 
+		// displayName labels the source in the report and the log. It is a
+		// presentation string only; nothing downstream derives semantics
+		// from it.
 		displayName := src.DisplayName()
 		if src.Type == inputsrc.SourceStdin {
 			displayName = "(stdin)"
-		}
-
-		// Smart default: if the user didn't pass --type explicitly and the
-		// input looks like a file or URL whose basename matches the
-		// `truestamp-<stem>-<id>.<ext>` download-filename convention,
-		// infer the expected type from the stem. A faint stderr hint is
-		// printed below (unless --silent/--json) so the user knows the
-		// assertion came from the filename if they see a mismatch.
-		inferredType := ""
-		if typeFlag == "" {
-			inferredType = inferTypeFromFilename(displayName)
-			if inferredType != "" {
-				typeFlag = inferredType
-			}
 		}
 
 		var report *verify.Report
@@ -176,14 +171,24 @@ Exit code 0 on success, 1 on verification failure.`,
 		}
 
 		if err != nil {
+			rejectionCode := proof.RejectionCode(err)
 			appLogger.Error("verify_failed",
 				"source", string(src.Type),
 				"display_name", displayName,
 				"remote", cfg.Verify.Remote,
+				"rejection_code", rejectionCode,
 				"err", err.Error(),
 			)
 			if cfg.Verify.Silent {
 				return errSilentFail
+			}
+			// A hard rejection (E.6) aborts before any step runs, so there
+			// is no Report to render. Under --json emit the E.23 identifier
+			// as structured data rather than an English sentence: the whole
+			// point of the taxonomy is that two independent verifiers can be
+			// compared on the identifier without diffing prose.
+			if rejectionCode != "" && cfg.Verify.JSON {
+				return emitVerifyRejection(cmd, rejectionCode, err)
 			}
 			return err
 		}
@@ -195,7 +200,6 @@ Exit code 0 on success, 1 on verification failure.`,
 			"subject_type", report.SubjectType,
 			"passed", report.Passed(),
 			"failed_step_count", report.FailedCount(),
-			"inferred_type", inferredType,
 		)
 
 		switch {
@@ -210,17 +214,6 @@ Exit code 0 on success, 1 on verification failure.`,
 			verify.Present(report)
 		}
 
-		// After the report renders, drop a faint hint to stderr if we
-		// derived --type from the filename. This makes Subject Type
-		// failures that come from filename mismatch easy to diagnose
-		// ("I didn't pass --type, why does this report say mismatch?").
-		// Suppressed under --silent / --json to keep machine output clean.
-		if inferredType != "" && !cfg.Verify.Silent && !cfg.Verify.JSON {
-			fmt.Fprintln(cmd.ErrOrStderr(), ui.FaintStyle().Render(
-				fmt.Sprintf("  (inferred --type %s from filename %q; pass --type explicitly to override)",
-					inferredType, path.Base(filepath.ToSlash(displayName)))))
-		}
-
 		if !report.Passed() {
 			if cfg.Verify.Silent {
 				return errSilentFail
@@ -231,55 +224,41 @@ Exit code 0 on success, 1 on verification failure.`,
 	},
 }
 
-// filenameStems maps the hyphenated filename stems emitted by
-// `truestamp download` back to the underscored wire `type` values that
-// /proof/{generate,verify} accepts. Hyphen-vs-underscore is a
-// client-side cosmetic choice (see the note on downloadStem); this
-// reversal is its inverse.
-var filenameStems = map[string]string{
-	"item":            "item",
-	"entropy-nist":    "entropy_nist",
-	"entropy-stellar": "entropy_stellar",
-	"entropy-bitcoin": "entropy_bitcoin",
-	"block":           "block",
-	"beacon":          "beacon",
+// verifyRejectionJSON is the --json shape for an Appendix E.6 hard
+// rejection. No Report exists on this path, so none of the step fields a
+// successful run emits can be populated; `result` stays in the same
+// position so a consumer can switch on it before reaching for anything
+// else, and `rejection.code` carries the E.23 identifier.
+type verifyRejectionJSON struct {
+	Result    string          `json:"result"`
+	Rejection verifyRejection `json:"rejection"`
 }
 
-// inferTypeFromFilename returns the canonical --type value implied by
-// a filename following the `truestamp-<stem>-<id>.<ext>` convention
-// emitted by `truestamp download`. Returns "" when the filename doesn't
-// match (caller leaves --type unset, verify runs without assertion).
+type verifyRejection struct {
+	Code   string `json:"code"`
+	Detail string `json:"detail"`
+}
+
+// emitVerifyRejection writes the structured rejection to stdout and
+// returns the sentinel that exits 1 without adding a second, English
+// copy of the same failure on stderr.
 //
-// Accepts absolute paths, relative paths, URLs, or bare basenames —
-// only the last path segment is consulted. The extension is stripped
-// before the stem search so `.json` and `.cbor` both work.
-func inferTypeFromFilename(name string) string {
-	if name == "" {
-		return ""
+// detail comes off the RejectionError itself rather than err.Error(), so
+// it carries neither the caller's wrapping context nor a second copy of
+// the code that already has its own field.
+func emitVerifyRejection(cmd *cobra.Command, code string, err error) error {
+	detail := err.Error()
+	var re *proof.RejectionError
+	if errors.As(err, &re) {
+		detail = re.Detail
 	}
-	// Reduce to last path segment (handles / and \ uniformly via path.Base
-	// after normalizing, and also handles URLs where the last segment is
-	// the filename).
-	base := path.Base(filepath.ToSlash(name))
-	// Strip ".json" / ".cbor" (and any other single extension for future-proof).
-	if dot := strings.LastIndex(base, "."); dot > 0 {
-		base = base[:dot]
+	if jErr := emitJSON(cmd.OutOrStdout(), verifyRejectionJSON{
+		Result:    "rejected",
+		Rejection: verifyRejection{Code: code, Detail: detail},
+	}); jErr != nil {
+		return jErr
 	}
-	const prefix = "truestamp-"
-	if !strings.HasPrefix(base, prefix) {
-		return ""
-	}
-	rest := base[len(prefix):]
-	// Match the longest stem that prefixes rest (entropy-nist before
-	// entropy-*, so a simple `stem+"-"` HasPrefix over each known stem
-	// works; the map iterates in arbitrary order so we require both a
-	// prefix match AND that the next char is "-" (the stem/id separator).
-	for stem, wireType := range filenameStems {
-		if strings.HasPrefix(rest, stem+"-") {
-			return wireType
-		}
-	}
-	return ""
+	return errSilentFail
 }
 
 // writeTempProof writes proof data to a temporary file for remote verification.
@@ -310,7 +289,14 @@ func init() {
 	f.BoolP("silent", "s", false, "No output, exit code only")
 	f.Bool("json", false, "Output results as JSON")
 	f.Bool("skip-external", false, "Skip all external API verification")
-	f.Bool("skip-signatures", false, "Skip signing key and signature verification")
+	// Appendix E.9's Signing Key row (does `pk` decode to 32 bytes, and
+	// what key id does it derive to) runs unconditionally: it is local,
+	// costs nothing, and its output is the kid E.16 would have fed to the
+	// payload. What this flag suppresses is E.16's Ed25519 check and
+	// E.17's keyring cross-check. The old wording ("Skip signing key and
+	// signature verification") claimed the Signing Key row was skipped
+	// while the report visibly passed it.
+	f.Bool("skip-signatures", false, "Skip proof signature and keyring verification")
 	f.Bool("remote", false, "Verify via server API instead of local computation (requires --api-key)")
 	rootCmd.AddCommand(verifyCmd)
 }

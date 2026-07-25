@@ -4,6 +4,8 @@
 package cmd
 
 import (
+	"bytes"
+	"encoding/json"
 	"testing"
 	"time"
 )
@@ -99,45 +101,49 @@ func FuzzResolveZone(f *testing.F) {
 	})
 }
 
-// FuzzInferTypeFromFilename: the verify command now consults arbitrary
-// user-controlled strings (file paths, URL basenames, the "(stdin)"
-// sentinel) to derive a default --type. Must never panic, must return a
-// valid wire-type value or the empty string. Seeds cover every known
-// good stem, malformed prefixes, path separators both flavours, URL
-// shapes, and the empty / sentinel cases.
-func FuzzInferTypeFromFilename(f *testing.F) {
+// FuzzPrettyJSON: `convert proof --to json` re-indents the marshaled
+// bundle without re-encoding it, so json.Indent is handed bytes derived
+// from an attacker-supplied proof. It must never panic, and — the whole
+// reason it replaced a round-trip through `any` — must never alter a
+// number literal, which is what a claims_hash is computed over. Seeds
+// cover the boundary Appendix C.2a pins (2^53 and 2^53 + 1), a uint64
+// that overflows float64, floats, and the shapes json.Indent rejects.
+func FuzzPrettyJSON(f *testing.F) {
 	for _, s := range []string{
-		"",
-		"(stdin)",
-		"truestamp-item-01HJHB01T8FYZ7YTR9P5N62K5B.json",
-		"truestamp-entropy-nist-019db702-b08c-73dc-a7cd-2c5e011f1dad.cbor",
-		"truestamp-entropy-stellar-019db702.json",
-		"truestamp-entropy-bitcoin-019db702.json",
-		"truestamp-block-019db702.json",
-		"truestamp-beacon-019db702.json",
-		"/tmp/truestamp-beacon-019db702.json",
-		"C:\\downloads\\truestamp-block-019db702.json",
-		"https://example.com/proofs/truestamp-block-019db702.json",
-		"truestamp-unknown-stem-abc.json",
-		"not-a-truestamp-file.json",
-		"truestamp-",
-		"truestamp-.json",
-		"truestamp-beacon",       // no extension
-		"truestamp-beacon-",      // trailing dash, no id
-		"truestamp-entropy--xyz", // double dash
-		".hidden",
-		"...",
+		`{}`,
+		`{"n":9007199254740992}`,
+		`{"n":9007199254740993}`,
+		`{"n":18446744073709551615}`,
+		`{"n":-9007199254740993}`,
+		`{"n":1.5e300,"m":-0.0}`,
+		`{"a":[1,2,{"b":"c"}]}`,
+		`[1,2,3]`,
+		`  {"a" : 1}  `,
+		`{`,
+		``,
+		"\x00",
 	} {
 		f.Add(s)
 	}
 	f.Fuzz(func(t *testing.T, s string) {
-		got := inferTypeFromFilename(s)
-		// Post-condition: either "" or one of the six canonical values.
-		switch got {
-		case "", "item", "entropy_nist", "entropy_stellar", "entropy_bitcoin", "block", "beacon":
-			// ok
-		default:
-			t.Fatalf("inferTypeFromFilename(%q) returned non-canonical value %q", s, got)
+		out, err := prettyJSON([]byte(s))
+		if err != nil {
+			return
+		}
+		// Indentation is whitespace-only, so stripping whitespace outside
+		// strings must return the input unchanged. Comparing the compacted
+		// forms is the cheap way to say that without a JSON walker.
+		var gotCompact, wantCompact bytes.Buffer
+		if err := json.Compact(&gotCompact, out); err != nil {
+			t.Fatalf("prettyJSON emitted bytes json.Compact rejects: %v", err)
+		}
+		if err := json.Compact(&wantCompact, []byte(s)); err != nil {
+			// json.Indent accepted it, so Compact must too.
+			t.Fatalf("json.Compact rejected input json.Indent accepted: %v", err)
+		}
+		if !bytes.Equal(gotCompact.Bytes(), wantCompact.Bytes()) {
+			t.Fatalf("prettyJSON altered the document: got %q, want %q",
+				gotCompact.String(), wantCompact.String())
 		}
 	})
 }

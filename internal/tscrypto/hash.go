@@ -9,12 +9,20 @@ package tscrypto
 
 import (
 	"crypto/sha256"
+	"crypto/subtle"
 	"encoding/binary"
 	"encoding/hex"
 	"fmt"
 )
 
 // Domain separation prefix bytes per docs/CRYPTOGRAPHY.md.
+//
+// The registry is mirrored whole, not pruned to the prefixes this verifier
+// consumes: it is the frozen numbering a reader has to be able to check a
+// preimage against, and several entries (0x12, 0x22, 0x33, 0x34, 0x35) belong
+// to producer-side hashes a verifier never recomputes. Keeping the gaps visible
+// is the point — a constant cannot be called with the wrong arguments, unlike
+// the producer-side hash builders that used to sit alongside it.
 const (
 	PrefixMerkleLeaf      = 0x00
 	PrefixMerkleInternal  = 0x01
@@ -32,10 +40,60 @@ const (
 	PrefixProofHash       = 0x61
 )
 
-// HexToBytes decodes a hex string to bytes. Returns empty slice for empty input.
+// ValidateLowercaseHex reports whether s carries the encoding Appendix
+// E.4 mandates for every hash field: "Encodings: hashes are lowercase
+// hex". It returns nil for a conforming value and, for a
+// non-conforming one, an error naming the first offending byte and its
+// offset so a report can say which character is wrong rather than only
+// that the field "is invalid".
+//
+// Empty is accepted. An absent field is not an encoding defect, and the
+// steps that need one already grade its absence on their own terms
+// (E.10's and E.14's "no usable value" arms); reporting "" here would
+// claim the bundle carries a malformed value where it carries none.
+//
+// Uppercase is called out separately from a non-hex byte because the two
+// are different mistakes with different fixes, and because uppercase is
+// the one that silently verified before this check existed: Go's
+// hex.DecodeString is case-insensitive, so `b.kid` = "F2C39DF9" decoded
+// to the same four bytes as "f2c39df9" and every derivation downstream
+// agreed. The reference verifier's Base.decode16lower!/1 does not, which
+// made uppercase an interoperability break as well as a malleability
+// one — the same wire bundle verified here and aborted there.
+func ValidateLowercaseHex(s string) error {
+	if len(s)%2 != 0 {
+		return fmt.Errorf("not lowercase hex (E.4): odd length %d", len(s))
+	}
+	for i := range len(s) {
+		c := s[i]
+		if (c >= '0' && c <= '9') || (c >= 'a' && c <= 'f') {
+			continue
+		}
+		if c >= 'A' && c <= 'F' {
+			return fmt.Errorf("not lowercase hex (E.4): uppercase %q at offset %d", string(c), i)
+		}
+		return fmt.Errorf("not lowercase hex (E.4): %q at offset %d is not a hex digit", string(c), i)
+	}
+	return nil
+}
+
+// HexToBytes decodes a lowercase-hex string to bytes. Returns empty slice
+// for empty input.
+//
+// This is the decoder every preimage builder in this package runs its hex
+// inputs through, and E.4's lowercase rule is enforced here rather than at
+// parse time on purpose. E.6's hard-rejection table is exhaustive and
+// carries no row for hex case, so aborting the whole run would invent a
+// rejection the appendix does not authorize; blanking the field instead
+// would make the report say a present field is absent. Failing the decode
+// leaves it a graded step failure that names the field, which is what a
+// bundle carrying an unusable value already gets.
 func HexToBytes(h string) ([]byte, error) {
 	if h == "" {
 		return []byte{}, nil
+	}
+	if err := ValidateLowercaseHex(h); err != nil {
+		return nil, err
 	}
 	return hex.DecodeString(h)
 }
@@ -62,11 +120,6 @@ func ComputeKeyID(pubkey []byte) string {
 // ComputeEntropyHash computes SHA256(0x21 || JCS(entropy_data)).
 func ComputeEntropyHash(jcsBytes []byte) string {
 	return BytesToHex(DomainHash(PrefixEntropy, jcsBytes))
-}
-
-// ComputeEntropyMetadataHash computes SHA256(0x22 || JCS(metadata)).
-func ComputeEntropyMetadataHash(jcsBytes []byte) string {
-	return BytesToHex(DomainHash(PrefixEntropyMetadata, jcsBytes))
 }
 
 // ComputeObservationHash computes the length-prefixed observation hash with domain prefix 0x23.
@@ -154,82 +207,6 @@ func ComputeBlockHash(id, prevHashHex, merkleRootHex, metadataHashHex, signingKe
 	return BytesToHex(DomainHash(PrefixBlockHash, serialized)), nil
 }
 
-// ComputeCommitmentDataHash computes SHA256(0x34 || JCS(commitment_data)).
-func ComputeCommitmentDataHash(jcsBytes []byte) string {
-	return BytesToHex(DomainHash(PrefixCommitmentData, jcsBytes))
-}
-
-// ComputeCommitmentHash computes the length-prefixed commitment hash with domain prefix 0x35.
-// Field order: id, commitment_data_hash, owner_id, signing_key_id
-func ComputeCommitmentHash(id, commitmentDataHashHex, ownerID, signingKeyIDHex string) (string, error) {
-	cdHashBytes, err := HexToBytes(commitmentDataHashHex)
-	if err != nil {
-		return "", fmt.Errorf("decoding commitment_data_hash: %w", err)
-	}
-	keyIDBytes, err := HexToBytes(signingKeyIDHex)
-	if err != nil {
-		return "", fmt.Errorf("decoding signing_key_id: %w", err)
-	}
-
-	idBytes := []byte(id)
-	ownerBytes := []byte(ownerID)
-	totalSize := (4 + len(idBytes)) + (4 + len(cdHashBytes)) + (4 + len(ownerBytes)) + (4 + len(keyIDBytes))
-	serialized := make([]byte, 0, totalSize)
-	serialized = appendLenPrefixed(serialized, idBytes)
-	serialized = appendLenPrefixed(serialized, cdHashBytes)
-	serialized = appendLenPrefixed(serialized, ownerBytes)
-	serialized = appendLenPrefixed(serialized, keyIDBytes)
-
-	return BytesToHex(DomainHash(PrefixCommitmentHash, serialized)), nil
-}
-
-// ComputeProofHash builds the binary proof_hash payload and computes SHA256(0x61 || payload).
-// Returns both the hex hash and raw hash bytes (raw needed for Ed25519 verification).
-func ComputeProofHash(version byte, keyIDHex, subjectHashHex string, blockHashes, commitmentHashes []string) (string, []byte, error) {
-	keyIDBytes, err := HexToBytes(keyIDHex)
-	if err != nil {
-		return "", nil, fmt.Errorf("decoding key_id: %w", err)
-	}
-	subjectHashBytes, err := HexToBytes(subjectHashHex)
-	if err != nil {
-		return "", nil, fmt.Errorf("decoding subject_hash: %w", err)
-	}
-
-	if len(blockHashes) > 65535 {
-		return "", nil, fmt.Errorf("block count %d exceeds maximum 65535", len(blockHashes))
-	}
-	if len(commitmentHashes) > 65535 {
-		return "", nil, fmt.Errorf("commitment count %d exceeds maximum 65535", len(commitmentHashes))
-	}
-
-	// Build payload: version(1) || key_id(4) || subject_hash(32) || N(2) || block_hashes(32*N) || M(2) || commitment_hashes(32*M)
-	payload := make([]byte, 0, 1+4+32+2+32*len(blockHashes)+2+32*len(commitmentHashes))
-	payload = append(payload, version)
-	payload = append(payload, keyIDBytes...)
-	payload = append(payload, subjectHashBytes...)
-
-	payload = append(payload, byte(len(blockHashes)>>8), byte(len(blockHashes)))
-	for _, bh := range blockHashes {
-		bhBytes, err := HexToBytes(bh)
-		if err != nil {
-			return "", nil, fmt.Errorf("decoding block_hash: %w", err)
-		}
-		payload = append(payload, bhBytes...)
-	}
-
-	payload = append(payload, byte(len(commitmentHashes)>>8), byte(len(commitmentHashes)))
-	for _, ch := range commitmentHashes {
-		chBytes, err := HexToBytes(ch)
-		if err != nil {
-			return "", nil, fmt.Errorf("decoding commitment_hash: %w", err)
-		}
-		payload = append(payload, chBytes...)
-	}
-
-	hashBytes := DomainHash(PrefixProofHash, payload)
-	return BytesToHex(hashBytes), hashBytes, nil
-}
-
 // BuildCompactProofPayload builds the compact proof signature payload
 // and computes SHA256(0x61 || payload). The returned 32-byte hash is what
 // the Ed25519 signature covers.
@@ -239,12 +216,22 @@ func ComputeProofHash(version byte, keyIDHex, subjectHashHex string, blockHashes
 //	offset  size  field
 //	0       1     v  (version, uint8)
 //	1       2     t  (type code, uint16 BE)
-//	3       4     kid (raw 4 bytes from b.kid hex-decoded)
+//	3       4     kid (4 bytes, hex-decoded)
 //	7       8     ts_ms (timestamp in ms since Unix epoch, uint64 BE)
 //	15      32    subject_hash
 //	47      32    block_hash
 //	79      2     N (epoch root count, uint16 BE)
 //	81      32*N  epoch_roots (concatenated, in cx order)
+//
+// keyIDHex MUST be the key id DERIVED from the bundle's `pk` — that is,
+// ComputeKeyID(pk) — and MUST NOT be read from `b.kid` or `s.kid`. Appendix
+// E.9 of the whitepaper is explicit about the split: this slot and the E.17
+// keyring cross-check take the derived value, while the E.10 subject-hash and
+// E.14 block-hash preimages take the bundle's stored `s.kid` / `b.kid`
+// verbatim, because those composites were hashed at creation time with the
+// then-current key and are frozen into the Merkle tree. Under legitimate key
+// rotation the stored kids differ from the derived one, and feeding a stored
+// kid in here makes every rotated proof fail signature verification.
 //
 // For block-like subjects (t ∈ {10, 11} — plain block and beacon),
 // subject_hash == block_hash — the same 32 bytes appear in both slots.
@@ -293,29 +280,60 @@ func BuildCompactProofPayload(version byte, typeCode uint16, keyIDHex string, ti
 	return hashBytes, nil
 }
 
-// HexEqual compares two hex strings case-insensitively.
+// HexEqual reports whether two hex strings are equal, ignoring ASCII case in
+// the range 'A'-'F'.
+//
+// The comparison is constant-time in the CONTENTS of the operands: every byte
+// is folded and accumulated, and only the length short-circuits (a length
+// difference is not secret). Appendix E.4 of the whitepaper makes this a MUST
+// for all hash and digest comparisons, restated for the E.7 hash comparison
+// and the E.13 inclusion-proof root.
+//
+// Nothing is hex-decoded, so non-hex and odd-length operands compare exactly
+// as they always have, on hex TEXT rather than decoded bytes — which is what
+// the reference verifier's secure_equal?/2 compares too.
+//
+// The case fold is NOT shared with the reference verifier, and keeping it is
+// a deliberate split rather than an oversight. secure_equal?/2 is a raw
+// binary compare; the reference downcases only at its one caller-supplied
+// operand, the expected hash. This function's live call sites are the two
+// places where a case fold is required rather than merely tolerated:
+//
+//   - E.7's expected-hash comparison, which the appendix instructs a verifier
+//     to normalize ("trim, downcase") before comparing against s.d.hash, and
+//     which the reference implements the same way;
+//   - the E.21 and E.18/E.19 comparisons against a value fetched from an
+//     outside service, where the remote party chooses the case. The NIST
+//     beacon API emits its outputValue in uppercase, so a case-sensitive
+//     compare there would grade a sound entropy proof as a value mismatch.
+//
+// Bundle-carried hex no longer needs the fold, because [ValidateLowercaseHex]
+// and [HexToBytes] reject a non-lowercase field before any comparison reaches
+// it. The fold is therefore not what lets an uppercase b.mr or cx[].memo
+// through; enforcement happens upstream, and by the time a bundle value gets
+// here it is already known to be lowercase.
 func HexEqual(a, b string) bool {
 	if len(a) != len(b) {
 		return false
 	}
+	var diff byte
 	for i := range len(a) {
-		ca, cb := a[i], b[i]
-		if ca >= 'A' && ca <= 'F' {
-			ca += 'a' - 'A'
-		}
-		if cb >= 'A' && cb <= 'F' {
-			cb += 'a' - 'A'
-		}
-		if ca != cb {
-			return false
-		}
+		diff |= foldASCIIHex(a[i]) ^ foldASCIIHex(b[i])
 	}
-	return true
+	return subtle.ConstantTimeByteEq(diff, 0) == 1
 }
 
-// LenPrefix prepends a 4-byte big-endian length prefix to data.
-func LenPrefix(data []byte) []byte {
-	return appendLenPrefixed(nil, data)
+// foldASCIIHex lowercases the ASCII range 'A'-'F' without branching on the
+// byte's value, so the case fold does not reintroduce the side channel
+// HexEqual exists to close.
+func foldASCIIHex(c byte) byte {
+	isUpperHex := subtle.ConstantTimeLessOrEq('A', int(c)) & subtle.ConstantTimeLessOrEq(int(c), 'F')
+	return byte(subtle.ConstantTimeSelect(isUpperHex, int(c)+('a'-'A'), int(c)))
+}
+
+// BytesEqual reports whether two byte slices are equal, in constant time.
+func BytesEqual(a, b []byte) bool {
+	return subtle.ConstantTimeCompare(a, b) == 1
 }
 
 // appendLenPrefixed appends a 4-byte big-endian length prefix followed by data to dst.
@@ -349,8 +367,17 @@ var hashTypes = map[string]hashTypeInfo{
 	"blake2b":  {Bytes: 64, Name: "BLAKE2b"},
 }
 
-// ValidateClaimsHash checks that a hex hash string has the correct length
-// for the given hash type.
+// ValidateClaimsHash checks that a claimed hash has both the length AND the
+// lowercase-hex character set required by its named hash type.
+//
+// Appendix E.11 of the whitepaper: "check that the hex length equals twice the
+// algorithm's output size and that the character set is lowercase hex, for one
+// of the twelve registered algorithms". Callers MUST render a non-nil error as
+// a warn and MUST NOT fail on it — every E.11 soft check is advisory.
+//
+// The scan is a byte loop, not a rune loop: a multi-byte UTF-8 hash trips the
+// length check first rather than the charset check, but either way the caller
+// warns, which is all E.11 constrains.
 func ValidateClaimsHash(hash, hashType string) error {
 	if hash == "" || hashType == "" {
 		return nil
@@ -364,6 +391,15 @@ func ValidateClaimsHash(hash, hashType string) error {
 	expectedHex := info.Bytes * 2
 	if len(hash) != expectedHex {
 		return fmt.Errorf("expected %d hex characters for %s, got %d", expectedHex, hashType, len(hash))
+	}
+
+	for i := range len(hash) {
+		c := hash[i]
+		if (c >= '0' && c <= '9') || (c >= 'a' && c <= 'f') {
+			continue
+		}
+		return fmt.Errorf("expected %d lowercase hex characters for %s, got %q at offset %d",
+			expectedHex, hashType, string(c), i)
 	}
 
 	return nil

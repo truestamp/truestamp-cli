@@ -9,6 +9,8 @@ import (
 	"math"
 
 	"github.com/btcsuite/btcd/chainhash/v2"
+
+	"github.com/truestamp/truestamp-cli/internal/tscrypto"
 )
 
 // MerkleResult holds the result of a partial merkle tree verification.
@@ -53,12 +55,29 @@ func VerifyPartialMerkleTree(
 		return MerkleResult{Valid: false}
 	}
 
-	valid := root != nil && expectedRoot != nil && root.IsEqual(expectedRoot)
+	valid := root != nil && expectedRoot != nil && HashEqual(root, expectedRoot)
 	return MerkleResult{
 		Valid:        valid,
 		ComputedRoot: root,
 		MatchedTxIDs: t.matched,
 	}
+}
+
+// HashEqual reports whether two Bitcoin hashes are equal, in constant time.
+//
+// btcd's (*chainhash.Hash).IsEqual compares the underlying [32]byte with Go
+// array equality, which lowers to runtime.memequal and short-circuits on the
+// first differing byte. Appendix E.4 of the whitepaper makes every hash and
+// digest comparison constant-time without qualification, so the CLI wraps
+// btcd rather than forking it and applies one rule everywhere — including the
+// CVE-2012-2459 duplicate check, where both operands are public and the
+// uniformity is the point rather than a live side channel. Nil handling is
+// identical to IsEqual.
+func HashEqual(a, b *chainhash.Hash) bool {
+	if a == nil || b == nil {
+		return a == nil && b == nil
+	}
+	return tscrypto.BytesEqual(a[:], b[:])
 }
 
 // treeTraversal holds mutable state during BIP 37 partial merkle tree traversal.
@@ -111,7 +130,7 @@ func (t *treeTraversal) traverse(height, pos int) *chainhash.Hash {
 	rightPos := pos*2 + 1
 	if uint32(rightPos) < treeWidth(height-1, t.totalTxs) {
 		right := t.traverse(height-1, rightPos)
-		if left != nil && right != nil && left.IsEqual(right) {
+		if left != nil && right != nil && HashEqual(left, right) {
 			t.dupFound = true
 		}
 		return combineHashes(left, right)

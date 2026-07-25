@@ -240,3 +240,63 @@ func TestCreateItem_TagsEchoedInRequest(t *testing.T) {
 		t.Errorf("tags not echoed: %+v", a)
 	}
 }
+
+// TestCreateItemCtx_PreservesIntegerLiteralOnTheWire is the wire-level
+// regression for the claims-corruption bug.
+//
+// The defect lived in cmd/create's decode, which used json.Unmarshal into a
+// map[string]any with no UseNumber: every JSON number became a float64, so
+// 18446744073709551615 was rewritten to 18446744073709552000 and
+// 9007199254740993 to 9007199254740992 before any code could inspect them. A
+// user timestamping a 64-bit id got a proof committing to a number they never
+// submitted.
+//
+// The fix is json.Number, and this test asserts the second half of that
+// contract: that a json.Number in the claims map survives THIS package's
+// json.Marshal and lands in the request body as the exact bytes the user
+// typed. It asserts on the raw body read off the connection rather than on a
+// re-decoded map, because the corruption happened during decode — a test that
+// decoded the body again in-process would round the value a second time and
+// happily agree with itself.
+//
+// The values here are deliberately outside the producer's portable range, so
+// `truestamp create` refuses them at the CLI layer (see
+// TestCLI_Create_UnsafeIntegerRejectedBeforeNetwork). That guard is only
+// correct because of the preservation proved here: it can name the offending
+// value in its error message only if the literal was never rounded on the way
+// in.
+func TestCreateItemCtx_PreservesIntegerLiteralOnTheWire(t *testing.T) {
+	var captured []byte
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		captured, _ = io.ReadAll(r.Body)
+		w.WriteHeader(http.StatusCreated)
+		_, _ = w.Write([]byte(`{"data":{"id":"01TESTITEM","type":"item","attributes":{}}}`))
+	}))
+	defer srv.Close()
+
+	// Decode exactly the way cmd/create does.
+	dec := json.NewDecoder(strings.NewReader(
+		`{"name":"Big","id":18446744073709551615,"metadata":{"rows":[{"n":9007199254740993}]}}`))
+	dec.UseNumber()
+	var claims map[string]any
+	if err := dec.Decode(&claims); err != nil {
+		t.Fatalf("decoding claims: %v", err)
+	}
+
+	if _, err := CreateItemCtx(context.Background(), srv.URL, "", claims, "private", nil); err != nil {
+		t.Fatalf("CreateItemCtx: %v", err)
+	}
+
+	body := string(captured)
+	for _, want := range []string{`"id":18446744073709551615`, `"n":9007199254740993`} {
+		if !strings.Contains(body, want) {
+			t.Errorf("request body missing %s\nbody: %s", want, body)
+		}
+	}
+	// The exact corruptions the float64 path produced.
+	for _, corrupted := range []string{"18446744073709552000", "9007199254740992", "1.8446744073709552e+19"} {
+		if strings.Contains(body, corrupted) {
+			t.Errorf("request body carries rounded value %s\nbody: %s", corrupted, body)
+		}
+	}
+}

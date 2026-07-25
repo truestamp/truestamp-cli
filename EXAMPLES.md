@@ -12,7 +12,7 @@ Run `truestamp <command> --help` at any time for exhaustive flag documentation.
 
 - [External tools used in these examples](#external-tools-used-in-these-examples)
 - [Conventions](#conventions)
-- [`truestamp auth`](#truestamp-auth) — **start here: prerequisite for `create` / `download` / `verify --remote`**
+- [`truestamp auth`](#truestamp-auth) — **start here: prerequisite for `create` / `download` / `beacon` / `team` / `console` / `verify --remote`**
 - [`truestamp config`](#truestamp-config)
 - [Lifecycle: the three-step flow](#lifecycle-the-three-step-flow)
 - [`truestamp create`](#truestamp-create)
@@ -81,7 +81,7 @@ Truly global (persistent) flags, available on every sub-command:
 - `--no-color` — strip ANSI (also respects `NO_COLOR=1`)
 - `--config <path>` — override the config file location
 - `--no-upgrade-check` — suppress the passive "new version available" notice
-- `--api-url` / `--api-key` / `--team` / `--keyring-url` / `--http-timeout` — network settings
+- `--base-url` / `--api-key` / `--team` / `--http-timeout` — network settings. Every service URL (API, keyring, console WebSocket, health) is derived from the single `--base-url` origin; there is no `--api-url` and no `--keyring-url`.
 
 Widely-available (per-command where meaningful) flags you'll see repeatedly:
 
@@ -102,31 +102,50 @@ codes (`upgrade --check` uses 0–3; see its help).
 
 ## `truestamp auth`
 
-**Start here.** `create`, `download`, and `verify --remote` all require an API
-key. Everything else in this document — `hash`, `encode`, `decode`, `jcs`,
-`verify` (local), every `convert` subcommand — works without authentication and
-without a network. If you only need local verification and inspection, you can
-skip this section.
+**Start here.** `create`, `download`, `beacon`, `team`, `console` and
+`verify --remote` all require credentials. Everything else in this document —
+`hash`, `encode`, `decode`, `jcs`, `verify` (local), every `convert`
+subcommand — works without authentication and without a network. If you only
+need local verification and inspection, you can skip this section.
 
-Get an API key from <https://www.truestamp.com>, then:
+Authentication is **OAuth-first, API-key-second**:
 
 ```sh
-# Interactive login (prompts for the API key, persists it to the config file
-# at the right permissions — 0600, because the key is a secret)
+# Default: opens your browser for an OAuth 2.1 Authorization Code + PKCE
+# flow. The resulting access + refresh token pair is stored in your OS
+# keychain (0600-file fallback) and refreshed automatically — never in
+# config.toml.
 truestamp auth login
 
-# Confirm who you are, what team the key belongs to, and whether the API
-# accepts the stored key. Exit 0 = valid, exit 1 = missing / invalid / network.
+# Headless / CI alternative: paste a long-lived API key, stored in
+# config.toml at 0600.
+truestamp auth login --api-key
+
+# Confirm the auth mode, scopes, token expiry, and the resolved team, then
+# validate the credential against the API.
+# Exit 0 = valid, exit 1 = missing / invalid / network.
 truestamp auth status
 
-# Clear the stored credentials
+# Revoke the OAuth session and clear it locally (idempotent).
 truestamp auth logout
+
+# Also remove the stored API key from config.toml.
+truestamp auth logout --api-key
 ```
 
-The API key is written to `~/.config/truestamp/config.toml` (or
-`$XDG_CONFIG_HOME/truestamp/config.toml`). You can also set it ad-hoc via the
-`TRUESTAMP_API_KEY` environment variable or the `--api-key` flag on any
-command. Environment and flag values override the config file.
+Precedence, highest first:
+
+1. An **explicit** API key — `--api-key` flag or `TRUESTAMP_API_KEY` env. Wins outright, so CI is deterministic.
+2. The stored **OAuth session**, auto-refreshed.
+3. An `api_key` sitting in `config.toml`.
+4. Nothing — public requests still go out; the server 401s on protected ones.
+
+Both credential types are presented to the API as `Authorization: Bearer
+<value>`. For CI, prefer the env var:
+
+```sh
+export TRUESTAMP_API_KEY=...   # no browser, no keychain, no interactive step
+```
 
 ## `truestamp config`
 
@@ -145,16 +164,15 @@ truestamp config show
 truestamp config init
 
 # Override any setting for a single invocation via an env var
-TRUESTAMP_API_URL=https://www.truestamp.com/api/json truestamp config show
+TRUESTAMP_BASE_URL=https://www.truestamp.com truestamp config show
 
 # Or via a flag
-truestamp config show --api-url https://www.truestamp.com/api/json
+truestamp config show --base-url https://www.truestamp.com
 ```
 
 Defaults worth knowing:
 
-- `api_url` → `https://www.truestamp.com/api/json`
-- `keyring_url` → `https://www.truestamp.com/.well-known/keyring.json`
+- `base_url` → `https://www.truestamp.com` (API, keyring, console and health URLs are all derived from it)
 - `http_timeout` → `10s`
 - `hash.algorithm` → `sha256`
 - `hash.encoding` → `hex`
@@ -221,7 +239,7 @@ truestamp create --file
 # Provide the content via stdin (name required separately)
 curl -fsSL https://example.com/data.bin | truestamp create -F -n "data.bin"
 
-# Submit a precomputed claims JSON (see proof.livemd for the shape)
+# Submit a precomputed claims JSON (see truestamp-v2/kb/items/submit-an-item.md for the shape)
 truestamp create --claims claims.json
 
 # Claims via stdin
@@ -387,22 +405,18 @@ truestamp verify --file
 truestamp verify contract.proof.json \
   --hash e08764deac64ca9a1046901c5b23674941f1e86f0e2d0429ee07c5e311a15ce7
 
-# Assert the expected subject type — guards against verifying the wrong
-# file. Useful because block (t=10) and beacon (t=11) proofs are
-# structurally identical on the wire, so a renamed or swapped file
-# would still verify on its own. --type <t> fails the verify if the
-# bundle's t doesn't match the requested type.
+# The subject type always comes from the bundle's own signed `t` field.
+# The filename is never consulted: a file named truestamp-beacon-<id>.json
+# may legitimately carry a t=10 block proof, and renaming a file can
+# never change a verdict.
+truestamp verify truestamp-beacon-019d....json          # reports whatever t says
+
+# Pass --type to additionally assert which type you expected. The verify
+# fails if the bundle's t disagrees. Useful as a guard when you fetched a
+# proof for a specific subject and want to be told if you got another.
 truestamp verify --type beacon truestamp-beacon-019d....json
 truestamp verify --type item   truestamp-item-01K....json
 truestamp verify --type entropy_stellar truestamp-entropy-stellar-019c....json
-
-# Smart default: when you verify a file whose name matches the
-# `truestamp-<stem>-<id>.<ext>` convention `truestamp download` emits,
-# the CLI infers --type from the filename and asserts automatically.
-# A faint stderr hint tells you the inference happened. To override,
-# pass --type explicitly; to skip the assertion, rename the file.
-truestamp verify truestamp-beacon-019d....json          # infers --type beacon
-truestamp verify truestamp-entropy-nist-019d....json    # infers --type entropy_nist
 
 # Skip the public-blockchain checks (offline / restricted networks)
 truestamp verify contract.proof.json --skip-external
@@ -416,11 +430,48 @@ truestamp verify contract.proof.json --silent      # exit code only
 ```
 
 Use `--remote` to delegate verification to the Truestamp server (requires
-API key). Local verification is the default and needs no credentials.
-When `--type` is combined with `--remote`, the value is forwarded to the
-server's `/proof/verify` endpoint — a server-side assertion rather than
-a CLI-only one — and a mismatch returns HTTP 4xx with
-`meta.code=subject_type_mismatch`.
+authentication — `truestamp auth login` or `TRUESTAMP_API_KEY`). Local
+verification is the default and needs no credentials.
+
+Delegating does not mean trusting blindly. Even in `--remote` mode the CLI
+still does four things itself:
+
+- **Parses the bundle first**, so a structurally invalid file is refused locally and never posted.
+- **Asserts `--type` locally**, then forwards `data.type` only when the assertion already holds. A mismatch is reported as a `Subject Type` failure alongside the server's own steps — forwarding it instead would make the server answer 4xx and you would get an error string with no report at all.
+- **Performs the `--hash` comparison itself**, treating the server's `hash_matched` as corroboration and failing on a disagreement in either direction. The client holds both values, so a server that ignored `expected_hash` cannot turn a mismatch into a pass.
+- **Fails closed on a report it cannot read** — a step with no `status`, a status outside the five this verifier knows, a result carrying zero steps, or a server verdict that contradicts its own step list. Each is reported under a `Server Verdict` row rather than silently scored as passing.
+
+### Structurally malformed bundles
+
+A bundle that is malformed at the structural level is refused before any
+check runs, so there is no report to render. Under `--json` the refusal is
+reported as a stable identifier rather than an English sentence, so two
+independent verifiers can be compared on it:
+
+```sh
+echo '{"v":1,"t":99}' | truestamp verify --json
+```
+
+```json
+{
+  "result": "rejected",
+  "rejection": {
+    "code": "invalid_subject_type_code",
+    "detail": "invalid subject type code: 99"
+  }
+}
+```
+
+Exit code `1`. The identifiers are `not_a_json_object`, `missing_type_code`,
+`invalid_subject_type_code`, `missing_block`, `no_external_commitments`,
+`invalid_external_commitment_entry`, `unexpected_subject_fields_for_block_like`,
+`missing_subject`, `missing_inclusion_proof` and `invalid_subject_data`.
+
+```sh
+# Branch on the reason in a script
+code=$(truestamp verify proof.json --json 2>/dev/null | jq -r '.rejection.code // empty')
+[ -n "$code" ] && echo "bundle refused: $code"
+```
 
 ---
 
@@ -441,11 +492,12 @@ Truestamp server. Three panes share one long-lived connection:
   history, and the log file path so you can `tail -f` it for live
   transport diagnostics.
 
-Requires an API key (run `truestamp auth login` first; everything in
-the console talks to the same endpoint as the JSON:API).
+Requires authentication (run `truestamp auth login` first, or set
+`TRUESTAMP_API_KEY`; everything in the console talks to the same endpoint as
+the JSON:API).
 
 ```sh
-# Launch (uses your configured api_url + api_key)
+# Launch (uses your configured base_url + credentials)
 truestamp console
 
 # Point at a non-default backend (e.g. local dev)
@@ -460,23 +512,34 @@ truestamp console --log-file /tmp/truestamp-console.log
 
 ### Keys
 
-| Key                | Action                                                                    |
-| ------------------ | ------------------------------------------------------------------------- |
-| `1` / `2` / `3`    | Jump to Monitor / New Item / Connection                                   |
-| `tab`              | Cycle to the next pane                                                    |
-| `q` / `ctrl+c`     | Quit                                                                      |
-| **Monitor pane:**  |                                                                           |
-| `←` / `→` (`h`/`l`)| Switch focus between the Streams list and the Events waterfall           |
-| `↑` / `↓` (`k`/`j`)| Move within the focused side                                              |
-| `space`            | Toggle the cursor stream's subscription on/off (Streams list focused)     |
-| `pgup` / `pgdn`    | Page through the waterfall                                                |
-| `g` / `G`          | Jump to top / bottom of the waterfall                                     |
-| `r`                | Reverse chronological order (newest↔oldest)                               |
-| **New Item pane:** |                                                                           |
-| `tab` / `shift+tab`| Move between form fields                                                  |
-| `enter`            | Advance, then submit on the last field                                    |
-| `esc`              | Clear the form                                                            |
-| `n` (after submit) | Reset for another item                                                    |
+Press `?` at any time for the live, authoritative key list — the footer and
+help overlay are generated from the same bindings the app consumes, so they
+cannot drift from the table below.
+
+| Key                     | Action                                                               |
+| ----------------------- | -------------------------------------------------------------------- |
+| `1` / `2` / `3` / `4`   | Jump to Monitor / New Item / Teams / Connection                      |
+| `]` / `[`               | Next / previous pane (also `ctrl+tab` / `ctrl+shift+tab`)            |
+| `?`                     | Toggle the full help overlay                                         |
+| `q` / `ctrl+c`          | Quit                                                                 |
+| **Monitor pane:**       |                                                                      |
+| `←` / `→` (`h`/`l`)     | Switch focus between the Streams list and the Events waterfall       |
+| `↑` / `↓` (`k`/`j`)     | Move within the focused side                                         |
+| `space`                 | Toggle the cursor stream's subscription on/off (Streams list focused)|
+| `pgup` / `pgdn`         | Page through the waterfall                                           |
+| `g` / `G`               | Jump to top / bottom of the waterfall                                |
+| `r`                     | Reverse chronological order (newest↔oldest)                          |
+| `d`                     | Toggle the event detail panel                                        |
+| **New Item pane:**      |                                                                      |
+| `tab` / `shift+tab`     | Move between form fields (plain `tab` is pane-local, not pane-switch)|
+| `enter`                 | Advance, then submit on the last field                               |
+| `esc`                   | Clear the form                                                       |
+| `n` (after submit)      | Reset for another item                                               |
+| **Teams pane:**         |                                                                      |
+| `↑` / `↓` (`k`/`j`)     | Move through the memberships table                                   |
+| `enter`                 | Set the team under the cursor as active                              |
+| `c`                     | Open the create-team modal                                           |
+| `r`                     | Refresh the membership list                                          |
 
 ### What you see by default
 
@@ -540,7 +603,7 @@ The wire protocol is plain JSON arrays over Phoenix Channels V2 and
 is fully driveable from `websocat` / `wscat` — see
 [docs/engineering/console.md](docs/engineering/console.md) for the
 client-side architecture details and
-[truestamp-v2/docs/console_channel.md](https://github.com/truestamp/truestamp-v2/blob/main/docs/console_channel.md)
+[truestamp-v2/kb/api/console-websocket.md](https://github.com/truestamp/truestamp-v2/blob/main/kb/api/console-websocket.md)
 for the authoritative wire protocol reference (commands, events,
 catalog, limits, hand-rolled testing recipe).
 
@@ -644,6 +707,39 @@ truestamp jcs --newline < claims.json
 # JSON envelope
 truestamp jcs --json < claims.json
 ```
+
+### Large integers
+
+Truestamp emits integers at full precision, so canonicalization preserves an
+integer literal exactly as written rather than round-tripping it through an
+IEEE-754 double the way a strict RFC 8785 reading would. Without that, every
+integer above 2^53 would silently change and the recomputed hash would be
+wrong.
+
+```sh
+printf '{"n":9007199254740992}' | truestamp jcs
+# → {"n":9007199254740992}
+
+printf '{"n":9007199254740993}' | truestamp jcs
+# → {"n":9007199254740993}
+# stderr: warning: preserved 1 integer literal(s) larger than 2^53,
+#         e.g. 9007199254740993; this JSON is not portably verifiable by a
+#         strict RFC 8785 implementation
+```
+
+The warning is advisory — the digest is the correct one and the exit code
+stays `0`. It goes to stderr, so pipelines are unaffected. `--silent`
+suppresses it; `--json` replaces it with an `oversized_integers` array:
+
+```sh
+printf '{"n":9007199254740993}' | truestamp jcs --json | jq .oversized_integers
+# → [ "9007199254740993" ]
+```
+
+`truestamp hash --jcs` reports the same signal (labelled with the filename
+when several inputs are hashed, and as a per-input `oversized_integers` field
+under `--json`), and `truestamp verify` surfaces it as a warning row on the
+Subject Data step.
 
 ---
 
@@ -1087,11 +1183,11 @@ Environment variables for CI:
 
 | Variable | Purpose |
 | --- | --- |
-| `TRUESTAMP_API_URL` | API endpoint override |
+| `TRUESTAMP_BASE_URL` | Service origin (scheme + host). API, keyring, console and health URLs all derive from it. |
 | `TRUESTAMP_API_KEY` | Auth token for `create` / `auth status` / `verify --remote` |
 | `TRUESTAMP_TEAM` | Multi-tenant team ID |
-| `TRUESTAMP_KEYRING_URL` | Signing-key registry URL |
 | `TRUESTAMP_HTTP_TIMEOUT` | HTTP timeout (`30s`, `1m`) |
+| `TRUESTAMP_LOGGING_LEVEL` / `TRUESTAMP_LOGGING_FILE` | Log level and log file path (named after the `[logging]` config section, not the flag) |
 | `TRUESTAMP_HASH_ALGORITHM` | Default algorithm for `truestamp hash` |
 | `TRUESTAMP_HASH_ENCODING` | Default digest encoding (`hex` / `base64` / `base64url`) |
 | `TRUESTAMP_HASH_STYLE` | Default output style (`gnu` / `bsd` / `bare`) |
@@ -1107,8 +1203,9 @@ upgrade notice there: `CI`, `GITHUB_ACTIONS`, `GITLAB_CI`, `CIRCLECI`,
 
 ## Offline / air-gapped use
 
-Everything except the three commands that explicitly talk to the Truestamp
-API (`create`, `download`, `auth`, `verify --remote`) works without network:
+Everything except the commands that explicitly talk to the Truestamp API
+(`create`, `download`, `auth`, `beacon`, `team`, `console`, `verify --remote`)
+works without network:
 
 ```sh
 # Fully offline verification — no calls to Truestamp, Stellar, or Bitcoin APIs
@@ -1122,16 +1219,21 @@ truestamp convert id 01KNN33GX5E470CB9TRWAYF9DD
 truestamp convert proof --to cbor proof.json
 ```
 
-`truestamp verify` without `--skip-external` performs three classes of
+`truestamp verify` without `--skip-external` performs four classes of
 outbound requests:
 
-1. Fetches the Truestamp keyring at `https://www.truestamp.com/.well-known/keyring.json` to validate the signing key.
-2. If a Stellar commitment is present, hits the Horizon API (`horizon.stellar.org` or testnet).
-3. If a Bitcoin commitment is present, hits the Blockstream API (`blockstream.info`).
+1. Fetches the Truestamp keyring at `{base-url}/.well-known/keyring.json` (default `https://www.truestamp.com/...`) to cross-check the signing key. This one happens for every bundle.
+2. If a Stellar commitment is present, hits the Horizon API (`horizon.stellar.org` or `horizon-testnet.stellar.org`).
+3. If a Bitcoin commitment is present on mainnet or testnet, hits the Blockstream API (`blockstream.info`). Regtest has no public API, so that case is local-only.
+4. For an entropy subject, hits the upstream publisher the observation came from, to byte-compare the captured value: the **NIST Randomness Beacon** (`beacon.nist.gov`) for `entropy_nist`, Horizon for `entropy_stellar`, Blockstream mainnet for `entropy_bitcoin`.
 
-Skip all three with `--skip-external`. Skip only the signing-key step with
-`--skip-signatures`. All local cryptographic verification (item hash, Merkle
-proof, block hash, proof signature) is always performed.
+`--skip-external` skips all four. `--skip-signatures` skips the Ed25519
+**Proof Signature** check and the **Key Binding** keyring cross-check — note
+that it does *not* skip the **Signing Key** step, which still decodes `pk`
+and derives its key id, so an undecodable public key still fails. A run with
+`--skip-signatures` says so on its verdict line, because it establishes
+nothing about who issued the proof. Everything else local (subject hash,
+Merkle inclusion, block hash, epoch proofs) is always performed.
 
 ---
 
