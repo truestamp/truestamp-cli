@@ -15,7 +15,6 @@ import (
 
 	"github.com/truestamp/truestamp-cli/internal/auth"
 	"github.com/truestamp/truestamp-cli/internal/httpclient"
-	"github.com/truestamp/truestamp-cli/internal/proof/ptype"
 )
 
 // Download fetches a proof bundle from a URL using [context.Background].
@@ -43,9 +42,11 @@ func DownloadCtx(ctx context.Context, rawURL string) ([]byte, error) {
 		return nil, fmt.Errorf("downloading proof: %w", err)
 	}
 
-	// Quick-validate: check that the response looks like a proof bundle (compact format)
+	// Quick-validate: check that the response looks like a proof bundle
+	// (compact format). `v` is deliberately not part of the test — E.6
+	// exempts the version from structural gating, and a wrong or absent
+	// one belongs in the report as a failing step, not in a download error.
 	var shape struct {
-		Version   int             `json:"v"`
 		PublicKey string          `json:"pk"`
 		Signature string          `json:"sig"`
 		Subject   json.RawMessage `json:"s"`
@@ -55,8 +56,8 @@ func DownloadCtx(ctx context.Context, rawURL string) ([]byte, error) {
 		return nil, fmt.Errorf("response is not valid JSON: %w", err)
 	}
 	// Block proofs (t == 10) have no "s" field; don't require it here.
-	if shape.Version == 0 || shape.PublicKey == "" || shape.Signature == "" || len(shape.Block) == 0 {
-		return nil, fmt.Errorf("response does not appear to be a Truestamp proof bundle (missing v, pk, sig, or b)")
+	if shape.PublicKey == "" || shape.Signature == "" || len(shape.Block) == 0 {
+		return nil, fmt.Errorf("response does not appear to be a Truestamp proof bundle (missing pk, sig, or b)")
 	}
 
 	return data, nil
@@ -159,25 +160,14 @@ func GenerateCtx(ctx context.Context, apiURL, team, id, subjectType, format stri
 	return append(pretty, '\n'), nil
 }
 
-// InspectBundleType returns the subject type code `t` of a proof bundle
-// encoded as either pretty JSON or deterministic CBOR. Used by downloaders
-// to pick a filename stem from the authoritative server-returned type.
-func InspectBundleType(data []byte) (ptype.Code, error) {
-	if IsCBORProof(data) {
-		b, err := ParseCBOR(data)
-		if err != nil {
-			return 0, err
-		}
-		return b.T, nil
-	}
-	var shape struct {
-		T ptype.Code `json:"t"`
-	}
-	if err := json.Unmarshal(data, &shape); err != nil {
-		return 0, fmt.Errorf("inspecting bundle type: %w", err)
-	}
-	return shape.T, nil
-}
+// Removed: InspectBundleType. Its doc claimed downloaders used it "to pick
+// a filename stem from the authoritative server-returned type", which had
+// stopped being true — `download` derives the stem from the --type it
+// requested (see cmd/download.go's client-side smart default), and nothing
+// else ever called it. A helper that reads `t` out of an unverified blob
+// is also the wrong shape to leave lying around: Appendix E.24 makes the
+// signed `t` the only authority, and it is only signed once ParseBytes /
+// ParseCBOR have run.
 
 // parseGenerateError extracts a meaningful error message from the API response.
 func parseGenerateError(statusCode int, body []byte) error {

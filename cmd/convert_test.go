@@ -4,6 +4,7 @@
 package cmd
 
 import (
+	"bytes"
 	"encoding/json"
 	"os"
 	"os/exec"
@@ -146,6 +147,121 @@ func TestCLI_Convert_Proof_RoundTrip(t *testing.T) {
 	vrf := exec.Command(binaryPath, "verify", cborPath, "--skip-external")
 	if err := vrf.Run(); err != nil {
 		t.Errorf("verify on round-tripped CBOR failed: %v", err)
+	}
+}
+
+// TestCLI_Convert_Proof_PrettyPreservesNumbers pins the default --to json
+// path against silent rounding. Pretty output is the default, and it used to
+// round-trip through `any`, which decodes every JSON number into a float64:
+// an integer above 2^53 came back changed, so `convert proof` could quietly
+// alter the very bytes a claims_hash is computed over.
+func TestCLI_Convert_Proof_PrettyPreservesNumbers(t *testing.T) {
+	src := filepath.Join(findTestdata(t), "fixtures", "item-bigint.json")
+	if _, err := os.Stat(src); err != nil {
+		t.Skipf("no fixture: %v", err)
+	}
+	out, err := exec.Command(binaryPath, "convert", "proof", "--to", "json", src).Output()
+	if err != nil {
+		t.Fatalf("convert proof --to json: %v", err)
+	}
+	for _, literal := range []string{"9007199254740993", "18446744073709551615"} {
+		if !strings.Contains(string(out), literal) {
+			t.Errorf("pretty output lost the literal %s:\n%s", literal, out)
+		}
+	}
+	// The rounded forms the float64 round-trip produced.
+	for _, rounded := range []string{"9007199254740992", "18446744073709552000"} {
+		if strings.Contains(string(out), rounded) {
+			t.Errorf("pretty output rounded a number to %s:\n%s", rounded, out)
+		}
+	}
+	// --compact never re-encoded, so the two forms must agree once
+	// whitespace is removed.
+	compact, err := exec.Command(binaryPath, "convert", "proof", "--to", "json", "--compact", src).Output()
+	if err != nil {
+		t.Fatalf("convert proof --compact: %v", err)
+	}
+	var pretty, flat bytes.Buffer
+	if err := json.Compact(&pretty, out); err != nil {
+		t.Fatalf("compacting pretty output: %v", err)
+	}
+	if err := json.Compact(&flat, compact); err != nil {
+		t.Fatalf("compacting compact output: %v", err)
+	}
+	if pretty.String() != flat.String() {
+		t.Errorf("pretty and --compact disagree:\n  pretty:  %s\n  compact: %s", pretty.String(), flat.String())
+	}
+}
+
+// TestCLI_Convert_Proof_CBORRoundTripPreservesNumbers pins the cross-format
+// invariant on the value space that breaks it. The CBOR marshaller decodes
+// `s.d` before re-encoding it, so without UseNumber every integer above 2^53
+// came back as a float64 — and because both wire formats rounded identically,
+// a naive round-trip comparison could not see it. Asserting the literals
+// survive is what catches a regression, and verifying the CBOR form proves the
+// claims hash still reproduces.
+func TestCLI_Convert_Proof_CBORRoundTripPreservesNumbers(t *testing.T) {
+	src := filepath.Join(findTestdata(t), "fixtures", "item-bigint.json")
+	if _, err := os.Stat(src); err != nil {
+		t.Skipf("no fixture: %v", err)
+	}
+	cborBytes, err := exec.Command(binaryPath, "convert", "proof", "--to", "cbor", src).Output()
+	if err != nil {
+		t.Fatalf("json→cbor: %v", err)
+	}
+	cborPath := filepath.Join(t.TempDir(), "bigint.cbor")
+	if err := os.WriteFile(cborPath, cborBytes, 0644); err != nil {
+		t.Fatal(err)
+	}
+	back, err := exec.Command(binaryPath, "convert", "proof", "--to", "json", cborPath).Output()
+	if err != nil {
+		t.Fatalf("cbor→json: %v", err)
+	}
+	for _, literal := range []string{"9007199254740993", "18446744073709551615"} {
+		if !strings.Contains(string(back), literal) {
+			t.Errorf("the CBOR round-trip lost the literal %s:\n%s", literal, back)
+		}
+	}
+	// The subject hash is computed over the canonicalized `s.d`, so a
+	// rounded integer would show up here as a Subject Data failure.
+	vrf := exec.Command(binaryPath, "verify", cborPath, "--skip-external", "--skip-signatures", "--silent")
+	vrf.Env = cleanEnv()
+	if err := vrf.Run(); err != nil {
+		t.Errorf("verify rejected the CBOR round-trip of a big-integer bundle: %v", err)
+	}
+}
+
+// TestCLI_Convert_Proof_AutoDetectsBareCBORMap: the self-describing tag 55799
+// is a convenience, not a requirement — a producer may emit the bundle as a
+// bare CBOR map. --from auto must recognize it by content rather than by the
+// tag, and the result must still verify.
+func TestCLI_Convert_Proof_AutoDetectsBareCBORMap(t *testing.T) {
+	src := filepath.Join(findTestdata(t), "fixtures", "item.json")
+	if _, err := os.Stat(src); err != nil {
+		t.Skipf("no fixture: %v", err)
+	}
+	tagged, err := exec.Command(binaryPath, "convert", "proof", "--to", "cbor", src).Output()
+	if err != nil {
+		t.Fatalf("json→cbor: %v", err)
+	}
+	if len(tagged) < 3 || tagged[0] != 0xd9 || tagged[1] != 0xd9 || tagged[2] != 0xf7 {
+		t.Fatalf("expected a 55799-tagged CBOR bundle, got prefix %x", tagged[:min(3, len(tagged))])
+	}
+	barePath := filepath.Join(t.TempDir(), "bare.cbor")
+	if err := os.WriteFile(barePath, tagged[3:], 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	back, err := exec.Command(binaryPath, "convert", "proof", "--from", "auto", "--to", "json", barePath).Output()
+	if err != nil {
+		t.Fatalf("bare cbor→json with --from auto: %v", err)
+	}
+	if !bytes.Contains(back, []byte(`"t"`)) {
+		t.Errorf("round-tripped JSON is missing the subject type code:\n%s", back)
+	}
+	// verify must accept the bare form directly too.
+	if err := exec.Command(binaryPath, "verify", barePath, "--skip-external", "--silent").Run(); err != nil {
+		t.Errorf("verify rejected a bare (untagged) CBOR bundle: %v", err)
 	}
 }
 

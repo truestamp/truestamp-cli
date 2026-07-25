@@ -10,10 +10,10 @@ import (
 	"io"
 	"os"
 
-	"github.com/gowebpki/jcs"
 	"github.com/spf13/cobra"
 	"github.com/truestamp/truestamp-cli/internal/encoding"
 	"github.com/truestamp/truestamp-cli/internal/inputsrc"
+	"github.com/truestamp/truestamp-cli/internal/jcs"
 )
 
 // codecJSON is the --json shape for encode / decode.
@@ -228,6 +228,13 @@ var jcsCmd = &cobra.Command{
 byte-stable form suitable for hashing and signing — pipes directly into
 'truestamp hash' (or use 'truestamp hash --jcs' as a shortcut).
 
+One deviation from RFC 8785 matches the Truestamp producer: an integer
+literal larger than 2^53 is emitted exactly as written instead of being
+round-tripped through an IEEE-754 double (which would silently round it).
+A warning naming such literals is written to stderr, because a document
+containing them is not portably verifiable by a strict RFC 8785
+implementation.
+
 Examples:
   truestamp jcs < claims.json | truestamp hash -a sha256
   truestamp hash --prefix 0x11 --jcs < claims.json   # equivalent one-liner`,
@@ -254,22 +261,26 @@ func runJCS(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	canonical, err := jcsTransform(data)
+	canonical, oversized, err := jcs.Canonicalize(data)
 	if err != nil {
 		return fmt.Errorf("JCS canonicalization: %w", err)
 	}
 
 	if jsonOut {
 		return emitJSON(cmd.OutOrStdout(), struct {
-			InputBytes  int64  `json:"input_bytes"`
-			OutputBytes int    `json:"output_bytes"`
-			Output      string `json:"output"`
+			InputBytes        int64    `json:"input_bytes"`
+			OutputBytes       int      `json:"output_bytes"`
+			Output            string   `json:"output"`
+			OversizedIntegers []string `json:"oversized_integers,omitempty"`
 		}{
-			InputBytes:  src.Size,
-			OutputBytes: len(canonical),
-			Output:      string(canonical),
+			InputBytes:        src.Size,
+			OutputBytes:       len(canonical),
+			Output:            string(canonical),
+			OversizedIntegers: oversized,
 		})
 	}
+
+	warnOversizedIntegers(cmd, "", oversized, silent, jsonOut)
 
 	if silent {
 		return nil
@@ -281,10 +292,38 @@ func runJCS(cmd *cobra.Command, args []string) error {
 	return nil
 }
 
-// jcsTransform exists as an indirection so tests can stub it if needed;
-// it delegates directly to the gowebpki/jcs library today.
-func jcsTransform(data []byte) ([]byte, error) {
-	return jcs.Transform(data)
+// warnOversizedIntegers reports the Appendix E.4 portability signal for a
+// canonicalization that preserved an integer outside the exactly
+// representable IEEE-754 double range.
+//
+// Truestamp emits such integers verbatim, so reproducing the producer's
+// digest means preserving them — but a strict RFC 8785 implementation
+// rounds them, and E.4 requires a verifier to say so rather than hide it.
+// The warning is advisory: the digest above it is the correct one, so the
+// exit code stays 0, matching how `truestamp hash` treats its legacy-
+// algorithm notice. Suppressed under --silent and --json, both of which
+// have their own channel for the same fact.
+//
+// label prefixes the line when the caller processes several inputs and a
+// bare warning would not say which one it belongs to.
+func warnOversizedIntegers(cmd *cobra.Command, label string, oversized []string, silent, jsonOut bool) {
+	if len(oversized) == 0 || silent || jsonOut {
+		return
+	}
+	prefix := ""
+	if label != "" {
+		prefix = label + ": "
+	}
+	// oversized is ascending, so [0] names the smallest offender — the
+	// same one the reference verifier reports.
+	suffix := ""
+	if len(oversized) > 1 {
+		suffix = fmt.Sprintf(" (and %d more)", len(oversized)-1)
+	}
+	fmt.Fprintf(cmd.ErrOrStderr(),
+		"warning: %spreserved %d integer literal(s) larger than 2^53, e.g. %s%s; "+
+			"this JSON is not portably verifiable by a strict RFC 8785 implementation\n",
+		prefix, len(oversized), oversized[0], suffix)
 }
 
 func init() {

@@ -44,15 +44,17 @@ type ProofBundle struct {
 	RawData json.RawMessage `json:"-"`
 }
 
-// IsBlock returns true if this bundle is a plain block subject (t=10).
-// Does NOT include beacon (t=11); use IsBlockLike for that.
-func (b *ProofBundle) IsBlock() bool { return b.T == ptype.Block }
-
-// IsBeacon returns true if this bundle is a beacon subject (t=11). Beacon
-// bundles are structurally identical to block bundles but carry a distinct
-// type code for domain separation — their signatures differ from the
-// block bundle of the same block because `t` is in the signing payload.
-func (b *ProofBundle) IsBeacon() bool { return b.T == ptype.Beacon }
+// Removed: IsBlock (t=10 only) and IsBeacon (t=11 only). Neither had a
+// production caller, and the one predicate the pipeline needs is
+// IsBlockLike — block and beacon share a wire shape, so every structural
+// guard is a block-like guard. The strict pair existed mainly as a hazard
+// to warn readers away from; deleting it removes the hazard instead.
+//
+// The t=10 / t=11 distinction is still cryptographically load-bearing —
+// `t` is inside E.16's signed payload, so the two produce different
+// signatures for the same block — and the places that care compare the
+// raw code (ptype.Block / ptype.Beacon) directly, which is what is
+// actually signed.
 
 // IsBlockLike returns true if this bundle is either a block (t=10) or a
 // beacon (t=11). Use this in verification-pipeline guards that skip
@@ -133,13 +135,56 @@ type ExternalCommit struct {
 	BlockHeight     int    `json:"h,omitempty"`
 }
 
-// FindCommitByType returns the first external commitment with the given
-// type code, or nil.
-func FindCommitByType(commits []ExternalCommit, t ptype.Code) *ExternalCommit {
-	for i := range commits {
-		if commits[i].Type == t {
-			return &commits[i]
-		}
-	}
-	return nil
+// commitJSON mirrors ExternalCommit for marshalling. The two epoch-root
+// keys are pointers so an *empty* value is still emitted while an
+// *inapplicable* one stays absent — `omitempty` on a plain string cannot
+// tell those apart.
+type commitJSON struct {
+	Type    ptype.Code `json:"t"`
+	Network string     `json:"net"`
+
+	EpochProof string `json:"ep"`
+
+	TransactionHash string  `json:"tx,omitempty"`
+	MemoHash        *string `json:"memo,omitempty"`
+	Ledger          int     `json:"l,omitempty"`
+	Timestamp       string  `json:"ts,omitempty"`
+
+	OpReturn        *string `json:"op,omitempty"`
+	RawTxHex        string  `json:"rtx,omitempty"`
+	TxoutproofHex   string  `json:"txp,omitempty"`
+	BlockMerkleRoot string  `json:"bmr,omitempty"`
+	BlockHeight     int     `json:"h,omitempty"`
 }
+
+// MarshalJSON emits a commitment entry, always carrying `ep` and the
+// chain-specific epoch-root key (`memo` for t=40, `op` for t=41) even when
+// empty. E.6 hard-rejects an entry missing either, so letting `omitempty`
+// drop an empty value would make the CLI emit a bundle its own parser
+// refuses to read back.
+func (c ExternalCommit) MarshalJSON() ([]byte, error) {
+	out := commitJSON{
+		Type:            c.Type,
+		Network:         c.Network,
+		EpochProof:      c.EpochProof,
+		TransactionHash: c.TransactionHash,
+		Ledger:          c.Ledger,
+		Timestamp:       c.Timestamp,
+		RawTxHex:        c.RawTxHex,
+		TxoutproofHex:   c.TxoutproofHex,
+		BlockMerkleRoot: c.BlockMerkleRoot,
+		BlockHeight:     c.BlockHeight,
+	}
+	if c.Type == ptype.CommitmentStellar || c.MemoHash != "" {
+		out.MemoHash = &c.MemoHash
+	}
+	if c.Type == ptype.CommitmentBitcoin || c.OpReturn != "" {
+		out.OpReturn = &c.OpReturn
+	}
+	return json.Marshal(out)
+}
+
+// Removed: FindCommitByType. Appendix E.15 requires one graded result per
+// `cx` entry, so every consumer in the verify pipeline iterates the slice
+// in wire order and branches on each entry's own type — none of them wants
+// "the first Stellar commitment". Its only caller was its own test.

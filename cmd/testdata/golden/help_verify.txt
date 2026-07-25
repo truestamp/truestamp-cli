@@ -13,14 +13,13 @@ Proof input can be provided as:
   truestamp verify --url                Interactive URL prompt
   cat proof.json | truestamp verify     Pipe from stdin
 
-Pass --type to assert the expected subject type. If the bundle's t
-doesn't match, the report surfaces a Subject Type failure (local
-mode) or the server rejects the request with subject_type_mismatch
-(--remote mode). Values: item | entropy_nist | entropy_stellar |
-entropy_bitcoin | block | beacon. Useful as a guard against verifying
-the wrong file — e.g. a beacon-named file that was swapped with a
-plain block proof (both verify on their own, but only --type beacon
-catches the swap).
+The subject type is always read from the bundle's own signed 't'
+field; the filename is never consulted. Pass --type to additionally
+assert which type you expected. If the bundle's t doesn't match, the
+report surfaces a Subject Type failure (local mode) or the server
+rejects the request with subject_type_mismatch (--remote mode).
+Values: item | entropy_nist | entropy_stellar | entropy_bitcoin |
+block | beacon.
 
 Use --remote to delegate verification to the Truestamp server API instead
 of performing local computation. Requires authentication — run
@@ -39,7 +38,7 @@ Flags:
       --remote                    Verify via server API instead of local computation (requires --api-key)
   -s, --silent                    No output, exit code only
       --skip-external             Skip all external API verification
-      --skip-signatures           Skip signing key and signature verification
+      --skip-signatures           Skip proof signature and keyring verification
       --type string               Assert expected subject type (guards against verifying the wrong file). One of: item | entropy_nist | entropy_stellar | entropy_bitcoin | block | beacon
       --url string[="(prompt)"]   URL to download proof from (interactive prompt if no URL given)
 

@@ -7,11 +7,15 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
+	"fmt"
 	"io"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"sync"
 	"testing"
 
 	"github.com/truestamp/truestamp-cli/internal/items"
@@ -595,5 +599,407 @@ func TestCLI_Create_JSONOutput_ClaimsOnly_OmitsHashKeys(t *testing.T) {
 	}
 	if got2["hash_type"] != "sha256" {
 		t.Errorf("external-hash JSON output should carry hash_type, got: %v", got2)
+	}
+}
+
+// --- Integer literal preservation + producer-side portability guard ---
+
+// startCreateEchoServer stands up a fake /api/json/items endpoint that records
+// the RAW request body — the actual bytes that went out on the wire — and
+// answers with a minimal JSON:API item so the command completes normally.
+//
+// Asserting on these bytes rather than on an intermediate map is the entire
+// point: the corruption this guards against happened during decode, so any
+// check that re-decodes the claims in the test process would round the value a
+// second time and agree with itself.
+func startCreateEchoServer(t *testing.T) (url string, body func() []byte) {
+	t.Helper()
+
+	var mu sync.Mutex
+	var captured []byte
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		raw, err := io.ReadAll(r.Body)
+		if err != nil {
+			t.Errorf("reading request body: %v", err)
+		}
+		mu.Lock()
+		captured = raw
+		mu.Unlock()
+
+		w.Header().Set("Content-Type", "application/vnd.api+json")
+		w.WriteHeader(http.StatusCreated)
+		fmt.Fprint(w, `{"data":{"id":"01HJHB01T8FYZ7YTR9P5N62K5B","type":"item",`+
+			`"attributes":{"display_name":"Echo","visibility":"private","state":"pending"}}}`)
+	}))
+	t.Cleanup(srv.Close)
+
+	return srv.URL, func() []byte {
+		mu.Lock()
+		defer mu.Unlock()
+		return captured
+	}
+}
+
+// TestCLI_Create_PreservesLiteralsOnTheWire is the end-to-end regression for
+// the claims-corruption bug, asserted against the actual request body.
+//
+// Before the UseNumber fix, cmd/create decoded claims into map[string]any with
+// json.Unmarshal, so every number became a float64 and was re-serialized from
+// that double. The user's own digits never reached the server.
+//
+// Two properties are checked here, both against the raw bytes off the wire:
+//
+// Integers travel verbatim. The largest portable integer, 2^53 - 1, and its
+// negation are carried through — every integer a double would actually mangle
+// is now refused by the portability guard before it can reach the wire
+// (TestCLI_Create_UnsafeIntegerBoundary), so the byte-identical wire proof for
+// a value like 18446744073709551615 lives one layer down, in
+// items.TestCreateItemCtx_PreservesIntegerLiteralOnTheWire.
+//
+// Floats travel verbatim too, and this is where the old code still visibly
+// corrupts a submission end to end: a float is never a portability violation,
+// so it reaches the wire either way. 1e21 came back out as 1e+21 and
+// 9007199254740993.0 as 9.007199254740992e+15 — different bytes, therefore a
+// different JCS canonicalization and a different claims_hash.
+func TestCLI_Create_PreservesLiteralsOnTheWire(t *testing.T) {
+	url, body := startCreateEchoServer(t)
+
+	claims := `{"name":"Big","description":"` + longDesc + `","metadata":{` +
+		`"max_safe":9007199254740991,` +
+		`"neg":-9007199254740991,` +
+		`"as_string":"18446744073709551615",` +
+		`"exp":1e21,` +
+		`"wide_float":9007199254740993.0}}`
+	path := filepath.Join(t.TempDir(), "claims.json")
+	if err := os.WriteFile(path, []byte(claims), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	cmd := exec.Command(binaryPath, "create", "--claims="+path,
+		"--api-key", "fake", "--base-url", url)
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		t.Fatalf("create failed: %v\n%s", err, out)
+	}
+
+	got := string(body())
+	for _, literal := range []string{
+		`"max_safe":9007199254740991`,
+		`"neg":-9007199254740991`,
+		`"as_string":"18446744073709551615"`,
+		`"exp":1e21`,
+		`"wide_float":9007199254740993.0`,
+	} {
+		if !strings.Contains(got, literal) {
+			t.Errorf("request body missing %s\nbody: %s", literal, got)
+		}
+	}
+
+	// The exact rewrites the pre-fix float64 path produced. Their absence is
+	// the assertion that matters.
+	for _, corrupted := range []string{"1e+21", "9.007199254740992e+15", "9007199254740992"} {
+		if strings.Contains(got, corrupted) {
+			t.Errorf("request body carries rewritten literal %s — the user's bytes were corrupted\nbody: %s", corrupted, got)
+		}
+	}
+}
+
+// TestCLI_Create_UnsafeIntegerRejectedBeforeNetwork is the other half of the
+// contract: a value the producer must not emit never reaches the server at
+// all. The echo server records nothing, which is what "before the network
+// call" means operationally.
+func TestCLI_Create_UnsafeIntegerRejectedBeforeNetwork(t *testing.T) {
+	url, body := startCreateEchoServer(t)
+
+	claims := `{"name":"Big","description":"` + longDesc + `","metadata":{"rows":[{"id":18446744073709551615}]}}`
+	path := filepath.Join(t.TempDir(), "claims.json")
+	if err := os.WriteFile(path, []byte(claims), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	cmd := exec.Command(binaryPath, "create", "--claims="+path,
+		"--api-key", "fake", "--base-url", url)
+	out, err := cmd.CombinedOutput()
+	if err == nil {
+		t.Fatalf("expected non-zero exit for an unsafe integer, got success:\n%s", out)
+	}
+	output := string(out)
+
+	// Every fact the server's message carries, so the two read as one system.
+	for _, want := range []string{
+		"claims.metadata.rows[0].id",            // dotted path
+		"18446744073709551615",                  // the user's own literal, unrounded
+		"-9007199254740991 to 9007199254740991", // allowed range
+		"as a string",                           // the remedy
+	} {
+		if !containsString(output, want) {
+			t.Errorf("error output missing %q, got:\n%s", want, output)
+		}
+	}
+
+	if len(body()) != 0 {
+		t.Errorf("request reached the server despite an unsafe integer: %s", body())
+	}
+}
+
+// TestCLI_Create_UnsafeIntegerBoundary walks the producer threshold through
+// the real CLI, in both directions and both signs. 2^53 is the row that pins
+// the producer/verifier split: the verifier tolerates that value, `create`
+// must not.
+func TestCLI_Create_UnsafeIntegerBoundary(t *testing.T) {
+	for _, tc := range []struct {
+		name   string
+		lit    string
+		reject bool
+	}{
+		{"max_safe_accepted", "9007199254740991", false},
+		{"two_pow_53_rejected_by_producer", "9007199254740992", true},
+		{"two_pow_53_plus_one_rejected", "9007199254740993", true},
+		{"negative_max_safe_accepted", "-9007199254740991", false},
+		{"negative_two_pow_53_rejected", "-9007199254740992", true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			url, body := startCreateEchoServer(t)
+
+			claims := `{"name":"B","description":"` + longDesc + `","metadata":{"n":` + tc.lit + `}}`
+			path := filepath.Join(t.TempDir(), "claims.json")
+			if err := os.WriteFile(path, []byte(claims), 0644); err != nil {
+				t.Fatal(err)
+			}
+
+			cmd := exec.Command(binaryPath, "create", "--claims="+path,
+				"--api-key", "fake", "--base-url", url)
+			out, err := cmd.CombinedOutput()
+
+			if tc.reject {
+				if err == nil {
+					t.Fatalf("%s should be rejected by the producer guard, got success:\n%s", tc.lit, out)
+				}
+				if !containsString(string(out), "claims.metadata.n") {
+					t.Errorf("rejection should name the path, got:\n%s", out)
+				}
+				return
+			}
+
+			if err != nil {
+				t.Fatalf("%s should be accepted, got error: %v\n%s", tc.lit, err, out)
+			}
+			if !strings.Contains(string(body()), `"n":`+tc.lit) {
+				t.Errorf("request body should carry %s verbatim, got: %s", tc.lit, body())
+			}
+		})
+	}
+}
+
+// TestCLI_Create_UnsafeIntegerFromMetadataFlag covers the flag input path:
+// --metadata is parsed after the claims file is loaded, so a value injected
+// there has to be checked too. Placing the guard before overlayFlags would
+// pass this file and miss this flag.
+func TestCLI_Create_UnsafeIntegerFromMetadataFlag(t *testing.T) {
+	url, body := startCreateEchoServer(t)
+
+	cmd := exec.Command(binaryPath, "create",
+		"-n", "Doc", "-d", longDesc,
+		"--metadata", `{"ledger":9007199254740993}`,
+		"--api-key", "fake", "--base-url", url)
+	out, err := cmd.CombinedOutput()
+	if err == nil {
+		t.Fatalf("expected rejection for --metadata unsafe integer, got:\n%s", out)
+	}
+	output := string(out)
+	if !containsString(output, "claims.metadata.ledger") {
+		t.Errorf("error should name claims.metadata.ledger, got:\n%s", output)
+	}
+	if !containsString(output, "9007199254740993") {
+		t.Errorf("error should name the literal, got:\n%s", output)
+	}
+	if len(body()) != 0 {
+		t.Errorf("request should not reach the server: %s", body())
+	}
+}
+
+// TestCLI_Create_UnsafeIntegerExternalHashMode confirms the guard covers both
+// submission modes, not just claims-as-source-of-truth.
+func TestCLI_Create_UnsafeIntegerExternalHashMode(t *testing.T) {
+	url, body := startCreateEchoServer(t)
+
+	cmd := exec.Command(binaryPath, "create",
+		"-n", "Doc", "--hash", validSHA256Hex, "--hash-type", "sha256",
+		"--metadata", `{"serial":18446744073709551615}`,
+		"--api-key", "fake", "--base-url", url)
+	out, err := cmd.CombinedOutput()
+	if err == nil {
+		t.Fatalf("external-hash mode should also be guarded, got:\n%s", out)
+	}
+	if !containsString(string(out), "claims.metadata.serial") {
+		t.Errorf("error should name claims.metadata.serial, got:\n%s", out)
+	}
+	if len(body()) != 0 {
+		t.Errorf("request should not reach the server: %s", body())
+	}
+}
+
+// TestCLI_Create_UnsafeIntegerFromClaimsStdin covers the --claims-stdin input
+// path, which parses through the same decoder.
+func TestCLI_Create_UnsafeIntegerFromClaimsStdin(t *testing.T) {
+	url, body := startCreateEchoServer(t)
+
+	cmd := exec.Command(binaryPath, "create", "-C",
+		"--api-key", "fake", "--base-url", url)
+	cmd.Stdin = strings.NewReader(
+		`{"name":"Doc","description":"` + longDesc + `","big":9007199254740993}`)
+	out, err := cmd.CombinedOutput()
+	if err == nil {
+		t.Fatalf("expected rejection from stdin claims, got:\n%s", out)
+	}
+	if !containsString(string(out), "claims.big") {
+		t.Errorf("error should name claims.big, got:\n%s", out)
+	}
+	if len(body()) != 0 {
+		t.Errorf("request should not reach the server: %s", body())
+	}
+}
+
+// TestCLI_Create_UnsafeIntegerMultipleViolations asserts every offender is
+// listed, in the deterministic order the walker produces, so a user with
+// several bad values fixes them in one pass instead of one 422 at a time.
+func TestCLI_Create_UnsafeIntegerMultipleViolations(t *testing.T) {
+	url, _ := startCreateEchoServer(t)
+
+	claims := `{"name":"Multi","description":"` + longDesc + `",` +
+		`"zeta":9007199254740993,"alpha":18446744073709551615,` +
+		`"metadata":{"rows":[{"id":9007199254740992}]}}`
+	path := filepath.Join(t.TempDir(), "claims.json")
+	if err := os.WriteFile(path, []byte(claims), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	cmd := exec.Command(binaryPath, "create", "--claims="+path,
+		"--api-key", "fake", "--base-url", url)
+	out, _ := cmd.CombinedOutput()
+	output := string(out)
+
+	if !containsString(output, "3 integers in claims are outside the range") {
+		t.Errorf("error should announce all three violations, got:\n%s", output)
+	}
+
+	// Deterministic order: sorted keys at each level.
+	wantOrder := []string{
+		"claims.alpha = 18446744073709551615",
+		"claims.metadata.rows[0].id = 9007199254740992",
+		"claims.zeta = 9007199254740993",
+	}
+	prev := -1
+	for _, want := range wantOrder {
+		at := strings.Index(output, want)
+		if at < 0 {
+			t.Fatalf("error output missing %q, got:\n%s", want, output)
+		}
+		if at < prev {
+			t.Errorf("violations out of order: %q appeared before the previous entry\n%s", want, output)
+		}
+		prev = at
+	}
+}
+
+// TestCLI_Create_UnsafeIntegerJSONOutput covers --json: the rejection is
+// structured data, not an English sentence on stderr, and the offending value
+// is a JSON STRING so a consumer parsing with doubles does not re-round the
+// very number being complained about.
+func TestCLI_Create_UnsafeIntegerJSONOutput(t *testing.T) {
+	url, body := startCreateEchoServer(t)
+
+	claims := `{"name":"J","description":"` + longDesc + `","metadata":{"id":18446744073709551615}}`
+	path := filepath.Join(t.TempDir(), "claims.json")
+	if err := os.WriteFile(path, []byte(claims), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	cmd := exec.Command(binaryPath, "create", "--claims="+path, "--json",
+		"--api-key", "fake", "--base-url", url)
+	stdout, err := cmd.Output()
+	if err == nil {
+		t.Fatalf("expected non-zero exit, got success:\n%s", stdout)
+	}
+
+	var got struct {
+		Error      string `json:"error"`
+		Message    string `json:"message"`
+		Violations []struct {
+			Path  string `json:"path"`
+			Value string `json:"value"`
+			Min   string `json:"min"`
+			Max   string `json:"max"`
+		} `json:"violations"`
+	}
+	if jErr := json.Unmarshal(stdout, &got); jErr != nil {
+		t.Fatalf("--json output is not valid JSON: %v\n%s", jErr, stdout)
+	}
+
+	if got.Error != "unsafe_integer" {
+		t.Errorf("error = %q, want %q", got.Error, "unsafe_integer")
+	}
+	if len(got.Violations) != 1 {
+		t.Fatalf("violations = %v, want one", got.Violations)
+	}
+	v := got.Violations[0]
+	if v.Path != "claims.metadata.id" {
+		t.Errorf("path = %q, want claims.metadata.id", v.Path)
+	}
+	if v.Value != "18446744073709551615" {
+		t.Errorf("value = %q, want the exact literal 18446744073709551615", v.Value)
+	}
+	if v.Min != "-9007199254740991" || v.Max != "9007199254740991" {
+		t.Errorf("range = %s..%s, want -9007199254740991..9007199254740991", v.Min, v.Max)
+	}
+	if !strings.Contains(got.Message, "as a string") {
+		t.Errorf("message should suggest the string remedy, got %q", got.Message)
+	}
+	if len(body()) != 0 {
+		t.Errorf("request should not reach the server: %s", body())
+	}
+}
+
+// TestCLI_Create_FloatsAreNotFlagged confirms the producer rule is about
+// integer literals only. A geolocation or a scientific measurement with a huge
+// magnitude is legal and must reach the wire unchanged.
+func TestCLI_Create_FloatsAreNotFlagged(t *testing.T) {
+	url, body := startCreateEchoServer(t)
+
+	claims := `{"name":"F","description":"` + longDesc + `",` +
+		`"metadata":{"a":1.5,"b":1e21,"c":9007199254740993.0}}`
+	path := filepath.Join(t.TempDir(), "claims.json")
+	if err := os.WriteFile(path, []byte(claims), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	cmd := exec.Command(binaryPath, "create", "--claims="+path,
+		"--api-key", "fake", "--base-url", url)
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		t.Fatalf("floats must not be rejected: %v\n%s", err, out)
+	}
+	if len(body()) == 0 {
+		t.Fatal("request never reached the server")
+	}
+	// Float literals travel verbatim too — UseNumber preserves their text.
+	if !strings.Contains(string(body()), `"b":1e21`) {
+		t.Errorf("float literal not preserved on the wire: %s", body())
+	}
+}
+
+// TestCLI_Create_TrailingDataRejected pins the strictness json.Unmarshal gave
+// for free and json.Decoder does not: a truncated or concatenated claims file
+// must be an error, never a silently accepted prefix.
+func TestCLI_Create_TrailingDataRejected(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "trailing.json")
+	if err := os.WriteFile(path, []byte(`{"name":"A"} {"name":"B"}`), 0644); err != nil {
+		t.Fatal(err)
+	}
+	cmd := exec.Command(binaryPath, "create", "--claims="+path, "--api-key", "fake")
+	out, _ := cmd.CombinedOutput()
+	if !containsString(string(out), "parsing claims JSON") {
+		t.Errorf("expected a parse error for trailing data, got: %s", out)
 	}
 }

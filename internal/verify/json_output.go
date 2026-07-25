@@ -3,19 +3,40 @@
 
 package verify
 
+import "sort"
+
 // JSONOutput is the structured output for --json mode.
 // It mirrors the visual terminal output sections.
 type JSONOutput struct {
-	Result            string           `json:"result"`
-	SubjectType       string           `json:"subject_type"`
-	SubjectID         string           `json:"subject_id"`
-	Subject           any              `json:"subject"`
-	HashComparison    *HashComparison  `json:"hash_comparison,omitempty"`
-	Timeline          *JSONTimeline    `json:"timeline,omitempty"`
-	Commitments       *JSONCommitments `json:"commitments,omitempty"`
-	VerificationNotes []JSONNote       `json:"verification_notes,omitempty"`
-	Issues            []JSONIssue      `json:"issues,omitempty"`
-	Summary           JSONSummary      `json:"summary"`
+	Result      string `json:"result"`
+	SubjectType string `json:"subject_type"`
+	SubjectID   string `json:"subject_id"`
+
+	// SignaturesChecked is the machine-readable form of the verdict
+	// line's --skip-signatures disclosure. E.25 does not list E.16 among
+	// the steps a verifier MAY skip and still call a run verified, so
+	// `result` alone is not enough: it reads "verified" whether the
+	// Ed25519 signature was confirmed or never looked at.
+	SignaturesChecked bool `json:"signatures_checked"`
+
+	Subject        any              `json:"subject"`
+	HashComparison HashComparison   `json:"hash_comparison"`
+	Timeline       *JSONTimeline    `json:"timeline,omitempty"`
+	Commitments    *JSONCommitments `json:"commitments,omitempty"`
+
+	// Steps is the complete step record, in Appendix E.22's category
+	// order. It precedes the two filtered views below because those
+	// drop rows: `issues` keeps only failures and warnings, and
+	// `verification_notes` only one group, so every skip and info row —
+	// including three of Appendix D.4's fourteen (Key Binding, Stellar
+	// Commitment, Bitcoin Commitment) — used to survive --json as
+	// nothing but a count. Appendix E.25 requires that no step D.4
+	// reports be absent from a verifier's output.
+	Steps []Step `json:"steps"`
+
+	VerificationNotes []JSONNote  `json:"verification_notes,omitempty"`
+	Issues            []JSONIssue `json:"issues,omitempty"`
+	Summary           JSONSummary `json:"summary"`
 }
 
 // JSONNote is a workflow-level observation about the verify session
@@ -29,11 +50,17 @@ type JSONNote struct {
 	Message  string `json:"message"`
 }
 
-// HashComparison shows the result of --hash verification.
+// HashComparison reports Appendix E.7's expected-hash check. `supplied`
+// and `matched` are distinct facts and both are always emitted: E.7
+// requires a consumer to be able to tell "no expected hash was given"
+// from "one was given and did not match". Inferring the first from the
+// object's absence does not work, because the step can also be reported
+// as a skip for a subject that commits to no file hash at all.
 type HashComparison struct {
-	Provided string `json:"provided"`
-	Found    string `json:"found"`
+	Supplied bool   `json:"supplied"`
 	Matched  bool   `json:"matched"`
+	Provided string `json:"provided,omitempty"` // the caller's expected hash
+	Found    string `json:"found,omitempty"`    // the hash carried in the proof
 }
 
 // JSONTimeline holds the verified temporal bracket. CapturedAt carries the
@@ -62,6 +89,14 @@ type TruestampCommitment struct {
 }
 
 // BlockchainCommitment holds data for a Stellar or Bitcoin commitment.
+//
+// ExternalCheck is the machine-readable form of [ExternalStatus]'s three
+// states and ExternallyVerified is its `== "confirmed"` projection. The
+// boolean alone collapsed "the chain answered and disagreed" and "no
+// lookup was attempted" into one `false`, which is the collapse the
+// tri-state was introduced to remove — but only the terminal presenter
+// had been taught the difference, so a JSON consumer still got the
+// boolean back.
 type BlockchainCommitment struct {
 	Network             string `json:"network"`
 	Ledger              int    `json:"ledger,omitempty"`
@@ -70,23 +105,35 @@ type BlockchainCommitment struct {
 	TxHash              string `json:"tx_hash"`
 	CommittedHashHex    string `json:"committed_hash_hex"`
 	CommittedHashBase64 string `json:"committed_hash_base64"`
+	ExternalCheck       string `json:"external_check"` // "confirmed" | "skipped" | "failed"
 	ExternallyVerified  bool   `json:"externally_verified"`
 }
 
-// JSONIssue represents a non-passing verification check.
+// JSONIssue represents a non-passing verification check. It carries the
+// same rows the terminal's "Issues" section renders — failures,
+// warnings AND skips — because the two surfaces are two renderings of
+// one Report and a consumer comparing them must not find the same row in
+// different buckets. Three of Appendix D.4's fourteen rows are skips;
+// dropping them here left `issues` absent from the --json document of a
+// run whose terminal output printed an Issues heading with three
+// entries.
 type JSONIssue struct {
-	Severity string `json:"severity"` // "error", "warning"
+	Severity string `json:"severity"` // "error", "warning", "skipped"
 	Category string `json:"category"`
 	Message  string `json:"message"`
 	Detail   string `json:"detail,omitempty"`
 }
 
-// JSONSummary holds check counts.
+// JSONSummary holds step counts, one field per Appendix E.22 status
+// plus a total that includes all five. `info` used to be both absent
+// and excluded from `total`, so summing the summary gave a different
+// number than iterating `steps` with nothing explaining the gap.
 type JSONSummary struct {
 	Passed   int `json:"passed"`
 	Failed   int `json:"failed"`
 	Warnings int `json:"warnings"`
 	Skipped  int `json:"skipped"`
+	Info     int `json:"info"`
 	Total    int `json:"total"`
 }
 
@@ -94,26 +141,28 @@ type JSONSummary struct {
 func BuildJSONOutput(r *Report) *JSONOutput {
 	c := r.Counts()
 	out := &JSONOutput{
-		Result:      computeResult(r),
-		SubjectType: r.SubjectType,
-		SubjectID:   r.SubjectID,
-		Subject:     buildSubject(r),
+		Result:            computeResult(r),
+		SubjectType:       r.SubjectType,
+		SubjectID:         r.SubjectID,
+		SignaturesChecked: !r.SignaturesSkipped(),
+		Subject:           buildSubject(r),
 		Summary: JSONSummary{
 			Passed:   c.Passed,
 			Failed:   c.Failed,
 			Warnings: c.Warned,
 			Skipped:  c.Skipped,
+			Info:     c.Info,
 			Total:    c.Total,
 		},
 	}
 
-	// Hash comparison
-	if r.HashProvided != "" {
-		out.HashComparison = &HashComparison{
-			Provided: r.HashProvided,
-			Found:    r.Claims.Hash,
-			Matched:  r.HashMatched(),
-		}
+	// Hash comparison. Emitted unconditionally so "supplied" carries
+	// the answer rather than the object's presence (E.7).
+	out.HashComparison = HashComparison{
+		Supplied: r.HashProvided != "",
+		Matched:  r.HashMatched(),
+		Provided: r.HashProvided,
+		Found:    r.Claims.Hash,
 	}
 
 	// Timeline
@@ -142,7 +191,9 @@ func BuildJSONOutput(r *Report) *JSONOutput {
 				TxHash:              ci.TxHash,
 				CommittedHashHex:    ci.CommittedHash,
 				CommittedHashBase64: HexToBase64(ci.CommittedHash),
-				ExternallyVerified:  !ci.Skipped,
+				ExternalCheck:       ci.ExternalCheck.String(),
+				// Only a lookup that ran and agreed may claim this.
+				ExternallyVerified: ci.ExternalCheck == ExternalConfirmed,
 			}
 			switch ci.Method {
 			case "stellar":
@@ -156,64 +207,94 @@ func BuildJSONOutput(r *Report) *JSONOutput {
 		out.Commitments = c
 	}
 
-	// Issues (failures and warnings only). Verification Notes are
-	// emitted separately below so they don't muddy the "issues"
-	// array with workflow nudges.
+	out.Steps = buildSteps(r)
+
+	// Issues and Verification Notes partition the non-passing rows
+	// exactly the way renderIssues and renderVerificationNotes do, so
+	// the two surfaces never file the same row under different headings:
+	//
+	//   notes  = the Verification Notes group (any status) ∪ every info row
+	//   issues = every remaining fail / warn / skip
+	//
+	// Passing rows appear only in `steps`.
 	for _, s := range r.Steps {
-		if s.Status != StatusFail && s.Status != StatusWarn {
+		if s.Group == groupVerificationNotes || s.Status == StatusInfo {
+			severity := "info"
+			if s.Status == StatusWarn {
+				severity = "warning"
+			}
+			out.VerificationNotes = append(out.VerificationNotes, JSONNote{
+				Severity: severity,
+				Message:  s.Message,
+			})
 			continue
 		}
-		if s.Group == "Verification Notes" {
+		if s.Status == StatusPass {
 			continue
 		}
 		severity := "error"
-		if s.Status == StatusWarn {
+		switch s.Status {
+		case StatusWarn:
 			severity = "warning"
+		case StatusSkip:
+			severity = "skipped"
 		}
 		cat := s.Category
 		if cat == "" {
 			cat = CatStructural
 		}
-		out.Issues = append(out.Issues, JSONIssue{
+		issue := JSONIssue{
 			Severity: severity,
 			Category: cat,
 			Message:  s.Message,
-			Detail:   lookupFailureDetail(s.Message),
-		})
-	}
-
-	// Verification Notes — workflow-level observations that aren't
-	// proof defects. Mirrors the new "Verification Notes" section in
-	// the styled output.
-	for _, s := range r.Steps {
-		if s.Group != "Verification Notes" {
-			continue
 		}
-		severity := "info"
-		if s.Status == StatusWarn {
-			severity = "warning"
+		// Details explain a consequence, so they belong only where
+		// something went wrong — the same rule renderIssues applies.
+		if s.Status == StatusFail || s.Status == StatusWarn {
+			issue.Detail = lookupFailureDetail(s.Message)
 		}
-		out.VerificationNotes = append(out.VerificationNotes, JSONNote{
-			Severity: severity,
-			Message:  s.Message,
-		})
+		out.Issues = append(out.Issues, issue)
 	}
 
 	return out
 }
 
-func computeResult(r *Report) string {
-	proofOK := r.ProofPassed()
-	hashProvided := r.HashProvided != ""
-	hashOK := r.HashMatched()
+// buildSteps returns every Report step in Appendix E.22's category
+// order, ready to marshal.
+func buildSteps(r *Report) []Step {
+	// Never nil: an empty step list must marshal as [] so a consumer
+	// can iterate it without a null check.
+	steps := make([]Step, 0, len(r.Steps))
+	for _, s := range r.Steps {
+		// Mirror the coercion the issues array and the presenter apply,
+		// so a consumer never sees an empty category string.
+		if s.Category == "" {
+			s.Category = CatStructural
+		}
+		steps = append(steps, s)
+	}
+	// Stable, and keyed on the category alone: emit order within a
+	// category carries meaning (Epoch Proof 0 before Epoch Proof 1,
+	// cx order for the commitment rows) and must survive the grouping.
+	// Sorting by status as well — the way the terminal Issues section
+	// does — would destroy it.
+	sort.SliceStable(steps, func(i, j int) bool {
+		return categoryRank(steps[i].Category) < categoryRank(steps[j].Category)
+	})
+	return steps
+}
 
-	switch {
-	case !proofOK:
-		return "failed"
-	case hashProvided && !hashOK:
-		return "hash_mismatch"
-	case hashProvided && hashOK:
+// computeResult maps the report's verdict onto the --json `result`
+// vocabulary. The mapping lives here rather than on Verdict so the wire
+// strings stay in the DTO that publishes them.
+func computeResult(r *Report) string {
+	switch r.Verdict() {
+	case VerdictFullyVerified:
 		return "fully_verified"
+	case VerdictHashMismatch:
+		return "hash_mismatch"
+	case VerdictFailed:
+		return "failed"
 	default:
 		return "verified"
 	}
@@ -221,10 +302,20 @@ func computeResult(r *Report) string {
 
 func buildSubject(r *Report) any {
 	switch r.SubjectType {
-	case "block":
+	// Beacon (t=11) and plain block (t=10) share one wire shape — the
+	// block IS the subject — so they share one subject projection.
+	// "beacon" used to fall through to the item default, which found no
+	// claims and published an empty object, silently dropping block_id,
+	// signing_key and committed_at from the machine-readable surface for
+	// exactly the subject type the t=11 cutover made first-class.
+	case "block", "beacon":
 		return map[string]any{
-			"block_id":     r.SubjectID,
-			"signing_key":  r.SigningKeyID,
+			"block_id": r.SubjectID,
+			// The block's own b.kid, which is what a field of the block
+			// means. The signer (E.9's pk-derived key id, which may
+			// differ under rotation) is published under
+			// commitments.truestamp.signing_key_id.
+			"signing_key":  r.BlockKeyID(),
 			"committed_at": r.Temporal.CommittedAt,
 		}
 

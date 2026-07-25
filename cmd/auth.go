@@ -420,20 +420,12 @@ func formatUserIdentity(r *authCheckResult) string {
 	}
 }
 
-// formatTeam renders the resolved team context shown on success.
-func formatTeam(teamID string, r *teamCheckResult) string {
-	if teamID == "" {
-		return "personal team (no tenant header sent)"
-	}
-	if r == nil || r.name == "" {
-		return teamID
-	}
-	label := r.name
-	if r.personal {
-		label += " (personal)"
-	}
-	return fmt.Sprintf("%s  [%s]", label, teamID)
-}
+// Removed: formatTeam, the one-line "Name  [id]" renderer. formatTeamLines
+// replaced it when `auth status` grew the separate Team Id / Team Name /
+// Team Role rows that `config show` and `team list` also render, and
+// nothing had called the single-line form since. Its only remaining caller
+// was its own test, which meant a change to the team display could not
+// break it.
 
 // formatTeamLines renders the team context as up-to-three lines for the
 // success-banner subblock.

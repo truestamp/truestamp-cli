@@ -66,7 +66,7 @@ brew upgrade truestamp/tap/truestamp-cli
 go install github.com/truestamp/truestamp-cli/cmd/truestamp@latest
 ```
 
-Produces a binary at `$GOBIN/truestamp` (default `~/go/bin/truestamp`). Requires Go 1.22 or newer.
+Produces a binary at `$GOBIN/truestamp` (default `~/go/bin/truestamp`). Requires the Go toolchain named by the `go` directive in [`go.mod`](./go.mod) (currently 1.26.5) or newer.
 
 The `/cmd/truestamp` suffix is required so the `go` toolchain names the binary `truestamp` rather than `truestamp-cli` (Go derives the binary name from the package path's last element).
 
@@ -98,7 +98,7 @@ The `install.sh` installer and Homebrew cask both verify the SHA-256 automatical
 
 ## Quick start
 
-The three main commands — `create`, `download`, `verify` — form the full lifecycle of a Truestamp item. Commands that talk to the Truestamp API (`create`, `download`) need an API key (`--api-key`, `TRUESTAMP_API_KEY`, or the config file). `verify` works entirely locally by default.
+The three main commands — `create`, `download`, `verify` — form the full lifecycle of a Truestamp item. Commands that talk to the Truestamp API (`create`, `download`, `beacon`, `team`, `console`, `verify --remote`) need credentials: run `truestamp auth login` for the browser OAuth flow, or set `TRUESTAMP_API_KEY` / `--api-key` for headless and CI use. `verify` works entirely locally by default and needs no credentials at all.
 
 ### Create an item
 
@@ -159,7 +159,7 @@ on the mode.
 
 ### Download a proof bundle
 
-After an item has been committed to a block, download its proof by ID. Item IDs are ULIDs; entropy observation IDs are UUIDv7s; the command auto-detects which from the format:
+After an item has been committed to a block, download its proof by ID. Item IDs are ULIDs, so a ULID with no `--type` defaults to `--type item`:
 
 ```sh
 truestamp download 01KNN33GX5E470CB9TRWAYF9DD
@@ -172,11 +172,15 @@ truestamp download -f cbor -o proof.cbor 01KNN33GX5E470CB9TRWAYF9DD
 truestamp download -o /tmp/proof.json 01KNN33GX5E470CB9TRWAYF9DD
 ```
 
-Download an entropy proof (UUIDv7 triggers entropy proof mode):
+Every other subject type uses a UUIDv7, and entropy observations, blocks and beacons are indistinguishable by id shape — so `--type` is **required** for a UUIDv7. Omitting it exits with an error listing the five valid values rather than guessing:
 
 ```sh
-truestamp download 019d6a32-13e6-72b0-97e5-3779231ea97b
+truestamp download --type entropy_stellar 019d6a32-13e6-72b0-97e5-3779231ea97b
+truestamp download --type block  019db7cd-efc0-7196-b763-682a84d71919
+truestamp download --type beacon 019db7cd-efc0-7196-b763-682a84d71919
 ```
+
+Valid `--type` values are exactly `item | entropy_nist | entropy_stellar | entropy_bitcoin | block | beacon`. There is no `auto` and no bare `entropy`.
 
 ### Verify a proof
 
@@ -211,7 +215,7 @@ cat proof.json | truestamp verify                  # stdin pipe
 
 ```
 truestamp create [file]              Create a new Truestamp item (submit claims / file hash)
-truestamp download <id>              Download a proof bundle for an item or entropy observation
+truestamp download <id>              Download a proof bundle (--type required for UUIDv7 ids)
 truestamp verify [proof]             Verify a Truestamp proof bundle
 truestamp hash [path ...]            Compute cryptographic digests (SHA-2 / SHA-3 / BLAKE2 / MD5 / SHA-1)
 truestamp encode [file]              Encode raw bytes into hex / base64 / base64url
@@ -222,13 +226,17 @@ truestamp convert proof [file]       Convert a proof bundle between JSON and CBO
 truestamp convert id [value]         Extract the embedded timestamp from a ULID or UUIDv7
 truestamp convert keyid [pubkey]     Derive the 4-byte Truestamp kid from an Ed25519 public key
 truestamp convert merkle [compact]   Decode a compact base64url Merkle proof
+truestamp auth login|logout|status   Manage authentication (browser OAuth by default; --api-key for CI)
+truestamp beacon [latest|list|…]     Inspect Truestamp block beacons (latest / list / get / by-hash)
+truestamp team [list|show|create|…]  Manage the active team context (list / show / create / set / unset)
+truestamp console                    Interactive TUI over an authenticated WebSocket
 truestamp upgrade                    Upgrade the CLI to the latest release (install-method aware)
 truestamp config path                Print the config file path
 truestamp config show                Print the resolved configuration (API key masked)
 truestamp config init                Create a default config file
 truestamp version                    Print detailed build and runtime info (includes detected install method)
 truestamp --version                  Terse one-line version
-truestamp completion <shell>         Generate shell completions (bash, zsh, fish)
+truestamp completion <shell>         Generate shell completions (bash, zsh, fish, powershell)
 ```
 
 Run `truestamp <command> --help` for per-command flags.
@@ -330,13 +338,17 @@ Settings are resolved in this order (later overrides earlier):
 | Flag | Env var | Default |
 | ---- | ------- | ------- |
 | `--config` |   | `~/.config/truestamp/config.toml` |
-| `--api-url` | `TRUESTAMP_API_URL` | `https://www.truestamp.com/api/json` |
+| `--base-url` | `TRUESTAMP_BASE_URL` | `https://www.truestamp.com` |
 | `--api-key` | `TRUESTAMP_API_KEY` |   |
-| `--keyring-url` | `TRUESTAMP_KEYRING_URL` | `https://www.truestamp.com/.well-known/keyring.json` |
+| `--team` | `TRUESTAMP_TEAM` |   |
 | `--http-timeout` | `TRUESTAMP_HTTP_TIMEOUT` | `10s` |
+| `--log-level` | `TRUESTAMP_LOGGING_LEVEL` | `info` |
+| `--log-file` | `TRUESTAMP_LOGGING_FILE` | `<user cache dir>/truestamp/truestamp.log` |
 | `--no-color` | `NO_COLOR` | `false` |
 | `--no-upgrade-check` | `TRUESTAMP_NO_UPGRADE_CHECK` | `false` |
 | (config file / env only: `cosign_path`) | `TRUESTAMP_COSIGN_PATH` |   |
+
+`--base-url` is the single service origin. The API (`/api/json`), keyring (`/.well-known/keyring.json`), console WebSocket (`/console/websocket`) and health (`/health`) URLs are all derived from it, so there is **no `--api-url` and no `--keyring-url`**; the retired `api_url` / `keyring_url` config keys produce a one-time "no longer recognized" warning.
 
 `cosign_path` pins the `cosign` binary used by `truestamp upgrade` for release-artifact signature verification. Empty (the default) means "use `$PATH` lookup"; set this to an absolute path (e.g. `/opt/cosign/bin/cosign`) in hardened environments to avoid `$PATH` hijacking. Relative paths are rejected at config load. Setting has no effect unless you actually run `truestamp upgrade`.
 
@@ -347,25 +359,40 @@ Settings are resolved in this order (later overrides earlier):
 | `--file [path]` |   |   |
 | `--url [url]` |   |   |
 | `--hash` |   |   |
+| `--type` |   |   |
+| `--remote` |   | `false` |
 | `--silent` / `-s` | `TRUESTAMP_VERIFY_SILENT` | `false` |
 | `--json` | `TRUESTAMP_VERIFY_JSON` | `false` |
 | `--skip-external` | `TRUESTAMP_VERIFY_SKIP_EXTERNAL` | `false` |
 | `--skip-signatures` | `TRUESTAMP_VERIFY_SKIP_SIGNATURES` | `false` |
 
+`--type` asserts which subject type you expected (`item | entropy_nist | entropy_stellar | entropy_bitcoin | block | beacon`); a disagreement with the bundle's own signed `t` is reported as a failing step. It has no default and is never inferred — **the filename is never consulted**, so renaming a proof can never change a verdict.
+
+Because every `verify` flag is also a config key, an ambient `TRUESTAMP_VERIFY_SKIP_SIGNATURES` (or `[verify] skip_signatures = true` in `config.toml`) silently weakens a run that still exits 0. Scripts that need a full check should pass the flags explicitly and read the report, not just the exit code.
+
 ## What gets verified
 
-1. Signing key against the published keyring
-2. Proof structure (required fields, block reference)
-3. Subject hash — claims hash (`0x11`), timestamp validation, item hash (`0x13`)
-4. RFC 6962 Merkle inclusion proof against the block root
-5. Block hash (`0x32`) derivation
-6. Epoch proofs: block hash → each public-blockchain commitment root
-7. Ed25519 proof signature over the binary payload
-8. Temporal ordering (item submission before block)
-9. Stellar commitment via Horizon API (memo + ledger)
-10. Bitcoin commitment via local crypto (OP_RETURN, txid, partial Merkle tree) plus optional Blockstream API
+`truestamp verify` implements Appendix E of the [Truestamp whitepaper](https://github.com/truestamp/truestamp-v2/blob/main/whitepaper/whitepaper.pdf), which is the normative specification for a conforming verifier. Every run produces a report of graded steps:
 
-Skipped selectively with `--skip-external` and `--skip-signatures`.
+1. **Hash Comparison** — only when `--hash` is supplied: does the value you supplied match the hash the proof commits to?
+2. **Signing Key** — `pk` decodes to a 32-byte Ed25519 key and yields a 4-byte key id.
+3. **Key Binding** — that key id and `pk` are cross-checked against Truestamp's published keyring. This is a separate step from the one above, and it is the only one that needs the network.
+4. **Structure** — the bundle format version is the one this verifier understands.
+5. **Subject Data** — subject hash (`0x11` claims / `0x21` entropy) and the composite fingerprint (`0x13` item / `0x23` observation) are recomputed from the bundle's own bytes.
+6. **Inclusion Proof** — RFC 6962 Merkle walk from the subject hash to the block's Merkle root.
+7. **Block Hash** — `0x32` derivation from the five block fields.
+8. **Epoch Proof** — one per commitment: block hash → the value committed on each public chain.
+9. **Proof Signature** — Ed25519 over the fixed-width binary payload.
+10. **Submission Window / Temporal Info** — the subject's own timestamp precedes the block's, plus the timeline the bundle can and cannot establish.
+11. **Entropy Source** — for entropy subjects only, the captured value is byte-compared against the upstream publisher (NIST beacon, Stellar Horizon, or Blockstream).
+12. **Stellar Commitment** and **Bitcoin Commitment** — the on-chain transactions. Bitcoin is verified locally first (OP_RETURN extraction, txid recomputation, partial Merkle tree), then optionally confirmed against Blockstream.
+
+Two rules run through the whole report and are worth knowing before you read one:
+
+- **A step that could not run is a `skip`, never a `fail`.** An unreachable keyring, a Horizon timeout or a chain with no public API establishes nothing either way, and none of them can make a sound proof report as defective.
+- **A `skip` never changes the verdict.** Only a step that ran and disagreed fails a proof.
+
+`--skip-external` skips every network step (Key Binding, Entropy Source, and the two commitment confirmations). `--skip-signatures` skips the Ed25519 Proof Signature check and the keyring cross-check — the report says so on the verdict line, because a run that did not check the signature has not established who issued the proof. The Signing Key step still runs under both flags.
 
 ## Exit codes
 

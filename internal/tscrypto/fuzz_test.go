@@ -3,7 +3,10 @@
 
 package tscrypto
 
-import "testing"
+import (
+	"strings"
+	"testing"
+)
 
 // FuzzDecodeCompactMerkleProof feeds arbitrary base64url strings to
 // the compact-proof decoder. Must never panic — every malformed input
@@ -76,20 +79,70 @@ func FuzzHexEqual(f *testing.F) {
 	f.Add("deadbeef", "DEADBEEF")
 	f.Add("", "")
 	f.Add("ab", "cd")
+	// Non-hex and odd-length operands, and the bytes bracketing the 'A'-'F'
+	// fold range — the cases the constant-time rewrite had to preserve.
+	f.Add("zz", "zz")
+	f.Add("abc", "abc")
+	f.Add("@", "`")
+	// A prefix pair in both orders: the shape a truncating comparison accepts.
+	f.Add("b47c", "b47cc0f104b62d4c7c30bcd68fd8e67613e287dc4ad8c310ef10cbadea9c4380")
+	f.Add("b47cc0f104b62d4c7c30bcd68fd8e67613e287dc4ad8c310ef10cbadea9c4380", "b47c")
 
 	f.Fuzz(func(t *testing.T, a, b string) {
-		_ = HexEqual(a, b)
+		got := HexEqual(a, b)
+
+		// Operands of different lengths can never match. Both live call sites
+		// take one operand from the bundle or a remote API and one from the
+		// caller, so a prefix acceptance here is a forged match.
+		if len(a) != len(b) && got {
+			t.Fatalf("HexEqual(%q, %q) matched operands of length %d and %d", a, b, len(a), len(b))
+		}
+		// Argument order is not part of the contract; the call sites use both.
+		if flipped := HexEqual(b, a); flipped != got {
+			t.Fatalf("HexEqual is not symmetric: (%q, %q) = %v, (%q, %q) = %v", a, b, got, b, a, flipped)
+		}
+		// Parity with the short-circuiting implementation the constant-time
+		// rewrite replaced: hardening, never a semantic change.
+		if want := hexEqualLegacy(a, b); got != want {
+			t.Fatalf("HexEqual(%q, %q) = %v, legacy oracle gives %v", a, b, got, want)
+		}
 	})
 }
 
-// FuzzValidateClaimsHash: the hash_type+length validator.
+// FuzzValidateClaimsHash: the hash_type+length+charset validator.
 func FuzzValidateClaimsHash(f *testing.F) {
 	f.Add("", "")
 	f.Add("deadbeef", "sha256")
 	f.Add("xxx", "sha3_256")
+	// Correct width, wrong character set — the charset arm.
+	f.Add(strings.Repeat("z", 64), "sha256")
+	f.Add(strings.ToUpper(strings.Repeat("ab", 32)), "sha256")
 
 	f.Fuzz(func(t *testing.T, hash, hashType string) {
-		_ = ValidateClaimsHash(hash, hashType)
+		if err := ValidateClaimsHash(hash, hashType); err != nil {
+			return
+		}
+		// A nil error is an assertion, so pin what it asserts: Appendix E.11's
+		// "hex length equals twice the algorithm's output size and the
+		// character set is lowercase hex", for a registered algorithm. The
+		// either-empty short-circuit is the one documented exemption.
+		if hash == "" || hashType == "" {
+			return
+		}
+		info, ok := hashTypes[hashType]
+		if !ok {
+			t.Fatalf("ValidateClaimsHash accepted unregistered hash type %q", hashType)
+		}
+		if len(hash) != info.Bytes*2 {
+			t.Fatalf("ValidateClaimsHash accepted a %d-char hash for %s, which is %d bytes wide", len(hash), hashType, info.Bytes)
+		}
+		for i := 0; i < len(hash); i++ {
+			c := hash[i]
+			if (c >= '0' && c <= '9') || (c >= 'a' && c <= 'f') {
+				continue
+			}
+			t.Fatalf("ValidateClaimsHash accepted %q at offset %d of %q", string(c), i, hash)
+		}
 	})
 }
 

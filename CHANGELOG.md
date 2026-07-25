@@ -7,6 +7,269 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+Conformance pass against Appendix E of the Truestamp whitepaper, the normative
+specification for an independent proof verifier, followed by an adversarial
+review of that pass and a remediation of everything it found. The headline
+change is that a bundle's verdict is now a function of the bundle and nothing
+else — not the filename it arrived under, not which wire encoding carried it,
+and not whether a third-party service happened to answer.
+
+Most of what the review turned up was long-standing rather than newly
+introduced: the pre-effort binary accepted the same malformed CBOR bundles.
+Where a defect predates this work it is called out as such below.
+
+### Fixed
+
+- **Six classes of CBOR-only bundle that verified as sound proofs are now
+  refused.** All predate this work. The type code `t` was read into a 16-bit
+  field, so `t = 65546` truncated to `10` and a bundle claiming an unregistered
+  subject type verified, with exit 0, as a block. A non-integer `v` (`1.9`) or
+  `t` (`20.5`) passed the version and type checks that their JSON equivalents
+  fail. Wrapping `s.d` in the self-describing tag 55799 produced an unbounded
+  family of byte-distinct bundles all valid under one signature. Duplicate map
+  keys inside `s.d` gave one signed blob two readings — and the JSON path
+  rejected the same document. Hex *text* was accepted where Appendix E.3
+  requires a byte string, and indefinite-length strings gave every field a
+  second spelling. Invalid UTF-8 inside an `s.d` text string was silently
+  replaced with U+FFFD and fed to the `0x11` preimage. The CBOR and JSON paths
+  now accept the same value space, and the JSON, tag-55799 CBOR and bare-map
+  CBOR encodings of one bundle produce byte-identical reports.
+- **`verify --remote` no longer fails open.** Four separate paths let a
+  server-reported failure print `VERIFIED` at exit 0: a step object carrying no
+  `status` key scored as a pass (Go's zero value), a status outside Appendix
+  E.22's five silently became `info`, the server's own top-level `passed`
+  verdict was parsed and never read, and a `result` carrying zero steps was
+  treated as a clean run. Each is now a failure with a `Server Verdict` row
+  saying which. Separately, `--remote` never performed E.7's `--hash`
+  comparison at all — `hash_comparison.matched: false` and `result: "verified"`
+  coexisted in one document. The client now performs the comparison itself, on
+  the bundle it parsed, and treats the server's `hash_matched` as corroboration
+  rather than as the answer.
+- **`--skip-signatures` no longer prints "VERIFIED - proof is valid" for a
+  bundle with a forged signature.** The verdict line now discloses that the
+  signature was not checked, and a warn row states that the run establishes
+  nothing about who issued the proof. The Signing Key step still runs under the
+  flag, deliberately — skipping it would let an undecodable `pk` produce a
+  report with no failure in it.
+- **The report attributes the signature to the key that actually signed it.**
+  It reported `b.kid`, the block's stored key id, which under the key rotation
+  Appendix E.9 explicitly blesses is a different key from the one the signature
+  verifies against. The signer is now the `pk`-derived key id everywhere it is
+  described as such; `b.kid` is still reported verbatim where the block itself
+  is being described.
+- **`--hash` reports what was supplied separately from whether it matched.**
+  `hash_comparison.supplied` was `false` on every run where the comparison did
+  not take place, including runs where a hash *was* supplied — the exact
+  conflation the field was added to prevent. Supplying `--hash` for an item
+  that timestamped its claims content directly (and therefore carries no
+  `s.d.hash`) also fabricated a `HASH MISMATCH` against an empty string; it is
+  now a skip that says why.
+- **An upstream service that answered about the wrong thing no longer decides a
+  verdict.** A Blockstream response naming a *different* block was reported as
+  `confirmed` with `externally_verified: true`, while a 2xx body omitting
+  `height` failed a sound proof. A Horizon transaction response carrying no
+  `memo_type` was graded as a chain disagreement. A 200 that is not a keyring
+  document at all (`{}`, `null`, `{"version":"1"}`) failed the proof, where the
+  reference verifier skips. Each is now an identity or shape check that grades
+  the response unusable — a skip — leaving only a source that answered *about
+  the right object* and disagreed able to fail a proof.
+- **Fail messages no longer assert things the run did not establish.** The E.7
+  advisory claimed "the proof itself is verified" inside reports that went on to
+  fail and in runs where no signature was checked. A signature step that aborted
+  before verifying anything was explained as "may have been tampered with". A
+  Bitcoin merkle failure was explained as an item-inclusion failure, in reports
+  whose Inclusion Proof row passed. A skipped Bitcoin lookup said "no public API
+  for " with an empty network name. An Inclusion Proof pass named an absent
+  block (`Inclusion proof to block  (2 steps)`). E.20's ordering violation read
+  `X is AFTER committed block time X` at second resolution because both
+  timestamps were rendered without their milliseconds.
+- **Hash and digest comparisons that were still case-sensitive or
+  variable-time** — notably E.21's NIST `outputValue` — now use the same
+  constant-time primitive as their siblings.
+- **The Block Hash step checks preimage width, not just field presence.** A
+  bundle with short `b` fields produced "Block hash derived (0x32)" over a
+  141-byte preimage where Appendix E.14 frames 157.
+- **`truestamp jcs` and `truestamp hash --jcs` no longer canonicalize
+  RFC-8259-invalid JSON into a different valid document.** Unescaped control
+  characters inside strings, and documents nested past the decoder's frame
+  limit, are now rejected rather than silently rewritten.
+- **`truestamp verify` no longer invents a portability warning for a CBOR
+  bundle carrying a large float**, and such a bundle survives a
+  CBOR → JSON → CBOR round trip instead of becoming non-re-encodable.
+- **`truestamp verify` no longer infers `--type` from the input filename or URL
+  basename.** A subject type is read only from the bundle's signed `t` field
+  (Appendix E.24). The previous behaviour made the verdict a function of the
+  filename in both directions: a name matching the `truestamp-<stem>-<id>.<ext>`
+  download convention silently asserted a type, failing a cryptographically
+  sound proof when the two disagreed, and renaming away from that convention
+  silently dropped the assertion. A file named `truestamp-beacon-<id>.json` may
+  legitimately carry `t = 10` — the beacon show page generates exactly that, and
+  the sample bundle shipped in this repo is one — so the common case was a false
+  failure. It also reached the wire: the inferred type was posted as `data.type`
+  on `--remote`, where the server's rejection surfaced as an opaque API error
+  with no report at all. Pass `--type` explicitly to keep the assertion; with it
+  unset no Subject Type row is emitted and nothing is posted. The swap the
+  inference claimed to catch is already caught cryptographically — `t` is inside
+  the signed payload, so relabelling a bundle breaks its signature.
+- **`truestamp jcs` and `truestamp hash --jcs` no longer round integers larger
+  than 2^53.** Both are documented as the way to recompute a `claims_hash`
+  locally, and both round-tripped every JSON number through an IEEE-754 double,
+  so `9007199254740993` canonicalized as `9007199254740992` and produced the
+  wrong digest. Canonicalization now runs through the new `internal/jcs`
+  package, which preserves such literals verbatim — matching the Truestamp
+  producer and the whitepaper's Appendix C.2a vectors — while delegating key
+  ordering, string escaping and float formatting unchanged to the underlying
+  RFC 8785 library. Output for any document inside the safe range is
+  byte-identical to before, so no existing digest moves.
+- **`truestamp convert proof --to json` no longer rewrites numbers or reorders
+  keys.** Pretty output is the default and it re-parsed the bundle through a
+  generic decoder, rounding integers above 2^53 and re-sorting object members
+  alphabetically. It now re-indents the marshaled bytes without re-encoding
+  them, so the output is a faithful rendering of the wire bundle and agrees with
+  `--compact`.
+- **Bundles the parser used to refuse now produce a report.** Only the hard
+  rejections Appendix E.6 enumerates abort verification; a wrong or missing
+  bundle version, a malformed key or signature, and wrong-sized hash fields are
+  now graded as failing report steps instead of aborting with no report at all.
+  Conversely a missing `ep`, a missing commitment root key, and several other
+  structural defects that used to slip through are now refused outright.
+- **An unreachable external service no longer fails a sound proof.** Keyring,
+  Horizon, Blockstream and NIST lookups are graded on a typed availability
+  taxonomy: only a service that answers and *disagrees* fails a step. Transport
+  errors, timeouts, 5xx, 429 and — for an entropy source — 404 are reported as
+  skips. A Stellar commitment whose network is absent or unrecognized resolves
+  to the testnet Horizon rather than failing unverified.
+- **Digest and hash comparisons are constant-time**, and the Bitcoin OP_RETURN
+  extractor now selects the first `0x6a` output rather than skipping to a later
+  one that happens to look well-formed.
+
+### Added
+
+- **`--json` reports a structural refusal as data.** A bundle refused before any
+  check runs now emits `{"result":"rejected","rejection":{"code":…,"detail":…}}`
+  with a stable identifier from the whitepaper's error taxonomy
+  (`not_a_json_object`, `invalid_subject_type_code`, `missing_block`, …) instead
+  of an English sentence, so independent verifiers can be compared on the
+  identifier. Human output is unchanged.
+- **Portability reporting for large integers.** A document carrying an integer
+  outside ±2^53 is not portably verifiable by a strict RFC 8785 implementation,
+  which Appendix E.4 requires a verifier to say rather than hide. `truestamp
+  jcs` and `truestamp hash --jcs` print an advisory stderr line naming the
+  offending literals (exit code unchanged, suppressed under `--silent`, replaced
+  by an `oversized_integers` field under `--json`), and `truestamp verify`
+  surfaces it as a warning row on the Subject Data step.
+- **`--json` now carries the complete step record.** A new top-level `steps`
+  array reports every check with its group, category and status. The two
+  filtered views (`issues`, `verification_notes`) drop skips and infos, so three
+  of the whitepaper's fourteen reference rows previously survived `--json` as
+  nothing but a count. `hash_comparison` is also always emitted and gained
+  distinct `supplied` and `matched` booleans, because "no expected hash was
+  given" and "one was given and did not match" are different facts.
+- **Two informational rows naming which temporal edge a bundle can establish.**
+  Appendix E.20 requires a verifier that has not retrieved the previous block
+  and its entropy leaves to report the submitted-after edge as *not established
+  from the bundle*, never as established. `Submitted Before` names the
+  commitment transaction that, once confirmed on chain, establishes the earlier
+  edge; `Submitted After` says plainly that the later edge cannot be established
+  from a bundle alone. Both are `info` rows and cannot move a verdict. The
+  Submission Window pass also now carries E.20's qualifier — "asserted by
+  Truestamp, not externally verified".
+- **A conformance test suite that pins the report, not just the exit code.**
+  `TestAppendixD4_Conformance` runs the vendored Appendix D.1 bundle and checks
+  Appendix E.25's one-way containment against the D.4 table; a golden report
+  additionally pins every row's message text, which containment by construction
+  cannot see; and a set of status-direction tests assert that a `fail` cannot be
+  downgraded to a `skip`, that a `skip` cannot be promoted to a `pass`, and that
+  no failure message reads as a positive assertion. These exist because a green
+  suite was previously compatible with 43 of 62 failure sites turning into
+  skips, and with the `--hash` mismatch failure disappearing entirely.
+
+### Changed
+
+- **Report step groups follow the whitepaper's normative table.** `Temporal
+  Window` is now `Submission Window`; the keyring cross-check moved out of
+  `Signing Key` into its own `Key Binding` group (decoding a public key and
+  binding it to Truestamp are separate claims, and only the second needs the
+  network); a `Temporal Info` timing row carries the display timeline; and the
+  "file hash not verified" advisory moved from `Verification Notes` onto `Hash
+  Comparison`.
+- **`--hash` on a subject that commits to no file hash is a skip, not a
+  failure.** Supplying `--hash` for an entropy or block proof reports a visible
+  skip explaining that the flag does not apply, and contributes nothing to the
+  verdict.
+- **External confirmation is tri-state.** A commitment records whether its
+  external lookup was confirmed, skipped, or ran and failed; the terminal render
+  distinguishes `(external verification skipped)` from `(external verification
+  failed)`. Previously any non-confirmation rendered identically, and `--json`'s
+  `externally_verified` was unconditionally `true` on the remote path.
+- **The proof-bundle hash-shape check reports as info, not pass**, matching the
+  whitepaper's reference report.
+- **The `Structure` step now asserts Appendix E.8's `v == 1` and nothing else.**
+  The four other propositions it used to carry (registered `t`, block present,
+  block id and Merkle root present, non-empty `cx`) all became hard rejections
+  under E.6, where they abort before any step runs. **`Signing Key` makes no
+  comparison** against the bundle's stored key ids either, because key rotation
+  legitimately makes them differ; subject-kid tampering is still caught, because
+  `kid` is an input to the composite hash.
+- **`verify --remote` asserts `--type` client-side** and forwards it to the
+  server only when the assertion already holds. Forwarding a mismatching type
+  made the server answer 4xx and the caller got a bare error string with no
+  report — the opposite of what the flag is for. A mismatch now produces the
+  same `Subject Type` failure row local mode produces, alongside everything else
+  the server checked.
+
+### Removed
+
+- **Dead cryptographic code that implemented the wrong thing.**
+  `tscrypto.ComputeProofHash` built the *pre-restructure* signature payload and
+  sat in the same file, under a near-identical doc comment, as the correct one —
+  with zero production callers and six test references, so the wrong format was
+  actively pinned by the suite. A future editor who called it would have got a
+  silently wrong signature payload with green tests. Removed alongside
+  `ComputeCommitmentHash`, `ComputeCommitmentDataHash`,
+  `ComputeEntropyMetadataHash`, `LenPrefix` and `proof.CheckHexShape`, all of
+  which had the same profile. The `0x12` / `0x22` / `0x33` / `0x34` / `0x35`
+  prefix constants stay: they are producer-side entries of a frozen registry
+  mirrored whole on purpose, and a constant cannot be called with the wrong
+  arguments.
+
+### Documentation
+
+- Corrected several long-stale claims in `CLAUDE.md`: the entry point is
+  `cmd/truestamp/main.go` (not a repo-root `main.go`); the global-flag table
+  documented `--api-url` and `--keyring-url`, which the binary rejects in favour
+  of the single `--base-url` origin every service URL derives from; the logging
+  env vars are `TRUESTAMP_LOGGING_LEVEL` / `TRUESTAMP_LOGGING_FILE`, named after
+  the config section rather than the flag; Stellar's `net` is not strict; the
+  fuzz-target inventory was 12 targets short; and `internal/hashing`'s
+  14-algorithm registry and `internal/tscrypto`'s 12-entry wire registry are
+  deliberately different and must not be reconciled. The same flag corrections
+  were applied to `README.md` and `EXAMPLES.md`.
+- A second documentation pass checked every documented flag, environment
+  variable, command and file path against the built binary and the filesystem,
+  and corrected what disagreed: the Verification Steps list described a
+  `Signing Key` step that compares key ids and skips under `--skip-signatures`
+  (it does neither) and a `Structure` step carrying four checks it no longer
+  makes; the `download --type` vocabulary was documented as
+  `auto|item|entropy|block|beacon`, three of which the binary rejects, and the
+  same file contradicted itself two hundred lines later; the signature payload's
+  `kid` slot was documented as `b.kid` hex-decoded, which is what Appendix E.9
+  explicitly forbids and would reject every rotated-key proof; the default log
+  file was named `console.log` rather than `truestamp.log`; and `README.md`
+  showed a `truestamp download <uuidv7>` invocation that exits with an error.
+- **The egress table now lists the NIST Randomness Beacon.** `CLAUDE.md`'s
+  "External API Calls" table and `EXAMPLES.md`'s offline section both listed
+  three outbound destinations. There are four: an `entropy_nist` bundle is
+  verified against `beacon.nist.gov` by default. That table is the one place a
+  security reviewer looks to answer "what does this binary talk to?".
+- **Every cross-repository reference was re-pointed.** The `truestamp-v2/docs/`
+  tree these documents cited no longer exists; its contents moved to that
+  repo's `kb/` knowledge base and `whitepaper/` directory. `CLAUDE.md` now names
+  `whitepaper/whitepaper.typ` (Appendix E) as the normative specification and
+  `whitepaper/verify_proof.exs` as the reference verifier, with the byte-prefix
+  registry, wire format, beacon API and console WebSocket protocol pointing at
+  their `kb/` locations. Every path was verified to exist.
+
 ## [0.11.1] — 2026-07-23
 
 ### Changed

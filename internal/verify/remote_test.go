@@ -258,11 +258,8 @@ func TestStatusJSON_RoundTrip(t *testing.T) {
 
 func TestStatusJSON_UnknownString(t *testing.T) {
 	var s Status
-	if err := json.Unmarshal([]byte(`"future_status"`), &s); err != nil {
-		t.Fatalf("Unmarshal unknown: %v", err)
-	}
-	if s != StatusInfo {
-		t.Errorf("unknown status should map to StatusInfo, got %d", s)
+	if err := json.Unmarshal([]byte(`"future_status"`), &s); err == nil {
+		t.Error("an unrecognized status must be rejected, not silently accepted")
 	}
 }
 
@@ -552,4 +549,573 @@ func parseBundle(data []byte) (bundle, error) {
 // MarshalCBOR().
 type bundle interface {
 	MarshalCBOR() ([]byte, error)
+}
+
+// --- Fail-closed --remote (Appendix E.22's verdict rule) -------------
+//
+// Every case below is a real server response shape that used to be
+// rendered "verified" at exit 0. The governing rule is that an
+// unrecognised, absent or ambiguous result must never be scored as
+// passing: E.22's verdict rule ("a proof passes when no step is fail")
+// is only sound when every status is known.
+
+// remoteServer stands up a /proof/verify stub returning the given raw
+// JSON body, and returns the report RunRemote built from it.
+func remoteServer(t *testing.T, body string, proofFile string, opts RemoteOptions) (*Report, error) {
+	t.Helper()
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(200)
+		_, _ = w.Write([]byte(body))
+	}))
+	t.Cleanup(srv.Close)
+	opts.APIURL = srv.URL
+	return RunRemote(proofFile, opts)
+}
+
+func TestRunRemote_UnknownStatusVocabulary_IsNotAPass(t *testing.T) {
+	// The judges' mock: a server whose step vocabulary is "failed" /
+	// "error" rather than "fail". Both used to decode to StatusInfo,
+	// which is verdict-neutral, so the run printed VERIFIED at exit 0
+	// while rendering "Ed25519 signature is INVALID".
+	body := `{"result":{"proof_version":1,"subject_type":"item","passed":false,"steps":[
+	  {"group":"Proof Signature","category":"cryptographic","status":"failed","message":"Ed25519 signature is INVALID"},
+	  {"group":"Inclusion Proof","category":"cryptographic","status":"error","message":"derived root does not match block merkle root"}]}}`
+	report, err := remoteServer(t, body, makeProofFile(t), RemoteOptions{})
+	if err != nil {
+		t.Fatalf("RunRemote: %v", err)
+	}
+	if report.Passed() {
+		t.Fatal("a report whose only statuses are unreadable must not pass")
+	}
+	if report.FailedCount() != 2 {
+		t.Errorf("FailedCount: got %d, want 2", report.FailedCount())
+	}
+	for _, s := range report.Steps {
+		if !contains(s.Message, "cannot be read as having passed") {
+			t.Errorf("step does not disclose why it was graded fail: %q", s.Message)
+		}
+	}
+	if got := computeResult(report); got != "failed" {
+		t.Errorf("result: got %q, want failed", got)
+	}
+}
+
+func TestRunRemote_AbsentStatusKey_IsNotAPass(t *testing.T) {
+	// Step.Status's zero value is StatusPass and Status.UnmarshalJSON is
+	// never invoked for an absent key, so a step reading "Proof
+	// signature invalid (Ed25519)" scored as a pass.
+	body := `{"result":{"proof_version":1,"subject_type":"item","passed":false,"steps":[
+	  {"group":"Proof Signature","category":"cryptographic","message":"Proof signature invalid (Ed25519)"},
+	  {"group":"Block Hash","category":"cryptographic","message":"whatever"}]}}`
+	report, err := remoteServer(t, body, makeProofFile(t), RemoteOptions{})
+	if err != nil {
+		t.Fatalf("RunRemote: %v", err)
+	}
+	if report.Passed() {
+		t.Fatal("a step with no status key must not be scored as a pass")
+	}
+	if report.PassCount() != 0 {
+		t.Errorf("PassCount: got %d, want 0", report.PassCount())
+	}
+}
+
+func TestRunRemote_ServerSaysNotPassedWithNoFailingStep(t *testing.T) {
+	// passed:false with a step list that carries no failure. The
+	// server's own verdict used to be parsed and never read.
+	body := `{"result":{"proof_version":1,"subject_type":"item","passed":false,"steps":[
+	  {"group":"Signing Key","category":"cryptographic","status":"pass","message":"ok"}]}}`
+	report, err := remoteServer(t, body, makeProofFile(t), RemoteOptions{})
+	if err != nil {
+		t.Fatalf("RunRemote: %v", err)
+	}
+	if report.Passed() {
+		t.Fatal("the server reported passed:false; the CLI must not report verified")
+	}
+	found := false
+	for _, s := range report.Steps {
+		if s.Group == groupServerVerdict && s.Status == StatusFail {
+			found = true
+		}
+	}
+	if !found {
+		t.Errorf("no Server Verdict failure row: %+v", report.Steps)
+	}
+}
+
+func TestRunRemote_NoSteps_IsNotAPass(t *testing.T) {
+	body := `{"result":{"proof_version":1,"subject_type":"item","passed":true,"steps":[]}}`
+	report, err := remoteServer(t, body, makeProofFile(t), RemoteOptions{})
+	if err != nil {
+		t.Fatalf("RunRemote: %v", err)
+	}
+	if report.Passed() {
+		t.Fatal("a response carrying no steps establishes nothing and must not read as verified")
+	}
+
+	// And a row the CLI itself appended (here E.7's passing comparison)
+	// must not rescue the empty response.
+	real := "b47cc0f104b62d4c7c30bcd68fd8e67613e287dc4ad8c310ef10cbadea9c4380"
+	report, err = remoteServer(t, body, makeItemProofFileWithHash(t, real),
+		RemoteOptions{ExpectedHash: real})
+	if err != nil {
+		t.Fatalf("RunRemote: %v", err)
+	}
+	if report.Passed() {
+		t.Fatalf("the CLI's own row rescued a response with no server steps: %+v", report.Steps)
+	}
+}
+
+func TestRunRemote_ServerAgreesOnAPass_StaysVerified(t *testing.T) {
+	// The control: a well-formed passing response is still a pass, so
+	// the fail-closed rules above cannot be satisfied by failing
+	// everything.
+	body := `{"result":{"proof_version":1,"subject_type":"item","passed":true,"steps":[
+	  {"group":"Signing Key","category":"cryptographic","status":"pass","message":"ok"},
+	  {"group":"Key Binding","category":"cryptographic","status":"skip","message":"not performed"},
+	  {"group":"Temporal Info","category":"timing","status":"info","message":"timeline"}]}}`
+	report, err := remoteServer(t, body, makeProofFile(t), RemoteOptions{})
+	if err != nil {
+		t.Fatalf("RunRemote: %v", err)
+	}
+	if !report.Passed() {
+		t.Fatalf("a well-formed passing response must still pass: %+v", report.Steps)
+	}
+	if got := computeResult(report); got != "verified" {
+		t.Errorf("result: got %q, want verified", got)
+	}
+}
+
+// --- E.7 in remote mode ---------------------------------------------
+
+// makeItemProofFileWithHash writes an item proof whose s.d carries a
+// file hash, so E.7's comparison has both operands.
+func makeItemProofFileWithHash(t *testing.T, dataHash string) string {
+	t.Helper()
+	p := map[string]any{
+		"v": 1, "t": 20,
+		"pk":  "CTwMqDZnPd/QTLSq8aTeSD3a+j2DQxKcGfhhIYJQ65Y=",
+		"sig": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==",
+		"ts":  "2026-04-06T23:25:06Z",
+		"s": map[string]any{
+			"id":  "01HJHB01T8FYZ7YTR9P5N62K5B",
+			"d":   map[string]any{"name": "test", "hash": dataHash, "hash_type": "sha256"},
+			"mh":  "ccddccddccddccddccddccddccddccddccddccddccddccddccddccddccddccdd",
+			"kid": "4ceefa4a",
+		},
+		"b": map[string]any{
+			"id":  "019cf813-99b8-730a-84f1-5a711a9c355e",
+			"ph":  "1111111111111111111111111111111111111111111111111111111111111111",
+			"mr":  "2222222222222222222222222222222222222222222222222222222222222222",
+			"mh":  "4444444444444444444444444444444444444444444444444444444444444444",
+			"kid": "4ceefa4a",
+		},
+		"ip": "AA",
+		"cx": []any{map[string]any{
+			"t": 40, "net": "testnet",
+			"tx":   "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+			"memo": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+			"l":    1, "ep": "AA",
+		}},
+	}
+	data, err := json.Marshal(p)
+	if err != nil {
+		t.Fatal(err)
+	}
+	path := filepath.Join(t.TempDir(), "proof.json")
+	if err := os.WriteFile(path, data, 0644); err != nil {
+		t.Fatal(err)
+	}
+	return path
+}
+
+const remoteAllPassBody = `{"result":{"proof_version":1,"subject_type":"item","passed":true,"steps":[
+  {"group":"Signing Key","category":"cryptographic","status":"pass","message":"ok"}]}}`
+
+func TestRunRemote_ExpectedHashMismatch_FailsLocally(t *testing.T) {
+	// A server that ignores expected_hash entirely. --hash is the flag
+	// whose whole purpose is "confirm my local file is the timestamped
+	// one"; in remote mode it used to be decorative, and this exact
+	// invocation exits 1 in local mode.
+	real := "b47cc0f104b62d4c7c30bcd68fd8e67613e287dc4ad8c310ef10cbadea9c4380"
+	wrong := "deadbeef00000000000000000000000000000000000000000000000000000000"
+	report, err := remoteServer(t, remoteAllPassBody, makeItemProofFileWithHash(t, real),
+		RemoteOptions{ExpectedHash: wrong})
+	if err != nil {
+		t.Fatalf("RunRemote: %v", err)
+	}
+	if report.Passed() {
+		t.Fatal("a refuted --hash must not exit 0 in remote mode")
+	}
+	if got := computeResult(report); got != "hash_mismatch" {
+		t.Errorf("result: got %q, want hash_mismatch", got)
+	}
+	out := BuildJSONOutput(report)
+	if !out.HashComparison.Supplied || out.HashComparison.Matched {
+		t.Errorf("hash_comparison: %+v", out.HashComparison)
+	}
+	if out.HashComparison.Found != real {
+		t.Errorf("found: got %q, want the bundle's own s.d.hash", out.HashComparison.Found)
+	}
+}
+
+func TestRunRemote_ExpectedHashMatch_IsFullyVerified(t *testing.T) {
+	real := "b47cc0f104b62d4c7c30bcd68fd8e67613e287dc4ad8c310ef10cbadea9c4380"
+	report, err := remoteServer(t, remoteAllPassBody, makeItemProofFileWithHash(t, real),
+		RemoteOptions{ExpectedHash: real})
+	if err != nil {
+		t.Fatalf("RunRemote: %v", err)
+	}
+	if !report.Passed() {
+		t.Fatalf("a matching --hash must still pass: %+v", report.Steps)
+	}
+	if got := computeResult(report); got != "fully_verified" {
+		t.Errorf("result: got %q, want fully_verified", got)
+	}
+}
+
+func TestRunRemote_ServerHashMatchedDisagreement_Fails(t *testing.T) {
+	// The server echoes hash_provided and claims hash_matched:true over
+	// a hash this process can see does not match the bundle it posted.
+	real := "b47cc0f104b62d4c7c30bcd68fd8e67613e287dc4ad8c310ef10cbadea9c4380"
+	wrong := "deadbeef00000000000000000000000000000000000000000000000000000000"
+	body := `{"result":{"proof_version":1,"subject_type":"item","passed":true,
+	  "hash_provided":"` + wrong + `","hash_matched":true,"steps":[
+	  {"group":"Hash Comparison","category":"data_integrity","status":"pass","message":"Provided hash matches subject data hash"}]}}`
+	report, err := remoteServer(t, body, makeItemProofFileWithHash(t, real),
+		RemoteOptions{ExpectedHash: wrong})
+	if err != nil {
+		t.Fatalf("RunRemote: %v", err)
+	}
+	if report.Passed() {
+		t.Fatal("a server-asserted match this verifier refutes must not pass")
+	}
+	if report.HashMatched() {
+		t.Error("HashMatched must be false when the group carries a failure")
+	}
+	sawDisagreement := false
+	for _, s := range report.Steps {
+		if contains(s.Message, "Expected-hash disagreement") {
+			sawDisagreement = true
+		}
+	}
+	if !sawDisagreement {
+		t.Errorf("the server's hash_matched echo was not reconciled: %+v", report.Steps)
+	}
+}
+
+func TestRunRemote_ExpectedHashOnNonItem_SkipsButRecordsSupplied(t *testing.T) {
+	// E.7 REQUIRES the inapplicability skip, and E.22 requires "one was
+	// supplied" to stay readable separately from "it matched".
+	body := `{"result":{"proof_version":1,"subject_type":"entropy_nist","passed":true,"steps":[
+	  {"group":"Signing Key","category":"cryptographic","status":"pass","message":"ok"}]}}`
+	report, err := remoteServer(t, body, makeEntropyProofFile(t),
+		RemoteOptions{ExpectedHash: "deadbeef"})
+	if err != nil {
+		t.Fatalf("RunRemote: %v", err)
+	}
+	if !report.Passed() {
+		t.Fatalf("--hash on a non-item subject must never fail the proof: %+v", report.Steps)
+	}
+	out := BuildJSONOutput(report)
+	if !out.HashComparison.Supplied {
+		t.Error("hash_comparison.supplied must be true when --hash was supplied")
+	}
+	sawSkip := false
+	for _, s := range report.Steps {
+		if s.Group == groupHashComparison && s.Status == StatusSkip {
+			sawSkip = true
+		}
+	}
+	if !sawSkip {
+		t.Errorf("no Hash Comparison skip row: %+v", report.Steps)
+	}
+}
+
+// --- --type in remote mode ------------------------------------------
+
+func TestRunRemote_TypeMismatch_ProducesAReportNotABareError(t *testing.T) {
+	var posted map[string]any
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var payload struct {
+			Data map[string]any `json:"data"`
+		}
+		_ = json.NewDecoder(r.Body).Decode(&payload)
+		posted = payload.Data
+		w.WriteHeader(200)
+		_, _ = w.Write([]byte(remoteAllPassBody))
+	}))
+	defer srv.Close()
+
+	report, err := RunRemote(makeProofFile(t), RemoteOptions{
+		APIURL:              srv.URL,
+		ExpectedSubjectType: "beacon", // the fixture is t=20
+	})
+	if err != nil {
+		t.Fatalf("a --type mismatch must produce a report, not an error: %v", err)
+	}
+	if report.Passed() {
+		t.Fatal("a --type mismatch must fail the run")
+	}
+	sawSubjectType := false
+	for _, s := range report.Steps {
+		if s.Group == groupSubjectType && s.Status == StatusFail {
+			sawSubjectType = true
+			if !contains(s.Message, "--type beacon was requested") {
+				t.Errorf("message: %q", s.Message)
+			}
+		}
+	}
+	if !sawSubjectType {
+		t.Errorf("no Subject Type failure row: %+v", report.Steps)
+	}
+	// The rest of the report must still be there — that is the whole
+	// point of grading the assertion instead of aborting on a 422.
+	if len(report.Steps) < 2 {
+		t.Errorf("the server's own steps were dropped: %+v", report.Steps)
+	}
+	if _, ok := posted["type"]; ok {
+		t.Errorf("a mismatching type must not be forwarded (the server would 4xx and no report would come back): %v", posted)
+	}
+}
+
+func TestRunRemote_TypeMatch_IsForwarded(t *testing.T) {
+	var posted map[string]any
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var payload struct {
+			Data map[string]any `json:"data"`
+		}
+		_ = json.NewDecoder(r.Body).Decode(&payload)
+		posted = payload.Data
+		w.WriteHeader(200)
+		_, _ = w.Write([]byte(remoteAllPassBody))
+	}))
+	defer srv.Close()
+
+	report, err := RunRemote(makeProofFile(t), RemoteOptions{
+		APIURL:              srv.URL,
+		ExpectedSubjectType: "item",
+	})
+	if err != nil {
+		t.Fatalf("RunRemote: %v", err)
+	}
+	if !report.Passed() {
+		t.Fatalf("a matching --type must not fail: %+v", report.Steps)
+	}
+	if got := posted["type"]; got != "item" {
+		t.Errorf("a matching type must still be forwarded for the server to re-check: %v", posted)
+	}
+}
+
+// --- E.9 key attribution --------------------------------------------
+
+func TestRunRemote_SigningKeyIsDerivedFromPk(t *testing.T) {
+	// A rotated bundle: b.kid is 11223344 while the key id DERIVED from
+	// pk is 4ceefa4a. E.9 blesses that divergence and E.16 signs with
+	// the derived id, so the report must name the derived one as the
+	// signer and keep b.kid for the places that describe the block.
+	// Reading b.kid for both made a rotated proof print "Public key
+	// valid, key_id: 4ceefa4a" next to "signed with key 11223344".
+	path := makeItemProofFileWithHash(t, "b47cc0f104b62d4c7c30bcd68fd8e67613e287dc4ad8c310ef10cbadea9c4380")
+	raw, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var doc map[string]any
+	if err := json.Unmarshal(raw, &doc); err != nil {
+		t.Fatal(err)
+	}
+	doc["b"].(map[string]any)["kid"] = "11223344"
+	rotated, err := json.Marshal(doc)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(path, rotated, 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	report, err := remoteServer(t, remoteAllPassBody, path, RemoteOptions{})
+	if err != nil {
+		t.Fatalf("RunRemote: %v", err)
+	}
+	if report.SigningKeyID != "4ceefa4a" {
+		t.Errorf("SigningKeyID: got %q, want the pk-derived 4ceefa4a", report.SigningKeyID)
+	}
+	if report.BlockSigningKeyID != "11223344" {
+		t.Errorf("BlockSigningKeyID: got %q, want the bundle's b.kid 11223344", report.BlockSigningKeyID)
+	}
+}
+
+func TestRunRemote_ServerClaimsMatchOverASkip_Fails(t *testing.T) {
+	// E.7 REQUIRES an inapplicability skip for a non-item subject, so
+	// this process established nothing about the caller's file. A server
+	// that nonetheless asserts a match is claiming something no
+	// comparison here supports, and must not be published as verified.
+	body := `{"result":{"proof_version":1,"subject_type":"entropy_nist","passed":true,
+	  "hash_provided":"deadbeef","hash_matched":true,"steps":[
+	  {"group":"Hash Comparison","category":"data_integrity","status":"pass","message":"Provided hash matches subject data hash"}]}}`
+	report, err := remoteServer(t, body, makeEntropyProofFile(t), RemoteOptions{ExpectedHash: "deadbeef"})
+	if err != nil {
+		t.Fatalf("RunRemote: %v", err)
+	}
+	if report.Passed() {
+		t.Fatalf("a server-asserted match over an E.7 skip must not pass: %+v", report.Steps)
+	}
+	if report.HashMatched() {
+		t.Error("HashMatched must be false when this verifier made no comparison")
+	}
+}
+
+func TestRunRemote_ServerVerdictSurvivesACLIRaisedFailure(t *testing.T) {
+	// passed:false with an all-passing step list, alongside a --hash the
+	// CLI refutes. Deriving "did the server report a failure" from the
+	// CLI's own view of the report let the server's verdict vanish, and
+	// the run rendered "HASH MISMATCH - proof is valid" over a proof the
+	// server had reported as not verified.
+	real := "b47cc0f104b62d4c7c30bcd68fd8e67613e287dc4ad8c310ef10cbadea9c4380"
+	wrong := "deadbeef00000000000000000000000000000000000000000000000000000000"
+	body := `{"result":{"proof_version":1,"subject_type":"item","passed":false,"steps":[
+	  {"group":"Signing Key","category":"cryptographic","status":"pass","message":"ok"}]}}`
+	report, err := remoteServer(t, body, makeItemProofFileWithHash(t, real),
+		RemoteOptions{ExpectedHash: wrong})
+	if err != nil {
+		t.Fatalf("RunRemote: %v", err)
+	}
+	if report.ProofPassed() {
+		t.Errorf("the server's passed:false was dropped, so the proof reads as sound: %+v", report.Steps)
+	}
+	if got := computeResult(report); got != "failed" {
+		t.Errorf("result: got %q, want failed", got)
+	}
+}
+
+// TestRunRemote_ServerHashNotMatchedDisagreement_Fails is the converse of
+// TestRunRemote_ServerHashMatchedDisagreement_Fails, and the arm that had
+// no test at all: the server echoes the expected hash and reports it as
+// NOT matching, while this process's own comparison against the bundle it
+// posted says it does match.
+//
+// One of the two verifiers is wrong about the caller's data either way,
+// and E.22 forbids publishing that as verified. Downgrading this single
+// `r.fail` to a skip left the whole suite green, so a server able to
+// answer hash_matched:false could quietly neutralise --hash in the one
+// direction the CLI's local comparison cannot arbitrate on its own.
+func TestRunRemote_ServerHashNotMatchedDisagreement_Fails(t *testing.T) {
+	real := "b47cc0f104b62d4c7c30bcd68fd8e67613e287dc4ad8c310ef10cbadea9c4380"
+	body := `{"result":{"proof_version":1,"subject_type":"item","passed":true,
+	  "hash_provided":"` + real + `","hash_matched":false,"steps":[
+	  {"group":"Proof Signature","category":"cryptographic","status":"pass","message":"Proof signature valid (Ed25519)"}]}}`
+
+	report, err := remoteServer(t, body, makeItemProofFileWithHash(t, real),
+		RemoteOptions{ExpectedHash: real})
+	if err != nil {
+		t.Fatalf("RunRemote: %v", err)
+	}
+	if report.Passed() {
+		t.Fatalf("a server-asserted mismatch this verifier contradicts must not pass: %+v", report.Steps)
+	}
+	if report.HashMatched() {
+		t.Error("HashMatched must be false when the group carries a failure")
+	}
+	var sawDisagreement bool
+	for _, s := range report.Steps {
+		if s.Group != groupHashComparison || s.Status != StatusFail {
+			continue
+		}
+		if contains(s.Message, "Expected-hash disagreement") && contains(s.Message, "NOT matching") {
+			sawDisagreement = true
+		}
+	}
+	if !sawDisagreement {
+		t.Errorf("the server's hash_matched:false echo was not reconciled: %+v", report.Steps)
+	}
+}
+
+// makeClaimsOnlyItemProofFile writes a t=20 bundle whose `s.d` carries no
+// `hash` — the claims-as-source-of-truth mode, where the claims content
+// itself is what was timestamped and there is no file hash on the proof
+// side to compare a caller's argument against.
+func makeClaimsOnlyItemProofFile(t *testing.T) string {
+	t.Helper()
+	p := map[string]any{
+		"v": 1, "t": 20,
+		"pk":  "CTwMqDZnPd/QTLSq8aTeSD3a+j2DQxKcGfhhIYJQ65Y=",
+		"sig": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==",
+		"ts":  "2026-04-06T23:25:06Z",
+		"s": map[string]any{
+			"id":  "01HJHB01T8FYZ7YTR9P5N62K5B",
+			"d":   map[string]any{"name": "test", "description": "no external file was hashed"},
+			"mh":  "ccddccddccddccddccddccddccddccddccddccddccddccddccddccddccddccdd",
+			"kid": "4ceefa4a",
+		},
+		"b": map[string]any{
+			"id":  "019cf813-99b8-730a-84f1-5a711a9c355e",
+			"ph":  "1111111111111111111111111111111111111111111111111111111111111111",
+			"mr":  "2222222222222222222222222222222222222222222222222222222222222222",
+			"mh":  "4444444444444444444444444444444444444444444444444444444444444444",
+			"kid": "4ceefa4a",
+		},
+		"ip": "AA",
+		"cx": []any{map[string]any{
+			"t": 40, "net": "testnet",
+			"tx":   "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+			"memo": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+			"l":    1, "ep": "AA",
+		}},
+	}
+	data, err := json.Marshal(p)
+	if err != nil {
+		t.Fatal(err)
+	}
+	path := filepath.Join(t.TempDir(), "claims-only.json")
+	if err := os.WriteFile(path, data, 0644); err != nil {
+		t.Fatal(err)
+	}
+	return path
+}
+
+// TestRunRemote_ExpectedHashOnClaimsOnlyItem_SkipsNotPasses pins the
+// remote half of E.7's claims-only branch, which no test reached:
+// promoting that skip to a pass publishes "Provided hash matches
+// claims.hash" for a bundle that carries no claims.hash at all, which is
+// the E.22 defect in its purest form — a positive assertion about a
+// comparison whose second operand does not exist.
+//
+// The local pipeline's equivalent is
+// TestHashComparison_ClaimsOnlyItem_SkipsAndKeepsTheNote; remote mode
+// re-implements the branch, so it needs its own guard.
+func TestRunRemote_ExpectedHashOnClaimsOnlyItem_SkipsNotPasses(t *testing.T) {
+	report, err := remoteServer(t, remoteAllPassBody, makeClaimsOnlyItemProofFile(t),
+		RemoteOptions{ExpectedHash: "deadbeef00000000000000000000000000000000000000000000000000000000"})
+	if err != nil {
+		t.Fatalf("RunRemote: %v", err)
+	}
+
+	var row *Step
+	for i := range report.Steps {
+		if report.Steps[i].Group == groupHashComparison {
+			if row != nil {
+				t.Fatalf("expected exactly one Hash Comparison row: %+v", report.Steps)
+			}
+			row = &report.Steps[i]
+		}
+	}
+	if row == nil {
+		t.Fatalf("no Hash Comparison row at all: %+v", report.Steps)
+	}
+	if row.Status != StatusSkip {
+		t.Errorf("status: got %v, want skip — %s", row.Status, row.Message)
+	}
+	if !contains(row.Message, "carries no s.d.hash") {
+		t.Errorf("message does not name the reason: %q", row.Message)
+	}
+	// E.22: the caller supplied a hash, and that must stay readable
+	// separately from whether it matched.
+	out := BuildJSONOutput(report)
+	if !out.HashComparison.Supplied {
+		t.Error("hash_comparison.supplied: got false, want true — a hash WAS supplied")
+	}
+	if out.HashComparison.Matched {
+		t.Error("hash_comparison.matched: got true, but nothing was compared")
+	}
 }

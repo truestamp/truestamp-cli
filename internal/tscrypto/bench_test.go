@@ -5,6 +5,7 @@ package tscrypto
 
 import (
 	"bytes"
+	"strings"
 	"testing"
 )
 
@@ -76,12 +77,34 @@ func BenchmarkComputeKeyID(b *testing.B) {
 	}
 }
 
-// BenchmarkLenPrefix exercises the 4-byte length-prefix helper used
-// when serializing hash inputs.
-func BenchmarkLenPrefix(b *testing.B) {
-	data := bytes.Repeat([]byte{0xaa}, 64)
+// BenchmarkHexEqualEarlyDiff and BenchmarkHexEqualLateDiff document the
+// constant-time property of HexEqual on realistic 64-char digest operands:
+// the two should report the same ns/op regardless of WHERE the operands
+// diverge. They are documentation, not a gate — timing is not reliably
+// assertable in CI, so nothing asserts on the ratio.
+func BenchmarkHexEqualEarlyDiff(b *testing.B) {
+	base := strings.Repeat("a", 64)
+	other := "b" + base[1:]
 	b.ReportAllocs()
 	for i := 0; i < b.N; i++ {
-		_ = LenPrefix(data)
+		_ = HexEqual(base, other)
+	}
+}
+
+func BenchmarkHexEqualLateDiff(b *testing.B) {
+	base := strings.Repeat("a", 64)
+	other := base[:63] + "b"
+	b.ReportAllocs()
+	for i := 0; i < b.N; i++ {
+		_ = HexEqual(base, other)
+	}
+}
+
+func BenchmarkHexEqualMatch(b *testing.B) {
+	base := strings.Repeat("a", 64)
+	other := strings.Repeat("a", 64)
+	b.ReportAllocs()
+	for i := 0; i < b.N; i++ {
+		_ = HexEqual(base, other)
 	}
 }

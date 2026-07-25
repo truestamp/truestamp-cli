@@ -10,6 +10,7 @@ import (
 	"errors"
 	"fmt"
 	"net"
+	"net/url"
 	"strings"
 
 	"github.com/truestamp/truestamp-cli/internal/httpclient"
@@ -19,6 +20,19 @@ import (
 type KeyringResponse struct {
 	Version string       `json:"version"`
 	Keys    []KeyringKey `json:"keys"`
+}
+
+// keyringDocument mirrors [KeyringResponse] with `keys` behind a pointer
+// so an absent list is distinguishable from an empty one. Decoding
+// straight into KeyringResponse cannot tell them apart: `{}`, `null`,
+// `{"version":"1"}` and every other JSON object unmarshal without error
+// and leave Keys nil, which reads identically to a keyring that
+// published zero keys. Those are opposite facts — nothing was published
+// versus Truestamp published nothing that vouches for this key — and
+// only the second may fail a proof (E.22).
+type keyringDocument struct {
+	Version string        `json:"version"`
+	Keys    *[]KeyringKey `json:"keys"`
 }
 
 // KeyringKey is a single entry in the keyring.
@@ -32,7 +46,9 @@ type KeyringKey struct {
 // keyringNetError wraps a raw network error with a friendlier message.
 // Error() returns the friendly text; Unwrap() returns the underlying
 // error so callers can errors.Is/errors.As against the original type
-// (net.DNSError, net.OpError, context.DeadlineExceeded, etc.).
+// (net.DNSError, net.OpError, context.DeadlineExceeded, etc.) and so
+// [Classify] can still see the httpclient status/transport typing
+// underneath the friendly text.
 type keyringNetError struct {
 	friendly string
 	inner    error
@@ -83,18 +99,23 @@ func isTimeoutError(err error) bool {
 	return false
 }
 
-// compactError strips verbose URL wrapper text from Go HTTP errors.
+// compactError strips the verbose `Get "<url>": ` wrapper Go's HTTP
+// client adds, so the message a user sees is just the underlying cause.
+//
+// A *StatusError is returned verbatim: its "HTTP <code>" prefix is the
+// most useful part of the message, and splitting on the last ": " (what
+// this did before) silently discarded it, leaving the user with a bare
+// response body and no status.
 func compactError(err error) string {
-	s := err.Error()
-	// Go wraps net errors as: Get "url": <underlying>
-	// Strip the method + URL prefix to keep the message short.
-	if idx := strings.LastIndex(s, ": "); idx != -1 {
-		inner := s[idx+2:]
-		if len(inner) > 0 {
-			return inner
-		}
+	var statusErr *httpclient.StatusError
+	if errors.As(err, &statusErr) {
+		return statusErr.Error()
 	}
-	return s
+	var urlErr *url.Error
+	if errors.As(err, &urlErr) && urlErr.Err != nil {
+		return urlErr.Err.Error()
+	}
+	return err.Error()
 }
 
 // VerifyKeyring checks that all signing keys in the proof match the published keyring.
@@ -109,40 +130,54 @@ func compactError(err error) string {
 //     hijack, a rogue CA, or a compromised certificate — can substitute
 //     signing keys and every downstream signature will validate against
 //     their key).
-//   - Configure --keyring-url (or the TRUESTAMP_KEYRING_URL env var, or
-//     the keyring_url setting in config.toml) from a source you trust —
-//     e.g. official Truestamp docs — not from a bundle authored by the
-//     same party whose proof you are verifying.
+//   - The keyring URL is derived from --base-url (or TRUESTAMP_BASE_URL,
+//     or base_url in config.toml); set that origin from a source you
+//     trust — e.g. official Truestamp docs — not from a bundle authored
+//     by the same party whose proof you are verifying.
 //   - The CLI enforces TLS chain validation (InsecureSkipVerify is never
 //     set) and does not follow cross-host redirects that strip TLS.
 //
 // A future revision may add pinning of the keyring payload's hash or a
 // cosign/Sigstore signature over the keyring document itself. Until
-// then, treat keyring-url as a root of trust that deserves the same
-// care as a CA root.
+// then, treat the configured base URL as a root of trust that deserves
+// the same care as a CA root.
 func VerifyKeyring(signingKeys map[string]string, keyringURL string) error {
 	resp, err := httpclient.GetJSON(keyringURL)
 	if err != nil {
 		return &keyringNetError{friendly: classifyNetworkError(err), inner: err}
 	}
 
-	var keyring KeyringResponse
-	if err := json.Unmarshal(resp, &keyring); err != nil {
-		return fmt.Errorf("parsing keyring: %w", err)
+	var doc keyringDocument
+	if err := json.Unmarshal(resp, &doc); err != nil {
+		return &MalformedResponseError{Source: "keyring", Detail: "response is not a JSON keyring document", Err: err}
 	}
 
-	keyringMap := make(map[string]string, len(keyring.Keys))
-	for _, k := range keyring.Keys {
+	// E.17 gives this step exactly one job: report whether the published
+	// keyring vouches for the key. A 200 that is not a keyring at all —
+	// a captive portal, a CDN stub, an API gateway, a misconfigured
+	// origin — answers that question not at all, and falling through to
+	// the loop below would manufacture "not found in keyring" (a chain
+	// disagreement that fails a sound proof) out of a document that
+	// never had a keys list. E.22: an answer this client cannot read
+	// establishes nothing, so it must skip. The reference verifier
+	// gates the same way (`{:ok, %{"keys" => keys}} when is_list(keys)`).
+	if doc.Keys == nil {
+		return &MalformedResponseError{Source: "keyring", Detail: `response carries no "keys" list`}
+	}
+
+	keys := *doc.Keys
+	keyringMap := make(map[string]string, len(keys))
+	for _, k := range keys {
 		keyringMap[k.KeyID] = k.PublicKey
 	}
 
 	for keyID, pubkeyB64 := range signingKeys {
 		published, ok := keyringMap[keyID]
 		if !ok {
-			return fmt.Errorf("key %s not found in keyring", keyID)
+			return &KeyBindingError{KeyID: keyID, Reason: "not found in keyring"}
 		}
 		if published != pubkeyB64 {
-			return fmt.Errorf("key %s public key mismatch with keyring", keyID)
+			return &KeyBindingError{KeyID: keyID, Reason: "public key mismatch with keyring"}
 		}
 	}
 

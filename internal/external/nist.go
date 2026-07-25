@@ -40,12 +40,14 @@ type pulseEnvelope struct {
 // federal shutdowns the beacon may stop publishing new pulses and repeat
 // the last pulse indefinitely. Callers that care about freshness should
 // apply their own staleness policy on top of this fetch.
+// Errors are typed for [Classify] so the caller can tell an unusable
+// bundle field from an unreachable beacon.
 func GetNISTPulse(chainIndex, pulseIndex int) (*NISTPulse, error) {
 	if chainIndex < 0 {
-		return nil, fmt.Errorf("invalid chainIndex: %d", chainIndex)
+		return nil, &BadInputError{Field: "chainIndex", Detail: fmt.Sprintf("%d is not a valid chain index", chainIndex)}
 	}
 	if pulseIndex < 0 {
-		return nil, fmt.Errorf("invalid pulseIndex: %d", pulseIndex)
+		return nil, &BadInputError{Field: "pulseIndex", Detail: fmt.Sprintf("%d is not a valid pulse index", pulseIndex)}
 	}
 	url := fmt.Sprintf("%s/chain/%d/pulse/%d", NISTBeaconURL, chainIndex, pulseIndex)
 	body, err := httpclient.GetJSON(url)
@@ -54,10 +56,23 @@ func GetNISTPulse(chainIndex, pulseIndex int) (*NISTPulse, error) {
 	}
 	var env pulseEnvelope
 	if err := json.Unmarshal(body, &env); err != nil {
-		return nil, fmt.Errorf("parsing NIST pulse response: %w", err)
+		return nil, &MalformedResponseError{Source: "NIST Beacon", Detail: "pulse response is not valid JSON", Err: err}
 	}
 	if env.Pulse.OutputValue == "" {
-		return nil, fmt.Errorf("NIST response missing pulse.outputValue")
+		return nil, &MalformedResponseError{Source: "NIST Beacon", Detail: "pulse response carries no outputValue"}
+	}
+	// The caller byte-compares outputValue and timeStamp against the
+	// entropy subject (E.21), so an answer about a different pulse would
+	// be reported as a value mismatch and fail a sound proof. The beacon
+	// echoes both indices in every pulse; a disagreement means the
+	// response is not about the pulse that was requested, which is an
+	// upstream property and must skip, never fail.
+	if env.Pulse.ChainIndex != chainIndex || env.Pulse.PulseIndex != pulseIndex {
+		return nil, &MalformedResponseError{
+			Source: "NIST Beacon",
+			Detail: fmt.Sprintf("pulse response describes chain %d pulse %d, not the requested chain %d pulse %d",
+				env.Pulse.ChainIndex, env.Pulse.PulseIndex, chainIndex, pulseIndex),
+		}
 	}
 	return &env.Pulse, nil
 }
