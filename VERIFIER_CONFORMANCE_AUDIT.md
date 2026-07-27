@@ -1933,9 +1933,18 @@ remediated. Most were pre-existing rather than caused by the conformance work: t
    availability grading through the shipped pipeline by substituting five base-URL constants at link
    time, so a typo in a real Horizon / Blockstream / NIST hostname would not be caught. A live-network
    test would cover it at the cost of making `go test` internet-dependent.
-4. **No committed entropy fixture.** Subject types `t ∈ {30,31,32}` have no end-to-end artifact in
-   this repo, so the Entropy Source step is exercised only by unit tests and synthetic bundles. A
-   signed fixture requires a private key.
+4. ~~**No committed entropy fixture.**~~ **CLOSED.** `internal/verify/testdata/fixtures/`
+   now carries a signed bundle for each of `t ∈ {30,31,32}`, and the Entropy Source step is
+   exercised end to end with the signature check enabled.
+
+   The blocker recorded here, that a signed fixture requires a private key, was wrong. Appendix D's
+   own vector is signed with a **fixed, published illustrative** Ed25519 seed
+   (`whitepaper/proof_vectors.exs`), not a production key, so an independent Elixir generator can
+   sign entropy bundles the same way. `testdata/fixtures/gen_entropy_fixtures.exs` does exactly
+   that, and the fixtures are derived by Elixir and verified by Go, so a passing fixture cannot
+   merely encode a Go bug. E.17 remains unestablished for them, correctly: the illustrative key is
+   not in Truestamp's keyring, which
+   `TestEntropyFixture_IllustrativeKeyIsNotBound` pins against a stub keyring that answers.
 5. **CLAUDE.md documentation drift beyond this effort's scope.** The Global Flags table and pipeline
    recipes still describe `--api-url` and `--keyring-url`, which cobra now rejects outright; line 131
    of the same file contradicts them. Wants a `/docs-audit` pass.
