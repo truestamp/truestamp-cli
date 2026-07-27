@@ -1003,3 +1003,84 @@ func TestCLI_Create_TrailingDataRejected(t *testing.T) {
 		t.Errorf("expected a parse error for trailing data, got: %s", out)
 	}
 }
+
+// --- NoOptDefVal space-form guard -------------------------------------
+//
+// `--claims`, `--file` and their shorthands carry a pflag NoOptDefVal, so
+// `--claims doc.json` does NOT bind doc.json to the flag: the flag takes
+// its picker sentinel and doc.json is left as a positional argument.
+// Untrapped that opens the interactive picker and discards the path,
+// which hangs a script and misleads a human. These pin the targeted error
+// instead, and pin that the legitimate spellings still work.
+
+func TestCLI_Create_SpaceSeparatedPathIsRejected(t *testing.T) {
+	dir := t.TempDir()
+	claims := filepath.Join(dir, "claims.json")
+	if err := os.WriteFile(claims, []byte(`{"name":"T","description":"a description that is definitely longer than thirty two chars"}`), 0600); err != nil {
+		t.Fatal(err)
+	}
+	doc := filepath.Join(dir, "doc.txt")
+	if err := os.WriteFile(doc, []byte("hello"), 0600); err != nil {
+		t.Fatal(err)
+	}
+
+	cases := []struct {
+		name string
+		args []string
+		want string
+	}{
+		{"long claims", []string{"create", "--claims", claims}, "--claims=" + claims},
+		{"short claims", []string{"create", "-c", claims}, "--claims=" + claims},
+		{"long file", []string{"create", "--file", doc}, "--file=" + doc},
+		{"short file", []string{"create", "-f", doc}, "--file=" + doc},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			cmd := exec.Command(binaryPath, append(tc.args, "--api-key", "fake", "--base-url", "http://127.0.0.1:9")...)
+			out, err := cmd.CombinedOutput()
+			if err == nil {
+				t.Fatalf("expected a non-zero exit, got success: %s", out)
+			}
+			// The suggestion must name the exact working spelling, so the
+			// user can copy it rather than infer the rule.
+			if !containsString(string(out), tc.want) {
+				t.Errorf("error should suggest %q, got: %s", tc.want, out)
+			}
+			// It must never have reached the picker.
+			if containsString(string(out), "file selection") || containsString(string(out), "TTY") {
+				t.Errorf("the picker was opened instead of erroring: %s", out)
+			}
+		})
+	}
+}
+
+func TestCLI_Create_EqualsFormAndPositionalStillWork(t *testing.T) {
+	dir := t.TempDir()
+	claims := filepath.Join(dir, "claims.json")
+	if err := os.WriteFile(claims, []byte(`{"name":"T","description":"a description that is definitely longer than thirty two chars"}`), 0600); err != nil {
+		t.Fatal(err)
+	}
+	doc := filepath.Join(dir, "doc.txt")
+	if err := os.WriteFile(doc, []byte("hello"), 0600); err != nil {
+		t.Fatal(err)
+	}
+
+	// Each of these must get past input resolution and fail at the network
+	// instead, proving the guard did not swallow a legitimate spelling.
+	cases := [][]string{
+		{"create", doc},
+		{"create", doc, "-n", "Q1", "-v", "public"},
+		{"create", "--file=" + doc},
+		{"create", "--claims=" + claims},
+		{"create", "-c=" + claims},
+	}
+	for _, args := range cases {
+		t.Run(args[1], func(t *testing.T) {
+			cmd := exec.Command(binaryPath, append(args, "--api-key", "fake", "--base-url", "http://127.0.0.1:9")...)
+			out, _ := cmd.CombinedOutput()
+			if !containsString(string(out), "API request failed") {
+				t.Errorf("expected to reach the API, got: %s", out)
+			}
+		})
+	}
+}
