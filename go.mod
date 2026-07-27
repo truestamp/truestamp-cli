@@ -9,7 +9,7 @@ require (
 	charm.land/lipgloss/v2 v2.0.5
 	github.com/btcsuite/btcd/chainhash/v2 v2.0.0
 	github.com/btcsuite/btcd/txscript/v2 v2.0.0
-	github.com/btcsuite/btcd/wire/v2 v2.0.0
+	github.com/btcsuite/btcd/wire/v2 v2.0.1
 	github.com/catppuccin/go v0.3.0
 	github.com/charmbracelet/colorprofile v0.4.3
 	github.com/cli/browser v1.3.0
@@ -23,7 +23,7 @@ require (
 	github.com/knadh/koanf/providers/file v1.2.1
 	github.com/knadh/koanf/providers/posflag v1.0.1
 	github.com/knadh/koanf/v2 v2.3.5
-	github.com/oklog/ulid/v2 v2.1.1
+	github.com/oklog/ulid/v2 v2.1.2
 	github.com/spf13/cobra v1.10.2
 	github.com/spf13/pflag v1.0.10
 	github.com/zalando/go-keyring v0.2.8
