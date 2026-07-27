@@ -27,6 +27,10 @@ Install (macOS or Linux; amd64 or arm64):
 
     curl -fsSL https://get.truestamp.com/install.sh | sh
 
+    Installs to /usr/local/bin when that directory exists and is
+    writable, otherwise to ~/.local/bin. The installer refuses to run
+    as root, so do not pipe it into sudo.
+
 Pin a specific version:
 
     curl -fsSL https://get.truestamp.com/install.sh | TRUESTAMP_VERSION=vX.Y.Z sh
@@ -34,6 +38,10 @@ Pin a specific version:
 Install to a custom directory:
 
     curl -fsSL https://get.truestamp.com/install.sh | TRUESTAMP_INSTALL_DIR=~/bin sh
+
+All installer options:
+
+    curl -fsSL https://get.truestamp.com/install.sh | sh -s -- --help
 
 Upgrade:
 
@@ -43,7 +51,8 @@ Upgrade:
     install.sh / manual installs it downloads the latest release,
     verifies SHA-256 (and cosign if present), and atomically replaces
     the binary in place. For Homebrew / `go install` it prints the
-    right `brew upgrade` / `go install @latest` command to run.
+    matching `brew upgrade --cask` / `go install ...@latest` command
+    to run. On Windows it always prints the `go install` command.
 
     `truestamp upgrade --check` exits 0 up-to-date, 1 if an upgrade is
     available, 2 on network error, 3 if the latest release is a
@@ -58,10 +67,11 @@ Upgrade:
 
 Signature verification (macOS and Linux):
 
-    install.sh verifies the SHA-256 checksum of every download. If
-    <a href="https://github.com/sigstore/cosign">cosign</a> is on your PATH, it will additionally verify the cosign
-    signature of the checksums file (keyless, via Sigstore). When cosign
-    is not installed this step is skipped silently.
+    install.sh verifies the SHA-256 of the downloaded release archive
+    against the checksums.txt published with the release. If
+    <a href="https://github.com/sigstore/cosign">cosign</a> is on your PATH, it additionally verifies the keyless
+    Sigstore signature over checksums.txt itself. When cosign is not
+    installed this step is skipped silently.
 
     Install cosign:
 
@@ -74,8 +84,15 @@ Signature verification (macOS and Linux):
 
 Other install channels:
 
-    Homebrew    brew install truestamp/tap/truestamp-cli
+    Homebrew    brew install --cask truestamp/tap/truestamp-cli   (macOS)
     Go install  go install github.com/truestamp/truestamp-cli/cmd/truestamp@latest
+    Windows     go install (above), or download the .zip from Releases
+
+    The Homebrew cask is not yet signed with an Apple Developer ID, so
+    macOS Gatekeeper blocks the first run. Clear the quarantine flag
+    once per install or upgrade (install.sh does this for you):
+
+        xattr -cr "$(brew --caskroom)/truestamp-cli"
 
 
 Source      <a href="https://github.com/truestamp/truestamp-cli">github.com/truestamp/truestamp-cli</a>
@@ -84,7 +101,7 @@ Script      <a href="https://get.truestamp.com/install.sh">get.truestamp.com/ins
 License     MIT
 
 
-Copyright (c) 2021-2026 Truestamp, Inc. All rights reserved.
+Copyright (c) 2019-2026 Truestamp, Inc. All rights reserved.
 </pre>
 </body>
 </html>

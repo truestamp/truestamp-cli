@@ -48,8 +48,8 @@ func TestCopyright_ContainsCompanyName(t *testing.T) {
 
 func TestCopyright_ContainsStartYear(t *testing.T) {
 	result := Copyright()
-	if !strings.Contains(result, "2021-") {
-		t.Errorf("Copyright() should contain start year 2021, got %q", result)
+	if !strings.Contains(result, "2019-") {
+		t.Errorf("Copyright() should contain start year 2019, got %q", result)
 	}
 }
 
