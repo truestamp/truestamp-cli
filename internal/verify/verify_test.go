@@ -3792,16 +3792,21 @@ func upperFirstHexByte(t *testing.T, s string) string {
 	return ""
 }
 
-// TestAppendixD_UppercaseHexFieldsAreRejected covers every hash-valued wire
-// field named in Appendix E.4's encoding rule, one bundle per field.
+// TestAppendixD_UppercaseHexFieldsAreRejected covers all ten hex fields
+// Appendix E.4 enumerates, one bundle per field, and asserts the three
+// things the amended appendix makes MUSTs: the run is graded rather than
+// aborted, the failure carries E.23's `invalid_hex_encoding` identifier,
+// and it names the offending wire field.
 //
 // Before this enforcement all ten verified at exit 0, which meant two
 // things. Byte-distinct spellings of the same bundle — at least 2^10 of
 // them for the Appendix D vector — all verified under a single signature.
 // And the CLI disagreed with the normative reference verifier, whose
-// Base.decode16lower!/1 aborts on eight of these ten (it never reads tx),
+// Base.decode16lower!/1 aborted on eight of these ten (it never reads tx),
 // so "verified here, rejected there" was a live interoperability break on
-// the one bundle E.25 asks a new verifier to self-certify against.
+// the one bundle E.25 asks a new verifier to self-certify against. That
+// asymmetry is now closed from both sides: truestamp-v2 commit 4b1beaff0d
+// made all three of its verifiers grade the same ten fields.
 func TestAppendixD_UppercaseHexFieldsAreRejected(t *testing.T) {
 	raw := readFileT(t, appendixDFixture(t))
 
@@ -3811,47 +3816,64 @@ func TestAppendixD_UppercaseHexFieldsAreRejected(t *testing.T) {
 		mutate func(t *testing.T, m map[string]any)
 		// wantField is the wire key the report must name.
 		wantField string
+		// pointOfUse is the group whose step consumes the field and must
+		// fail on its own, in addition to E.4's Structure sweep. Empty for
+		// cx[].tx and cx[].bmr, which no verifier decodes — they are
+		// string-compared against values derived from rtx and txp, which is
+		// exactly why E.4 requires the sweep to reach them.
+		pointOfUse string
 	}{
 		{"s.mh", func(t *testing.T, m map[string]any) {
 			s := m["s"].(map[string]any)
 			s["mh"] = upperFirstHexByte(t, s["mh"].(string))
-		}, "s.mh"},
+		}, "s.mh", groupSubjectData},
 		{"s.kid", func(t *testing.T, m map[string]any) {
 			s := m["s"].(map[string]any)
 			s["kid"] = upperFirstHexByte(t, s["kid"].(string))
-		}, "s.kid"},
+		}, "s.kid", groupSubjectData},
 		{"b.ph", func(t *testing.T, m map[string]any) {
 			b := m["b"].(map[string]any)
 			b["ph"] = upperFirstHexByte(t, b["ph"].(string))
-		}, "b.ph"},
+		}, "b.ph", groupBlockHash},
 		{"b.mr", func(t *testing.T, m map[string]any) {
 			b := m["b"].(map[string]any)
 			b["mr"] = upperFirstHexByte(t, b["mr"].(string))
-		}, "b.mr"},
+		}, "b.mr", groupBlockHash},
 		{"b.mh", func(t *testing.T, m map[string]any) {
 			b := m["b"].(map[string]any)
 			b["mh"] = upperFirstHexByte(t, b["mh"].(string))
-		}, "b.mh"},
+		}, "b.mh", groupBlockHash},
 		{"b.kid", func(t *testing.T, m map[string]any) {
 			b := m["b"].(map[string]any)
 			b["kid"] = upperFirstHexByte(t, b["kid"].(string))
-		}, "b.kid"},
+		}, "b.kid", groupBlockHash},
 		{"cx[0].memo", func(t *testing.T, m map[string]any) {
 			cx := m["cx"].([]any)[0].(map[string]any)
 			cx["memo"] = upperFirstHexByte(t, cx["memo"].(string))
-		}, "cx[0].memo"},
+		}, "cx[0].memo", groupEpoch},
 		{"cx[0].tx", func(t *testing.T, m map[string]any) {
 			cx := m["cx"].([]any)[0].(map[string]any)
 			cx["tx"] = upperFirstHexByte(t, cx["tx"].(string))
-		}, "cx[0].tx"},
+		}, "cx[0].tx", ""},
 		{"cx[1].op", func(t *testing.T, m map[string]any) {
 			cx := m["cx"].([]any)[1].(map[string]any)
 			cx["op"] = upperFirstHexByte(t, cx["op"].(string))
-		}, "cx[1].op"},
+		}, "cx[1].op", groupEpoch},
 		{"cx[1].tx", func(t *testing.T, m map[string]any) {
 			cx := m["cx"].([]any)[1].(map[string]any)
 			cx["tx"] = upperFirstHexByte(t, cx["tx"].(string))
-		}, "cx[1].tx"},
+		}, "cx[1].tx", ""},
+		// The Appendix D Bitcoin entry carries no bmr — the offline payload
+		// is optional (E.5) — so the field is injected before being
+		// uppercased. Without this case the tenth field of E.4's closed set
+		// would be covered by no test at all.
+		{"cx[1].bmr", func(t *testing.T, m map[string]any) {
+			cx := m["cx"].([]any)[1].(map[string]any)
+			if _, ok := cx["bmr"]; ok {
+				t.Fatal("fixture now carries bmr; drop the injection and uppercase in place")
+			}
+			cx["bmr"] = strings.Repeat("aB", 32)
+		}, "cx[1].bmr", ""},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			var m map[string]any
@@ -3869,27 +3891,134 @@ func TestAppendixD_UppercaseHexFieldsAreRejected(t *testing.T) {
 				ExpectedHash: appendixDClaimsHash,
 			})
 			if err != nil {
-				// E.6's rejection table is exhaustive and carries no row
-				// for hex case, so this must stay a graded report rather
-				// than becoming an abort.
+				// E.6 gates on the presence and type of structure, never on
+				// the lexical form of a value, so this must stay a graded
+				// report rather than becoming an abort.
 				t.Fatalf("uppercase %s aborted the run; E.6 authorizes no rejection for hex case: %v", tc.wantField, err)
 			}
 			if report.Passed() {
 				t.Fatalf("uppercase %s still verifies:\n%s", tc.wantField, formatSteps(report.Steps))
 			}
 
-			named := false
-			for _, s := range report.Steps {
-				if s.Status != StatusFail {
-					continue
-				}
-				if strings.Contains(s.Message, tc.wantField) && strings.Contains(s.Message, "not lowercase hex") {
-					named = true
+			// E.4 requires the Structure sweep to name every offender.
+			sweep := encodingFailIn(report, groupStructure, tc.wantField)
+			if sweep == nil {
+				t.Errorf("E.4's Structure sweep does not name %s:\n%s",
+					tc.wantField, formatSteps(report.Steps))
+			}
+
+			// E.4 requires the consuming step to fail as well, so an
+			// encoding defect is never reported as a generic mismatch.
+			if tc.pointOfUse != "" && encodingFailIn(report, tc.pointOfUse, tc.wantField) == nil {
+				t.Errorf("%s does not fail at its point of use naming %s; an encoding defect would surface as a generic mismatch:\n%s",
+					tc.pointOfUse, tc.wantField, formatSteps(report.Steps))
+			}
+		})
+	}
+}
+
+// encodingFailIn returns the failing step in group that carries E.23's
+// invalid_hex_encoding identifier and names field, or nil.
+//
+// The identifier is checked rather than the prose because E.23 exists so
+// two independent verifiers can be compared on an identifier instead of on
+// wording that differs between them; asserting only the English would let
+// the MUST regress silently.
+func encodingFailIn(report *Report, group, field string) *Step {
+	for i, s := range report.Steps {
+		if s.Status != StatusFail || s.Group != group {
+			continue
+		}
+		if strings.HasPrefix(s.Message, codeInvalidHexEncoding+": ") && strings.Contains(s.Message, field) {
+			return &report.Steps[i]
+		}
+	}
+	return nil
+}
+
+// TestHexEncodingExclusionsAreNotGraded pins the other half of E.4's closed
+// set: the fields a verifier MUST NOT case-grade. Each mutation below is
+// either inert or caught by the cryptography on its own, and none of them
+// may produce an encoding row.
+//
+// Getting this wrong in the strict direction is the expensive mistake. A
+// lowercase rule on rtx/txp is not merely over-strict but undefined — E.3
+// files both as text carrying either base64url or hex, and the hex alphabet
+// is a subset of the base64url one — and a rule on s.d values would derive a
+// different 0x11 digest and report a valid proof as forged.
+func TestHexEncodingExclusionsAreNotGraded(t *testing.T) {
+	raw := readFileT(t, appendixDFixture(t))
+
+	for _, tc := range []struct {
+		name   string
+		mutate func(t *testing.T, m map[string]any)
+	}{
+		{"s.id", func(t *testing.T, m map[string]any) {
+			s := m["s"].(map[string]any)
+			s["id"] = strings.ToUpper(s["id"].(string))
+		}},
+		{"b.id", func(t *testing.T, m map[string]any) {
+			b := m["b"].(map[string]any)
+			b["id"] = strings.ToUpper(b["id"].(string))
+		}},
+		{"ts", func(t *testing.T, m map[string]any) {
+			m["ts"] = strings.ToUpper(m["ts"].(string))
+		}},
+		{"cx[].net", func(t *testing.T, m map[string]any) {
+			for _, e := range m["cx"].([]any) {
+				c := e.(map[string]any)
+				if v, ok := c["net"].(string); ok {
+					c["net"] = strings.ToUpper(v)
 				}
 			}
-			if !named {
-				t.Errorf("no failing step names %s and says the value is not lowercase hex:\n%s",
-					tc.wantField, formatSteps(report.Steps))
+		}},
+		{"s.d.hash", func(t *testing.T, m map[string]any) {
+			d := m["s"].(map[string]any)["d"].(map[string]any)
+			d["hash"] = strings.ToUpper(d["hash"].(string))
+		}},
+		{"cx[].rtx", func(t *testing.T, m map[string]any) {
+			for _, e := range m["cx"].([]any) {
+				c := e.(map[string]any)
+				if _, ok := c["rtx"]; ok {
+					t.Fatal("fixture now carries rtx; uppercase it in place instead of injecting")
+				}
+				c["rtx"] = strings.Repeat("aB", 16)
+			}
+		}},
+		{"cx[].txp", func(t *testing.T, m map[string]any) {
+			for _, e := range m["cx"].([]any) {
+				c := e.(map[string]any)
+				if _, ok := c["txp"]; ok {
+					t.Fatal("fixture now carries txp; uppercase it in place instead of injecting")
+				}
+				c["txp"] = strings.Repeat("aB", 16)
+			}
+		}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			var m map[string]any
+			if err := json.Unmarshal(raw, &m); err != nil {
+				t.Fatalf("unmarshal fixture: %v", err)
+			}
+			tc.mutate(t, m)
+			mutated, err := json.Marshal(m)
+			if err != nil {
+				t.Fatalf("marshal mutant: %v", err)
+			}
+
+			report, err := RunFromBytes(mutated, "appendix-d-excluded.json", Options{
+				SkipExternal: true,
+				ExpectedHash: appendixDClaimsHash,
+			})
+			if err != nil {
+				t.Fatalf("uppercase %s aborted the run: %v", tc.name, err)
+			}
+
+			for _, s := range report.Steps {
+				if strings.HasPrefix(s.Message, codeInvalidHexEncoding+": ") {
+					t.Errorf("uppercase %s produced an encoding row, but E.4 rules it out of scope: [%s] %s",
+						tc.name, s.Group, s.Message)
+				}
 			}
 		})
 	}

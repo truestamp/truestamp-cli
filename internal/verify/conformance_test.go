@@ -18,6 +18,17 @@
 // The bundle's Stellar and Bitcoin transactions are illustrative and do not
 // exist on either chain, so the conformance run is by construction offline
 // (--skip-external). D.4 is defined as that offline run.
+//
+// E.25's checklist has one item this file cannot express, because it is
+// about bundles the D.1 vector is not: the E.4 hex-encoding sweep, which
+// must name every offender under Structure with E.23's invalid_hex_encoding
+// identifier, fail the consuming step as well, stay silent on a conforming
+// bundle, and leave rtx/txp/the ids/everything in s.d ungraded. That item is
+// pinned by TestAppendixD_UppercaseHexFieldsAreRejected,
+// TestConformingBundleEmitsNoEncodingRow and
+// TestHexEncodingExclusionsAreNotGraded in verify_test.go. Its bearing on
+// D.4 is only that a conforming bundle emits no row, which is what keeps
+// the containment below unaffected.
 
 package verify
 
