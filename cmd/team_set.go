@@ -106,7 +106,7 @@ func runTeamSet(cmd *cobra.Command, args []string) error {
 	renderTeamCard(cmd.OutOrStdout(), appConfig.APIURL, team, role, true)
 	fmt.Fprintln(cmd.OutOrStdout())
 	fmt.Fprintln(cmd.OutOrStdout(), ui.FaintStyle().Render(
-		"  Stored under 'team' in "+config.ConfigFilePath()+"."))
+		"  Stored under 'team' in "+config.ActivePath()+"."))
 	return nil
 }
 

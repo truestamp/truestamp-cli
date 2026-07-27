@@ -232,7 +232,7 @@ func renderTeamCreateCard(cmd *cobra.Command, apiURL string, team *teams.Team, s
 	fmt.Fprintln(w)
 	if setActive {
 		fmt.Fprintln(w, ui.FaintStyle().Render(
-			"  Set as your active team in "+config.ConfigFilePath()+"."))
+			"  Set as your active team in "+config.ActivePath()+"."))
 	} else {
 		fmt.Fprintln(w, ui.FaintStyle().Render(
 			"  Run 'truestamp team set "+team.ID+"' to make it your active team."))

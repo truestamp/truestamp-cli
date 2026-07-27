@@ -6,6 +6,7 @@ package cmd
 import (
 	"context"
 	"fmt"
+	"os"
 	"strings"
 	"time"
 
@@ -27,24 +28,49 @@ var configCmd = &cobra.Command{
 var configPathCmd = &cobra.Command{
 	Use:   "path",
 	Short: "Print the config file path",
-	Args:  cobra.NoArgs,
+	Long: `Print the path of the config file in effect — the --config override
+when one was supplied, otherwise the platform default — and whether
+that file currently exists.`,
+	Args: cobra.NoArgs,
 	Run: func(cmd *cobra.Command, args []string) {
+		path := config.ActivePath()
 		label := lipgloss.NewStyle().Foreground(ui.Label).Render("Config Path")
-		value := lipgloss.NewStyle().Foreground(ui.Value).Render(config.ConfigFilePath())
+		value := lipgloss.NewStyle().Foreground(ui.Value).Render(path)
 		lipgloss.Println(label + "  " + value)
+		// Existence goes to stderr so stdout stays a single line: this
+		// command is routinely captured with `$(truestamp config path)`,
+		// and a second stdout line would land inside the captured value.
+		fmt.Fprintln(cmd.ErrOrStderr(), ui.FaintStyle().Render(configPathStatusIndent+configPathStatus(path)))
 	},
+}
+
+// configPathStatusIndent aligns the status line under the path value:
+// len("Config Path") + the two-space gap.
+const configPathStatusIndent = "             "
+
+// configPathStatus reports whether the config file in effect exists.
+// A missing file is not an error — the CLI runs on compiled defaults —
+// so the message points at the command that would create it.
+func configPathStatus(path string) string {
+	if _, err := os.Stat(path); err == nil {
+		return "exists"
+	}
+	return "does not exist — run 'truestamp config init' to create it"
 }
 
 var configInitCmd = &cobra.Command{
 	Use:   "init",
 	Short: "Create default config file if it doesn't exist",
-	Args:  cobra.NoArgs,
+	Long: `Create the config file in effect from the embedded defaults if it does
+not already exist. With --config the file is created at that path
+instead of the platform default.`,
+	Args: cobra.NoArgs,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		created, err := config.EnsureDefaultConfig()
 		if err != nil {
 			return err
 		}
-		path := config.ConfigFilePath()
+		path := config.ActivePath()
 		if created {
 			lipgloss.Println(ui.SuccessBanner("Created default config"))
 			label := lipgloss.NewStyle().Foreground(ui.Label).Render("Path")
@@ -76,6 +102,10 @@ func presentConfig(cfg *config.Config) {
 
 	general := ui.CompactTable().
 		StyleFunc(configStyleFunc).
+		// The file these values were resolved from. Without it there is
+		// no way to tell from the output whether a --config override
+		// took effect.
+		Row("Config File", config.ActivePath()).
 		Row("API URL", cfg.APIURL).
 		Row("Auth Mode", authModeDisplay()).
 		Row("API Key", maskAPIKey(cfg.APIKey)).

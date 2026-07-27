@@ -1,7 +1,7 @@
 Truestamp CLI — tools for cryptographic timestamping
 
 Truestamp, Inc. — https://truestamp.com
-Copyright (c) 2021-2026 Truestamp, Inc. All rights reserved.
+Copyright (c) 2019-2026 Truestamp, Inc. All rights reserved.
 
 Usage:
   truestamp [command]
