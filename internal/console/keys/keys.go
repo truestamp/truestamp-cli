@@ -175,7 +175,7 @@ type NewItemKeys struct {
 
 // NewNewItemKeys returns the New Item form bindings. Plain `tab` is
 // kept inside the form here — the root model only consumes pane-
-// switch keys (`]`, `[`, `1`/`2`/`3`) so this binding wins for
+// switch keys (`]`, `[`, `1`-`4`) so this binding wins for
 // in-form navigation.
 func NewNewItemKeys(app AppKeys) NewItemKeys {
 	return NewItemKeys{

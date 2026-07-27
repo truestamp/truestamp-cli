@@ -32,8 +32,10 @@ func Run(ctx context.Context, opts Options) error {
 	wsOpts := wschannel.Options{URL: opts.WSURL, Logger: logger}
 	switch {
 	case opts.Authorizer != nil && opts.Authorizer.Mode() == auth.ModeOAuth:
-		// OAuth: header auth with a per-dial fresh token, and a dead
-		// session is fatal (stop retrying → prompt re-login).
+		// OAuth: a per-dial fresh token, passed as the `access_token`
+		// query param on the upgrade because a Phoenix WS upgrade can't
+		// expose the Authorization header to the socket. A dead session
+		// is fatal (stop retrying → prompt re-login).
 		wsOpts.BearerToken = opts.Authorizer.BearerToken
 		wsOpts.ForceRefresh = opts.Authorizer.ForceRefresh
 		wsOpts.AccessTokenExpiry = opts.Authorizer.AccessTokenExpiry
@@ -648,8 +650,8 @@ func (m *model) applyWelcomeToScope(w Welcome) tea.Cmd {
 // activatePane switches the active pane and starts/stops side-effect
 // loops that should only run while a particular pane is visible.
 //
-// Today the only side-effect is the Connection pane's 30-second
-// health-check poll: we start it on entry and stop it on exit so we
+// Today the only side-effect is the Connection pane's health-check poll
+// (every healthCheckPollInterval): we start it on entry and stop it on exit so we
 // don't hammer third-party services while the user is on the
 // Monitor or New Item pane. Returns the tea.Cmd to fire the first
 // poll wave (nil for non-Connection panes).

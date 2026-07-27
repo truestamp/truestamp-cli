@@ -289,7 +289,7 @@ func (m *teamModel) handleSetActive() (*teamModel, tea.Cmd) {
 		m.noticeError = false
 		return m, nil
 	}
-	// Fire immediately on `s`. The cursor lives on the row the user
+	// Fire immediately on `enter`. The cursor lives on the row the user
 	// is intentionally looking at, so a single press is unambiguous —
 	// no confirmation step.
 	m.notice = "Switching to " + teamRowDisplayName(row) + "…"

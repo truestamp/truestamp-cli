@@ -56,7 +56,7 @@ type monitorModel struct {
 
 	// focus determines which side receives ↑/↓ keys. ←/→ swap it. The
 	// cross-pane Tab at the app level still cycles the outer panes
-	// (Monitor → New Item → Connection); focus is internal to Monitor.
+	// (Monitor → New Item → Teams → Connection); focus is internal to Monitor.
 	focus monitorFocus
 
 	// detailPanelHidden collapses the Detail Panel below the
