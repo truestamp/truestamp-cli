@@ -307,7 +307,7 @@ tasks:
       - task: build
 
   precommit-full:
-    desc: "Strict pre-release bundle: precommit + race detector + active mutation fuzzing + vuln scan + all-platform build. Takes ~3-5 min."
+    desc: "Strict pre-release bundle: precommit + race detector + fuzz seed-corpus replay + vuln scan + all-platform build. Takes ~3-5 min."
     cmds:
       - task: fmt
       - task: lint

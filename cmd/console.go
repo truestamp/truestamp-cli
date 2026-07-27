@@ -25,6 +25,7 @@ var consoleCmd = &cobra.Command{
   • Monitor    — live waterfall of block, commitment, and entropy events
                  (subscribe/unsubscribe to streams on demand)
   • New Item   — create a timestamped item and watch its lifecycle live
+  • Teams      — switch the active team in place, or create a new one
   • Connection — diagnostics, scope, push counts, log file path
 
 Authentication uses your active Truestamp session — an OAuth sign-in (run

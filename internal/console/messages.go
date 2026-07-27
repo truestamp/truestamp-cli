@@ -99,7 +99,7 @@ type healthCheckResultMsg struct {
 	Result healthResult
 }
 
-// healthCheckTickMsg drives the 30-second poll loop while the
+// healthCheckTickMsg drives the healthCheckPollInterval poll loop while the
 // Connection pane is the active pane. The pane re-arms the next
 // tick on each fire; tabbing away cancels the loop because the
 // pane stops returning the tick command.
