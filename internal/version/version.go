@@ -97,7 +97,7 @@ func Short() string {
 
 // Copyright returns the copyright notice with dynamic end year.
 func Copyright() string {
-	return fmt.Sprintf("Truestamp, Inc. — https://truestamp.com\nCopyright (c) 2021-%s Truestamp, Inc. All rights reserved.", BuildYear)
+	return fmt.Sprintf("Truestamp, Inc. — https://truestamp.com\nCopyright (c) 2019-%s Truestamp, Inc. All rights reserved.", BuildYear)
 }
 
 // Platform returns the GOOS/GOARCH pair for this binary.

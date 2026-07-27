@@ -7,9 +7,14 @@
 # Prerequisites for a real release (run from CI):
 #   - GITHUB_TOKEN               Automatically provided to actions/checkout.
 #   - HOMEBREW_TAP_GITHUB_TOKEN  Fine-grained PAT scoped to truestamp/homebrew-tap
-#                                only, with `Contents: Read and write`. Do NOT use
-#                                a classic `repo`-scoped PAT — the release pipeline
-#                                only needs to push one file to one repo.
+#                                only, with BOTH `Contents: Read and write` and
+#                                `Pull requests: Read and write`. Contents alone is
+#                                not enough: the cask below sets
+#                                `pull_request.enabled`, so GoReleaser opens a PR
+#                                rather than pushing, and release.yml then runs
+#                                `gh pr merge` with this same token. Do NOT use a
+#                                classic `repo`-scoped PAT; the pipeline only needs
+#                                one repo.
 #   - OIDC token                 For keyless cosign signing. The release workflow
 #                                must grant `id-token: write` permission so
 #                                GoReleaser can mint one via the GitHub OIDC
@@ -113,8 +118,14 @@ release:
     Install:
 
     ```
+    # macOS and Linux (amd64 or arm64)
+    curl -fsSL https://get.truestamp.com/install.sh | sh
+
+    # macOS, via the Homebrew cask
+    brew install --cask truestamp/tap/truestamp-cli
+
+    # any platform with a Go toolchain
     go install github.com/truestamp/truestamp-cli/cmd/truestamp@{{ .Tag }}
-    brew install truestamp/tap/truestamp-cli
     ```
 
 homebrew_casks:
@@ -132,7 +143,7 @@ homebrew_casks:
           branch: main
     directory: Casks
     homepage: https://truestamp.com
-    description: "Truestamp CLI — tools for cryptographic timestamping"
+    description: "Truestamp CLI: tools for cryptographic timestamping"
     commit_author:
       name: truestamp-bot
       email: bot@truestamp.com
