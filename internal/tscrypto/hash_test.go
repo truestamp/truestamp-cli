@@ -390,6 +390,15 @@ func TestHexToBytes_RejectsUppercase(t *testing.T) {
 // builder with one field uppercased. Each must refuse and name the field it
 // could not decode, because that error text is what the Subject Data, Block
 // Hash and Proof Signature steps render.
+//
+// The name asserted is the WIRE key, which E.4 makes a MUST ("MUST name the
+// offending field"). The parameter names these used to carry could not
+// satisfy it: `metadata_hash` and `signing_key_id` each name two different
+// wire fields, so the Subject Data and Block Hash rows read identically
+// while pointing at s.mh/s.kid and b.mh/b.kid respectively, and an operator
+// could not tell which value to fix. Inputs with no wire field of their own
+// — the derived claims_hash and entropy_hash, and epoch_root, which is
+// cx[i].memo or cx[i].op depending on the entry — keep descriptive names.
 func TestPreimageBuilders_RejectUppercaseInputs(t *testing.T) {
 	t.Parallel()
 	var (
@@ -413,31 +422,31 @@ func TestPreimageBuilders_RejectUppercaseInputs(t *testing.T) {
 		{"ComputeItemHash s.mh", func() error {
 			_, err := ComputeItemHash(ulid, lowerDigest, upperDigest, lowerKid)
 			return err
-		}, "metadata_hash"},
+		}, "s.mh"},
 		{"ComputeItemHash s.kid", func() error {
 			_, err := ComputeItemHash(ulid, lowerDigest, lowerDigest, upperKid)
 			return err
-		}, "signing_key_id"},
+		}, "s.kid"},
 		{"ComputeObservationHash s.mh", func() error {
 			_, err := ComputeObservationHash(uuid, lowerDigest, upperDigest, lowerKid)
 			return err
-		}, "metadata_hash"},
+		}, "s.mh"},
 		{"ComputeBlockHash b.ph", func() error {
 			_, err := ComputeBlockHash(uuid, upperDigest, lowerDigest, lowerDigest, lowerKid)
 			return err
-		}, "previous_block_hash"},
+		}, "b.ph"},
 		{"ComputeBlockHash b.mr", func() error {
 			_, err := ComputeBlockHash(uuid, lowerDigest, upperDigest, lowerDigest, lowerKid)
 			return err
-		}, "merkle_root"},
+		}, "b.mr"},
 		{"ComputeBlockHash b.mh", func() error {
 			_, err := ComputeBlockHash(uuid, lowerDigest, lowerDigest, upperDigest, lowerKid)
 			return err
-		}, "metadata_hash"},
+		}, "b.mh"},
 		{"ComputeBlockHash b.kid", func() error {
 			_, err := ComputeBlockHash(uuid, lowerDigest, lowerDigest, lowerDigest, upperKid)
 			return err
-		}, "signing_key_id"},
+		}, "b.kid"},
 		{"BuildCompactProofPayload epoch root", func() error {
 			_, err := BuildCompactProofPayload(1, 20, lowerKid, 0, lowerDigest, lowerDigest, []string{upperDigest})
 			return err

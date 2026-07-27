@@ -10,6 +10,7 @@ package verify
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -199,6 +200,14 @@ func runBundle(bundle *proof.ProofBundle, filename string, fileSize int64, opts 
 			r.Claims.Hash, hashType))
 	}
 
+	// Step 0b: E.4's hex-encoding sweep. It runs here rather than beside
+	// verifyVersion because E.4 requires the sweep "before deriving any
+	// hash", and E.9's key-id derivation below is one. No swept field
+	// feeds that derivation — `pk` is base64, not one of the ten — so the
+	// old placement was compliant on the substance; this placement is
+	// compliant on the letter as well, and costs nothing.
+	verifyHexEncoding(r, bundle)
+
 	// Step 1: Signing Key
 	pubkeyBytes, keyID := verifySigningKey(r, bundle)
 
@@ -221,9 +230,9 @@ func runBundle(bundle *proof.ProofBundle, filename string, fileSize int64, opts 
 	// for the same block.
 	r.BlockSigningKeyID = block.SigningKeyID
 
-	// Step 2: Structure
+	// Step 2: Structure. E.22 files two things under this group — E.8's
+	// version check here, and E.4's hex-encoding sweep, already run above.
 	verifyVersion(r, bundle)
-	verifyHexEncoding(r, bundle)
 
 	// Steps 3-6: Subject-hash derivation (non-block-like subjects only)
 	var subjectHash string
@@ -459,50 +468,61 @@ func verifyVersion(r *Report, bundle *proof.ProofBundle) {
 
 // --- Step 2a: Hex Field Encoding (E.4) ---
 
-// verifyHexEncoding grades every hash-valued wire field against E.4's
-// encoding rule, "hashes are lowercase hex", and emits a row only when a
-// field breaks it. A conforming bundle produces no step here at all, so
-// the D.4 report is unchanged; a non-conforming one gets one Structural
-// failure naming every offender in wire order.
+// verifyHexEncoding is E.4's lowercase-hex sweep: it grades the ten
+// hex-encoded wire fields the appendix enumerates and emits a row only
+// when one breaks the rule. A conforming bundle produces no step here at
+// all — deliberately not a `pass`, because a `pass` row D.4 does not
+// carry is itself nonconformant under E.25 — so the D.4 report is
+// unchanged. A non-conforming one gets one Structural failure naming
+// every offender in wire order.
 //
-// Why a graded step and not a rejection: E.6's hard-rejection table is
-// exhaustive and has no row for hex case, so aborting before any report
-// exists would invent a rejection the appendix does not authorize.
+// E.4 fixes the field list as a closed set, and it is exactly the set E.3
+// files as CBOR byte strings less `pk` and `sig` (byte strings in CBOR,
+// base64 in JSON): s.mh, s.kid, b.ph, b.mr, b.mh, b.kid, cx[].memo,
+// cx[].op, cx[].tx, cx[].bmr. Do not add to it or remove from it here
+// without the appendix moving first.
 //
-// Why one row here as well as the per-step enforcement: the decoders in
-// tscrypto already refuse a non-lowercase b.ph/b.mr/b.mh/b.kid and
-// s.mh/s.kid, and the E.13/E.15 walks refuse a non-lowercase root, but
-// two fields — cx[].tx and cx[].bmr — are compared and never decoded, and
-// on an entry carrying no rtx/txp they are not read at all. Without this
-// row those two would still accept uppercase, which is the whole finding.
+// Graded, not rejected: E.6 gates on the presence and type of structure,
+// never on the lexical form of a value, and says so explicitly. This puts
+// hex case with the other encoding failures E already grades at the point
+// of use — a `pk` that does not decode to 32 bytes fails E.9, an `ip` that
+// is not valid base64url fails E.12. A hard rejection would produce no
+// step results at all, leaving an operator holding a merely mis-encoded
+// bundle knowing only that it was refused, not which field to fix.
 //
-// Scope is E.4's own noun. `rtx` and `txp` are hex-valued too but they are
-// serialized transaction and proof structures rather than hashes, they are
-// absent from E.4's clause and from the reference verifier entirely, so
-// grading their case would make this verifier stricter than both the
-// appendix and the reference on a field nobody has flagged. `s.d.hash` is
-// likewise out: E.11 grades it soft and deliberately, and it is inside the
-// JCS'd blob, so a case flip there already changes the 0x11 digest.
+// Both reporting points are required by E.4, not merely permitted. This
+// sweep is one of them; the other is the consuming step failing when a
+// decoder refuses a value at its point of use. The sweep is what reaches
+// cx[].tx and cx[].bmr, which no verifier decodes — they are string-
+// compared against values derived from rtx and txp, so without a rule here
+// they are the only fields where an uppercase spelling still reaches a
+// passing report. The point-of-use failure is what keeps a generic root
+// mismatch from being reported when the real defect is the encoding.
 //
-// The rtx/txp exclusion was re-examined once more and kept, on two grounds
-// stronger than "the appendix does not say so":
+// The exclusions are normative too, and applying the rule outside the ten
+// rejects bundles Truestamp legitimately emits:
 //
-//   - It carries no security consequence. Neither field is in E.16's signed
-//     payload, and neither is trusted as a value: rtx is decoded and its
-//     txid and OP_RETURN are then compared against cx.tx and cx.op — and
-//     cx.op is an epoch root inside the 0x61 payload — while txp is decoded
-//     and its derived root compared against cx.bmr. A case flip decodes to
-//     the same bytes, so every derived value and every grading is
-//     byte-identical. Verified against the one repo artifact that carries
-//     them (samples/truestamp-item-01KPVAP639RSVPZCW2CBS51CTV.json): all
-//     five Bitcoin Commitment rows are unchanged with either field
-//     uppercased. That makes it a canonicality wart, not a malleability
-//     lever in the sense b.mr or cx[].memo were.
-//   - Enforcing it could reject conforming bundles. E.3 files rtx and txp
-//     as TEXT-string fields carrying "either base64url or hex" (see
-//     proof.textFieldToString), and base64url is case-significant. A
-//     lowercase-hex rule applied to a text field that may legitimately be
-//     base64url would fail bundles the wire format allows.
+//   - `pk`/`sig` (base64) and `ip`/`ep` (base64url) are case-significant
+//     alphabets; case MUST be preserved exactly.
+//   - `cx[].rtx` and `cx[].txp` carry EITHER base64url or hex (E.3, E.5),
+//     and the hex alphabet is a subset of the base64url one, so a verifier
+//     cannot tell which it holds: the rule is not well defined for them and
+//     MUST NOT be applied. Their case has no consequence either — neither
+//     is in E.16's signed payload, and both are decoded only so the values
+//     derived from them can be compared against tx, op and bmr, which the
+//     rule does cover. Pinned by TestCLI_RawTxAndTxOutProof_CaseIsNotGraded.
+//   - `s.id`, `b.id`, `net`, `ts` are not hashes, and a ULID is uppercase
+//     Crockford Base32 by construction. Case in an id is already bound
+//     cryptographically: ids enter their preimage as UTF-8 bytes under
+//     len32 rather than being hex-decoded, so a re-cased id derives a
+//     different subject or block hash and fails E.13/E.14 on its own.
+//   - Values inside `s.d`, including an Item's `s.d.hash`, are canonicalized
+//     verbatim. Normalizing their case would derive a different 0x11 or
+//     0x21 digest and report a valid proof as forged; case there is bound
+//     by the JCS digest. The one exception is E.7's comparison of a
+//     caller-supplied expected hash against s.d.hash, which MAY be
+//     case-insensitive because that argument is an operator's typed input
+//     rather than a wire field — see [tscrypto.HexEqual].
 func verifyHexEncoding(r *Report, bundle *proof.ProofBundle) {
 	var offenders []string
 	check := func(name, value string) {
@@ -529,9 +549,39 @@ func verifyHexEncoding(r *Report, bundle *proof.ProofBundle) {
 	if len(offenders) == 0 {
 		return
 	}
-	r.fail(groupStructure, CatStructural, fmt.Sprintf(
+	r.fail(groupStructure, CatStructural, withCode(codeInvalidHexEncoding, fmt.Sprintf(
 		"Hash fields do not carry E.4's required lowercase-hex encoding — %s",
-		strings.Join(offenders, "; ")))
+		strings.Join(offenders, "; "))))
+}
+
+// codeInvalidHexEncoding is Appendix E.23's identifier for a value that is
+// present and of the right type but not lowercase hex. E.4 makes carrying
+// it a MUST on every such failure — the sweep above and the point-of-use
+// refusals in E.10, E.14 and E.15 alike — because the identifier is what
+// lets two independent verifiers be compared on the same bundle without
+// diffing prose that differs between them.
+//
+// It is deliberately NOT part of proof.RejectionError's taxonomy, which
+// carries E.6's hard rejections and surfaces under --json as
+// {"result":"rejected", …}. This one is a step fail: the run continues,
+// produces a full report, and the identifier rides in the step's message
+// the way the reference verifier emits it.
+const codeInvalidHexEncoding = "invalid_hex_encoding"
+
+// withCode prefixes a step message with the E.23 identifier the failure
+// carries.
+func withCode(code, msg string) string { return code + ": " + msg }
+
+// hexEncodingAware prefixes msg with E.23's invalid_hex_encoding identifier
+// when err is E.4's lowercase-hex refusal, and returns msg untouched
+// otherwise. The point-of-use sites share one error path for every decode
+// failure — a short hash, an odd-length field, a non-hex byte — and only
+// the encoding case is what E.23 names.
+func hexEncodingAware(err error, msg string) string {
+	if errors.Is(err, tscrypto.ErrNotLowercaseHex) {
+		return withCode(codeInvalidHexEncoding, msg)
+	}
+	return msg
 }
 
 // --- Step 3: Claims Hash ---
@@ -678,7 +728,8 @@ func deriveItemHash(r *Report, subject *proof.Subject, claimsHash string) string
 
 	hash, err := tscrypto.ComputeItemHash(subject.ID, claimsHash, subject.MetadataHash, subject.SigningKeyID)
 	if err != nil {
-		r.fail(groupSubjectData, CatCryptographic, fmt.Sprintf("Item hash computation failed: %s", err))
+		r.fail(groupSubjectData, CatCryptographic,
+			hexEncodingAware(err, fmt.Sprintf("Item hash computation failed: %s", err)))
 		return ""
 	}
 
@@ -701,8 +752,8 @@ func verifyInclusionProof(r *Report, subjectHash, inclusionProof string, block p
 	// reference verifier, whose secure_equal?/2 is a raw binary compare and
 	// grades the same bundle a failure here.
 	if err := tscrypto.ValidateLowercaseHex(block.MerkleRoot); err != nil {
-		r.fail(groupInclusion, CatCryptographic, fmt.Sprintf(
-			"Cannot verify inclusion proof: b.mr is %s", err))
+		r.fail(groupInclusion, CatCryptographic, withCode(codeInvalidHexEncoding, fmt.Sprintf(
+			"Cannot verify inclusion proof: b.mr is %s", err)))
 		return
 	}
 
@@ -774,7 +825,8 @@ func deriveBlockHash(r *Report, block proof.Block) string {
 
 	computed, err := tscrypto.ComputeBlockHash(block.ID, block.PreviousBlockHash, block.MerkleRoot, block.MetadataHash, block.SigningKeyID)
 	if err != nil {
-		r.fail(groupBlockHash, CatCryptographic, fmt.Sprintf("Block hash computation failed: %s", err))
+		r.fail(groupBlockHash, CatCryptographic,
+			hexEncodingAware(err, fmt.Sprintf("Block hash computation failed: %s", err)))
 		return ""
 	}
 
@@ -872,9 +924,9 @@ func verifyEpochProofs(r *Report, commits []ExternalCommit, blockHash string) []
 		// step that owns the field, and contribute no epoch root so the
 		// signature step reports what it is actually missing.
 		if err := tscrypto.ValidateLowercaseHex(target); err != nil {
-			r.fail(groupEpoch, CatCryptographic, fmt.Sprintf(
+			r.fail(groupEpoch, CatCryptographic, withCode(codeInvalidHexEncoding, fmt.Sprintf(
 				"Epoch proof %d (%s): cx[%d].%s is %s",
-				i, ptype.Humanize(cx.Type), i, epochTargetKey(cx), err))
+				i, ptype.Humanize(cx.Type), i, epochTargetKey(cx), err)))
 			epochRoots = append(epochRoots, "")
 			continue
 		}
@@ -1881,7 +1933,8 @@ func deriveObservationHash(r *Report, subject *proof.Subject, entropyHash string
 
 	hash, err := tscrypto.ComputeObservationHash(subject.ID, entropyHash, subject.MetadataHash, subject.SigningKeyID)
 	if err != nil {
-		r.fail(groupSubjectData, CatCryptographic, fmt.Sprintf("Observation hash computation failed: %s", err))
+		r.fail(groupSubjectData, CatCryptographic,
+			hexEncodingAware(err, fmt.Sprintf("Observation hash computation failed: %s", err)))
 		return ""
 	}
 

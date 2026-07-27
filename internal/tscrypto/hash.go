@@ -12,8 +12,16 @@ import (
 	"crypto/subtle"
 	"encoding/binary"
 	"encoding/hex"
+	"errors"
 	"fmt"
 )
+
+// ErrNotLowercaseHex is the sentinel every E.4 encoding refusal wraps, so
+// a caller can tell "this field is not lowercase hex" from any other
+// decode failure and tag its step with E.23's `invalid_hex_encoding`
+// identifier. Appendix E.4 makes carrying that identifier a MUST, and the
+// report layer cannot infer it from an error string without matching prose.
+var ErrNotLowercaseHex = errors.New("not lowercase hex (E.4)")
 
 // Domain separation prefix bytes per docs/CRYPTOGRAPHY.md.
 //
@@ -62,7 +70,7 @@ const (
 // one — the same wire bundle verified here and aborted there.
 func ValidateLowercaseHex(s string) error {
 	if len(s)%2 != 0 {
-		return fmt.Errorf("not lowercase hex (E.4): odd length %d", len(s))
+		return fmt.Errorf("%w: odd length %d", ErrNotLowercaseHex, len(s))
 	}
 	for i := range len(s) {
 		c := s[i]
@@ -70,9 +78,9 @@ func ValidateLowercaseHex(s string) error {
 			continue
 		}
 		if c >= 'A' && c <= 'F' {
-			return fmt.Errorf("not lowercase hex (E.4): uppercase %q at offset %d", string(c), i)
+			return fmt.Errorf("%w: uppercase %q at offset %d", ErrNotLowercaseHex, string(c), i)
 		}
-		return fmt.Errorf("not lowercase hex (E.4): %q at offset %d is not a hex digit", string(c), i)
+		return fmt.Errorf("%w: %q at offset %d is not a hex digit", ErrNotLowercaseHex, string(c), i)
 	}
 	return nil
 }
@@ -125,6 +133,13 @@ func ComputeEntropyHash(jcsBytes []byte) string {
 // ComputeObservationHash computes the length-prefixed observation hash with domain prefix 0x23.
 // Field order: id, entropy_hash, metadata_hash, signing_key_id
 // This mirrors ComputeItemHash but uses prefix 0x23 for entropy observations.
+//
+// Decode failures name the WIRE key (`s.mh`, `s.kid`), not the parameter,
+// because E.4 requires an encoding failure to name the offending field and
+// only the wire key is actionable: `metadata_hash` alone does not say
+// whether the subject's or the block's is at fault, and the two produce
+// identically worded rows under different groups. The derived inputs keep
+// their descriptive names — no wire field carries them.
 func ComputeObservationHash(id, entropyHashHex, metadataHashHex, signingKeyIDHex string) (string, error) {
 	entropyBytes, err := HexToBytes(entropyHashHex)
 	if err != nil {
@@ -132,11 +147,11 @@ func ComputeObservationHash(id, entropyHashHex, metadataHashHex, signingKeyIDHex
 	}
 	metaBytes, err := HexToBytes(metadataHashHex)
 	if err != nil {
-		return "", fmt.Errorf("decoding metadata_hash: %w", err)
+		return "", fmt.Errorf("decoding s.mh: %w", err)
 	}
 	keyIDBytes, err := HexToBytes(signingKeyIDHex)
 	if err != nil {
-		return "", fmt.Errorf("decoding signing_key_id: %w", err)
+		return "", fmt.Errorf("decoding s.kid: %w", err)
 	}
 
 	totalSize := (4 + len(id)) + (4 + len(entropyBytes)) + (4 + len(metaBytes)) + (4 + len(keyIDBytes))
@@ -151,6 +166,8 @@ func ComputeObservationHash(id, entropyHashHex, metadataHashHex, signingKeyIDHex
 
 // ComputeItemHash computes the length-prefixed item hash with domain prefix 0x13.
 // Field order: id, claims_hash, metadata_hash, signing_key_id
+//
+// Decode failures name the wire key; see [ComputeObservationHash].
 func ComputeItemHash(id, claimsHashHex, metadataHashHex, signingKeyIDHex string) (string, error) {
 	claimsBytes, err := HexToBytes(claimsHashHex)
 	if err != nil {
@@ -158,11 +175,11 @@ func ComputeItemHash(id, claimsHashHex, metadataHashHex, signingKeyIDHex string)
 	}
 	metaBytes, err := HexToBytes(metadataHashHex)
 	if err != nil {
-		return "", fmt.Errorf("decoding metadata_hash: %w", err)
+		return "", fmt.Errorf("decoding s.mh: %w", err)
 	}
 	keyIDBytes, err := HexToBytes(signingKeyIDHex)
 	if err != nil {
-		return "", fmt.Errorf("decoding signing_key_id: %w", err)
+		return "", fmt.Errorf("decoding s.kid: %w", err)
 	}
 
 	totalSize := (4 + len(id)) + (4 + len(claimsBytes)) + (4 + len(metaBytes)) + (4 + len(keyIDBytes))
@@ -177,22 +194,24 @@ func ComputeItemHash(id, claimsHashHex, metadataHashHex, signingKeyIDHex string)
 
 // ComputeBlockHash computes the length-prefixed block hash with domain prefix 0x32.
 // Field order: id, previous_block_hash, merkle_root, metadata_hash, signing_key_id
+//
+// Decode failures name the wire key; see [ComputeObservationHash].
 func ComputeBlockHash(id, prevHashHex, merkleRootHex, metadataHashHex, signingKeyIDHex string) (string, error) {
 	prevBytes, err := HexToBytes(prevHashHex)
 	if err != nil {
-		return "", fmt.Errorf("decoding previous_block_hash: %w", err)
+		return "", fmt.Errorf("decoding b.ph: %w", err)
 	}
 	merkleBytes, err := HexToBytes(merkleRootHex)
 	if err != nil {
-		return "", fmt.Errorf("decoding merkle_root: %w", err)
+		return "", fmt.Errorf("decoding b.mr: %w", err)
 	}
 	metaBytes, err := HexToBytes(metadataHashHex)
 	if err != nil {
-		return "", fmt.Errorf("decoding metadata_hash: %w", err)
+		return "", fmt.Errorf("decoding b.mh: %w", err)
 	}
 	keyIDBytes, err := HexToBytes(signingKeyIDHex)
 	if err != nil {
-		return "", fmt.Errorf("decoding signing_key_id: %w", err)
+		return "", fmt.Errorf("decoding b.kid: %w", err)
 	}
 
 	idBytes := []byte(id)

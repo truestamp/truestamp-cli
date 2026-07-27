@@ -1913,27 +1913,42 @@ remediated. Most were pre-existing rather than caused by the conformance work: t
   verifier agrees on all 15.
 - `task precommit` (fmt, vet, staticcheck, gosec, govulncheck, tests) passes.
 
+### Closed since
+
+**The E.4 hex-encoding boundary — settled 2026-07-27, and the appendix moved.** Items 1 and 2 of
+this list used to record an open question and an unsent defect report. Both are resolved, in this
+repo's favour on every point:
+
+- The defect report went to `truestamp-v2/bug_hex.md`. Their reply is that repo's `COMMS.md`,
+  "Round 3: the uppercase-hex defect and the E.4 boundary", and their fix is commit `4b1beaff0d`.
+- **Their reference verifier's crash was the smaller half.** Their *production* verifier — the one
+  behind `POST /api/json/proof/verify`, and therefore behind `verify --remote` — **accepted**
+  uppercase and reported "verified" on all eight fields it read. The two Elixir surfaces were
+  diverging from each other as well as from this CLI. All three now agree with it field for field.
+- **E.4 was amended** to enumerate the ten hex fields as a closed set, to require grading rather
+  than E.6 rejection, to require both reporting points (Structure sweep + point-of-use failure) and
+  the E.23 identifier `invalid_hex_encoding`, and to make the sweep's silence on a conforming bundle
+  a MUST. E.5, E.6, E.22, E.23 and E.25 all gained matching text. D.4 is unchanged.
+- **`cx[].tx` and `cx[].bmr` are in scope** (this CLI was right and stricter than the reference).
+  **`cx[].rtx` and `cx[].txp` are out of scope, normatively** — `MUST NOT` case-grade, with a
+  stronger reason than the one item 1 recorded: the rule is not merely over-strict there but *not
+  well defined*, because E.3 files both as text carrying either base64url or hex and the hex
+  alphabet is a subset of the base64url one. `TestCLI_RawTxAndTxOutProof_CaseIsNotGraded` now
+  enforces a rule rather than a preference.
+- E.4 additionally ruled on fields neither side had raised: `s.id`, `b.id`, `net`, `ts` and
+  everything inside `s.d` MUST NOT be case-graded, with an explicit carve-out permitting E.7's
+  `--hash` comparison to be case-insensitive. Measured conformant here, and now pinned by
+  `TestHexEncodingExclusionsAreNotGraded`.
+
+See CLAUDE.md, "Hex encoding (E.4)", for the current rule as implemented.
+
 ### Still open
 
-1. **`cx[].rtx` / `cx[].txp` accept uppercase hex.** Deliberate, pinned by
-   `TestCLI_RawTxAndTxOutProof_CaseIsNotGraded`. Two reasons: neither field is trusted as a value
-   (both are decoded, and every value derived from them is compared against something the signature
-   chain pins, so a case flip changes nothing derived), and E.3 files them as text fields carrying
-   "either base64url or hex" — base64url is case-significant, so a lowercase rule would reject
-   bundles the wire format allows. Revisit jointly with truestamp-v2 if E.4 is decided to cover them.
-2. **Reference-verifier defect, filed 2026-07-27, awaiting a ruling.** `whitepaper/verify_proof.exs`'s
-   `unhex/1` (`Base.decode16!(s, case: :lower)`) raises an uncaught `ArgumentError` on uppercase hex
-   in any of eight fields, instead of a graded result or a named E.23 rejection. Both implementations
-   *refuse* such bundles — that disagreement is purely the form. Written up at
-   `truestamp-v2/bug_hex.md` for that repo's maintainers, together with two boundary questions the
-   same measurement pass surfaced: `cx[].tx` and `cx[].bmr` are a live **outcome** divergence (this
-   CLI grades them `fail`, the reference exits 0 and never reads them), and `cx[].rtx` / `cx[].txp`
-   are the deliberate exclusion in item 1 above, put to them for confirmation.
-3. **Endpoint constants are not test-covered.** `cmd/external_e2e_test.go` exercises E.18/E.19/E.21
+1. **Endpoint constants are not test-covered.** `cmd/external_e2e_test.go` exercises E.18/E.19/E.21
    availability grading through the shipped pipeline by substituting five base-URL constants at link
    time, so a typo in a real Horizon / Blockstream / NIST hostname would not be caught. A live-network
    test would cover it at the cost of making `go test` internet-dependent.
-4. ~~**No committed entropy fixture.**~~ **CLOSED.** `internal/verify/testdata/fixtures/`
+2. ~~**No committed entropy fixture.**~~ **CLOSED.** `internal/verify/testdata/fixtures/`
    now carries a signed bundle for each of `t ∈ {30,31,32}`, and the Entropy Source step is
    exercised end to end with the signature check enabled.
 
@@ -1945,10 +1960,11 @@ remediated. Most were pre-existing rather than caused by the conformance work: t
    merely encode a Go bug. E.17 remains unestablished for them, correctly: the illustrative key is
    not in Truestamp's keyring, which
    `TestEntropyFixture_IllustrativeKeyIsNotBound` pins against a stub keyring that answers.
-5. **CLAUDE.md documentation drift beyond this effort's scope.** The Global Flags table and pipeline
-   recipes still describe `--api-url` and `--keyring-url`, which cobra now rejects outright; line 131
-   of the same file contradicts them. Wants a `/docs-audit` pass.
-6. **E.25 has a blind spot the appendix cannot close.** A report that drops a D.4 row and appends a
+3. ~~**CLAUDE.md documentation drift beyond this effort's scope.**~~ **CLOSED.** The `--api-url` /
+   `--keyring-url` references are gone; CLAUDE.md now states only that both were retired in favour
+   of `base_url`. A broader `/docs-audit` pass is still worth running, but there is no known
+   contradiction left to fix.
+4. **E.25 has a blind spot the appendix cannot close.** A report that drops a D.4 row and appends a
    fabricated one carrying the same (group, category, status) still satisfies containment, because
    the rule grades statuses and not messages. Covered for this implementation by the golden report
    at `internal/verify/testdata/golden/appendix-d4-report.txt`; it remains a gap in the appendix.
