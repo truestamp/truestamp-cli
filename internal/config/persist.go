@@ -19,20 +19,23 @@ func keyLineRe(key string) *regexp.Regexp {
 	return regexp.MustCompile(`^(\s*)` + regexp.QuoteMeta(key) + `(\s*)=(\s*).*$`)
 }
 
-// SetAPIKey writes key as the top-level api_key value in the user's config
-// file, preserving comments and other settings. Creates the file from the
-// embedded default if it does not yet exist, and tightens permissions to
-// 0600 because the file now contains a secret.
+// SetAPIKey writes key as the top-level api_key value in the config file
+// in effect ([ActivePath] — the --config override when one was given,
+// otherwise the platform default), preserving comments and other
+// settings. Creates the file from the embedded default if it does not
+// yet exist, and tightens permissions to 0600 because the file now
+// contains a secret.
 func SetAPIKey(key string) error {
 	return setTopLevelString("api_key", key, 0600)
 }
 
-// SetTeam writes id as the top-level team value in the user's config
-// file, preserving comments and other settings. Creates the file from
-// the embedded default if it does not yet exist. Permissions are kept
-// at 0600 to match SetAPIKey — the file co-exists with the api_key
-// secret, so a less-tight regime would only loosen security on the
-// shared file.
+// SetTeam writes id as the top-level team value in the config file in
+// effect ([ActivePath] — the --config override when one was given,
+// otherwise the platform default), preserving comments and other
+// settings. Creates the file from the embedded default if it does not
+// yet exist. Permissions are kept at 0600 to match SetAPIKey — the file
+// co-exists with the api_key secret, so a less-tight regime would only
+// loosen security on the shared file.
 func SetTeam(id string) error {
 	return setTopLevelString("team", id, 0600)
 }
@@ -41,11 +44,15 @@ func SetTeam(id string) error {
 // It reads the existing file (creating from the embedded default if
 // missing), rewrites a single top-level assignment, and writes the
 // result with the given permissions.
+//
+// The target is [ActivePath], NOT [ConfigFilePath]: writing to the
+// platform default while --config pointed somewhere else silently
+// discarded the user's change and corrupted the untargeted file.
 func setTopLevelString(key, value string, perm os.FileMode) error {
 	if _, err := EnsureDefaultConfig(); err != nil {
 		return err
 	}
-	path := ConfigFilePath()
+	path := ActivePath()
 
 	contents, err := os.ReadFile(path)
 	if err != nil {

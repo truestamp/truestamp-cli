@@ -213,9 +213,10 @@ TRUESTAMP_BASE_URL=https://www.truestamp.com truestamp config show
 truestamp config show --base-url https://www.truestamp.com
 ```
 
-`config show` renders the General block (API URL, Auth Mode, API Key, Team,
-Team Name, Keyring URL, HTTP Timeout, Cosign Path) followed by the
-Verification, Hash and Convert sections.
+`config show` renders the General block (Config File, API URL, Auth Mode, API
+Key, Team, Team Name, Keyring URL, HTTP Timeout, Cosign Path) followed by the
+Verification, Hash and Convert sections. Config File is the file actually in
+effect, so it reflects `--config` when one was supplied.
 
 Defaults worth knowing:
 

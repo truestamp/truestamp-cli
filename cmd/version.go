@@ -20,10 +20,9 @@ var versionCmd = &cobra.Command{
 	Long:  "Print detailed version info including module path, config path, Go toolchain, platform, commit, and build date.",
 	Args:  cobra.NoArgs,
 	Run: func(cmd *cobra.Command, args []string) {
-		configPath := configFile
-		if configPath == "" {
-			configPath = config.ConfigFilePath()
-		}
+		// The file in effect, not the platform default: `truestamp
+		// version --config X` must report X.
+		configPath := config.ActivePath()
 
 		lines := []struct{ label, value string }{
 			{"version", version.Version},

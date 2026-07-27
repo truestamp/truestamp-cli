@@ -211,8 +211,8 @@ func runAPIKeyLogin(cmd *cobra.Command) error {
 	}
 
 	// Log the action — never the key bytes.
-	appLogger.Info("auth_login_apikey", "config_path", config.ConfigFilePath())
-	fmt.Fprintln(out, ui.SuccessBanner("API key saved to "+config.ConfigFilePath()))
+	appLogger.Info("auth_login_apikey", "config_path", config.ActivePath())
+	fmt.Fprintln(out, ui.SuccessBanner("API key saved to "+config.ActivePath()))
 	return nil
 }
 
@@ -281,8 +281,8 @@ func runAuthLogout(cmd *cobra.Command, _ []string) error {
 		if err := config.SetAPIKey(""); err != nil {
 			return err
 		}
-		appLogger.Info("auth_logout_apikey", "config_path", config.ConfigFilePath())
-		fmt.Fprintln(out, ui.SuccessBanner("Stored API key removed from "+config.ConfigFilePath()))
+		appLogger.Info("auth_logout_apikey", "config_path", config.ActivePath())
+		fmt.Fprintln(out, ui.SuccessBanner("Stored API key removed from "+config.ActivePath()))
 	} else if hasOAuth && cfg.APIKey != "" {
 		fmt.Fprintln(out, ui.FaintStyle().Render(
 			"  Note: a config-file API key is still set; run 'truestamp auth logout --api-key' to remove it."))
@@ -300,7 +300,7 @@ func logoutDescription(hasOAuth, clearsKey bool) string {
 	case hasOAuth:
 		return "Revoke and clear the OAuth session."
 	default:
-		return "Clear the stored API key in " + config.ConfigFilePath() + "."
+		return "Clear the stored API key in " + config.ActivePath() + "."
 	}
 }
 
@@ -316,7 +316,7 @@ func runAuthStatus(cmd *cobra.Command, _ []string) error {
 
 	t := ui.CompactTable().
 		StyleFunc(configStyleFunc).
-		Row("Config File", config.ConfigFilePath()).
+		Row("Config File", config.ActivePath()).
 		Row("API URL", apiURL).
 		Row("Check URL", checkURL).
 		Row("Auth Mode", authModeDisplay())

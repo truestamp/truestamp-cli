@@ -19,6 +19,12 @@ func FuzzLoad_TOML(f *testing.F) {
 	f.Add([]byte(`malformed = ][`))
 
 	f.Fuzz(func(t *testing.T, data []byte) {
+		// Load records its configPath as the process-wide active-path
+		// override. Clear it afterwards so a temp path from this target
+		// doesn't leak into later tests in the package (which would
+		// redirect SetAPIKey/SetTeam at a deleted TempDir).
+		t.Cleanup(func() { SetActivePath("") })
+
 		dir := t.TempDir()
 		path := filepath.Join(dir, "config.toml")
 		if err := os.WriteFile(path, data, 0644); err != nil {

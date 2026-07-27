@@ -98,7 +98,7 @@ func runConsole(cmd *cobra.Command, _ []string) error {
 		ActiveTeamID:   activeTeamID,
 		Logger:         appLogger,
 		LogFilePath:    appLogPath,
-		ConfigFilePath: config.ConfigFilePath(),
+		ConfigFilePath: config.ActivePath(),
 		HealthTargets:  console.DefaultHealthTargets(appConfig.HealthURL, appConfig.KeyringURL),
 	})
 }

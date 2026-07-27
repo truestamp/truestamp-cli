@@ -14,6 +14,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/knadh/koanf/parsers/toml/v2"
@@ -191,6 +192,14 @@ func Load(configPath string, flags *pflag.FlagSet) (*Config, error) {
 	}
 
 	// 2. Config file (skip if missing)
+	//
+	// Load deliberately does NOT record configPath as the process-wide
+	// active path. Doing so here would make a pure read function mutate
+	// global state as a side effect, including on the error paths below,
+	// and would leak between callers: every test that loads a temp config
+	// would silently retarget SetAPIKey / SetTeam / EnsureDefaultConfig at
+	// a directory that no longer exists. The single CLI caller records it
+	// explicitly via SetActivePath once Load has succeeded.
 	if configPath == "" {
 		configPath = ConfigFilePath()
 	}
@@ -356,20 +365,88 @@ func warnLegacyURLKeys(k *koanf.Koanf) {
 // on the platform where it can actually run.
 func ConfigDir() string { return configDir() }
 
-// ConfigFilePath returns the full path to the config file.
+// ConfigFilePath returns the full path to the PLATFORM DEFAULT config
+// file — the location used when the user did not pass --config. It
+// deliberately ignores any override so cmd/root.go can render it as the
+// documented default in the --config flag's help text (built at init()
+// time, long before any config is loaded).
+//
+// Callers asking "which file is actually in effect right now?" want
+// [ActivePath] instead.
 func ConfigFilePath() string {
 	return filepath.Join(ConfigDir(), "config.toml")
 }
 
-// EnsureDefaultConfig creates the config directory and writes the default
-// config.toml if it does not already exist. Returns true if the file was created.
+// activeMu guards activeOverride. Load writes it, and every display and
+// persistence site reads it; `go test -race` exercises concurrent Load
+// calls, so the state is mutex-guarded rather than a bare package var.
+var (
+	activeMu       sync.RWMutex
+	activeOverride string
+)
+
+// SetActivePath records path as the --config override in effect for the
+// rest of the process. The empty string clears the override, restoring
+// the platform default. [Load] calls this with the configPath it was
+// given, so ordinary CLI flows never need to call it directly; it is
+// exported for tests and for callers that resolve the path themselves.
+//
+// This mirrors the package-global idiom already used by auth.SetDefault
+// and httpclient.SetTransport.
+func SetActivePath(path string) {
+	activeMu.Lock()
+	activeOverride = path
+	activeMu.Unlock()
+}
+
+// activeOverridePath returns the recorded --config override, or "" when
+// none is in effect.
+func activeOverridePath() string {
+	activeMu.RLock()
+	defer activeMu.RUnlock()
+	return activeOverride
+}
+
+// ActivePath returns the config file actually in effect: the --config
+// override when one was supplied, otherwise the platform default.
+//
+// It is correct even when [Load] was never called — some commands and
+// tests reach display/persistence sites before (or without) loading the
+// config, and they must not silently target a different file than the
+// one that was read.
+func ActivePath() string {
+	if p := activeOverridePath(); p != "" {
+		return p
+	}
+	return ConfigFilePath()
+}
+
+// activeConfigDir returns the directory holding the file in effect, or
+// "" when it cannot be determined. Without an override that is the
+// platform config dir (empty when neither $HOME nor $XDG_CONFIG_HOME is
+// resolvable); with an override it is that path's parent, which is
+// always determinable.
+func activeConfigDir() string {
+	if p := activeOverridePath(); p != "" {
+		return filepath.Dir(p)
+	}
+	return ConfigDir()
+}
+
+// EnsureDefaultConfig creates the directory of the config file in effect
+// and writes the default config.toml there if it does not already exist.
+// Returns true if the file was created.
+//
+// The path comes from [ActivePath], not [ConfigFilePath], so a --config
+// override creates (and is subsequently written to) the file the user
+// actually named.
 func EnsureDefaultConfig() (bool, error) {
-	dir := ConfigDir()
+	dir := activeConfigDir()
 	if dir == "" {
 		return false, fmt.Errorf("cannot determine home directory; set $HOME or $XDG_CONFIG_HOME")
 	}
 
-	path := filepath.Join(dir, "config.toml")
+	path := ActivePath()
 
 	if _, err := os.Stat(path); err == nil {
 		return false, nil // already exists

@@ -85,6 +85,13 @@ var rootCmd = &cobra.Command{
 			return err
 		}
 		appConfig = cfg
+
+		// Record which file is in effect, now that we know it loaded. Every
+		// downstream "which config file?" site reads this: `config path`,
+		// `config init`, SetAPIKey, SetTeam, and the auth/team/console cards.
+		// It is set here rather than inside Load so that Load stays free of
+		// global side effects and a failed load never installs a bad path.
+		config.SetActivePath(configFile)
 		httpclient.Init(cfg.Timeout())
 		httpclient.SetUserAgent(version.Version)
 
