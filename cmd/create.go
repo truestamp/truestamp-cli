@@ -57,10 +57,10 @@ must be both supplied (external-hash mode) or both omitted
 
 Input methods (resolved in priority order):
   truestamp create document.pdf              External hash: hash file, filename as name
-  truestamp create --file document.pdf       External hash: explicit file path
+  truestamp create --file=document.pdf       External hash: explicit file path
   truestamp create --file                    External hash: interactive file picker
   cat doc.pdf | truestamp create -F -n Doc   External hash: hash file content from stdin
-  truestamp create -c claims.json            Either mode: load claims from JSON file
+  truestamp create -c=claims.json            Either mode: load claims from JSON file
   truestamp create --claims                  Interactive claims JSON file picker
   cat claims.json | truestamp create -C      Read claims JSON from stdin
   truestamp create -n "Doc" --hash abc...    External hash: build claims from flags
@@ -161,6 +161,27 @@ func resolveCreateInput(cmd *cobra.Command, args []string) (map[string]any, erro
 	claimsStdin, _ := cmd.Flags().GetBool("claims-stdin")
 	fileFlag, _ := cmd.Flags().GetString("file")
 	fileStdin, _ := cmd.Flags().GetBool("file-stdin")
+
+	// `--claims` and `--file` carry a NoOptDefVal, so a space-separated
+	// value is not consumed by the flag: `--claims doc.json` sets the
+	// picker sentinel and leaves doc.json as a positional argument. Left
+	// alone that opens the interactive picker and silently discards the
+	// path, which hangs a script and misleads a human.
+	//
+	// Reusing the positional is not an option here the way it is for the
+	// shared resolver: for `create` a positional means "hash this file",
+	// so honoring `--claims doc.json` as a positional would quietly
+	// timestamp the file instead of reading claims out of it. The two
+	// spellings mean different things, so the only safe move is to stop
+	// and name the fix.
+	if len(args) > 0 {
+		if claimsFlag == inputsrc.FilePickSentinel {
+			return nil, fmt.Errorf("--claims takes its path with an equals sign: did you mean --claims=%s ? (a space-separated path is read as a file to hash, not as claims)", args[0])
+		}
+		if fileFlag == inputsrc.FilePickSentinel {
+			return nil, fmt.Errorf("--file takes its path with an equals sign: did you mean --file=%s ? (or drop the flag: `truestamp create %s` hashes it directly)", args[0], args[0])
+		}
+	}
 
 	switch {
 	// --claims: load claims JSON from file (picker if no path)
