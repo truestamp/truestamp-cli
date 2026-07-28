@@ -6,6 +6,7 @@ package proof
 import (
 	"encoding/json"
 	"fmt"
+	"math"
 	"os"
 	"strconv"
 	"strings"
@@ -270,10 +271,13 @@ func jsonInteger(raw json.RawMessage) (intValue, bool) {
 }
 
 // jsonIntOrZero reads an integer member that E.6 does not gate (`v`, `l`,
-// `h`), carrying anything else through as 0.
+// `h`), carrying anything else through as 0. A value too wide for an int on
+// this platform is part of that "anything else": on a 32-bit build a bare
+// conversion would truncate a ledger number or block height into a plausible
+// but wrong one, so it is graded as unreadable instead.
 func jsonIntOrZero(raw json.RawMessage) int {
 	n, ok := jsonInteger(raw)
-	if !ok || !n.Fits {
+	if !ok || !n.Fits || n.N < math.MinInt || n.N > math.MaxInt {
 		return 0
 	}
 	return int(n.N)
@@ -292,13 +296,17 @@ type intValue struct {
 func (v intValue) String() string { return v.Text }
 
 // subjectCodeFrom maps an exact integer onto a registered subject code.
-// The round-trip guard is the point of it: ptype.Code is a uint16, so a bare
-// conversion folds 65546 onto 10 (block) and -1 onto 65535, and E.24 is
+// The range guard is the point of it: ptype.Code is a uint16, so converting
+// first would fold 65546 onto 10 (block) and -1 onto 65535, and E.24 is
 // explicit that an unregistered code MUST be rejected as unsupported rather
-// than have a subject shape guessed for it.
+// than have a subject shape guessed for it. Hence the bound is checked on the
+// int64 while it still holds the value the bundle actually carries.
 func subjectCodeFrom(v intValue) (ptype.Code, bool) {
+	if !v.Fits || v.N < 0 || v.N > math.MaxUint16 {
+		return 0, false
+	}
 	c := ptype.Code(v.N)
-	if !v.Fits || int64(c) != v.N || !ptype.IsValidSubject(c) {
+	if !ptype.IsValidSubject(c) {
 		return 0, false
 	}
 	return c, true
@@ -306,8 +314,11 @@ func subjectCodeFrom(v intValue) (ptype.Code, bool) {
 
 // commitmentCodeFrom is subjectCodeFrom for the `cx[].t` registry {40, 41}.
 func commitmentCodeFrom(v intValue) (ptype.Code, bool) {
+	if !v.Fits || v.N < 0 || v.N > math.MaxUint16 {
+		return 0, false
+	}
 	c := ptype.Code(v.N)
-	if !v.Fits || int64(c) != v.N || !ptype.IsValidExternalCommitment(c) {
+	if !ptype.IsValidExternalCommitment(c) {
 		return 0, false
 	}
 	return c, true
