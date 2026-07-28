@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.12.0] — 2026-07-28
+
 Conformance pass against Appendix E of the Truestamp whitepaper, the
 normative specification for an independent proof verifier. The headline
 change is that a bundle's verdict is now a function of the bundle and
