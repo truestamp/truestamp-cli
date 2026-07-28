@@ -30,7 +30,7 @@ This repo is managed with **[Jujutsu (jj)](https://jj-vcs.github.io/)**, colocat
 
 Read-only `git log`, `git show`, `git diff`, `git blame`, and `gh ...` commands are fine: jj and git share the same object store. **Mutating git commands** (`git commit`, `git checkout -b`, `git reset`, `git rebase`, `git push`) should be avoided in favour of their jj equivalents so the jj operation log and bookmarks stay coherent.
 
-**Writing commit descriptions:** use the [`jj-desc`](.claude/skills/jj-desc/SKILL.md) skill: it analyses the diff, drafts a 50/72 message in imperative mood, and runs `jj desc -r <ID> -m '...'` after a single confirmation. Never add `Co-Authored-By` or other attribution lines to commits in this repo.
+**Writing commit descriptions:** use the `/jj-desc` skill (installed at the user level, in `~/.claude/skills/jj-desc/`): it analyses the diff, drafts a 50/72 message in imperative mood, and runs `jj desc -r <ID> -m '...'` after a single confirmation. Never add `Co-Authored-By` or other attribution lines to commits in this repo.
 
 ## How to Build and Run
 
