@@ -17,7 +17,47 @@ import (
 )
 
 // httpClient is the shared HTTP client.
-var httpClient = &http.Client{Timeout: 10 * time.Second}
+var httpClient = newClient(10 * time.Second)
+
+// ErrRedirectDowngrade is returned (wrapped in a *url.Error by net/http)
+// when a server tries to redirect an https request to a plaintext http
+// URL. Following such a redirect would strip TLS mid-chain, which for the
+// keyring fetch in particular is a total compromise: an attacker who can
+// substitute the keyring can substitute signing keys, and every downstream
+// signature then validates against their key. See VerifyKeyring's threat
+// note in internal/external/keyring.go.
+var ErrRedirectDowngrade = errors.New("refusing redirect that downgrades https to http")
+
+// maxRedirects matches net/http's default cap. It is restated here because
+// supplying CheckRedirect replaces that default entirely.
+const maxRedirects = 10
+
+// checkRedirect refuses any redirect that drops from https to http, and
+// otherwise preserves net/http's default 10-hop cap.
+//
+// Cross-host redirects that STAY on https are deliberately allowed: GitHub
+// release assets (fetched by internal/selfupgrade through this same client)
+// redirect from github.com to objects.githubusercontent.com, so banning
+// cross-host would break `truestamp upgrade`. A redirect that keeps TLS is
+// still authenticated by the CA chain; the threat this guards is the
+// downgrade to an unauthenticated channel.
+func checkRedirect(req *http.Request, via []*http.Request) error {
+	if len(via) >= maxRedirects {
+		return fmt.Errorf("stopped after %d redirects", maxRedirects)
+	}
+	prev := via[len(via)-1]
+	if prev.URL.Scheme == "https" && req.URL.Scheme != "https" {
+		return fmt.Errorf("%w: %s -> %s", ErrRedirectDowngrade, prev.URL.Scheme, req.URL.Scheme)
+	}
+	return nil
+}
+
+// newClient builds a shared client carrying the redirect policy. Every
+// construction site must go through it so the policy cannot be lost by
+// building an http.Client literal.
+func newClient(timeout time.Duration) *http.Client {
+	return &http.Client{Timeout: timeout, CheckRedirect: checkRedirect}
+}
 
 // userAgent is stamped onto every outbound request by SetUserAgent and
 // applied centrally in Do. Empty means "don't override any UA the caller
@@ -29,8 +69,10 @@ const MaxResponseSize = 1 << 20
 
 // Init creates a new HTTP client with the given timeout.
 // Must be called once during startup before any external calls.
+// The redirect policy in [checkRedirect] is reinstalled here; building a
+// bare http.Client instead would silently drop it.
 func Init(timeout time.Duration) {
-	httpClient = &http.Client{Timeout: timeout}
+	httpClient = newClient(timeout)
 }
 
 // SetTransport installs rt as the round-tripper for the shared client. The

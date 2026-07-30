@@ -11,6 +11,7 @@ import (
 	"net"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"strings"
 	"testing"
 	"time"
@@ -284,4 +285,70 @@ func TestTypedErrorMessages(t *testing.T) {
 			t.Errorf("Error() = %q, want %q", got, tc.want)
 		}
 	}
+}
+
+// TestCheckRedirect_RefusesHTTPSDowngrade pins the security property that
+// VerifyKeyring's threat note in internal/external/keyring.go relies on: a
+// server may not talk us out of TLS mid-redirect. Before this policy existed
+// the shared client used net/http's default, which follows an https -> http
+// redirect without complaint.
+func TestCheckRedirect_RefusesHTTPSDowngrade(t *testing.T) {
+	prev := &http.Request{URL: mustURL(t, "https://keys.example.com/.well-known/keyring.json")}
+	next := &http.Request{URL: mustURL(t, "http://evil.example.net/keyring.json")}
+
+	err := checkRedirect(next, []*http.Request{prev})
+	if err == nil {
+		t.Fatal("https -> http redirect was allowed; TLS can be stripped mid-chain")
+	}
+	if !errors.Is(err, ErrRedirectDowngrade) {
+		t.Fatalf("want ErrRedirectDowngrade, got %v", err)
+	}
+}
+
+// TestCheckRedirect_AllowsCrossHostOverTLS is the deliberate counterpart:
+// GitHub release assets redirect github.com -> objects.githubusercontent.com,
+// and internal/selfupgrade fetches them through this same client. Banning
+// cross-host redirects outright would break `truestamp upgrade`.
+func TestCheckRedirect_AllowsCrossHostOverTLS(t *testing.T) {
+	prev := &http.Request{URL: mustURL(t, "https://github.com/truestamp/truestamp-cli/releases/download/v1/x.tar.gz")}
+	next := &http.Request{URL: mustURL(t, "https://objects.githubusercontent.com/blob/x.tar.gz")}
+
+	if err := checkRedirect(next, []*http.Request{prev}); err != nil {
+		t.Fatalf("cross-host https redirect must be allowed, got %v", err)
+	}
+}
+
+// TestCheckRedirect_HonoursHopCap keeps net/http's default 10-redirect bound,
+// which supplying CheckRedirect otherwise replaces with "unlimited".
+func TestCheckRedirect_HonoursHopCap(t *testing.T) {
+	via := make([]*http.Request, maxRedirects)
+	for i := range via {
+		via[i] = &http.Request{URL: mustURL(t, "https://example.com/")}
+	}
+	next := &http.Request{URL: mustURL(t, "https://example.com/")}
+
+	if err := checkRedirect(next, via); err == nil {
+		t.Fatalf("want a stop after %d redirects, got nil", maxRedirects)
+	}
+}
+
+// TestSharedClientsCarryRedirectPolicy guards against a future edit rebuilding
+// the client as a bare &http.Client{} and silently dropping the policy.
+func TestSharedClientsCarryRedirectPolicy(t *testing.T) {
+	if httpClient.CheckRedirect == nil {
+		t.Fatal("package-level client lost its redirect policy")
+	}
+	Init(3 * time.Second)
+	if httpClient.CheckRedirect == nil {
+		t.Fatal("Init built a client without the redirect policy")
+	}
+}
+
+func mustURL(t *testing.T, raw string) *url.URL {
+	t.Helper()
+	u, err := url.Parse(raw)
+	if err != nil {
+		t.Fatalf("parse %q: %v", raw, err)
+	}
+	return u
 }
