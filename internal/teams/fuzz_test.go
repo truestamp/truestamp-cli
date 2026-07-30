@@ -8,8 +8,8 @@ import "testing"
 // FuzzParseMemberships exercises the JSON:API memberships+included
 // parser against garbage bytes. Must never panic and must reject
 // malformed responses with an ordinary error. Anchors the teams
-// package to the repo's fuzz coverage requirement (CLAUDE.md "Fuzz
-// coverage on every parser").
+// package to the repo's fuzz coverage requirement (kb/architecture.md
+// "Fuzz coverage on every parser").
 func FuzzParseMemberships(f *testing.F) {
 	f.Add([]byte(jsonAPIMembershipsBody))
 	f.Add([]byte(`{"data":[]}`))

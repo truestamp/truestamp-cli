@@ -8,7 +8,7 @@ import "testing"
 // FuzzParseBeacon exercises the single-beacon JSON parser against garbage
 // bytes. The parser must never panic and must reject malformed responses
 // with an ordinary error. Anchors the beacons package to the repo's fuzz
-// coverage requirement (see CLAUDE.md "Fuzz coverage on every parser").
+// coverage requirement (see kb/architecture.md "Fuzz coverage on every parser").
 func FuzzParseBeacon(f *testing.F) {
 	f.Add([]byte(validBody))
 	f.Add([]byte(wrappedOne))
