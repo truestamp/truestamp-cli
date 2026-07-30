@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.12.1] — 2026-07-30
+
 A documentation audit checked every markdown file and Go comment in the
 repository against the code that backs it. Most of what it turned up was
 prose drift, corrected below without ceremony. Two findings were real
@@ -1584,7 +1586,8 @@ carried it, and not whether a third-party service happened to answer.
   v0.1.0 is the first release of a standalone Go codebase; the two share
   nothing beyond the repository name.
 
-[Unreleased]: https://github.com/truestamp/truestamp-cli/compare/v0.12.0...HEAD
+[Unreleased]: https://github.com/truestamp/truestamp-cli/compare/v0.12.1...HEAD
+[0.12.1]: https://github.com/truestamp/truestamp-cli/releases/tag/v0.12.1
 [0.12.0]: https://github.com/truestamp/truestamp-cli/releases/tag/v0.12.0
 [0.11.1]: https://github.com/truestamp/truestamp-cli/releases/tag/v0.11.1
 [0.11.0]: https://github.com/truestamp/truestamp-cli/releases/tag/v0.11.0
