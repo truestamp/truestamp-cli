@@ -7,6 +7,68 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+A documentation audit checked every markdown file and Go comment in the
+repository against the code that backs it. Most of what it turned up was
+prose drift, corrected below without ceremony. Two findings were real
+defects: a security property the code claimed but had never implemented,
+and an upgrade command that could not work on Windows.
+
+### Security
+
+- **Redirects that downgrade `https` to `http` are now refused.** The
+  keyring fetch documented itself as not following redirects that strip
+  TLS. It followed them: no `CheckRedirect` was ever installed on the
+  shared HTTP client, so Go's default applied and an `https` request
+  would follow a redirect to a plaintext host without complaint. That
+  matters most for the keyring, because substituting it substitutes the
+  signing keys, and every downstream signature then validates against
+  the substituted key. The client now refuses any `https` → `http`
+  redirect and restores the 10-hop cap that supplying a redirect policy
+  otherwise removes entirely. Cross-host redirects that stay on `https`
+  are still followed: they remain authenticated by the CA chain, and
+  `truestamp upgrade` needs them to fetch GitHub release assets.
+
+### Fixed
+
+- **`truestamp upgrade` printed an unusable `go install` command on
+  Windows.** The instruction was assembled by hand from the repository
+  slug, which carries no host, so it read
+  `go install truestamp/truestamp-cli/cmd/truestamp@latest` — a path
+  `go install` rejects. It now prints the full module path. Windows is
+  print-only for `upgrade`, so this was the whole upgrade path for
+  those users, and no test covered the string.
+- **Two documented `truestamp create` invocations could not run.**
+  `README.md` showed `truestamp create --file document.pdf` and
+  `truestamp create -c claims.json`; both exit 1. Those flags take an
+  optional value, so a space-separated path is parsed as a positional
+  argument instead of as the flag's value. The documented spelling is
+  now `--file=` / `-c=`. `EXAMPLES.md` separately described the older
+  failure mode, in which the interactive picker opened and the typed
+  path was silently discarded; a guard added since rejects the
+  invocation up front and names the `=` form as the fix.
+
+### Documentation
+
+- **Reference material moved out of `CLAUDE.md` into a `kb/`
+  directory.** The file had reached 92,000 characters, all of it read
+  for every task. Content reconstructible from `--help`, the package
+  manifest or `find` was dropped, and the reference material behind it
+  now lives in `kb/` behind an index, read on demand. Prohibitions
+  stayed in `CLAUDE.md`: a rule in a file nobody opens is not a rule.
+  `docs/engineering/console.md` moved to `kb/console/` and split by
+  package — it was contributor documentation that `docs/` published by
+  accident of placement, and `get.truestamp.com/engineering/console.*`
+  now returns 404.
+- **111 statements that disagreed with the code were corrected** across
+  the markdown files and Go comments. Among them: a comment declaring
+  reconnect-with-backoff "intentionally NOT in V1" in the file that
+  implements it, a claim that OAuth rides a `Bearer` header on the
+  console WebSocket upgrade (it cannot — a Phoenix upgrade never sees
+  that header, so the token travels as a query parameter), a package
+  describing itself as the set of hash algorithms the backend accepts
+  when it is in fact the CLI-facing set, and `--remote`'s flag help
+  still requiring `--api-key` after OAuth became the default.
+
 ## [0.12.0] — 2026-07-28
 
 Conformance pass against Appendix E of the Truestamp whitepaper, the
