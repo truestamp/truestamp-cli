@@ -215,8 +215,25 @@ gh pr create --base main --head release-vX.Y.Z \
 Record the returned PR number. Watch CI:
 
 ```bash
-gh pr checks <PR> --watch --repo truestamp/truestamp-cli
+while :; do
+  gh pr checks <PR> --repo truestamp/truestamp-cli >/dev/null 2>&1; rc=$?
+  [ "$rc" -ne 8 ] && break     # 8 = still pending; 0 = all passed; 1 = something failed
+  sleep 30
+done
+echo "checks finished, rc=$rc"
+gh pr checks <PR> --repo truestamp/truestamp-cli
 ```
+
+Poll on the exit code, not `--watch`. `gh pr checks --watch` is a long-lived
+stream that dies on a transient API hiccup, and it has no timeout of its own,
+so in an unattended shell it either blocks past the shell's ceiling or returns
+early on an error that looks like completion.
+
+`8` is the only value that means "keep waiting" (`gh pr checks --help`,
+"Additional exit codes: 8: Checks pending"). Breaking on `rc != 8` is what
+makes a *failed* check end the loop instead of spinning forever — an
+`until gh pr checks …; do sleep 30; done` looks correct and hangs indefinitely
+the moment a check goes red, because failure is also non-zero.
 
 Required green checks: `Test (ubuntu-latest)`, `Test (macos-latest)`. Other checks (`CodeQL`, `Analyze (Go)`, `Socket Security: Project Report`, `Socket Security: Pull Request Alerts`) will also run — CodeQL and the two Test jobs are ruleset-enforced.
 
@@ -277,7 +294,10 @@ git push origin vX.Y.Z
 ```bash
 run_id=$(gh run list --workflow=release.yml --limit 1 --json databaseId -q '.[0].databaseId')
 echo "run_id=$run_id"
-gh run watch "$run_id" --exit-status
+until [ "$(gh run view "$run_id" --json status -q .status 2>/dev/null)" = "completed" ]; do
+  sleep 30
+done
+gh run view "$run_id" --json status,conclusion -q '.status+" / "+.conclusion'
 ```
 
 Expected job structure (verify with `gh run view $run_id --json jobs`):
@@ -419,6 +439,32 @@ The skill relies on these being true throughout:
 - `RELEASE_SHA` (the merged release commit SHA) is computed once at Step 7 and reused through Step 9. Don't recompute from `main` at a later step — if anyone else pushes to main between merge and tag, your local and remote will diverge.
 - The tag is created with `git tag -a` at exactly `RELEASE_SHA`, not at `HEAD`. This matters in case the working tree has moved.
 - Every verification in Step 11 passes before reporting success. Do NOT report success on partial verification; route to `references/failure-recovery.md` instead.
+
+## Waiting on remote state
+
+Steps 7 and 10 both block on GitHub. Every wait in this skill must satisfy all
+four of these, because a wait that can never finish is worse than no wait — it
+looks identical to "still running" and burns the whole session.
+
+1. **Poll a value, don't ride a stream.** `gh pr checks --watch` and
+   `gh run watch` hold a connection for minutes and die on a transient API
+   error (a 502 killed one mid-release). Re-reading cheap state on an interval
+   cannot half-fail.
+2. **Prove the exit condition can be true before arming the loop.** Run the
+   predicate once by hand first. A `jq` filter that throws (`gh pr checks
+   --json state -q '…select(.name|startswith("Test "))…'` errors with
+   `startswith("Test ") cannot be applied to: null`) yields empty output, never
+   equals the expected value, and spins forever.
+3. **Never `2>/dev/null` the predicate while developing it.** That is what
+   turns a loud jq error into a silent infinite loop. Add it only once the
+   predicate is proven.
+4. **Make every terminal state exit the loop, not just success.** Break on
+   "no longer pending", then inspect pass/fail *after*. Looping while a command
+   is non-zero hangs forever the moment the thing you are waiting on fails,
+   which is exactly when you most need to know.
+
+Prefer a bare-string status field (`--json status -q .status`) over a computed
+jq predicate: there is nothing in it to throw.
 
 ## Failure recovery
 
