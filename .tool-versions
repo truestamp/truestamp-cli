@@ -38,6 +38,7 @@ staticcheck 2026.1
 aqua:securego/gosec 2.28.0
 go:golang.org/x/vuln/cmd/govulncheck 1.6.0
 # websocat: hand-rolled WebSocket testing for the `truestamp console`
-# wire protocol. See docs/engineering/console.md and the upstream
-# truestamp-v2/docs/console_channel.md "Hand-rolled testing" recipe.
+# wire protocol. See kb/console/testing.md ("Hand-rolled testing with
+# websocat") and the upstream truestamp-v2 kb/internal/console-wiring.md
+# recipe.
 websocat 1.14.1

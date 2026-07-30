@@ -126,7 +126,7 @@ In practice, if you catch the broken release within a few minutes of the tag pus
 
 ## Last resort — manual everything
 
-For any unrecoverable state, fall back to the recipe in [CONTRIBUTING.md](../../../CONTRIBUTING.md) "If the release fails partway" section. That's the authoritative manual recovery procedure; this file is its detailed complement, not its replacement.
+For any unrecoverable state, fall back to the recipe in [CONTRIBUTING.md](../../../../CONTRIBUTING.md) "If the release fails partway" section. That's the authoritative manual recovery procedure; this file is its detailed complement, not its replacement.
 
 ## Prevention (for future releases)
 

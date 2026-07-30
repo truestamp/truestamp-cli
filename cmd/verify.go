@@ -297,6 +297,6 @@ func init() {
 	// signature verification") claimed the Signing Key row was skipped
 	// while the report visibly passed it.
 	f.Bool("skip-signatures", false, "Skip proof signature and keyring verification")
-	f.Bool("remote", false, "Verify via server API instead of local computation (requires --api-key)")
+	f.Bool("remote", false, "Verify via server API instead of local computation (requires authentication)")
 	rootCmd.AddCommand(verifyCmd)
 }

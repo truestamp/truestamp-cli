@@ -55,10 +55,9 @@ func startTeamServer(t *testing.T) (string, func()) {
 		requireBearer(t, r)
 		_, _ = w.Write([]byte(testMembershipsBody))
 	})
-	// Order matters: `/api/json/teams` (list) is more specific than
-	// `/api/json/teams/` (single-resource prefix), so the list handler
-	// must register first or net/http will route all /teams requests
-	// to the trailing-slash handler.
+	// ServeMux prefers the more specific exact pattern `/api/json/teams`
+	// (list) over the subtree pattern `/api/json/teams/` (single
+	// resource), independent of registration order.
 	mux.HandleFunc("/api/json/teams", func(w http.ResponseWriter, r *http.Request) {
 		requireBearer(t, r)
 		_, _ = w.Write([]byte(teamsListBody))

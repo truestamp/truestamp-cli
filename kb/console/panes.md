@@ -137,8 +137,9 @@ submit):
 | `r` | refresh memberships + active-team details |
 
 **Create-team modal** (`TeamCreateKeys`): while open it is fully modal
-and captures every key except `ctrl+c`, so pane-nav digits and
-brackets land in the name field.
+and captures every key except `ctrl+c`, `ctrl+tab` and
+`ctrl+shift+tab`, so pane-nav digits and brackets land in the name
+field.
 
 | Key | Action |
 | --- | ------ |
@@ -146,7 +147,8 @@ brackets land in the name field.
 | `left` / `right` | change the ownership model |
 | `enter` | create |
 | `esc` | cancel |
-| `ctrl+c` | quit (the only key that still leaves the modal for the app) |
+| `ctrl+c` | quit (raises the quit-confirmation prompt) |
+| `ctrl+tab` / `ctrl+shift+tab` | switch panes — the only other bindings the modal doesn't capture |
 
 **Connection** (`ConnectionKeys`):
 

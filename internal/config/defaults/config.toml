@@ -50,7 +50,8 @@ skip_external = false
 # Env: TRUESTAMP_VERIFY_SKIP_SIGNATURES
 skip_signatures = false
 
-# Verify via server API instead of local computation (requires api_key)
+# Verify via server API instead of local computation (requires
+# authentication: `truestamp auth login`, or an API key)
 # Env: TRUESTAMP_VERIFY_REMOTE
 remote = false
 

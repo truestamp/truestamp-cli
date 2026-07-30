@@ -37,7 +37,7 @@ type HeaderInput struct {
 	Width      int
 	Tabs       []TabItem
 	Team       string     // optional active team label, rendered to the left of the status pill so the user can see scope on every pane
-	Status     string     // primary status text (e.g. "connected • pro • 7 streams")
+	Status     string     // primary status text (e.g. "connected", "reconnecting in 3s (attempt 4)")
 	StatusKind StatusKind // colors the status pill
 	Clock      string     // optional trailing server-time, faint-styled
 	Theme      *Theme
@@ -50,7 +50,7 @@ type HeaderInput struct {
 //
 // Layout:
 //
-//	[1] Monitor   [2] New Item   [3] Connection                 connected • pro • 7 streams  •  …
+//	[1] Monitor   [2] New Item   [3] Teams   [4] Connection      connected  •  2026-04-27T20:39:02Z
 //	──────────────────────────────────────────────────────────────────────────────────────────────
 func Render(in HeaderInput) string {
 	if in.Theme == nil || in.Width <= 0 {

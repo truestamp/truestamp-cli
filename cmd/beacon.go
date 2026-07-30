@@ -99,8 +99,9 @@ func beaconSharedFlags(cmd *cobra.Command) (jsonOut, hashOnly, silent bool, err 
 }
 
 // beaconConfig pulls the values the beacons client needs from the resolved
-// application config. Returns errSilentFail when no API key is set, after
-// first printing a "not authenticated" banner to stderr (unless silent).
+// application config. Returns errSilentFail when no credential is
+// configured (neither an OAuth session nor an API key), after first
+// printing a "not authenticated" banner to stderr (unless silent).
 func beaconConfig(cmd *cobra.Command) (beacons.Config, error) {
 	cfg := appConfig
 	if !authConfigured() {
@@ -232,10 +233,11 @@ func humanizeAge(d time.Duration) string {
 	}
 }
 
-// URL helpers (publicWebBase, beaconDetailURL, beaconVerifyURL,
-// subjectDetailURL, subjectVerifyURL) all live in cmd/weburls.go —
-// they're shared across the beacon card, download card, and create
-// card, so centralization avoids drift.
+// URL helpers (publicWebBase, SubjectDetailURL, SubjectVerifyURL,
+// BeaconDetailURL, BeaconVerifyURL, TeamDetailURL, TeamCreateURL) all
+// live in internal/ui/weburls.go — they're shared across the beacon
+// card, download card, create card, and team card, so centralization
+// avoids drift.
 
 // emitJSONMarshal is a small shim so subcommands can render either a
 // single beacon or a list via emitJSON() (shared with codec subcommands).

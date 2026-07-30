@@ -18,9 +18,11 @@
 //
 // Both an OAuth access token and an API key are presented to the server as
 // `Authorization: Bearer <value>` on the JSON API; the server accepts
-// either. The console WebSocket differs: OAuth uses the Bearer request
-// header on the upgrade, while an API key uses the `?api_key=` query
-// param — callers branch on [Authorizer.Mode] for that.
+// either. The console WebSocket differs: neither credential can ride an
+// Authorization header on the upgrade (a Phoenix upgrade cannot expose it
+// to Socket.connect/3), so OAuth passes the access token as the
+// `?access_token=` query param and an API key as `?api_key=` — callers
+// branch on [Authorizer.Mode] for that.
 package auth
 
 import (

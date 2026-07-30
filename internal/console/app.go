@@ -100,9 +100,10 @@ func Run(ctx context.Context, opts Options) error {
 type Options struct {
 	WSURL string
 
-	// Authorizer supplies the WebSocket credential: OAuth (Bearer header,
-	// auto-refreshed) or API key (query param). The Teams pane's HTTP
-	// calls use the process-wide auth.Default() independently.
+	// Authorizer supplies the WebSocket credential: OAuth (`access_token`
+	// query param, refreshed per dial) or API key (`api_key` query param).
+	// The Teams pane's HTTP calls use the process-wide auth.Default()
+	// independently.
 	Authorizer auth.Authorizer
 
 	// APIURL is the base JSON:API URL (e.g. https://www.truestamp.com/api/json).
@@ -136,8 +137,9 @@ type Options struct {
 
 	// HealthTargets is the list of services the Connection pane
 	// probes for liveness. Populated by cmd/console.go from the
-	// active configuration so user-overridden api_url / keyring_url
-	// values are honored. Empty disables the section entirely.
+	// active configuration, so a user-overridden base_url flows
+	// through to the derived health / keyring URLs. Empty disables
+	// the section entirely.
 	HealthTargets []HealthTarget
 }
 
@@ -222,9 +224,10 @@ type model struct {
 
 	// scope is the canonical "what team am I on" state, shared across
 	// the chrome header, the Connection pane's scope rows, and the
-	// Teams pane's renderer. Mutated only inside Update via the
-	// applyWelcome / applyTeamAccess / applyTeamSwitched helpers on
-	// activeScope. Panes read from it in their View().
+	// Teams pane's renderer. Mutated only inside Update, via
+	// model.applyWelcomeToScope and the applyTeamAccess /
+	// applyTeamSwitched helpers on activeScope. Panes read from it in
+	// their View().
 	scope activeScope
 
 	// Pane-specific state.
@@ -329,7 +332,7 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		// Global bindings handled at the root. Plain `tab` is
 		// deliberately NOT handled here — it falls through to the
 		// active pane (the New Item form needs it for field
-		// navigation). Pane switching uses `]` / `[` / `1` / `2` / `3`.
+		// navigation). Pane switching uses `]` / `[` / `1` / `2` / `3` / `4`.
 		//
 		// `q` and `ctrl+c` both raise the quit-confirmation prompt.
 		// `q` is only consumed when the active pane isn't expecting
@@ -692,10 +695,6 @@ func (m *model) activeKeyMap() help.KeyMap {
 	return chrome.EmptyKeyMap{}
 }
 
-// activePaneAcceptsTextInput reports whether the active pane is in a
-// state where typed characters become field values. Used to gate the
-// `q` quit-confirmation so users can still type "q" into form fields
-// without raising a confirm prompt.
 // teamModalOpen reports whether the create-team modal is open on the Teams
 // pane — the one fully-modal state, which captures every key (except ctrl+c)
 // so pane-nav digits / brackets reach the name field instead of switching panes.
@@ -703,6 +702,10 @@ func (m *model) teamModalOpen() bool {
 	return m.active == paneTeam && m.team.create != nil
 }
 
+// activePaneAcceptsTextInput reports whether the active pane is in a
+// state where typed characters become field values. Used to gate the
+// `q` quit-confirmation so users can still type "q" into form fields
+// without raising a confirm prompt.
 func (m *model) activePaneAcceptsTextInput() bool {
 	if m.active == paneNewItem && m.newItem.state == formEntering {
 		return true

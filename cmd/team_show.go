@@ -97,7 +97,7 @@ func runTeamShow(cmd *cobra.Command, args []string) error {
 }
 
 // renderTeamCard prints a 5+-row team card matching the style of
-// renderBeaconCard. Includes two public-web links so the user can
+// renderBeaconCard. Includes a public-web Details link so the user can
 // click through to manage memberships in the web app.
 func renderTeamCard(w io.Writer, apiURL string, team *teams.Team, role string, isActive bool) {
 	heading := "  Team"

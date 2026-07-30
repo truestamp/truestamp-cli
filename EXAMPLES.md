@@ -96,14 +96,15 @@ truestamp verify --file=proof.json     # works (unambiguous)
 ```
 
 **`truestamp create` has no such fallback.** Its `--claims` / `-c` and
-`--file` / `-f` flags *must* use the `=` form, or the CLI will try to open an
-interactive picker and ignore the path you typed:
+`--file` / `-f` flags *must* use the `=` form, or the CLI rejects the
+invocation up front, naming the `=` form as the fix (a space-separated path
+would otherwise be read as a file to hash, not as claims):
 
 ```sh
 truestamp create --claims=claims.json  # correct
 truestamp create -c=claims.json        # correct
-truestamp create --claims claims.json  # WRONG - opens the file picker
-truestamp create -c claims.json        # WRONG - opens the file picker
+truestamp create --claims claims.json  # ERROR - use --claims=claims.json
+truestamp create -c claims.json        # ERROR - use -c=claims.json
 ```
 
 Truly global (persistent) flags, available on every sub-command:
@@ -122,7 +123,7 @@ origin and let the CLI compose `/api/json`, `/.well-known/keyring.json`,
 
 Widely-available (per-command where meaningful) flags you'll see repeatedly:
 
-- `--json` for machine-readable output; supported by `verify`, `hash`, `encode`, `decode`, `jcs`, every `convert` sub-command, `create`, `beacon` and `team`
+- `--json` for machine-readable output; supported by `verify`, `hash`, `encode`, `decode`, `jcs`, every `convert` sub-command, `create`, `beacon`, and `team` / `team list` / `team show` / `team create` (not `team set` or `team unset`)
 - `-s` / `--silent` for exit code only, no output; supported by `verify`, `hash`, `encode`, `decode`, `jcs`, every `convert` sub-command, `beacon` and `team`
 
 `config show` renders a styled table only; it has no `--json` mode.
@@ -214,9 +215,9 @@ truestamp config show --base-url https://www.truestamp.com
 ```
 
 `config show` renders the General block (Config File, API URL, Auth Mode, API
-Key, Team, Team Name, Keyring URL, HTTP Timeout, Cosign Path) followed by the
-Verification, Hash and Convert sections. Config File is the file actually in
-effect, so it reflects `--config` when one was supplied.
+Key, Team, Team Name, Team Role, Keyring URL, HTTP Timeout, Cosign Path)
+followed by the Verification, Hash and Convert sections. Config File is the
+file actually in effect, so it reflects `--config` when one was supplied.
 
 Defaults worth knowing:
 
@@ -600,13 +601,16 @@ truestamp team unset
 `TEAM ID`) with a star on the active row. `team show` adds Personal,
 Ownership, Created and a public Details link.
 
-`--ownership-model` accepts exactly `creator_retains` (the default) or
-`team_retains`; anything else is rejected client-side. `team_retains`
+`--ownership-model` accepts `creator_retains` (the default) or
+`team_retains`, plus the short aliases `creator` / `team` and the
+hyphenated `creator-retains` / `team-retains`, case-insensitively;
+anything else is rejected client-side. `team_retains`
 requires a plan entitlement, which only the server can evaluate, so the
 CLI attempts the create and renders the server's own error when the
 entitlement or the team-count limit blocks it.
 
-All five subcommands accept `--json` and `-s` / `--silent`.
+`list`, `show` and `create` accept `--json`; all five accept `-s` /
+`--silent`.
 
 ---
 
@@ -619,10 +623,12 @@ Truestamp server. Four panes share one long-lived connection:
   lifecycle, internal/external commitments, NIST/Stellar/Bitcoin
   entropy observations, item events for your team) plus a scrollable,
   reversible event waterfall. Newest at top by default.
-- **New Item**, a form (name, description, hash, hash type) that
-  creates a timestamped item over the same socket and shows its live
-  state transitions (`item.created`, `item.updated`, `item.committed`)
-  below the card as they arrive.
+- **New Item**, a two-mode form (submission mode, name, description —
+  plus hash type and hash in external-hash mode, hidden in
+  claims-as-source-of-truth mode, where the description must be ≥ 32
+  characters) that creates a timestamped item over the same socket and
+  shows its live state transitions (`item.created`, `item.updated`,
+  `item.committed`) below the card as they arrive.
 - **Teams**, the same membership table `truestamp team list` renders,
   with `enter` to switch the active team over the live socket and `c` to
   open a create-team modal.
@@ -1375,12 +1381,16 @@ Every inspection command supports `--json`. Combined with `jq`, you can
 build sophisticated pipelines with no parsing glue code.
 
 ```sh
-# Pull the hash found in the proof (when --hash was supplied on the
-# verify invocation to populate the comparison block)
-truestamp verify proof.json --json --hash "<expected>" \
-  | jq -r .hash_comparison.found
+# Pull the hash found in the proof (`hash_comparison` is always
+# emitted; --hash additionally populates .provided and makes
+# .supplied / .matched meaningful)
+truestamp verify proof.json --json | jq -r .hash_comparison.found
 
-# Extract the verify result ("verified" / "failed" / "rejected")
+# Extract the verify result ("verified" / "fully_verified" /
+# "hash_mismatch" / "failed" / "rejected"). Supplying --hash upgrades a
+# clean pass to "fully_verified" and turns a failure confined to the
+# hash comparison into "hash_mismatch"; "rejected" comes from a
+# structural parse abort and carries no `steps` array.
 truestamp verify proof.json --json | jq -r .result
 
 # Compute a digest and pipe it into another command's --hash flag
@@ -1460,14 +1470,20 @@ upgrade notice there: `CI`, `GITHUB_ACTIONS`, `GITLAB_CI`, `CIRCLECI`,
 
 Everything except the commands that explicitly talk to the Truestamp API
 (`create`, `download`, `auth`, `beacon`, `team`, `console`, `verify --remote`)
-works without network:
+works without network. One command reaches a *different* network service:
+`truestamp upgrade --check` always queries the GitHub Releases API (exit code
+2 on network error), as does the in-place upgrade path; on a Homebrew or `go
+install` binary plain `truestamp upgrade` only prints instructions and stays
+offline.
 
 ```sh
 # Fully offline verification: no calls to Truestamp, Stellar, or Bitcoin APIs
 truestamp verify proof.json --skip-external
 
-# All the convert / hash / encode / decode / jcs primitives are offline-only;
-# they never touch the network.
+# The convert / hash / encode / decode / jcs primitives compute locally and
+# make no network calls - unless you explicitly pass --url, which downloads
+# the input (hash, encode, decode, jcs and convert proof accept it; convert
+# time / id / keyid / merkle have no --url and are unconditionally offline).
 truestamp hash -a sha256 file.bin
 truestamp jcs < claims.json
 truestamp convert id 01KNN33GX5E470CB9TRWAYF9DD

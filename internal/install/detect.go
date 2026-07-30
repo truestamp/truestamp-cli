@@ -236,7 +236,8 @@ func sameDir(a, b string) bool {
 // isInstallScriptPath returns true for the standard destinations chosen
 // by docs/install.sh's choose_install_dir(): /usr/local/bin or
 // $HOME/.local/bin. Also accepts /usr/bin for package-manager-adjacent
-// manual drops on Linux.
+// manual drops on Linux, and $HOME/bin as a common user-local
+// alternative to $HOME/.local/bin.
 func isInstallScriptPath(exe string) bool {
 	exeDir := filepath.Dir(exe)
 	candidates := []string{

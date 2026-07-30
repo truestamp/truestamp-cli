@@ -377,9 +377,10 @@ func ConfigFilePath() string {
 	return filepath.Join(ConfigDir(), "config.toml")
 }
 
-// activeMu guards activeOverride. Load writes it, and every display and
-// persistence site reads it; `go test -race` exercises concurrent Load
-// calls, so the state is mutex-guarded rather than a bare package var.
+// activeMu guards activeOverride. SetActivePath writes it, and every
+// display and persistence site reads it; TestActivePath_Concurrent
+// exercises concurrent SetActivePath / ActivePath calls under -race, so
+// the state is mutex-guarded rather than a bare package var.
 var (
 	activeMu       sync.RWMutex
 	activeOverride string
@@ -387,9 +388,10 @@ var (
 
 // SetActivePath records path as the --config override in effect for the
 // rest of the process. The empty string clears the override, restoring
-// the platform default. [Load] calls this with the configPath it was
-// given, so ordinary CLI flows never need to call it directly; it is
-// exported for tests and for callers that resolve the path themselves.
+// the platform default. cmd/root.go calls this once [Load] has
+// succeeded ([Load] itself deliberately does not; see the note in its
+// body), so ordinary CLI flows are already covered; it is exported for
+// tests and for callers that resolve the path themselves.
 //
 // This mirrors the package-global idiom already used by auth.SetDefault
 // and httpclient.SetTransport.

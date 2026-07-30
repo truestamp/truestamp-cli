@@ -174,7 +174,7 @@ func TestCLI_Hash_JSONShape(t *testing.T) {
 // expected digest was computed independently using `echo` + `jq -c` +
 // `xxd` + `sha256sum` to confirm the pipeline composition.
 func TestCLI_Hash_PrefixAndJCS(t *testing.T) {
-	// JCS of {"b":2,"a":1} is {"a":1,"b":2} (26 bytes including braces).
+	// JCS of {"b":2,"a":1} is {"a":1,"b":2} (13 bytes including braces).
 	cmd := exec.Command(binaryPath, "hash", "--prefix", "0x11", "--jcs",
 		"-a", "sha256", "--style", "bare", "--no-filename")
 	cmd.Stdin = strings.NewReader(`{"b":2,"a":1}`)

@@ -10,9 +10,9 @@ import (
 )
 
 // ProofBundle is the top-level compact Truestamp proof structure (bundle
-// version `v` is 1). See `docs/PROOF_FORMAT.md` (authoritative spec) and
-// `docs/PROOF_FORMAT_IMPLEMENTERS_GUIDE.md` (cross-implementation guide)
-// in the truestamp-v2 reference repo.
+// version `v` is 1). Normative reference: Appendix E of
+// `truestamp-v2/whitepaper/whitepaper.typ`; the wire shape is also
+// described in `truestamp-v2/kb/verification/proof-bundle-format.md`.
 //
 // The top-level integer field `t` discriminates subject types:
 //

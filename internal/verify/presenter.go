@@ -636,8 +636,8 @@ const btcMerkleDetail = "The Bitcoin transaction cannot be tied to the block hea
 // It is an ordered slice and not a map because lookup is a
 // case-insensitive substring scan and many messages match more than one
 // keyword — "Cannot verify proof signature (missing derived data): no
-// block hash" matches two, "Bitcoin merkle proof root does NOT match
-// cx.bmr" matches three. Go randomizes map iteration, so those messages
+// block hash" matches three, "Bitcoin merkle proof root does NOT match
+// cx.bmr" matches two. Go randomizes map iteration, so those messages
 // drew a different detail from run to run. The first entry that matches
 // wins, so the order is the disambiguation rule: most specific cause
 // first, and the local derivations (merkle, block hash) ahead of the

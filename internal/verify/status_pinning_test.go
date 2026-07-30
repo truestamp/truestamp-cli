@@ -466,12 +466,13 @@ func TestStellarCommitment_UnconfirmedRowsAreSkips(t *testing.T) {
 
 // --- E.19: Bitcoin commitment grading ---
 
-// bitcoinSkipRows is every E.19(c) absence branch: a piece of optional
-// evidence the entry does not carry. E.5 forbids an absent optional field
-// from failing a sound proof, and E.22 forbids the resulting row from
-// reading as a check that succeeded — so each of these MUST be a skip,
-// and promoting any of them to a pass is the defect E.22 exists to
-// prevent. All fifteen survived the suite before this test.
+// TestBitcoinCommitment_AbsenceRowsAreSkipsNotPasses covers every E.19(c)
+// absence branch: a piece of optional evidence the entry does not carry.
+// E.5 forbids an absent optional field from failing a sound proof, and
+// E.22 forbids the resulting row from reading as a check that succeeded —
+// so each of these MUST be a skip, and promoting any of them to a pass is
+// the defect E.22 exists to prevent. All fifteen survived the suite
+// before this test.
 func TestBitcoinCommitment_AbsenceRowsAreSkipsNotPasses(t *testing.T) {
 	cases := []struct {
 		name string

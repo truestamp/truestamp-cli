@@ -6,7 +6,7 @@
 // /beacons/by-hash/:hash). A Beacon is a compact "proof of life"
 // projection of a finalized block: {id, hash, timestamp, previous_hash}.
 // The server side is documented in
-// truestamp-v2/docs/BEACONS_API_IMPLEMENTERS_GUIDE.md.
+// truestamp-v2/kb/api/beacon-api.md.
 package beacons
 
 import (

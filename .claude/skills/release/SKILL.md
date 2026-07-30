@@ -1,6 +1,6 @@
 ---
 name: release
-description: Cut a new truestamp-cli release end-to-end with full determinism. Walks through every documented step — pre-flight quality gate, GoReleaser dry-run, CHANGELOG update, release PR + CI, signed annotated tag, release.yml workflow verification, post-release GitHub Release / Homebrew tap / install.sh smoke checks — and reports status or actionable failure diagnostics at each step. Use this whenever the user says anything like "cut a release", "release this", "bump the version", "tag v<X>", "ship the next version", "time to release", "/release", or otherwise signals they want to publish a new version of truestamp-cli — even when they don't mention a specific version. This skill is the canonical way to ship a release; `CONTRIBUTING.md` points at it as the normal flow.
+description: Cut a new truestamp-cli release end-to-end with full determinism. Walks through every documented step — pre-flight quality gate, GoReleaser dry-run, CHANGELOG update, release PR + CI, signed annotated tag, release.yml workflow verification, post-release GitHub Release / Homebrew tap verification — and reports status or actionable failure diagnostics at each step. Use this whenever the user says anything like "cut a release", "release this", "bump the version", "tag v<X>", "ship the next version", "time to release", "/release", or otherwise signals they want to publish a new version of truestamp-cli — even when they don't mention a specific version. This skill is the canonical way to ship a release; `CONTRIBUTING.md` points at it as the normal flow.
 ---
 
 # /release — cut a new truestamp-cli release
@@ -17,7 +17,7 @@ The user wants to publish a new version to users. Phrasings that should trigger 
 
 - The user is just pushing a code change to `main` (that's a regular PR, not a release).
 - A prior release failed and the tag is already on origin — use `references/failure-recovery.md` directly; don't run the whole playbook again.
-- The user wants to cut a pre-release / release candidate (`vX.Y.Z-rc.N`, `vX.Y.Z-beta`, etc.). The project's `release.yml` refuses pre-release tags by design (two-layer defence — GitHub `/releases/latest` filter + local semver-suffix check). Pause and discuss with the user before proceeding.
+- The user wants to cut a pre-release / release candidate (`vX.Y.Z-rc.N`, `vX.Y.Z-beta`, etc.). Nothing in CI blocks such a tag — `release.yml` triggers on any `v*` tag and `.goreleaser.yaml`'s `prerelease: auto` would publish it as a GitHub pre-release. The two-layer defence (GitHub `/releases/latest` filter + local semver-suffix check) lives in the CLI's upgrade path (`internal/selfupgrade` + `internal/upgradecheck`), which refuses to auto-upgrade existing users onto it. So this skill pauses by policy, not because CI would refuse: discuss with the user before proceeding.
 - The user wants to cut a MAJOR version bump (X.0.0). Pause and confirm — a major break needs a migration story, not just a tag push.
 
 ## Context this skill assumes
@@ -31,7 +31,7 @@ Before starting, know these facts about the truestamp-cli repo:
   1. `ci` — reusable `workflow_call` into `ci.yml` on the tagged SHA (matrix: ubuntu + macos).
   2. `goreleaser` (gated on `needs: ci`) — `goreleaser check` → snapshot dry-run → real `goreleaser release` → Homebrew tap PR merge → SLSA build-provenance attestation.
 - **Expected release.yml runtime:** 7–9 minutes total.
-- **Tag signing:** `.git/config` has `tag.gpgsign=true` + `user.signingkey` set (ED25519 SSH key). `git tag -a` auto-signs; `git tag -v` verifies.
+- **Tag signing:** the maintainer's git config — the global `~/.gitconfig` plus an `includeIf` overlay, **not** the repo's `.git/config` — sets `tag.gpgsign=true`, `gpg.format=ssh` and `user.signingkey` (ED25519 SSH key). `git tag -a` auto-signs on a correctly configured machine; `git tag -v` is the authority, so never skip it.
 
 ## The canonical playbook
 
@@ -237,7 +237,7 @@ git tag -a vX.Y.Z -m "vX.Y.Z - one-line summary" $RELEASE_SHA
 git tag -v vX.Y.Z 2>&1 | head -5
 ```
 
-The `git tag -v` output MUST start with `Good "git" signature`. If it doesn't, STOP — the repo's `tag.gpgsign=true` + `user.signingkey` should auto-sign. Unsigned release tags are a trust regression.
+The `git tag -v` output MUST start with `Good "git" signature`. If it doesn't, STOP — the maintainer's global `tag.gpgsign=true` + `user.signingkey` should auto-sign. Unsigned release tags are a trust regression.
 
 One-line summary pattern: lead with the version, followed by the headline change. Under 70 chars. Examples from prior releases:
 - `v0.6.0 - beacon as first-class subject + proof format t-byte restructure`
@@ -381,7 +381,7 @@ See [references/failure-recovery.md](references/failure-recovery.md) for:
 ## What this skill deliberately doesn't do
 
 - **Major version bumps** — pause for user input; a major requires migration docs, not just a tag.
-- **Pre-release tags** — release.yml has two layers of defence that refuse them.
+- **Pre-release tags** — release.yml would publish one (`v*` trigger + `prerelease: auto`); it's this skill that pauses. The two layers of defence live in the CLI's upgrade path, and only stop existing users auto-upgrading onto it.
 - **Backporting** — if a hotfix needs to go to an older release line, that's a separate manual process.
 - **Windows in-place upgrade** — upgrade.go stub-errors on Windows; users there must go through `go install`.
 - **Manual tap cask edits** — GoReleaser owns the cask. Never hand-edit `truestamp/homebrew-tap/Casks/truestamp-cli.rb`.

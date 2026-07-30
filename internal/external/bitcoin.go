@@ -1,9 +1,10 @@
 // Copyright (c) 2019-2026 Truestamp, Inc.
 // SPDX-License-Identifier: MIT
 
-// Package external fetches supplementary data from public blockchains (Stellar
-// Horizon, Bitcoin block explorers) to corroborate proofs against real-world
-// public records.
+// Package external fetches supplementary data from third-party public sources
+// (Stellar Horizon, Bitcoin block explorers, the NIST Randomness Beacon) to
+// corroborate proofs against real-world public records, and fetches the
+// Truestamp keyring for the E.17 key-binding step.
 package external
 
 import (
@@ -181,8 +182,9 @@ type BitcoinBlockHeader struct {
 }
 
 // GetBitcoinBlockHeader fetches a Bitcoin block header from Blockstream by
-// block hash. Returns (nil, skipped=true, nil) for regtest (no public API).
-// Errors are typed for [Classify].
+// block hash. Returns (nil, skipped=true, nil) when `net` resolves to no
+// public Blockstream endpoint — regtest, an absent net, or an unrecognised
+// name (see [BitcoinNetworkSkipReason]). Errors are typed for [Classify].
 func GetBitcoinBlockHeader(blockHash, network string) (*BitcoinBlockHeader, bool, error) {
 	baseURL, ok := blockstreamBaseURL(network)
 	if !ok {

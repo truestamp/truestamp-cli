@@ -229,10 +229,12 @@ func entropySourceFromStream(stream string) string {
 	return ""
 }
 
-// splitKind returns (root, verb) from "root.verb", treating only the
-// first dot as the boundary so multi-word resource names (e.g.
+// splitKind returns (root, verb) from "root.verb", splitting on the
+// last dot. Multi-word resource names (e.g.
 // "external_commitment.created", "block_healing.forward") split
-// correctly into root="external_commitment", verb="created".
+// correctly into root="external_commitment", verb="created", and a
+// three-segment kind such as "entropy.nist.failed" yields
+// root="entropy.nist", verb="failed".
 func splitKind(kind string) (string, string) {
 	if i := strings.LastIndex(kind, "."); i >= 0 {
 		return kind[:i], kind[i+1:]

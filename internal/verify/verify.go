@@ -307,10 +307,13 @@ func runBundle(bundle *proof.ProofBundle, filename string, fileSize int64, opts 
 
 // Step group names. Every group Appendix E.22 defines carries E.22's
 // spelling verbatim, because a consumer that keys on a group name is
-// reading the appendix, not this file. groupSubjectType and
-// groupVerificationNotes are the two CLI-specific groups E.22 does not
-// define; both carry only statuses that cannot change a verdict on a
-// conforming bundle.
+// reading the appendix, not this file. groupSubjectType,
+// groupVerificationNotes and (in remote.go) groupServerVerdict are the
+// CLI-specific groups E.22 does not define; groupSubmittedBefore and
+// groupSubmittedAfter are outside E.22's table too, but take their
+// spellings from Section 3's public captions, which the reference
+// verifier shares. None of the five emits a `pass` or a `warn`, so none
+// of them can break E.25's containment rule.
 const (
 	groupHashComparison = "Hash Comparison"
 	groupSigningKey     = "Signing Key"
@@ -375,7 +378,7 @@ func verifySigningKey(r *Report, bundle *proof.ProofBundle) ([]byte, string) {
 	return pubkey, keyID
 }
 
-// --- Step 9: Key Binding (E.17) ---
+// --- Step 11a: Key Binding (E.17) ---
 
 // verifyKeyBinding cross-checks the derived key id and `pk` against the
 // published keyring. It always emits exactly one graded row, whatever
@@ -445,7 +448,9 @@ const keyBindingUnestablishedNote = "The signature check reads the bundle's own 
 
 const expectedVersion = 1
 
-// verifyVersion is the whole of the Structure group, and deliberately so.
+// verifyVersion is the only unconditional Structure row, and deliberately
+// so. E.4's hex sweep (verifyHexEncoding, below) is the group's only other
+// writer, and it stays silent unless a field breaks the lowercase rule.
 //
 // E.8's version check is the one structural proposition the appendix asks a
 // report to carry, and E.25's containment rule forbids a `pass` row for a

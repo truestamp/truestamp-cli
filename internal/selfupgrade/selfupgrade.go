@@ -8,9 +8,12 @@
 // SHA-256 (mandatory, pure Go), verify cosign (best-effort shell-out),
 // extract, atomic replace, clear quarantine xattr on darwin.
 //
-// Homebrew and `go install` users never reach this package — the cmd
-// layer detects the install method and prints the correct package-
-// manager instruction instead.
+// Homebrew and `go install` users never reach the in-place Upgrade()
+// flow — the cmd layer detects the install method and prints the
+// correct package-manager instruction instead. They do still reach
+// Check() / FetchLatest: `upgrade --check` queries the release API
+// regardless of install method, as does the passive notice in
+// internal/upgradecheck.
 package selfupgrade
 
 import (

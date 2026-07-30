@@ -54,7 +54,8 @@ type Membership struct {
 // Errors surfaced by the client. CLI layers may errors.Is these to pick
 // an exit code and user-facing message.
 //
-// ErrUnauthorized covers 401 (the API key itself is invalid or expired).
+// ErrUnauthorized covers 401 (the credential was rejected — a dead or
+// expired OAuth session, or an invalid API key).
 // ErrForbidden covers 403 — auth was accepted but the actor isn't allowed
 // to read this resource (typically: the tenant header points to a team
 // the actor isn't a member of). Distinguishing the two matters because
@@ -70,7 +71,9 @@ var (
 
 	// ErrTeamLimitReached is returned by CreateTeam when the actor's plan
 	// team quota is exhausted (a distinct, user-actionable case: upgrade the
-	// plan). Identified by the server's stable machine error code, not prose.
+	// plan). Identified structurally, not by error code: the server mints
+	// none for :create, so a pointer-less 4xx whose detail names the team
+	// limit marks this case (see mapCreateError / mentionsTeamLimit).
 	ErrTeamLimitReached = errors.New("team limit reached")
 	// ErrOwnershipNotEntitled is returned by CreateTeam when the requested
 	// ownership_model (e.g. team_retains) requires a plan entitlement the
@@ -108,8 +111,8 @@ type Config struct {
 	Team   string // optional tenant id; sent verbatim as the `tenant` header
 }
 
-// ListMyMemberships returns one Membership row per team the API
-// key's user has access to, with the user's role on that team.
+// ListMyMemberships returns one Membership row per team the
+// authenticated actor has access to, with that actor's role on the team.
 //
 // The implementation anchors on `GET /teams` (source of truth for
 // "teams I can read", per the server-side `relates_to_actor_via(:members)`
@@ -376,8 +379,8 @@ func GetTeam(ctx context.Context, cfg Config, id string) (*Team, error) {
 	return parseTeam(body)
 }
 
-// GetMyRoleOnTeam returns the role string for the API key's user on
-// the given team, or the empty string if the user has no membership
+// GetMyRoleOnTeam returns the role string for the authenticated actor
+// on the given team, or the empty string if the actor has no membership
 // (without distinguishing the "no membership" case from "lookup
 // failed"). Callers that need the failure distinction should call
 // ListMyMemberships and search the slice.

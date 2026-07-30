@@ -7,7 +7,7 @@ task test          # everything
 task precommit     # full gate (fmt + lint + vuln-check + tests + build)
 ```
 
-`task lint` is itself `go vet` + `staticcheck` + `gosec`.
+`task lint` is itself `go vet` + a `gofmt` check (`fmt-check`) + `staticcheck` + `gosec`.
 
 `internal/wschannel/redact_test.go` (plus `internal/redact/redact_test.go`,
 the source-of-truth redactor it relies on) is the security-critical test:

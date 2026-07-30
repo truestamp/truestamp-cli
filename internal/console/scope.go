@@ -12,9 +12,10 @@ package console
 //
 // Update points are explicit and centralized in app.go's Update:
 //
-//   - welcomeMsg → applyWelcome sets TeamID + PreferredID, fires
-//     either fetchActiveDetails (REST) or scope.switch_team (channel)
-//     to reconcile.
+//   - welcomeMsg → model.applyWelcomeToScope sets UserID / Plan /
+//     TeamID (and clears AccessLost), then fires either
+//     fetchActiveDetailsCmd (REST) or a silent scope.switch_team
+//     (channel) to reconcile.
 //   - teamAccessMsg → applies Name / Role / Personal for the team
 //     id we're scoped to; flips AccessLost on a 403/404.
 //   - teamSwitchedMsg → applies the post-switch team data verbatim.
@@ -32,8 +33,9 @@ type activeScope struct {
 	TeamID string
 
 	// PreferredID is the team id stored in cfg.Team at console
-	// launch. On welcome, applyWelcome auto-fires scope.switch_team
-	// to align TeamID to PreferredID when they differ.
+	// launch, seeded once in newModel. On welcome,
+	// applyWelcomeToScope auto-fires scope.switch_team to align
+	// TeamID to PreferredID when they differ.
 	PreferredID string
 
 	// Name / Personal / Role are populated alongside TeamID from
