@@ -30,7 +30,29 @@ Before starting, know these facts about the truestamp-cli repo:
 - **Release trigger:** pushing a tag matching `v*` to origin triggers `.github/workflows/release.yml`, which runs:
   1. `ci` — reusable `workflow_call` into `ci.yml` on the tagged SHA (matrix: ubuntu + macos).
   2. `goreleaser` (gated on `needs: ci`) — `goreleaser check` → snapshot dry-run → real `goreleaser release` → Homebrew tap PR merge → SLSA build-provenance attestation.
-- **Expected release.yml runtime:** 7–9 minutes total.
+- **Expected release.yml runtime:** 7–9 minutes total. Measured across
+  v0.9.0–v0.12.0: 7.7, 8.2, 8.2, 10.2, 8.2 minutes. A run well outside that
+  band is usually a GitHub infrastructure stall, not a repo problem — v0.12.1
+  took 27.9 minutes because `actions/checkout` on the ubuntu runner hung for
+  20m49s while every other step ran normally (real work was ~3m40s). Before
+  concluding anything is wrong, get per-step timings and see whether the time
+  is in the build or in the plumbing:
+
+  ```bash
+  jid=$(gh run view "$run_id" --json jobs -q '.jobs[]|select(.name|contains("ubuntu"))|.databaseId')
+  gh api "repos/truestamp/truestamp-cli/actions/jobs/$jid" \
+    -q '.steps[]|"\(.name)  \(.started_at)  \(.completed_at)"'
+  ```
+
+  A slow run that still ends `success` needs no action. Do not "fix" this
+  number in response to a slow run — the band above is the real distribution.
+
+  Such stalls can persist across consecutive runs rather than being one-offs:
+  the PR that added this note also spent 13m21s in `Checkout`, minutes after
+  the v0.12.1 release run spent 20m49s there. Two slow runs in a row are still
+  not evidence the band is wrong — check where the time went before concluding
+  anything. If the time is in `Checkout`, `Set up job`, or another plumbing
+  step, it is GitHub's, and it will pass.
 - **Tag signing:** the maintainer's git config — the global `~/.gitconfig` plus an `includeIf` overlay, **not** the repo's `.git/config` — sets `tag.gpgsign=true`, `gpg.format=ssh` and `user.signingkey` (ED25519 SSH key). `git tag -a` auto-signs on a correctly configured machine; `git tag -v` is the authority, so never skip it.
 
 ## The canonical playbook
@@ -313,8 +335,34 @@ gh run view "$run_id" --json jobs -q '.jobs[] | select(.name == "GoReleaser") | 
 # Expected: (empty output — no failures)
 
 # 7. Build-provenance attestation landed.
-gh api repos/truestamp/truestamp-cli/attestations/vX.Y.Z 2>&1 | head -3 || true
+# The SLSA attestation's ONLY subject is checksums.txt (release.yml passes
+# `subject-path: dist/checksums.txt` to actions/attest-build-provenance), so
+# verify it against that file, downloaded from the release itself.
+gh release download vX.Y.Z --repo truestamp/truestamp-cli --pattern checksums.txt --dir "$tmp"
+gh attestation verify "$tmp/checksums.txt" --repo truestamp/truestamp-cli
+# Expected: exit 0. gh prints its human summary only to a TTY, so in a
+# pipeline the exit code is the result — add --format json to see the bundle.
 ```
+
+Do NOT check the attestation by tag: `gh api repos/.../attestations/vX.Y.Z`
+always 404s, because that endpoint is keyed by artifact digest
+(`sha256:<digest>`), never by tag name. It returns 404 for every release ever
+cut, so with `|| true` appended it reads as passing while asserting nothing.
+
+Do NOT check it against an archive either — `gh attestation verify
+truestamp-cli_X.Y.Z_darwin_arm64.tar.gz` fails with "no attestations found".
+The archives carry no SLSA attestation of their own; their integrity chains
+through `checksums.txt`, which is the attested subject. Confirm an archive by
+verifying the attestation on `checksums.txt` and then matching the archive's
+SHA-256 against a line in it.
+
+Two distinct attestations exist on a release, which is why the predicate
+matters. `gh attestation verify` filters to SLSA provenance by default:
+
+| Predicate | Subjects | Source |
+| --------- | -------- | ------ |
+| `https://slsa.dev/provenance/v1` | `checksums.txt` only | `actions/attest-build-provenance` in release.yml |
+| `https://in-toto.io/attestation/release/v0.2` | all 15 (tag + every asset) | GitHub, automatically on release publish |
 
 If any check fails, say which one, and point at the failure-recovery reference.
 
@@ -331,7 +379,8 @@ Workflow run   : https://github.com/truestamp/truestamp-cli/actions/runs/<run_id
 GitHub Release : https://github.com/truestamp/truestamp-cli/releases/tag/vX.Y.Z
 Assets         : 14 (checksums + sigstore bundle + 6 archives + 6 SBOMs)
 Homebrew tap   : version "X.Y.Z" on main, PR #<NN> merged
-Attestation    : SLSA build-provenance published
+Attestation    : SLSA build-provenance on checksums.txt (archives chain
+                 through it), plus GitHub's release attestation on all assets
 
 Install / upgrade channels:
   brew upgrade truestamp/tap/truestamp-cli
@@ -339,7 +388,9 @@ Install / upgrade channels:
   go install github.com/truestamp/truestamp-cli/cmd/truestamp@vX.Y.Z
   Direct tarballs: <GitHub Release URL>
 
-Total wall-clock time from tag push to "done": <actual minutes> (expected 7–9).
+Total wall-clock time from tag push to "done": <actual minutes> (expected 7–9;
+if well outside that band but the run succeeded, say which step ate the time —
+see "Expected release.yml runtime" above — and do not treat it as a failure).
 ```
 
 If any Step 11 check failed but the release is recoverable, also include:
