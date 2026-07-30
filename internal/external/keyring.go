@@ -135,7 +135,12 @@ func compactError(err error) string {
 //     trust — e.g. official Truestamp docs — not from a bundle authored
 //     by the same party whose proof you are verifying.
 //   - The CLI enforces TLS chain validation (InsecureSkipVerify is never
-//     set) and does not follow cross-host redirects that strip TLS.
+//     set) and refuses any redirect that downgrades https to http, so a
+//     server cannot talk the fetch out of TLS mid-chain
+//     (httpclient.ErrRedirectDowngrade). Cross-host redirects that stay
+//     on https ARE followed — they remain authenticated by the CA chain,
+//     and banning them would break the GitHub-asset fetch in
+//     internal/selfupgrade, which shares this client.
 //
 // A future revision may add pinning of the keyring payload's hash or a
 // cosign/Sigstore signature over the keyring document itself. Until
