@@ -750,7 +750,7 @@ verifier.
 
 The wire protocol is plain JSON arrays over Phoenix Channels V2 and
 is fully driveable from `websocat` / `wscat`. See
-[docs/engineering/console.md](docs/engineering/console.md) for the
+[kb/console/websocket.md](kb/console/websocket.md) for the
 client-side architecture details and
 [truestamp-v2/kb/api/console-websocket.md](https://github.com/truestamp/truestamp-v2/blob/main/kb/api/console-websocket.md)
 for the authoritative wire protocol reference (commands, events,
@@ -1495,5 +1495,6 @@ performed.
 ---
 
 **See also:**
-`README.md` for install instructions, `CLAUDE.md` for architecture notes,
+`README.md` for install instructions, `kb/` for architecture and format
+reference (start at `kb/README.md`),
 `./build/truestamp <command> --help` for per-command flag documentation.

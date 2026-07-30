@@ -35,7 +35,7 @@ func publicWebBase(apiURL string) string {
 }
 
 // subjectDetailPath maps each of the six canonical wire-type values to
-// the server's detail-page root. Id-keyed for all five. Beacon shares
+// the server's detail-page root. Id-keyed for all six. Beacon shares
 // the block's detail page because a beacon proof commits to the same
 // block a plain block proof does — pointing `--type beacon` downloads
 // at `/blocks/<id>` is accurate and uses an id we have on hand (the
@@ -54,7 +54,8 @@ var subjectDetailPath = map[string]string{
 // SubjectDetailURL returns the subject detail page URL for a download
 // or create card. `typeName` must be one of the six canonical wire
 // values; `id` is the ULID (item) or UUIDv7 (every other type). Returns
-// "" for unknown types or dev-host API URLs.
+// "" for an unknown type or an empty apiURL. Dev hosts are NOT filtered:
+// see the package comment above for why that filter was removed.
 func SubjectDetailURL(apiURL, typeName, id string) string {
 	base := publicWebBase(apiURL)
 	if base == "" {
