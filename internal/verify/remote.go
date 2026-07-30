@@ -32,8 +32,9 @@ type RemoteOptions struct {
 	// ExpectedSubjectType, when non-empty, is sent to the server as
 	// `data.type` on /proof/verify. The server then asserts the posted
 	// bundle's `t` matches; a mismatch returns a structured 422 with
-	// meta.code == "subject_type_mismatch" (see PROOF_FORMAT_IMPLEMENTERS_GUIDE
-	// §12). Mirrors Options.ExpectedSubjectType for the local path.
+	// meta.code == "subject_type_mismatch" (see truestamp-v2
+	// kb/verification/proof-bundle-format.md). Mirrors
+	// Options.ExpectedSubjectType for the local path.
 	ExpectedSubjectType string
 }
 

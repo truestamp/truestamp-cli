@@ -715,7 +715,9 @@ func TestDeriveObservationHash_MissingCompositeFields(t *testing.T) {
 
 // TestVerifyVersion_IsTheWholeStructureGroup pins E.25 containment against
 // the Structure group: D.4 reports exactly one Structure row and it
-// establishes `v == 1`, so this group must never emit a second row.
+// establishes `v == 1`, so verifyVersion must never emit a second row.
+// E.4's hex-encoding sweep is the group's only other writer, and it stays
+// silent on a conforming bundle (TestConformingBundleEmitsNoEncodingRow).
 func TestVerifyVersion_IsTheWholeStructureGroup(t *testing.T) {
 	for _, tc := range []struct {
 		name    string

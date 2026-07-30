@@ -23,8 +23,8 @@ type healthState int
 const (
 	healthUnknown  healthState = iota // not yet checked this cycle
 	healthChecking                    // request in flight
-	healthOK                          // 2xx / 3xx response
-	healthDegraded                    // 4xx / 5xx response (host up, content not what we expect)
+	healthOK                          // any non-5xx response (host is up and answering)
+	healthDegraded                    // 5xx response (host up, server signalling its own ill health)
 	healthFailed                      // network failure (DNS, refused, timeout, TLS, etc.)
 )
 

@@ -18,9 +18,8 @@ const DefaultMaxDownloadSize = 200 << 20
 
 // DownloadCtx streams the body of a GET request to destPath. The
 // destination is created (or truncated) with 0644 permissions. The
-// response body is read through an [io.LimitReader] whose cap is the
-// larger of maxBytes and DefaultMaxDownloadSize; pass 0 to use the
-// default.
+// response body is read through an [io.LimitReader] capped at maxBytes;
+// pass 0 (or a negative value) to use DefaultMaxDownloadSize.
 //
 // Unlike GetJSONCtx, this function is safe for multi-MB responses and
 // never buffers the full body in memory.

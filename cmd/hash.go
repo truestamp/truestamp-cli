@@ -212,10 +212,10 @@ type hashResult struct {
 const parallelHashThreshold = 3
 
 // runHashMany hashes every source, preserving the caller-supplied order
-// in the returned slice. For a single input it stays serial (no worker
-// cost); for multiple inputs it hashes in parallel on a bounded worker
-// pool. Stdin sources force serial execution because os.Stdin is not
-// safe to read from multiple goroutines.
+// in the returned slice. Below parallelHashThreshold inputs it stays
+// serial (no worker cost); at or above that count it hashes in parallel
+// on a bounded worker pool. Stdin sources force serial execution because
+// os.Stdin is not safe to read from multiple goroutines.
 //
 // Per-input errors are written to stderr (unless --silent) and the
 // corresponding slot is dropped from results; hadError is true when any

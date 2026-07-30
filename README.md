@@ -154,9 +154,9 @@ round-trip.
 Other input styles:
 
 ```sh
-truestamp create --file document.pdf                     # External hash: explicit file
+truestamp create --file=document.pdf                     # External hash: explicit file
 truestamp create --file                                  # External hash: interactive picker
-truestamp create -c claims.json                          # Either mode: claims from JSON file
+truestamp create -c=claims.json                          # Either mode: claims from JSON file
 cat claims.json | truestamp create -C                    # Either mode: claims from stdin
 truestamp create -n "Q1 Report" --hash <64-hex> \        # External hash: build from flags
   -v public -t finance,reports
@@ -397,13 +397,13 @@ Settings are resolved in this order (later overrides earlier):
 
 `--type` asserts which subject type you expected (`item | entropy_nist | entropy_stellar | entropy_bitcoin | block | beacon`); a disagreement with the bundle's own signed `t` is reported as a failing `Subject Type` step and exits 1. It has no default and is never inferred: **the filename is never consulted**, so renaming a proof can never change a verdict.
 
-Because every `verify` flag is also a config key, an ambient `TRUESTAMP_VERIFY_SKIP_SIGNATURES` (or `[verify] skip_signatures = true` in `config.toml`) silently weakens a run that still exits 0. Scripts that need a full check should pass the flags explicitly and read the report, not just the exit code.
+Because the verify behaviour flags (`--remote`, `--silent`, `--json`, `--skip-external`, `--skip-signatures`) are also config keys, an ambient `TRUESTAMP_VERIFY_SKIP_SIGNATURES` (or `[verify] skip_signatures = true` in `config.toml`) silently weakens a run that still exits 0. Scripts that need a full check should pass the flags explicitly and read the report, not just the exit code.
 
 ## What gets verified
 
 `truestamp verify` implements Appendix E of the [Truestamp whitepaper](https://github.com/truestamp/truestamp-v2/blob/main/whitepaper/whitepaper.pdf), which is the normative specification for a conforming verifier. Every run produces a report of graded steps:
 
-1. **Hash Comparison**: does the value you passed to `--hash` match the hash the proof commits to? When the bundle commits to an external file hash and you did not pass `--hash`, this group emits a single warning saying the file hash was not checked. A warning does not fail the proof. Bundles that carry no external hash (claims-as-source-of-truth items, and block-like subjects) produce no Hash Comparison row at all.
+1. **Hash Comparison**: does the value you passed to `--hash` match the hash the proof commits to? When the bundle commits to an external file hash and you did not pass `--hash`, this group emits a single warning saying the file hash was not checked. A warning does not fail the proof. Bundles that carry no external hash (claims-as-source-of-truth items, and block-like subjects) produce no Hash Comparison row when `--hash` is omitted; passing `--hash` against one produces a single `skip` row recording that the argument was not applicable.
 2. **Subject Type**: only when `--type` is supplied, does the bundle's own signed `t` agree with what you asserted?
 3. **Signing Key**: `pk` decodes to a 32-byte Ed25519 key and yields a 4-byte key id.
 4. **Key Binding**: that key id and `pk` are cross-checked against Truestamp's published keyring. This is a separate step from the one above, because parsing a key says nothing about whose key it is. It reads the keyring over the network.

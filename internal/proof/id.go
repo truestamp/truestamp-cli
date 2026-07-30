@@ -12,15 +12,17 @@ import (
 )
 
 // IDType is the syntactic shape of a subject id. It is NOT the subject's
-// semantic kind (item / entropy / block / beacon) — the server decides that
-// from the id on /proof/generate. Use DetectIDType for pre-flight validation
-// and for sanity-checking positional args; rely on the server's returned `t`
-// for authoritative subject labelling.
+// semantic kind (item / entropy / block / beacon): /proof/generate requires
+// an explicit `type` from the caller — there is no server-side auto
+// detection (see cmd/download.go's id-shape smart default). The
+// authoritative label for a bundle in hand is its own signed `t`, readable
+// only after ParseBytes / ParseCBOR. Use DetectIDType for pre-flight
+// validation and for sanity-checking positional args.
 type IDType string
 
 const (
 	IDTypeULID   IDType = "ulid"   // 26-char Crockford base32 (items)
-	IDTypeUUIDv7 IDType = "uuidv7" // UUIDv7, with or without hyphens (entropy / block)
+	IDTypeUUIDv7 IDType = "uuidv7" // UUIDv7, with or without hyphens (entropy / block / beacon)
 )
 
 // DetectIDType returns the syntactic shape of id. Returns an error for

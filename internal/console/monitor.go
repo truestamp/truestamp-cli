@@ -55,8 +55,9 @@ type monitorModel struct {
 	reverseOrder bool
 
 	// focus determines which side receives ↑/↓ keys. ←/→ swap it. The
-	// cross-pane Tab at the app level still cycles the outer panes
-	// (Monitor → New Item → Teams → Connection); focus is internal to Monitor.
+	// app-level `]` / `[` (and ctrl+tab / ctrl+shift+tab) still cycle the
+	// outer panes (Monitor → New Item → Teams → Connection); focus is
+	// internal to Monitor.
 	focus monitorFocus
 
 	// detailPanelHidden collapses the Detail Panel below the
@@ -484,9 +485,9 @@ var (
 	emptyWaterfallStyle = lipgloss.NewStyle().Faint(true).Padding(1, 2)
 )
 
-// Layout constants for the waterfall + detail panel split. The Kind
-// column width is anchored by the longest token compactKind can
-// produce; events_test.go's TestKindMaxWidth keeps it honest.
+// Layout constants for the waterfall + detail panel split. The
+// waterfall table sizes its own columns, so no column width is pinned
+// here.
 const (
 	detailPanelHeight   = 8 // body lines, exclusive of the rule + blank
 	detailPanelOverhead = 2 // rule row + leading blank line

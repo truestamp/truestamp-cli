@@ -1,14 +1,17 @@
 // Copyright (c) 2019-2026 Truestamp, Inc.
 // SPDX-License-Identifier: MIT
 
-// Package hashing exposes the full set of cryptographic hash algorithms
-// the Truestamp backend accepts for a claim's `hash_type` field. The
+// Package hashing is the algorithm registry behind `truestamp hash`. The
 // goal is feature-parity with sha256sum / shasum / openssl dgst so
 // users do not have to shell out to those tools for a one-off digest.
 //
-// Algorithm names match the string forms in
-// internal/tscrypto/hash.go's hashTypes registry, with common aliases
-// (sha3-256/sha3_256, blake2b vs blake2b-512) accepted case-insensitively.
+// This registry is deliberately NOT the backend's `hash_type` wire
+// registry: it is a differently-named superset of the twelve Appendix
+// E.11 types in internal/tscrypto/hash.go (blake2b-256 and blake2b-384
+// have no `hash_type` counterpart at all), and the two must not be
+// reconciled — see kb/architecture.md. The backend spellings
+// (sha3_256, blake2s, blake2b) are reachable here only as aliases, and
+// every name is matched case-insensitively.
 // Output formatting is byte-identical to GNU coreutils' sha256sum (text
 // and binary modes, with the standard `\` escaping for filenames
 // containing `\` or `\n`) and to `shasum --tag` / BSD md5(1)'s tagged
@@ -75,8 +78,9 @@ func newBlake2b512() hash.Hash {
 	return h
 }
 
-// algorithms is the canonical ordered registry. Order drives --list and
-// --help output so keep it stable (fastest→slowest, generic→specialized).
+// algorithms is the canonical ordered registry. Order drives --list
+// output (and the supported-names list in Lookup's error) so keep it
+// stable (fastest→slowest, generic→specialized).
 var algorithms = []Algorithm{
 	{Name: "md5", BSDName: "MD5", Aliases: nil, Size: 16, Legacy: true, New: func() hash.Hash { return md5.New() }},
 	{Name: "sha1", BSDName: "SHA1", Aliases: nil, Size: 20, Legacy: true, New: func() hash.Hash { return sha1.New() }},

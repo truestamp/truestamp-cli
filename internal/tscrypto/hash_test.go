@@ -14,7 +14,8 @@ import (
 
 func TestDomainHash_ClaimsVector(t *testing.T) {
 	t.Parallel()
-	// Test vector from docs/CRYPTOGRAPHY.md: SHA256(0x11 || "truestamp")
+	// Test vector from kb/cryptography/hashing-domain-separation.md:
+	// SHA256(0x11 || "truestamp")
 	result := BytesToHex(DomainHash(0x11, []byte("truestamp")))
 	expected := "9d9443e5133052d9fc837e150d32e3094fc979f097922034a984ddfbe5247aca"
 	if result != expected {

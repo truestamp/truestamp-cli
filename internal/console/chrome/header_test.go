@@ -10,8 +10,8 @@ import (
 	lipgloss "charm.land/lipgloss/v2"
 )
 
-// TestHeaderRendersFourTabsPlusStatus confirms a typical input
-// produces a header containing every tab label and the status text.
+// TestHeaderRendersTabsAndStatus confirms a typical input produces a
+// header containing every tab label and the status text.
 // We strip ANSI escapes via lipgloss.Width-style measurement isn't
 // what we want here — assert on plain content via Contains since
 // styles don't change the rendered glyphs.

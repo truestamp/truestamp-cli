@@ -51,9 +51,9 @@ Truestamp supports two submission modes:
   at least a 32-character description (or non-empty --metadata) so the
   proof commits to meaningful content.
 
-Submitting exactly one of --hash / --hash-type is rejected; the pair
-must be both supplied (external-hash mode) or both omitted
-(claims-as-source-of-truth mode).
+--hash-type requires --hash. A bare --hash is accepted and hash_type
+defaults to "sha256". Omitting both selects claims-as-source-of-truth
+mode.
 
 Input methods (resolved in priority order):
   truestamp create document.pdf              External hash: hash file, filename as name
@@ -471,8 +471,12 @@ func overlayFlags(cmd *cobra.Command, claims map[string]any) error {
 //     must be >= claimsOnlyMinDescription non-whitespace characters or
 //     claims.metadata must be a non-empty object.
 //
-// Submitting exactly one of hash / hash_type is rejected (co-required pair).
-// Whitespace-only strings are treated as absent, matching the server.
+// Submitting exactly one of hash / hash_type is rejected here, but a bare
+// --hash never reaches that arm: overlayFlags runs first and supplies
+// hash_type = "sha256" when the hash_type KEY is absent. A claims document
+// carrying a present-but-blank hash_type skips that default and still trips
+// the hash-without-hash_type arm. Whitespace-only strings are treated as
+// absent, matching the server.
 func validateClaims(claims map[string]any) error {
 	name, _ := claims["name"].(string)
 	name = strings.TrimSpace(name)

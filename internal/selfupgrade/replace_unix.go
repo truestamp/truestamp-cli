@@ -109,7 +109,8 @@ func copyFile(src, dst string) error {
 // clearQuarantineDarwin invokes `xattr -d com.apple.quarantine <path>`
 // iff `xattr` is on PATH. The attribute is routinely absent (binaries
 // that didn't arrive via curl/Safari won't carry it), so non-zero exit
-// is ignored. Matches install.sh:296-298 exactly.
+// is ignored. Matches the darwin quarantine-clearing block at the end
+// of docs/install.sh's extract_and_install().
 func clearQuarantineDarwin(path string) {
 	if _, err := exec.LookPath("xattr"); err != nil {
 		return

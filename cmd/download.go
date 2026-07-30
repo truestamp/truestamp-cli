@@ -235,7 +235,7 @@ func presentDownload(filename, format, id, typeFlag string, size int) {
 		Row("Type", typeFlag)
 
 	// Append URL rows to the SAME table so they share the
-	// right-aligned-label / value column alignment. subjectDetailURL
+	// right-aligned-label / value column alignment. ui.SubjectDetailURL
 	// routes beacon downloads to /blocks/<id> because the id we have
 	// is the block id; the hash-keyed /beacons/<hash> form lives on
 	// the beacon listing card where the hash comes directly from the

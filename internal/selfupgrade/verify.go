@@ -24,8 +24,11 @@ var ErrChecksumMismatch = errors.New("checksum mismatch")
 // entry for the expected archive name.
 var ErrChecksumMissing = errors.New("archive not listed in checksums.txt")
 
-// ErrCosignMissing is returned when TRUESTAMP_REQUIRE_COSIGN=1 is set but
-// the `cosign` binary is not available on PATH.
+// ErrCosignMissing is returned when cosign verification is required
+// (TRUESTAMP_REQUIRE_COSIGN=1) but the cosign binary could not be
+// resolved — either the operator-pinned cosign_path is unusable
+// (relative, absent, a directory, or non-executable) or `cosign` is not
+// on PATH.
 var ErrCosignMissing = errors.New("cosign required but not on PATH")
 
 // ErrCosignBundleMissing is returned when require-cosign is set and the

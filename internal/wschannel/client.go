@@ -127,8 +127,10 @@ const tokenRefreshCommand = "token.refresh"
 //     consumers route on Push.Topic.
 //  6. Close() shuts everything down cleanly.
 //
-// Reconnect-with-backoff is intentionally NOT in V1; the caller treats a
-// closed Pushes() channel as an explicit signal to retry.
+// Reconnect-with-backoff is handled internally by sessionLoop. Pushes()
+// stays open across reconnects and carries synthetic ReconnectingEvent
+// ("reconnecting") and ReconnectedEvent ("rejoined") pushes so the
+// application can drive outage UI and resync in-channel state.
 type Client struct {
 	url               string
 	apiKey            string
@@ -375,7 +377,7 @@ func (c *Client) Connect(ctx context.Context) (json.RawMessage, error) {
 
 // Status returns the current connection lifecycle state. Cheap and
 // race-safe; suitable for tight polling from external callers (UI status
-// bar, --script mode readiness gate, integration tests).
+// bar, integration tests).
 func (c *Client) Status() Status {
 	if c.isClosed() {
 		return StatusClosed
@@ -766,8 +768,8 @@ func (c *Client) Push(ctx context.Context, topic, event string, payload any) (Ph
 }
 
 // Pushes returns the channel of server-initiated events from every
-// joined topic. The channel is closed when the connection ends (clean
-// Close() or a transport error).
+// joined topic. The channel is closed only by Close(); it stays open
+// across transport errors and reconnects.
 func (c *Client) Pushes() <-chan Push { return c.pushes }
 
 // Close shuts down the client and underlying socket cleanly. Safe to
@@ -1149,9 +1151,10 @@ func (c *Client) emitReconnecting(attempt int, nextAttemptAt time.Time) {
 }
 
 // drainPending fails every in-flight reply correlation with a synthetic
-// "phx_error" reply so blocked Push callers wake up promptly when the
-// underlying connection drops. The new server has no memory of the old
-// refs, so leaving them parked would hang the call until ctx timeout.
+// phx_reply carrying status "error" so blocked Push callers wake up
+// promptly when the underlying connection drops. The new server has no
+// memory of the old refs, so leaving them parked would hang the call
+// until ctx timeout.
 func (c *Client) drainPending() {
 	c.refMu.Lock()
 	pending := c.pending

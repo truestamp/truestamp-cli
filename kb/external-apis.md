@@ -2,7 +2,7 @@
 
 Enabled by default, skipped with `--skip-external`:
 
-This table is the answer to "what does this binary talk to?"; keep it exhaustive. Every entry is a package-level `var` in `internal/external`, so a new egress destination means a new row here.
+This table is the answer to "what does this binary talk to?"; keep it exhaustive. Every entry except the keyring is a package-level `var` in `internal/external` (the keyring URL is derived from `base_url` in `config.Load` and passed to `external.VerifyKeyring` as a parameter), so a new egress destination means a new row here.
 
 | Service          | When                       | URL                                                                       |
 | ---------------- | -------------------------- | ------------------------------------------------------------------------- |

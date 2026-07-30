@@ -83,8 +83,10 @@ Run a single test or a focused subset:
 go test ./internal/verify/...                 # Every test in a package subtree
 go test ./internal/verify -run TestVerifyInclusionProof
 go test ./internal/hashing -bench=. -benchmem
-go test -run=^$ -fuzz=FuzzParseCBOR -fuzztime=30s ./internal/proof/
+go test -run=^$ -fuzz='^FuzzParseCBOR$' -fuzztime=30s ./internal/proof/
 ```
+
+`-fuzz` takes an *unanchored* regex and must resolve to exactly one target, so anchor it: bare `-fuzz=FuzzParseCBOR` also matches `FuzzParseCBOR_WellFormed` and Go refuses to fuzz. `task fuzz-deep` anchors for the same reason.
 
 ## Commit conventions
 

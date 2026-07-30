@@ -35,7 +35,7 @@ Flags:
       --hash string               Expected claims hash (hex) to compare against proof
   -h, --help                      help for verify
       --json                      Output results as JSON
-      --remote                    Verify via server API instead of local computation (requires --api-key)
+      --remote                    Verify via server API instead of local computation (requires authentication)
   -s, --silent                    No output, exit code only
       --skip-external             Skip all external API verification
       --skip-signatures           Skip proof signature and keyring verification

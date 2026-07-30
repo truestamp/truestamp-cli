@@ -3,8 +3,8 @@
 
 // Package tscrypto implements the Truestamp-specific cryptographic
 // primitives used by proofs: SHA-256 with one-byte domain-separation
-// prefixes (see docs/CRYPTOGRAPHY.md in truestamp-v2 for the prefix
-// registry) and Ed25519 signature verification.
+// prefixes (see kb/cryptography/byte-prefix-registry.md in truestamp-v2
+// for the prefix registry) and Ed25519 signature verification.
 package tscrypto
 
 import (
@@ -23,14 +23,18 @@ import (
 // report layer cannot infer it from an error string without matching prose.
 var ErrNotLowercaseHex = errors.New("not lowercase hex (E.4)")
 
-// Domain separation prefix bytes per docs/CRYPTOGRAPHY.md.
+// Domain separation prefix bytes per kb/cryptography/byte-prefix-registry.md
+// (in truestamp-v2).
 //
-// The registry is mirrored whole, not pruned to the prefixes this verifier
-// consumes: it is the frozen numbering a reader has to be able to check a
-// preimage against, and several entries (0x12, 0x22, 0x33, 0x34, 0x35) belong
-// to producer-side hashes a verifier never recomputes. Keeping the gaps visible
-// is the point — a constant cannot be called with the wrong arguments, unlike
-// the producer-side hash builders that used to sit alongside it.
+// The block carries the Merkle, Items, Entropy, Blockchain, Key-management and
+// Proofs prefixes a reader has to be able to check a proof preimage against,
+// including the producer-side ones a verifier never recomputes (0x12, 0x22,
+// 0x33, 0x34, 0x35) so the frozen numbering stays legible — a constant cannot
+// be called with the wrong arguments, unlike the producer-side hash builders
+// that used to sit alongside it. The registry's remaining prefixes are
+// deliberately omitted as out of scope for proof verification: 0x31 (genesis
+// block constant), 0x41-0x45 (random tools) and 0x53 (pre-rotation
+// commitment).
 const (
 	PrefixMerkleLeaf      = 0x00
 	PrefixMerkleInternal  = 0x01

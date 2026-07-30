@@ -108,8 +108,9 @@ type Options struct {
 	// File paths are streamed straight from disk and are not affected.
 	MaxBytes int64
 
-	// HTTPTimeout is forwarded to the URL downloader. 0 = use the shared
-	// httpclient timeout (set during startup).
+	// HTTPTimeout is currently unused — downloads go through the shared
+	// httpclient, whose process-wide timeout (set during startup) always
+	// applies. Kept for a future per-call override.
 	HTTPTimeout time.Duration
 }
 

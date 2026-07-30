@@ -156,9 +156,7 @@ func coalesce(v, def int) int {
 // directory) on its first Write — wrapping it here means a no-log-line
 // invocation never touches the filesystem at all.
 //
-// The lock is only contended while the very first record is being
-// written; subsequent writes pass through with one atomic.Load + one
-// uncontended mutex acquire.
+// Every Write takes the mutex; there is no fast path or one-shot flag.
 type lazyWriter struct {
 	w  io.Writer
 	mu sync.Mutex

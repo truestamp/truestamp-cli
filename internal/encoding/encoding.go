@@ -58,8 +58,8 @@ func AllNames() []string {
 //
 //	binary   → bin, binary, raw, bytes
 //	hex      → hex, base16
-//	base64   → b64, base64, base64std, base64-std
-//	base64url→ b64url, base64url, base64-url, base64_url, urlsafe
+//	base64   → b64, base64, base64std, base64-std, base64_std
+//	base64url→ b64url, base64url, base64-url, base64_url, urlsafe, url-safe
 func Parse(s string) (Encoding, error) {
 	switch strings.ToLower(strings.TrimSpace(s)) {
 	case "bin", "binary", "raw", "bytes":

@@ -29,8 +29,9 @@ func FuzzRunFromBytes(f *testing.F) {
 }
 
 // FuzzStatusUnmarshalJSON: the JSON decoder branch of the Status
-// enum. Arbitrary bytes must round-trip to StatusInfo on unknown
-// labels (the defined fallback) without crashing.
+// enum. Arbitrary bytes must either decode to one of E.22's five
+// statuses or return an error — never crash, and never silently
+// become a verdict-neutral status.
 func FuzzStatusUnmarshalJSON(f *testing.F) {
 	f.Add([]byte(`"pass"`))
 	f.Add([]byte(`"fail"`))

@@ -111,11 +111,12 @@ func presentConfig(cfg *config.Config) {
 		Row("API Key", maskAPIKey(cfg.APIKey)).
 		Row("Team", valueOrNotSet(cfg.Team))
 
-	// Resolve the team's name + role online when both an api key and a
-	// team id are configured. Best-effort: a network or auth failure
-	// suppresses the extra rows in favor of a faint hint, so `config
-	// show` stays useful when offline. Capped to half the configured
-	// HTTP timeout so the command stays snappy.
+	// Resolve the team's name + role online when a credential (an OAuth
+	// session or an API key) and a team id are both configured.
+	// Best-effort: a network or auth failure suppresses the extra rows
+	// in favor of a faint hint, so `config show` stays useful when
+	// offline. Capped to half the configured HTTP timeout so the
+	// command stays snappy.
 	if authConfigured() && cfg.Team != "" {
 		general = appendTeamDetailRows(general, cfg)
 	}
@@ -228,8 +229,9 @@ func configTeamLookupTimeout(cfg *config.Config) time.Duration {
 // appendTeamDetailRows tries to fetch the configured team's name +
 // role and append them as extra rows. On any error (network, auth,
 // not-found) it appends a single faint hint row instead of breaking
-// the whole output. The function only runs when both api_key and
-// team are set; the caller gates that.
+// the whole output. The function only runs when a credential (an
+// OAuth session or an API key) and a team id are configured; the
+// caller gates that via authConfigured().
 func appendTeamDetailRows(tbl *table.Table, cfg *config.Config) *table.Table {
 	ctx, cancel := context.WithTimeout(context.Background(), configTeamLookupTimeout(cfg))
 	defer cancel()

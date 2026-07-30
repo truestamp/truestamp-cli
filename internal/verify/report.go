@@ -603,7 +603,7 @@ func (r *Report) Counts() StepCounts {
 	// Total counts every step, info included. It used to exclude info,
 	// which meant a consumer summing the --json `summary` got a smaller
 	// number than len(steps) with no field explaining the difference —
-	// on the Appendix D.4 bundle, 14 against 16. E.22 defines five
+	// on the Appendix D.4 bundle, 14 against 18. E.22 defines five
 	// statuses; a summary that accounts for four of them does not
 	// reconcile with the step record it summarizes.
 	c.Total = c.Passed + c.Failed + c.Warned + c.Skipped + c.Info

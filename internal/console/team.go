@@ -44,20 +44,21 @@ type teamSwitcher interface {
 
 // teamModel renders the membership list and the currently-active
 // team card, and dispatches scope.switch_team over the live
-// WebSocket on `s`. Persists the new active team to config.toml on
+// WebSocket on `enter`. Persists the new active team to config.toml on
 // successful switches.
 //
-// Active vs preferred team:
+// Active vs preferred team (both live on the shared activeScope the
+// pane reads through m.scope; see scope.go):
 //
-//   - activeTeamID is the team the WebSocket scope is currently
+//   - scope.TeamID is the team the WebSocket scope is currently
 //     bound to. Sourced from the welcome envelope at session start
 //     and from scope.switch_team replies thereafter. This is the
 //     value rendered in the "Active team" card and marked with ★ in
 //     the membership table — it tracks server reality.
 //
-//   - preferredTeamID is the team id stored in the user's config.toml
+//   - scope.PreferredID is the team id stored in the user's config.toml
 //     at console launch. On welcome, if it differs from
-//     welcome.scope.team_id, the pane automatically fires
+//     welcome.scope.team_id, the root model automatically fires
 //     scope.switch_team to align the server scope to the user's
 //     preference. So a user whose config says "Engineering" doesn't
 //     have to manually switch every time they open the console — the
@@ -172,7 +173,7 @@ func (m *teamModel) fetchMembershipsCmd() tea.Cmd {
 
 // Init kicks off the membership-list fetch. The active-team
 // details fetch is fired by the root model after the welcome
-// envelope arrives — see model.applyWelcome in app.go.
+// envelope arrives — see model.applyWelcomeToScope in app.go.
 func (m *teamModel) Init() tea.Cmd {
 	return m.fetchMembershipsCmd()
 }
@@ -351,9 +352,11 @@ func (m *teamModel) doSwitchCmd(targetID string, silent bool) tea.Cmd {
 		// boundary because the team pane lives in internal/console.
 		if perr := persistTeamSelection(targetID); perr != nil {
 			// The switch worked server-side; we just couldn't write
-			// the file. Surface a yellow notice — the next launch
-			// will revert, but the current session's state is
-			// already on the new team.
+			// the file. The failure isn't surfaced today — the user
+			// sees the normal success notice (degraded success) —
+			// and the next launch reverts to the config-file team,
+			// but the current session's state is already on the new
+			// team.
 			return teamSwitchedMsg{Reply: switchReplyForPersistFail(reply, apiURL, perr), Silent: silent}
 		}
 		return teamSwitchedMsg{Reply: switchReplyFromWire(reply), Silent: silent}

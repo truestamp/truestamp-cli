@@ -38,8 +38,9 @@ Invoking 'truestamp team' with no subcommand is an alias for 'team list'.`,
 }
 
 // teamConfig pulls the values the teams client needs from the resolved
-// application config. Returns errSilentFail when no API key is set, after
-// first printing a "not authenticated" banner to stderr (unless silent).
+// application config. Returns errSilentFail when no credential is
+// configured (neither an OAuth session nor an API key), after first
+// printing a "not authenticated" banner to stderr (unless silent).
 func teamConfig(cmd *cobra.Command) (teams.Config, error) {
 	cfg := appConfig
 	if !authConfigured() {
