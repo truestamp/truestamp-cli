@@ -116,7 +116,11 @@ func runUpgrade(cmd *cobra.Command, _ []string) error {
 // support Windows, Homebrew doesn't exist there).
 func upgradeInstructionFor(method install.Method) (string, bool) {
 	if runtime.GOOS == "windows" {
-		return "go install " + selfupgrade.ReleasesRepo + "/cmd/truestamp@latest", true
+		// Must go through install.GoInstall.UpgradeCommand(): hand-building
+		// this from selfupgrade.ReleasesRepo ("truestamp/truestamp-cli")
+		// omits the "github.com/" host and prints a path `go install`
+		// rejects.
+		return install.GoInstall.UpgradeCommand(), true
 	}
 	switch method {
 	case install.Homebrew:
@@ -246,10 +250,10 @@ func stdinIsTerminal() bool {
 	return term.IsTerminal(int(os.Stdin.Fd()))
 }
 
-// exitCodeErr carries a specific exit code through to Execute() without
-// triggering cobra's default error printing. Execute() extracts the code
-// and calls os.Exit — but currently the CLI just returns non-zero via
-// os.Exit(1), so we set silent via SilenceErrors on the command itself.
+// exitCodeErr carries a specific exit code out through Execute(), which
+// returns it unprinted; main() maps it to a process exit status via
+// ExitCode(). Commands set SilenceErrors so cobra does not also print an
+// error line.
 type exitCodeErr struct{ code int }
 
 func (e exitCodeErr) Error() string { return fmt.Sprintf("exit %d", e.code) }
