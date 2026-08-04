@@ -15,7 +15,7 @@ require (
 	github.com/cli/browser v1.3.0
 	github.com/coder/websocket v1.8.15
 	github.com/fxamacker/cbor/v2 v2.9.2
-	github.com/gofrs/uuid/v5 v5.4.0
+	github.com/gofrs/uuid/v5 v5.5.0
 	github.com/gowebpki/jcs v1.0.1
 	github.com/knadh/koanf/parsers/toml/v2 v2.2.1
 	github.com/knadh/koanf/providers/confmap v1.0.0
