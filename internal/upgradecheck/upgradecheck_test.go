@@ -54,7 +54,7 @@ func TestCache_MissingOrCorrupt(t *testing.T) {
 		t.Errorf("missing cache: got %v, %v, want nil, nil", got, err)
 	}
 
-	// Corrupt file: expect (nil, nil) — caller should treat as absent.
+	// Corrupt file: expect (nil, nil), caller should treat as absent.
 	path, err := CachePath()
 	if err != nil {
 		t.Fatal(err)

@@ -83,14 +83,14 @@ loop:
 		}
 	}
 	if !saw {
-		t.Logf("no item.* push observed within 5s — broadcast likely fired before subscribe was complete (acceptable)")
+		t.Logf("no item.* push observed within 5s, broadcast likely fired before subscribe was complete (acceptable)")
 	}
 }
 
 // TestSmokeReconnect verifies the client survives a server restart:
 // connect, subscribe, then expect ticks/blocks even after a disconnect.
 //
-// Drives the test via the RECONNECT_TRIGGER hook env var — the runner
+// Drives the test via the RECONNECT_TRIGGER hook env var, the runner
 // should arrange for the server to be restarted while this test is
 // running (e.g. `task: kick the preview` in a parallel shell). The test
 // counts pre- and post-reconnect ticks on console:clock to prove that
@@ -239,13 +239,13 @@ func TestSmokeLiveBlock(t *testing.T) {
 				continue
 			}
 			if sp.Stream == "blocks" {
-				t.Logf("received live %s on stream %s — payload: %s",
+				t.Logf("received live %s on stream %s, payload: %s",
 					sp.Kind, sp.Stream, truncatePayload(p.Payload))
 				return
 			}
 
 		case <-deadline.C:
-			t.Skip("no live block arrived within 90s — dev cron may be paused")
+			t.Skip("no live block arrived within 90s, dev cron may be paused")
 		}
 	}
 }

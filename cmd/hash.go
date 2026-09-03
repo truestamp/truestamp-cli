@@ -68,7 +68,7 @@ func runHash(cmd *cobra.Command, args []string) error {
 	}
 
 	// Read the resolved config (defaults → TOML → env → flags). Reading
-	// from appConfig — instead of cmd.Flags() directly — lets a user
+	// from appConfig, instead of cmd.Flags() directly, lets a user
 	// change defaults in ~/.config/truestamp/config.toml without passing
 	// --algorithm / --encoding / --style on every invocation.
 	cfg := appConfig
@@ -225,7 +225,7 @@ func runHashMany(cmd *cobra.Command, sources []inputsrc.Options, alg hashing.Alg
 	slots := make([]*hashResult, len(sources))
 	errs := make([]error, len(sources))
 
-	// Stdin isn't a concurrent resource — a pipe can't be read from two
+	// Stdin isn't a concurrent resource, a pipe can't be read from two
 	// goroutines at once without interleaving. Fall back to serial when
 	// any source consumes stdin.
 	hasStdin := false
@@ -334,10 +334,10 @@ func runHashOne(ctx context.Context, opts inputsrc.Options, alg hashing.Algorith
 //
 // Styles:
 //
-//	gnu  — "<hex>  <filename>\n" (sha256sum default; --no-filename drops the name)
-//	bsd  — "<ALGO> (<filename>) = <hex>\n" (shasum --tag / BSD md5(1);
+//	gnu , "<hex>  <filename>\n" (sha256sum default; --no-filename drops the name)
+//	bsd , "<ALGO> (<filename>) = <hex>\n" (shasum --tag / BSD md5(1);
 //	       --no-filename collapses to "<ALGO> = <hex>\n")
-//	bare — "<hex>\n" always. Implies --no-filename; any filename column is
+//	bare, "<hex>\n" always. Implies --no-filename; any filename column is
 //	       omitted unconditionally, even for multiple inputs, because the
 //	       entire point of `bare` is "just the digest, nothing else".
 func emitHashText(w io.Writer, alg hashing.Algorithm, enc encoding.Encoding, style string, binaryMode, noFilename bool, results []hashResult) {
@@ -349,7 +349,7 @@ func emitHashText(w io.Writer, alg hashing.Algorithm, enc encoding.Encoding, sty
 		}
 		switch style {
 		case "bare":
-			// bare is always just the digest — filename column is
+			// bare is always just the digest, filename column is
 			// never rendered, making it the correct choice for
 			// scripting and piping into another tool's --hash.
 			fmt.Fprintf(w, "%s\n", string(digestEnc))
@@ -469,7 +469,7 @@ func parsePrefixByte(s string) (byte, error) {
 }
 
 // printAlgorithmList writes a stable, pipe-friendly table of supported
-// algorithms — one per line with the canonical name, digest size, and
+// algorithms, one per line with the canonical name, digest size, and
 // any aliases in parentheses.
 func printAlgorithmList(w io.Writer) {
 	var buf bytes.Buffer

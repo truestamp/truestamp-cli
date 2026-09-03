@@ -13,7 +13,7 @@ import (
 
 // IDType is the syntactic shape of a subject id. It is NOT the subject's
 // semantic kind (item / entropy / block / beacon): /proof/generate requires
-// an explicit `type` from the caller — there is no server-side auto
+// an explicit `type` from the caller, there is no server-side auto
 // detection (see cmd/download.go's id-shape smart default). The
 // authoritative label for a bundle in hand is its own signed `t`, readable
 // only after ParseBytes / ParseCBOR. Use DetectIDType for pre-flight

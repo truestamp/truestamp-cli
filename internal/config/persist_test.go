@@ -203,7 +203,7 @@ func TestSetTeam_EndToEnd(t *testing.T) {
 		t.Errorf("written config missing team, got:\n%s", data)
 	}
 
-	// Permissions match SetAPIKey — file co-exists with the api_key
+	// Permissions match SetAPIKey, file co-exists with the api_key
 	// secret so 0600 is the right floor.
 	info, err := os.Stat(path)
 	if err != nil {

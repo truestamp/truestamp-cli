@@ -122,7 +122,7 @@ func TestOutcomeString(t *testing.T) {
 }
 
 // E.18/E.5: "public" selects the public Horizon instance and everything
-// else — including an absent net — falls through to the testnet
+// else, including an absent net, falls through to the testnet
 // instance, with no error branch.
 func TestHorizonEndpointResolution(t *testing.T) {
 	origPublic, origTestnet := HorizonPublicURL, HorizonTestnetURL

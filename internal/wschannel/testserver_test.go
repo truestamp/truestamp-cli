@@ -34,13 +34,13 @@ type testPhoenixServer struct {
 	conn     *websocket.Conn // current upgraded conn, or nil between connections
 	behavior behaviorMode    // controls how the next/current conn responds
 
-	// Atomic counters — race-safe reads from test goroutines.
+	// Atomic counters, race-safe reads from test goroutines.
 	Connects       atomic.Int64
 	PhxJoins       atomic.Int64
 	Heartbeats     atomic.Int64
 	FramesReceived atomic.Int64
 
-	// writeMu serializes Write calls on the active conn — coder/websocket
+	// writeMu serializes Write calls on the active conn, coder/websocket
 	// is not safe for concurrent writers.
 	writeMu sync.Mutex
 
@@ -53,13 +53,13 @@ type testPhoenixServer struct {
 type behaviorMode int
 
 const (
-	// behaviorNormal — default: reply {"status":"ok","response":{}} to
+	// behaviorNormal, default: reply {"status":"ok","response":{}} to
 	// every phx_join and ack heartbeats. All other events are read and
 	// counted but produce no reply (so tests can drive synthetic replies
 	// via SendReply, or verify rate-limiting / drainPending behavior).
 	behaviorNormal behaviorMode = iota
 
-	// behaviorHangOnPhxJoin — accept frames, count them, but never reply
+	// behaviorHangOnPhxJoin, accept frames, count them, but never reply
 	// to phx_join. Used to simulate a server that's reachable but stuck.
 	behaviorHangOnPhxJoin
 )
@@ -283,7 +283,7 @@ func (s *testPhoenixServer) awaitConnects(n int64, timeout time.Duration) bool {
 }
 
 // =============================================================================
-// Self-tests for the harness — proving it works before A/B/C depend on it.
+// Self-tests for the harness, proving it works before A/B/C depend on it.
 // =============================================================================
 
 // TestHarnessAcceptAndJoin verifies the server accepts a connection,

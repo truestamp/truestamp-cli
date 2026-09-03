@@ -58,7 +58,7 @@ func Fetch(ctx context.Context, baseOrigin string) (*Discovery, error) {
 // authenticating against the wrong server).
 func (d *Discovery) Validate(baseOrigin string) error {
 	if d.AuthorizationEndpoint == "" || d.TokenEndpoint == "" {
-		return fmt.Errorf("authorization server metadata is missing the authorization or token endpoint — OAuth may not be enabled on this server")
+		return fmt.Errorf("authorization server metadata is missing the authorization or token endpoint, OAuth may not be enabled on this server")
 	}
 	if !contains(d.CodeChallengeMethodsSupported, "S256") {
 		return fmt.Errorf("authorization server does not advertise S256 PKCE (got %v); refusing to fall back to a weaker method", d.CodeChallengeMethodsSupported)

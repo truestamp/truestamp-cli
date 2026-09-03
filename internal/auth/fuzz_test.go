@@ -9,13 +9,13 @@ import (
 )
 
 // FuzzDiscoveryValidate hardens the OAuth authorization-server metadata
-// path. The discovery document is network input — fetched from the
-// configured base origin — so a malicious or MITM'd server could return
+// path. The discovery document is network input, fetched from the
+// configured base origin, so a malicious or MITM'd server could return
 // arbitrary JSON. Validate and canonicalOrigin do URL/string work over the
 // parsed issuer + endpoints; they must never panic, for any parsed contents
 // and against any origin the CLI may be configured with.
 //
-// Seeds anchor the production-shaped doc plus the deliberately-rejected
+// Seeds pin the production-shaped doc plus the deliberately-rejected
 // shapes (cross-origin endpoint, plain-only PKCE, non-URL issuer) so the
 // replay run keeps exercising the Validate branches.
 func FuzzDiscoveryValidate(f *testing.F) {
@@ -43,7 +43,7 @@ func FuzzDiscoveryValidate(f *testing.F) {
 }
 
 // FuzzSessionDecode hardens the token store's decode path. The persisted
-// session — a keychain value or the 0600 fallback file — is read back with
+// session, a keychain value or the 0600 fallback file, is read back with
 // encoding/json into both the per-origin map (the file store) and a bare
 // Session. Garbage or a tampered file must yield a clean error, never a
 // panic.

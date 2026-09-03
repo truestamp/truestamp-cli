@@ -50,13 +50,13 @@ const (
 // plus every field of Payload.
 type Row struct {
 	When       time.Time // server emit time (parsed from Push.At, falls back to ReceivedAt)
-	ReceivedAt time.Time // local receive time — used for "(received +Nms)" skew display
+	ReceivedAt time.Time // local receive time, used for "(received +Nms)" skew display
 	Kind       string    // compact display kind (e.g. "entropy.nist.failed")
 	RawKind    string    // original server kind (e.g. "entropy.updated")
 	ID         string    // full ULID/UUID, count for bursts, duration for outages
 	Stream     string    // original stream id (e.g. "commitments.internal")
 	Severity   Severity
-	Payload    map[string]any // full decoded server payload (Push.Data) — used by Detail Panel
+	Payload    map[string]any // full decoded server payload (Push.Data), used by Detail Panel
 }
 
 // Push mirrors the wire shape produced by ConsoleProjector +
@@ -70,7 +70,7 @@ type Push struct {
 
 // Project converts a Push into a Row. `now` is the local receive time
 // used as a fallback when the server's `at` field is missing or
-// unparseable, and as the ReceivedAt anchor for skew display in the
+// unparseable, and as the ReceivedAt reference for skew display in the
 // Detail Panel.
 func Project(now time.Time, p Push) Row {
 	when := now
@@ -152,7 +152,7 @@ func compactKind(stream, kind string, payload map[string]any) string {
 		return burstKind(stream, kind)
 	}
 
-	// block_healing.{forward,reverse} — verb carries the meaning
+	// block_healing.{forward,reverse}, verb carries the meaning
 	// directly; no state field is meaningful here.
 	if strings.HasPrefix(kind, "block_healing.") {
 		return kind
@@ -186,7 +186,7 @@ func compactKind(stream, kind string, payload map[string]any) string {
 
 	// verb=created: drop the verb when state is also "created" or
 	// absent (the implicit default). Otherwise the resource was born
-	// in a non-default state — surface it (e.g. "block.finalized").
+	// in a non-default state, surface it (e.g. "block.finalized").
 	if verb == "created" {
 		if state == "" || state == "created" {
 			return root

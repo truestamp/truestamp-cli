@@ -1,31 +1,36 @@
 // Copyright (c) 2019-2026 Truestamp, Inc.
 // SPDX-License-Identifier: MIT
 
-// Package ptype holds the frozen registry of proof type integer codes used
-// by Truestamp proof bundles. The registry discriminates both subject
-// types (bundle["t"]) and external commitment chain types (bundle["cx"][].t).
+// Package ptype holds the frozen registry of proof type codes and the
+// registry names that travel on the wire.
 //
-// The registry is a long-lived contract:
-//   - Existing codes are never reused or renumbered.
-//   - New codes claim unused integers in the appropriate category.
+// A bundle's `type` is a registry NAME (`block`, `beacon`, `item`,
+// `entropy_nist`, `entropy_stellar`, `entropy_bitcoin`). The signed payload
+// (Appendix E.16) carries the frozen integer CODE for that name, so the two
+// halves of the registry are both permanent: a name is never renamed and
+// never reused, a code is never renumbered and never reassigned.
 //
 // Category ranges (blocks of 10):
 //
 //	10-19  subject: block family  (10 = block, 11 = beacon)
 //	20-29  subject: item
 //	30-39  subject: entropy sources
-//	40-49  external commitment chains
+//	40-49  commitment chains (reserved; never on the wire)
 //	50+    reserved for future categories
 //
-// Beacon (t=11) shares the block structural shape — no `s`, no `ip`, same
-// `b` + `cx` — but is a distinct type code for domain separation. Because
-// `t` is part of the signing payload, a t=10 and t=11 bundle for the same
-// block produce different signatures.
+// Beacon (11) shares the block structural shape (no `subject`, no
+// `inclusion_proof`, same `block` + `commitments`) but is a distinct code
+// for domain separation: because the code is part of the signed payload, a
+// `block` and a `beacon` bundle for the same block produce different
+// signatures.
+//
+// The commitment chains `stellar` (40) and `bitcoin` (41) are named on the
+// wire by `commitments[].chain` only; their codes are documented history and
+// are reserved so nothing else ever claims them.
 package ptype
 
-// Code is the integer type code used to identify the subject of a proof
-// bundle or the chain of an external commitment. Codes are u16 on the wire
-// (in the signed payload); all currently-registered codes fit in one byte.
+// Code is the frozen integer code for a registry name. Subject codes are
+// emitted as uint16 big-endian in the signed payload.
 type Code uint16
 
 // Registered subject type codes.
@@ -38,26 +43,63 @@ const (
 	EntropyBitcoin Code = 32
 )
 
-// Registered external commitment type codes.
+// Reserved commitment chain codes. They are never written to the wire and
+// never appear in a preimage; `commitments[].chain` names the chain instead.
 const (
 	CommitmentStellar Code = 40
 	CommitmentBitcoin Code = 41
 )
 
+// Registry names of the six subject types, in code order.
+const (
+	NameBlock          = "block"
+	NameBeacon         = "beacon"
+	NameItem           = "item"
+	NameEntropyNIST    = "entropy_nist"
+	NameEntropyStellar = "entropy_stellar"
+	NameEntropyBitcoin = "entropy_bitcoin"
+)
+
+// Chain names carried in `commitments[].chain`.
+const (
+	ChainStellar = "stellar"
+	ChainBitcoin = "bitcoin"
+)
+
+// SubjectNames lists every registered subject type name, in code order. It
+// is the vocabulary a `type` field must draw from (Appendix E.6, E.24).
+var SubjectNames = []string{
+	NameBlock, NameBeacon, NameItem, NameEntropyNIST, NameEntropyStellar, NameEntropyBitcoin,
+}
+
+var codeByName = map[string]Code{
+	NameBlock:          Block,
+	NameBeacon:         Beacon,
+	NameItem:           Item,
+	NameEntropyNIST:    EntropyNIST,
+	NameEntropyStellar: EntropyStellar,
+	NameEntropyBitcoin: EntropyBitcoin,
+}
+
+// FromName resolves a registry name to its frozen code. ok is false for any
+// string that is not one of the six subject names; a verifier MUST reject
+// such a `type` at E.6 rather than guess a code (Appendix E.16, E.24).
+func FromName(name string) (Code, bool) {
+	c, ok := codeByName[name]
+	return c, ok
+}
+
+// IsSubjectName reports whether name is one of the six registered subject
+// type names.
+func IsSubjectName(name string) bool {
+	_, ok := codeByName[name]
+	return ok
+}
+
 // IsValidSubject reports whether c is a registered subject type code.
 func IsValidSubject(c Code) bool {
 	switch c {
 	case Block, Beacon, Item, EntropyNIST, EntropyStellar, EntropyBitcoin:
-		return true
-	}
-	return false
-}
-
-// IsValidExternalCommitment reports whether c is a registered external
-// commitment type code.
-func IsValidExternalCommitment(c Code) bool {
-	switch c {
-	case CommitmentStellar, CommitmentBitcoin:
 		return true
 	}
 	return false
@@ -72,11 +114,9 @@ func IsEntropySubject(c Code) bool {
 	return false
 }
 
-// IsBlockLikeSubject reports whether c is a block-family subject type —
-// either a plain block (t=10) or a beacon (t=11). The two share the same
-// wire shape: no `s`, no `ip`, `subject_hash == block_hash`. Verification
-// branches that skip subject / inclusion-proof / subject-hash-derivation
-// steps should key off this helper rather than `c == Block`.
+// IsBlockLikeSubject reports whether c is a block-family subject type, a
+// plain block (10) or a beacon (11). The two share one wire shape: no
+// `subject`, no `inclusion_proof`, `subject_hash == block_hash`.
 func IsBlockLikeSubject(c Code) bool {
 	switch c {
 	case Block, Beacon:
@@ -85,33 +125,37 @@ func IsBlockLikeSubject(c Code) bool {
 	return false
 }
 
-// Name returns the lowercase atom-style name for a code, matching the
-// reference Elixir implementation. Used as the JSON subject_type value and
-// as an internal dispatch key. Returns "unknown" for unregistered codes.
+// IsChainName reports whether name is one of the two registered commitment
+// chain names.
+func IsChainName(name string) bool {
+	return name == ChainStellar || name == ChainBitcoin
+}
+
+// Name returns the registry name for a code. Returns "unknown" for an
+// unregistered code.
 func Name(c Code) string {
 	switch c {
 	case Block:
-		return "block"
+		return NameBlock
 	case Beacon:
-		return "beacon"
+		return NameBeacon
 	case Item:
-		return "item"
+		return NameItem
 	case EntropyNIST:
-		return "entropy_nist"
+		return NameEntropyNIST
 	case EntropyStellar:
-		return "entropy_stellar"
+		return NameEntropyStellar
 	case EntropyBitcoin:
-		return "entropy_bitcoin"
+		return NameEntropyBitcoin
 	case CommitmentStellar:
-		return "commitment_stellar"
+		return ChainStellar
 	case CommitmentBitcoin:
-		return "commitment_bitcoin"
+		return ChainBitcoin
 	}
 	return "unknown"
 }
 
-// Humanize returns a display-friendly label for a code, used in the pretty
-// verify output.
+// Humanize returns a display-friendly label for a code.
 func Humanize(c Code) string {
 	switch c {
 	case Block:

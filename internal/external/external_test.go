@@ -342,7 +342,7 @@ func TestVerifyBitcoinBlock_BlockIDComparisonIsCaseInsensitive(t *testing.T) {
 // something outside the bundle". Before the identity guard,
 // blockstreamBlock carried no `id` at all, so a 200 describing ANY other
 // block was reported by the caller as `pass ... confirmed on mainnet`
-// with externally_verified true — a confirmation of a binding the lookup
+// with externally_verified true, a confirmation of a binding the lookup
 // never made. It must grade Malformed (skip), not OK and not Mismatch:
 // the bundle supplied only the lookup key, which was sent verbatim, so a
 // mis-addressed answer is an upstream property, not evidence about the
@@ -380,7 +380,7 @@ func TestVerifyBitcoinBlock_ResponseNamingADifferentBlockIsMalformed(t *testing.
 
 // Regression, E.19(b) other direction: `height` decoded into a plain int
 // meant a 200 body that said nothing about height produced Height 0, and
-// the caller failed a sound proof with "the chain reports 0" — a
+// the caller failed a sound proof with "the chain reports 0", a
 // positive assertion about Bitcoin derived from silence. A pointer
 // distinguishes absence from a real height of 0.
 func TestVerifyBitcoinBlock_MissingHeightIsMalformedNotZero(t *testing.T) {
@@ -599,7 +599,7 @@ func TestVerifyStellar_Outcomes(t *testing.T) {
 // Regression, E.18/E.22: `if tx.MemoType != "hash"` fired identically
 // for a transaction whose memo type genuinely differs and for a 2xx body
 // carrying no memo_type at all, so an uninterpretable answer failed the
-// proof with "memo_type mismatch: expected hash, got " — a positive
+// proof with "memo_type mismatch: expected hash, got ", a positive
 // claim about the chain from a body that contained no transaction. Every
 // sibling lookup grades a missing expected field malformed.
 func TestVerifyStellar_UninterpretableBodyIsMalformedNotMismatch(t *testing.T) {
@@ -768,7 +768,7 @@ func TestVerifyKeyring_Outcomes(t *testing.T) {
 
 // Regression, E.17/E.22: a 200 that is not a keyring document at all
 // used to fall through the parse guard into the per-key loop and return
-// "not found in keyring" — a chain disagreement (fail) manufactured from
+// "not found in keyring", a chain disagreement (fail) manufactured from
 // a captive portal, a CDN stub or a misconfigured origin, taking a sound
 // proof from exit 0 to exit 1. json.Unmarshal into KeyringResponse
 // succeeds for every JSON object and leaves Keys nil, so presence of the

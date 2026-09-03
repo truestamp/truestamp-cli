@@ -27,7 +27,7 @@ const (
 	// Homebrew means the binary lives under a Homebrew prefix
 	// (/opt/homebrew, /usr/local/Cellar, /home/linuxbrew/.linuxbrew).
 	Homebrew
-	// GoInstall means the binary was produced by `go install` — detected
+	// GoInstall means the binary was produced by `go install`, detected
 	// via Go build metadata and/or path under $GOBIN or $GOPATH/bin.
 	GoInstall
 	// InstallScript means the binary was placed by install.sh (or a
@@ -142,13 +142,13 @@ func isHomebrewPath(exe string) bool {
 // `go install`. The heuristic combines two signals:
 //
 //  1. runtime/debug.BuildInfo reports Main.Version that is NOT "(devel)"
-//     AND no VCS revision was embedded — `go install` from the module
+//     AND no VCS revision was embedded, `go install` from the module
 //     proxy produces a real version (pseudo-version or tag) and strips
 //     VCS settings. A local `go build .` always records VCS when
 //     available, so the absence of vcs.revision is a strong signal.
 //  2. The executable sits under $GOBIN or $GOPATH/bin.
 //
-// Either signal alone is sufficient — the Homebrew and install.sh paths
+// Either signal alone is sufficient, the Homebrew and install.sh paths
 // never match #1, and custom paths still match if the user ran
 // `GOBIN=/somewhere go install`.
 func isGoInstallBinary(exe string) bool {

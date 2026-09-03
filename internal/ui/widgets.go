@@ -102,7 +102,7 @@ func LabelValueStyleFunc() func(row, col int) lipgloss.Style {
 // it at second precision (drops fractional seconds). Returns the input
 // string unchanged if it cannot be parsed, so it is safe to chain with
 // already-truncated values. Used by every display site that shows a
-// timestamp to a human — beacon list rows, beacon cards, the verify
+// timestamp to a human, beacon list rows, beacon cards, the verify
 // report's Timeline / Subject / Commitments sections. The `convert`
 // subcommands deliberately bypass this helper because they exist
 // precisely to extract high-precision timestamps from IDs.

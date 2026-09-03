@@ -43,7 +43,7 @@ func CachePath() (string, error) {
 // each branch is counted for coverage only on its own platform.
 
 // ReadCache returns the cached result, or (nil, nil) if the cache is
-// absent or unreadable. Never returns an error — cache misses are a
+// absent or unreadable. Never returns an error, cache misses are a
 // normal part of operation.
 func ReadCache() (*Cache, error) {
 	path, err := CachePath()
@@ -56,7 +56,7 @@ func ReadCache() (*Cache, error) {
 	}
 	var c Cache
 	if err := json.Unmarshal(body, &c); err != nil {
-		// Corrupt cache — pretend it's missing; next successful check
+		// Corrupt cache, pretend it's missing; next successful check
 		// will overwrite it.
 		return nil, nil
 	}

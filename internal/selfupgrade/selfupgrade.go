@@ -9,7 +9,7 @@
 // extract, atomic replace, clear quarantine xattr on darwin.
 //
 // Homebrew and `go install` users never reach the in-place Upgrade()
-// flow — the cmd layer detects the install method and prints the
+// flow, the cmd layer detects the install method and prints the
 // correct package-manager instruction instead. They do still reach
 // Check() / FetchLatest: `upgrade --check` queries the release API
 // regardless of install method, as does the passive notice in
@@ -115,7 +115,7 @@ func Check(ctx context.Context, opts Options) (*CheckResult, error) {
 	latest, latestErr := ParseSemver(rel.TagName)
 	if curErr != nil || latestErr != nil {
 		// If either side is unparseable (e.g. current is "dev"), offer
-		// the upgrade — it's better to over-report than let someone
+		// the upgrade, it's better to over-report than let someone
 		// stay on a development build.
 		result.UpgradeAvail = curErr != nil && latestErr == nil
 		return result, nil

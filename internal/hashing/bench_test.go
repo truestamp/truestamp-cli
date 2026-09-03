@@ -33,7 +33,7 @@ func BenchmarkCompute_ByAlgorithm(b *testing.B) {
 }
 
 // BenchmarkCompute_SmallInput captures per-call overhead at small
-// payload sizes — the regime where hasher setup cost dominates. Useful
+// payload sizes, the regime where hasher setup cost dominates. Useful
 // for spotting regressions in the algorithm registry lookup or
 // io.Copy wiring.
 func BenchmarkCompute_SmallInput(b *testing.B) {
@@ -57,7 +57,7 @@ func BenchmarkLookup(b *testing.B) {
 }
 
 // BenchmarkFormatGNU profiles the sha256sum-compatible output
-// formatter — called per input line.
+// formatter, called per input line.
 func BenchmarkFormatGNU(b *testing.B) {
 	b.ReportAllocs()
 	for i := 0; i < b.N; i++ {

@@ -8,31 +8,37 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"os"
 	"strings"
 
+	lipgloss "charm.land/lipgloss/v2"
 	"github.com/spf13/cobra"
 	"github.com/truestamp/truestamp-cli/internal/inputsrc"
 	"github.com/truestamp/truestamp-cli/internal/proof"
 	"github.com/truestamp/truestamp-cli/internal/verify"
 )
 
-// errVerificationFailed is returned when the proof report itself fails.
-// The report has already been rendered so we only need a non-nil error for
-// exit code 1. Execute() prints it via its default path.
+// errVerificationFailed is returned when the report itself fails. The
+// report has already been rendered, so only a non-nil error for exit code 1
+// is needed. Execute() prints it via its default path.
 var errVerificationFailed = errors.New("verification failed")
 
 var verifyCmd = &cobra.Command{
 	Use:   "verify [file-or-url]",
 	Short: "Verify a Truestamp proof bundle",
-	Long: `Cryptographically verify a Truestamp proof bundle JSON file.
+	Long: `Cryptographically verify a Truestamp proof bundle, JSON or CBOR.
 
-Verifies the complete chain: signing keys, proof signature, item hashes,
-Ed25519 signatures, Merkle proofs, block chain integrity, and public
-blockchain commitments (Stellar, Bitcoin).
+Every value in the bundle is recomputed from bytes it carries and checked
+against the signature over them (whitepaper Appendix E): the subject and
+block hashes, the Merkle inclusion proof, each epoch proof to the root
+committed on a public chain, the Ed25519 proof signature, the witnesses
+that open the submitted-after edge, the signing key event, and the
+submission window. Online runs additionally confirm the Stellar and
+Bitcoin commitments on chain, re-fetch each entropy witness from its
+source, and bind the signing key to the published keyring.
 
 Proof input can be provided as:
   truestamp verify proof.json           Local file path
+  truestamp verify proof.cbor           CBOR is detected automatically
   truestamp verify https://host/p.json  URL (auto-detected)
   truestamp verify --file proof.json    Explicit file path
   truestamp verify --file               Interactive file picker
@@ -40,19 +46,31 @@ Proof input can be provided as:
   truestamp verify --url                Interactive URL prompt
   cat proof.json | truestamp verify     Pipe from stdin
 
-The subject type is always read from the bundle's own signed 't'
-field; the filename is never consulted. Pass --type to additionally
-assert which type you expected. If the bundle's t doesn't match, the
-report surfaces a Subject Type failure (local mode) or the server
-rejects the request with subject_type_mismatch (--remote mode).
+Offline verification is first class: --offline (or --skip-external) runs
+every cryptographic step with no network access and reports each check
+that needs a source as skipped, never failed. A skipped check is a check
+this run did not perform, not a check that failed.
+
+--expected-hash compares the hash of a file you hold against the hash an
+item's claims commit to. --keyring pins a local copy of
+/.well-known/keyring.json for the key binding check; without it an online
+run fetches the live keyring and an offline run reports the binding as
+not checked.
+
+The subject type is always read from the bundle's own signed 'type'
+field; the filename is never consulted. Pass --type to assert the type
+you expected: a mismatch is the hard rejection subject_type_mismatch.
 Values: item | entropy_nist | entropy_stellar | entropy_bitcoin |
 block | beacon.
 
-Use --remote to delegate verification to the Truestamp server API instead
-of performing local computation. Requires authentication — run
-'truestamp auth login', or set TRUESTAMP_API_KEY / --api-key for headless/CI use.
+A bundle in the pre-publication draft layout (top-level 'v' or 't' keys)
+is refused with unsupported_layout; ask the holder to regenerate it.
 
-Exit code 0 on success, 1 on verification failure.`,
+Use --remote to also ask the Truestamp server to verify the bundle. This
+CLI's own verifier never depends on it. Requires authentication: run
+'truestamp auth login', or set TRUESTAMP_API_KEY / --api-key.
+
+Exit code 0 when the proof passes, 1 when it fails or is rejected.`,
 	Args:          cobra.MaximumNArgs(1),
 	SilenceUsage:  true,
 	SilenceErrors: true,
@@ -92,26 +110,11 @@ Exit code 0 on success, 1 on verification failure.`,
 			return err
 		}
 
-		hashFlag, _ := cmd.Flags().GetString("hash")
-		if hashFlag != "" {
-			hashFlag = strings.ToLower(strings.TrimSpace(hashFlag))
-			if len(hashFlag)%2 != 0 {
-				return fmt.Errorf("--hash must be even length hex string")
-			}
-			if _, err := hex.DecodeString(hashFlag); err != nil {
-				return fmt.Errorf("--hash contains invalid hex characters: %w", err)
-			}
+		expectedHash, err := expectedHashFlag(cmd)
+		if err != nil {
+			return err
 		}
 
-		// typeFlag is the value of --type and nothing else. Appendix E.24
-		// requires a verifier to read the subject type from the bundle's
-		// signed `t`, never from the downloaded filename: the beacon show
-		// page legitimately names a t=10 block proof
-		// `truestamp-beacon-<id>.json`, so deriving an assertion from the
-		// stem failed sound proofs on the basis of a rename. The swap the
-		// old inference claimed to catch is already caught anyway — `t` is
-		// inside the signed payload (E.16), so relabelling a bundle breaks
-		// its signature.
 		typeFlag, _ := cmd.Flags().GetString("type")
 		typeFlag = strings.ToLower(strings.TrimSpace(typeFlag))
 		if typeFlag != "" && !validDownloadType(typeFlag) {
@@ -119,59 +122,49 @@ Exit code 0 on success, 1 on verification failure.`,
 				strings.Join(downloadTypeValues, " | "), typeFlag)
 		}
 
-		// displayName labels the source in the report and the log. It is a
-		// presentation string only; nothing downstream derives semantics
-		// from it.
+		keyringFile := cfg.Verify.Keyring
+		if v, _ := cmd.Flags().GetString("keyring"); v != "" {
+			keyringFile = v
+		}
+
 		displayName := src.DisplayName()
 		if src.Type == inputsrc.SourceStdin {
 			displayName = "(stdin)"
 		}
 
 		var report *verify.Report
-
 		if cfg.Verify.Remote {
-			if cfg.Verify.SkipExternal || cfg.Verify.SkipSignatures {
-				return fmt.Errorf("--skip-external and --skip-signatures cannot be used with --remote (server always runs full verification)")
+			if cfg.Verify.SkipSignatures {
+				return fmt.Errorf("--skip-signatures cannot be used with --remote (the server always checks the signature)")
 			}
 			if !authConfigured() {
-				return fmt.Errorf("not authenticated — --remote verification needs `truestamp auth login`, or TRUESTAMP_API_KEY / --api-key for headless use")
+				return fmt.Errorf("not authenticated: --remote verification needs `truestamp auth login`, or TRUESTAMP_API_KEY / --api-key for headless use")
 			}
-
-			// Remote verification needs a file on disk. For non-file
-			// sources (stdin/url/picker that produced bytes) we write a
-			// temp file; for regular file paths we pass through directly.
-			tmpPath := ""
-			sourceFile := displayName
-			if src.Type != inputsrc.SourceFile {
-				tmp, tErr := writeTempProof(data)
-				if tErr != nil {
-					return tErr
-				}
-				tmpPath = tmp
-				sourceFile = tmp
-				defer os.Remove(tmpPath)
-			}
-
-			report, err = verify.RunRemoteCtx(cmd.Context(), sourceFile, verify.RemoteOptions{
+			report, err = verify.RunRemoteBytesCtx(cmd.Context(), data, displayName, verify.RemoteOptions{
 				APIURL:              cfg.APIURL,
 				Team:                cfg.Team,
-				ExpectedHash:        hashFlag,
+				ExpectedHash:        expectedHash,
+				SkipExternal:        cfg.Verify.SkipExternal,
 				ExpectedSubjectType: typeFlag,
 			})
 		} else {
-			opts := verify.Options{
-				KeyringURL:          cfg.KeyringURL,
-				APIURL:              cfg.APIURL,
+			report, err = verify.RunFromBytes(data, displayName, verify.Options{
+				ExpectedHash:        expectedHash,
+				ExpectedSubjectType: typeFlag,
 				SkipExternal:        cfg.Verify.SkipExternal,
 				SkipSignatures:      cfg.Verify.SkipSignatures,
-				ExpectedHash:        hashFlag,
-				ExpectedSubjectType: typeFlag,
-			}
-			report, err = verify.RunFromBytes(data, displayName, opts)
+				KeyringFile:         keyringFile,
+				KeyringURL:          cfg.KeyringURL,
+			})
 		}
 
 		if err != nil {
 			rejectionCode := proof.RejectionCode(err)
+			var remoteRejection *verify.RemoteRejectionError
+			if errors.As(err, &remoteRejection) {
+				rejectionCode = remoteRejection.Reason
+				err = proof.Rejectf(remoteRejection.Reason, "%s", remoteRejection.Detail)
+			}
 			appLogger.Error("verify_failed",
 				"source", string(src.Type),
 				"display_name", displayName,
@@ -182,13 +175,18 @@ Exit code 0 on success, 1 on verification failure.`,
 			if cfg.Verify.Silent {
 				return errSilentFail
 			}
-			// A hard rejection (E.6) aborts before any step runs, so there
-			// is no Report to render. Under --json emit the E.23 identifier
-			// as structured data rather than an English sentence: the whole
-			// point of the taxonomy is that two independent verifiers can be
-			// compared on the identifier without diffing prose.
-			if rejectionCode != "" && cfg.Verify.JSON {
-				return emitVerifyRejection(cmd, rejectionCode, err)
+			// A hard rejection (Appendix E.6) aborts before any step
+			// runs, so there is no report to render: only the E.23
+			// identifier and one line of advice.
+			if rejectionCode != "" {
+				if cfg.Verify.JSON {
+					if jErr := emitJSON(cmd.OutOrStdout(), verify.BuildJSONRejection(err)); jErr != nil {
+						return jErr
+					}
+				} else {
+					verify.PresentRejection(cmd.OutOrStdout(), err)
+				}
+				return errSilentFail
 			}
 			return err
 		}
@@ -204,14 +202,13 @@ Exit code 0 on success, 1 on verification failure.`,
 
 		switch {
 		case cfg.Verify.JSON:
-			jsonOutput := verify.BuildJSONOutput(report)
-			jsonData, jErr := json.MarshalIndent(jsonOutput, "", "  ")
+			out, jErr := json.MarshalIndent(verify.BuildJSONReport(report), "", "  ")
 			if jErr != nil {
 				return fmt.Errorf("marshaling JSON: %w", jErr)
 			}
-			fmt.Println(string(jsonData))
+			fmt.Fprintln(cmd.OutOrStdout(), string(out))
 		case !cfg.Verify.Silent:
-			verify.Present(report)
+			lipgloss.Print(verify.Render(report, true))
 		}
 
 		if !report.Passed() {
@@ -224,56 +221,24 @@ Exit code 0 on success, 1 on verification failure.`,
 	},
 }
 
-// verifyRejectionJSON is the --json shape for an Appendix E.6 hard
-// rejection. No Report exists on this path, so none of the step fields a
-// successful run emits can be populated; `result` stays in the same
-// position so a consumer can switch on it before reaching for anything
-// else, and `rejection.code` carries the E.23 identifier.
-type verifyRejectionJSON struct {
-	Result    string          `json:"result"`
-	Rejection verifyRejection `json:"rejection"`
-}
-
-type verifyRejection struct {
-	Code   string `json:"code"`
-	Detail string `json:"detail"`
-}
-
-// emitVerifyRejection writes the structured rejection to stdout and
-// returns the sentinel that exits 1 without adding a second, English
-// copy of the same failure on stderr.
-//
-// detail comes off the RejectionError itself rather than err.Error(), so
-// it carries neither the caller's wrapping context nor a second copy of
-// the code that already has its own field.
-func emitVerifyRejection(cmd *cobra.Command, code string, err error) error {
-	detail := err.Error()
-	var re *proof.RejectionError
-	if errors.As(err, &re) {
-		detail = re.Detail
+// expectedHashFlag reads --expected-hash (or its older spelling --hash),
+// normalizing it the way Appendix E.7 requires: trimmed and lowercased.
+func expectedHashFlag(cmd *cobra.Command) (string, error) {
+	value, _ := cmd.Flags().GetString("expected-hash")
+	if value == "" {
+		value, _ = cmd.Flags().GetString("hash")
 	}
-	if jErr := emitJSON(cmd.OutOrStdout(), verifyRejectionJSON{
-		Result:    "rejected",
-		Rejection: verifyRejection{Code: code, Detail: detail},
-	}); jErr != nil {
-		return jErr
+	value = strings.ToLower(strings.TrimSpace(value))
+	if value == "" {
+		return "", nil
 	}
-	return errSilentFail
-}
-
-// writeTempProof writes proof data to a temporary file for remote verification.
-func writeTempProof(data []byte) (string, error) {
-	f, err := os.CreateTemp("", "truestamp-proof-*.json")
-	if err != nil {
-		return "", fmt.Errorf("creating temp file: %w", err)
+	if len(value)%2 != 0 {
+		return "", fmt.Errorf("--expected-hash must be an even-length hex string")
 	}
-	if _, err := f.Write(data); err != nil {
-		f.Close()
-		os.Remove(f.Name())
-		return "", fmt.Errorf("writing temp file: %w", err)
+	if _, err := hex.DecodeString(value); err != nil {
+		return "", fmt.Errorf("--expected-hash contains invalid hex characters: %w", err)
 	}
-	f.Close()
-	return f.Name(), nil
+	return value, nil
 }
 
 func init() {
@@ -282,21 +247,18 @@ func init() {
 	f.String("url", "", "URL to download proof from (interactive prompt if no URL given)")
 	f.Lookup("file").NoOptDefVal = inputsrc.FilePickSentinel
 	f.Lookup("url").NoOptDefVal = inputsrc.URLPromptSentinel
-	f.String("hash", "", "Expected claims hash (hex) to compare against proof")
+	f.String("expected-hash", "", "Hash (hex) of the file you hold, compared against the item's claims.hash")
+	f.String("hash", "", "Alias of --expected-hash")
+	_ = f.MarkHidden("hash")
+	f.String("keyring", "", "Path of a pinned copy of /.well-known/keyring.json for the key binding check")
 	f.String("type", "",
-		fmt.Sprintf("Assert expected subject type (guards against verifying the wrong file). One of: %s",
+		fmt.Sprintf("Assert the expected subject type; a mismatch is rejected. One of: %s",
 			strings.Join(downloadTypeValues, " | ")))
 	f.BoolP("silent", "s", false, "No output, exit code only")
-	f.Bool("json", false, "Output results as JSON")
-	f.Bool("skip-external", false, "Skip all external API verification")
-	// Appendix E.9's Signing Key row (does `pk` decode to 32 bytes, and
-	// what key id does it derive to) runs unconditionally: it is local,
-	// costs nothing, and its output is the kid E.16 would have fed to the
-	// payload. What this flag suppresses is E.16's Ed25519 check and
-	// E.17's keyring cross-check. The old wording ("Skip signing key and
-	// signature verification") claimed the Signing Key row was skipped
-	// while the report visibly passed it.
-	f.Bool("skip-signatures", false, "Skip proof signature and keyring verification")
-	f.Bool("remote", false, "Verify via server API instead of local computation (requires authentication)")
+	f.Bool("json", false, "Output the report as JSON, in the same field names the Truestamp API uses")
+	f.Bool("offline", false, "Run with no network access: chain, source and keyring lookups are reported as skipped")
+	f.Bool("skip-external", false, "Alias of --offline")
+	f.Bool("skip-signatures", false, "Skip the Ed25519 proof signature and key binding checks (disclosed in the report)")
+	f.Bool("remote", false, "Also ask the Truestamp server to verify the bundle (requires authentication)")
 	rootCmd.AddCommand(verifyCmd)
 }

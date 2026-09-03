@@ -9,7 +9,7 @@ import (
 )
 
 // BenchmarkEncode covers all three text encodings against a typical
-// 32-byte hash — the most common input size in this codebase.
+// 32-byte hash, the most common input size in this codebase.
 func BenchmarkEncode(b *testing.B) {
 	data := bytes.Repeat([]byte{0xaa}, 32)
 	for _, enc := range []Encoding{Hex, Base64Std, Base64URL} {

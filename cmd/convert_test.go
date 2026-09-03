@@ -6,6 +6,7 @@ package cmd
 import (
 	"bytes"
 	"encoding/json"
+	"github.com/truestamp/truestamp-cli/internal/testfixtures"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -13,7 +14,7 @@ import (
 	"testing"
 )
 
-// TestCLI_Convert_Time_UnixToRFC3339 anchors the unix-seconds → RFC 3339
+// TestCLI_Convert_Time_UnixToRFC3339 pins the unix-seconds → RFC 3339
 // conversion against a known point in time.
 func TestCLI_Convert_Time_UnixToRFC3339(t *testing.T) {
 	out, err := exec.Command(binaryPath, "convert", "time", "1700000000", "--to-zone", "UTC").Output()
@@ -81,9 +82,9 @@ func TestCLI_Convert_ID_UUIDv7_RejectsV4(t *testing.T) {
 	}
 }
 
-// TestCLI_Convert_KeyID_FixedVector anchors the kid derivation against
+// TestCLI_Convert_KeyID_FixedVector pins the kid derivation against
 // the public key embedded in the fake proof fixture. The resulting kid
-// must match the fixture's `kid` field — cross-validates our domain
+// must match the fixture's `kid` field, cross-validates our domain
 // prefix (0x51) and 4-byte truncation.
 func TestCLI_Convert_KeyID_FixedVector(t *testing.T) {
 	out, err := exec.Command(binaryPath, "convert", "keyid",
@@ -92,7 +93,7 @@ func TestCLI_Convert_KeyID_FixedVector(t *testing.T) {
 		t.Fatal(err)
 	}
 	got := strings.TrimSpace(string(out))
-	// The fake proof's kid is 4ceefa4a (see fakeProofJSON in verify_test).
+	// The fixed vector: this public key derives key id 4ceefa4a.
 	if got != "4ceefa4a" {
 		t.Errorf("kid: got %q, want 4ceefa4a", got)
 	}
@@ -121,7 +122,7 @@ func TestCLI_Convert_KeyID_JSON(t *testing.T) {
 // survives verify end-to-end (the ultimate round-trip gate: the cbor
 // form must be a valid proof that verify can accept).
 func TestCLI_Convert_Proof_RoundTrip(t *testing.T) {
-	src := filepath.Join(findTestdata(t), "proof_item.json")
+	src := testfixtures.Path(testfixtures.ProdDir, testfixtures.ProdComplete)
 	if _, err := os.Stat(src); err != nil {
 		t.Skipf("no fixture: %v", err)
 	}
@@ -150,16 +151,26 @@ func TestCLI_Convert_Proof_RoundTrip(t *testing.T) {
 	}
 }
 
+// bigIntegerBundlePath writes the complete production bundle with two
+// integers beyond 2^53 injected into its claims. The claims no longer match
+// the signed Merkle leaf, so the bundle does not verify; what these tests
+// pin is that no conversion path ever rounds the literals, and that the
+// verifier canonicalizes them exactly and reports the portability hazard.
+func bigIntegerBundlePath(t *testing.T) string {
+	t.Helper()
+	return rewriteBundle(t, testfixtures.Path(testfixtures.ProdDir, testfixtures.ProdComplete), func(m map[string]any) {
+		claims := m["subject"].(map[string]any)["claims"].(map[string]any)
+		claims["big"] = json.Number("9007199254740993")
+		claims["huge"] = json.Number("18446744073709551615")
+	})
+}
+
 // TestCLI_Convert_Proof_PrettyPreservesNumbers pins the default --to json
-// path against silent rounding. Pretty output is the default, and it used to
-// round-trip through `any`, which decodes every JSON number into a float64:
-// an integer above 2^53 came back changed, so `convert proof` could quietly
-// alter the very bytes a claims_hash is computed over.
+// path against silent rounding: a round trip through `any` decodes every
+// JSON number into a float64, and an integer above 2^53 comes back changed,
+// altering the very bytes a claims hash is computed over.
 func TestCLI_Convert_Proof_PrettyPreservesNumbers(t *testing.T) {
-	src := filepath.Join(findTestdata(t), "fixtures", "item-bigint.json")
-	if _, err := os.Stat(src); err != nil {
-		t.Skipf("no fixture: %v", err)
-	}
+	src := bigIntegerBundlePath(t)
 	out, err := exec.Command(binaryPath, "convert", "proof", "--to", "json", src).Output()
 	if err != nil {
 		t.Fatalf("convert proof --to json: %v", err)
@@ -169,14 +180,11 @@ func TestCLI_Convert_Proof_PrettyPreservesNumbers(t *testing.T) {
 			t.Errorf("pretty output lost the literal %s:\n%s", literal, out)
 		}
 	}
-	// The rounded forms the float64 round-trip produced.
 	for _, rounded := range []string{"9007199254740992", "18446744073709552000"} {
 		if strings.Contains(string(out), rounded) {
 			t.Errorf("pretty output rounded a number to %s:\n%s", rounded, out)
 		}
 	}
-	// --compact never re-encoded, so the two forms must agree once
-	// whitespace is removed.
 	compact, err := exec.Command(binaryPath, "convert", "proof", "--to", "json", "--compact", src).Output()
 	if err != nil {
 		t.Fatalf("convert proof --compact: %v", err)
@@ -194,20 +202,15 @@ func TestCLI_Convert_Proof_PrettyPreservesNumbers(t *testing.T) {
 }
 
 // TestCLI_Convert_Proof_CBORRoundTripPreservesNumbers pins the cross-format
-// invariant on the value space that breaks it. The CBOR marshaller decodes
-// `s.d` before re-encoding it, so without UseNumber every integer above 2^53
-// came back as a float64 — and because both wire formats rounded identically,
-// a naive round-trip comparison could not see it. Asserting the literals
-// survive is what catches a regression, and verifying the CBOR form proves the
-// claims hash still reproduces.
+// invariant on the value space that breaks it: integers above 2^53 must
+// survive JSON -> CBOR -> JSON exactly, and the verifier must canonicalize
+// them as carried while reporting that a strict RFC 8785 implementation
+// would not.
 func TestCLI_Convert_Proof_CBORRoundTripPreservesNumbers(t *testing.T) {
-	src := filepath.Join(findTestdata(t), "fixtures", "item-bigint.json")
-	if _, err := os.Stat(src); err != nil {
-		t.Skipf("no fixture: %v", err)
-	}
+	src := bigIntegerBundlePath(t)
 	cborBytes, err := exec.Command(binaryPath, "convert", "proof", "--to", "cbor", src).Output()
 	if err != nil {
-		t.Fatalf("json→cbor: %v", err)
+		t.Fatalf("json to cbor: %v", err)
 	}
 	cborPath := filepath.Join(t.TempDir(), "bigint.cbor")
 	if err := os.WriteFile(cborPath, cborBytes, 0644); err != nil {
@@ -215,34 +218,32 @@ func TestCLI_Convert_Proof_CBORRoundTripPreservesNumbers(t *testing.T) {
 	}
 	back, err := exec.Command(binaryPath, "convert", "proof", "--to", "json", cborPath).Output()
 	if err != nil {
-		t.Fatalf("cbor→json: %v", err)
+		t.Fatalf("cbor to json: %v", err)
 	}
 	for _, literal := range []string{"9007199254740993", "18446744073709551615"} {
 		if !strings.Contains(string(back), literal) {
 			t.Errorf("the CBOR round-trip lost the literal %s:\n%s", literal, back)
 		}
 	}
-	// The subject hash is computed over the canonicalized `s.d`, so a
-	// rounded integer would show up here as a Subject Data failure.
-	vrf := exec.Command(binaryPath, "verify", cborPath, "--skip-external", "--skip-signatures", "--silent")
-	vrf.Env = cleanEnv()
-	if err := vrf.Run(); err != nil {
-		t.Errorf("verify rejected the CBOR round-trip of a big-integer bundle: %v", err)
+	for _, path := range []string{src, cborPath} {
+		out, _ := runVerifyJSON(t, binaryPath, path, "--offline")
+		if st := stepStatuses(out, "Subject Data"); !st["pass"] || !st["warn"] {
+			t.Errorf("%s: Subject Data = %v, want the derivations to pass and the portability warn\n%s", path, st, formatCLISteps(out.Steps))
+		}
+		if !strings.Contains(rawIssueText(out), "not portably verifiable") {
+			t.Errorf("%s: the 2^53 warn is missing", path)
+		}
 	}
 }
 
-// TestCLI_Convert_Proof_AutoDetectsBareCBORMap: the self-describing tag 55799
-// is a convenience, not a requirement — a producer may emit the bundle as a
-// bare CBOR map. --from auto must recognize it by content rather than by the
-// tag, and the result must still verify.
+// TestCLI_Convert_Proof_AutoDetectsBareCBORMap: the self-describing tag
+// 55799 is a convenience, not a requirement. --from auto must recognize a
+// bare CBOR map by content, and verify must accept it directly.
 func TestCLI_Convert_Proof_AutoDetectsBareCBORMap(t *testing.T) {
-	src := filepath.Join(findTestdata(t), "fixtures", "item.json")
-	if _, err := os.Stat(src); err != nil {
-		t.Skipf("no fixture: %v", err)
-	}
+	src := testfixtures.Path(testfixtures.ProdDir, testfixtures.ProdComplete)
 	tagged, err := exec.Command(binaryPath, "convert", "proof", "--to", "cbor", src).Output()
 	if err != nil {
-		t.Fatalf("json→cbor: %v", err)
+		t.Fatalf("json to cbor: %v", err)
 	}
 	if len(tagged) < 3 || tagged[0] != 0xd9 || tagged[1] != 0xd9 || tagged[2] != 0xf7 {
 		t.Fatalf("expected a 55799-tagged CBOR bundle, got prefix %x", tagged[:min(3, len(tagged))])
@@ -251,40 +252,14 @@ func TestCLI_Convert_Proof_AutoDetectsBareCBORMap(t *testing.T) {
 	if err := os.WriteFile(barePath, tagged[3:], 0644); err != nil {
 		t.Fatal(err)
 	}
-
 	back, err := exec.Command(binaryPath, "convert", "proof", "--from", "auto", "--to", "json", barePath).Output()
 	if err != nil {
-		t.Fatalf("bare cbor→json with --from auto: %v", err)
+		t.Fatalf("bare cbor to json with --from auto: %v", err)
 	}
-	if !bytes.Contains(back, []byte(`"t"`)) {
-		t.Errorf("round-tripped JSON is missing the subject type code:\n%s", back)
+	if !bytes.Contains(back, []byte(`"type": "item"`)) {
+		t.Errorf("round-tripped JSON is missing the subject type:\n%s", back)
 	}
-	// verify must accept the bare form directly too.
-	if err := exec.Command(binaryPath, "verify", barePath, "--skip-external", "--silent").Run(); err != nil {
+	if err := exec.Command(binaryPath, "verify", barePath, "--offline", "--silent").Run(); err != nil {
 		t.Errorf("verify rejected a bare (untagged) CBOR bundle: %v", err)
 	}
-}
-
-// findTestdata walks up from the test working directory to find
-// internal/verify/testdata. Tests in other packages use a similar
-// helper; inlined here to keep cmd_test.go independent of internal.
-func findTestdata(t *testing.T) string {
-	t.Helper()
-	dir, err := os.Getwd()
-	if err != nil {
-		t.Fatal(err)
-	}
-	for i := 0; i < 6; i++ {
-		candidate := filepath.Join(dir, "internal", "verify", "testdata")
-		if st, err := os.Stat(candidate); err == nil && st.IsDir() {
-			return candidate
-		}
-		parent := filepath.Dir(dir)
-		if parent == dir {
-			break
-		}
-		dir = parent
-	}
-	t.Skip("testdata not found")
-	return ""
 }

@@ -73,7 +73,7 @@ func FuzzComputeTxID(f *testing.F) {
 
 // FuzzVerifyPartialMerkleTree exercises the in-memory tree walker with
 // attacker-controlled counts and hash slices. Uses chainhash.Hash
-// arrays directly — the classic territory for slice-bounds panics.
+// arrays directly, the classic territory for slice-bounds panics.
 func FuzzVerifyPartialMerkleTree(f *testing.F) {
 	f.Add(uint32(2), []byte{0x01}, uint32(64))
 

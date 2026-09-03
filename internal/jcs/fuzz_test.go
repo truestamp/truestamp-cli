@@ -170,7 +170,7 @@ func FuzzUnsafeIntegers(f *testing.F) {
 				t.Fatalf("reported %q at %s, which is inside the safe range", v.Literal, v.Path)
 			}
 			if !bytes.Contains(data, []byte(v.Literal)) {
-				t.Fatalf("reported %q at %s, which does not occur in the input — the literal was rewritten", v.Literal, v.Path)
+				t.Fatalf("reported %q at %s, which does not occur in the input, the literal was rewritten", v.Literal, v.Path)
 			}
 		}
 
@@ -187,7 +187,7 @@ func FuzzUnsafeIntegers(f *testing.F) {
 		// COMPLETENESS. The checks above are all soundness properties: they
 		// constrain what the walker DOES report. A walker that silently skips
 		// part of the document satisfies every one of them, and a false
-		// negative is precisely the failure this guard exists to prevent — an
+		// negative is precisely the failure this guard exists to prevent, an
 		// unsafe integer reaching the wire. So cross-check the value walk
 		// against an independent scan of the raw bytes.
 		//
@@ -213,7 +213,7 @@ func FuzzUnsafeIntegers(f *testing.F) {
 				continue
 			}
 			if !reported[string(sp.lit)] {
-				t.Fatalf("raw scan found oversized literal %q that the value walk did not report — the walker is skipping part of the document", sp.lit)
+				t.Fatalf("raw scan found oversized literal %q that the value walk did not report, the walker is skipping part of the document", sp.lit)
 			}
 		}
 	})

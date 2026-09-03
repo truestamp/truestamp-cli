@@ -11,7 +11,7 @@ import (
 	"os"
 )
 
-// DefaultMaxDownloadSize caps a single DownloadCtx response at 200 MB —
+// DefaultMaxDownloadSize caps a single DownloadCtx response at 200 MB,
 // comfortably larger than any truestamp release tarball today, small
 // enough to prevent a runaway redirect from filling the disk.
 const DefaultMaxDownloadSize = 200 << 20

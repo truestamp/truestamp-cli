@@ -26,7 +26,7 @@ func TestSubjectDetailURL(t *testing.T) {
 		{"entropy_bitcoin", prod, "entropy_bitcoin", uuid, "https://www.truestamp.com/entropy/" + uuid},
 		{"block", prod, "block", uuid, "https://www.truestamp.com/blocks/" + uuid},
 		// Beacon downloads have only the id, so the link routes to the
-		// underlying block's page — valid, the beacon proof commits to
+		// underlying block's page, valid, the beacon proof commits to
 		// that block. /beacons/<hash> lives on the beacon listing card.
 		{"beacon routes to /blocks/<id>", prod, "beacon", uuid, "https://www.truestamp.com/blocks/" + uuid},
 
@@ -34,7 +34,7 @@ func TestSubjectDetailURL(t *testing.T) {
 		{"unknown type", prod, "bogus", ulid, ""},
 		{"empty type", prod, "", ulid, ""},
 
-		// Dev hosts render URLs too — no suppression. Users asked to
+		// Dev hosts render URLs too, no suppression. Users asked to
 		// see local URLs when pointing at their dev server; the small
 		// transcript-leak risk is accepted.
 		{"plain http renders", "http://www.truestamp.com/api/json", "item", ulid, "http://www.truestamp.com/items/" + ulid},
@@ -42,7 +42,7 @@ func TestSubjectDetailURL(t *testing.T) {
 		{"127.0.0.1 renders", "https://127.0.0.1:4000/api/json", "item", ulid, "https://127.0.0.1:4000/items/" + ulid},
 		{"localhost plain http renders", "http://localhost:4000/api/json", "beacon", uuid, "http://localhost:4000/blocks/" + uuid},
 
-		// Trailing slash + api/json stripping — covered uniformly via publicWebBase.
+		// Trailing slash + api/json stripping, covered uniformly via publicWebBase.
 		{"trailing slash", "https://www.truestamp.com/api/json/", "item", ulid, "https://www.truestamp.com/items/" + ulid},
 		{"no /api/json suffix", "https://www.truestamp.com", "block", uuid, "https://www.truestamp.com/blocks/" + uuid},
 	}

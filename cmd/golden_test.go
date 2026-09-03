@@ -19,14 +19,14 @@ import (
 //
 //	UPDATE_GOLDEN=1 go test ./cmd/ -run Golden
 //
-// These guard against accidental wording / formatting / schema drift —
+// These guard against accidental wording / formatting / schema drift,
 // the same class of regressions that quietly break downstream scripts.
 
 var updateGolden = flag.Bool("update-golden", os.Getenv("UPDATE_GOLDEN") != "",
 	"overwrite golden files with current output (also triggered by UPDATE_GOLDEN=1)")
 
 // goldenAssert compares got against the content of testdata/golden/<name>.
-// When updateGolden is set, it overwrites the file instead of asserting —
+// When updateGolden is set, it overwrites the file instead of asserting,
 // the idiomatic "accept the new truth" workflow.
 func goldenAssert(t *testing.T, name, got string) {
 	t.Helper()
@@ -97,7 +97,7 @@ func TestGolden_Help_Hash(t *testing.T) {
 	goldenAssert(t, "help_hash.txt", stableHelp(string(out)))
 }
 
-// TestGolden_HashList pins the "truestamp hash --list" output — this
+// TestGolden_HashList pins the "truestamp hash --list" output, this
 // is the canonical list of supported hash algorithms. If this drifts
 // without an intentional algorithm-table change, a lot of user scripts
 // break silently.
@@ -179,7 +179,7 @@ func canonicalJSON(t *testing.T, raw []byte) string {
 		t.Fatalf("not valid JSON: %v\n%s", err, raw)
 	}
 	// encoding/json's Marshal sorts object keys alphabetically for
-	// map[string]any values — exactly what we want here.
+	// map[string]any values, exactly what we want here.
 	out, err := json.MarshalIndent(v, "", "  ")
 	if err != nil {
 		t.Fatal(err)

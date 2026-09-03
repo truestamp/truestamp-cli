@@ -27,8 +27,8 @@ type KeyringResponse struct {
 // straight into KeyringResponse cannot tell them apart: `{}`, `null`,
 // `{"version":"1"}` and every other JSON object unmarshal without error
 // and leave Keys nil, which reads identically to a keyring that
-// published zero keys. Those are opposite facts — nothing was published
-// versus Truestamp published nothing that vouches for this key — and
+// published zero keys. Those are opposite facts, nothing was published
+// versus Truestamp published nothing that vouches for this key, and
 // only the second may fail a proof (E.22).
 type keyringDocument struct {
 	Version string        `json:"version"`
@@ -126,19 +126,19 @@ func compactError(err error) string {
 // as trustworthy as the URL you configured. In particular:
 //
 //   - Use https:// with a host whose certificate chain you trust (an
-//     attacker able to mint a valid cert for the host — via DNS/BGP
-//     hijack, a rogue CA, or a compromised certificate — can substitute
+//     attacker able to mint a valid cert for the host, via DNS/BGP
+//     hijack, a rogue CA, or a compromised certificate, can substitute
 //     signing keys and every downstream signature will validate against
 //     their key).
 //   - The keyring URL is derived from --base-url (or TRUESTAMP_BASE_URL,
 //     or base_url in config.toml); set that origin from a source you
-//     trust — e.g. official Truestamp docs — not from a bundle authored
+//     trust, e.g. official Truestamp docs, not from a bundle authored
 //     by the same party whose proof you are verifying.
 //   - The CLI enforces TLS chain validation (InsecureSkipVerify is never
 //     set) and refuses any redirect that downgrades https to http, so a
 //     server cannot talk the fetch out of TLS mid-chain
 //     (httpclient.ErrRedirectDowngrade). Cross-host redirects that stay
-//     on https ARE followed — they remain authenticated by the CA chain,
+//     on https ARE followed, they remain authenticated by the CA chain,
 //     and banning them would break the GitHub-asset fetch in
 //     internal/selfupgrade, which shares this client.
 //
@@ -158,9 +158,9 @@ func VerifyKeyring(signingKeys map[string]string, keyringURL string) error {
 	}
 
 	// E.17 gives this step exactly one job: report whether the published
-	// keyring vouches for the key. A 200 that is not a keyring at all —
+	// keyring vouches for the key. A 200 that is not a keyring at all,
 	// a captive portal, a CDN stub, an API gateway, a misconfigured
-	// origin — answers that question not at all, and falling through to
+	// origin, answers that question not at all, and falling through to
 	// the loop below would manufacture "not found in keyring" (a chain
 	// disagreement that fails a sound proof) out of a document that
 	// never had a keys list. E.22: an answer this client cannot read
@@ -187,4 +187,42 @@ func VerifyKeyring(signingKeys map[string]string, keyringURL string) error {
 	}
 
 	return nil
+}
+
+// FetchKeyring retrieves and decodes a keyring document. Errors are typed
+// for [Classify]: an unreachable host or a body that is not a keyring
+// leaves the key binding unestablished rather than refuted.
+func FetchKeyring(keyringURL string) (*KeyringResponse, error) {
+	resp, err := httpclient.GetJSON(keyringURL)
+	if err != nil {
+		return nil, &keyringNetError{friendly: classifyNetworkError(err), inner: err}
+	}
+	return ParseKeyring(resp)
+}
+
+// ParseKeyring decodes a keyring document. A body without a `keys` list is
+// not a keyring at all (a captive portal, a CDN stub) and is graded
+// malformed, so it can never manufacture "not found in keyring" out of a
+// document that never had a keys list.
+func ParseKeyring(body []byte) (*KeyringResponse, error) {
+	var doc keyringDocument
+	if err := json.Unmarshal(body, &doc); err != nil {
+		return nil, &MalformedResponseError{Source: "keyring", Detail: "response is not a JSON keyring document", Err: err}
+	}
+	if doc.Keys == nil {
+		return nil, &MalformedResponseError{Source: "keyring", Detail: `response carries no "keys" list`}
+	}
+	return &KeyringResponse{Version: doc.Version, Keys: *doc.Keys}, nil
+}
+
+// Find returns the keyring entry whose key_id AND public_key both match,
+// which is what Appendix E.17 requires of a binding: a key id alone can be
+// chosen, a public key alone can be re-labelled.
+func (k *KeyringResponse) Find(keyID, publicKeyB64 string) (KeyringKey, bool) {
+	for _, entry := range k.Keys {
+		if entry.KeyID == keyID && entry.PublicKey == publicKeyB64 {
+			return entry, true
+		}
+	}
+	return KeyringKey{}, false
 }

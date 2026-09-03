@@ -6,760 +6,684 @@ package proof
 import (
 	"bytes"
 	"encoding/json"
-	"fmt"
-	"os"
-	"path/filepath"
+	"reflect"
 	"strings"
 	"testing"
 
+	"github.com/fxamacker/cbor/v2"
 	"github.com/truestamp/truestamp-cli/internal/proof/ptype"
+	"github.com/truestamp/truestamp-cli/internal/testfixtures"
 )
 
-// Minimal valid proof JSON for testing (t=20, item subject).
-const validProofJSON = `{
-  "v": 1,
-  "t": 20,
-  "pk": "CTwMqDZnPd/QTLSq8aTeSD3a+j2DQxKcGfhhIYJQ65Y=",
-  "sig": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==",
-  "ts": "2026-04-06T23:25:06Z",
-  "s": {
-    "id": "01HJHB01T8FYZ7YTR9P5N62K5B",
-    "d": {"name": "test"},
-    "mh": "ccddccddccddccddccddccddccddccddccddccddccddccddccddccddccddccdd",
-    "kid": "4ceefa4a"
-  },
-  "b": {
-    "id": "019cf813-99b8-730a-84f1-5a711a9c355e",
-    "ph": "1111111111111111111111111111111111111111111111111111111111111111",
-    "mr": "2222222222222222222222222222222222222222222222222222222222222222",
-    "mh": "4444444444444444444444444444444444444444444444444444444444444444",
-    "kid": "4ceefa4a"
-  },
-  "ip": "AA",
-  "cx": [
-    {
-      "t": 40,
-      "net": "testnet",
-      "tx": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
-      "memo": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
-      "l": 100,
-      "ts": "2026-04-06T23:25:06Z",
-      "ep": "AA"
-    }
-  ]
-}`
+const prodItemID = "01M1M0V3SE3C5P32TRAJSNX6QF"
 
-// Minimal valid entropy proof JSON (t=30, nist entropy).
-const validEntropyProofJSON = `{
-  "v": 1,
-  "t": 30,
-  "pk": "CTwMqDZnPd/QTLSq8aTeSD3a+j2DQxKcGfhhIYJQ65Y=",
-  "sig": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==",
-  "ts": "2026-04-06T23:25:06Z",
-  "s": {
-    "id": "019d2ae3-865c-7651-9923-b14c55bc8e33",
-    "d": {"pulse": {"outputValue": "ABC123"}},
-    "mh": "5555555555555555555555555555555555555555555555555555555555555555",
-    "kid": "4ceefa4a"
-  },
-  "b": {
-    "id": "019cf813-99b8-730a-84f1-5a711a9c355e",
-    "ph": "1111111111111111111111111111111111111111111111111111111111111111",
-    "mr": "2222222222222222222222222222222222222222222222222222222222222222",
-    "mh": "4444444444444444444444444444444444444444444444444444444444444444",
-    "kid": "4ceefa4a"
-  },
-  "ip": "AA",
-  "cx": [{"t": 40, "net": "testnet", "tx": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "memo": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb", "l": 1, "ep": "AA"}]
-}`
-
-// Minimal valid block proof JSON (t=10, no s, no ip).
-const validBlockProofJSON = `{
-  "v": 1,
-  "t": 10,
-  "pk": "CTwMqDZnPd/QTLSq8aTeSD3a+j2DQxKcGfhhIYJQ65Y=",
-  "sig": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==",
-  "ts": "2026-04-06T23:25:06Z",
-  "b": {
-    "id": "019cf813-99b8-730a-84f1-5a711a9c355e",
-    "ph": "1111111111111111111111111111111111111111111111111111111111111111",
-    "mr": "2222222222222222222222222222222222222222222222222222222222222222",
-    "mh": "4444444444444444444444444444444444444444444444444444444444444444",
-    "kid": "4ceefa4a"
-  },
-  "cx": [{"t": 40, "net": "testnet", "tx": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "memo": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb", "l": 1, "ep": "AA"}]
-}`
-
-// Beacon bundle (t=11) has the same wire shape as a block bundle — no
-// `s`, no `ip` — but a distinct type code. The signature would also
-// differ from the block proof of the same block (the `t` byte is in
-// the signing payload), but this fixture uses a placeholder `sig`
-// like all the other test bundles.
-const validBeaconProofJSON = `{
-  "v": 1,
-  "t": 11,
-  "pk": "CTwMqDZnPd/QTLSq8aTeSD3a+j2DQxKcGfhhIYJQ65Y=",
-  "sig": "BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB==",
-  "ts": "2026-04-06T23:25:06Z",
-  "b": {
-    "id": "019cf813-99b8-730a-84f1-5a711a9c355e",
-    "ph": "1111111111111111111111111111111111111111111111111111111111111111",
-    "mr": "2222222222222222222222222222222222222222222222222222222222222222",
-    "mh": "4444444444444444444444444444444444444444444444444444444444444444",
-    "kid": "4ceefa4a"
-  },
-  "cx": [{"t": 40, "net": "testnet", "tx": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "memo": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb", "l": 1, "ep": "AA"}]
-}`
-
-func writeTemp(t *testing.T, content string) string {
+func readProd(t *testing.T, name string) []byte {
 	t.Helper()
-	dir := t.TempDir()
-	path := filepath.Join(dir, "proof.json")
-	if err := os.WriteFile(path, []byte(content), 0644); err != nil {
+	return testfixtures.Read(t, testfixtures.ProdDir, name)
+}
+
+func mustParse(t *testing.T, data []byte) *Bundle {
+	t.Helper()
+	b, err := ParseBytes(data)
+	if err != nil {
+		t.Fatalf("ParseBytes: %v", err)
+	}
+	return b
+}
+
+// normalized decodes a JSON document into a comparable tree with every
+// number kept as its literal, so two documents can be compared for value
+// equality regardless of key order and whitespace.
+func normalized(t *testing.T, doc []byte) any {
+	t.Helper()
+	dec := json.NewDecoder(bytes.NewReader(doc))
+	dec.UseNumber()
+	var v any
+	if err := dec.Decode(&v); err != nil {
+		t.Fatalf("decoding document: %v", err)
+	}
+	return v
+}
+
+func TestParse_ProductionBundles(t *testing.T) {
+	cases := []struct {
+		file             string
+		witnessesCarried []string
+		keyEvent         bool
+	}{
+		{testfixtures.ProdComplete, []string{"block", "entropy_bitcoin", "entropy_nist", "entropy_stellar"}, true},
+		{testfixtures.ProdCompact, nil, false},
+		{testfixtures.ProdPartial, []string{"block", "entropy_nist"}, false},
+	}
+	for _, tc := range cases {
+		t.Run(tc.file, func(t *testing.T) {
+			b := mustParse(t, readProd(t, tc.file))
+			if b.Type != ptype.NameItem || b.Code != ptype.Item || !b.IsItem() {
+				t.Fatalf("type = %q code %d, want item/20", b.Type, b.Code)
+			}
+			if b.Version != 1 {
+				t.Errorf("version = %d, want 1", b.Version)
+			}
+			if b.Subject == nil || b.Subject.ID != prodItemID {
+				t.Fatalf("subject id = %v, want %s", b.Subject, prodItemID)
+			}
+			if b.Subject.SigningKeyID != "3c19f776" || b.Block.SigningKeyID != "3c19f776" {
+				t.Errorf("signing_key_id: subject %q block %q", b.Subject.SigningKeyID, b.Block.SigningKeyID)
+			}
+			if got := b.Subject.CommittedWitnesses().Keys(); !reflect.DeepEqual(got, []string{"block", "entropy_bitcoin", "entropy_nist", "entropy_stellar"}) {
+				t.Errorf("committed witnesses = %v", got)
+			}
+			if got := b.Subject.WitnessNamesCarried(); !reflect.DeepEqual(got, tc.witnessesCarried) {
+				t.Errorf("carried witnesses = %v, want %v", got, tc.witnessesCarried)
+			}
+			if (b.SigningKeyEvent != nil) != tc.keyEvent {
+				t.Errorf("signing key event carried = %v, want %v", b.SigningKeyEvent != nil, tc.keyEvent)
+			}
+			if len(b.Commitments) != 1 || b.Commitments[0].Chain != "stellar" {
+				t.Fatalf("commitments = %+v", b.Commitments)
+			}
+			c := b.Commitments[0]
+			if !c.HasLedger || c.Ledger != 64256842 || c.Network != "public" || c.Timestamp != "2026-09-03T16:20:05Z" {
+				t.Errorf("commitment fields = %+v", c)
+			}
+			if c.TransactionHash != "9a58b4414607648452500674e83c778567a155573205932138ef5b25955979a2" {
+				t.Errorf("transaction_hash = %q", c.TransactionHash)
+			}
+			if b.Block.Metadata == nil || string(b.Block.Metadata) != "{}" {
+				t.Errorf("block.metadata = %s", b.Block.Metadata)
+			}
+			if b.BlockPath != nil {
+				t.Errorf("block_path should be absent, got %d entries", len(b.BlockPath))
+			}
+			if b.InclusionProof == "" {
+				t.Error("inclusion proof missing")
+			}
+			if len(b.Subject.Claims) == 0 || b.Subject.Entropy != nil {
+				t.Errorf("claims/entropy: %d/%d bytes", len(b.Subject.Claims), len(b.Subject.Entropy))
+			}
+		})
+	}
+}
+
+func TestParse_SigningKeyEvent(t *testing.T) {
+	b := mustParse(t, readProd(t, testfixtures.ProdComplete))
+	e := b.SigningKeyEvent
+	if e == nil || !e.IsMap || !e.Block.IsMap() {
+		t.Fatalf("signing key event = %+v", e)
+	}
+	if e.Block.ID != "019fcf1d-b17b-7897-adb4-3dd23adc9d0e" {
+		t.Errorf("key event block id = %q", e.Block.ID)
+	}
+	ke, ok := e.KeyEvent()
+	if !ok || ke.Type != "genesis" || ke.KeyID != "3c19f776" || string(ke.Sequence) != "0" {
+		t.Errorf("key event = %+v ok=%v", ke, ok)
+	}
+	if ke.PublicKey != b.PublicKey {
+		t.Errorf("key event public key %q != bundle %q", ke.PublicKey, b.PublicKey)
+	}
+	if e.CommitmentCount != 1 || len(e.Commitments) != 1 || e.Commitments[0].Ledger != 63802260 {
+		t.Errorf("key event commitments = %+v (count %d)", e.Commitments, e.CommitmentCount)
+	}
+}
+
+func TestParse_AppendixDBundle(t *testing.T) {
+	b := mustParse(t, testfixtures.Read(t, testfixtures.WhitepaperDir, testfixtures.AppendixD))
+	if b.Subject == nil || b.Subject.ID != "01KY9ZWEX0248J48HK6D248NAN" {
+		t.Fatalf("subject = %+v", b.Subject)
+	}
+	if len(b.Commitments) != 2 || b.Commitments[0].Chain != "stellar" || b.Commitments[1].Chain != "bitcoin" {
+		t.Fatalf("commitments = %+v", b.Commitments)
+	}
+	if !b.Commitments[1].HasBlockHeight || b.Commitments[1].BlockHeight != 870456 {
+		t.Errorf("bitcoin block_height = %+v", b.Commitments[1])
+	}
+	if b.Commitments[1].HasLedger {
+		t.Error("bitcoin entry should carry no ledger")
+	}
+}
+
+// TestParseCBOR_EqualsJSON is Appendix E.3's invariant in field form: the
+// CBOR bundle decodes to the same values as the JSON bundle, apart from the
+// two fields that differ because the CBOR fixture was generated separately.
+func TestParseCBOR_EqualsJSON(t *testing.T) {
+	cborBundle := mustParse(t, readProd(t, testfixtures.ProdCBOR))
+	if !cborBundle.FromCBOR {
+		t.Fatal("FromCBOR = false")
+	}
+	jsonDoc := readProd(t, testfixtures.ProdComplete)
+
+	want := normalized(t, jsonDoc).(map[string]any)
+	got := normalized(t, cborBundle.JSON).(map[string]any)
+	for _, k := range []string{"generated_at", "signature"} {
+		if got[k] == want[k] {
+			t.Errorf("%s: expected the CBOR fixture to differ from the JSON one", k)
+		}
+		delete(got, k)
+		delete(want, k)
+	}
+	if !reflect.DeepEqual(got, want) {
+		t.Errorf("CBOR bundle differs from JSON bundle:\n got: %v\nwant: %v", got, want)
+	}
+}
+
+// TestCBORToJSON_Roles pins the field-type correspondence: hash slots
+// become lowercase hex, keys and signature base64, proofs stay text, and
+// the witness hashes inside the hashed metadata map stay text.
+func TestCBORToJSON_Roles(t *testing.T) {
+	doc, err := CBORToJSON(readProd(t, testfixtures.ProdCBOR))
+	if err != nil {
 		t.Fatal(err)
 	}
-	return path
-}
-
-func TestParse_ValidItemProof(t *testing.T) {
-	t.Parallel()
-	path := writeTemp(t, validProofJSON)
-	bundle, err := Parse(path)
-	if err != nil {
-		t.Fatalf("unexpected error: %s", err)
+	top := normalized(t, doc).(map[string]any)
+	if top["public_key"] != "1hHbF5H5u8LiSp+nVMRb8duR2eGkOo5Q1JYfcmAtF28=" {
+		t.Errorf("public_key = %v", top["public_key"])
 	}
-
-	if bundle.Version != 1 {
-		t.Errorf("version: got %d, want 1", bundle.Version)
+	block := top["block"].(map[string]any)
+	if block["merkle_root"] != "d175d1ef04595ffbea81cf9864780889615a73bdb0184c6efa43de184f5c24a2" {
+		t.Errorf("block.merkle_root = %v", block["merkle_root"])
 	}
-	if bundle.T != ptype.Item {
-		t.Errorf("T: got %d, want %d", bundle.T, ptype.Item)
+	if block["signing_key_id"] != "3c19f776" {
+		t.Errorf("block.signing_key_id = %v", block["signing_key_id"])
 	}
-	if !bundle.IsItem() || bundle.IsEntropy() || bundle.IsBlockLike() {
-		t.Errorf("item flags: IsItem/IsEntropy/IsBlockLike: %v/%v/%v, want t/f/f",
-			bundle.IsItem(), bundle.IsEntropy(), bundle.IsBlockLike())
+	subject := top["subject"].(map[string]any)
+	witnesses := subject["metadata"].(map[string]any)["witnesses"].(map[string]any)
+	if witnesses["block"] != "e36f824dea9508d5dca570c77edc06eb4bc830b413b3db4e4d983ce3f85e9d78" {
+		t.Errorf("committed block witness = %v", witnesses["block"])
 	}
-	if bundle.Subject == nil || bundle.Subject.ID != "01HJHB01T8FYZ7YTR9P5N62K5B" {
-		t.Errorf("subject.id mismatch")
+	entry := top["commitments"].([]any)[0].(map[string]any)
+	if entry["ledger"] != json.Number("64256842") {
+		t.Errorf("ledger = %v (%T)", entry["ledger"], entry["ledger"])
 	}
-	if bundle.Block.ID != "019cf813-99b8-730a-84f1-5a711a9c355e" {
-		t.Errorf("block.id: got %s", bundle.Block.ID)
+	if !strings.HasPrefix(entry["epoch_proof"].(string), "AwfwB4Jp") {
+		t.Errorf("epoch_proof = %v", entry["epoch_proof"])
 	}
-	if bundle.InclusionProof != "AA" {
-		t.Errorf("ip: got %s", bundle.InclusionProof)
-	}
-	if len(bundle.Commitments) != 1 {
-		t.Fatalf("commitments length: got %d, want 1", len(bundle.Commitments))
-	}
-	if bundle.Commitments[0].Type != ptype.CommitmentStellar {
-		t.Errorf("commitments[0].t: got %d, want %d", bundle.Commitments[0].Type, ptype.CommitmentStellar)
+	nist := subject["witnesses"].(map[string]any)["entropy_nist"].(map[string]any)["pulse"].(map[string]any)
+	if nist["chainIndex"] != json.Number("2") || !strings.HasPrefix(nist["outputValue"].(string), "7E0BA0E4") {
+		t.Errorf("nist pulse = %v", nist)
 	}
 }
 
-func TestParse_PreservesRawData(t *testing.T) {
-	t.Parallel()
-	path := writeTemp(t, validProofJSON)
-	bundle, err := Parse(path)
-	if err != nil {
-		t.Fatalf("unexpected error: %s", err)
-	}
-	if len(bundle.RawData) == 0 {
-		t.Error("RawData should not be empty")
-	}
-	if bundle.Subject == nil || len(bundle.Subject.Data) == 0 {
-		t.Error("subject.Data should be preserved as raw JSON")
-	}
-}
-
-func TestParse_FileNotFound(t *testing.T) {
-	t.Parallel()
-	_, err := Parse("/nonexistent/path/proof.json")
-	if err == nil {
-		t.Error("expected error for missing file")
-	}
-}
-
-func TestParse_InvalidJSON(t *testing.T) {
-	t.Parallel()
-	path := writeTemp(t, "not json at all")
-	_, err := Parse(path)
-	if err == nil {
-		t.Error("expected error for invalid JSON")
-	}
-}
-
-// TestParse_MissingVersionIsNotARejection pins E.6's explicit exception:
-// `v` is not a structural gate. An absent (or zero) version must parse and
-// carry through so the version step can report it as a failure.
-func TestParse_MissingVersionIsNotARejection(t *testing.T) {
-	t.Parallel()
-	for _, c := range []struct{ name, body string }{
-		{"absent", `"t": 20,`},
-		{"zero", `"v": 0, "t": 20,`},
-		{"wrong", `"v": 2, "t": 20,`},
-	} {
-		t.Run(c.name, func(t *testing.T) {
-			bundle, err := ParseBytes([]byte(`{` + c.body + `
-				"pk": "aa", "sig": "bb", "ts": "2026-01-01T00:00:00Z",
-				"s": {"id":"x","d":{},"mh":"cc","kid":"dd"},
-				"b": {"id":"e","mr":"f","mh":"g","kid":"h"},
-				"ip": "AA",
-				"cx": [{"t":40,"net":"testnet","memo":"bb","ep":"AA"}]
-			}`))
+func TestRoundTrip_JSONToCBORToJSON(t *testing.T) {
+	for _, name := range []string{testfixtures.ProdComplete, testfixtures.ProdCompact, testfixtures.ProdPartial} {
+		t.Run(name, func(t *testing.T) {
+			src := readProd(t, name)
+			encoded, err := JSONToCBOR(src)
 			if err != nil {
-				t.Fatalf("v must not be a hard rejection: %v", err)
+				t.Fatalf("JSONToCBOR: %v", err)
 			}
-			if c.name == "wrong" && bundle.Version != 2 {
-				t.Errorf("version: got %d, want 2", bundle.Version)
+			if !HasCBORTag(encoded) {
+				t.Error("encoded CBOR lacks tag 55799")
 			}
-			if c.name != "wrong" && bundle.Version != 0 {
-				t.Errorf("version: got %d, want 0", bundle.Version)
+			back, err := CBORToJSON(encoded)
+			if err != nil {
+				t.Fatalf("CBORToJSON: %v", err)
+			}
+			if !reflect.DeepEqual(normalized(t, src), normalized(t, back)) {
+				t.Errorf("round trip changed the document:\n%s\n%s", src, back)
 			}
 		})
 	}
-}
-
-func TestParse_MissingTypeCode(t *testing.T) {
-	t.Parallel()
-	_, err := ParseBytes([]byte(`{
-		"v": 1, "pk": "aa", "sig": "bb", "ts": "2026-01-01T00:00:00Z",
-		"s": {"id":"x","d":{},"mh":"cc","kid":"dd"},
-		"b": {"id":"e","mr":"f","mh":"g","kid":"h"},
-		"ip": "AA",
-		"cx": [{"t":40,"net":"testnet","memo":"bb","ep":"AA"}]
-	}`))
-	if err == nil {
-		t.Error("expected error for missing t field")
-	}
-}
-
-func TestParse_InvalidTypeCode(t *testing.T) {
-	t.Parallel()
-	_, err := ParseBytes([]byte(`{
-		"v": 1, "t": 99,
-		"pk": "aa", "sig": "bb", "ts": "2026-01-01T00:00:00Z",
-		"b": {"id":"e","mr":"f","mh":"g","kid":"h"},
-		"cx": [{"t":40,"net":"testnet","memo":"bb","ep":"AA"}]
-	}`))
-	if err == nil {
-		t.Error("expected error for unknown t code")
-	}
-}
-
-// TestParse_UnauthorisedRejectionsAreGone covers every field E.6 does NOT
-// list. Each of these used to abort the run, erasing the report the caller
-// needed; they must now parse so the signing-key, subject-hash, block-hash
-// and signature steps can each report their own failure.
-func TestParse_UnauthorisedRejectionsAreGone(t *testing.T) {
-	t.Parallel()
-	cases := []struct{ name, body string }{
-		{"pk absent", `"v":1,"t":20,"sig":"bb"`},
-		{"sig absent", `"v":1,"t":20,"pk":"aa"`},
-		{"pk short", `"v":1,"t":20,"pk":"YWI=","sig":"bb"`},
-		{"pk not a string", `"v":1,"t":20,"pk":7,"sig":"bb"`},
-		{"ts not a string", `"v":1,"t":20,"pk":"aa","sig":"bb","ts":7`},
-	}
-	for _, c := range cases {
-		t.Run(c.name, func(t *testing.T) {
-			_, err := ParseBytes([]byte(`{` + c.body + `,
-				"s": {"id":"x","d":{},"mh":"cc","kid":"dd"},
-				"b": {"id":"e","mr":"f","mh":"g","kid":"h"},
-				"ip": "AA",
-				"cx": [{"t":40,"net":"testnet","memo":"bb","ep":"AA"}]
-			}`))
-			if err != nil {
-				t.Errorf("E.6 authorises no rejection here, got: %v", err)
-			}
-		})
-	}
-}
-
-// TestParse_SubjectAndBlockFieldsAreNotGates pins the other half of the same
-// rule: absent or wrong-sized `s.*` / `b.*` members reach the report rather
-// than aborting it.
-func TestParse_SubjectAndBlockFieldsAreNotGates(t *testing.T) {
-	t.Parallel()
-	cases := []struct{ name, subject, block string }{
-		{"s.id absent", `{"d":{},"mh":"cc","kid":"dd"}`, `{"id":"e","ph":"a","mr":"f","mh":"g","kid":"h"}`},
-		{"s.mh absent", `{"id":"x","d":{},"kid":"dd"}`, `{"id":"e","ph":"a","mr":"f","mh":"g","kid":"h"}`},
-		{"s.kid absent", `{"id":"x","d":{},"mh":"cc"}`, `{"id":"e","ph":"a","mr":"f","mh":"g","kid":"h"}`},
-		{"b.ph absent", `{"id":"x","d":{},"mh":"cc","kid":"dd"}`, `{"id":"e","mr":"f","mh":"g","kid":"h"}`},
-		{"b.mr absent", `{"id":"x","d":{},"mh":"cc","kid":"dd"}`, `{"id":"e","ph":"a","mh":"g","kid":"h"}`},
-		{"b.mh absent", `{"id":"x","d":{},"mh":"cc","kid":"dd"}`, `{"id":"e","ph":"a","mr":"f","kid":"h"}`},
-		{"b.kid absent", `{"id":"x","d":{},"mh":"cc","kid":"dd"}`, `{"id":"e","ph":"a","mr":"f","mh":"g"}`},
-		{"b.id absent", `{"id":"x","d":{},"mh":"cc","kid":"dd"}`, `{"ph":"a","mr":"f","mh":"g","kid":"h"}`},
-	}
-	for _, c := range cases {
-		t.Run(c.name, func(t *testing.T) {
-			_, err := ParseBytes([]byte(`{"v":1,"t":20,"pk":"aa","sig":"bb","ts":"2026-01-01T00:00:00Z",
-				"s": ` + c.subject + `,
-				"b": ` + c.block + `,
-				"ip": "AA",
-				"cx": [{"t":40,"net":"testnet","memo":"bb","ep":"AA"}]
-			}`))
-			if err != nil {
-				t.Errorf("E.6 authorises no rejection here, got: %v", err)
-			}
-		})
-	}
-}
-
-func TestParse_MissingSubjectForItem(t *testing.T) {
-	t.Parallel()
-	_, err := ParseBytes([]byte(`{
-		"v": 1, "t": 20,
-		"pk": "aa", "sig": "bb", "ts": "2026-01-01T00:00:00Z",
-		"b": {"id":"e","mr":"f","mh":"g","kid":"h"},
-		"ip": "AA",
-		"cx": [{"t":40,"net":"testnet","memo":"bb","ep":"AA"}]
-	}`))
-	if err == nil {
-		t.Error("expected error for missing s on item proof")
-	}
-}
-
-func TestParse_MissingInclusionProofForItem(t *testing.T) {
-	t.Parallel()
-	_, err := ParseBytes([]byte(`{
-		"v": 1, "t": 20,
-		"pk": "aa", "sig": "bb", "ts": "2026-01-01T00:00:00Z",
-		"s": {"id":"x","d":{},"mh":"cc","kid":"dd"},
-		"b": {"id":"e","mr":"f","mh":"g","kid":"h"},
-		"cx": [{"t":40,"net":"testnet","memo":"bb","ep":"AA"}]
-	}`))
-	if err == nil {
-		t.Error("expected error for missing ip on item proof")
-	}
-}
-
-func TestParse_MissingBlock(t *testing.T) {
-	t.Parallel()
-	_, err := ParseBytes([]byte(`{
-		"v": 1, "t": 20,
-		"pk": "aa", "sig": "bb", "ts": "2026-01-01T00:00:00Z",
-		"s": {"id":"x","d":{},"mh":"cc","kid":"dd"},
-		"ip": "AA",
-		"cx": [{"t":40,"net":"testnet","memo":"bb","ep":"AA"}]
-	}`))
-	if err == nil {
-		t.Error("expected error for missing block")
-	}
-}
-
-func TestParse_EmptyCxRejected(t *testing.T) {
-	t.Parallel()
-	_, err := ParseBytes([]byte(`{
-		"v": 1, "t": 20,
-		"pk": "aa", "sig": "bb", "ts": "2026-01-01T00:00:00Z",
-		"s": {"id":"x","d":{},"mh":"cc","kid":"dd"},
-		"b": {"id":"e","mr":"f","mh":"g","kid":"h"},
-		"ip": "AA",
-		"cx": []
-	}`))
-	if err == nil {
-		t.Error("empty cx must be rejected")
-	}
-}
-
-func TestParse_MissingCxRejected(t *testing.T) {
-	t.Parallel()
-	_, err := ParseBytes([]byte(`{
-		"v": 1, "t": 20,
-		"pk": "aa", "sig": "bb", "ts": "2026-01-01T00:00:00Z",
-		"s": {"id":"x","d":{},"mh":"cc","kid":"dd"},
-		"b": {"id":"e","mr":"f","mh":"g","kid":"h"},
-		"ip": "AA"
-	}`))
-	if err == nil {
-		t.Error("missing cx must be rejected")
-	}
-}
-
-func TestParse_UnknownCxCodeRejected(t *testing.T) {
-	t.Parallel()
-	_, err := ParseBytes([]byte(`{
-		"v": 1, "t": 20,
-		"pk": "aa", "sig": "bb", "ts": "2026-01-01T00:00:00Z",
-		"s": {"id":"x","d":{},"mh":"cc","kid":"dd"},
-		"b": {"id":"e","mr":"f","mh":"g","kid":"h"},
-		"ip": "AA",
-		"cx": [{"t": 99, "net": "testnet", "ep": "AA"}]
-	}`))
-	if err == nil {
-		t.Error("unknown cx type code must be rejected")
-	}
-}
-
-func TestParse_InvalidSubjectStructure(t *testing.T) {
-	t.Parallel()
-	_, err := ParseBytes([]byte(`{
-		"v": 1, "t": 20,
-		"pk": "aa", "sig": "bb", "ts": "2026-01-01T00:00:00Z",
-		"s": "not an object",
-		"b": {"id":"e","mr":"f","mh":"g","kid":"h"},
-		"ip": "AA",
-		"cx": [{"t":40,"net":"testnet","memo":"bb","ep":"AA"}]
-	}`))
-	if err == nil {
-		t.Error("expected error for invalid subject structure")
-	}
-}
-
-func TestParse_EntropyProof(t *testing.T) {
-	t.Parallel()
-	bundle, err := ParseBytes([]byte(validEntropyProofJSON))
+	src := testfixtures.Read(t, testfixtures.WhitepaperDir, testfixtures.AppendixD)
+	encoded, err := JSONToCBOR(src)
 	if err != nil {
-		t.Fatalf("unexpected error: %s", err)
+		t.Fatalf("JSONToCBOR: %v", err)
 	}
-	if bundle.T != ptype.EntropyNIST {
-		t.Errorf("T: got %d, want %d", bundle.T, ptype.EntropyNIST)
-	}
-	if !bundle.IsEntropy() {
-		t.Error("IsEntropy() should return true")
-	}
-	if bundle.Subject == nil {
-		t.Fatal("subject must be present for entropy proofs")
-	}
-	if len(bundle.RawData) == 0 {
-		t.Error("RawData should be populated")
-	}
-}
-
-func TestParse_BlockProofNoSubjectNoIP(t *testing.T) {
-	t.Parallel()
-	bundle, err := ParseBytes([]byte(validBlockProofJSON))
+	back, err := CBORToJSON(encoded)
 	if err != nil {
-		t.Fatalf("unexpected error: %s", err)
+		t.Fatalf("CBORToJSON: %v", err)
 	}
-	// The raw code is what E.16 signs, so that is what gets pinned.
-	if bundle.T != ptype.Block {
-		t.Errorf("T: got %d, want %d (block)", bundle.T, ptype.Block)
-	}
-	if !bundle.IsBlockLike() {
-		t.Error("IsBlockLike() should be true for a t=10 bundle")
-	}
-	if bundle.Subject != nil {
-		t.Error("Subject must be nil for block proofs")
-	}
-	if bundle.InclusionProof != "" {
-		t.Errorf("InclusionProof must be empty for block proofs, got %q", bundle.InclusionProof)
+	if !reflect.DeepEqual(normalized(t, src), normalized(t, back)) {
+		t.Errorf("Appendix D round trip changed the document")
 	}
 }
 
-// TestParse_BeaconProof covers the t=11 beacon wire shape: structurally
-// identical to a block (no s, no ip, non-empty cx) but carrying a distinct
-// type code. Both halves are pinned because both matter — the shared shape
-// is why the pipeline guards on IsBlockLike, and the distinct code is the
-// domain separation that makes a beacon signature differ from the block
-// signature over the same block (`t` is inside E.16's signed payload).
-func TestParse_BeaconProof(t *testing.T) {
-	t.Parallel()
-	bundle, err := ParseBytes([]byte(validBeaconProofJSON))
+func TestRoundTrip_CBORToJSONToCBOR(t *testing.T) {
+	src := readProd(t, testfixtures.ProdCBOR)
+	b := mustParse(t, src)
+	re, err := b.MarshalCBOR()
 	if err != nil {
-		t.Fatalf("unexpected error: %s", err)
+		t.Fatalf("MarshalCBOR: %v", err)
 	}
-	if bundle.T != ptype.Beacon {
-		t.Errorf("T: got %d, want %d (beacon, NOT block=%d)", bundle.T, ptype.Beacon, ptype.Block)
+	var want, got any
+	if err := cbor.Unmarshal(src, &want); err != nil {
+		t.Fatal(err)
 	}
-	if !bundle.IsBlockLike() {
-		t.Error("IsBlockLike() should be true for a t=11 bundle")
+	if err := cbor.Unmarshal(re, &got); err != nil {
+		t.Fatal(err)
 	}
-	if bundle.Subject != nil {
-		t.Error("Subject must be nil for beacon proofs")
+	if !reflect.DeepEqual(want, got) {
+		t.Errorf("re-encoded CBOR decodes differently from the fixture")
 	}
-	if bundle.InclusionProof != "" {
-		t.Errorf("InclusionProof must be empty for beacon proofs, got %q", bundle.InclusionProof)
+	if !bytes.Equal(src, re) {
+		t.Logf("note: re-encoded CBOR is not byte-identical to the server's (%d vs %d bytes); values agree", len(re), len(src))
 	}
 }
 
-// TestParse_BeaconProofRejectsSubject mirrors the block rejection test —
-// a t=11 bundle carrying an `s` field must be rejected.
-func TestParse_BeaconProofRejectsSubject(t *testing.T) {
-	t.Parallel()
-	_, err := ParseBytes([]byte(`{
-		"v": 1, "t": 11,
-		"pk": "aa", "sig": "bb", "ts": "2026-01-01T00:00:00Z",
-		"s": {"id":"x","d":{},"mh":"cc","kid":"dd"},
-		"b": {"id":"e","mr":"f","mh":"g","kid":"h"},
-		"cx": [{"t":40,"net":"testnet","memo":"bb","ep":"AA"}]
-	}`))
+func TestParseCBOR_BareMap(t *testing.T) {
+	src := readProd(t, testfixtures.ProdCBOR)
+	if !HasCBORTag(src) {
+		t.Fatal("fixture is not tagged")
+	}
+	bare := src[3:]
+	if !IsCBORProof(bare) {
+		t.Fatal("bare map not detected as CBOR")
+	}
+	b := mustParse(t, bare)
+	if b.Subject == nil || b.Subject.ID != prodItemID {
+		t.Errorf("bare-map parse: subject = %+v", b.Subject)
+	}
+}
+
+func TestIsCBORProof(t *testing.T) {
+	if IsCBORProof([]byte("{}")) || IsCBORProof(nil) || IsCBORProof([]byte(" {")) {
+		t.Error("JSON detected as CBOR")
+	}
+	if !IsCBORProof([]byte{0xa0}) || !IsCBORProof([]byte{0xbf, 0xff}) || !IsCBORProof([]byte{0xd9, 0xd9, 0xf7, 0xa0}) {
+		t.Error("CBOR map not detected")
+	}
+}
+
+// --- E.6 hard rejections ---
+
+func rejectionOf(t *testing.T, data []byte) (string, error) {
+	t.Helper()
+	_, err := ParseBytes(data)
 	if err == nil {
-		t.Error("beacon proof with s must be rejected")
+		t.Fatal("expected a rejection, got none")
+	}
+	code := RejectionCode(err)
+	if code == "" {
+		t.Fatalf("error is not a RejectionError: %v", err)
+	}
+	return code, err
+}
+
+func TestRejection_Fixtures(t *testing.T) {
+	cases := map[string]string{
+		"old-layout.json":  CodeUnsupportedLayout,
+		"tamper-type.json": CodeUnexpectedSubjectFieldsForBlockLike,
+	}
+	for file, want := range cases {
+		data := testfixtures.Read(t, testfixtures.TamperDir, file)
+		if code, err := rejectionOf(t, data); code != want {
+			t.Errorf("%s: rejection %q, want %q (%v)", file, code, want, err)
+		}
+	}
+	// Every other tamper fixture is a well-formed bundle and parses.
+	for _, file := range []string{"tamper-claims.json", "tamper-witness-hash.json", "tamper-witness-detail.json", "tamper-root.json", "tamper-epoch-root.json", "drop-key-event.json"} {
+		if _, err := ParseBytes(testfixtures.Read(t, testfixtures.TamperDir, file)); err != nil {
+			t.Errorf("%s: unexpected rejection %v", file, err)
+		}
 	}
 }
 
-func TestParse_BlockProofRejectsSubject(t *testing.T) {
-	t.Parallel()
-	_, err := ParseBytes([]byte(`{
-		"v": 1, "t": 10,
-		"pk": "aa", "sig": "bb", "ts": "2026-01-01T00:00:00Z",
-		"s": {"id":"x","d":{},"mh":"cc","kid":"dd"},
-		"b": {"id":"e","mr":"f","mh":"g","kid":"h"},
-		"cx": [{"t":40,"net":"testnet","memo":"bb","ep":"AA"}]
-	}`))
-	if err == nil {
-		t.Error("block proof with s must be rejected")
+// mutate applies edits to the complete production bundle and returns the
+// JSON document.
+func mutate(t *testing.T, edit func(top map[string]any)) []byte {
+	t.Helper()
+	top := normalized(t, readProd(t, testfixtures.ProdComplete)).(map[string]any)
+	edit(top)
+	out, err := json.Marshal(top)
+	if err != nil {
+		t.Fatal(err)
 	}
+	return out
 }
 
-func TestParse_BlockProofRejectsIP(t *testing.T) {
-	t.Parallel()
-	_, err := ParseBytes([]byte(`{
-		"v": 1, "t": 10,
-		"pk": "aa", "sig": "bb", "ts": "2026-01-01T00:00:00Z",
-		"b": {"id":"e","mr":"f","mh":"g","kid":"h"},
-		"ip": "AA",
-		"cx": [{"t":40,"net":"testnet","memo":"bb","ep":"AA"}]
-	}`))
-	if err == nil {
-		t.Error("block proof with ip must be rejected")
-	}
-}
-
-// itemJSON builds an item bundle with the given `cx` array and `ip` value,
-// so the E.6 gates can be exercised one field at a time.
-func itemJSON(cx, ip string) string {
-	return `{"v":1,"t":20,"pk":"aa","sig":"bb","ts":"2026-01-01T00:00:00Z",
-		"s": {"id":"x","d":{},"mh":"cc","kid":"dd"},
-		"b": {"id":"e","ph":"a","mr":"f","mh":"g","kid":"h"},
-		"ip": ` + ip + `,
-		"cx": ` + cx + `}`
-}
-
-// TestParse_CommitmentEpGate covers the one per-entry rejection E.6 does
-// authorise for `ep`: presence plus string-ness. An empty `ep` is accepted
-// and graded later by the epoch-proof step.
-func TestParse_CommitmentEpGate(t *testing.T) {
-	t.Parallel()
+func TestRejection_Order(t *testing.T) {
 	cases := []struct {
 		name string
-		cx   string
-		code string
+		edit func(top map[string]any)
+		want string
 	}{
-		{"absent", `[{"t":40,"net":"testnet","memo":"bb"}]`, CodeInvalidExternalCommitmentEntry},
-		{"null", `[{"t":40,"net":"testnet","memo":"bb","ep":null}]`, CodeInvalidExternalCommitmentEntry},
-		{"not a string", `[{"t":40,"net":"testnet","memo":"bb","ep":7}]`, CodeInvalidExternalCommitmentEntry},
-		{"empty string", `[{"t":40,"net":"testnet","memo":"bb","ep":""}]`, ""},
+		{"draft v key even when null", func(m map[string]any) { m["v"] = nil }, CodeUnsupportedLayout},
+		{"draft t key", func(m map[string]any) { m["t"] = 20 }, CodeUnsupportedLayout},
+		{"draft key outranks a bad type", func(m map[string]any) { m["t"] = 20; m["type"] = "nope" }, CodeUnsupportedLayout},
+		{"type absent", func(m map[string]any) { delete(m, "type") }, CodeInvalidSubjectType},
+		{"type unknown", func(m map[string]any) { m["type"] = "commitment_stellar" }, CodeInvalidSubjectType},
+		{"type not a string", func(m map[string]any) { m["type"] = 20 }, CodeInvalidSubjectType},
+		{"bad type outranks missing block", func(m map[string]any) { m["type"] = "nope"; delete(m, "block") }, CodeInvalidSubjectType},
+		{"block absent", func(m map[string]any) { delete(m, "block") }, CodeMissingBlock},
+		{"block not a map", func(m map[string]any) { m["block"] = "x" }, CodeMissingBlock},
+		{"block-like with subject", func(m map[string]any) { m["type"] = "block" }, CodeUnexpectedSubjectFieldsForBlockLike},
+		{"block-like with inclusion_proof only", func(m map[string]any) { m["type"] = "beacon"; delete(m, "subject") }, CodeUnexpectedSubjectFieldsForBlockLike},
+		{"subject absent", func(m map[string]any) { delete(m, "subject") }, CodeMissingSubject},
+		{"subject null", func(m map[string]any) { m["subject"] = nil }, CodeMissingSubject},
+		{"inclusion_proof absent", func(m map[string]any) { delete(m, "inclusion_proof") }, CodeMissingInclusionProof},
+		{"inclusion_proof not a string", func(m map[string]any) { m["inclusion_proof"] = 5 }, CodeMissingInclusionProof},
+		{"block.metadata absent", func(m map[string]any) { delete(m["block"].(map[string]any), "metadata") }, CodeMissingMetadata},
+		{"block.metadata not a map", func(m map[string]any) { m["block"].(map[string]any)["metadata"] = "x" }, CodeMissingMetadata},
+		{"subject.metadata absent", func(m map[string]any) { delete(m["subject"].(map[string]any), "metadata") }, CodeMissingMetadata},
+		{"block metadata outranks commitments", func(m map[string]any) {
+			delete(m["block"].(map[string]any), "metadata")
+			delete(m, "commitments")
+		}, CodeMissingMetadata},
+		{"commitments absent", func(m map[string]any) { delete(m, "commitments") }, CodeNoExternalCommitments},
+		{"commitments empty", func(m map[string]any) { m["commitments"] = []any{} }, CodeNoExternalCommitments},
+		{"commitments not a list", func(m map[string]any) { m["commitments"] = map[string]any{} }, CodeNoExternalCommitments},
+		{"entry not a map", func(m map[string]any) { m["commitments"] = []any{"x"} }, CodeInvalidCommitmentEntry},
+		{"entry bad chain", func(m map[string]any) { m["commitments"].([]any)[0].(map[string]any)["chain"] = "ethereum" }, CodeInvalidCommitmentEntry},
+		{"entry chain absent", func(m map[string]any) { delete(m["commitments"].([]any)[0].(map[string]any), "chain") }, CodeInvalidCommitmentEntry},
+		{"entry epoch_proof absent", func(m map[string]any) { delete(m["commitments"].([]any)[0].(map[string]any), "epoch_proof") }, CodeInvalidCommitmentEntry},
+		{"entry epoch_proof not a string", func(m map[string]any) { m["commitments"].([]any)[0].(map[string]any)["epoch_proof"] = 1 }, CodeInvalidCommitmentEntry},
+		{"entry epoch_merkle_root absent", func(m map[string]any) { delete(m["commitments"].([]any)[0].(map[string]any), "epoch_merkle_root") }, CodeInvalidCommitmentEntry},
+		{"entry epoch_merkle_root null", func(m map[string]any) { m["commitments"].([]any)[0].(map[string]any)["epoch_merkle_root"] = nil }, CodeInvalidCommitmentEntry},
 	}
-	for _, c := range cases {
-		t.Run(c.name, func(t *testing.T) {
-			_, err := ParseBytes([]byte(itemJSON(c.cx, `"AA"`)))
-			if got := RejectionCode(err); got != c.code {
-				t.Errorf("RejectionCode = %q, want %q (err: %v)", got, c.code, err)
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			if code, err := rejectionOf(t, mutate(t, tc.edit)); code != tc.want {
+				t.Errorf("rejection %q, want %q (%v)", code, tc.want, err)
 			}
 		})
 	}
 }
 
-// TestParse_CommitmentRootKeyGateIsPresenceOnly pins the deliberate
-// asymmetry with `ep`: a malformed root key must reach the report as an
-// epoch-proof failure, so only its absence aborts.
-func TestParse_CommitmentRootKeyGateIsPresenceOnly(t *testing.T) {
-	t.Parallel()
+func TestRejection_NotAJSONObject(t *testing.T) {
+	for _, in := range []string{"", "[]", "null", "42", "\"x\"", "{", "{\"type\": }"} {
+		if code, _ := rejectionOf(t, []byte(in)); code != CodeNotAJSONObject {
+			t.Errorf("%q: rejection %q, want %q", in, code, CodeNotAJSONObject)
+		}
+	}
+}
+
+// TestParse_GradedDefectsAreNotRejections pins that E.6 gates on the
+// presence and type of structure only: a wrong version, a broken key, an
+// uppercase hash and a malformed proof all parse and reach the report.
+func TestParse_GradedDefectsAreNotRejections(t *testing.T) {
 	cases := []struct {
 		name string
-		cx   string
-		code string
+		edit func(top map[string]any)
 	}{
-		{"stellar memo absent", `[{"t":40,"net":"testnet","ep":"AA"}]`, CodeInvalidExternalCommitmentEntry},
-		{"stellar memo null", `[{"t":40,"net":"testnet","memo":null,"ep":"AA"}]`, CodeInvalidExternalCommitmentEntry},
-		{"stellar memo empty", `[{"t":40,"net":"testnet","memo":"","ep":"AA"}]`, ""},
-		{"stellar memo short", `[{"t":40,"net":"testnet","memo":"aabb","ep":"AA"}]`, ""},
-		{"bitcoin op absent", `[{"t":41,"net":"regtest","ep":"AA"}]`, CodeInvalidExternalCommitmentEntry},
-		{"bitcoin op empty", `[{"t":41,"net":"regtest","op":"","ep":"AA"}]`, ""},
+		{"version 2", func(m map[string]any) { m["version"] = 2 }},
+		{"version absent", func(m map[string]any) { delete(m, "version") }},
+		{"version a string", func(m map[string]any) { m["version"] = "1" }},
+		{"public_key garbage", func(m map[string]any) { m["public_key"] = "nope" }},
+		{"public_key absent", func(m map[string]any) { delete(m, "public_key") }},
+		{"signature absent", func(m map[string]any) { delete(m, "signature") }},
+		{"generated_at absent", func(m map[string]any) { delete(m, "generated_at") }},
+		{"uppercase merkle_root", func(m map[string]any) { m["block"].(map[string]any)["merkle_root"] = "D175D1EF" }},
+		{"empty inclusion_proof", func(m map[string]any) { m["inclusion_proof"] = "" }},
+		{"block id numeric", func(m map[string]any) { m["block"].(map[string]any)["id"] = 7 }},
+		{"ledger a string", func(m map[string]any) { m["commitments"].([]any)[0].(map[string]any)["ledger"] = "64256842" }},
+		{"witnesses not a map", func(m map[string]any) { m["subject"].(map[string]any)["witnesses"] = "x" }},
+		{"block_path empty", func(m map[string]any) { m["block_path"] = []any{} }},
+		{"signing_key_event not a map", func(m map[string]any) { m["signing_key_event"] = "x" }},
+		{"unknown top-level field", func(m map[string]any) { m["future"] = map[string]any{"x": 1} }},
 	}
-	for _, c := range cases {
-		t.Run(c.name, func(t *testing.T) {
-			_, err := ParseBytes([]byte(itemJSON(c.cx, `"AA"`)))
-			if got := RejectionCode(err); got != c.code {
-				t.Errorf("RejectionCode = %q, want %q (err: %v)", got, c.code, err)
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			if _, err := ParseBytes(mutate(t, tc.edit)); err != nil {
+				t.Errorf("unexpected rejection: %v", err)
 			}
 		})
 	}
-}
-
-// TestParse_OptionalCommitmentFields covers the fields E.5 grades as
-// "required for external confirmation" or "optional": absence narrows what a
-// confirmation step can establish and must never abort the parse. The
-// Appendix D bundle itself carries no `bmr`.
-func TestParse_OptionalCommitmentFields(t *testing.T) {
-	t.Parallel()
-	cases := []struct{ name, cx string }{
-		{"stellar tx absent", `[{"t":40,"net":"testnet","memo":"bb","ep":"AA"}]`},
-		{"stellar tx malformed", `[{"t":40,"net":"testnet","tx":"aabb","memo":"bb","ep":"AA"}]`},
-		{"bitcoin bmr absent", `[{"t":41,"net":"regtest","op":"aa","ep":"AA"}]`},
-		{"bitcoin bmr malformed", `[{"t":41,"net":"regtest","op":"aa","bmr":"aabb","ep":"AA"}]`},
-		{"net absent", `[{"t":40,"memo":"bb","ep":"AA"}]`},
+	b := mustParse(t, mutate(t, func(m map[string]any) { m["version"] = "1" }))
+	if b.Version != 0 || string(b.VersionLiteral) != `"1"` {
+		t.Errorf("string version: Version=%d literal=%s", b.Version, b.VersionLiteral)
 	}
-	for _, c := range cases {
-		t.Run(c.name, func(t *testing.T) {
-			if _, err := ParseBytes([]byte(itemJSON(c.cx, `"AA"`))); err != nil {
-				t.Errorf("must parse cleanly, got: %v", err)
-			}
-		})
+	b = mustParse(t, mutate(t, func(m map[string]any) { m["commitments"].([]any)[0].(map[string]any)["ledger"] = "64256842" }))
+	if b.Commitments[0].HasLedger {
+		t.Error("a string ledger must not read as an integer")
+	}
+	b = mustParse(t, mutate(t, func(m map[string]any) { m["signing_key_event"] = "x" }))
+	if b.SigningKeyEvent == nil || b.SigningKeyEvent.IsMap {
+		t.Errorf("non-map signing_key_event = %+v", b.SigningKeyEvent)
 	}
 }
 
-// TestParse_EmptyInclusionProofIsNotARejection pins that `ip` is gated on
-// presence and string-ness, not on being non-empty — an empty proof fails
-// the inclusion-proof step where the report can show it.
-func TestParse_EmptyInclusionProofIsNotARejection(t *testing.T) {
-	t.Parallel()
-	bundle, err := ParseBytes([]byte(itemJSON(`[{"t":40,"net":"testnet","memo":"bb","ep":"AA"}]`, `""`)))
+// --- CBOR value space (E.3) ---
+
+// cborWith re-encodes the complete bundle as plain CBOR after applying an
+// edit to the decoded tree. Byte-string slots stay text here (the decoder
+// passes text through), which keeps the test about the injected value.
+func cborWith(t *testing.T, edit func(top map[string]any)) []byte {
+	t.Helper()
+	var top map[string]any
+	dec := json.NewDecoder(bytes.NewReader(readProd(t, testfixtures.ProdComplete)))
+	if err := dec.Decode(&top); err != nil {
+		t.Fatal(err)
+	}
+	edit(top)
+	out, err := cbor.Marshal(top)
 	if err != nil {
-		t.Fatalf("empty ip must parse: %v", err)
+		t.Fatal(err)
 	}
-	if bundle.InclusionProof != "" {
-		t.Errorf("ip: got %q, want empty", bundle.InclusionProof)
-	}
-	for _, ip := range []string{`null`, `7`} {
-		_, err := ParseBytes([]byte(itemJSON(`[{"t":40,"net":"testnet","memo":"bb","ep":"AA"}]`, ip)))
-		if got := RejectionCode(err); got != CodeMissingInclusionProof {
-			t.Errorf("ip %s: RejectionCode = %q, want %q", ip, got, CodeMissingInclusionProof)
-		}
-	}
+	return append([]byte{0xd9, 0xd9, 0xf7}, out...)
 }
 
-// blockLikeShapeCases is the E.6 truth table for `s` / `ip` on a block-like
-// bundle, shared by the JSON and CBOR shape tests so the two serializations
-// are pinned to one rule.
-var blockLikeShapeCases = []struct {
-	name     string
-	subject  any // nil means "key absent"
-	ip       any
-	rejected bool
-}{
-	{"neither", nil, nil, false},
-	{"s null", "null", nil, false},
-	{"ip null", nil, "null", false},
-	{"ip empty string", nil, "", true},
-	{"s object", map[string]any{"id": "x"}, nil, true},
-	{"s empty string", "", nil, true},
-}
-
-func TestParse_BlockLikeShapeRule(t *testing.T) {
-	t.Parallel()
-	for _, c := range blockLikeShapeCases {
-		t.Run(c.name, func(t *testing.T) {
-			body := map[string]any{
-				"v": 1, "t": 10, "pk": "aa", "sig": "bb", "ts": "2026-01-01T00:00:00Z",
-				"b":  map[string]any{"id": "e", "ph": "a", "mr": "f", "mh": "g", "kid": "h"},
-				"cx": []any{map[string]any{"t": 40, "net": "testnet", "memo": "bb", "ep": "AA"}},
+func TestParseCBOR_ValueSpaceRejections(t *testing.T) {
+	subject := func(m map[string]any) map[string]any { return m["subject"].(map[string]any) }
+	cases := []struct {
+		name string
+		edit func(top map[string]any)
+		path string
+	}{
+		{"bytes in claims", func(m map[string]any) { subject(m)["claims"].(map[string]any)["blob"] = []byte{1, 2} }, "subject.claims.blob"},
+		{"tag in metadata", func(m map[string]any) {
+			subject(m)["metadata"].(map[string]any)["witnesses"].(map[string]any)["block"] = cbor.Tag{Number: 42, Content: "x"}
+		}, "subject.metadata.witnesses.block"},
+		{"undefined in block metadata", func(m map[string]any) {
+			m["block"].(map[string]any)["metadata"].(map[string]any)["u"] = cbor.SimpleValue(23)
+		}, "block.metadata.u"},
+		{"bytes in an entropy witness payload", func(m map[string]any) {
+			subject(m)["witnesses"].(map[string]any)["entropy_nist"].(map[string]any)["raw"] = []byte{9}
+		}, "subject.witnesses.entropy_nist.raw"},
+		{"bytes in the block witness metadata", func(m map[string]any) {
+			subject(m)["witnesses"].(map[string]any)["block"].(map[string]any)["metadata"].(map[string]any)["raw"] = []byte{9}
+		}, "subject.witnesses.block.metadata.raw"},
+		{"bytes in the key event block metadata", func(m map[string]any) {
+			m["signing_key_event"].(map[string]any)["block"].(map[string]any)["metadata"].(map[string]any)["raw"] = []byte{9}
+		}, "signing_key_event.block.metadata.raw"},
+		{"non-finite float in claims", func(m map[string]any) { subject(m)["claims"].(map[string]any)["f"] = mathInf() }, "subject.claims.f"},
+		{"nested array element", func(m map[string]any) { subject(m)["claims"].(map[string]any)["a"] = []any{1, []byte{1}} }, "subject.claims.a[1]"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			code, err := rejectionOf(t, cborWith(t, tc.edit))
+			if code != CodeInvalidSubjectData {
+				t.Fatalf("rejection %q, want %q (%v)", code, CodeInvalidSubjectData, err)
 			}
-			if c.subject != nil {
-				body["s"] = c.subject
-			}
-			if c.ip != nil {
-				body["ip"] = c.ip
-			}
-			raw, err := json.Marshal(body)
-			if err != nil {
-				t.Fatal(err)
-			}
-			// The "null" strings above must land as JSON null, not as the
-			// four-character string.
-			raw = bytes.ReplaceAll(raw, []byte(`"null"`), []byte(`null`))
-
-			_, err = ParseBytes(raw)
-			got := RejectionCode(err) == CodeUnexpectedSubjectFieldsForBlockLike
-			if got != c.rejected {
-				t.Errorf("rejected = %v, want %v (err: %v)", got, c.rejected, err)
+			if !strings.HasPrefix(err.(*RejectionError).Detail, tc.path+": ") {
+				t.Errorf("detail %q does not name path %q", err.(*RejectionError).Detail, tc.path)
 			}
 		})
 	}
 }
 
-// TestParse_NotAJSONObject checks that non-object input is refused with the
-// E.23 identifier instead of leaking the decoder's anonymous target struct.
-func TestParse_NotAJSONObject(t *testing.T) {
-	t.Parallel()
-	for _, in := range []string{`[1,2]`, `null`, `"a string"`, `42`, `true`, ``, "   "} {
-		_, err := ParseBytes([]byte(in))
-		if got := RejectionCode(err); got != CodeNotAJSONObject {
-			t.Errorf("ParseBytes(%q): RejectionCode = %q, want %q (err: %v)", in, got, CodeNotAJSONObject, err)
+func mathInf() float64 { return 1 / zero }
+
+var zero float64
+
+func TestParseCBOR_NonTextKeyInHashedMap(t *testing.T) {
+	var top map[string]any
+	if err := json.Unmarshal(readProd(t, testfixtures.ProdComplete), &top); err != nil {
+		t.Fatal(err)
+	}
+	claims := map[any]any{"name": "x", 1: "one"}
+	top["subject"].(map[string]any)["claims"] = claims
+	out, err := cbor.Marshal(top)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if code, _ := rejectionOf(t, out); code != CodeInvalidSubjectData {
+		t.Errorf("rejection %q, want invalid_subject_data", code)
+	}
+}
+
+func TestParseCBOR_ValueSpaceOutranksLayout(t *testing.T) {
+	// E.6 places invalid_subject_data before unsupported_layout.
+	data := cborWith(t, func(m map[string]any) {
+		m["t"] = 20
+		m["subject"].(map[string]any)["claims"].(map[string]any)["blob"] = []byte{1}
+	})
+	if code, _ := rejectionOf(t, data); code != CodeInvalidSubjectData {
+		t.Errorf("rejection %q, want invalid_subject_data first", code)
+	}
+	data = cborWith(t, func(m map[string]any) { m["t"] = 20 })
+	if code, _ := rejectionOf(t, data); code != CodeUnsupportedLayout {
+		t.Errorf("rejection %q, want unsupported_layout", code)
+	}
+}
+
+func TestParseCBOR_GenericPositionsAreLenient(t *testing.T) {
+	// A byte string in an unnamed slot renders as hex and a tag outside a
+	// hashed map is unwrapped, so an unknown optional field is carried
+	// rather than refused (E.24).
+	data := cborWith(t, func(m map[string]any) {
+		m["future"] = []byte{0xab}
+		m["tagged"] = cbor.Tag{Number: 42, Content: "x"}
+	})
+	b := mustParse(t, data)
+	if b.Fields.Str("future") != "ab" || b.Fields.Str("tagged") != "x" {
+		t.Errorf("future=%q tagged=%q", b.Fields.Str("future"), b.Fields.Str("tagged"))
+	}
+}
+
+// TestParseCBOR_ByteStringInTextSlot pins that a byte string where the
+// schema fixes text is not the field: the required proofs are refused by
+// the same E.6 gates the reference verifier applies, and the optional
+// Bitcoin evidence reads as absent.
+func TestParseCBOR_ByteStringInTextSlot(t *testing.T) {
+	data := cborWith(t, func(m map[string]any) { m["inclusion_proof"] = []byte{0, 1} })
+	if code, _ := rejectionOf(t, data); code != CodeMissingInclusionProof {
+		t.Errorf("byte-string inclusion_proof: rejection %q, want missing_inclusion_proof", code)
+	}
+	data = cborWith(t, func(m map[string]any) {
+		m["commitments"].([]any)[0].(map[string]any)["epoch_proof"] = []byte{0}
+	})
+	if code, _ := rejectionOf(t, data); code != CodeInvalidCommitmentEntry {
+		t.Errorf("byte-string epoch_proof: rejection %q, want invalid_commitment_entry", code)
+	}
+	data = cborWith(t, func(m map[string]any) {
+		m["commitments"].([]any)[0].(map[string]any)["txoutproof"] = []byte{0}
+		m["commitments"].([]any)[0].(map[string]any)["raw_transaction"] = []byte{0}
+	})
+	b := mustParse(t, data)
+	if c := b.Commitments[0]; c.Txoutproof != "" || c.RawTransaction != "" || c.Fields.Has("txoutproof") {
+		t.Errorf("byte-string Bitcoin evidence should read as absent, got %+v", c)
+	}
+}
+
+func TestParseCBOR_DuplicateKeyIsRefused(t *testing.T) {
+	// {"type":"item","type":"item"} as a bare map.
+	data := []byte{0xa2, 0x64, 't', 'y', 'p', 'e', 0x64, 'i', 't', 'e', 'm', 0x64, 't', 'y', 'p', 'e', 0x64, 'i', 't', 'e', 'm'}
+	code, err := rejectionOf(t, data)
+	if code != CodeNotAJSONObject || !strings.Contains(err.Error(), "duplicate") {
+		t.Errorf("rejection %q (%v)", code, err)
+	}
+}
+
+func TestParseCBOR_TextInByteSlotPassesThrough(t *testing.T) {
+	// The server passes text through unchanged in a byte-string slot; so
+	// does this decoder, and the E.4 sweep then grades the text.
+	data := cborWith(t, func(m map[string]any) {})
+	b := mustParse(t, data)
+	if b.Block.MerkleRoot != "d175d1ef04595ffbea81cf9864780889615a73bdb0184c6efa43de184f5c24a2" {
+		t.Errorf("merkle_root = %q", b.Block.MerkleRoot)
+	}
+}
+
+func TestJSONToCBOR_RefusesUppercaseHex(t *testing.T) {
+	doc := mutate(t, func(m map[string]any) { m["block"].(map[string]any)["merkle_root"] = "D175D1EF" })
+	if _, err := JSONToCBOR(doc); err == nil || !strings.Contains(err.Error(), "block.merkle_root") {
+		t.Errorf("expected an error naming block.merkle_root, got %v", err)
+	}
+}
+
+func TestJSONToCBOR_PreservesLargeIntegers(t *testing.T) {
+	doc := mutate(t, func(m map[string]any) {
+		m["subject"].(map[string]any)["claims"].(map[string]any)["big"] = json.Number("9007199254740993")
+	})
+	encoded, err := JSONToCBOR(doc)
+	if err != nil {
+		t.Fatal(err)
+	}
+	back, err := CBORToJSON(encoded)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(back), `"big":9007199254740993`) {
+		t.Errorf("large integer not preserved: %s", back)
+	}
+	doc = mutate(t, func(m map[string]any) {
+		m["subject"].(map[string]any)["claims"].(map[string]any)["huge"] = json.Number("184467440737095516160")
+	})
+	if _, err := JSONToCBOR(doc); err == nil || !strings.Contains(err.Error(), "subject.claims.huge") {
+		t.Errorf("expected an error naming the key, got %v", err)
+	}
+}
+
+func TestFloatLiteral(t *testing.T) {
+	for f, want := range map[float64]string{1.5: "1.5", 100: "100.0", 1e21: "1e+21", 1e-7: "1e-07"} {
+		if got := floatLiteral(f); got != want {
+			t.Errorf("floatLiteral(%v) = %q, want %q", f, got, want)
 		}
-		if strings.Contains(fmt.Sprint(err), "json.RawMessage") {
-			t.Errorf("ParseBytes(%q) leaked the decode struct: %v", in, err)
+	}
+}
+
+func TestHalfToFloat64(t *testing.T) {
+	cases := map[uint16]float64{0x3c00: 1, 0xc000: -2, 0x7bff: 65504, 0x0001: 5.960464477539063e-08, 0x0000: 0}
+	for bits, want := range cases {
+		if got := halfToFloat64(bits); got != want {
+			t.Errorf("half %#04x = %v, want %v", bits, got, want)
 		}
 	}
-	// Leading whitespace before the object must still be accepted.
-	if _, err := ParseBytes([]byte("\n\t " + validProofJSON)); err != nil {
-		t.Errorf("leading whitespace must be tolerated: %v", err)
+}
+
+func TestWitnessSelection(t *testing.T) {
+	all, err := ParseWitnessSelection("all")
+	if err != nil || !all.IsAll() || all.FilenameSuffix() != "" || all.String() != "all" {
+		t.Errorf("all: %+v %v", all, err)
+	}
+	none, err := ParseWitnessSelection("none")
+	if err != nil || !none.IsNone() || none.FilenameSuffix() != "-compact" || none.String() != "none" {
+		t.Errorf("none: %+v %v", none, err)
+	}
+	some, err := ParseWitnessSelection("block, entropy_nist,block")
+	if err != nil || some.IsAll() || some.IsNone() || some.FilenameSuffix() != "-partial" || some.String() != "block,entropy_nist" {
+		t.Errorf("subset: %+v %v", some, err)
+	}
+	if _, err := ParseWitnessSelection("block,nope"); err == nil || !strings.Contains(err.Error(), "nope") {
+		t.Errorf("unknown name accepted: %v", err)
 	}
 }
 
-// TestRejectionCode_NonRejection confirms the accessor stays silent for the
-// ordinary errors a caller also sees from this package.
-func TestRejectionCode_NonRejection(t *testing.T) {
-	t.Parallel()
-	if got := RejectionCode(nil); got != "" {
-		t.Errorf("RejectionCode(nil) = %q", got)
+func TestObjectHelpers(t *testing.T) {
+	o, ok := parseObject([]byte(`{"s":"x","n":5,"f":1.5,"nul":null,"o":{},"l":[1]}`))
+	if !ok {
+		t.Fatal("parseObject failed")
 	}
-	_, err := Parse("/nonexistent/path/proof.json")
-	if got := RejectionCode(err); got != "" {
-		t.Errorf("RejectionCode(file error) = %q", got)
+	if !o.HasKey("nul") || o.Has("nul") || o.Has("missing") || !o.Has("s") {
+		t.Error("presence helpers")
 	}
-	if got := RejectionCode(fmt.Errorf("wrapped: %w", rejectf(CodeMissingBlock, "x"))); got != CodeMissingBlock {
-		t.Errorf("RejectionCode through a wrap = %q, want %q", got, CodeMissingBlock)
+	if o.Str("s") != "x" || o.Str("n") != "" || o.IsString("n") || o.IsString("nul") {
+		t.Error("string helpers")
 	}
-}
-
-// TestParse_RejectionCodes maps each E.6 condition to its E.23 identifier.
-func TestParse_RejectionCodes(t *testing.T) {
-	t.Parallel()
-	cases := []struct{ name, body, code string }{
-		{"t absent", `{"v":1,"b":{},"cx":[]}`, CodeMissingTypeCode},
-		{"t null", `{"v":1,"t":null,"b":{},"cx":[]}`, CodeMissingTypeCode},
-		{"t not an integer", `{"v":1,"t":"20","b":{},"cx":[]}`, CodeMissingTypeCode},
-		{"t unknown", `{"v":1,"t":99,"b":{},"cx":[]}`, CodeInvalidSubjectTypeCode},
-		{"b absent", `{"v":1,"t":10,"cx":[]}`, CodeMissingBlock},
-		{"b not a map", `{"v":1,"t":10,"b":"x","cx":[]}`, CodeMissingBlock},
-		{"cx absent", `{"v":1,"t":10,"b":{}}`, CodeNoExternalCommitments},
-		{"cx not a list", `{"v":1,"t":10,"b":{},"cx":{}}`, CodeNoExternalCommitments},
-		{"cx empty", `{"v":1,"t":10,"b":{},"cx":[]}`, CodeNoExternalCommitments},
-		{"cx entry not a map", `{"v":1,"t":10,"b":{},"cx":["x"]}`, CodeInvalidExternalCommitmentEntry},
-		{"cx entry bad code", `{"v":1,"t":10,"b":{},"cx":[{"t":99,"ep":"AA"}]}`, CodeInvalidExternalCommitmentEntry},
-		{"s absent", `{"v":1,"t":20,"b":{},"cx":[{"t":40,"memo":"bb","ep":"AA"}],"ip":"AA"}`, CodeMissingSubject},
-		{"s not a map", `{"v":1,"t":20,"s":"x","b":{},"cx":[{"t":40,"memo":"bb","ep":"AA"}],"ip":"AA"}`, CodeMissingSubject},
-		{"ip absent", `{"v":1,"t":20,"s":{},"b":{},"cx":[{"t":40,"memo":"bb","ep":"AA"}]}`, CodeMissingInclusionProof},
+	if v, ok := o.Integer("n"); !ok || v.N != 5 {
+		t.Error("integer helper")
 	}
-	for _, c := range cases {
-		t.Run(c.name, func(t *testing.T) {
-			_, err := ParseBytes([]byte(c.body))
-			if got := RejectionCode(err); got != c.code {
-				t.Errorf("RejectionCode = %q, want %q (err: %v)", got, c.code, err)
-			}
-		})
+	if _, ok := o.Integer("f"); ok {
+		t.Error("float read as integer")
+	}
+	if o.Literal("missing") != "absent" || o.Literal("f") != "1.5" {
+		t.Errorf("literals: %q %q", o.Literal("missing"), o.Literal("f"))
+	}
+	if _, ok := o.List("l"); !ok {
+		t.Error("list helper")
+	}
+	if got := o.Keys(); !reflect.DeepEqual(got, []string{"f", "l", "n", "nul", "o", "s"}) {
+		t.Errorf("keys = %v", got)
 	}
 }
 
-func TestFileSizeFromData(t *testing.T) {
-	t.Parallel()
-	if got := FileSizeFromData([]byte("hello world")); got != 11 {
-		t.Errorf("FileSizeFromData: got %d, want 11", got)
+func TestPtypeRegistry(t *testing.T) {
+	for name, want := range map[string]ptype.Code{"block": 10, "beacon": 11, "item": 20, "entropy_nist": 30, "entropy_stellar": 31, "entropy_bitcoin": 32} {
+		c, ok := ptype.FromName(name)
+		if !ok || c != want || ptype.Name(c) != name {
+			t.Errorf("%s -> %d (ok=%v), Name=%s", name, c, ok, ptype.Name(c))
+		}
 	}
-}
-
-func TestFileSizeFromData_Empty(t *testing.T) {
-	t.Parallel()
-	if got := FileSizeFromData(nil); got != 0 {
-		t.Errorf("FileSizeFromData(nil): got %d, want 0", got)
-	}
-}
-
-func TestFileSize_Exists(t *testing.T) {
-	t.Parallel()
-	path := writeTemp(t, "hello")
-	size := FileSize(path)
-	if size != 5 {
-		t.Errorf("file size: got %d, want 5", size)
-	}
-}
-
-func TestFileSize_NotExists(t *testing.T) {
-	t.Parallel()
-	size := FileSize("/nonexistent/file")
-	if size != 0 {
-		t.Errorf("file size for missing file: got %d, want 0", size)
+	if _, ok := ptype.FromName("stellar"); ok {
+		t.Error("a chain name is not a subject type")
 	}
 }

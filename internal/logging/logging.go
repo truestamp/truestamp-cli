@@ -15,13 +15,13 @@
 //	Windows: %LOCALAPPDATA%\truestamp\Cache\truestamp.log
 //
 // Files are rotated by size (10 MB default) with up to 5 compressed
-// backups retained for 14 days. Output is one JSON object per line —
+// backups retained for 14 days. Output is one JSON object per line,
 // directly grep/jq-able and easy to ingest into any log pipeline later.
 //
 // All output passes through [RedactingHandler] before reaching the file:
 // `api_key=…` and `Bearer …` substrings in attribute values, error
 // chains, or message text are replaced with the REDACTED sentinel. This
-// is a defense-in-depth safety net — call sites should still avoid
+// is a defense-in-depth safety net, call sites should still avoid
 // putting secrets into log attributes in the first place.
 package logging
 
@@ -64,7 +64,7 @@ type Options struct {
 
 // New returns a configured slog.Logger and the resolved log file path
 // so the caller can surface it in diagnostic UIs. If file creation
-// fails, a discard logger is returned along with the original error —
+// fails, a discard logger is returned along with the original error,
 // callers should never crash over a logging failure.
 //
 // The underlying file is opened lazily on the first write, so a command
@@ -153,7 +153,7 @@ func coalesce(v, def int) int {
 
 // lazyWriter defers the first call to its inner io.Writer until a Write
 // actually happens. lumberjack.Logger creates the file (and the parent
-// directory) on its first Write — wrapping it here means a no-log-line
+// directory) on its first Write, wrapping it here means a no-log-line
 // invocation never touches the filesystem at all.
 //
 // Every Write takes the mutex; there is no fast path or one-shot flag.
@@ -171,7 +171,7 @@ func (l *lazyWriter) Write(p []byte) (int, error) {
 // RedactingHandler wraps an underlying slog.Handler and runs every
 // string attribute value, every error attribute, and the record's
 // message through [redact.String] before forwarding the record. Group
-// boundaries and attribute keys are passed through untouched — the
+// boundaries and attribute keys are passed through untouched, the
 // redaction only targets values, where secrets can actually live.
 type RedactingHandler struct {
 	inner slog.Handler
@@ -184,7 +184,7 @@ func NewRedactingHandler(inner slog.Handler) *RedactingHandler {
 	return &RedactingHandler{inner: inner}
 }
 
-// Enabled delegates to the wrapped handler — redaction has no opinion
+// Enabled delegates to the wrapped handler, redaction has no opinion
 // on which levels are emitted.
 func (h *RedactingHandler) Enabled(ctx context.Context, level slog.Level) bool {
 	return h.inner.Enabled(ctx, level)
@@ -216,7 +216,7 @@ func (h *RedactingHandler) WithAttrs(attrs []slog.Attr) slog.Handler {
 	return &RedactingHandler{inner: h.inner.WithAttrs(cleaned)}
 }
 
-// WithGroup delegates — group names are caller-controlled identifiers,
+// WithGroup delegates, group names are caller-controlled identifiers,
 // not values, and so don't need redaction.
 func (h *RedactingHandler) WithGroup(name string) slog.Handler {
 	return &RedactingHandler{inner: h.inner.WithGroup(name)}

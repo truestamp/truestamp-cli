@@ -1,0 +1,5 @@
+
+  REJECTED: :unsupported_layout
+  This file uses the pre-publication draft layout, which version 1 replaced.
+  Ask the holder to regenerate the proof; no verifier reads that layout.
+

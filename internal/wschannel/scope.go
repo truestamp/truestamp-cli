@@ -16,24 +16,24 @@ import (
 type ChannelErrorCode string
 
 const (
-	// ChannelErrCodeForbidden — the actor is not a member of the target
+	// ChannelErrCodeForbidden, the actor is not a member of the target
 	// (used by scope.switch_team for non-member targets).
 	ChannelErrCodeForbidden ChannelErrorCode = "forbidden"
 
-	// ChannelErrCodeNotFound — the target resource (team, item, …) does
+	// ChannelErrCodeNotFound, the target resource (team, item, …) does
 	// not exist.
 	ChannelErrCodeNotFound ChannelErrorCode = "not_found"
 
-	// ChannelErrCodeNoop — the requested change has no effect (e.g.
+	// ChannelErrCodeNoop, the requested change has no effect (e.g.
 	// switching to the team already in scope). Treated as "success-
 	// equivalent" by callers that just want to confirm a desired
 	// state, but surfaced as an error for those that want to know.
 	ChannelErrCodeNoop ChannelErrorCode = "noop"
 
-	// ChannelErrCodeInvalid — the inbound payload was malformed.
+	// ChannelErrCodeInvalid, the inbound payload was malformed.
 	ChannelErrCodeInvalid ChannelErrorCode = "invalid"
 
-	// ChannelErrCodeRateLimited — the channel's @cmd_limit gate fired.
+	// ChannelErrCodeRateLimited, the channel's @cmd_limit gate fired.
 	ChannelErrCodeRateLimited ChannelErrorCode = "rate_limited"
 )
 
@@ -100,7 +100,7 @@ type SwitchedStreamSet struct {
 // pane catalog stream toggles, etc.).
 //
 // On *ChannelError{Code: ChannelErrCodeNoop} the server confirmed the
-// scope was already on the target team — callers may treat this as a
+// scope was already on the target team, callers may treat this as a
 // success (state already matches the desired state) or surface a
 // "no change" hint.
 const switchTeamLobbyTopic = "console:lobby"
@@ -138,7 +138,7 @@ func decodeChannelError(raw json.RawMessage) error {
 	if err := json.Unmarshal(raw, &env); err == nil && env.Code != "" {
 		return &ChannelError{Code: ChannelErrorCode(env.Code), Message: env.Message}
 	}
-	// Unrecognized shape — surface the raw bytes truncated for safety.
+	// Unrecognized shape, surface the raw bytes truncated for safety.
 	body := string(raw)
 	if len(body) > 200 {
 		body = body[:200]

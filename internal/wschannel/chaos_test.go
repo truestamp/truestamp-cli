@@ -75,7 +75,7 @@ func TestChaosSlowConsumerDuringReconnect(t *testing.T) {
 	}
 
 	// Now disconnect. The reconnect path also publishes synthetic events
-	// to a buffer that may already be full — drop-on-full must apply
+	// to a buffer that may already be full, drop-on-full must apply
 	// there too without blocking the session loop.
 	s.KillConnection()
 
@@ -89,7 +89,7 @@ func TestChaosSlowConsumerDuringReconnect(t *testing.T) {
 	}
 
 	// Drain everything. We don't care about exact counts (drop-on-full
-	// makes them non-deterministic) — only that the channel keeps
+	// makes them non-deterministic), only that the channel keeps
 	// flowing and we eventually observe a fresh broadcast post-reconnect.
 	if err := s.BroadcastFrame("console:lobby", "stream", map[string]any{"post": true}); err != nil {
 		t.Fatalf("post-reconnect broadcast: %v", err)
@@ -139,7 +139,7 @@ drain:
 // calls forgetTopic, removing the entry from c.topics. The next
 // rejoin cycle sees an empty topic set and joins nothing. The
 // application is responsible for re-issuing JoinTopic after
-// observing a `rejoined` push that has lost a topic — the client
+// observing a `rejoined` push that has lost a topic, the client
 // does NOT retry forgotten topics on subsequent reconnects. This
 // test asserts the actual behavior so a future change is forced
 // to update the test if the design changes.
@@ -192,10 +192,10 @@ func TestChaosMidRejoinDisconnect(t *testing.T) {
 
 	// At this point the client has survived the chaos and stabilized.
 	// We deliberately don't probe with a follow-up Push or BroadcastFrame
-	// — the post-chaos socket can have a brief settling window where
+	//, the post-chaos socket can have a brief settling window where
 	// the read goroutine has just resumed and either side may still
 	// be flushing prior writes. The primary contract this test guards
-	// is "no panic, no leak, returns to a steady state" — which is
+	// is "no panic, no leak, returns to a steady state", which is
 	// what waitForBoth above confirms. Health probes here would be
 	// flaky for a finding that is itself documented behavior.
 }
@@ -203,7 +203,7 @@ func TestChaosMidRejoinDisconnect(t *testing.T) {
 // TestChaosPushBlockedDuringDisconnect:
 //
 // A Push that's blocked waiting for a reply must wake up promptly when
-// the underlying socket dies — drainPending sends a synthetic "error"
+// the underlying socket dies, drainPending sends a synthetic "error"
 // reply. Without this, blocked callers hang for the full ctx timeout.
 func TestChaosPushBlockedDuringDisconnect(t *testing.T) {
 	s := newTestPhoenixServer(t)
@@ -247,7 +247,7 @@ func TestChaosPushBlockedDuringDisconnect(t *testing.T) {
 	time.Sleep(100 * time.Millisecond)
 	s.KillConnection()
 
-	// The push should return within ~250ms — drainPending fires from the
+	// The push should return within ~250ms, drainPending fires from the
 	// readLoop's read-error path, immediately after dropConn.
 	select {
 	case r := <-resultCh:
@@ -290,7 +290,7 @@ func TestChaosManyJoinTopicDuringReconnect(t *testing.T) {
 		t.Fatalf("Connect: %v", err)
 	}
 
-	// Kill the server connection — the session loop will redial.
+	// Kill the server connection, the session loop will redial.
 	s.KillConnection()
 
 	// Wait until the client's readLoop has noticed the disconnect and
@@ -298,7 +298,7 @@ func TestChaosManyJoinTopicDuringReconnect(t *testing.T) {
 	// race ahead while the client still believes the dead conn is live;
 	// they get queued to the writer, fail synchronously when the write
 	// hits the dead socket, and drainPending wakes them with a synthetic
-	// "connection lost" error — testing the wrong path.
+	// "connection lost" error, testing the wrong path.
 	if !waitForStatus(c, StatusReconnecting, 5*time.Second) {
 		t.Fatalf("client did not transition to %s after kill, status=%s",
 			StatusReconnecting, c.Status())
@@ -346,7 +346,7 @@ func TestChaosManyJoinTopicDuringReconnect(t *testing.T) {
 // TestChaosHeartbeatDuringReconnect:
 //
 // During a disconnect, the heartbeat loop blocks in send() (parked on
-// the session gate) — only one frame is in flight at a time, regardless
+// the session gate), only one frame is in flight at a time, regardless
 // of how many ticks the timer would have fired. This is the regression
 // guard: if the heartbeat loop ever starts spawning goroutines per tick,
 // the goroutine count would balloon during outages.
@@ -377,7 +377,7 @@ func TestChaosHeartbeatDuringReconnect(t *testing.T) {
 	// goroutine count must not grow.
 	s.KillConnection()
 
-	// Stay disconnected for 1s — the ticker would fire ~10 times if any
+	// Stay disconnected for 1s, the ticker would fire ~10 times if any
 	// per-tick goroutine were being spawned.
 	time.Sleep(1 * time.Second)
 	disconnectedGoroutines := runtime.NumGoroutine()
@@ -386,7 +386,7 @@ func TestChaosHeartbeatDuringReconnect(t *testing.T) {
 	// require we're not 10+ over baseline (which would indicate per-tick
 	// goroutine spawn).
 	if grew := disconnectedGoroutines - baseGoroutines; grew > 5 {
-		t.Errorf("goroutine count grew by %d during 1s disconnect (base=%d, now=%d) — heartbeat may be leaking goroutines",
+		t.Errorf("goroutine count grew by %d during 1s disconnect (base=%d, now=%d), heartbeat may be leaking goroutines",
 			grew, baseGoroutines, disconnectedGoroutines)
 	}
 
@@ -402,7 +402,7 @@ func TestChaosHeartbeatDuringReconnect(t *testing.T) {
 	time.Sleep(200 * time.Millisecond)
 	finalGoroutines := runtime.NumGoroutine()
 	if grew := finalGoroutines - baseGoroutines; grew > 5 {
-		t.Errorf("goroutine count grew by %d after Close (base=%d, now=%d) — possible leak",
+		t.Errorf("goroutine count grew by %d after Close (base=%d, now=%d), possible leak",
 			grew, baseGoroutines, finalGoroutines)
 	}
 }

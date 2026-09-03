@@ -7,7 +7,7 @@ package selfupgrade
 
 import "errors"
 
-// ErrReplaceUnsupported is returned from Replace on Windows — v1 of
+// ErrReplaceUnsupported is returned from Replace on Windows, v1 of
 // `truestamp upgrade` is print-only on Windows. The caller should detect
 // Windows ahead of time and print `go install ...@latest` instructions
 // instead.

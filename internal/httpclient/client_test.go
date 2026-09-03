@@ -32,7 +32,7 @@ func TestInit(t *testing.T) {
 	// Repeated initialization must not panic; subsequent clients can
 	// service requests normally.
 	req, _ := http.NewRequest("GET", "http://127.0.0.1:1/ignored", nil)
-	_, _ = Do(req) // expected to error (no listener) — we just want to exercise Do
+	_, _ = Do(req) // expected to error (no listener), we just want to exercise Do
 }
 
 func TestGetJSON_Success(t *testing.T) {

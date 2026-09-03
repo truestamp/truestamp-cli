@@ -140,7 +140,7 @@ func TestDefaultHealthTargets_OmitsEmpty(t *testing.T) {
 
 // TestSortHealthResultsPrioritizesProblems checks the surface
 // invariant that failures sort to the top. We can't observe the
-// sort directly via the table renderer — sort a synthetic slice
+// sort directly via the table renderer, sort a synthetic slice
 // instead.
 func TestSortHealthResultsPrioritizesProblems(t *testing.T) {
 	t.Parallel()

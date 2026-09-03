@@ -6,6 +6,7 @@ package cmd
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -16,11 +17,13 @@ import (
 	"strings"
 	"sync"
 	"testing"
+
+	"github.com/truestamp/truestamp-cli/internal/testfixtures"
 )
 
-// These tests build the actual binary and run it as a subprocess
-// to verify exit codes and quiet mode behavior. This is the idiomatic
-// Go approach for testing CLI tools that call os.Exit.
+// These tests build the actual binary and run it as a subprocess to verify
+// exit codes and output. This is the idiomatic Go approach for testing CLI
+// tools that call os.Exit.
 
 var (
 	binaryPath         string
@@ -28,7 +31,6 @@ var (
 )
 
 func TestMain(m *testing.M) {
-	// Build the binary once for all tests in this package
 	tmp, err := os.MkdirTemp("", "truestamp-test-*")
 	if err != nil {
 		panic(err)
@@ -37,28 +39,18 @@ func TestMain(m *testing.M) {
 
 	binaryPath = filepath.Join(tmp, "truestamp")
 
-	// Find the module root (where go.mod lives) relative to this test file
 	modRoot, err := findModuleRoot()
 	if err != nil {
 		panic("cannot find module root: " + err.Error())
 	}
 
 	// When TRUESTAMP_COVERDIR is set (task test-coverage-full sets it to
-	// coverage/bin), build the subprocess binary with -cover so its
-	// runtime coverage is recorded there. We use our own env var rather
-	// than GOCOVERDIR because `go test -cover` overwrites GOCOVERDIR in
-	// the test process's env with its own temp dir — the subprocess
-	// would then write to that temp dir and lose the data when go test
-	// cleans it up.
+	// coverage/bin), build the subprocess binary with -cover so its runtime
+	// coverage is recorded there.
 	buildArgs := []string{"build"}
 	subprocessCoverDir = os.Getenv("TRUESTAMP_COVERDIR")
 	if subprocessCoverDir != "" {
 		buildArgs = append(buildArgs, "-cover", "-coverpkg=./...")
-		// Force the subprocess binary (and implicitly every child of
-		// this test process) to write to our stable covdata dir.
-		// go test still writes its own test-process covdata to a
-		// different temp dir via -test.gocoverdir, which our task
-		// merges separately.
 		_ = os.Setenv("GOCOVERDIR", subprocessCoverDir)
 	}
 	buildArgs = append(buildArgs, "-o", binaryPath, "./cmd/truestamp")
@@ -98,774 +90,9 @@ func writeProofFile(t *testing.T, content string) string {
 	return path
 }
 
-// Minimal structurally valid proof with fake crypto values.
-// Hex hashes are 64 chars (SHA-256), key IDs are 8 chars, base64 public_key is
-// 32 bytes (44 chars), base64 signature is 64 bytes (88 chars).
-const fakeProofJSON = `{
-  "v": 1,
-  "t": 20,
-  "pk": "CTwMqDZnPd/QTLSq8aTeSD3a+j2DQxKcGfhhIYJQ65Y=",
-  "sig": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==",
-  "ts": "2026-04-06T23:25:06Z",
-  "s": {
-    "id": "01HJHB01T8FYZ7YTR9P5N62K5B",
-    "d": {"name": "test", "hash": "aabbccddaabbccddaabbccddaabbccddaabbccddaabbccddaabbccddaabbccdd"},
-    "mh": "ccddccddccddccddccddccddccddccddccddccddccddccddccddccddccddccdd",
-    "kid": "4ceefa4a"
-  },
-  "b": {
-    "id": "019cf813-99b8-730a-84f1-5a711a9c355e",
-    "ph": "1111111111111111111111111111111111111111111111111111111111111111",
-    "mr": "2222222222222222222222222222222222222222222222222222222222222222",
-    "mh": "4444444444444444444444444444444444444444444444444444444444444444",
-    "kid": "4ceefa4a"
-  },
-  "ip": "AA",
-  "cx": [{"t": 40, "net": "testnet", "tx": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "memo": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb", "l": 1, "ep": "AA"}]
-}`
+func containsString(s, substr string) bool { return strings.Contains(s, substr) }
 
-func TestCLI_MissingFile_ExitCode1(t *testing.T) {
-	cmd := exec.Command(binaryPath, "verify", "/nonexistent/proof.json", "--skip-external")
-	err := cmd.Run()
-	if err == nil {
-		t.Fatal("expected non-zero exit code for missing file")
-	}
-	exitErr, ok := err.(*exec.ExitError)
-	if !ok {
-		t.Fatalf("expected ExitError, got %T: %s", err, err)
-	}
-	if exitErr.ExitCode() != 1 {
-		t.Errorf("exit code: got %d, want 1", exitErr.ExitCode())
-	}
-}
-
-func TestCLI_FakeCrypto_ExitCode1(t *testing.T) {
-	path := writeProofFile(t, fakeProofJSON)
-	cmd := exec.Command(binaryPath, "verify", path, "--skip-external")
-	err := cmd.Run()
-	if err == nil {
-		t.Fatal("expected non-zero exit code for fake crypto")
-	}
-	exitErr, ok := err.(*exec.ExitError)
-	if !ok {
-		t.Fatalf("expected ExitError, got %T: %s", err, err)
-	}
-	if exitErr.ExitCode() != 1 {
-		t.Errorf("exit code: got %d, want 1", exitErr.ExitCode())
-	}
-}
-
-func TestCLI_Silent_NoOutput_MissingFile(t *testing.T) {
-	cmd := exec.Command(binaryPath, "verify", "/nonexistent/proof.json", "--silent")
-	out, _ := cmd.CombinedOutput()
-	if len(out) != 0 {
-		t.Errorf("silent mode should produce no output, got: %q", string(out))
-	}
-}
-
-func TestCLI_Silent_NoOutput_FakeCrypto(t *testing.T) {
-	path := writeProofFile(t, fakeProofJSON)
-	cmd := exec.Command(binaryPath, "verify", path, "--skip-external", "--silent")
-	out, _ := cmd.CombinedOutput()
-	if len(out) != 0 {
-		t.Errorf("silent mode should produce no output, got: %q", string(out))
-	}
-}
-
-func TestCLI_Silent_ExitCode1_MissingFile(t *testing.T) {
-	cmd := exec.Command(binaryPath, "verify", "/nonexistent/proof.json", "--silent")
-	err := cmd.Run()
-	if err == nil {
-		t.Fatal("expected non-zero exit code")
-	}
-	exitErr, ok := err.(*exec.ExitError)
-	if !ok {
-		t.Fatalf("expected ExitError, got %T", err)
-	}
-	if exitErr.ExitCode() != 1 {
-		t.Errorf("exit code: got %d, want 1", exitErr.ExitCode())
-	}
-}
-
-func TestCLI_Normal_ProducesOutput(t *testing.T) {
-	path := writeProofFile(t, fakeProofJSON)
-	cmd := exec.Command(binaryPath, "verify", path, "--skip-external")
-	out, _ := cmd.CombinedOutput()
-	if len(out) == 0 {
-		t.Error("normal mode should produce output")
-	}
-}
-
-func TestCLI_Default_ProducesOutput(t *testing.T) {
-	path := writeProofFile(t, fakeProofJSON)
-	cmd := exec.Command(binaryPath, "verify", path, "--skip-external", "--skip-signatures")
-	out, _ := cmd.CombinedOutput()
-	if len(out) == 0 {
-		t.Error("default mode should produce output")
-	}
-}
-
-func TestCLI_SkipSignatures_SkipsSignatureChecks(t *testing.T) {
-	path := writeProofFile(t, fakeProofJSON)
-	cmd := exec.Command(binaryPath, "verify", path, "--skip-external", "--skip-signatures")
-	out, _ := cmd.CombinedOutput()
-	output := string(out)
-	if !containsString(output, "skipped") {
-		t.Error("--skip-signatures should show skipped count in summary")
-	}
-}
-
-func TestCLI_SkipSignatures_Silent_ExitCode(t *testing.T) {
-	path := writeProofFile(t, fakeProofJSON)
-	cmd := exec.Command(binaryPath, "verify", path, "--skip-external", "--skip-signatures", "--silent")
-	out, _ := cmd.CombinedOutput()
-	if len(out) != 0 {
-		t.Errorf("silent + skip-signatures should produce no output, got: %q", string(out))
-	}
-}
-
-// Minimal entropy proof for testing --hash rejection.
-const fakeEntropyProofJSON = `{
-  "v": 1,
-  "t": 30,
-  "pk": "CTwMqDZnPd/QTLSq8aTeSD3a+j2DQxKcGfhhIYJQ65Y=",
-  "sig": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==",
-  "ts": "2026-04-06T23:25:06Z",
-  "s": {
-    "id": "019cf813-99b8-730a-84f1-5a711a9c355e",
-    "d": {"pulse": {"pulseIndex": 123}},
-    "mh": "ccddccddccddccddccddccddccddccddccddccddccddccddccddccddccddccdd",
-    "kid": "4ceefa4a"
-  },
-  "b": {
-    "id": "019cf813-99b8-730a-84f1-5a711a9c355e",
-    "ph": "1111111111111111111111111111111111111111111111111111111111111111",
-    "mr": "2222222222222222222222222222222222222222222222222222222222222222",
-    "mh": "4444444444444444444444444444444444444444444444444444444444444444",
-    "kid": "4ceefa4a"
-  },
-  "ip": "AA",
-  "cx": [{"t": 40, "net": "testnet", "tx": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "memo": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb", "l": 1, "ep": "AA"}]
-}`
-
-// TestCLI_Hash_WithEntropyProof_Skips pins Appendix E.7 at the CLI
-// boundary: an expected hash supplied for a non-item subject is reported
-// as a visible skip and contributes no failure. The previous expectation
-// (exit 1 with "not applicable to entropy") passed for two reasons at
-// once — this fixture's Merkle values are fabricated, so it fails
-// regardless — which is why the assertions below name the Hash
-// Comparison row specifically rather than reading the exit code.
-func TestCLI_Hash_WithEntropyProof_Skips(t *testing.T) {
-	path := writeProofFile(t, fakeEntropyProofJSON)
-	cmd := exec.Command(binaryPath, "verify", path,
-		"--skip-external", "--skip-signatures", "--hash", "deadbeef", "--json")
-	out, _ := cmd.CombinedOutput()
-	output := string(out)
-
-	if !containsString(output, `"group": "Hash Comparison"`) ||
-		!containsString(output, "--hash not applicable") {
-		t.Errorf("expected a Hash Comparison row explaining that --hash does not apply, got: %s", output)
-	}
-	if containsString(output, "not applicable to entropy") {
-		t.Errorf("the old fail wording should be gone, got: %s", output)
-	}
-	// E.22 requires "the caller supplied a hash" to stay readable
-	// separately from "the hash matched": the caller DID supply one here,
-	// and reporting supplied=false would erase the fact that a comparison
-	// was requested and could not be performed.
-	if !containsString(output, `"supplied": true`) {
-		t.Errorf("a --hash was supplied and E.22 requires that to be readable, got: %s", output)
-	}
-	// The failures this fixture does carry are its fabricated Merkle
-	// values; the Hash Comparison row must be a skip, not one of them.
-	if !containsString(output, `"status": "skip",
-      "message": "--hash not applicable`) {
-		t.Errorf("the Hash Comparison row must be a skip, got: %s", output)
-	}
-}
-
-func TestCLI_FailedProof_NormalMode_ExitCode1(t *testing.T) {
-	path := writeProofFile(t, fakeProofJSON)
-	cmd := exec.Command(binaryPath, "verify", path, "--skip-external")
-	out, err := cmd.CombinedOutput()
-	if err == nil {
-		t.Fatal("expected non-zero exit code for failed proof in normal mode")
-	}
-	exitErr, ok := err.(*exec.ExitError)
-	if !ok {
-		t.Fatalf("expected ExitError, got %T: %s", err, err)
-	}
-	if exitErr.ExitCode() != 1 {
-		t.Errorf("exit code: got %d, want 1", exitErr.ExitCode())
-	}
-	// Should still produce output in normal mode
-	if len(out) == 0 {
-		t.Error("normal mode should produce output even on failure")
-	}
-}
-
-func TestCLI_ConfigPath(t *testing.T) {
-	cmd := exec.Command(binaryPath, "config", "path")
-	out, err := cmd.CombinedOutput()
-	if err != nil {
-		t.Fatalf("config path failed: %s\n%s", err, out)
-	}
-	if len(out) == 0 {
-		t.Error("config path should produce output")
-	}
-}
-
-func TestCLI_ConfigShow(t *testing.T) {
-	cmd := exec.Command(binaryPath, "config", "show")
-	out, err := cmd.CombinedOutput()
-	if err != nil {
-		t.Fatalf("config show failed: %s\n%s", err, out)
-	}
-	output := string(out)
-	if !containsString(output, "API URL") {
-		t.Error("config show should include API URL")
-	}
-	if !containsString(output, "Verification") {
-		t.Error("config show should include Verification section")
-	}
-}
-
-func TestCLI_EnvVarOverride(t *testing.T) {
-	cmd := exec.Command(binaryPath, "config", "show")
-	cmd.Env = append(os.Environ(), "TRUESTAMP_BASE_URL=https://custom.example.com")
-	out, err := cmd.CombinedOutput()
-	if err != nil {
-		t.Fatalf("config show failed: %s\n%s", err, out)
-	}
-	output := string(out)
-	if !containsString(output, "https://custom.example.com") {
-		t.Errorf("env var override not reflected in config show output: %s", output)
-	}
-}
-
-func TestCLI_FlagOverridesEnv(t *testing.T) {
-	cmd := exec.Command(binaryPath, "config", "show", "--base-url=https://flag.example.com")
-	cmd.Env = append(os.Environ(), "TRUESTAMP_BASE_URL=https://env.example.com")
-	out, err := cmd.CombinedOutput()
-	if err != nil {
-		t.Fatalf("config show failed: %s\n%s", err, out)
-	}
-	output := string(out)
-	if !containsString(output, "https://flag.example.com") {
-		t.Errorf("CLI flag should override env var, got: %s", output)
-	}
-}
-
-func TestCLI_NoArgs_ShowsHelp(t *testing.T) {
-	cmd := exec.Command(binaryPath, "verify")
-	out, err := cmd.CombinedOutput()
-	if err != nil {
-		t.Fatalf("verify with no args should exit 0, got error: %s", err)
-	}
-	output := string(out)
-	if !containsString(output, "Usage") {
-		t.Error("no-args output should contain Usage")
-	}
-}
-
-func TestCLI_FileFlag_Works(t *testing.T) {
-	path := writeProofFile(t, fakeProofJSON)
-	cmd := exec.Command(binaryPath, "verify", "--file="+path, "--skip-external")
-	out, _ := cmd.CombinedOutput()
-	if len(out) == 0 {
-		t.Error("--file flag should produce output")
-	}
-}
-
-func TestCLI_FileFlag_MissingFile(t *testing.T) {
-	cmd := exec.Command(binaryPath, "verify", "--file=/nonexistent/proof.json")
-	err := cmd.Run()
-	if err == nil {
-		t.Fatal("expected non-zero exit code for missing file via --file")
-	}
-}
-
-func TestCLI_StdinPipe(t *testing.T) {
-	cmd := exec.Command(binaryPath, "verify", "--skip-external")
-	cmd.Stdin = strings.NewReader(fakeProofJSON)
-	out, _ := cmd.CombinedOutput()
-	if len(out) == 0 {
-		t.Error("stdin pipe should produce output")
-	}
-}
-
-func TestCLI_StdinPipe_InvalidJSON(t *testing.T) {
-	cmd := exec.Command(binaryPath, "verify", "--skip-external")
-	cmd.Stdin = strings.NewReader("not json at all")
-	err := cmd.Run()
-	if err == nil {
-		t.Fatal("expected non-zero exit code for invalid JSON on stdin")
-	}
-}
-
-func TestCLI_HashFlag_Match(t *testing.T) {
-	path := writeProofFile(t, fakeProofJSON)
-	claimsHash := "aabbccddaabbccddaabbccddaabbccddaabbccddaabbccddaabbccddaabbccdd"
-	cmd := exec.Command(binaryPath, "verify", path, "--skip-external", "--hash="+claimsHash, "--skip-signatures")
-	out, _ := cmd.CombinedOutput()
-	output := string(out)
-	// Crypto will fail (fake values) but hash should show as verified in Proof section
-	if !containsString(output, "verified") {
-		t.Error("correct --hash should show hash as verified in Proof section")
-	}
-}
-
-func TestCLI_HashFlag_InvalidHex(t *testing.T) {
-	path := writeProofFile(t, fakeProofJSON)
-	cmd := exec.Command(binaryPath, "verify", path, "--hash=xyz")
-	err := cmd.Run()
-	if err == nil {
-		t.Fatal("expected error for invalid hex in --hash")
-	}
-}
-
-func TestCLI_HashFlag_OddLength(t *testing.T) {
-	path := writeProofFile(t, fakeProofJSON)
-	cmd := exec.Command(binaryPath, "verify", path, "--hash=abc")
-	err := cmd.Run()
-	if err == nil {
-		t.Fatal("expected error for odd-length hex in --hash")
-	}
-}
-
-func TestCLI_NoHash_ShowsGuidance(t *testing.T) {
-	// fakeProofJSON has bad crypto so it hits VERIFICATION FAILED, not the guidance.
-	// The guidance only shows when proof passes without --hash.
-	// Instead, verify that the no-hash banner doesn't say "FULLY VERIFIED"
-	path := writeProofFile(t, fakeProofJSON)
-	cmd := exec.Command(binaryPath, "verify", path, "--skip-external")
-	out, _ := cmd.CombinedOutput()
-	output := string(out)
-	if containsString(output, "FULLY VERIFIED") {
-		t.Error("output without --hash should never say FULLY VERIFIED")
-	}
-}
-
-// --- Completion tests --------------------------------------------------------
-// These tests guard against regressions that cause shell completion to hang.
-// Root cause: lipgloss v2's compat package queries the terminal at package init
-// time (HasDarkBackground). Inside source <(cmd), the process runs in a
-// background group where reading from the terminal triggers SIGTTIN, stopping
-// the process. The fix has two layers:
-//   1. ui.go defers terminal detection to Init() (not package init)
-//   2. root.go skips PersistentPreRunE for completion/help via os.Args check
-
-func TestCLI_CompletionZsh_Succeeds(t *testing.T) {
-	cmd := exec.Command(binaryPath, "completion", "zsh")
-	out, err := cmd.CombinedOutput()
-	if err != nil {
-		t.Fatalf("completion zsh failed: %s\n%s", err, out)
-	}
-	output := string(out)
-	if !containsString(output, "#compdef truestamp") {
-		t.Error("completion zsh should contain #compdef header")
-	}
-	if !containsString(output, "_truestamp") {
-		t.Error("completion zsh should define _truestamp function")
-	}
-}
-
-func TestCLI_CompletionBash_Succeeds(t *testing.T) {
-	cmd := exec.Command(binaryPath, "completion", "bash")
-	out, err := cmd.CombinedOutput()
-	if err != nil {
-		t.Fatalf("completion bash failed: %s\n%s", err, out)
-	}
-	if len(out) == 0 {
-		t.Error("completion bash should produce output")
-	}
-}
-
-func TestCLI_DynamicCompletion_Succeeds(t *testing.T) {
-	// Simulates what the sourced zsh script does: calls the binary with
-	// __complete to get completions for a partial command. This must
-	// complete without hanging (no terminal queries, no config loading).
-	cmd := exec.Command(binaryPath, "__complete", "verify", "")
-	out, err := cmd.CombinedOutput()
-	if err != nil {
-		t.Fatalf("__complete failed: %s\n%s", err, out)
-	}
-	output := string(out)
-	// Cobra outputs completions followed by a directive line (:<int>)
-	if !containsString(output, ":") {
-		t.Error("__complete should output completions with a directive suffix")
-	}
-}
-
-func TestCLI_CompletionZsh_NoStderr(t *testing.T) {
-	// Completion must not write to stderr (would interfere with shell setup).
-	cmd := exec.Command(binaryPath, "completion", "zsh")
-	var stderr strings.Builder
-	cmd.Stderr = &stderr
-	if err := cmd.Run(); err != nil {
-		t.Fatalf("completion zsh failed: %s", err)
-	}
-	if stderr.Len() > 0 {
-		t.Errorf("completion zsh should produce no stderr, got: %q", stderr.String())
-	}
-}
-
-func containsString(haystack, needle string) bool {
-	return len(haystack) > 0 && len(needle) > 0 && indexOf(haystack, needle) >= 0
-}
-
-func indexOf(s, substr string) int {
-	for i := 0; i <= len(s)-len(substr); i++ {
-		if s[i:i+len(substr)] == substr {
-			return i
-		}
-	}
-	return -1
-}
-
-// --- Subject-type assertion (--type flag) -----------------------------------
-
-// TestCLI_Verify_TypeMatches_NoAssertionFailure: --type matches the bundle's
-// t (both item). The fake proof fails other checks (fake sig/hashes), but the
-// Subject Type assertion should NOT contribute a failure of its own.
-func TestCLI_Verify_TypeMatches_NoAssertionFailure(t *testing.T) {
-	path := writeProofFile(t, fakeProofJSON)
-	cmd := exec.Command(binaryPath, "verify", "--type", "item", "--skip-external", "--skip-signatures", path)
-	cmd.Env = cleanEnv()
-	out, _ := cmd.CombinedOutput()
-	stripped := stripANSI(string(out))
-	if strings.Contains(stripped, "--type item was requested") {
-		t.Errorf("--type should not surface assertion failure when it matches, got: %s", stripped)
-	}
-	if strings.Contains(stripped, "Proof is item (t=20) but") {
-		t.Errorf("unexpected Subject Type mismatch message when types match: %s", stripped)
-	}
-}
-
-// TestCLI_Verify_TypeMismatch_Fails: --type beacon on an item proof should
-// exit non-zero. The report still renders; the Subject Type group shows fail.
-func TestCLI_Verify_TypeMismatch_Fails(t *testing.T) {
-	path := writeProofFile(t, fakeProofJSON)
-	cmd := exec.Command(binaryPath, "verify", "--type", "beacon", "--skip-external", "--skip-signatures", path)
-	cmd.Env = cleanEnv()
-	out, err := cmd.CombinedOutput()
-	if err == nil {
-		t.Fatal("expected non-zero exit on type mismatch")
-	}
-	// The mismatch renders as a failing step inside the report:
-	//   x Proof is item (t=20) but --type beacon was requested
-	stripped := stripANSI(string(out))
-	if !strings.Contains(stripped, "Proof is item") {
-		t.Errorf("expected 'Proof is item' in failure message, got: %s", stripped)
-	}
-	if !strings.Contains(stripped, "--type beacon was requested") {
-		t.Errorf("expected '--type beacon was requested' in failure message, got: %s", stripped)
-	}
-}
-
-// TestCLI_Verify_Type_InvalidEnum: --type with a value outside the six-value
-// enum is rejected client-side before the file is even parsed.
-func TestCLI_Verify_Type_InvalidEnum(t *testing.T) {
-	path := writeProofFile(t, fakeProofJSON)
-	cmd := exec.Command(binaryPath, "verify", "--type", "auto", path)
-	cmd.Env = cleanEnv()
-	out, err := cmd.CombinedOutput()
-	if err == nil {
-		t.Fatal("expected non-zero exit on --type=auto")
-	}
-	if !strings.Contains(string(out), "--type must be one of") {
-		t.Errorf("expected enum validation message, got: %s", out)
-	}
-}
-
-// TestCLI_Verify_Type_BareEntropy_Rejected: bare "entropy" is not in the
-// six-value enum (must be entropy_nist / entropy_stellar / entropy_bitcoin).
-func TestCLI_Verify_Type_BareEntropy_Rejected(t *testing.T) {
-	path := writeProofFile(t, fakeProofJSON)
-	cmd := exec.Command(binaryPath, "verify", "--type", "entropy", path)
-	cmd.Env = cleanEnv()
-	out, err := cmd.CombinedOutput()
-	if err == nil {
-		t.Fatal("expected non-zero exit on --type=entropy")
-	}
-	if !strings.Contains(string(out), "--type must be one of") {
-		t.Errorf("expected enum validation message, got: %s", out)
-	}
-}
-
-// --- Structured hard rejections (Appendix E.23) -----------------------------
-
-// TestCLI_Verify_JSON_StructuredRejection: an Appendix E.6 hard rejection
-// aborts before any step runs, so there is no report to render. Under --json
-// the E.23 identifier has to reach the caller as data — the entire purpose of
-// the taxonomy is that two independent verifiers can be compared on the
-// identifier rather than on an English sentence that may differ between them.
-func TestCLI_Verify_JSON_StructuredRejection(t *testing.T) {
-	cases := []struct {
-		name     string
-		bundle   string
-		wantCode string
-	}{
-		{"array", `[1,2]`, "not_a_json_object"},
-		{"null", `null`, "not_a_json_object"},
-		{"unknown type code", `{"v":1,"t":99}`, "invalid_subject_type_code"},
-		{"missing type code", `{"v":1}`, "missing_type_code"},
-	}
-	for _, c := range cases {
-		t.Run(c.name, func(t *testing.T) {
-			path := writeProofFile(t, c.bundle)
-			cmd := exec.Command(binaryPath, "verify", path, "--skip-external", "--json")
-			cmd.Env = cleanEnv()
-			var stdout, stderr bytes.Buffer
-			cmd.Stdout = &stdout
-			cmd.Stderr = &stderr
-			err := cmd.Run()
-			if err == nil {
-				t.Fatalf("expected a non-zero exit for a hard rejection, got 0: %s", stdout.String())
-			}
-			var parsed struct {
-				Result    string `json:"result"`
-				Rejection struct {
-					Code   string `json:"code"`
-					Detail string `json:"detail"`
-				} `json:"rejection"`
-			}
-			if jErr := json.Unmarshal(stdout.Bytes(), &parsed); jErr != nil {
-				t.Fatalf("--json output is not JSON: %v\n%s", jErr, stdout.String())
-			}
-			if parsed.Result != "rejected" {
-				t.Errorf("result: got %q, want \"rejected\"", parsed.Result)
-			}
-			if parsed.Rejection.Code != c.wantCode {
-				t.Errorf("rejection.code: got %q, want %q", parsed.Rejection.Code, c.wantCode)
-			}
-			if parsed.Rejection.Detail == "" {
-				t.Error("rejection.detail must explain the refusal")
-			}
-			// The code has its own field; repeating it inside the detail
-			// would make the two disagree the moment either is reworded.
-			if strings.HasPrefix(parsed.Rejection.Detail, c.wantCode+":") {
-				t.Errorf("detail duplicates the code: %q", parsed.Rejection.Detail)
-			}
-			// A second, English copy on stderr would defeat the point.
-			if stderr.Len() != 0 {
-				t.Errorf("stderr should stay empty under --json, got %q", stderr.String())
-			}
-		})
-	}
-}
-
-// TestCLI_Verify_Rejection_TextModeUnchanged: only the --json surface gained
-// structure. Human output keeps the same prose it always emitted.
-func TestCLI_Verify_Rejection_TextModeUnchanged(t *testing.T) {
-	path := writeProofFile(t, `[1,2]`)
-	cmd := exec.Command(binaryPath, "verify", path, "--skip-external")
-	cmd.Env = cleanEnv()
-	out, err := cmd.CombinedOutput()
-	if err == nil {
-		t.Fatal("expected non-zero exit")
-	}
-	if !strings.Contains(string(out), "not a JSON object") {
-		t.Errorf("expected the human-readable rejection, got: %s", out)
-	}
-}
-
-// --- The filename never decides the subject type (Appendix E.24) ------------
-
-// samplePath resolves a file under the repo's samples/ directory. Tests run
-// with cmd/ as the working directory, so the module root has to be found
-// rather than assumed.
-func samplePath(t *testing.T, name string) string {
-	t.Helper()
-	root, err := findModuleRoot()
-	if err != nil {
-		t.Fatalf("locating module root: %v", err)
-	}
-	return filepath.Join(root, "samples", name)
-}
-
-// TestCLI_Verify_FilenameNeverAffectsVerdict is the regression test for the
-// filename-derived --type inference this CLI used to apply. Appendix E.24
-// requires the subject type to come from the bundle's signed `t` and never
-// from the downloaded filename, and the inference broke that both ways: a
-// conforming stem that disagreed with `t` failed a sound proof, and renaming
-// away from a conforming stem silently dropped the assertion. The invariant
-// is that byte-identical input produces a byte-identical verdict regardless
-// of what the file is called.
-func TestCLI_Verify_FilenameNeverAffectsVerdict(t *testing.T) {
-	dir := t.TempDir()
-	names := []string{
-		"truestamp-beacon-019db702-b08c-73dc-a7cd-2c5e011f1dad.json",
-		"truestamp-block-019db702-b08c-73dc-a7cd-2c5e011f1dad.json",
-		"truestamp-entropy-nist-019db702-b08c-73dc-a7cd-2c5e011f1dad.json",
-		"proof.json",
-	}
-	for _, name := range names {
-		path := filepath.Join(dir, name)
-		if err := os.WriteFile(path, []byte(fakeProofJSON), 0644); err != nil {
-			t.Fatal(err)
-		}
-		cmd := exec.Command(binaryPath, "verify", path, "--skip-external", "--skip-signatures")
-		cmd.Env = cleanEnv()
-		out, _ := cmd.CombinedOutput()
-		stripped := stripANSI(string(out))
-		if strings.Contains(stripped, "Subject Type") || strings.Contains(stripped, "but --type") {
-			t.Errorf("%s: filename produced a Subject Type assertion with no --type flag: %s", name, stripped)
-		}
-		if strings.Contains(stripped, "inferred --type") {
-			t.Errorf("%s: filename inference hint still present: %s", name, stripped)
-		}
-	}
-}
-
-// TestCLI_Verify_ShippedBeaconSampleVerifies pins Appendix E.24's own named
-// scenario against the artifact this repo ships: samples/truestamp-beacon-*
-// carries t=10 (a plain block proof), exactly the case E.24 calls legitimate
-// because the beacon show page names a block proof that way. It used to exit
-// 1 on a "Subject Type" failure the user never asked for.
-func TestCLI_Verify_ShippedBeaconSampleVerifies(t *testing.T) {
-	for _, ext := range []string{".json", ".cbor"} {
-		t.Run(ext, func(t *testing.T) {
-			path := samplePath(t, "truestamp-beacon-019db753-4188-7692-b487-9f8c5b805503"+ext)
-			cmd := exec.Command(binaryPath, "verify", path, "--skip-external")
-			cmd.Env = cleanEnv()
-			out, err := cmd.CombinedOutput()
-			stripped := stripANSI(string(out))
-			if err != nil {
-				t.Fatalf("expected exit 0 on the shipped beacon-named block proof, got %v: %s", err, stripped)
-			}
-			if !strings.Contains(stripped, "Block") {
-				t.Errorf("expected the report to name the bundle's own type (Block), got: %s", stripped)
-			}
-		})
-	}
-}
-
-// TestCLI_Verify_JSON_NoSubjectTypeIssueWithoutFlag is the machine-readable
-// half of the same guarantee: no --type flag means no structural issue about
-// one, and the run reports as passed.
-func TestCLI_Verify_JSON_NoSubjectTypeIssueWithoutFlag(t *testing.T) {
-	path := samplePath(t, "truestamp-beacon-019db753-4188-7692-b487-9f8c5b805503.json")
-	cmd := exec.Command(binaryPath, "verify", path, "--skip-external", "--json")
-	cmd.Env = cleanEnv()
-	out, err := cmd.CombinedOutput()
-	if err != nil {
-		t.Fatalf("expected exit 0, got %v: %s", err, out)
-	}
-	var parsed struct {
-		Result string `json:"result"`
-		Issues []struct {
-			Category string `json:"category"`
-			Message  string `json:"message"`
-		} `json:"issues"`
-	}
-	if jErr := json.Unmarshal(out, &parsed); jErr != nil {
-		t.Fatalf("parsing --json output: %v\n%s", jErr, out)
-	}
-	if parsed.Result != "verified" && parsed.Result != "fully_verified" {
-		t.Errorf("result: got %q, want a passing verdict", parsed.Result)
-	}
-	for _, issue := range parsed.Issues {
-		if strings.Contains(issue.Message, "--type") {
-			t.Errorf("unexpected --type issue with no --type flag: %+v", issue)
-		}
-	}
-}
-
-// TestCLI_Verify_ExplicitTypeStillAsserts guards against over-correction:
-// only the inference was removed, not the flag. A user who asks for the
-// assertion still gets it.
-func TestCLI_Verify_ExplicitTypeStillAsserts(t *testing.T) {
-	path := samplePath(t, "truestamp-beacon-019db753-4188-7692-b487-9f8c5b805503.json")
-	cmd := exec.Command(binaryPath, "verify", path, "--type", "beacon", "--skip-external")
-	cmd.Env = cleanEnv()
-	out, err := cmd.CombinedOutput()
-	if err == nil {
-		t.Fatal("expected non-zero exit when the explicitly asserted type disagrees with t")
-	}
-	stripped := stripANSI(string(out))
-	if !strings.Contains(stripped, "Proof is block (t=10) but --type beacon was requested") {
-		t.Errorf("expected the Subject Type assertion failure, got: %s", stripped)
-	}
-}
-
-// TestCLI_Verify_Type_ExplicitMatchNoFailure: an explicit --type that agrees
-// with the bundle surfaces no assertion failure, whatever the file is named.
-func TestCLI_Verify_Type_ExplicitMatchNoFailure(t *testing.T) {
-	dir := t.TempDir()
-	beaconNamed := filepath.Join(dir, "truestamp-beacon-019db702.json")
-	if err := os.WriteFile(beaconNamed, []byte(fakeProofJSON), 0644); err != nil {
-		t.Fatal(err)
-	}
-	// fakeProofJSON is t=20 item; --type item agrees with it.
-	cmd := exec.Command(binaryPath, "verify", "--type", "item", "--skip-external", "--skip-signatures", beaconNamed)
-	cmd.Env = cleanEnv()
-	out, _ := cmd.CombinedOutput()
-	stripped := stripANSI(string(out))
-	if strings.Contains(stripped, "Proof is item (t=20) but --type") {
-		t.Errorf("matching --type should not surface assertion failure: %s", stripped)
-	}
-}
-
-// TestCLI_Verify_Remote_NoTypePostedWithoutFlag pins the other half of the
-// blast radius: the filename-derived type used to reach the server as
-// `data.type` on --remote, where a mismatch came back as an opaque API error
-// with no report at all. With no --type flag the key must be absent.
-func TestCLI_Verify_Remote_NoTypePostedWithoutFlag(t *testing.T) {
-	var mu sync.Mutex
-	var bodies []map[string]any
-
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		var payload struct {
-			Data map[string]any `json:"data"`
-		}
-		_ = json.NewDecoder(r.Body).Decode(&payload)
-		mu.Lock()
-		bodies = append(bodies, payload.Data)
-		mu.Unlock()
-		w.Header().Set("Content-Type", "application/json")
-		// A minimal verified report is enough — the assertion is on the
-		// request, not the response.
-		_, _ = w.Write([]byte(`{"data":{"verified":true,"subject_type":"block","steps":[]}}`))
-	}))
-	defer srv.Close()
-
-	path := samplePath(t, "truestamp-beacon-019db753-4188-7692-b487-9f8c5b805503.json")
-	run := func(extra ...string) {
-		args := append([]string{"verify", path, "--remote",
-			"--base-url", srv.URL, "--api-key", "test-key"}, extra...)
-		cmd := exec.Command(binaryPath, args...)
-		cmd.Env = cleanEnv()
-		_, _ = cmd.CombinedOutput()
-	}
-	run()
-	// The fixture is a t=10 block despite its beacon filename, so "block"
-	// is the type it actually carries and the one that must be forwarded.
-	run("--type", "block")
-	// A MISMATCHING type is asserted client-side and deliberately not
-	// forwarded: posting it makes the server answer 4xx and the caller
-	// gets no report at all, which is the condition --type exists to
-	// detect.
-	run("--type", "beacon")
-
-	mu.Lock()
-	defer mu.Unlock()
-	if len(bodies) != 3 {
-		t.Fatalf("expected 3 captured requests, got %d", len(bodies))
-	}
-	if _, ok := bodies[0]["type"]; ok {
-		t.Errorf("no --type flag was passed, yet data.type was posted: %v", bodies[0])
-	}
-	if got := bodies[1]["type"]; got != "block" {
-		t.Errorf("explicit --type block: data.type = %v, want \"block\"", got)
-	}
-	if got, ok := bodies[2]["type"]; ok {
-		t.Errorf("mismatching --type beacon must not be forwarded, got data.type = %v", got)
-	}
-}
-
-// stripANSI removes ANSI escape sequences from output so tests don't have to
-// deal with lipgloss color codes when checking text content.
+// stripANSI removes ANSI escape sequences from output.
 func stripANSI(s string) string {
 	out := make([]byte, 0, len(s))
 	skip := false
@@ -886,269 +113,628 @@ func stripANSI(s string) string {
 	return string(out)
 }
 
-// conformanceVectorPath locates the vendored Appendix D.1 bundle. It lives
-// under internal/verify/testdata so the conformance suite that owns it and
-// this CLI-level check assert against the same bytes.
+// Fixture paths under the repository's shared testdata/.
+func prodPath(name string) string   { return testfixtures.Path(testfixtures.ProdDir, name) }
+func tamperPath(name string) string { return testfixtures.Path(testfixtures.TamperDir, name) }
+func prodKeyring() string           { return prodPath(testfixtures.ProdKeyring) }
+
+// conformanceVectorPath locates the Appendix D.1 bundle.
 func conformanceVectorPath(t *testing.T) string {
 	t.Helper()
-	root, err := findModuleRoot()
-	if err != nil {
-		t.Fatalf("locating module root: %v", err)
-	}
-	return filepath.Join(root, "internal", "verify", "testdata", "fixtures", "appendix-d-item.json")
+	return testfixtures.Path(testfixtures.WhitepaperDir, testfixtures.AppendixD)
 }
 
-// TestCLI_AppendixD_Conformance is Appendix E.25's self-certification at the
-// process boundary: the published worked example, verified offline against
-// its own claims hash, must exit 0 and report every Appendix D.4 row with
-// D.4's status.
-//
-// internal/verify's TestAppendixD4_Conformance asserts the same containment
-// against the in-process report. This one exists because the exit code and
-// the --json surface are what a caller actually consumes, and either can
-// diverge from the report without the library test noticing.
-func TestCLI_AppendixD_Conformance(t *testing.T) {
-	out := runConformanceVector(t, cleanEnv())
-	if out.Result != "fully_verified" {
-		t.Errorf("result: got %q, want %q", out.Result, "fully_verified")
-	}
-	for _, v := range d4CLIViolations(out.Steps) {
-		t.Error(v)
-	}
-}
+const appendixDClaimsHash = "b47cc0f104b62d4c7c30bcd68fd8e67613e287dc4ad8c310ef10cbadea9c4380"
 
-// TestCLI_AppendixD_Conformance_ExitCodeIsNotTheAcceptanceCriterion pins
-// the reason the test above sets cleanEnv() and the reason E.25's
-// acceptance is a containment check on the ROWS rather than on the exit
-// code.
-//
-// `verify`'s flags are also config keys: an ambient
-// TRUESTAMP_VERIFY_SKIP_SIGNATURES, or a `skip_signatures = true` in a
-// config.toml the caller forgot about, turns D.4's Proof Signature pass
-// into a skip. The run still exits 0 and still reports fully_verified,
-// because a skip cannot move a verdict — so a conformance procedure that
-// reads the exit code accepts a run in which E.16 was never performed.
-//
-// Both halves are asserted: that the run really does still exit 0 with
-// fully_verified (the hazard is real, and if that ever changes this test
-// should be revisited rather than deleted), and that the containment
-// check nonetheless refuses it (the acceptance criterion is sound).
-func TestCLI_AppendixD_Conformance_ExitCodeIsNotTheAcceptanceCriterion(t *testing.T) {
-	configDir := t.TempDir()
-	if err := os.MkdirAll(filepath.Join(configDir, "truestamp"), 0o755); err != nil {
-		t.Fatalf("creating config dir: %v", err)
-	}
-	if err := os.WriteFile(filepath.Join(configDir, "truestamp", "config.toml"),
-		[]byte("[verify]\nskip_signatures = true\n"), 0o600); err != nil {
-		t.Fatalf("writing config.toml: %v", err)
-	}
-
-	for _, tc := range []struct {
-		name string
-		env  []string
-	}{
-		{"ambient env var", append(cleanEnv(), "TRUESTAMP_VERIFY_SKIP_SIGNATURES=1")},
-		{"ambient config.toml", replaceEnv(cleanEnv(), "XDG_CONFIG_HOME", configDir)},
-	} {
-		t.Run(tc.name, func(t *testing.T) {
-			out := runConformanceVector(t, tc.env)
-
-			// The hazard: exit 0 (runConformanceVector fatals otherwise)
-			// and a verdict that reads as fully verified.
-			if out.Result != "fully_verified" {
-				t.Logf("note: result is now %q, not fully_verified — the hazard this test documents may have been closed at the verdict level", out.Result)
-			}
-			// The defence: D.4's Proof Signature row is a pass, and this
-			// run does not have one.
-			violations := d4CLIViolations(out.Steps)
-			if len(violations) == 0 {
-				t.Fatalf("a run that skipped the signature satisfied D.4 containment; steps:\n%s", formatCLISteps(out.Steps))
-			}
-			var named bool
-			for _, v := range violations {
-				if strings.Contains(v, "Proof Signature") {
-					named = true
-				}
-			}
-			if !named {
-				t.Errorf("containment failed, but not on Proof Signature: %v", violations)
-			}
-		})
-	}
-}
-
-// TestCLI_SkipSignatures_HelpMatchesBehaviour ties the flag's one-line
-// description to what the flag actually suppresses.
-//
-// Appendix E.9's Signing Key row is a local decode of `pk` plus the kid
-// derivation; it runs and passes under --skip-signatures by design, and
-// D.4's containment depends on that (the row is a pass there too). What
-// the flag suppresses is E.16's Ed25519 verification and E.17's keyring
-// cross-check. The help text used to say "Skip signing key and signature
-// verification", which named a row the same run visibly passes — a
-// caller reading it would conclude the reported Signing Key pass was
-// stale output rather than a check that ran.
-//
-// Both halves are asserted together on purpose: pinning the string alone
-// is a golden test (there is one), and pinning the behaviour alone
-// leaves the string free to drift back. The contradiction is only
-// visible when the two are read in one place.
-func TestCLI_SkipSignatures_HelpMatchesBehaviour(t *testing.T) {
-	// Half one: the rows the flag really does and does not suppress.
-	cmd := exec.Command(binaryPath, "verify", conformanceVectorPath(t),
-		"--skip-external", "--skip-signatures", "--json")
-	cmd.Env = cleanEnv()
-	raw, err := cmd.Output()
-	if err != nil {
-		t.Fatalf("expected exit 0, got %v\noutput:\n%s", err, raw)
-	}
-	var out conformanceOutput
-	if err := json.Unmarshal(raw, &out); err != nil {
-		t.Fatalf("parsing --json output: %v\n%s", err, raw)
-	}
-
-	// Proof Signature emits two rows under this flag — the skip and the
-	// warn that says the run established nothing about who signed — so
-	// the assertion is over the set of statuses, not over one row.
-	signingKey := map[string]bool{}
-	proofSig := map[string]bool{}
-	for _, s := range out.Steps {
-		switch s.Group {
-		case "Signing Key":
-			signingKey[s.Status] = true
-		case "Proof Signature":
-			proofSig[s.Status] = true
-		}
-	}
-	if !signingKey["pass"] {
-		t.Errorf("Signing Key has no pass row under --skip-signatures (E.9 is local and always runs)\n%s",
-			formatCLISteps(out.Steps))
-	}
-	if !proofSig["skip"] || proofSig["pass"] {
-		t.Errorf("Proof Signature under --skip-signatures: want a skip and no pass, got %v\n%s",
-			proofSig, formatCLISteps(out.Steps))
-	}
-
-	// Half two: the description must not claim to skip the row that just
-	// passed.
-	helpCmd := exec.Command(binaryPath, "verify", "--help")
-	helpCmd.Env = cleanEnv()
-	help, err := helpCmd.CombinedOutput()
-	if err != nil {
-		t.Fatalf("verify --help: %v\n%s", err, help)
-	}
-	var line string
-	for _, l := range strings.Split(string(help), "\n") {
-		if strings.Contains(l, "--skip-signatures") {
-			line = l
-			break
-		}
-	}
-	if line == "" {
-		t.Fatalf("no --skip-signatures line in help:\n%s", help)
-	}
-	if strings.Contains(strings.ToLower(line), "signing key") {
-		t.Errorf("--skip-signatures help claims to skip the Signing Key check, which still runs and passes: %q", strings.TrimSpace(line))
-	}
-}
-
-// replaceEnv returns env with key set to value, dropping any existing
-// entry for key.
-func replaceEnv(env []string, key, value string) []string {
-	out := make([]string, 0, len(env)+1)
-	for _, e := range env {
-		if !strings.HasPrefix(e, key+"=") {
-			out = append(out, e)
-		}
-	}
-	return append(out, key+"="+value)
-}
-
-// conformanceOutput is the subset of `verify --json` the D.4 containment
-// check reads.
-type conformanceOutput struct {
-	Result string `json:"result"`
-	Steps  []struct {
-		Group    string `json:"group"`
-		Category string `json:"category"`
-		Status   string `json:"status"`
-		Message  string `json:"message"`
-	} `json:"steps"`
-}
-
-// runConformanceVector verifies the Appendix D vector offline against its
-// own claims hash under the supplied environment, and fatals unless the
-// process exits 0.
-func runConformanceVector(t *testing.T, env []string) conformanceOutput {
-	t.Helper()
-	const claimsHash = "b47cc0f104b62d4c7c30bcd68fd8e67613e287dc4ad8c310ef10cbadea9c4380"
-
-	cmd := exec.Command(binaryPath, "verify", conformanceVectorPath(t),
-		"--skip-external", "--hash", claimsHash, "--json")
-	cmd.Env = env
-	out, err := cmd.Output()
-	if err != nil {
-		t.Fatalf("expected exit 0, got %v\noutput:\n%s", err, out)
-	}
-	var got conformanceOutput
-	if err := json.Unmarshal(out, &got); err != nil {
-		t.Fatalf("parsing --json output: %v\n%s", err, out)
-	}
-	return got
-}
-
-// d4CLIViolations is E.25's one-way containment against Appendix D.4,
-// evaluated on the --json step list. It mirrors internal/verify's
-// d4Violations — same rules, different surface — because the exit code
-// and the published JSON are what a caller consumes and either can
-// diverge from the in-process report.
-//
-// Counting is over rows carrying D.4's OWN status: a minimum (a D.4 row
-// may not vanish, and a multi-row group may not shed one of its rows), a
-// maximum on verdict-moving statuses only, and no constraint at all on
-// additive skip/info rows, which E.25 permits wherever they land.
-func d4CLIViolations(steps []struct {
+// cliStep is one row of `verify --json`.
+type cliStep struct {
 	Group    string `json:"group"`
 	Category string `json:"category"`
 	Status   string `json:"status"`
 	Message  string `json:"message"`
-},
-) []string {
-	// D.4's fourteen rows. The two multiplicities are the ones the
-	// appendix itself licenses: Epoch Proof is one row per `cx` entry,
-	// and D.4's single Subject Data row names both the 0x11 data hash and
-	// the 0x13 composite, which the CLI reports separately.
-	type key struct{ group, category, status string }
-	want := map[key]int{
-		{"Hash Comparison", "data_integrity", "pass"}: 1,
-		{"Structure", "structural", "pass"}:           1,
-		{"Signing Key", "cryptographic", "pass"}:      1,
-		{"Subject Data", "cryptographic", "pass"}:     2,
-		{"Inclusion Proof", "cryptographic", "pass"}:  1,
-		{"Block Hash", "cryptographic", "pass"}:       1,
-		{"Epoch Proof", "cryptographic", "pass"}:      2,
-		{"Proof Signature", "cryptographic", "pass"}:  1,
-		{"Key Binding", "cryptographic", "skip"}:      1,
-		{"Stellar Commitment", "blockchain", "skip"}:  1,
-		{"Bitcoin Commitment", "blockchain", "skip"}:  1,
-		{"Submission Window", "timing", "pass"}:       1,
-		{"Temporal Info", "timing", "info"}:           1,
+}
+
+// conformanceOutput is the subset of `verify --json` these tests read: the
+// server's field names, plus the rejection object for a refused bundle.
+type conformanceOutput struct {
+	Passed    bool      `json:"passed"`
+	Steps     []cliStep `json:"steps"`
+	Rejection *struct {
+		Code   string `json:"code"`
+		Detail string `json:"detail"`
+		Advice string `json:"advice"`
+	} `json:"rejection"`
+	PassCount            int     `json:"pass_count"`
+	FailedCount          int     `json:"failed_count"`
+	WarnCount            int     `json:"warn_count"`
+	SkipCount            int     `json:"skip_count"`
+	InfoCount            int     `json:"info_count"`
+	HashProvided         *string `json:"hash_provided"`
+	ExpectedHashProvided bool    `json:"expected_hash_provided"`
+	HashMatched          bool    `json:"hash_matched"`
+	ProofVersion         int     `json:"proof_version"`
+	SkippedExternal      bool    `json:"skipped_external"`
+	SignaturesChecked    bool    `json:"signatures_checked"`
+	Verifier             struct {
+		Name    string `json:"name"`
+		Version string `json:"version"`
+	} `json:"verifier"`
+}
+
+// formatCLISteps renders the --json step list for failure output.
+func formatCLISteps(steps []cliStep) string {
+	var b strings.Builder
+	for _, s := range steps {
+		fmt.Fprintf(&b, "  %-6s %-14s %-20s %s\n", s.Status, s.Category, s.Group, s.Message)
+	}
+	return b.String()
+}
+
+// runVerifyJSON runs `verify --json` and returns the parsed report plus the
+// process exit code.
+func runVerifyJSON(t *testing.T, bin, proofPath string, extra ...string) (conformanceOutput, int) {
+	t.Helper()
+	args := append([]string{"verify", proofPath, "--json"}, extra...)
+	cmd := exec.Command(bin, args...)
+	cmd.Env = cleanEnv()
+	raw, err := cmd.Output()
+	code := 0
+	if err != nil {
+		var exitErr *exec.ExitError
+		if !errors.As(err, &exitErr) {
+			t.Fatalf("running %s: %v", bin, err)
+		}
+		code = exitErr.ExitCode()
+	}
+	var out conformanceOutput
+	if jErr := json.Unmarshal(raw, &out); jErr != nil {
+		t.Fatalf("parsing --json output (exit %d): %v\n%s", code, jErr, raw)
+	}
+	return out, code
+}
+
+// stepStatuses returns the set of statuses reported under a group.
+func stepStatuses(out conformanceOutput, group string) map[string]bool {
+	got := map[string]bool{}
+	for _, s := range out.Steps {
+		if s.Group == group {
+			got[s.Status] = true
+		}
+	}
+	return got
+}
+
+// rawIssueText concatenates every step message.
+func rawIssueText(out conformanceOutput) string {
+	var b strings.Builder
+	for _, s := range out.Steps {
+		b.WriteString(s.Message)
+		b.WriteString("\n")
+	}
+	return b.String()
+}
+
+// runCLIText runs the binary and returns stdout+stderr (ANSI stripped) and
+// the exit code.
+func runCLIText(t *testing.T, args ...string) (string, int) {
+	t.Helper()
+	cmd := exec.Command(binaryPath, args...)
+	cmd.Env = cleanEnv()
+	out, err := cmd.CombinedOutput()
+	code := 0
+	if err != nil {
+		var exitErr *exec.ExitError
+		if !errors.As(err, &exitErr) {
+			t.Fatalf("running: %v", err)
+		}
+		code = exitErr.ExitCode()
+	}
+	return stripANSI(string(out)), code
+}
+
+// --- basics ---
+
+func TestCLI_MissingFile_ExitCode1(t *testing.T) {
+	out, code := runCLIText(t, "verify", "/nonexistent/proof.json", "--offline")
+	if code != 1 {
+		t.Errorf("exit %d, want 1\n%s", code, out)
+	}
+}
+
+func TestCLI_Silent_NoOutput(t *testing.T) {
+	for _, args := range [][]string{
+		{"verify", "/nonexistent/proof.json", "--silent"},
+		{"verify", tamperPath("tamper-claims.json"), "--offline", "--silent"},
+		{"verify", tamperPath("old-layout.json"), "--offline", "--silent"},
+	} {
+		out, code := runCLIText(t, args...)
+		if code != 1 || out != "" {
+			t.Errorf("%v: exit %d output %q", args, code, out)
+		}
+	}
+	out, code := runCLIText(t, "verify", prodPath(testfixtures.ProdComplete), "--offline", "--silent")
+	if code != 0 || out != "" {
+		t.Errorf("silent pass: exit %d output %q", code, out)
+	}
+}
+
+func TestCLI_NoArgs_ShowsHelp(t *testing.T) {
+	out, code := runCLIText(t, "verify")
+	if code != 0 || !strings.Contains(out, "Usage:") {
+		t.Errorf("exit %d\n%s", code, out)
+	}
+}
+
+func TestCLI_SilentAndJSON_Exclusive(t *testing.T) {
+	out, code := runCLIText(t, "verify", prodPath(testfixtures.ProdComplete), "--silent", "--json")
+	if code == 0 || !strings.Contains(out, "mutually exclusive") {
+		t.Errorf("exit %d\n%s", code, out)
+	}
+}
+
+// --- the production bundles, offline ---
+
+func TestCLI_Verify_ProductionOffline_ReferenceShape(t *testing.T) {
+	out, code := runCLIText(t, "verify", prodPath(testfixtures.ProdComplete), "--offline", "--keyring", prodKeyring())
+	if code != 0 {
+		t.Fatalf("exit %d\n%s", code, out)
+	}
+	for _, want := range []string{
+		"VERIFICATION REPORT",
+		"Data Integrity", "Cryptographic", "Structural", "Timing", "Blockchain",
+		"[PASS]  Signing Key          public key valid, key_id 3c19f776",
+		"[PASS]  Key Binding          key_id 3c19f776 found in the pinned keyring (sequence 0, active true)",
+		"[SKIP]  Stellar Commitment   not checked offline",
+		"21 passed   0 failed   0 warned   6 skipped   8 info",
+		"file hash provided: no",
+		"VERDICT: PASSED",
+		"Any `skip` above is a check this",
+		"keyring:      pinned ",
+		"mode:         offline",
+	} {
+		if !strings.Contains(out, want) {
+			t.Errorf("output lacks %q\n%s", want, out)
+		}
+	}
+}
+
+func TestCLI_Verify_ProductionOffline_JSONShape(t *testing.T) {
+	out, code := runVerifyJSON(t, binaryPath, prodPath(testfixtures.ProdComplete), "--offline", "--keyring", prodKeyring())
+	if code != 0 || !out.Passed {
+		t.Fatalf("exit %d passed %v\n%s", code, out.Passed, formatCLISteps(out.Steps))
+	}
+	if out.PassCount != 21 || out.FailedCount != 0 || out.WarnCount != 0 || out.SkipCount != 6 || out.InfoCount != 8 {
+		t.Errorf("counts = %d/%d/%d/%d/%d", out.PassCount, out.FailedCount, out.WarnCount, out.SkipCount, out.InfoCount)
+	}
+	if out.HashProvided != nil || out.ExpectedHashProvided || out.HashMatched {
+		t.Errorf("hash fields: %v %v %v", out.HashProvided, out.ExpectedHashProvided, out.HashMatched)
+	}
+	if out.ProofVersion != 1 || !out.SkippedExternal || !out.SignaturesChecked || out.Verifier.Name != "truestamp-cli" {
+		t.Errorf("proof_version=%d skipped_external=%v signatures_checked=%v verifier=%+v", out.ProofVersion, out.SkippedExternal, out.SignaturesChecked, out.Verifier)
+	}
+	if len(out.Steps) != 35 {
+		t.Errorf("%d steps, want 35\n%s", len(out.Steps), formatCLISteps(out.Steps))
+	}
+	// Category display order.
+	rank := map[string]int{"data_integrity": 0, "cryptographic": 1, "structural": 2, "timing": 3, "blockchain": 4}
+	last := -1
+	for _, s := range out.Steps {
+		if rank[s.Category] < last {
+			t.Errorf("steps are not in category order at %s/%s", s.Category, s.Group)
+		}
+		last = rank[s.Category]
+	}
+}
+
+func TestCLI_Verify_AllThreeVariantsAndCBOR(t *testing.T) {
+	for _, name := range []string{testfixtures.ProdComplete, testfixtures.ProdCompact, testfixtures.ProdPartial, testfixtures.ProdCBOR} {
+		out, code := runVerifyJSON(t, binaryPath, prodPath(name), "--offline", "--keyring", prodKeyring())
+		if code != 0 || !out.Passed {
+			t.Errorf("%s: exit %d passed %v\n%s", name, code, out.Passed, formatCLISteps(out.Steps))
+		}
+	}
+}
+
+func TestCLI_Verify_NoKeyring_KeyBindingSkips(t *testing.T) {
+	out, code := runVerifyJSON(t, binaryPath, prodPath(testfixtures.ProdComplete), "--offline")
+	if code != 0 {
+		t.Fatalf("exit %d", code)
+	}
+	if st := stepStatuses(out, "Key Binding"); !st["skip"] || st["pass"] {
+		t.Errorf("Key Binding = %v", st)
+	}
+	out, code = runVerifyJSON(t, binaryPath, prodPath(testfixtures.ProdComplete), "--offline", "--keyring", "/nonexistent/keyring.json")
+	if code != 0 {
+		t.Fatalf("exit %d", code)
+	}
+	if st := stepStatuses(out, "Key Binding"); !st["skip"] || !strings.Contains(rawIssueText(out), "could not read") {
+		t.Errorf("unreadable keyring: %v", st)
+	}
+}
+
+func TestCLI_Verify_Stdin(t *testing.T) {
+	data, _ := os.ReadFile(prodPath(testfixtures.ProdComplete))
+	cmd := exec.Command(binaryPath, "verify", "--offline", "--json")
+	cmd.Env = cleanEnv()
+	cmd.Stdin = bytes.NewReader(data)
+	raw, err := cmd.Output()
+	if err != nil {
+		t.Fatalf("stdin verify failed: %v\n%s", err, raw)
+	}
+	var out conformanceOutput
+	if err := json.Unmarshal(raw, &out); err != nil || !out.Passed {
+		t.Errorf("stdin: %v passed=%v", err, out.Passed)
+	}
+}
+
+// --- rejections ---
+
+func TestCLI_Verify_Rejection_Text(t *testing.T) {
+	out, code := runCLIText(t, "verify", tamperPath("old-layout.json"), "--offline")
+	if code != 1 {
+		t.Errorf("exit %d, want 1", code)
+	}
+	for _, want := range []string{"REJECTED: unsupported_layout", "pre-publication draft layout", "regenerate the proof"} {
+		if !strings.Contains(out, want) {
+			t.Errorf("output lacks %q\n%s", want, out)
+		}
+	}
+	if strings.Contains(out, "VERIFICATION REPORT") {
+		t.Error("a rejection must not render a report")
+	}
+	out, code = runCLIText(t, "verify", tamperPath("tamper-type.json"), "--offline")
+	if code != 1 || !strings.Contains(out, "REJECTED: unexpected_subject_fields_for_block_like") {
+		t.Errorf("exit %d\n%s", code, out)
+	}
+}
+
+func TestCLI_Verify_Rejection_JSON(t *testing.T) {
+	out, code := runVerifyJSON(t, binaryPath, tamperPath("old-layout.json"), "--offline")
+	if code != 1 || out.Passed || out.Rejection == nil || out.Rejection.Code != "unsupported_layout" {
+		t.Errorf("exit %d passed %v rejection %+v", code, out.Passed, out.Rejection)
+	}
+	if len(out.Steps) != 0 {
+		t.Errorf("a rejection carries no steps, got %d", len(out.Steps))
+	}
+	if !strings.Contains(out.Rejection.Advice, "regenerate") {
+		t.Errorf("advice = %q", out.Rejection.Advice)
+	}
+}
+
+func TestCLI_Verify_TypeAssertion(t *testing.T) {
+	out, code := runVerifyJSON(t, binaryPath, prodPath(testfixtures.ProdComplete), "--offline", "--type", "block")
+	if code != 1 || out.Rejection == nil || out.Rejection.Code != "subject_type_mismatch" {
+		t.Errorf("mismatch: exit %d rejection %+v", code, out.Rejection)
+	}
+	out, code = runVerifyJSON(t, binaryPath, prodPath(testfixtures.ProdComplete), "--offline", "--type", "item")
+	if code != 0 || !out.Passed {
+		t.Errorf("match: exit %d passed %v", code, out.Passed)
+	}
+	text, code := runCLIText(t, "verify", prodPath(testfixtures.ProdComplete), "--offline", "--type", "entropy")
+	if code == 0 || !strings.Contains(text, "--type must be one of") {
+		t.Errorf("bare entropy accepted: exit %d\n%s", code, text)
+	}
+}
+
+// TestCLI_Verify_FilenameNeverAffectsVerdict pins Appendix E.24: the type
+// is read from the bundle's signed `type`, never from the filename.
+func TestCLI_Verify_FilenameNeverAffectsVerdict(t *testing.T) {
+	data, _ := os.ReadFile(prodPath(testfixtures.ProdComplete))
+	path := filepath.Join(t.TempDir(), "truestamp-beacon-019db753-4188-7692-b487-9f8c5b805503.json")
+	if err := os.WriteFile(path, data, 0644); err != nil {
+		t.Fatal(err)
+	}
+	out, code := runVerifyJSON(t, binaryPath, path, "--offline")
+	if code != 0 || !out.Passed {
+		t.Errorf("renamed bundle: exit %d passed %v", code, out.Passed)
+	}
+}
+
+// --- expected hash (E.7) ---
+
+func TestCLI_Verify_ExpectedHash(t *testing.T) {
+	path := conformanceVectorPath(t)
+	out, code := runVerifyJSON(t, binaryPath, path, "--offline", "--expected-hash", strings.ToUpper(appendixDClaimsHash))
+	if code != 0 || !out.Passed || !out.HashMatched || !out.ExpectedHashProvided || out.HashProvided == nil || *out.HashProvided != appendixDClaimsHash {
+		t.Errorf("match: exit %d passed %v matched %v provided %v", code, out.Passed, out.HashMatched, out.HashProvided)
+	}
+	if out.PassCount != 22 || out.SkipCount != 7 || out.InfoCount != 9 || out.WarnCount != 0 {
+		t.Errorf("D.4 counts = %d/%d/%d/%d", out.PassCount, out.WarnCount, out.SkipCount, out.InfoCount)
 	}
 
+	// The older spelling still works.
+	out, code = runVerifyJSON(t, binaryPath, path, "--offline", "--hash", appendixDClaimsHash)
+	if code != 0 || !out.HashMatched {
+		t.Errorf("--hash alias: exit %d matched %v", code, out.HashMatched)
+	}
+
+	// A wrong hash fails only the Hash Comparison row and exits 1.
+	out, code = runVerifyJSON(t, binaryPath, path, "--offline", "--expected-hash", strings.Repeat("ab", 32))
+	if code != 1 || out.Passed || out.HashMatched || out.FailedCount != 1 {
+		t.Errorf("mismatch: exit %d passed %v matched %v failed %d", code, out.Passed, out.HashMatched, out.FailedCount)
+	}
+	if st := stepStatuses(out, "Hash Comparison"); !st["fail"] {
+		t.Errorf("Hash Comparison = %v", st)
+	}
+
+	// No hash on an item that commits to one: warn, never fail.
+	out, code = runVerifyJSON(t, binaryPath, path, "--offline")
+	if code != 0 || !out.Passed || out.WarnCount != 1 {
+		t.Errorf("no hash: exit %d passed %v warns %d", code, out.Passed, out.WarnCount)
+	}
+
+	// A hash for a hashless item warns and never fails.
+	out, code = runVerifyJSON(t, binaryPath, prodPath(testfixtures.ProdComplete), "--offline", "--expected-hash", appendixDClaimsHash)
+	if code != 0 || !out.Passed || out.HashMatched || out.HashProvided != nil {
+		t.Errorf("hashless item: exit %d passed %v matched %v provided %v", code, out.Passed, out.HashMatched, out.HashProvided)
+	}
+	if st := stepStatuses(out, "Hash Comparison"); !st["warn"] {
+		t.Errorf("Hash Comparison for a hashless item = %v", st)
+	}
+
+	// Malformed arguments are refused before anything runs.
+	for _, bad := range []string{"xyz", "abc"} {
+		text, code := runCLIText(t, "verify", path, "--offline", "--expected-hash", bad)
+		if code == 0 || !strings.Contains(text, "--expected-hash") {
+			t.Errorf("%q accepted: exit %d\n%s", bad, code, text)
+		}
+	}
+}
+
+// --- tamper and flags ---
+
+func TestCLI_Verify_Tamper_ExitCode1(t *testing.T) {
+	out, code := runCLIText(t, "verify", tamperPath("tamper-claims.json"), "--offline", "--keyring", prodKeyring())
+	if code != 1 || !strings.Contains(out, "VERDICT: FAILED") || !strings.Contains(out, "[FAIL]  Proof Signature") {
+		t.Errorf("exit %d\n%s", code, out)
+	}
+}
+
+func TestCLI_SkipSignatures_DisclosedNotHidden(t *testing.T) {
+	out, code := runVerifyJSON(t, binaryPath, prodPath(testfixtures.ProdComplete), "--offline", "--skip-signatures")
+	if code != 0 || !out.Passed || out.SignaturesChecked {
+		t.Errorf("exit %d passed %v signatures_checked %v", code, out.Passed, out.SignaturesChecked)
+	}
+	if st := stepStatuses(out, "Proof Signature"); !st["skip"] || !st["warn"] || st["pass"] {
+		t.Errorf("Proof Signature = %v", st)
+	}
+	if st := stepStatuses(out, "Signing Key"); !st["pass"] {
+		t.Errorf("Signing Key still runs under --skip-signatures, got %v", st)
+	}
+	text, _ := runCLIText(t, "verify", prodPath(testfixtures.ProdComplete), "--offline", "--skip-signatures")
+	if !strings.Contains(text, "NOT checked") {
+		t.Errorf("the verdict does not disclose the skipped signature\n%s", text)
+	}
+	help, _ := runCLIText(t, "verify", "--help")
+	for _, l := range strings.Split(help, "\n") {
+		if strings.Contains(l, "--skip-signatures") && strings.Contains(strings.ToLower(l), "signing key") {
+			t.Errorf("--skip-signatures help claims to skip the Signing Key check: %q", strings.TrimSpace(l))
+		}
+	}
+}
+
+func TestCLI_Verify_RemoteRequiresAuth(t *testing.T) {
+	cmd := exec.Command(binaryPath, "verify", prodPath(testfixtures.ProdComplete), "--remote")
+	cmd.Env = append(cleanEnv(), "HOME="+t.TempDir(), "XDG_CONFIG_HOME="+t.TempDir())
+	out, err := cmd.CombinedOutput()
+	if err == nil || !strings.Contains(string(out), "not authenticated") {
+		t.Errorf("remote without a credential: %v\n%s", err, out)
+	}
+}
+
+// TestCLI_Verify_Remote posts the bundle and reproduces the server's
+// report, including a server-side rejection.
+func TestCLI_Verify_Remote(t *testing.T) {
+	serverReport, _ := os.ReadFile(prodPath("verify-complete.json"))
+	// The handler runs on the server's goroutine and the assertions on the
+	// test's, so the captured body is guarded.
+	var mu sync.Mutex
+	var posted map[string]any
+	lastPosted := func() map[string]any {
+		mu.Lock()
+		defer mu.Unlock()
+		return posted
+	}
+	mux := http.NewServeMux()
+	mux.HandleFunc("/api/json/proof/verify", func(w http.ResponseWriter, r *http.Request) {
+		if !strings.HasPrefix(r.Header.Get("Authorization"), "Bearer ") {
+			t.Errorf("missing Bearer header")
+		}
+		var body map[string]any
+		_ = json.NewDecoder(r.Body).Decode(&body)
+		mu.Lock()
+		posted = body
+		mu.Unlock()
+		data := body["data"].(map[string]any)
+		proofDoc := data["proof"].(map[string]any)
+		if proofDoc["type"] == "block" {
+			w.WriteHeader(http.StatusBadRequest)
+			_, _ = w.Write([]byte(`{"errors":[{"code":"invalid","meta":{"code":"invalid_proof","reason":"unexpected_subject_fields_for_block_like"},"status":"400","title":"Invalid","detail":"Invalid proof: :unexpected_subject_fields_for_block_like"}]}`))
+			return
+		}
+		w.WriteHeader(http.StatusCreated)
+		_, _ = w.Write(serverReport)
+	})
+	srv := httptest.NewServer(mux)
+	defer srv.Close()
+
+	out, code := runVerifyJSON(t, binaryPath, prodPath(testfixtures.ProdComplete), "--remote", "--base-url", srv.URL, "--api-key", "test-key")
+	if code != 0 || !out.Passed || out.PassCount != 29 {
+		t.Errorf("remote: exit %d passed %v pass_count %d\n%s", code, out.Passed, out.PassCount, formatCLISteps(out.Steps))
+	}
+	if data := lastPosted()["data"].(map[string]any); data["skip_external"] != false {
+		t.Errorf("skip_external not posted: %v", data)
+	}
+
+	// A CBOR input is posted as its JSON conversion.
+	out, code = runVerifyJSON(t, binaryPath, prodPath(testfixtures.ProdCBOR), "--remote", "--base-url", srv.URL, "--api-key", "test-key")
+	if code != 0 || !out.Passed {
+		t.Errorf("remote cbor: exit %d passed %v", code, out.Passed)
+	}
+	if data := lastPosted()["data"].(map[string]any); data["proof"].(map[string]any)["type"] != "item" {
+		t.Errorf("posted proof = %v", data["proof"])
+	}
+
+	// A local rejection never reaches the server; a server rejection is
+	// rendered like a local one.
+	text, code := runCLIText(t, "verify", tamperPath("old-layout.json"), "--remote", "--base-url", srv.URL, "--api-key", "test-key")
+	if code != 1 || !strings.Contains(text, "REJECTED: unsupported_layout") {
+		t.Errorf("remote local rejection: exit %d\n%s", code, text)
+	}
+	text, code = runCLIText(t, "verify", tamperPath("tamper-type.json"), "--remote", "--base-url", srv.URL, "--api-key", "test-key")
+	if code != 1 || !strings.Contains(text, "REJECTED: unexpected_subject_fields_for_block_like") {
+		t.Errorf("server rejection: exit %d\n%s", code, text)
+	}
+}
+
+// --- inspect ---
+
+func TestCLI_Inspect(t *testing.T) {
+	out, code := runCLIText(t, "inspect", prodPath(testfixtures.ProdComplete))
+	if code != 0 {
+		t.Fatalf("exit %d\n%s", code, out)
+	}
+	for _, want := range []string{
+		"item (code 20)", "01M1M0V3SE3C5P32TRAJSNX6QF", "Derived key id         3c19f776",
+		"block, entropy_bitcoin, entropy_nist, entropy_stellar", "stellar public", "Carried                yes",
+		"type genesis, sequence 0", "Inclusion proof        5 steps",
+	} {
+		if !strings.Contains(out, want) {
+			t.Errorf("inspect output lacks %q\n%s", want, out)
+		}
+	}
+	if strings.Contains(out, "VERDICT") {
+		t.Error("inspect must not verify")
+	}
+
+	cmd := exec.Command(binaryPath, "inspect", prodPath(testfixtures.ProdCBOR), "--json")
+	cmd.Env = cleanEnv()
+	raw, err := cmd.Output()
+	if err != nil {
+		t.Fatalf("inspect --json: %v\n%s", err, raw)
+	}
+	var m map[string]any
+	if err := json.Unmarshal(raw, &m); err != nil {
+		t.Fatal(err)
+	}
+	if m["format"] != "cbor" || m["type"] != "item" || m["key_id"] != "3c19f776" {
+		t.Errorf("inspect json = %v", m)
+	}
+	subject := m["subject"].(map[string]any)
+	if len(subject["carried_witnesses"].([]any)) != 4 || subject["signing_key_id"] != "3c19f776" {
+		t.Errorf("subject = %v", subject)
+	}
+
+	out, code = runCLIText(t, "inspect", tamperPath("old-layout.json"))
+	if code != 1 || !strings.Contains(out, "REJECTED: unsupported_layout") {
+		t.Errorf("inspect rejection: exit %d\n%s", code, out)
+	}
+	out, code = runCLIText(t, "inspect", prodPath(testfixtures.ProdCompact))
+	if code != 0 || !strings.Contains(out, "Carried witnesses      (none)") || !strings.Contains(out, "Carried                no") {
+		t.Errorf("compact inspect: exit %d\n%s", code, out)
+	}
+}
+
+// --- config and completion ---
+
+func TestCLI_ConfigPath(t *testing.T) {
+	out, code := runCLIText(t, "config", "path")
+	if code != 0 || len(out) == 0 {
+		t.Errorf("config path: exit %d %q", code, out)
+	}
+}
+
+func TestCLI_ConfigShow(t *testing.T) {
+	out, code := runCLIText(t, "config", "show")
+	if code != 0 || !containsString(out, "API URL") || !containsString(out, "Verification") {
+		t.Errorf("config show: exit %d\n%s", code, out)
+	}
+}
+
+func TestCLI_EnvVarOverride(t *testing.T) {
+	cmd := exec.Command(binaryPath, "config", "show")
+	cmd.Env = append(os.Environ(), "TRUESTAMP_BASE_URL=https://custom.example.com")
+	out, err := cmd.CombinedOutput()
+	if err != nil || !containsString(string(out), "https://custom.example.com") {
+		t.Errorf("env var override: %v\n%s", err, out)
+	}
+}
+
+func TestCLI_FlagOverridesEnv(t *testing.T) {
+	cmd := exec.Command(binaryPath, "config", "show", "--base-url=https://flag.example.com")
+	cmd.Env = append(os.Environ(), "TRUESTAMP_BASE_URL=https://env.example.com")
+	out, err := cmd.CombinedOutput()
+	if err != nil || !containsString(string(out), "https://flag.example.com") {
+		t.Errorf("flag override: %v\n%s", err, out)
+	}
+}
+
+func TestCLI_Completion(t *testing.T) {
+	for _, shell := range []string{"zsh", "bash", "fish"} {
+		cmd := exec.Command(binaryPath, "completion", shell)
+		var stderr bytes.Buffer
+		cmd.Stderr = &stderr
+		out, err := cmd.Output()
+		if err != nil || len(out) == 0 {
+			t.Errorf("completion %s: %v", shell, err)
+		}
+		if shell == "zsh" && stderr.Len() > 0 {
+			t.Errorf("completion zsh wrote to stderr: %s", stderr.String())
+		}
+	}
+}
+
+// --- Appendix D.4 at the process boundary ---
+
+// TestCLI_AppendixD_Conformance is Appendix E.25's self-certification at
+// the process boundary: the published worked example, verified offline
+// against its own claims hash, must exit 0 and report every D.4 row with
+// D.4's status.
+func TestCLI_AppendixD_Conformance(t *testing.T) {
+	out, code := runVerifyJSON(t, binaryPath, conformanceVectorPath(t), "--offline", "--expected-hash", appendixDClaimsHash)
+	if code != 0 || !out.Passed {
+		t.Fatalf("exit %d passed %v\n%s", code, out.Passed, formatCLISteps(out.Steps))
+	}
+	if violations := d4Violations(out.Steps); len(violations) > 0 {
+		t.Errorf("D.4 containment:\n  %s\n%s", strings.Join(violations, "\n  "), formatCLISteps(out.Steps))
+	}
+}
+
+// d4Violations checks E.25's one-way containment against Appendix D.4.
+func d4Violations(steps []cliStep) []string {
+	type key struct{ group, category, status string }
+	want := map[key]int{
+		{"Hash Comparison", "data_integrity", "pass"}:  1,
+		{"Signing Key", "cryptographic", "pass"}:       1,
+		{"Subject Data", "cryptographic", "pass"}:      3,
+		{"Inclusion Proof", "cryptographic", "pass"}:   1,
+		{"Block Hash", "cryptographic", "pass"}:        2,
+		{"Epoch Proof", "cryptographic", "pass"}:       2,
+		{"Proof Signature", "cryptographic", "pass"}:   1,
+		{"Key Binding", "cryptographic", "skip"}:       1,
+		{"Signing Key Event", "cryptographic", "pass"}: 4,
+		{"Signing Key Event", "cryptographic", "info"}: 1,
+		{"Signing Key Event", "cryptographic", "skip"}: 1,
+		{"Structure", "structural", "pass"}:            1,
+		{"Witnesses", "timing", "pass"}:                5,
+		{"Submission Window", "timing", "pass"}:        1,
+		{"Temporal Info", "timing", "info"}:            1,
+		{"Submitted After", "timing", "info"}:          5,
+		{"Submitted Before", "timing", "info"}:         1,
+		{"Stellar Commitment", "blockchain", "skip"}:   1,
+		{"Bitcoin Commitment", "blockchain", "skip"}:   1,
+		{"Entropy Source", "blockchain", "skip"}:       3,
+	}
 	seen := map[key]int{}
 	for _, s := range steps {
 		seen[key{s.Group, s.Category, s.Status}]++
 	}
-
 	var out []string
 	for k, n := range want {
 		if seen[k] < n {
-			out = append(out, fmt.Sprintf("D.4 row missing or short: %s / %s / %s — got %d, want %d",
-				k.group, k.category, k.status, seen[k], n))
+			out = append(out, fmt.Sprintf("D.4 row missing or short: %s / %s / %s: got %d, want %d", k.group, k.category, k.status, seen[k], n))
 		}
 	}
-	// E.25: additive skip and info rows are conformant; an additive
-	// pass, warn or fail row is not.
 	budget := map[key]int{}
 	for k, n := range want {
 		budget[k] = n
@@ -1159,76 +745,11 @@ func d4CLIViolations(steps []struct {
 		}
 		k := key{s.Group, s.Category, s.Status}
 		if budget[k] == 0 {
-			out = append(out, fmt.Sprintf("additive %s row not in D.4: %s / %s — %s", s.Status, s.Group, s.Category, s.Message))
+			out = append(out, fmt.Sprintf("additive %s row not in D.4: %s / %s: %s", s.Status, s.Group, s.Category, s.Message))
 			continue
 		}
 		budget[k]--
 	}
 	sort.Strings(out)
 	return out
-}
-
-// formatCLISteps renders the --json step list for failure output.
-func formatCLISteps(steps []struct {
-	Group    string `json:"group"`
-	Category string `json:"category"`
-	Status   string `json:"status"`
-	Message  string `json:"message"`
-},
-) string {
-	var b strings.Builder
-	for _, s := range steps {
-		fmt.Fprintf(&b, "  %-6s %-14s %-20s %s\n", s.Status, s.Category, s.Group, s.Message)
-	}
-	return b.String()
-}
-
-// TestCLI_AppendixD_WrongHash_ExitsNonZero pins E.7's mismatch arm at the
-// process boundary, on the one bundle whose report Appendix D publishes.
-//
-// The judging pass found this producer unguarded: downgrading the single
-// `r.fail` behind it to a skip left the whole suite green while the CLI
-// printed "VERIFIED - proof is valid" and exited 0 for a --hash that does
-// not match the proof's claims hash. internal/verify pins the step and the
-// verdict; this pins what a caller actually observes — a non-zero exit and
-// a verdict that says the data, not the proof, is wrong.
-func TestCLI_AppendixD_WrongHash_ExitsNonZero(t *testing.T) {
-	cmd := exec.Command(binaryPath, "verify", conformanceVectorPath(t),
-		"--skip-external", "--hash", strings.Repeat("ab", 32), "--json")
-	cmd.Env = cleanEnv()
-	out, err := cmd.Output()
-	if err == nil {
-		t.Fatalf("a --hash that does not match exited 0:\n%s", out)
-	}
-	exitErr, ok := err.(*exec.ExitError)
-	if !ok {
-		t.Fatalf("expected ExitError, got %T: %v", err, err)
-	}
-	if exitErr.ExitCode() != 1 {
-		t.Errorf("exit code: got %d, want 1", exitErr.ExitCode())
-	}
-
-	var got conformanceOutput
-	if err := json.Unmarshal(out, &got); err != nil {
-		t.Fatalf("parsing --json output: %v\n%s", err, out)
-	}
-	if got.Result != "hash_mismatch" {
-		t.Errorf("result: got %q, want %q", got.Result, "hash_mismatch")
-	}
-	// E.7 keeps the two facts apart: the proof is sound, the caller's
-	// hash is not the one it commits to. A Hash Comparison row that is
-	// anything but a fail here is the defect.
-	var seen bool
-	for _, s := range got.Steps {
-		if s.Group != "Hash Comparison" {
-			continue
-		}
-		seen = true
-		if s.Status != "fail" {
-			t.Errorf("Hash Comparison: status %q, want fail — %s", s.Status, s.Message)
-		}
-	}
-	if !seen {
-		t.Errorf("no Hash Comparison row at all:\n%s", formatCLISteps(got.Steps))
-	}
 }

@@ -60,7 +60,7 @@ const jsonAPIMembershipsBody = `{
   "links": {"next": null, "self": "..."}
 }`
 
-// jsonAPITeamsListBody mirrors the real `GET /teams` response — the
+// jsonAPITeamsListBody mirrors the real `GET /teams` response, the
 // flat list of teams the actor can read. The CLI joins this onto
 // memberships client-side.
 const jsonAPITeamsListBody = `{
@@ -106,10 +106,10 @@ func twoEndpointMux(t *testing.T, membershipsBody, teamsBody string) (Config, fu
 		if r.Header.Get("Accept") != "application/vnd.api+json" {
 			t.Errorf("wrong Accept header: %q", r.Header.Get("Accept"))
 		}
-		// Critical regression: the CLI must NOT send ?include=team —
+		// Critical regression: the CLI must NOT send ?include=team,
 		// it's unreliable on real servers because the included array
 		// is sparse. Instead, joining is done client-side via the
-		// parallel /teams call. Anchor that here so a future
+		// parallel /teams call. Pin that here so a future
 		// "optimization" doesn't reintroduce the include.
 		if strings.Contains(r.URL.RawQuery, "include=team") {
 			t.Errorf("CLI must not send ?include=team on /memberships; got %q", r.URL.RawQuery)
@@ -161,13 +161,13 @@ func TestListMyMemberships_HappyPath(t *testing.T) {
 	}
 }
 
-// TestListMyMemberships_AnchorsOnTeamsList simulates the real-server
+// TestListMyMemberships_KeyedOnTeamsList simulates the real-server
 // admin-key case: /memberships returns rows for teams the actor
 // can't actually read (orphans or admin-bypass leakage). The CLI
-// must drop those rows — the source of truth for "teams I can see"
+// must drop those rows, the source of truth for "teams I can see"
 // is /teams, not /memberships.
-func TestListMyMemberships_AnchorsOnTeamsList(t *testing.T) {
-	// /teams returns only Personal — the actor isn't a member of
+func TestListMyMemberships_KeyedOnTeamsList(t *testing.T) {
+	// /teams returns only Personal, the actor isn't a member of
 	// the "other" team so the team READ policy filters it out.
 	teamsWithOnlyPersonal := `{
 	  "data": [
@@ -183,7 +183,7 @@ func TestListMyMemberships_AnchorsOnTeamsList(t *testing.T) {
 		t.Fatalf("ListMyMemberships: %v", err)
 	}
 	if len(got) != 1 {
-		t.Fatalf("want 1 row anchored on readable teams, got %d", len(got))
+		t.Fatalf("want 1 row keyed on readable teams, got %d", len(got))
 	}
 	if got[0].TeamID != personalTeamID {
 		t.Errorf("returned team_id = %q, want %q", got[0].TeamID, personalTeamID)
@@ -287,7 +287,7 @@ func TestListMyMemberships_PaginationWalksMultiplePages(t *testing.T) {
 	if len(got) != 2 {
 		t.Fatalf("want 2 memberships across 2 pages, got %d", len(got))
 	}
-	// Production output is sorted by team id for stability — both
+	// Production output is sorted by team id for stability, both
 	// memberships must be present, but order is determined by
 	// teamID, not by which page the membership came from.
 	ids := map[string]bool{}
@@ -387,11 +387,11 @@ func TestDoGet_NoAPIKeyShortCircuit(t *testing.T) {
 	}
 }
 
-// TestDoGet_403WrapsErrForbidden anchors the 401-vs-403 split that
+// TestDoGet_403WrapsErrForbidden pins the 401-vs-403 split that
 // the CLI's user-facing error rendering depends on. 401 means the
 // API key is bad; 403 means the key is valid but the actor isn't
 // allowed to read this resource (typically: tenant header points to
-// a non-member team). Conflating them was a real bug — see the
+// a non-member team). Conflating them was a real bug, see the
 // note on ErrForbidden in client.go.
 func TestDoGet_403WrapsErrForbidden(t *testing.T) {
 	cfg, stop := newServer(t, func(w http.ResponseWriter, _ *http.Request) {

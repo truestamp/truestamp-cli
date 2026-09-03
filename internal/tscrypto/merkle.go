@@ -112,3 +112,38 @@ func DecodeCompactMerkleProof(base64urlProof string) ([]string, error) {
 
 	return proof, nil
 }
+
+// WalkMerkleProof walks a decoded proof from a leaf value up to the root it
+// implies (Appendix E.13): the leaf is hashed under 0x00, then each sibling
+// is folded in on the side its direction names under 0x01. Nothing here
+// trusts the proof; the caller compares the derived root against the one
+// the bundle claims. Proof elements are in "l:hex" / "r:hex" form as
+// returned by [DecodeCompactMerkleProof].
+func WalkMerkleProof(leafHashHex string, proof []string) (string, error) {
+	leafBytes, err := HexToBytes(leafHashHex)
+	if err != nil {
+		return "", fmt.Errorf("decoding leaf hash: %w", err)
+	}
+	current := DomainHash(PrefixMerkleLeaf, leafBytes)
+	for _, element := range proof {
+		idx := strings.IndexByte(element, ':')
+		if idx < 0 {
+			return "", fmt.Errorf("invalid proof element: %s", element)
+		}
+		siblingBytes, err := HexToBytes(element[idx+1:])
+		if err != nil {
+			return "", fmt.Errorf("decoding sibling hash: %w", err)
+		}
+		var nodeData []byte
+		switch element[:idx] {
+		case "l":
+			nodeData = append(siblingBytes, current...)
+		case "r":
+			nodeData = append(current, siblingBytes...)
+		default:
+			return "", fmt.Errorf("invalid direction: %s", element[:idx])
+		}
+		current = DomainHash(PrefixMerkleInternal, nodeData)
+	}
+	return BytesToHex(current), nil
+}

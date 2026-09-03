@@ -14,12 +14,12 @@ import (
 // These subprocess tests pin the `--config <path>` contract: the file the
 // CLI *reads* must also be the file it *reports* and the file it *writes*.
 // Before the ActivePath fix, `--config` was honoured only on the read
-// path — `config path` printed the platform default, and `team set` /
+// path, `config path` printed the platform default, and `team set` /
 // `auth login --api-key` wrote the platform default while reporting
 // success, silently discarding the user's change.
 //
 // Every case redirects both $XDG_CONFIG_HOME and $HOME at a t.TempDir()
-// so the platform default itself is a throwaway path — a bug that writes
+// so the platform default itself is a throwaway path, a bug that writes
 // there can be asserted on instead of touching the developer's real
 // ~/.config/truestamp/config.toml.
 
@@ -166,7 +166,7 @@ func TestCLI_ConfigShow_ReportsActiveFile(t *testing.T) {
 // server: it short-circuits on appConfig.Team and calls config.SetTeam("")
 // with no network access at all.
 //
-// Before the fix this test failed twice over — the custom file kept
+// Before the fix this test failed twice over, the custom file kept
 // `team = "..."` and the platform default was created and written.
 func TestCLI_TeamUnset_WritesToConfigFlag(t *testing.T) {
 	dir := t.TempDir()
@@ -199,7 +199,7 @@ silent = true
 	if !strings.Contains(string(data), "silent = true") {
 		t.Errorf("team unset clobbered unrelated settings in %q, got:\n%s", custom, data)
 	}
-	// The platform default must be untouched — not even created.
+	// The platform default must be untouched, not even created.
 	if _, serr := os.Stat(platformDefault(dir)); !os.IsNotExist(serr) {
 		t.Errorf("team unset --config must not write the platform default %q (stat err = %v)",
 			platformDefault(dir), serr)

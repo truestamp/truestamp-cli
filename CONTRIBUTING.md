@@ -86,7 +86,7 @@ go test ./internal/hashing -bench=. -benchmem
 go test -run=^$ -fuzz='^FuzzParseCBOR$' -fuzztime=30s ./internal/proof/
 ```
 
-`-fuzz` takes an *unanchored* regex and must resolve to exactly one target, so anchor it: bare `-fuzz=FuzzParseCBOR` also matches `FuzzParseCBOR_WellFormed` and Go refuses to fuzz. `task fuzz-deep` anchors for the same reason.
+`-fuzz` takes an unbounded regex and must resolve to exactly one target, so bound it with `^` and `$`: bare `-fuzz=FuzzParseCBOR` also matches `FuzzParseCBOR_WellFormed` and Go refuses to fuzz. `task fuzz-deep` bounds its pattern for the same reason.
 
 ## Commit conventions
 

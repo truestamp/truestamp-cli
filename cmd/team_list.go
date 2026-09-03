@@ -49,7 +49,7 @@ func runTeamList(cmd *cobra.Command, _ []string) error {
 
 	// Personal team always goes first (there's exactly one per user
 	// and it's the one most users want at a glance). Everything else
-	// sorts by privilege rank — Owner → Admin → Member → Viewer —
+	// sorts by privilege rank, Owner → Admin → Member → Viewer,
 	// then alphabetical by name within each rank. Stable order so
 	// pipes and screenshots are reproducible across runs.
 	sort.SliceStable(memberships, func(i, j int) bool {
@@ -96,7 +96,7 @@ func runTeamList(cmd *cobra.Command, _ []string) error {
 }
 
 // teamDisplayName returns the team's name (or the team id when name
-// isn't available — happens when ?include=team didn't return the
+// isn't available, happens when ?include=team didn't return the
 // expected attributes).
 func teamDisplayName(m teams.Membership) string {
 	if m.Team != nil && m.Team.Name != "" {

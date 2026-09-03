@@ -47,7 +47,7 @@ func TestHashTypeDisplayMatchesServerCanonical(t *testing.T) {
 }
 
 // TestSelectLabelStartsWithDisplayName verifies the dropdown label
-// is derived from the canonical Display name — the algorithm name
+// is derived from the canonical Display name, the algorithm name
 // the user sees first in the picker is the same string that appears
 // on the watching screen.
 func TestSelectLabelStartsWithDisplayName(t *testing.T) {
@@ -102,7 +102,7 @@ func TestHashTypeOptionsCoverServerAcceptedTypes(t *testing.T) {
 	}
 
 	if len(hashTypeOptions) != len(wantTypes) {
-		t.Errorf("hashTypeOptions has %d entries, server has %d — drift",
+		t.Errorf("hashTypeOptions has %d entries, server has %d, drift",
 			len(hashTypeOptions), len(wantTypes))
 	}
 }
@@ -175,7 +175,7 @@ func TestValidateHashAcrossAllTypes(t *testing.T) {
 }
 
 // TestValidateHashRejectsNonHex confirms the regex still bites for
-// every hash type — algorithm choice doesn't bypass hex validation.
+// every hash type, algorithm choice doesn't bypass hex validation.
 func TestValidateHashRejectsNonHex(t *testing.T) {
 	t.Parallel()
 
@@ -194,7 +194,7 @@ func TestValidateHashRejectsNonHex(t *testing.T) {
 }
 
 // TestValidateHashEmptyHashTypeIsRejected confirms an empty hashType
-// is no longer a soft-fail — even with otherwise-valid hex input,
+// is no longer a soft-fail, even with otherwise-valid hex input,
 // the validator demands a chosen algorithm so the table-driven
 // length check can run.
 func TestValidateHashEmptyHashTypeIsRejected(t *testing.T) {
@@ -203,7 +203,7 @@ func TestValidateHashEmptyHashTypeIsRejected(t *testing.T) {
 	emptyHT := ""
 	validate := validateHash(&emptyHT)
 
-	// Even-length valid hex still rejected — algorithm must be
+	// Even-length valid hex still rejected, algorithm must be
 	// chosen so the length is checked against an expected size.
 	if err := validate(strings.Repeat("a", 64)); err == nil {
 		t.Error("validateHash accepted input with empty hashType")
@@ -394,7 +394,7 @@ func TestBuildCreateItemPayload_ClaimsOnly(t *testing.T) {
 // TestBuildCreateItemPayload_ClaimsOnly_IgnoresHashFields confirms that
 // even if the form fields somehow carry stale hash values (e.g. user
 // flipped from external to claims-only mid-form), claims-only mode
-// strips them before sending — the mode bit is the only thing that
+// strips them before sending, the mode bit is the only thing that
 // gates these fields server-side.
 func TestBuildCreateItemPayload_ClaimsOnly_IgnoresHashFields(t *testing.T) {
 	t.Parallel()

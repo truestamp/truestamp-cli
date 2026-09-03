@@ -18,7 +18,7 @@ func newTestTeamModel() *teamModel {
 	return newTeamModel("http://example.test/api/json", &activeScope{}, nil)
 }
 
-// --- Modal logic (direct method calls — version-robust) -----------------
+// --- Modal logic (direct method calls, version-robust) -----------------
 
 func TestTeamCreateModal_DefaultsAndOwnershipOptions(t *testing.T) {
 	m := newTeamCreateModel()

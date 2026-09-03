@@ -97,9 +97,9 @@ func (v Semver) IsPreRelease() bool {
 }
 
 // Display returns a user-facing version string with any leading "v"
-// stripped so versions printed from different sources — ldflags-injected
+// stripped so versions printed from different sources, ldflags-injected
 // build metadata (already stripped by the Taskfile build), GitHub tag
-// names (keep the "v"), or cached upgrade-check values — render
+// names (keep the "v"), or cached upgrade-check values, render
 // consistently. Safe to call on any string; a value without a leading
 // "v" is returned unchanged. Never fails, never parses.
 func Display(s string) string {
@@ -112,9 +112,9 @@ func Display(s string) string {
 // tagged release; pre-release identifiers compare numerically when
 // both are numeric, lexically otherwise; build metadata is ignored).
 //
-// For the git-describe-vs-tag asymmetry — SemVer ranks
+// For the git-describe-vs-tag asymmetry, SemVer ranks
 // `v0.5.0-4-g...-dirty` BELOW `v0.5.0` even though the dev build is
-// conceptually ahead — callers should use [UpgradeAvailable] instead,
+// conceptually ahead, callers should use [UpgradeAvailable] instead,
 // which special-cases that shape.
 func (v Semver) Compare(other Semver) int {
 	return semver.Compare(v.canonical, other.canonical)
@@ -137,12 +137,12 @@ var gitDescribeSuffixRE = regexp.MustCompile(`(^|-)\d+-g[0-9a-f]{7,}(-dirty)?$`)
 
 // IsGitDescribeDev reports whether s looks like a locally-built
 // development binary whose version string came from
-// `git describe --tags --always --dirty` — i.e. a
+// `git describe --tags --always --dirty`, i.e. a
 // `<base-version>-<N>-g<SHA>[-dirty]` shape where N is the count of
 // commits past the nearest release tag.
 //
 // This matters because strict SemVer §11 ranks `M.m.p-<any-pre>` BELOW
-// `M.m.p` — but git-describe's `-<N>-g<SHA>` suffix means the build is
+// `M.m.p`, but git-describe's `-<N>-g<SHA>` suffix means the build is
 // AHEAD of the tag, the opposite semantic. Without special-casing this
 // shape, the upgrade flow would happily "upgrade" a dev build back to
 // the base tag (an actual downgrade), and the passive notice would

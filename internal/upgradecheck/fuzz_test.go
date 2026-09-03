@@ -10,7 +10,7 @@ import (
 )
 
 // FuzzReadCache exercises the JSON cache parser. A corrupted cache
-// file must be treated as absent — never panic, never return an
+// file must be treated as absent, never panic, never return an
 // error the caller doesn't expect.
 func FuzzReadCache(f *testing.F) {
 	f.Add([]byte(""))

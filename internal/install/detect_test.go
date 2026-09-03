@@ -63,7 +63,7 @@ func TestIsHomebrewPath(t *testing.T) {
 		{"/usr/local/Cellar/truestamp-cli/0.3.0/bin/truestamp", true},
 		{"/usr/local/Caskroom/truestamp-cli/0.3.0/truestamp", true},
 		{"/home/linuxbrew/.linuxbrew/Cellar/truestamp-cli/0.3.0/bin/truestamp", true},
-		// Non-homebrew paths — symlink dirs alone shouldn't match.
+		// Non-homebrew paths, symlink dirs alone shouldn't match.
 		{"/usr/local/bin/truestamp", false},
 		{"/home/linuxbrew/.linuxbrew/bin/truestamp", false},
 		{"/opt/homebrew/bin/truestamp", false},
@@ -170,7 +170,7 @@ func TestExeUnderGoBin(t *testing.T) {
 	if !exeUnderGoBin(binInCustom) {
 		t.Errorf("exeUnderGoBin(%q) = false, want true (GOBIN=%s)", binInCustom, customGobin)
 	}
-	// The old $HOME/go/bin still matches (both are checked — no conflict).
+	// The old $HOME/go/bin still matches (both are checked, no conflict).
 	if !exeUnderGoBin(binInGoBin) {
 		t.Errorf("exeUnderGoBin(%q) = false even with GOBIN set", binInGoBin)
 	}
@@ -185,7 +185,7 @@ func TestExeUnderGoBin(t *testing.T) {
 	}
 }
 
-// TestIsGoInstallBinary_fromBuildInfo is a smoke test — when running
+// TestIsGoInstallBinary_fromBuildInfo is a smoke test, when running
 // under `go test`, the test binary IS compiled with BuildInfo that
 // matches the "go install" heuristic (Main.Version non-empty, no
 // vcs.revision embedded for the test binary itself in some cases).

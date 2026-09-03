@@ -27,14 +27,14 @@ var ErrNotLowercaseHex = errors.New("not lowercase hex (E.4)")
 // (in truestamp-v2).
 //
 // The block carries the Merkle, Items, Entropy, Blockchain, Key-management and
-// Proofs prefixes a reader has to be able to check a proof preimage against,
-// including the producer-side ones a verifier never recomputes (0x12, 0x22,
-// 0x33, 0x34, 0x35) so the frozen numbering stays legible — a constant cannot
-// be called with the wrong arguments, unlike the producer-side hash builders
-// that used to sit alongside it. The registry's remaining prefixes are
-// deliberately omitted as out of scope for proof verification: 0x31 (genesis
-// block constant), 0x41-0x45 (random tools) and 0x53 (pre-rotation
-// commitment).
+// Proofs prefixes a verifier recomputes a bundle's hashes under. Since the
+// published format carries every metadata map rather than its digest, the
+// metadata prefixes (0x12, 0x22, 0x33) are computed by a verifier too. The
+// commitment-record prefixes (0x34, 0x35) are kept so the frozen numbering
+// stays legible; a verifier never recomputes them. The registry's remaining
+// prefixes are deliberately omitted as out of scope for proof verification:
+// 0x31 (genesis block constant), 0x41-0x45 (random tools) and 0x53
+// (pre-rotation commitment).
 const (
 	PrefixMerkleLeaf      = 0x00
 	PrefixMerkleInternal  = 0x01
@@ -67,11 +67,11 @@ const (
 // Uppercase is called out separately from a non-hex byte because the two
 // are different mistakes with different fixes, and because uppercase is
 // the one that silently verified before this check existed: Go's
-// hex.DecodeString is case-insensitive, so `b.kid` = "F2C39DF9" decoded
+// hex.DecodeString is case-insensitive, so a signing_key_id of "F2C39DF9" decoded
 // to the same four bytes as "f2c39df9" and every derivation downstream
 // agreed. The reference verifier's Base.decode16lower!/1 does not, which
 // made uppercase an interoperability break as well as a malleability
-// one — the same wire bundle verified here and aborted there.
+// one, the same wire bundle verified here and aborted there.
 func ValidateLowercaseHex(s string) error {
 	if len(s)%2 != 0 {
 		return fmt.Errorf("%w: odd length %d", ErrNotLowercaseHex, len(s))
@@ -129,21 +129,47 @@ func ComputeKeyID(pubkey []byte) string {
 	return BytesToHex(hash[:4])
 }
 
-// ComputeEntropyHash computes SHA256(0x21 || JCS(entropy_data)).
+// ComputeClaimsHash computes SHA256(0x11 || JCS(subject.claims)).
+func ComputeClaimsHash(jcsBytes []byte) string {
+	return BytesToHex(DomainHash(PrefixItemClaims, jcsBytes))
+}
+
+// ComputeEntropyHash computes SHA256(0x21 || JCS(payload)). The same
+// derivation hashes an entropy subject's `subject.entropy` and every
+// entropy witness payload carried under `subject.witnesses` (E.17a).
 func ComputeEntropyHash(jcsBytes []byte) string {
 	return BytesToHex(DomainHash(PrefixEntropy, jcsBytes))
+}
+
+// ComputeItemMetadataHash computes SHA256(0x12 || JCS(subject.metadata))
+// for an item: the derived timing fingerprint over the witness map the
+// bundle carries (E.10).
+func ComputeItemMetadataHash(jcsBytes []byte) string {
+	return BytesToHex(DomainHash(PrefixItemMetadata, jcsBytes))
+}
+
+// ComputeEntropyMetadataHash computes SHA256(0x22 || JCS(subject.metadata))
+// for an entropy subject (E.10). The carried map is always empty, but the
+// hash is derived from it rather than substituted, so a non-empty map is
+// caught.
+func ComputeEntropyMetadataHash(jcsBytes []byte) string {
+	return BytesToHex(DomainHash(PrefixEntropyMetadata, jcsBytes))
+}
+
+// ComputeBlockMetadataHash computes SHA256(0x33 || JCS(block.metadata)) for
+// any block map (E.14).
+func ComputeBlockMetadataHash(jcsBytes []byte) string {
+	return BytesToHex(DomainHash(PrefixBlockMetadata, jcsBytes))
 }
 
 // ComputeObservationHash computes the length-prefixed observation hash with domain prefix 0x23.
 // Field order: id, entropy_hash, metadata_hash, signing_key_id
 // This mirrors ComputeItemHash but uses prefix 0x23 for entropy observations.
 //
-// Decode failures name the WIRE key (`s.mh`, `s.kid`), not the parameter,
-// because E.4 requires an encoding failure to name the offending field and
-// only the wire key is actionable: `metadata_hash` alone does not say
-// whether the subject's or the block's is at fault, and the two produce
-// identically worded rows under different groups. The derived inputs keep
-// their descriptive names — no wire field carries them.
+// Decode failures name the field that refused (`signing_key_id`,
+// `metadata_hash`), and the caller adds which map it belongs to: the same
+// procedure runs over the subject and over every block map, and only the
+// caller knows which one it is grading.
 func ComputeObservationHash(id, entropyHashHex, metadataHashHex, signingKeyIDHex string) (string, error) {
 	entropyBytes, err := HexToBytes(entropyHashHex)
 	if err != nil {
@@ -151,11 +177,11 @@ func ComputeObservationHash(id, entropyHashHex, metadataHashHex, signingKeyIDHex
 	}
 	metaBytes, err := HexToBytes(metadataHashHex)
 	if err != nil {
-		return "", fmt.Errorf("decoding s.mh: %w", err)
+		return "", fmt.Errorf("decoding metadata_hash: %w", err)
 	}
 	keyIDBytes, err := HexToBytes(signingKeyIDHex)
 	if err != nil {
-		return "", fmt.Errorf("decoding s.kid: %w", err)
+		return "", fmt.Errorf("decoding signing_key_id: %w", err)
 	}
 
 	totalSize := (4 + len(id)) + (4 + len(entropyBytes)) + (4 + len(metaBytes)) + (4 + len(keyIDBytes))
@@ -171,7 +197,7 @@ func ComputeObservationHash(id, entropyHashHex, metadataHashHex, signingKeyIDHex
 // ComputeItemHash computes the length-prefixed item hash with domain prefix 0x13.
 // Field order: id, claims_hash, metadata_hash, signing_key_id
 //
-// Decode failures name the wire key; see [ComputeObservationHash].
+// Decode failures name the field that refused; see [ComputeObservationHash].
 func ComputeItemHash(id, claimsHashHex, metadataHashHex, signingKeyIDHex string) (string, error) {
 	claimsBytes, err := HexToBytes(claimsHashHex)
 	if err != nil {
@@ -179,11 +205,11 @@ func ComputeItemHash(id, claimsHashHex, metadataHashHex, signingKeyIDHex string)
 	}
 	metaBytes, err := HexToBytes(metadataHashHex)
 	if err != nil {
-		return "", fmt.Errorf("decoding s.mh: %w", err)
+		return "", fmt.Errorf("decoding metadata_hash: %w", err)
 	}
 	keyIDBytes, err := HexToBytes(signingKeyIDHex)
 	if err != nil {
-		return "", fmt.Errorf("decoding s.kid: %w", err)
+		return "", fmt.Errorf("decoding signing_key_id: %w", err)
 	}
 
 	totalSize := (4 + len(id)) + (4 + len(claimsBytes)) + (4 + len(metaBytes)) + (4 + len(keyIDBytes))
@@ -199,23 +225,29 @@ func ComputeItemHash(id, claimsHashHex, metadataHashHex, signingKeyIDHex string)
 // ComputeBlockHash computes the length-prefixed block hash with domain prefix 0x32.
 // Field order: id, previous_block_hash, merkle_root, metadata_hash, signing_key_id
 //
-// Decode failures name the wire key; see [ComputeObservationHash].
+// The metadata hash is DERIVED by the caller from the carried metadata map
+// (SHA-256(0x33 || JCS(metadata)), see [BlockMetadataHash]); a bundle never
+// carries it. The same procedure hashes the top-level block, every
+// block_path entry, the head block carried as the block witness, and the
+// signing key event's block (Appendix E.14).
+//
+// Decode failures name the field that refused; see [ComputeObservationHash].
 func ComputeBlockHash(id, prevHashHex, merkleRootHex, metadataHashHex, signingKeyIDHex string) (string, error) {
 	prevBytes, err := HexToBytes(prevHashHex)
 	if err != nil {
-		return "", fmt.Errorf("decoding b.ph: %w", err)
+		return "", fmt.Errorf("decoding previous_block_hash: %w", err)
 	}
 	merkleBytes, err := HexToBytes(merkleRootHex)
 	if err != nil {
-		return "", fmt.Errorf("decoding b.mr: %w", err)
+		return "", fmt.Errorf("decoding merkle_root: %w", err)
 	}
 	metaBytes, err := HexToBytes(metadataHashHex)
 	if err != nil {
-		return "", fmt.Errorf("decoding b.mh: %w", err)
+		return "", fmt.Errorf("decoding metadata_hash: %w", err)
 	}
 	keyIDBytes, err := HexToBytes(signingKeyIDHex)
 	if err != nil {
-		return "", fmt.Errorf("decoding b.kid: %w", err)
+		return "", fmt.Errorf("decoding signing_key_id: %w", err)
 	}
 
 	idBytes := []byte(id)
@@ -246,20 +278,21 @@ func ComputeBlockHash(id, prevHashHex, merkleRootHex, metadataHashHex, signingKe
 //	79      2     N (epoch root count, uint16 BE)
 //	81      32*N  epoch_roots (concatenated, in cx order)
 //
-// keyIDHex MUST be the key id DERIVED from the bundle's `pk` — that is,
-// ComputeKeyID(pk) — and MUST NOT be read from `b.kid` or `s.kid`. Appendix
-// E.9 of the whitepaper is explicit about the split: this slot and the E.17
-// keyring cross-check take the derived value, while the E.10 subject-hash and
-// E.14 block-hash preimages take the bundle's stored `s.kid` / `b.kid`
-// verbatim, because those composites were hashed at creation time with the
-// then-current key and are frozen into the Merkle tree. Under legitimate key
-// rotation the stored kids differ from the derived one, and feeding a stored
-// kid in here makes every rotated proof fail signature verification.
+// keyIDHex MUST be the key id DERIVED from the bundle's `public_key`, that
+// is ComputeKeyID(public_key), and MUST NOT be read from any
+// `signing_key_id` the bundle carries. Appendix E.9 of the whitepaper is
+// explicit about the split: this slot and the E.17 key binding take the
+// derived value, while the E.10 subject-hash and E.14 block-hash preimages
+// take the bundle's stored `signing_key_id` values verbatim, because those
+// composites were hashed at creation time with the then-current key and are
+// frozen into the Merkle tree. Under legitimate key rotation the stored ids
+// differ from the derived one, and feeding a stored id in here makes every
+// rotated proof fail signature verification.
 //
-// For block-like subjects (t ∈ {10, 11} — plain block and beacon),
-// subject_hash == block_hash — the same 32 bytes appear in both slots.
-// The `t` byte in the payload domain-separates block (t=10) and beacon
-// (t=11) signatures for the same underlying block.
+// For block-like subjects (block and beacon), subject_hash == block_hash:
+// the same 32 bytes appear in both slots. The type code in the payload
+// domain-separates block (10) and beacon (11) signatures for the same
+// underlying block.
 func BuildCompactProofPayload(version byte, typeCode uint16, keyIDHex string, timestampMs uint64, subjectHashHex, blockHashHex string, epochRootHexes []string) ([]byte, error) {
 	keyIDBytes, err := HexToBytes(keyIDHex)
 	if err != nil {
@@ -313,7 +346,7 @@ func BuildCompactProofPayload(version byte, typeCode uint16, keyIDHex string, ti
 // and the E.13 inclusion-proof root.
 //
 // Nothing is hex-decoded, so non-hex and odd-length operands compare exactly
-// as they always have, on hex TEXT rather than decoded bytes — which is what
+// as they always have, on hex TEXT rather than decoded bytes, which is what
 // the reference verifier's secure_equal?/2 compares too.
 //
 // The case fold is NOT shared with the reference verifier, and keeping it is
@@ -332,9 +365,9 @@ func BuildCompactProofPayload(version byte, typeCode uint16, keyIDHex string, ti
 //
 // Bundle-carried hex no longer needs the fold, because [ValidateLowercaseHex]
 // and [HexToBytes] reject a non-lowercase field before any comparison reaches
-// it. The fold is therefore not what lets an uppercase b.mr or cx[].memo
-// through; enforcement happens upstream, and by the time a bundle value gets
-// here it is already known to be lowercase.
+// it. The fold is therefore not what lets an uppercase merkle_root or
+// epoch_merkle_root through; enforcement happens upstream, and by the time a
+// bundle value gets here it is already known to be lowercase.
 func HexEqual(a, b string) bool {
 	if len(a) != len(b) {
 		return false
@@ -396,7 +429,7 @@ var hashTypes = map[string]hashTypeInfo{
 // Appendix E.11 of the whitepaper: "check that the hex length equals twice the
 // algorithm's output size and that the character set is lowercase hex, for one
 // of the twelve registered algorithms". Callers MUST render a non-nil error as
-// a warn and MUST NOT fail on it — every E.11 soft check is advisory.
+// a warn and MUST NOT fail on it, every E.11 soft check is advisory.
 //
 // The scan is a byte loop, not a rune loop: a multi-byte UTF-8 hash trips the
 // length check first rather than the charset check, but either way the caller
@@ -426,4 +459,17 @@ func ValidateClaimsHash(hash, hashType string) error {
 	}
 
 	return nil
+}
+
+// SecureEqual reports whether two strings are byte-for-byte equal, in
+// constant time for equal-length inputs. It is the comparison Appendix E.4
+// requires for every hash and digest a verifier derives against one the
+// bundle carries: exact, with no case folding, so a mis-cased wire value
+// never compares equal to a derived one (the E.4 sweep names the encoding
+// defect; this refuses to paper over it).
+func SecureEqual(a, b string) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	return subtle.ConstantTimeCompare([]byte(a), []byte(b)) == 1
 }

@@ -4,6 +4,7 @@
 package cmd
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"slices"
@@ -17,7 +18,7 @@ import (
 
 // Subject-type flag values for `truestamp download --type`. These map 1:1
 // to the server's /proof/generate `type` string enum. There is no "auto"
-// and no bare "entropy" — both were removed in the server's strict-type
+// and no bare "entropy", both were removed in the server's strict-type
 // cutover. Callers that don't pass --type get a client-side smart default:
 // a ULID id defaults to --type item; a UUIDv7 id errors asking for an
 // explicit --type.
@@ -70,30 +71,40 @@ the ID format:
 UUIDv7 ids are ambiguous (entropy observations, blocks, and beacons all
 use UUIDv7), so an explicit --type is required for them.
 
-Output filename (when -o is not set): truestamp-<stem>-<id>.<ext> where
-<stem> is the --type value with underscores translated to hyphens:
+--witnesses selects which witness details an item bundle carries:
+'all' (the default, the complete bundle), 'none' (the compact bundle:
+the committed witness hashes stay in the subject metadata, the details
+are left out), or a comma-separated subset of block, entropy_stellar,
+entropy_nist, entropy_bitcoin, signing_key_event (a partial bundle).
+All three are ordinary version 1 bundles; the only difference a verifier
+sees is how many witness rows it can report.
 
-  --type item              -> truestamp-item-<ulid>.<ext>
-  --type entropy_nist      -> truestamp-entropy-nist-<uuidv7>.<ext>
-  --type entropy_stellar   -> truestamp-entropy-stellar-<uuidv7>.<ext>
-  --type entropy_bitcoin   -> truestamp-entropy-bitcoin-<uuidv7>.<ext>
-  --type block             -> truestamp-block-<uuidv7>.<ext>
-  --type beacon            -> truestamp-beacon-<uuidv7>.<ext>
+Output filename (when -o is not set): truestamp-<stem>-<id><variant>.<ext>
+where <stem> is the --type value with underscores translated to hyphens
+and <variant> is empty, -compact, or -partial:
 
-Block (t=10) and beacon (t=11) proofs share the same structural shape
-but carry distinct type codes on the wire. A block and beacon proof for
-the same underlying block have different signatures — the ` + "`t`" + ` byte is
-part of the signing payload, providing cryptographic domain separation.
+  --type item                      -> truestamp-item-<ulid>.<ext>
+  --type item --witnesses none     -> truestamp-item-<ulid>-compact.<ext>
+  --type item --witnesses block    -> truestamp-item-<ulid>-partial.<ext>
+  --type entropy_nist              -> truestamp-entropy-nist-<uuidv7>.<ext>
+  --type block                     -> truestamp-block-<uuidv7>.<ext>
+  --type beacon                    -> truestamp-beacon-<uuidv7>.<ext>
+
+The 'type' inside the file is authoritative; the filename never is.
+Block and beacon proofs share one structural shape but carry distinct
+type codes in the signed payload, so a block and a beacon proof for the
+same block have different signatures.
 
 Examples:
   truestamp download 01KNN33GX5E470CB9TRWAYF9DD
+  truestamp download --witnesses none 01KNN33GX5E470CB9TRWAYF9DD
+  truestamp download --witnesses block,entropy_nist 01KNN33GX5E470CB9TRWAYF9DD
   truestamp download --type block   019d6a32-13e6-72b0-97e5-3779231ea97b
-  truestamp download --type beacon  019d6a32-13e6-72b0-97e5-3779231ea97b
   truestamp download --type beacon -f cbor 019d6a32-13e6-72b0-97e5-3779231ea97b
   truestamp download --type entropy_stellar 019cf813-99b8-730a-84f1-5a711a9c355e
   truestamp download -o proof.json 01KNN33GX5E470CB9TRWAYF9DD
 
-Requires authentication — run 'truestamp auth login', or set TRUESTAMP_API_KEY / --api-key for headless/CI use.
+Requires authentication, run 'truestamp auth login', or set TRUESTAMP_API_KEY / --api-key for headless/CI use.
 
 Exit code 0 on success, 1 on any error (validation failure, network
 error, missing API key, server rejection, or failure to write the
@@ -110,7 +121,7 @@ output file).`,
 		id := args[0]
 
 		if !authConfigured() {
-			return fmt.Errorf("not authenticated — run `truestamp auth login`, or set TRUESTAMP_API_KEY / --api-key for headless use")
+			return fmt.Errorf("not authenticated, run `truestamp auth login`, or set TRUESTAMP_API_KEY / --api-key for headless use")
 		}
 
 		format, _ := cmd.Flags().GetString("format")
@@ -122,7 +133,7 @@ output file).`,
 		typeFlag, _ := cmd.Flags().GetString("type")
 		typeFlag = strings.ToLower(strings.TrimSpace(typeFlag))
 
-		// Pre-flight id-shape validation — catches obvious typos before
+		// Pre-flight id-shape validation, catches obvious typos before
 		// the network round-trip and is also the basis for the smart
 		// --type default.
 		shape, err := proof.DetectIDType(id)
@@ -150,18 +161,26 @@ output file).`,
 				strings.Join(downloadTypeValues, " | "), typeFlag)
 		}
 
-		// Shape vs type cross-check — surfaces obvious mismatches locally
+		// Shape vs type cross-check, surfaces obvious mismatches locally
 		// before the server's 422 id_format_mismatch fires.
 		if err := validateTypeVsShape(typeFlag, shape); err != nil {
 			return err
 		}
 
-		// Wire-send typeFlag verbatim. Beacon is a first-class server type
-		// now (returns t=11), not a client-side alias.
-		appLogger.Info("download_request", "id", id, "type", typeFlag, "format", format)
-		data, err := proof.GenerateCtx(cmd.Context(), cfg.APIURL, cfg.Team, id, typeFlag, format)
+		witnessFlag, _ := cmd.Flags().GetString("witnesses")
+		witnesses, err := proof.ParseWitnessSelection(witnessFlag)
+		if err != nil {
+			return fmt.Errorf("--witnesses: %w", err)
+		}
+
+		appLogger.Info("download_request", "id", id, "type", typeFlag, "format", format, "witnesses", witnesses.String())
+		data, err := proof.GenerateCtx(cmd.Context(), cfg.APIURL, cfg.Team, id, typeFlag, format, witnesses)
 		if err != nil {
 			appLogger.Error("download_failed", "id", id, "type", typeFlag, "err", err.Error())
+			var apiErr *proof.GenerateAPIError
+			if errors.As(err, &apiErr) && apiErr.Code == "no_external_commitments" {
+				return fmt.Errorf("%s (a proof exists only after the subject's first public-chain commitment; items commit to a Truestamp block within about a minute and to Stellar within about five)", apiErr.Detail)
+			}
 			return err
 		}
 
@@ -169,7 +188,7 @@ output file).`,
 
 		output, _ := cmd.Flags().GetString("output")
 		if output == "" {
-			output = fmt.Sprintf("truestamp-%s-%s.%s", stem, id, format)
+			output = fmt.Sprintf("truestamp-%s-%s%s.%s", stem, id, witnesses.FilenameSuffix(), format)
 		}
 
 		if err := os.WriteFile(output, data, 0644); err != nil {
@@ -185,7 +204,7 @@ output file).`,
 			"output", output,
 		)
 
-		presentDownload(output, format, id, typeFlag, len(data))
+		presentDownload(output, format, id, typeFlag, witnesses.String(), len(data))
 		return nil
 	},
 }
@@ -214,7 +233,7 @@ func validateTypeVsShape(typeFlag string, shape proof.IDType) error {
 			return fmt.Errorf("--type %s requires a ULID id (e.g. 01KNN33GX5E470CB9TRWAYF9DD); got a UUIDv7", typeFlag)
 		}
 	default:
-		// entropy_*, block, beacon — all UUIDv7.
+		// entropy_*, block, beacon, all UUIDv7.
 		if shape != proof.IDTypeUUIDv7 {
 			return fmt.Errorf("--type %s requires a UUIDv7 id (e.g. 019d6a32-13e6-72b0-97e5-3779231ea97b); got a ULID", typeFlag)
 		}
@@ -222,7 +241,7 @@ func validateTypeVsShape(typeFlag string, shape proof.IDType) error {
 	return nil
 }
 
-func presentDownload(filename, format, id, typeFlag string, size int) {
+func presentDownload(filename, format, id, typeFlag, witnesses string, size int) {
 	header := ui.AccentBoldStyle().Render("  Proof Downloaded")
 
 	formatDisplay := strings.ToUpper(format)
@@ -232,7 +251,8 @@ func presentDownload(filename, format, id, typeFlag string, size int) {
 		Row("File", filename).
 		Row("Format", fmt.Sprintf("%s (%s bytes)", formatDisplay, formatSize(size))).
 		Row("ID", id).
-		Row("Type", typeFlag)
+		Row("Type", typeFlag).
+		Row("Witnesses", witnesses)
 
 	// Append URL rows to the SAME table so they share the
 	// right-aligned-label / value column alignment. ui.SubjectDetailURL
@@ -247,7 +267,7 @@ func presentDownload(filename, format, id, typeFlag string, size int) {
 		tbl = tbl.Row("Verify", verify)
 	}
 
-	// Plain newline-join — see note in internal/verify/presenter.go
+	// Plain newline-join, see note in internal/verify/presenter.go
 	// Present(). Long filenames (e.g. truestamp-entropy-bitcoin-<uuidv7>.cbor)
 	// won't inflate every other table row on narrow terminals.
 	lipgloss.Println(strings.Join([]string{header, "", tbl.String()}, "\n"))
@@ -271,5 +291,6 @@ func init() {
 	f.String("type", "",
 		fmt.Sprintf(`Subject type (required for UUIDv7 ids; auto-defaults to "item" for ULID). One of: %s`,
 			strings.Join(downloadTypeValues, " | ")))
+	f.String("witnesses", "all", "Witness details to carry: all, none, or a comma-separated list of "+strings.Join(proof.WitnessNames, ","))
 	rootCmd.AddCommand(downloadCmd)
 }

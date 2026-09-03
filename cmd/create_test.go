@@ -605,7 +605,7 @@ func TestCLI_Create_JSONOutput_ClaimsOnly_OmitsHashKeys(t *testing.T) {
 // --- Integer literal preservation + producer-side portability guard ---
 
 // startCreateEchoServer stands up a fake /api/json/items endpoint that records
-// the RAW request body — the actual bytes that went out on the wire — and
+// the RAW request body, the actual bytes that went out on the wire, and
 // answers with a minimal JSON:API item so the command completes normally.
 //
 // Asserting on these bytes rather than on an intermediate map is the entire
@@ -651,7 +651,7 @@ func startCreateEchoServer(t *testing.T) (url string, body func() []byte) {
 // Two properties are checked here, both against the raw bytes off the wire:
 //
 // Integers travel verbatim. The largest portable integer, 2^53 - 1, and its
-// negation are carried through — every integer a double would actually mangle
+// negation are carried through, every integer a double would actually mangle
 // is now refused by the portability guard before it can reach the wire
 // (TestCLI_Create_UnsafeIntegerBoundary), so the byte-identical wire proof for
 // a value like 18446744073709551615 lives one layer down, in
@@ -660,7 +660,7 @@ func startCreateEchoServer(t *testing.T) (url string, body func() []byte) {
 // Floats travel verbatim too, and this is where the old code still visibly
 // corrupts a submission end to end: a float is never a portability violation,
 // so it reaches the wire either way. 1e21 came back out as 1e+21 and
-// 9007199254740993.0 as 9.007199254740992e+15 — different bytes, therefore a
+// 9007199254740993.0 as 9.007199254740992e+15, different bytes, therefore a
 // different JCS canonicalization and a different claims_hash.
 func TestCLI_Create_PreservesLiteralsOnTheWire(t *testing.T) {
 	url, body := startCreateEchoServer(t)
@@ -700,7 +700,7 @@ func TestCLI_Create_PreservesLiteralsOnTheWire(t *testing.T) {
 	// the assertion that matters.
 	for _, corrupted := range []string{"1e+21", "9.007199254740992e+15", "9007199254740992"} {
 		if strings.Contains(got, corrupted) {
-			t.Errorf("request body carries rewritten literal %s — the user's bytes were corrupted\nbody: %s", corrupted, got)
+			t.Errorf("request body carries rewritten literal %s, the user's bytes were corrupted\nbody: %s", corrupted, got)
 		}
 	}
 }
@@ -983,7 +983,7 @@ func TestCLI_Create_FloatsAreNotFlagged(t *testing.T) {
 	if len(body()) == 0 {
 		t.Fatal("request never reached the server")
 	}
-	// Float literals travel verbatim too — UseNumber preserves their text.
+	// Float literals travel verbatim too, UseNumber preserves their text.
 	if !strings.Contains(string(body()), `"b":1e21`) {
 		t.Errorf("float literal not preserved on the wire: %s", body())
 	}

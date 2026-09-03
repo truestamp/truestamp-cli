@@ -59,7 +59,7 @@ func Run(ctx context.Context, opts Options) error {
 	// Mouse capture is intentionally OFF (model.View leaves
 	// MouseMode at the zero value, MouseModeNone). With capture on,
 	// the terminal sends mouse events to the program and disables
-	// native click-drag text selection — defeating the Detail
+	// native click-drag text selection, defeating the Detail
 	// Panel's purpose of letting operators copy full untruncated
 	// hashes / IDs out of the TUI. Keyboard scroll (↑/↓/j/k/PgUp
 	// /PgDn/g/G) handles the waterfall fine without a trackpad.
@@ -118,7 +118,7 @@ type Options struct {
 	ActiveTeamID string
 
 	// Logger receives diagnostic / postmortem entries from the
-	// wschannel transport and from the TUI itself. May be nil — the
+	// wschannel transport and from the TUI itself. May be nil, the
 	// TUI substitutes a discard logger so panes can call Log methods
 	// unconditionally.
 	Logger *slog.Logger
@@ -153,7 +153,7 @@ const (
 	paneConnection
 )
 
-// numPanes is the count of registered panes — used for cyclic
+// numPanes is the count of registered panes, used for cyclic
 // next/prev navigation in Update. Adding a new pane requires
 // updating this constant alongside the enum and the title() switch.
 const numPanes = 4
@@ -185,7 +185,7 @@ type model struct {
 	connErr error
 
 	// Latest server-time tick from the `console:clock` topic. Zero
-	// value means "no tick received yet" — we render a placeholder
+	// value means "no tick received yet", we render a placeholder
 	// rather than the local clock so users always know it's a server
 	// time, never a client guess.
 	serverTime time.Time
@@ -204,7 +204,7 @@ type model struct {
 	// Window size.
 	width, height int
 
-	// Page chrome — owns header/footer rendering and theme. Built
+	// Page chrome, owns header/footer rendering and theme. Built
 	// once at startup; pane Views render into the body area.
 	theme               *chrome.Theme
 	footer              chrome.Footer
@@ -312,7 +312,7 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, nil
 
 	case tea.KeyPressMsg:
-		// Quit-confirmation prompt has the highest precedence — it
+		// Quit-confirmation prompt has the highest precedence, it
 		// pre-empts every other binding so the user can answer
 		// without being misinterpreted by pane handlers.
 		if m.confirmingQuit {
@@ -330,13 +330,13 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 
 		// Global bindings handled at the root. Plain `tab` is
-		// deliberately NOT handled here — it falls through to the
+		// deliberately NOT handled here, it falls through to the
 		// active pane (the New Item form needs it for field
 		// navigation). Pane switching uses `]` / `[` / `1` / `2` / `3` / `4`.
 		//
 		// `q` and `ctrl+c` both raise the quit-confirmation prompt.
 		// `q` is only consumed when the active pane isn't expecting
-		// typed text — otherwise the user couldn't type "q" into a
+		// typed text, otherwise the user couldn't type "q" into a
 		// form field. `ctrl+c` is always consumed.
 		switch keyStr := msg.String(); keyStr {
 		case "ctrl+c":
@@ -350,7 +350,7 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 
 		// Pane navigation + help toggle. While the create-team modal is
-		// open it is fully modal — it captures every key (except ctrl+c)
+		// open it is fully modal, it captures every key (except ctrl+c)
 		// so the plain-key pane bindings (1-4, [, ], ?) land in the name
 		// field instead of switching panes (a team named "Q3" must be
 		// typable). ctrl+tab / ctrl+shift+tab still switch panes.
@@ -444,7 +444,7 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			cmd = m.monitor.replayAfterReconnect()
 		}
 		// Cap the outage with a closing marker and tally the cycle
-		// the first time we observe a successful rejoin per outage —
+		// the first time we observe a successful rejoin per outage,
 		// rejoinedMsg fires once per topic but this only counts once.
 		if !m.disconnectedAt.IsZero() {
 			downtime := time.Since(m.disconnectedAt)
@@ -478,7 +478,7 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case reconnectTickMsg:
 		if m.state != connReconnecting {
-			// Reconnect succeeded between ticks — stop the ticker chain.
+			// Reconnect succeeded between ticks, stop the ticker chain.
 			return m, nil
 		}
 		// Once we've been down for the full marker interval since the
@@ -493,7 +493,7 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tokenRefreshingMsg:
 		// The OAuth access token expired; the client is transparently
 		// re-dialling with a refreshed token. The reconnect events that
-		// follow drive the visible header status — just keep pumping.
+		// follow drive the visible header status, just keep pumping.
 		m.log.Info("oauth access token expired; refreshing session in-band")
 		return m, waitForPush(m.client)
 
@@ -502,7 +502,7 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		// reconnecting. Surface a clear re-login prompt on the
 		// Connection pane.
 		m.state = connFailed
-		m.connErr = fmt.Errorf("OAuth session expired — run `truestamp auth login`, then reopen the console")
+		m.connErr = fmt.Errorf("OAuth session expired, run `truestamp auth login`, then reopen the console")
 		m.connection.setConnError(m.connErr, m.opts.WSURL)
 		m.log.Warn("oauth session dead; reconnect stopped", "reason", msg.Reason)
 		return m, m.activatePane(paneConnection)
@@ -623,12 +623,12 @@ func (m *model) View() tea.View {
 //     scope.switch_team to align the server scope to the user's
 //     preference. The reply mutates m.scope via teamSwitchedMsg.
 //
-// AccessLost is reset on each welcome — a successful reconnect
+// AccessLost is reset on each welcome, a successful reconnect
 // re-establishes the scope and any prior access-loss banner is no
 // longer relevant until proven again.
 func (m *model) applyWelcomeToScope(w Welcome) tea.Cmd {
 	if m.scope.TeamID != w.Scope.TeamID {
-		// Active id changed — clear stale name/role so the renderers
+		// Active id changed, clear stale name/role so the renderers
 		// don't flash the wrong label until the follow-up arrives.
 		m.scope.Name = ""
 		m.scope.Personal = false
@@ -696,7 +696,7 @@ func (m *model) activeKeyMap() help.KeyMap {
 }
 
 // teamModalOpen reports whether the create-team modal is open on the Teams
-// pane — the one fully-modal state, which captures every key (except ctrl+c)
+// pane, the one fully-modal state, which captures every key (except ctrl+c)
 // so pane-nav digits / brackets reach the name field instead of switching panes.
 func (m *model) teamModalOpen() bool {
 	return m.active == paneTeam && m.team.create != nil
@@ -761,7 +761,7 @@ func (m *model) renderHeader() string {
 		Width: m.width,
 		Tabs:  tabs,
 		// Active team label comes from the shared scope. Empty
-		// until welcome arrives — the header just shows the status
+		// until welcome arrives, the header just shows the status
 		// pill in that case.
 		Team:       m.scope.HeaderLabel(),
 		Status:     status,
@@ -772,7 +772,7 @@ func (m *model) renderHeader() string {
 }
 
 // reconnectingText renders the header status while a reconnect is in
-// flight: "reconnecting in 3s (attempt 4)" — countdown plus attempt
+// flight: "reconnecting in 3s (attempt 4)", countdown plus attempt
 // number, both kept fresh by the per-second reconnectTickMsg loop.
 func (m *model) reconnectingText() string {
 	if m.nextAttemptAt.IsZero() {
@@ -797,7 +797,7 @@ func (m *model) clockText() string {
 
 // statusText returns the header's status string and a StatusKind
 // so the chrome can color the right-side pill appropriately. The
-// header carries only liveness state — plan tier and the active
+// header carries only liveness state, plan tier and the active
 // stream count belong on the Connection pane where the user can
 // look them up deliberately, not in every-frame ambient chrome.
 func (m *model) statusText() (string, chrome.StatusKind) {

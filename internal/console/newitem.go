@@ -21,7 +21,7 @@ import (
 
 // hashTypeOption describes one supported `hash_type` value the
 // server accepts on items.create. Mirrors lib/truestamp/hash.ex's
-// @hash_types map on the v2 backend — Display matches the server's
+// @hash_types map on the v2 backend, Display matches the server's
 // `name` field exactly so the same canonical string ("SHA-256",
 // "BLAKE2b", "MD5", …) appears everywhere this hash type is shown:
 // the form's algorithm picker, the watching-screen summary, and any
@@ -62,14 +62,14 @@ var hashTypeOptions = []hashTypeOption{
 func (h hashTypeOption) selectLabel() string {
 	label := fmt.Sprintf("%s (%d hex chars)", h.Display, h.HexLen)
 	if h.Note != "" {
-		label += " — " + h.Note
+		label += ", " + h.Note
 	}
 	return label
 }
 
 // displayHashType returns the canonical Display name for a wire
 // value. Falls back to the wire value verbatim for unknown types
-// — the lookup is best-effort so older items whose hash_type predates
+// , the lookup is best-effort so older items whose hash_type was recorded before
 // our table still render something rather than blanking the field.
 func displayHashType(value string) string {
 	if entry := lookupHashType(value); entry != nil {
@@ -108,7 +108,7 @@ const claimsOnlyMinDescription = 32
 
 // newItemModel implements the form pane. The form fields are owned by
 // a huh.Form so tab/shift-tab navigation, validators, and field
-// chrome are all standard charm widgets — no hand-rolled textinput
+// chrome are all standard charm widgets, no hand-rolled textinput
 // management.
 //
 // After submission the pane switches into "watching" mode and surfaces
@@ -185,7 +185,7 @@ func newNewItemModel(client *wschannel.Client) *newItemModel {
 // makeForm constructs a fresh huh.Form bound to the model's value
 // fields. Validators are attached so huh renders error text inline
 // at the offending field and keeps focus there until it's resolved
-// — that's the bubbles/huh native UX.
+// , that's the bubbles/huh native UX.
 //
 // The form is split into two huh groups so the hash fields can be
 // hidden in claims-as-source-of-truth mode:
@@ -311,7 +311,7 @@ func requiredString(name string) func(string) error {
 // hexHash matches a non-empty hex string of EVEN length. The pair
 // match (`{2}+`) implicitly rejects single-char inputs and odd-
 // length strings (which can't represent a whole-byte digest) even
-// when the hashType is unknown — defense in depth, since downstream
+// when the hashType is unknown, defense in depth, since downstream
 // table-driven length checking is skipped for unknown algorithms.
 var hexHash = regexp.MustCompile(`^([0-9a-fA-F]{2})+$`)
 
@@ -324,7 +324,7 @@ var hexHash = regexp.MustCompile(`^([0-9a-fA-F]{2})+$`)
 //
 // hashType is always one of hashTypeOptions when the form is driven
 // through the UI Select. An empty or unknown hashType is rejected
-// loudly rather than skipped — defense in depth against any future
+// loudly rather than skipped, defense in depth against any future
 // caller that bypasses the Select. There is no "soft-fail" path:
 // if any of the three checks fails, the validator returns an error.
 func validateHash(hashType *string) func(string) error {
@@ -393,7 +393,7 @@ func (m *newItemModel) Update(msg tea.Msg) (*newItemModel, tea.Cmd) {
 			}
 		}
 		// Entering mode: esc clears the form. We intercept before
-		// huh sees the key — huh's Quit binding (ctrl+c) sets
+		// huh sees the key, huh's Quit binding (ctrl+c) sets
 		// StateAborted internally, but esc is otherwise a no-op
 		// inside huh which made the previously-advertised "esc:
 		// clear" footer hint a lie. Convert it into a real reset.
@@ -417,7 +417,7 @@ func (m *newItemModel) Update(msg tea.Msg) (*newItemModel, tea.Cmd) {
 	if m.form.State == huh.StateCompleted {
 		// huh's per-field validators ran on every Next/Submit. If we
 		// reach StateCompleted, every field passed its own validator
-		// — no model-level re-run needed.
+		//, no model-level re-run needed.
 		m.formError = ""
 		m.state = formSubmitting
 		return m, m.submit()
@@ -537,7 +537,7 @@ func (m *newItemModel) renderForm(width, height int) string {
 	var sb strings.Builder
 	sb.WriteString(formTitleStyle.Render("Create a new timestamped item") + "\n\n")
 
-	// huh's own rendering owns the field chrome — labels, focus,
+	// huh's own rendering owns the field chrome, labels, focus,
 	// inline errors, prev/next field affordances. We just give it a
 	// width hint and place its output beneath the page-level title.
 	m.form.WithWidth(min(width-4, 80))
@@ -578,7 +578,7 @@ func (m *newItemModel) renderWatching(width, height int) string {
 	}
 
 	// Wrap width for prose fields (Description). Hashes and IDs are
-	// rendered single-line — wrapping a hex digest at character
+	// rendered single-line, wrapping a hex digest at character
 	// boundaries breaks copy-paste and produces ugly mid-line
 	// continuations, and the terminal's own soft-wrap handles
 	// edge cases at narrow widths.
@@ -605,7 +605,7 @@ func (m *newItemModel) renderWatching(width, height int) string {
 	fields = append(fields, cardField{label: "State", value: stateStyle.Render(currentState)})
 	// Hash type and Hash are only meaningful in external-hash mode. For
 	// claims-as-source-of-truth items the server returns no hash, so
-	// rendering empty rows would be misleading — omit them entirely.
+	// rendering empty rows would be misleading, omit them entirely.
 	if h := strings.TrimSpace(m.created.Claims.Hash); h != "" {
 		fields = append(fields,
 			cardField{label: "Hash type", value: displayHashType(m.created.Claims.HashType)},
@@ -649,7 +649,7 @@ type cardField struct {
 }
 
 // renderCardFields lays out a labelled-value list with consistent
-// label column alignment. No card border, no per-field indent —
+// label column alignment. No card border, no per-field indent,
 // the label column itself provides the visual rhythm.
 //
 // For wrapped fields, continuation lines are aligned under the

@@ -10,7 +10,7 @@ import (
 )
 
 // FuzzLoad_TOML feeds arbitrary bytes into the koanf TOML loader via
-// a real file on disk — the same path the CLI uses at startup. The
+// a real file on disk, the same path the CLI uses at startup. The
 // config file is user-editable, so it's an untrusted-input surface.
 func FuzzLoad_TOML(f *testing.F) {
 	f.Add([]byte(``))

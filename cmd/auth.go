@@ -62,7 +62,7 @@ var authLogoutAPIKey bool
 
 var authLogoutCmd = &cobra.Command{
 	Use:   "logout",
-	Short: "Sign out — revoke the OAuth session and/or remove the stored API key",
+	Short: "Sign out, revoke the OAuth session and/or remove the stored API key",
 	Args:  cobra.NoArgs,
 	RunE:  runAuthLogout,
 }
@@ -177,7 +177,7 @@ func runAPIKeyLogin(cmd *cobra.Command) error {
 	fmt.Fprintln(out)
 	fmt.Fprintln(out, "  "+accent.Render("Create and copy a new API key at:"))
 	fmt.Fprintln(out, "    "+valueStyle.Render(keysURL))
-	fmt.Fprintln(out, "  "+labelStyle.Render("    (existing keys cannot be copied — create a new one now)"))
+	fmt.Fprintln(out, "  "+labelStyle.Render("    (existing keys cannot be copied, create a new one now)"))
 	fmt.Fprintln(out)
 	fmt.Fprintln(out, "  "+labelStyle.Render("Then paste the key below. Input is hidden."))
 	fmt.Fprintln(out)
@@ -210,7 +210,7 @@ func runAPIKeyLogin(cmd *cobra.Command) error {
 		return err
 	}
 
-	// Log the action — never the key bytes.
+	// Log the action, never the key bytes.
 	appLogger.Info("auth_login_apikey", "config_path", config.ActivePath())
 	fmt.Fprintln(out, ui.SuccessBanner("API key saved to "+config.ActivePath()))
 	return nil
@@ -231,7 +231,7 @@ func runAuthLogout(cmd *cobra.Command, _ []string) error {
 	if !hasOAuth && !hasFileKey {
 		if cfg.APIKeyExplicit {
 			fmt.Fprintln(out, ui.FaintStyle().Render(
-				"  Authenticated via TRUESTAMP_API_KEY/--api-key — nothing is stored to clear."))
+				"  Authenticated via TRUESTAMP_API_KEY/--api-key, nothing is stored to clear."))
 			fmt.Fprintln(out, ui.FaintStyle().Render(
 				"  Unset it in your environment to sign out."))
 		} else {
@@ -271,9 +271,9 @@ func runAuthLogout(cmd *cobra.Command, _ []string) error {
 		}
 		appLogger.Info("auth_logout_oauth", "revoked", revoked)
 		if revoked {
-			fmt.Fprintln(out, ui.SuccessBanner("Signed out — OAuth session revoked and cleared"))
+			fmt.Fprintln(out, ui.SuccessBanner("Signed out, OAuth session revoked and cleared"))
 		} else {
-			fmt.Fprintln(out, ui.SuccessBanner("Signed out — OAuth session cleared (server revocation best-effort)"))
+			fmt.Fprintln(out, ui.SuccessBanner("Signed out, OAuth session cleared (server revocation best-effort)"))
 		}
 	}
 
@@ -321,7 +321,7 @@ func runAuthStatus(cmd *cobra.Command, _ []string) error {
 		Row("Check URL", checkURL).
 		Row("Auth Mode", authModeDisplay())
 
-	// OAuth session detail rows — only when OAuth is the ACTIVE credential,
+	// OAuth session detail rows, only when OAuth is the ACTIVE credential,
 	// so the displayed scope/expiry always matches the Auth Mode (an
 	// explicit API key can override a still-stored session).
 	store := auth.NewStore(cfg.BaseURL)
@@ -363,7 +363,7 @@ func runAuthStatus(cmd *cobra.Command, _ []string) error {
 		if userResult.message != "" {
 			fmt.Fprintln(out, labelStyle.Render("    "+userResult.message))
 		} else {
-			fmt.Fprintf(out, "    %s\n", labelStyle.Render(fmt.Sprintf("HTTP %d — run 'truestamp auth login' to re-authenticate.", userResult.httpStatus)))
+			fmt.Fprintf(out, "    %s\n", labelStyle.Render(fmt.Sprintf("HTTP %d, run 'truestamp auth login' to re-authenticate.", userResult.httpStatus)))
 		}
 		return errSilentFail
 
@@ -389,7 +389,7 @@ func runAuthStatus(cmd *cobra.Command, _ []string) error {
 			if teamResult.message != "" {
 				fmt.Fprintln(out, labelStyle.Render("    "+teamResult.message))
 			}
-			fmt.Fprintln(out, labelStyle.Render(fmt.Sprintf("    HTTP %d — the team id may be wrong, or this user is not a member.", teamResult.httpStatus)))
+			fmt.Fprintln(out, labelStyle.Render(fmt.Sprintf("    HTTP %d, the team id may be wrong, or this user is not a member.", teamResult.httpStatus)))
 			return errSilentFail
 		}
 		role, _ := teams.GetMyRoleOnTeam(ctx, teams.Config{
@@ -449,13 +449,13 @@ func formatTeamLines(teamID string, r *teamCheckResult) []string {
 
 // formatTokenExpiry renders the access-token expiry for `auth status`.
 // Access tokens are short-lived (~1h) and auto-refreshed, so a past
-// timestamp is normal — annotate it so it doesn't read as a broken session.
+// timestamp is normal, annotate it so it doesn't read as a broken session.
 func formatTokenExpiry(exp time.Time) string {
 	switch {
 	case exp.IsZero():
-		return "(unknown) — auto-refreshes on next use"
+		return "(unknown), auto-refreshes on next use"
 	case exp.Before(time.Now()):
-		return "expired — auto-refreshes on next use"
+		return "expired, auto-refreshes on next use"
 	default:
 		return exp.Local().Format(time.RFC1123) + " (auto-refreshed)"
 	}
@@ -485,7 +485,7 @@ type teamCheckResult struct {
 // checkAuth sends GET {apiURL}/users authorized by azr and interprets the
 // response. Returns a non-nil error only for transport-level failures and
 // for a dead/unconfigured credential (azr.Authorize failing). All HTTP
-// outcomes — 2xx, 4xx, 5xx — are reported in the result.
+// outcomes, 2xx, 4xx, 5xx, are reported in the result.
 func checkAuth(ctx context.Context, azr auth.Authorizer, apiURL, team string) (*authCheckResult, error) {
 	if ctx == nil {
 		ctx = context.Background()
@@ -657,7 +657,7 @@ func extractAPIErrorMessage(body []byte) string {
 // been configured.
 func teamInScope(team string) string {
 	if team == "" {
-		return "(personal team — set TRUESTAMP_TEAM or --team to override)"
+		return "(personal team, set TRUESTAMP_TEAM or --team to override)"
 	}
 	return team
 }

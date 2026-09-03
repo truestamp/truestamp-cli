@@ -55,6 +55,12 @@ skip_signatures = false
 # Env: TRUESTAMP_VERIFY_REMOTE
 remote = false
 
+# Path of a pinned copy of https://www.truestamp.com/.well-known/keyring.json
+# for the key binding check. Empty: an online run fetches the live keyring
+# from base_url; an offline run reports the binding as not checked.
+# Env: TRUESTAMP_VERIFY_KEYRING
+keyring = ""
+
 [hash]
 # Default algorithm for `truestamp hash`
 # Env: TRUESTAMP_HASH_ALGORITHM

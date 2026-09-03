@@ -28,8 +28,8 @@ var configCmd = &cobra.Command{
 var configPathCmd = &cobra.Command{
 	Use:   "path",
 	Short: "Print the config file path",
-	Long: `Print the path of the config file in effect — the --config override
-when one was supplied, otherwise the platform default — and whether
+	Long: `Print the path of the config file in effect, the --config override
+when one was supplied, otherwise the platform default, and whether
 that file currently exists.`,
 	Args: cobra.NoArgs,
 	Run: func(cmd *cobra.Command, args []string) {
@@ -49,13 +49,13 @@ that file currently exists.`,
 const configPathStatusIndent = "             "
 
 // configPathStatus reports whether the config file in effect exists.
-// A missing file is not an error — the CLI runs on compiled defaults —
+// A missing file is not an error, the CLI runs on compiled defaults,
 // so the message points at the command that would create it.
 func configPathStatus(path string) string {
 	if _, err := os.Stat(path); err == nil {
 		return "exists"
 	}
-	return "does not exist — run 'truestamp config init' to create it"
+	return "does not exist, run 'truestamp config init' to create it"
 }
 
 var configInitCmd = &cobra.Command{
@@ -144,7 +144,7 @@ func presentConfig(cfg *config.Config) {
 		StyleFunc(configStyleFunc).
 		Row("Time Zone", valueOrNotSet(cfg.Convert.TimeZone))
 
-	// Plain newline-join — NOT lipgloss.JoinVertical. JoinVertical pads
+	// Plain newline-join, NOT lipgloss.JoinVertical. JoinVertical pads
 	// every line to the widest line across all inputs; if any single
 	// value (URL, long path) exceeds terminal width, the padding
 	// inflates every row and the terminal hard-wraps, producing phantom
@@ -183,7 +183,7 @@ func authModeDisplay() string {
 	case auth.ModeAPIKey:
 		return "API key"
 	default:
-		return "none — run 'truestamp auth login'"
+		return "none, run 'truestamp auth login'"
 	}
 }
 
@@ -205,7 +205,7 @@ func valueOrNotSet(v string) string {
 }
 
 // cosignPathDisplay renders the resolved cosign_path for `config show`.
-// Empty means "use $PATH lookup" — distinct from "not set" for other
+// Empty means "use $PATH lookup", distinct from "not set" for other
 // string fields because zero-value here has a documented meaning.
 func cosignPathDisplay(v string) string {
 	if v == "" {
@@ -240,9 +240,9 @@ func appendTeamDetailRows(tbl *table.Table, cfg *config.Config) *table.Table {
 
 	team, err := teams.GetTeam(ctx, clientCfg, cfg.Team)
 	if err != nil {
-		// Faint hint row — keep the column count consistent so the
+		// Faint hint row, keep the column count consistent so the
 		// table stylefunc doesn't have to special-case empty cells.
-		return tbl.Row("Team Name", "(unavailable — try 'truestamp auth status')")
+		return tbl.Row("Team Name", "(unavailable, try 'truestamp auth status')")
 	}
 	tbl = tbl.Row("Team Name", teamNameWithPersonal(team))
 

@@ -4,6 +4,7 @@
 package cmd
 
 import (
+	"encoding/base64"
 	"encoding/json"
 	"io"
 	"net/http"
@@ -12,49 +13,41 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/truestamp/truestamp-cli/internal/testfixtures"
 )
 
-// Minimal proof fixtures (no s for block/beacon, with s for item/entropy).
-// Just enough fields to pass the CLI's post-download shape sniff and any
-// `t` parser. The byte shapes aren't crypto-valid — verify isn't called
-// here. Unit coverage of verify lives in internal/verify.
+// Minimal bundles in the published layout: enough shape to pass the
+// download path's sniff. Nothing here is crypto-valid; verify is not
+// called. Unit coverage of verify lives in internal/verify.
 const (
-	testBlockProofJSON = `{
-	  "v":1,"t":10,
-	  "pk":"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=",
-	  "sig":"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==",
-	  "ts":"2026-04-22T21:05:00Z",
-	  "b":{"id":"019db702-b08c-73dc-a7cd-2c5e011f1dad","ph":"11","mr":"22","mh":"33","kid":"4ceefa4a"},
-	  "cx":[{"t":40,"net":"testnet","ep":"AA","memo":"aa","tx":"bb","l":1}]
-	}`
-	testBeaconProofJSON = `{
-	  "v":1,"t":11,
-	  "pk":"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=",
-	  "sig":"BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB==",
-	  "ts":"2026-04-22T21:05:00Z",
-	  "b":{"id":"019db702-b08c-73dc-a7cd-2c5e011f1dad","ph":"11","mr":"22","mh":"33","kid":"4ceefa4a"},
-	  "cx":[{"t":40,"net":"testnet","ep":"AA","memo":"aa","tx":"bb","l":1}]
-	}`
-	testItemProofJSON = `{
-	  "v":1,"t":20,
-	  "pk":"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=",
-	  "sig":"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==",
-	  "ts":"2026-04-22T21:05:00Z",
-	  "s":{"id":"01HJHB01T8FYZ7YTR9P5N62K5B","d":{"name":"x"},"mh":"33","kid":"4ceefa4a"},
-	  "ip":"AA",
-	  "b":{"id":"019db702-b08c-73dc-a7cd-2c5e011f1dad","ph":"11","mr":"22","mh":"33","kid":"4ceefa4a"},
-	  "cx":[{"t":40,"net":"testnet","ep":"AA","memo":"aa","tx":"bb","l":1}]
-	}`
-	testEntropyStellarProofJSON = `{
-	  "v":1,"t":31,
-	  "pk":"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=",
-	  "sig":"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==",
-	  "ts":"2026-04-22T21:05:00Z",
-	  "s":{"id":"019db702-b08c-73dc-a7cd-2c5e011f1dad","d":{"hash":"x"},"mh":"33","kid":"4ceefa4a"},
-	  "ip":"AA",
-	  "b":{"id":"019db702-b08c-73dc-a7cd-2c5e011f1dad","ph":"11","mr":"22","mh":"33","kid":"4ceefa4a"},
-	  "cx":[{"t":40,"net":"testnet","ep":"AA","memo":"aa","tx":"bb","l":1}]
-	}`
+	testBlockMap = `{"id":"019db702-b08c-73dc-a7cd-2c5e011f1dad","previous_block_hash":"11","merkle_root":"22","metadata":{},"signing_key_id":"4ceefa4a"}`
+	testCommits  = `[{"chain":"stellar","network":"testnet","epoch_proof":"AA","epoch_merkle_root":"aa","transaction_hash":"bb","ledger":1}]`
+
+	testBlockProofJSON = `{"version":1,"type":"block",
+	  "public_key":"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=",
+	  "signature":"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==",
+	  "generated_at":"2026-04-22T21:05:00Z",
+	  "block":` + testBlockMap + `,"commitments":` + testCommits + `}`
+	testBeaconProofJSON = `{"version":1,"type":"beacon",
+	  "public_key":"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=",
+	  "signature":"BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB==",
+	  "generated_at":"2026-04-22T21:05:00Z",
+	  "block":` + testBlockMap + `,"commitments":` + testCommits + `}`
+	testItemProofJSON = `{"version":1,"type":"item",
+	  "public_key":"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=",
+	  "signature":"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==",
+	  "generated_at":"2026-04-22T21:05:00Z",
+	  "subject":{"id":"01HJHB01T8FYZ7YTR9P5N62K5B","claims":{"name":"x"},"metadata":{"witnesses":{"block":"33"}},"signing_key_id":"4ceefa4a"},
+	  "inclusion_proof":"AA",
+	  "block":` + testBlockMap + `,"commitments":` + testCommits + `}`
+	testEntropyStellarProofJSON = `{"version":1,"type":"entropy_stellar",
+	  "public_key":"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=",
+	  "signature":"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==",
+	  "generated_at":"2026-04-22T21:05:00Z",
+	  "subject":{"id":"019db702-b08c-73dc-a7cd-2c5e011f1dad","entropy":{"hash":"x"},"metadata":{},"signing_key_id":"4ceefa4a"},
+	  "inclusion_proof":"AA",
+	  "block":` + testBlockMap + `,"commitments":` + testCommits + `}`
 )
 
 // startProofServer spins up an httptest server that records the last
@@ -64,10 +57,8 @@ func startProofServer(t *testing.T, responseBody string) (string, *string, func(
 	t.Helper()
 	var lastBody string
 	mux := http.NewServeMux()
-	// Mirror production layout: <base_url>/api/json/proof/generate.
 	mux.HandleFunc("/api/json/proof/generate", func(w http.ResponseWriter, r *http.Request) {
-		auth := r.Header.Get("Authorization")
-		if !strings.HasPrefix(auth, "Bearer ") {
+		if !strings.HasPrefix(r.Header.Get("Authorization"), "Bearer ") {
 			t.Errorf("missing Bearer header")
 		}
 		b, _ := io.ReadAll(r.Body)
@@ -93,16 +84,31 @@ func withTempCWD(t *testing.T) string {
 	return dir
 }
 
-// TestCLI_Download_SmartDefaultULIDItem: a ULID positional with no --type
-// flag should default to type=item and produce truestamp-item-*.
+// postedData decodes the captured request's `data` object.
+func postedData(t *testing.T, body string) map[string]any {
+	t.Helper()
+	var parsed struct {
+		Data map[string]any `json:"data"`
+	}
+	if err := json.Unmarshal([]byte(body), &parsed); err != nil {
+		t.Fatalf("captured body not valid JSON: %v\nbody=%q", err, body)
+	}
+	return parsed.Data
+}
+
+func assertWireType(t *testing.T, body, want string) {
+	t.Helper()
+	if got := postedData(t, body)["type"]; got != want {
+		t.Errorf("wire type: want %q, got %v (full body: %s)", want, got, body)
+	}
+}
+
 func TestCLI_Download_SmartDefaultULIDItem(t *testing.T) {
 	url, lastBody, stop := startProofServer(t, testItemProofJSON)
 	defer stop()
 	dir := withTempCWD(t)
 
-	_, stderr, exit := runCLI(t,
-		"--base-url", url, "--api-key", "test-key",
-		"download", "01HJHB01T8FYZ7YTR9P5N62K5B")
+	_, stderr, exit := runCLI(t, "--base-url", url, "--api-key", "test-key", "download", "01HJHB01T8FYZ7YTR9P5N62K5B")
 	if exit != 0 {
 		t.Fatalf("exit=%d, stderr=%q", exit, stderr)
 	}
@@ -111,135 +117,124 @@ func TestCLI_Download_SmartDefaultULIDItem(t *testing.T) {
 		t.Errorf("expected file %s: %v", wantFile, err)
 	}
 	assertWireType(t, *lastBody, "item")
+	if _, has := postedData(t, *lastBody)["witnesses"]; has {
+		t.Errorf("the default (all witnesses) must omit the argument, got %s", *lastBody)
+	}
 }
 
-// TestCLI_Download_NoTypeUUIDv7Errors: a UUIDv7 positional with no --type
-// flag must fail client-side without a network call.
+func TestCLI_Download_Witnesses(t *testing.T) {
+	cases := []struct {
+		flag     string
+		wantList any
+		suffix   string
+	}{
+		{"none", []any{}, "-compact"},
+		{"block,entropy_nist", []any{"block", "entropy_nist"}, "-partial"},
+		{"all", nil, ""},
+	}
+	for _, tc := range cases {
+		t.Run(tc.flag, func(t *testing.T) {
+			url, lastBody, stop := startProofServer(t, testItemProofJSON)
+			defer stop()
+			dir := withTempCWD(t)
+			_, stderr, exit := runCLI(t, "--base-url", url, "--api-key", "test-key", "download", "--witnesses", tc.flag, "01HJHB01T8FYZ7YTR9P5N62K5B")
+			if exit != 0 {
+				t.Fatalf("exit=%d, stderr=%q", exit, stderr)
+			}
+			data := postedData(t, *lastBody)
+			got, has := data["witnesses"]
+			if tc.wantList == nil {
+				if has {
+					t.Errorf("witnesses argument should be omitted, got %v", got)
+				}
+			} else if !has || len(got.([]any)) != len(tc.wantList.([]any)) {
+				t.Errorf("witnesses = %v, want %v", got, tc.wantList)
+			}
+			want := filepath.Join(dir, "truestamp-item-01HJHB01T8FYZ7YTR9P5N62K5B"+tc.suffix+".json")
+			if _, err := os.Stat(want); err != nil {
+				t.Errorf("expected file %s: %v", want, err)
+			}
+		})
+	}
+	_, stderr, exit := runCLI(t, "--api-key", "test-key", "download", "--witnesses", "block,nope", "01HJHB01T8FYZ7YTR9P5N62K5B")
+	if exit == 0 || !strings.Contains(stderr, "nope") {
+		t.Errorf("unknown witness accepted: exit=%d stderr=%q", exit, stderr)
+	}
+}
+
 func TestCLI_Download_NoTypeUUIDv7Errors(t *testing.T) {
 	called := false
-	srv := httptest.NewServer(http.HandlerFunc(func(_ http.ResponseWriter, _ *http.Request) {
-		called = true
-	}))
+	srv := httptest.NewServer(http.HandlerFunc(func(_ http.ResponseWriter, _ *http.Request) { called = true }))
 	defer srv.Close()
 	_ = withTempCWD(t)
 
-	_, stderr, exit := runCLI(t,
-		"--base-url", srv.URL, "--api-key", "test-key",
-		"download", "019db702-b08c-73dc-a7cd-2c5e011f1dad")
-	if exit == 0 {
-		t.Fatal("expected non-zero exit")
-	}
-	if called {
-		t.Error("server should not have been called")
-	}
-	if !strings.Contains(stderr, "--type is required for UUIDv7") {
-		t.Errorf("want UUIDv7-requires-type message, stderr=%q", stderr)
+	_, stderr, exit := runCLI(t, "--base-url", srv.URL, "--api-key", "test-key", "download", "019db702-b08c-73dc-a7cd-2c5e011f1dad")
+	if exit == 0 || called || !strings.Contains(stderr, "--type is required for UUIDv7") {
+		t.Errorf("exit=%d called=%v stderr=%q", exit, called, stderr)
 	}
 }
 
-func TestCLI_Download_TypeBlock(t *testing.T) {
-	url, lastBody, stop := startProofServer(t, testBlockProofJSON)
-	defer stop()
-	dir := withTempCWD(t)
-
-	_, _, exit := runCLI(t,
-		"--base-url", url, "--api-key", "test-key",
-		"download", "--type", "block", "019db702-b08c-73dc-a7cd-2c5e011f1dad")
-	if exit != 0 {
-		t.Fatalf("exit=%d", exit)
+func TestCLI_Download_Types(t *testing.T) {
+	cases := []struct {
+		typeFlag, id, body, format, wantFile string
+	}{
+		{"block", "019db702-b08c-73dc-a7cd-2c5e011f1dad", testBlockProofJSON, "json", "truestamp-block-019db702-b08c-73dc-a7cd-2c5e011f1dad.json"},
+		{"beacon", "019db702-b08c-73dc-a7cd-2c5e011f1dad", testBeaconProofJSON, "json", "truestamp-beacon-019db702-b08c-73dc-a7cd-2c5e011f1dad.json"},
+		{"item", "01HJHB01T8FYZ7YTR9P5N62K5B", testItemProofJSON, "json", "truestamp-item-01HJHB01T8FYZ7YTR9P5N62K5B.json"},
+		{"entropy_stellar", "019db702-b08c-73dc-a7cd-2c5e011f1dad", testEntropyStellarProofJSON, "json", "truestamp-entropy-stellar-019db702-b08c-73dc-a7cd-2c5e011f1dad.json"},
 	}
-	if _, err := os.Stat(filepath.Join(dir,
-		"truestamp-block-019db702-b08c-73dc-a7cd-2c5e011f1dad.json")); err != nil {
-		t.Errorf("missing block file: %v", err)
+	for _, tc := range cases {
+		t.Run(tc.typeFlag, func(t *testing.T) {
+			url, lastBody, stop := startProofServer(t, tc.body)
+			defer stop()
+			dir := withTempCWD(t)
+			_, stderr, exit := runCLI(t, "--base-url", url, "--api-key", "test-key", "download", "--type", tc.typeFlag, "-f", tc.format, tc.id)
+			if exit != 0 {
+				t.Fatalf("exit=%d, stderr=%q", exit, stderr)
+			}
+			if _, err := os.Stat(filepath.Join(dir, tc.wantFile)); err != nil {
+				t.Errorf("expected file %s: %v", tc.wantFile, err)
+			}
+			assertWireType(t, *lastBody, tc.typeFlag)
+		})
 	}
-	assertWireType(t, *lastBody, "block")
 }
 
-// TestCLI_Download_TypeBeacon_SendsBeacon: the beacon alias is gone.
-// --type beacon must send type="beacon" on the wire and produce a
-// truestamp-beacon-*.json file. Server is expected to return a t=11
-// bundle (fixture does).
-func TestCLI_Download_TypeBeacon_SendsBeacon(t *testing.T) {
-	url, lastBody, stop := startProofServer(t, testBeaconProofJSON)
+func TestCLI_Download_CBOR(t *testing.T) {
+	// The server answers CBOR as base64 of the bytes; the file must carry
+	// the decoded bytes, tag and all.
+	cborBytes, _ := os.ReadFile(testfixtures.Path(testfixtures.ProdDir, testfixtures.ProdCBOR))
+	b64, _ := json.Marshal(base64Std(cborBytes))
+	url, lastBody, stop := startProofServer(t, string(b64))
 	defer stop()
 	dir := withTempCWD(t)
-
-	_, _, exit := runCLI(t,
-		"--base-url", url, "--api-key", "test-key",
-		"download", "--type", "beacon", "019db702-b08c-73dc-a7cd-2c5e011f1dad")
+	_, stderr, exit := runCLI(t, "--base-url", url, "--api-key", "test-key", "download", "-f", "cbor", "01M1M0V3SE3C5P32TRAJSNX6QF")
 	if exit != 0 {
-		t.Fatalf("exit=%d", exit)
+		t.Fatalf("exit=%d, stderr=%q", exit, stderr)
 	}
-	if _, err := os.Stat(filepath.Join(dir,
-		"truestamp-beacon-019db702-b08c-73dc-a7cd-2c5e011f1dad.json")); err != nil {
-		t.Errorf("missing beacon file: %v", err)
+	got, err := os.ReadFile(filepath.Join(dir, "truestamp-item-01M1M0V3SE3C5P32TRAJSNX6QF.cbor"))
+	if err != nil || string(got) != string(cborBytes) {
+		t.Errorf("cbor file: %v (%d bytes, want %d)", err, len(got), len(cborBytes))
 	}
-	assertWireType(t, *lastBody, "beacon")
+	if postedData(t, *lastBody)["format"] != "cbor" {
+		t.Errorf("format not posted: %s", *lastBody)
+	}
 }
 
-func TestCLI_Download_TypeItem(t *testing.T) {
-	url, lastBody, stop := startProofServer(t, testItemProofJSON)
+// TestCLI_Download_PreservesNumbers pins that the pretty-printed JSON keeps
+// every number literal as the server wrote it.
+func TestCLI_Download_PreservesNumbers(t *testing.T) {
+	body := strings.Replace(testItemProofJSON, `"claims":{"name":"x"}`, `"claims":{"name":"x","big":9007199254740993}`, 1)
+	url, _, stop := startProofServer(t, body)
 	defer stop()
 	dir := withTempCWD(t)
-
-	_, _, exit := runCLI(t,
-		"--base-url", url, "--api-key", "test-key",
-		"download", "--type", "item", "01HJHB01T8FYZ7YTR9P5N62K5B")
-	if exit != 0 {
-		t.Fatalf("exit=%d", exit)
+	if _, stderr, exit := runCLI(t, "--base-url", url, "--api-key", "test-key", "download", "01HJHB01T8FYZ7YTR9P5N62K5B"); exit != 0 {
+		t.Fatalf("exit=%d, stderr=%q", exit, stderr)
 	}
-	if _, err := os.Stat(filepath.Join(dir,
-		"truestamp-item-01HJHB01T8FYZ7YTR9P5N62K5B.json")); err != nil {
-		t.Errorf("missing item file: %v", err)
+	got, _ := os.ReadFile(filepath.Join(dir, "truestamp-item-01HJHB01T8FYZ7YTR9P5N62K5B.json"))
+	if !strings.Contains(string(got), "9007199254740993") {
+		t.Errorf("large integer was rounded:\n%s", got)
 	}
-	assertWireType(t, *lastBody, "item")
-}
-
-// TestCLI_Download_TypeEntropyStellar: subtype-specific wire value and a
-// hyphenated filename stem (entropy-stellar, not entropy_stellar).
-func TestCLI_Download_TypeEntropyStellar(t *testing.T) {
-	url, lastBody, stop := startProofServer(t, testEntropyStellarProofJSON)
-	defer stop()
-	dir := withTempCWD(t)
-
-	_, _, exit := runCLI(t,
-		"--base-url", url, "--api-key", "test-key",
-		"download", "--type", "entropy_stellar", "019db702-b08c-73dc-a7cd-2c5e011f1dad")
-	if exit != 0 {
-		t.Fatalf("exit=%d", exit)
-	}
-	if _, err := os.Stat(filepath.Join(dir,
-		"truestamp-entropy-stellar-019db702-b08c-73dc-a7cd-2c5e011f1dad.json")); err != nil {
-		t.Errorf("missing entropy-stellar file: %v", err)
-	}
-	assertWireType(t, *lastBody, "entropy_stellar")
-}
-
-// TestCLI_Download_TypeEntropyNIST_CBOR: ensures the hyphen translation
-// works with CBOR too, and the NIST subtype routes correctly.
-func TestCLI_Download_TypeEntropyNIST_CBOR(t *testing.T) {
-	// Use the stellar JSON body — the CBOR output format is encoded on
-	// the wire; the test only cares about filename + wire type field.
-	// A real server would return base64-encoded CBOR here; the test
-	// server returns whatever we hand it, which is fine for the
-	// filename/wire-body assertions we make.
-	cborEncoded := `"AAAA"` // base64-encoded fake CBOR bytes
-	url, lastBody, stop := startProofServer(t, cborEncoded)
-	defer stop()
-	dir := withTempCWD(t)
-
-	_, _, exit := runCLI(t,
-		"--base-url", url, "--api-key", "test-key",
-		"download", "--type", "entropy_nist", "-f", "cbor",
-		"019db702-b08c-73dc-a7cd-2c5e011f1dad")
-	if exit != 0 {
-		t.Fatalf("exit=%d", exit)
-	}
-	if _, err := os.Stat(filepath.Join(dir,
-		"truestamp-entropy-nist-019db702-b08c-73dc-a7cd-2c5e011f1dad.cbor")); err != nil {
-		t.Errorf("missing entropy-nist cbor file: %v", err)
-	}
-	assertWireType(t, *lastBody, "entropy_nist")
 }
 
 func TestCLI_Download_OutputFlagWins(t *testing.T) {
@@ -248,157 +243,92 @@ func TestCLI_Download_OutputFlagWins(t *testing.T) {
 	dir := withTempCWD(t)
 
 	custom := filepath.Join(dir, "custom-name.json")
-	_, _, exit := runCLI(t,
-		"--base-url", url, "--api-key", "test-key",
-		"download", "--type", "beacon", "-o", custom,
-		"019db702-b08c-73dc-a7cd-2c5e011f1dad")
+	_, _, exit := runCLI(t, "--base-url", url, "--api-key", "test-key", "download", "--type", "beacon", "-o", custom, "019db702-b08c-73dc-a7cd-2c5e011f1dad")
 	if exit != 0 {
 		t.Fatalf("exit=%d", exit)
 	}
 	if _, err := os.Stat(custom); err != nil {
 		t.Errorf("custom output path not honoured: %v", err)
 	}
-	if _, err := os.Stat(filepath.Join(dir,
-		"truestamp-beacon-019db702-b08c-73dc-a7cd-2c5e011f1dad.json")); err == nil {
+	if _, err := os.Stat(filepath.Join(dir, "truestamp-beacon-019db702-b08c-73dc-a7cd-2c5e011f1dad.json")); err == nil {
 		t.Error("auto-named file should not exist when -o is set")
 	}
 }
 
 func TestCLI_Download_InvalidType(t *testing.T) {
-	_, stderr, exit := runCLI(t,
-		"--api-key", "test-key",
-		"download", "--type", "bogus", "019db702-b08c-73dc-a7cd-2c5e011f1dad")
-	if exit == 0 {
-		t.Fatal("expected non-zero exit")
+	_, stderr, exit := runCLI(t, "--api-key", "test-key", "download", "--type", "bogus", "019db702-b08c-73dc-a7cd-2c5e011f1dad")
+	if exit == 0 || !strings.Contains(stderr, "--type must be one of") {
+		t.Fatalf("exit=%d stderr=%q", exit, stderr)
 	}
-	if !strings.Contains(stderr, "--type must be one of") {
-		t.Errorf("want --type validation message, got %q", stderr)
-	}
-	// The server's enum strings should be listed in the error.
 	for _, want := range []string{"entropy_nist", "entropy_stellar", "entropy_bitcoin", "beacon"} {
 		if !strings.Contains(stderr, want) {
 			t.Errorf("want %q listed in error message, got %q", want, stderr)
 		}
 	}
-}
-
-// TestCLI_Download_BareEntropyRejected: bare "entropy" is no longer a
-// valid --type value (server dropped it; CLI must reject it client-side).
-func TestCLI_Download_BareEntropyRejected(t *testing.T) {
-	_, stderr, exit := runCLI(t,
-		"--api-key", "test-key",
-		"download", "--type", "entropy", "019db702-b08c-73dc-a7cd-2c5e011f1dad")
-	if exit == 0 {
-		t.Fatal("expected non-zero exit")
-	}
-	if !strings.Contains(stderr, "--type must be one of") {
-		t.Errorf("want --type validation message, got %q", stderr)
+	_, stderr, exit = runCLI(t, "--api-key", "test-key", "download", "--type", "entropy", "019db702-b08c-73dc-a7cd-2c5e011f1dad")
+	if exit == 0 || !strings.Contains(stderr, "--type must be one of") {
+		t.Errorf("bare entropy: exit=%d stderr=%q", exit, stderr)
 	}
 }
 
-// TestCLI_Download_TypeItemWithUUIDv7: --type item + UUIDv7 should fail
-// client-side before the network call.
-func TestCLI_Download_TypeItemWithUUIDv7(t *testing.T) {
+func TestCLI_Download_ShapeVsType(t *testing.T) {
 	called := false
-	srv := httptest.NewServer(http.HandlerFunc(func(_ http.ResponseWriter, _ *http.Request) {
-		called = true
-	}))
+	srv := httptest.NewServer(http.HandlerFunc(func(_ http.ResponseWriter, _ *http.Request) { called = true }))
 	defer srv.Close()
 	_ = withTempCWD(t)
 
-	_, stderr, exit := runCLI(t,
-		"--base-url", srv.URL, "--api-key", "test-key",
-		"download", "--type", "item", "019db702-b08c-73dc-a7cd-2c5e011f1dad")
-	if exit == 0 {
-		t.Fatal("expected non-zero exit")
+	_, stderr, exit := runCLI(t, "--base-url", srv.URL, "--api-key", "test-key", "download", "--type", "item", "019db702-b08c-73dc-a7cd-2c5e011f1dad")
+	if exit == 0 || called || !strings.Contains(stderr, "requires a ULID") {
+		t.Errorf("item+uuid: exit=%d called=%v stderr=%q", exit, called, stderr)
 	}
-	if called {
-		t.Error("server should not have been called")
-	}
-	if !strings.Contains(stderr, "requires a ULID") {
-		t.Errorf("want ULID-required message, stderr=%q", stderr)
+	_, stderr, exit = runCLI(t, "--base-url", srv.URL, "--api-key", "test-key", "download", "--type", "block", "01HJHB01T8FYZ7YTR9P5N62K5B")
+	if exit == 0 || called || !strings.Contains(stderr, "requires a UUIDv7") {
+		t.Errorf("block+ulid: exit=%d called=%v stderr=%q", exit, called, stderr)
 	}
 }
 
-// TestCLI_Download_TypeBlockWithULID: --type block + ULID should fail
-// client-side before the network call.
-func TestCLI_Download_TypeBlockWithULID(t *testing.T) {
-	called := false
-	srv := httptest.NewServer(http.HandlerFunc(func(_ http.ResponseWriter, _ *http.Request) {
-		called = true
-	}))
-	defer srv.Close()
-	_ = withTempCWD(t)
-
-	_, stderr, exit := runCLI(t,
-		"--base-url", srv.URL, "--api-key", "test-key",
-		"download", "--type", "block", "01HJHB01T8FYZ7YTR9P5N62K5B")
-	if exit == 0 {
-		t.Fatal("expected non-zero exit")
-	}
-	if called {
-		t.Error("server should not have been called")
-	}
-	if !strings.Contains(stderr, "requires a UUIDv7") {
-		t.Errorf("want UUIDv7-required message, stderr=%q", stderr)
-	}
-}
-
-// TestCLI_Download_NotCommittedError: surface the server's "not committed"
-// 400 verbatim. Use --type block so the CLI pre-flight doesn't short-
-// circuit (UUIDv7 + block is valid locally).
+// TestCLI_Download_NotCommittedError surfaces the server's
+// no_external_commitments answer with the wait-for-the-epoch advice.
 func TestCLI_Download_NotCommittedError(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusBadRequest)
-		_, _ = w.Write([]byte(`{"errors":[{"detail":"Subject has not yet been committed to a public blockchain. Try again after the next epoch commit."}]}`))
+		_, _ = w.Write([]byte(`{"errors":[{"detail":"Subject has not yet been committed to a public blockchain. Try again after the next epoch commit.","meta":{"code":"no_external_commitments"}}]}`))
 	}))
 	defer srv.Close()
 	_ = withTempCWD(t)
 
-	_, stderr, exit := runCLI(t,
-		"--base-url", srv.URL, "--api-key", "test-key",
-		"download", "--type", "block", "019db702-b08c-73dc-a7cd-2c5e011f1dad")
-	if exit == 0 {
-		t.Fatal("expected non-zero exit")
-	}
-	if !strings.Contains(stderr, "not yet been committed") {
-		t.Errorf("detail not preserved, stderr=%q", stderr)
+	_, stderr, exit := runCLI(t, "--base-url", srv.URL, "--api-key", "test-key", "download", "--type", "block", "019db702-b08c-73dc-a7cd-2c5e011f1dad")
+	if exit == 0 || !strings.Contains(stderr, "not yet been committed") || !strings.Contains(stderr, "first public-chain commitment") {
+		t.Errorf("exit=%d stderr=%q", exit, stderr)
 	}
 }
 
-// TestCLI_Download_SubjectTypeMismatchError: surface the server's 422
-// subject_type_mismatch verbatim when the caller asks for entropy_nist
-// against a stellar observation.
+func TestCLI_Download_InvalidWitnessFromServer(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusBadRequest)
+		_, _ = w.Write([]byte(`{"errors":[{"detail":"invalid witness: valid names are block, entropy_stellar, entropy_nist, entropy_bitcoin, signing_key_event","meta":{"code":"invalid_witness"}}]}`))
+	}))
+	defer srv.Close()
+	_ = withTempCWD(t)
+	_, stderr, exit := runCLI(t, "--base-url", srv.URL, "--api-key", "test-key", "download", "01HJHB01T8FYZ7YTR9P5N62K5B")
+	if exit == 0 || !strings.Contains(stderr, "invalid_witness") {
+		t.Errorf("exit=%d stderr=%q", exit, stderr)
+	}
+}
+
 func TestCLI_Download_SubjectTypeMismatchError(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusUnprocessableEntity)
-		_, _ = w.Write([]byte(`{"errors":[{"code":"subject_type_mismatch","detail":"Requested type entropy_nist but subject 019db702-b08c-73dc-a7cd-2c5e011f1dad has source entropy_stellar","meta":{"code":"subject_type_mismatch","requested_type":"entropy_nist","actual_source":"entropy_stellar"}}]}`))
+		_, _ = w.Write([]byte(`{"errors":[{"code":"subject_type_mismatch","detail":"Requested type entropy_nist but subject 019db702-b08c-73dc-a7cd-2c5e011f1dad has source entropy_stellar","meta":{"code":"subject_type_mismatch"}}]}`))
 	}))
 	defer srv.Close()
 	_ = withTempCWD(t)
 
-	_, stderr, exit := runCLI(t,
-		"--base-url", srv.URL, "--api-key", "test-key",
-		"download", "--type", "entropy_nist", "019db702-b08c-73dc-a7cd-2c5e011f1dad")
-	if exit == 0 {
-		t.Fatal("expected non-zero exit")
-	}
-	if !strings.Contains(stderr, "Requested type entropy_nist") {
-		t.Errorf("detail not preserved, stderr=%q", stderr)
+	_, stderr, exit := runCLI(t, "--base-url", srv.URL, "--api-key", "test-key", "download", "--type", "entropy_nist", "019db702-b08c-73dc-a7cd-2c5e011f1dad")
+	if exit == 0 || !strings.Contains(stderr, "Requested type entropy_nist") {
+		t.Errorf("exit=%d stderr=%q", exit, stderr)
 	}
 }
 
-// assertWireType unmarshals the captured request body and checks that
-// data.type equals want.
-func assertWireType(t *testing.T, body, want string) {
-	t.Helper()
-	var parsed struct {
-		Data map[string]string `json:"data"`
-	}
-	if err := json.Unmarshal([]byte(body), &parsed); err != nil {
-		t.Fatalf("captured body not valid JSON: %v\nbody=%q", err, body)
-	}
-	if got := parsed.Data["type"]; got != want {
-		t.Errorf("wire type: want %q, got %q (full body: %s)", want, got, body)
-	}
-}
+// base64Std encodes bytes the way the API returns a CBOR bundle.
+func base64Std(b []byte) string { return base64.StdEncoding.EncodeToString(b) }

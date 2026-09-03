@@ -54,21 +54,21 @@ type teamSwitcher interface {
 //     bound to. Sourced from the welcome envelope at session start
 //     and from scope.switch_team replies thereafter. This is the
 //     value rendered in the "Active team" card and marked with ★ in
-//     the membership table — it tracks server reality.
+//     the membership table, it tracks server reality.
 //
 //   - scope.PreferredID is the team id stored in the user's config.toml
 //     at console launch. On welcome, if it differs from
 //     welcome.scope.team_id, the root model automatically fires
 //     scope.switch_team to align the server scope to the user's
 //     preference. So a user whose config says "Engineering" doesn't
-//     have to manually switch every time they open the console — the
+//     have to manually switch every time they open the console, the
 //     console catches up to where they left off.
 type teamModel struct {
 	apiURL string
 	client teamSwitcher
 
 	// scope points at the root model's activeScope so the pane
-	// always renders against the canonical state — no local copies
+	// always renders against the canonical state, no local copies
 	// of the active team's id / name / role.
 	scope *activeScope
 
@@ -173,7 +173,7 @@ func (m *teamModel) fetchMembershipsCmd() tea.Cmd {
 
 // Init kicks off the membership-list fetch. The active-team
 // details fetch is fired by the root model after the welcome
-// envelope arrives — see model.applyWelcomeToScope in app.go.
+// envelope arrives, see model.applyWelcomeToScope in app.go.
 func (m *teamModel) Init() tea.Cmd {
 	return m.fetchMembershipsCmd()
 }
@@ -213,7 +213,7 @@ func (m *teamModel) Update(msg tea.Msg) (*teamModel, tea.Cmd) {
 
 	case teamSwitchedMsg:
 		// Silent switches (the auto-alignment fired by
-		// applyWelcomeToScope) suppress the in-pane notice — we
+		// applyWelcomeToScope) suppress the in-pane notice, we
 		// don't want a "Switched to X" line to appear and then
 		// disappear on the user's first up/down keypress, which
 		// would visibly shift the table. User-initiated switches
@@ -291,7 +291,7 @@ func (m *teamModel) handleSetActive() (*teamModel, tea.Cmd) {
 		return m, nil
 	}
 	// Fire immediately on `enter`. The cursor lives on the row the user
-	// is intentionally looking at, so a single press is unambiguous —
+	// is intentionally looking at, so a single press is unambiguous,
 	// no confirmation step.
 	m.notice = "Switching to " + teamRowDisplayName(row) + "…"
 	m.noticeError = false
@@ -307,7 +307,7 @@ func (m *teamModel) switchCmd(targetID string) tea.Cmd {
 }
 
 // silentSwitchCmd is the same as switchCmd but emits a Silent
-// teamSwitchedMsg — used by applyWelcomeToScope to align the
+// teamSwitchedMsg, used by applyWelcomeToScope to align the
 // server-side default Personal scope to the user's config
 // preference without flashing a "Switched to X" notice on every
 // console launch.
@@ -346,14 +346,14 @@ func (m *teamModel) doSwitchCmd(targetID string, silent bool) tea.Cmd {
 			}
 		}
 
-		// Persist to config on success only — see the plan for the
+		// Persist to config on success only, see the plan for the
 		// rationale (don't write a team id we're not actually scoped
 		// to). The config package is imported inside the package
 		// boundary because the team pane lives in internal/console.
 		if perr := persistTeamSelection(targetID); perr != nil {
 			// The switch worked server-side; we just couldn't write
-			// the file. The failure isn't surfaced today — the user
-			// sees the normal success notice (degraded success) —
+			// the file. The failure isn't surfaced today, the user
+			// sees the normal success notice (degraded success),
 			// and the next launch reverts to the config-file team,
 			// but the current session's state is already on the new
 			// team.
@@ -384,7 +384,7 @@ func switchReplyFromWire(r *wschannel.SwitchTeamReply) *teamSwitchReply {
 
 // switchReplyForPersistFail returns the same envelope with a notice
 // embedded (we don't have a separate field, so today the persistence
-// failure is silently ignored at the message level — the user sees
+// failure is silently ignored at the message level, the user sees
 // the success banner unchanged. This is a degraded-success case).
 func switchReplyForPersistFail(r *wschannel.SwitchTeamReply, _ string, _ error) *teamSwitchReply {
 	return switchReplyFromWire(r)
@@ -524,7 +524,7 @@ func (m *teamModel) renderListError() string {
 func (m *teamModel) renderMemberships() string {
 	if len(m.memberships) == 0 {
 		return teamSectionTitle.Render("Memberships") + "\n  " +
-			teamFaintStyle.Render("No teams yet — press c to create one.")
+			teamFaintStyle.Render("No teams yet, press c to create one.")
 	}
 
 	// Two leading one-cell marker columns keep rows from shifting:

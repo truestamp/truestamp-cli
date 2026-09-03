@@ -18,8 +18,8 @@
 // report rather than hide. Canonicalize therefore hands back the offending
 // literals alongside the canonical bytes so callers can surface them.
 //
-// Everything else — UTF-16 code-unit key ordering, string escaping, ES6 float
-// formatting, negative-zero normalization — is delegated unchanged to
+// Everything else, UTF-16 code-unit key ordering, string escaping, ES6 float
+// formatting, negative-zero normalization, is delegated unchanged to
 // github.com/gowebpki/jcs, which this package wraps rather than replaces. For
 // any valid input free of oversized integers the output is byte-identical to
 // calling that library directly, which is what makes adopting this package
@@ -49,7 +49,7 @@ import (
 // MaxExactInteger is 2^53. Every integer at or below it in absolute value is
 // exactly representable as an IEEE-754 double; 2^53 + 1 is the first that is
 // not. The comparison against it is strictly greater-than, so 2^53 itself is
-// in range — matching Appendix C.2a, which labels it "exactly representable",
+// in range, matching Appendix C.2a, which labels it "exactly representable",
 // and the reference verifier's @max_exact_integer.
 const MaxExactInteger int64 = 1 << 53
 
@@ -116,7 +116,7 @@ func Canonicalize(data []byte) (canonical []byte, oversized []string, err error)
 	spans, err := scanIntegers(data)
 	if err != nil {
 		// The document is well-formed JSON, so the only way the scan can fail
-		// is the span-location invariant below — a bug in this package, never
+		// is the span-location invariant below, a bug in this package, never
 		// user input. Surfacing it beats emitting a digest of bytes we could
 		// not account for.
 		return nil, nil, err
@@ -163,19 +163,19 @@ func Canonicalize(data []byte) (canonical []byte, oversized []string, err error)
 //
 // github.com/gowebpki/jcs is not a validating parser: its scalar reader skips
 // whitespace inside a token and tolerates a leading '+', a leading zero, a bare
-// fraction and a trailing dot, so it accepts several inputs that RFC 8259 —
+// fraction and a trailing dot, so it accepts several inputs that RFC 8259,
 // and every conforming parser, Go's encoding/json and the Elixir reference
-// verifier included — rejects. Worse, it does not merely accept them, it
+// verifier included, rejects. Worse, it does not merely accept them, it
 // rewrites them: {"a":1 2} canonicalizes to {"a":12} and {"a":.5} to {"a":0.5}.
 // Canonicalize would then hand back the canonical form of a DIFFERENT document
-// with no error, and `truestamp jcs` / `truestamp hash --jcs` — the documented
-// way to recompute a claims_hash locally — would print a confident wrong digest
+// with no error, and `truestamp jcs` / `truestamp hash --jcs`, the documented
+// way to recompute a claims_hash locally, would print a confident wrong digest
 // for a truncated or corrupted claims file, with two byte-distinct inputs
 // colliding on one hash.
 //
 // It also protects the Appendix E.4 portability report: the integer scanner
 // runs on the same encoding/json decoder, so before this gate a document the
-// scanner rejected produced no oversized-integer signal at all — adding a
+// scanner rejected produced no oversized-integer signal at all, adding a
 // single '+' to an oversized literal both suppressed the warning and emitted
 // the rounded digest.
 //
@@ -235,7 +235,7 @@ func OversizedIntegers(data []byte) []string {
 // verifier never flags them, so a float keeps travelling the library's
 // unmodified ES6 formatting path, including the "-0" to "0" normalization
 // Appendix C.2a pins. That is enforced by the base-10 big.Int parse below,
-// which is the single classifier — a literal carrying a fraction or an
+// which is the single classifier, a literal carrying a fraction or an
 // exponent cannot parse as a base-10 integer.
 func scanIntegers(data []byte) ([]intSpan, error) {
 	dec := json.NewDecoder(bytes.NewReader(data))
@@ -369,14 +369,14 @@ func restore(canonical []byte, placeholder string, spans []intSpan) ([]byte, err
 type UnsafeInteger struct {
 	// Path is the dotted key path to the value, rooted at the label the
 	// caller passed to [UnsafeIntegers]: object keys joined with ".", array
-	// indices as "[i]" — e.g. "claims.metadata.rows[0].id". The syntax
+	// indices as "[i]", e.g. "claims.metadata.rows[0].id". The syntax
 	// matches Truestamp.SafeIntegers on the server so the local and remote
 	// rejections name the same location for the same value.
 	Path string
 
 	// Literal is the integer exactly as the user wrote it, never
-	// round-tripped through a float. Rendering it anywhere — an error
-	// message, a JSON field — MUST use this string rather than a numeric
+	// round-tripped through a float. Rendering it anywhere, an error
+	// message, a JSON field, MUST use this string rather than a numeric
 	// type, or the report reproduces the very rounding it is warning about.
 	Literal string
 }
@@ -388,7 +388,7 @@ type UnsafeInteger struct {
 // root labels the top of each returned path; the Truestamp producer passes
 // "claims" to match the server's field name.
 //
-// v is a document decoded with [encoding/json.Decoder.UseNumber] — that is
+// v is a document decoded with [encoding/json.Decoder.UseNumber], that is
 // load-bearing, not incidental. Without it every number arrives as a float64
 // with the offending literal already destroyed, and this walk would inspect
 // the rounded value and report nothing. json.Number is therefore the only
@@ -401,7 +401,7 @@ type UnsafeInteger struct {
 // integer literal. That classification is delegated to the same base-10
 // big.Int parse [scanIntegers] uses, so the two cannot drift apart.
 //
-// Ordering is deterministic — Go map iteration is randomized, so object keys
+// Ordering is deterministic, Go map iteration is randomized, so object keys
 // are walked in sorted order, arrays in index order. Two runs over the same
 // document produce the same slice in the same order, which is what lets a
 // caller print the list and a test assert on it.

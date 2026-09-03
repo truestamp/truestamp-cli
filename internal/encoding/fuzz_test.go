@@ -9,7 +9,7 @@ import (
 )
 
 // FuzzDecode_Hex feeds arbitrary strings into the hex decoder. The
-// invariant is simply "no panic" — any input should either succeed or
+// invariant is simply "no panic", any input should either succeed or
 // return a typed error.
 func FuzzDecode_Hex(f *testing.F) {
 	seeds := []string{"", "00", "deadbeef", "DEADBEEF", "zz", " 6a ", "abcd\n"}

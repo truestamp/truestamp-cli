@@ -10,7 +10,7 @@
 // (see [Resolve]) is:
 //
 //  1. an explicitly-provided API key (--api-key flag or TRUESTAMP_API_KEY
-//     env) — wins outright so CI/headless callers are deterministic;
+//     env), wins outright so CI/headless callers are deterministic;
 //  2. a stored OAuth session (access token, auto-refreshed via the
 //     rotating refresh token);
 //  3. an API key from the config file;
@@ -21,7 +21,7 @@
 // either. The console WebSocket differs: neither credential can ride an
 // Authorization header on the upgrade (a Phoenix upgrade cannot expose it
 // to Socket.connect/3), so OAuth passes the access token as the
-// `?access_token=` query param and an API key as `?api_key=` — callers
+// `?access_token=` query param and an API key as `?api_key=`, callers
 // branch on [Authorizer.Mode] for that.
 package auth
 
@@ -35,7 +35,7 @@ import (
 
 // ClientID is the fixed, public OAuth client_id for the Truestamp CLI. It
 // is a public client (PKCE is the per-flow secret), so embedding it in the
-// binary is standard and safe — the same convention gh/gcloud/stripe use.
+// binary is standard and safe, the same convention gh/gcloud/stripe use.
 // The server seeds this exact id via an idempotent boot-upsert across
 // dev/staging/prod, so a single constant is correct for every environment;
 // only the issuer/endpoints vary, and those come from discovery.
@@ -63,12 +63,12 @@ var loopbackPorts = []int{8976, 8765}
 // ErrNoCredentials is returned by a no-credentials [Authorizer] when a
 // bearer token is requested (e.g. by the WebSocket dialer, which cannot
 // proceed unauthenticated).
-var ErrNoCredentials = errors.New("not authenticated — run `truestamp auth login` (or set TRUESTAMP_API_KEY)")
+var ErrNoCredentials = errors.New("not authenticated, run `truestamp auth login` (or set TRUESTAMP_API_KEY)")
 
 // ErrSessionExpired is returned in OAuth mode when the refresh token is
 // expired, revoked, or reused (the server's `invalid_grant`). The session
 // is permanently dead; the user must re-authenticate.
-var ErrSessionExpired = errors.New("OAuth session expired or revoked — run `truestamp auth login`")
+var ErrSessionExpired = errors.New("OAuth session expired or revoked, run `truestamp auth login`")
 
 // Mode identifies which credential an [Authorizer] carries.
 type Mode int
@@ -105,8 +105,8 @@ type Authorizer interface {
 	// a no-op returning nil so genuinely-public requests still go out.
 	Authorize(ctx context.Context, req *http.Request) error
 
-	// BearerToken returns the raw credential string — a fresh OAuth access
-	// token (refreshed if needed) or the API key — for carriers that
+	// BearerToken returns the raw credential string, a fresh OAuth access
+	// token (refreshed if needed) or the API key, for carriers that
 	// cannot take an *http.Request (the WebSocket dialer). Returns
 	// [ErrNoCredentials] in no-credentials mode.
 	BearerToken(ctx context.Context) (string, error)
@@ -114,8 +114,8 @@ type Authorizer interface {
 	// ForceRefresh proactively discards any cached credential and obtains a
 	// fresh one. In OAuth mode it runs the refresh grant unconditionally
 	// (used reactively when the server rejects a token the client still
-	// believes is valid — a 401 on the HTTP API, or a token_expired push on
-	// the WebSocket — to break the otherwise-possible "reuse the stale
+	// believes is valid, a 401 on the HTTP API, or a token_expired push on
+	// the WebSocket, to break the otherwise-possible "reuse the stale
 	// token" loop). It is a no-op for the API-key and no-credentials modes.
 	// Returns [ErrSessionExpired] when the refresh token is dead.
 	ForceRefresh(ctx context.Context) error

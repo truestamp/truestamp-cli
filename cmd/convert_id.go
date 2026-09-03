@@ -24,7 +24,7 @@ var convertIDCmd = &cobra.Command{
 	Short: "Extract the embedded timestamp from a ULID or UUIDv7",
 	Long: `Both ULID (used for Truestamp item IDs) and UUIDv7 (used for block IDs)
 carry a millisecond timestamp in their first 48 bits. This sub-command
-parses either form and emits the timestamp — useful when inspecting
+parses either form and emits the timestamp, useful when inspecting
 proof bundles.
 
 Examples:

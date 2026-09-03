@@ -21,10 +21,18 @@ var convertProofCmd = &cobra.Command{
 	Short: "Convert a Truestamp proof bundle between JSON and CBOR wire formats",
 	Long: `Read a proof bundle in one wire format and emit it in the other.
 
-The CBOR output uses RFC 8949 §4.2 core deterministic encoding
-(lexicographically sorted keys, shortest-form integers, definite-length
-containers) and is prefixed with the self-describing CBOR tag 55799 so
-'truestamp verify' auto-detects the format.
+The conversion applies whitepaper Appendix E.3's field-type correspondence:
+public_key and signature travel as byte strings in CBOR and padded base64
+in JSON; every hash slot (signing_key_id, previous_block_hash, merkle_root,
+epoch_merkle_root, transaction_hash, block_merkle_root) is a byte string in
+CBOR and lowercase hex in JSON; every map that is a JCS preimage (claims,
+entropy, both metadata maps, witness payloads) keeps the JSON value space
+in both, hex strings included. Every number is preserved exactly.
+
+The CBOR output uses RFC 8949 section 4.2 core deterministic encoding
+(sorted keys, shortest-form integers, definite-length containers) and is
+prefixed with the self-describing CBOR tag 55799 so 'truestamp verify'
+auto-detects the format. JSON output preserves the input's key order.
 
 Examples:
   truestamp convert proof --to cbor proof.json > proof.cbor
@@ -64,7 +72,7 @@ func runConvertProof(cmd *cobra.Command, args []string) error {
 	}
 
 	from := strings.ToLower(strings.TrimSpace(fromName))
-	var bundle *proof.ProofBundle
+	var bundle *proof.Bundle
 	actualFrom := from
 	switch from {
 	case "", "auto":
@@ -78,7 +86,10 @@ func runConvertProof(cmd *cobra.Command, args []string) error {
 			actualFrom = "json"
 		}
 	case "json":
-		bundle, err = parseJSON(data)
+		if !looksLikeJSON(data) {
+			return fmt.Errorf("input does not start with '{' (try --from cbor or --from auto)")
+		}
+		bundle, err = proof.ParseJSON(data)
 		if err != nil {
 			return fmt.Errorf("parsing JSON proof: %w", err)
 		}
@@ -99,7 +110,11 @@ func runConvertProof(cmd *cobra.Command, args []string) error {
 			return fmt.Errorf("marshaling JSON: %w", mErr)
 		}
 		if compact {
-			out = raw
+			var buf bytes.Buffer
+			if cErr := json.Compact(&buf, raw); cErr != nil {
+				return fmt.Errorf("compacting JSON: %w", cErr)
+			}
+			out = buf.Bytes()
 		} else {
 			pretty, pErr := prettyJSON(raw)
 			if pErr != nil {
@@ -154,16 +169,6 @@ func runConvertProof(cmd *cobra.Command, args []string) error {
 	return nil
 }
 
-// parseJSON is a thin wrapper that rejects inputs that don't actually
-// start like JSON — useful when --from json is explicit and a user
-// piped CBOR by mistake.
-func parseJSON(data []byte) (*proof.ProofBundle, error) {
-	if !looksLikeJSON(data) {
-		return nil, fmt.Errorf("input does not start with '{' (try --from cbor or --from auto)")
-	}
-	return proof.ParseBytes(data)
-}
-
 // looksLikeJSON returns true when the first non-whitespace byte is '{'.
 func looksLikeJSON(data []byte) bool {
 	trimmed := bytes.TrimLeft(data, " \t\r\n")
@@ -175,7 +180,7 @@ func looksLikeJSON(data []byte) bool {
 // json.Indent rewrites whitespace only, so every number survives as the
 // literal the bundle carried. The previous implementation round-tripped
 // through `any`, which decodes every number into a float64 and silently
-// rounded any integer above 2^53 — and pretty output is the default for
+// rounded any integer above 2^53, and pretty output is the default for
 // --to json, so `truestamp convert proof` could quietly change the bytes
 // a claims_hash is computed over. Not re-encoding also preserves the
 // bundle's own key order instead of re-sorting it alphabetically, so the

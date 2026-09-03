@@ -1,0 +1,123 @@
+# Appendix C source vectors (generated, known-answer checked, self-verified)
+# Regenerate: task whitepaper-vectors
+
+## C.4 Sentinels
+empty_tree_root            = e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855
+empty_leaf_input (0x00,0x00)= 96a296d224f285c67bee93c30f8a309157f0daa35dc5b87e410b78630a09cfc7
+padding_leaf_hash          = d37300dc2c6e038a83ee197ca0e181a77f6875afd9f537d31ca4995876481319
+genesis_constant_string    = truestamp-blockchain-genesis-block-2026-08-04-btc-960940-000000000000000000017abaa21c7ae0cfecd6b8da996e78c1c2141056a29844
+genesis_prev_block_hash    = 96118892a96ced7df9875cca4b09f5c867728f63adcea4f189acc2f38fe75c95
+empty_block_metadata 0x33  = 14fe55ee4ce3cdbc8118a0a28e5a80a44f1f8a24d73d9949c0ecd91ee582ebe1   (SHA256(0x33 || "{}"))
+empty_entropy_metadata 0x22= 5dd81d4309de99c9f8e70822e760f0eece8c33370ff5fb5da3af75bab0cbaab8   (SHA256(0x22 || "{}"))
+
+## C.2a JCS conformance vectors (map -> JCS string -> SHA256(0x11 || JCS))
+explicit null
+  JCS  = {"a":null,"b":1}
+  0x11 = 13ec6081eab8b87a582dc6c2d0f6ff561d79de8be10c652440b53e1b72a95099
+control character and tab
+  JCS  = {"c":"\u0001","tab":"\t"}
+  0x11 = 66d5ba7776a99a71bc63007419530297a231043bd74de64e9ef2b7b44f3deec2
+negative zero
+  JCS  = {"z":0}
+  0x11 = 901865b9e33220a2601150ae2f202ad45d172458c8eb5865ccfd695c353e2430
+exponential floats
+  JCS  = {"big":1e+21,"small":1e-7}
+  0x11 = 2f01621ad310054550edf66468a6db72601e6e983464fb594cb884585beef1c7
+non-ASCII emitted unescaped
+  JCS  = {"emoji":"😀","name":"Ávila"}
+  0x11 = 65a18fbdd50f042c67de68433ede20023a529af601099cd735f4dd4805845eef
+astral-plane key ordering
+  JCS  = {"😀":1,"￿":2}
+  0x11 = d0951cfce65f8af38e98d67bd15833bb89afa2163e1b4c707047c126d53a6710
+2^53 (exactly representable)
+  JCS  = {"n":9007199254740992}
+  0x11 = c2c43fad296f3c57c36919c193d533f212f5aeb88431960512c87d3db2a49fe6
+2^53 + 1 (not a double)
+  JCS  = {"n":9007199254740993}
+  0x11 = f49f563152ef5c20c0aee41405be6342de6fbbb201985d7adc5bfebda9382407
+
+## C.3 Single-value domain hashes (input -> digest)
+SHA256(0x11 || "test data")           = 4b72c11e5d1192e35529c75ce8cff08aacb1e2186735a8e51c6a1ebfc9057d9b
+SHA256(0x21 || "entropy data")        = 439c7a900a9e3ba59b94a7e8583b628384ee1084acddd2cda3a4fe256ad716d0
+JCS({"name":"Alice","age":30})        = {"age":30,"name":"Alice"}
+  raw sha256 of that string           = 1b3d1428a344b4a5f9e479024cd76449100aec4c3ace922a317dd45696412f77
+0x11 claims_hash(example claims)      = ae5cdc73a52359a4fb0e335f004a6cd0cb1247024e812263e362368915a4b924
+     JCS(claims) = {"description":"Illustrative item for the Truestamp whitepaper. Not a production record.","hash":"b47cc0f104b62d4c7c30bcd68fd8e67613e287dc4ad8c310ef10cbadea9c4380","hash_type":"sha256","name":"Appendix D worked example"}
+0x12 metadata_hash(the witness map)   = 813f13eb570f99f533500f4aba9d6e93c012bff95d3bb18c4720d8a22ece8cb6
+     JCS(metadata) = {"witnesses":{"block":"f6912793a49f289affc65a9571993444ae33760307ee973d37a8f90ea3b2d8e9","entropy_bitcoin":"e358c850958e1f1e8ad4c60c237a565ccf7f4f09788243d6d9efafcd131e3e3d","entropy_nist":"0a5eb1a1721a463924404929e46ba7afb5457d279a76cde217f38777f4610bfa","entropy_stellar":"8a7e002361b83a4e05e09150dd2d04497c3480ef59d833198c6d41acd9fd8f70"}}
+0x21 entropy_hash(nist example)       = 976ff222abddaf00d26304759f1145f7cafb3cb9f8aaeebaa5767cf502198e5c
+     JCS = {"chainIndex":1,"outputValue":"abababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababab","pulseIndex":2847561,"uri":"nist:1:2847561"}
+pk(base64)                            = IVL40Zt5HSRFMkLhXy6rbLfP+ntqXtMAl5YOBpiB2xI=
+0x51 key_id(illustrative pub)         = f2c39df9
+0x53 prerotation(illustrative pub)    = 744989d95b39fe40f74249e31e3584a5e5d28f09d12b0809a49b4f1dc2ff1e2b
+
+## C.3a Witnesses (the records the item metadata commits to)
+0x21 entropy_stellar = 8a7e002361b83a4e05e09150dd2d04497c3480ef59d833198c6d41acd9fd8f70
+     JCS = {"closed_at":"2026-07-24T11:58:10Z","hash":"9c9c9c9c9c9c9c9c9c9c9c9c9c9c9c9c9c9c9c9c9c9c9c9c9c9c9c9c9c9c9c9c","sequence":51234501}
+0x21 entropy_nist    = 0a5eb1a1721a463924404929e46ba7afb5457d279a76cde217f38777f4610bfa
+     JCS = {"pulse":{"chainIndex":1,"outputValue":"abababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababab","pulseIndex":2847559,"timeStamp":"2026-07-24T11:58:00.000Z","version":"2.0"}}
+0x21 entropy_bitcoin = e358c850958e1f1e8ad4c60c237a565ccf7f4f09788243d6d9efafcd131e3e3d
+     JCS = {"hash":"cdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcd","height":870455,"time":1784894100}
+     header time 1784894100 = 2026-07-24T11:55:00Z (unix seconds, read conservatively)
+0x32 block (the head block at submission) = f6912793a49f289affc65a9571993444ae33760307ee973d37a8f90ea3b2d8e9
+     head block merkle_root = dcbf10256899ea68cbe0c1122d9f589ae62f6fd3ce12c27d5ec566c3737a8345 (over the three observations above)
+0x32 signing key event block = 547624cfa69c137785e74086ebae12737bacfbb32b35f9f35724365f3bacd6da
+     JCS(key event metadata) = {"key_event":{"key_id":"f2c39df9","prerotation_commitment":null,"public_key":"IVL40Zt5HSRFMkLhXy6rbLfP+ntqXtMAl5YOBpiB2xI=","sequence":0,"type":"genesis"}}
+
+## C.5 Composite (length-prefixed) hashes
+0x13 item_hash        = d186ed38f08b5fc2e41dde049d2bf013823e927f206fbed3b47d4e4955b67465
+0x23 observation_hash = e4e5bf625168c678a5b15fc911c4714cade1c4b5e62f2b14e430610cd0808b9b
+     the standalone C.3 NIST example observation (a sibling leaf of the D.1 block; not a D.1 witness)
+     id = 019f93fe-3c04-70a1-8000-0000000000a1   entropy_hash (0x21) = 976ff222abddaf00d26304759f1145f7cafb3cb9f8aaeebaa5767cf502198e5c
+     metadata = {}   metadata_hash (0x22) = 5dd81d4309de99c9f8e70822e760f0eece8c33370ff5fb5da3af75bab0cbaab8   signing_key_id = f2c39df9
+     JCS(entropy) = {"chainIndex":1,"outputValue":"abababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababab","pulseIndex":2847561,"uri":"nist:1:2847561"}
+0x32 block_hash       = 806ef5083f475ed7e2f2f3fc15d2d12d842f2c43686caab767e226664910a7c9
+0x35 epoch commitment (4-field, owner_id="epoch:stellar") = 9d35fd4d8c0bbcbc28ee12cbd2d7baf57a4ce71bda2c4fd5ae305321dbc4845a
+     JCS(commitment_data) = {"chain":"stellar","epoch_root":"f5c2df8d5fdc24b0aef14c7ab3813c46c6d17c0545d9422f9272fe6a2e672e46","tx":"5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e"}
+     0x34 commitment_data_hash = 9fc61cf59f1625e48d11f5e59f9b198c71a916840e5b98c651f837d8209ad86d
+0x35 merkle inclusion commitment (6-field) = 6e7b57fefbcf65f044519f7bbef488548b1c5e355332d22f04ed834152bd5f02
+     sha256(proof) = a683fed6404f57b97cb95ffdee770be391a6967ebe5c4632d8efa1a1ddbe2e26
+
+## C.5 Byte budgets (measured from the serializations above)
+item_hash                0x13  serialized=110  preimage=111  fields: id(26), claims_hash(32), metadata_hash(32), key_id(4)
+observation_hash         0x23  serialized=120  preimage=121  fields: id(36), entropy_hash(32), metadata_hash(32), key_id(4)
+block_hash               0x32  serialized=156  preimage=157  fields: id(36), prev_hash(32), merkle_root(32), metadata_hash(32), key_id(4)
+commitment_hash (epoch)  0x35  serialized=101  preimage=102  fields: id(36), commitment_data_hash(32), owner_id(13), key_id(4)
+merkle_commitment_hash   0x35  serialized=190  preimage=191  fields: id(36), block_id(36), subject_id(26), merkle_root(32), sha256(proof)(32), key_id(4)
+
+## C.6 Identifiers
+ULID   01KY9ZWEX0248J48HK6D248NAN  -> ms=1784894340000  storage=019f93fe3ba011112222333344445555
+UUIDv7 019f93ff-2600-7c30-8000-000000000c30 -> ms=1784894400000   (block)
+UUIDv7 019f93fd-c670-7001-8000-000000000001 -> ms=1784894310000   (head block, the block witness)
+UUIDv7 019f93fe-3c04-70a1-8000-0000000000a1 -> ms=1784894340100   (entropy observation)
+UUIDv7 019f9403-b9e0-70e1-8000-0000000000e1 -> ms=1784894700000   (epoch commitment)
+UUIDv7 019f9404-a440-70f1-8000-0000000000f1 -> ms=1784894760000   (merkle inclusion commitment)
+
+## C.7 Merkle small trees (0..7 leaves), sorted keys key01..keyNN, leaf hash = sha256("leaf<i>")
+n=0  padded_to=-  root=e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855  proof_depth=0
+         first_leaf_proof(b64url)=(no leaves; the empty tree has no proofs)
+n=1  padded_to=1  root=e6f3e0324c47532b4584166b9cdcbfb5f1dceaac9b097512d0e9e8501977daa0  proof_depth=0
+         first_leaf_proof(b64url)=key01: AA
+n=2  padded_to=2  root=5d3d9c89b11a0055ba0e43c2aaf4d3814717c01a8079bc1d05db80c41852b0f5  proof_depth=1
+         first_leaf_proof(b64url)=key01: AQHXisvDVvoXHOQLty_6dMveBsNq78JniprxjTl1WB6Wnw
+n=3  padded_to=4  root=738707d8051d65bb5b11d36cac93f7e5dccdee4676e836800a5d4e5c444103f1  proof_depth=2
+         first_leaf_proof(b64url)=key01: AgPXisvDVvoXHOQLty_6dMveBsNq78JniprxjTl1WB6WnwpaiKaXUNgr2l7zaXej_e_K07FvdZzDBGR8oS9jdqZT
+n=4  padded_to=4  root=1d8219ac8846f635dab3201c241583de32a73ca2f1b361cec04a419ae7806324  proof_depth=2
+         first_leaf_proof(b64url)=key01: AgPXisvDVvoXHOQLty_6dMveBsNq78JniprxjTl1WB6Wn9L6rrJFX-bbqgjmTqwuSTXNK8ySEpNot-suxdxUYLdR
+n=5  padded_to=8  root=2012533b81a14bd8c0ba9172d14ca4bd761449bf10065c5baf89bc487497e891  proof_depth=3
+         first_leaf_proof(b64url)=key01: AwfXisvDVvoXHOQLty_6dMveBsNq78JniprxjTl1WB6Wn9L6rrJFX-bbqgjmTqwuSTXNK8ySEpNot-suxdxUYLdRvwKRsLzm6CsEBq1W6ZUGsz229IXvpMBBgHFE5jkej8M
+n=6  padded_to=8  root=148337559cd25959c1c5f80dc1b0518a05ec308fbff4db47f2e133a67234f898  proof_depth=3
+         first_leaf_proof(b64url)=key01: AwfXisvDVvoXHOQLty_6dMveBsNq78JniprxjTl1WB6Wn9L6rrJFX-bbqgjmTqwuSTXNK8ySEpNot-suxdxUYLdRyFjVrlVrv68NB3q3LhpsY8fK7cZ-gIpz6RQ_JjthXuA
+n=7  padded_to=8  root=a08d49ae18a1ad35c5925064aa8fba66a6dfdcc24cd1ba9047d0e87493230ed4  proof_depth=3
+         first_leaf_proof(b64url)=key01: AwfXisvDVvoXHOQLty_6dMveBsNq78JniprxjTl1WB6Wn9L6rrJFX-bbqgjmTqwuSTXNK8ySEpNot-suxdxUYLdRTiYYWTzoEDuqwvXG_S9skQvk2SroR8-RqaLFV0sxnVQ
+
+## C.7 RFC 6962 comparison roots (no padding; differ wherever n is not a power of two)
+n=3  rfc6962_root = f078fbabd10cf51db1dc3552d960996e0fdae24ca5559d3aec20bf04cb65c441
+n=5  rfc6962_root = 3d7804d812524d931d28e05e6ee06d73a1f4c8c3a4f47a4210b14af54794b6fa
+
+## C.7 Merkle large tree (300 leaves)
+keys lk0001..lk0300; leaf value for lk<i> = sha256("bigleaf<i>") with i unpadded, so lk0001 -> sha256("bigleaf1") = 668799785ad06e8d58ba2dbe5c25f43909b131f594953211235e251b2d07d2c8
+root = f8c3f9a207a67fc22a297edcdf1dc0f17840ee9c8648ee3c8a7e5a71e5e42b92
+proof for lk0001: depth=9 bytes=291
+  hex     = 09ff017ae5473731274dc820c833c14c017faaabb40b4a1824951c15c8dae236a45439f75f2147efe8c29a2cd46f63d9de9ebc861c724e65fe332c0f0e776d0bb948b4f05f513ff50415599ebad3d80440597519f0cfc78205b869bf275c37b147f74b10e72eb52ba44dd896ca50ccfe904ba65383aa13edd5e5399c891ca707c1e0d0d5fa31f9fed6197bdd86c5f3e3e51feab211309e5c930e6e2a50110b087e80cd5a8ee767780a3727011c4c6a0b62f0b9475e593eceedd83810d41dae660c3e1d41d929a6e8903f8cc219521f90311da9d57d469b017c7b5785253d01a713fc146d695192b6352baa8f207a3c890264e53bd1bca4d3f83129f47e57bb0d6bd1183c9dd04c6c47fbe48f2e31598a04726a18ecbf651467390dd2e0217d4f598c1b
+  base64url = Cf8BeuVHNzEnTcggyDPBTAF_qqu0C0oYJJUcFcja4jakVDn3XyFH7-jCmizUb2PZ3p68hhxyTmX-MywPDndtC7lItPBfUT_1BBVZnrrT2ARAWXUZ8M_HggW4ab8nXDexR_dLEOcutSukTdiWylDM_pBLplODqhPt1eU5nIkcpwfB4NDV-jH5_tYZe92GxfPj5R_qshEwnlyTDm4qUBELCH6AzVqO52d4CjcnARxMagti8LlHXlk-zu3YOBDUHa5mDD4dQdkppuiQP4zCGVIfkDEdqdV9RpsBfHtXhSU9AacT_BRtaVGStjUrqo8gejyJAmTlO9G8pNP4MSn0fle7DWvRGDyd0ExsR_vkjy4xWYoEcmoY7L9lFGc5DdLgIX1PWYwb

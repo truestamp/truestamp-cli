@@ -40,7 +40,7 @@ func TestRedactingHandlerScrubsAttrs(t *testing.T) {
 }
 
 // TestRedactingHandlerWithBaseAttrs verifies that secrets baked into a
-// child logger via .With(...) — the path most subcommands will take —
+// child logger via .With(...), the path most subcommands will take,
 // are redacted at attach time, not just per record.
 func TestRedactingHandlerWithBaseAttrs(t *testing.T) {
 	const secret = "truestamp_BASE_ATTR_TOKEN"
@@ -62,7 +62,7 @@ func TestRedactingHandlerWithBaseAttrs(t *testing.T) {
 }
 
 // TestRedactingHandlerGroups confirms group nesting doesn't bypass
-// redaction — a secret inside slog.Group(...) must still be scrubbed.
+// redaction, a secret inside slog.Group(...) must still be scrubbed.
 func TestRedactingHandlerGroups(t *testing.T) {
 	const secret = "truestamp_GROUP_TOKEN"
 
@@ -104,7 +104,7 @@ func TestRedactingHandlerTransparent(t *testing.T) {
 }
 
 // TestRedactingHandlerEnabled checks the level filter is delegated, not
-// shadowed — debug records are dropped when the inner handler's level
+// shadowed, debug records are dropped when the inner handler's level
 // is info, regardless of redaction.
 func TestRedactingHandlerEnabled(t *testing.T) {
 	var buf bytes.Buffer
@@ -117,7 +117,7 @@ func TestRedactingHandlerEnabled(t *testing.T) {
 	}
 	logger.Info("should appear")
 	if buf.Len() == 0 {
-		t.Fatalf("info record dropped — Enabled() not delegating")
+		t.Fatalf("info record dropped, Enabled() not delegating")
 	}
 
 	// Direct Enabled() call should also delegate.
@@ -194,7 +194,7 @@ func TestNewComponentTag(t *testing.T) {
 
 // FuzzRedactingHandlerNoLeak asserts that the api_key value inside an
 // `api_key=…` URL is scrubbed no matter which attribute channel it
-// arrives through — string attribute, error attribute, nested group,
+// arrives through, string attribute, error attribute, nested group,
 // base attribute attached via .With(), or the record's message text.
 //
 // This complements FuzzRedact (which fuzzes the pure regex) by
@@ -202,7 +202,7 @@ func TestNewComponentTag(t *testing.T) {
 // KindString / KindAny / KindGroup, the message-text path through
 // slog.NewRecord, and the WithAttrs base-attr path that .With() takes.
 //
-// Scope deliberately excludes "bare token detection" — the redactor
+// Scope deliberately excludes "bare token detection", the redactor
 // only knows the api_key= and Bearer patterns by design (high-entropy
 // token heuristics would false-positive on hashes / IDs / merkle
 // roots), so fuzz inputs that contain the secret bytes outside of
@@ -232,7 +232,7 @@ func FuzzRedactingHandlerNoLeak(f *testing.F) {
 
 	f.Fuzz(func(t *testing.T, msg, key, val string) {
 		// Skip inputs that already contain the secret bytes outside our
-		// known wrapping patterns — the redactor only targets api_key=
+		// known wrapping patterns, the redactor only targets api_key=
 		// and Bearer by design, not bare tokens.
 		if strings.Contains(msg, secret) || strings.Contains(key, secret) || strings.Contains(val, secret) {
 			return
@@ -257,7 +257,7 @@ func FuzzRedactingHandlerNoLeak(f *testing.F) {
 		)
 
 		// Even malformed keys (empty, with quotes/newlines, etc.) must
-		// not crash slog or the handler — the fuzz catches both panics
+		// not crash slog or the handler, the fuzz catches both panics
 		// and post-redaction leaks.
 		base.Info(msg+" "+secretURL+" "+bearerHeader,
 			slog.String(key, secretURL),

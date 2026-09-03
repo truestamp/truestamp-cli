@@ -21,7 +21,7 @@ func FuzzIsHTTPURL(f *testing.F) {
 }
 
 // FuzzValidateURL: the huh form's validator predicate. Pure function
-// so crashes here are a Go stdlib regression, not ours — still cheap
+// so crashes here are a Go stdlib regression, not ours, still cheap
 // to guard against.
 func FuzzValidateURL(f *testing.F) {
 	for _, s := range []string{

@@ -67,7 +67,7 @@ func TestComputeKeyID(t *testing.T) {
 }
 
 // Appendix D.1's bundle and the intermediate values D.3 publishes for it. They
-// are the normative worked example, so they are the right anchor for the four
+// are the normative worked example, so they are the right reference for the four
 // preimages this package builds; a length-only assertion (the shape most of the
 // tests below use) cannot tell a correct preimage from a permuted one.
 const (
@@ -150,7 +150,7 @@ func TestAppendixDBlockHash(t *testing.T) {
 // TestAppendixDProofHashAndSignature pins E.16 end to end: the 81 + 32*N byte
 // layout, the 0x61 proof hash it produces, and an Ed25519 verification of the
 // published signature over it. BuildCompactProofPayload had no known-answer
-// test at all before this — only a crash fuzzer — so every offset and width in
+// test at all before this, only a crash fuzzer, so every offset and width in
 // the payload was unpinned inside the package that defines them.
 func TestAppendixDProofHashAndSignature(t *testing.T) {
 	t.Parallel()
@@ -344,7 +344,7 @@ func TestValidateLowercaseHex(t *testing.T) {
 		in      string
 		wantErr bool
 		// substr, when set, must appear in the error so the message keeps
-		// naming the offending byte and its offset — a report that only
+		// naming the offending byte and its offset, a report that only
 		// says "invalid" cannot tell an operator which character to fix.
 		substr string
 	}{
@@ -398,8 +398,8 @@ func TestHexToBytes_RejectsUppercase(t *testing.T) {
 // wire fields, so the Subject Data and Block Hash rows read identically
 // while pointing at s.mh/s.kid and b.mh/b.kid respectively, and an operator
 // could not tell which value to fix. Inputs with no wire field of their own
-// — the derived claims_hash and entropy_hash, and epoch_root, which is
-// cx[i].memo or cx[i].op depending on the entry — keep descriptive names.
+// , the derived claims_hash and entropy_hash, and epoch_root, which is
+// cx[i].memo or cx[i].op depending on the entry, keep descriptive names.
 func TestPreimageBuilders_RejectUppercaseInputs(t *testing.T) {
 	t.Parallel()
 	var (
@@ -420,34 +420,34 @@ func TestPreimageBuilders_RejectUppercaseInputs(t *testing.T) {
 			_, err := ComputeItemHash(ulid, upperDigest, lowerDigest, lowerKid)
 			return err
 		}, "claims_hash"},
-		{"ComputeItemHash s.mh", func() error {
+		{"ComputeItemHash metadata_hash", func() error {
 			_, err := ComputeItemHash(ulid, lowerDigest, upperDigest, lowerKid)
 			return err
-		}, "s.mh"},
-		{"ComputeItemHash s.kid", func() error {
+		}, "metadata_hash"},
+		{"ComputeItemHash signing_key_id", func() error {
 			_, err := ComputeItemHash(ulid, lowerDigest, lowerDigest, upperKid)
 			return err
-		}, "s.kid"},
-		{"ComputeObservationHash s.mh", func() error {
+		}, "signing_key_id"},
+		{"ComputeObservationHash metadata_hash", func() error {
 			_, err := ComputeObservationHash(uuid, lowerDigest, upperDigest, lowerKid)
 			return err
-		}, "s.mh"},
-		{"ComputeBlockHash b.ph", func() error {
+		}, "metadata_hash"},
+		{"ComputeBlockHash previous_block_hash", func() error {
 			_, err := ComputeBlockHash(uuid, upperDigest, lowerDigest, lowerDigest, lowerKid)
 			return err
-		}, "b.ph"},
-		{"ComputeBlockHash b.mr", func() error {
+		}, "previous_block_hash"},
+		{"ComputeBlockHash merkle_root", func() error {
 			_, err := ComputeBlockHash(uuid, lowerDigest, upperDigest, lowerDigest, lowerKid)
 			return err
-		}, "b.mr"},
-		{"ComputeBlockHash b.mh", func() error {
+		}, "merkle_root"},
+		{"ComputeBlockHash metadata_hash", func() error {
 			_, err := ComputeBlockHash(uuid, lowerDigest, lowerDigest, upperDigest, lowerKid)
 			return err
-		}, "b.mh"},
-		{"ComputeBlockHash b.kid", func() error {
+		}, "metadata_hash"},
+		{"ComputeBlockHash signing_key_id", func() error {
 			_, err := ComputeBlockHash(uuid, lowerDigest, lowerDigest, lowerDigest, upperKid)
 			return err
-		}, "b.kid"},
+		}, "signing_key_id"},
 		{"BuildCompactProofPayload epoch root", func() error {
 			_, err := BuildCompactProofPayload(1, 20, lowerKid, 0, lowerDigest, lowerDigest, []string{upperDigest})
 			return err
@@ -476,8 +476,8 @@ func TestPreimageBuilders_RejectUppercaseInputs(t *testing.T) {
 // E.7 instructs a verifier to normalize a caller-supplied hash ("trim,
 // downcase") before comparing it, and the reference verifier does the same
 // at that one site. The E.21 / E.18 / E.19 comparisons read a value chosen
-// by an outside service — the NIST beacon API publishes outputValue in
-// uppercase — so a case-sensitive compare there grades a sound proof a
+// by an outside service, the NIST beacon API publishes outputValue in
+// uppercase, so a case-sensitive compare there grades a sound proof a
 // value mismatch. Bundle-carried hex no longer relies on the fold: it is
 // rejected upstream by [ValidateLowercaseHex] before any compare sees it.
 func TestHexEqual_StillFoldsCaseForItsTwoCallers(t *testing.T) {
@@ -503,8 +503,8 @@ func TestHexEqual(t *testing.T) {
 	if HexEqual("abcdef", "abcdee") {
 		t.Error("HexEqual should detect differences")
 	}
-	// Both directions. The live call sites pass the operands in both orders —
-	// HexEqual(opts.ExpectedHash, r.Claims.Hash) puts the short one first —
+	// Both directions. The live call sites pass the operands in both orders,
+	// HexEqual(opts.ExpectedHash, r.Claims.Hash) puts the short one first,
 	// so a guard that only rejected "first longer than second" would let a
 	// 4-character --hash "match" a 64-character claims hash.
 	if HexEqual("abcdef", "abcd") {
@@ -560,7 +560,7 @@ func TestHexEqualSemanticParity(t *testing.T) {
 		// Length asymmetry in BOTH orders. Truncating one operand to the
 		// other's length turns HexEqual into a prefix comparison, and the live
 		// call site verify.go's HexEqual(opts.ExpectedHash, r.Claims.Hash)
-		// passes the caller-supplied — possibly short — operand first.
+		// passes the caller-supplied, possibly short, operand first.
 		{"abcdef", "abcd", false},
 		{"abcd", "abcdef", false},
 		{"", "a", false},
@@ -595,7 +595,7 @@ func TestHexEqualParityOverByteRange(t *testing.T) {
 	t.Parallel()
 	// Every single-byte pair, so the fold boundaries are exhaustively pinned
 	// rather than sampled. Both operands are one byte long, so this sweep says
-	// nothing about length handling — TestHexEqualParityOverLengths is what
+	// nothing about length handling, TestHexEqualParityOverLengths is what
 	// covers that axis.
 	for a := 0; a < 256; a++ {
 		for b := 0; b < 256; b++ {
@@ -642,7 +642,7 @@ func TestHexEqualNoEarlyExit(t *testing.T) {
 	// A behavioural net for the constant-time rewrite: a mismatch at the
 	// first byte and at the last byte are both detected. The timing property
 	// itself is documented by BenchmarkHexEqualEarlyDiff /
-	// BenchmarkHexEqualLateDiff — timing is not reliably assertable in CI and
+	// BenchmarkHexEqualLateDiff, timing is not reliably assertable in CI and
 	// must not become a flaky gate.
 	base := strings.Repeat("a", 64)
 	early := "b" + base[1:]

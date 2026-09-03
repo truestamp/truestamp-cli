@@ -9,7 +9,7 @@ import (
 )
 
 // FuzzDecodeCompactMerkleProof feeds arbitrary base64url strings to
-// the compact-proof decoder. Must never panic — every malformed input
+// the compact-proof decoder. Must never panic, every malformed input
 // returns a typed error.
 func FuzzDecodeCompactMerkleProof(f *testing.F) {
 	for _, s := range []string{
@@ -73,14 +73,14 @@ func FuzzHexToBytes(f *testing.F) {
 	})
 }
 
-// FuzzHexEqual exercises the case-insensitive hex comparator — pure
+// FuzzHexEqual exercises the case-insensitive hex comparator, pure
 // string code with explicit index arithmetic, worth fuzzing.
 func FuzzHexEqual(f *testing.F) {
 	f.Add("deadbeef", "DEADBEEF")
 	f.Add("", "")
 	f.Add("ab", "cd")
 	// Non-hex and odd-length operands, and the bytes bracketing the 'A'-'F'
-	// fold range — the cases the constant-time rewrite had to preserve.
+	// fold range, the cases the constant-time rewrite had to preserve.
 	f.Add("zz", "zz")
 	f.Add("abc", "abc")
 	f.Add("@", "`")
@@ -114,7 +114,7 @@ func FuzzValidateClaimsHash(f *testing.F) {
 	f.Add("", "")
 	f.Add("deadbeef", "sha256")
 	f.Add("xxx", "sha3_256")
-	// Correct width, wrong character set — the charset arm.
+	// Correct width, wrong character set, the charset arm.
 	f.Add(strings.Repeat("z", 64), "sha256")
 	f.Add(strings.ToUpper(strings.Repeat("ab", 32)), "sha256")
 

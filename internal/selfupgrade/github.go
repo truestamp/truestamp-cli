@@ -81,7 +81,7 @@ func fetchRelease(ctx context.Context, url string) (*Release, error) {
 	}
 
 	var rel Release
-	// We deliberately do NOT call DisallowUnknownFields — the GitHub
+	// We deliberately do NOT call DisallowUnknownFields, the GitHub
 	// payload is much larger than our shape and we only care about the
 	// handful of fields declared on Release.
 	if err := json.NewDecoder(resp.Body).Decode(&rel); err != nil {

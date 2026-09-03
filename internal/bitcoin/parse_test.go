@@ -14,7 +14,7 @@ import (
 
 // buildRawTx serializes a transaction with one dummy input and one output per
 // supplied pkScript, returning its raw hex. Values and the input are
-// irrelevant to ExtractOpReturn — only the output scripts matter.
+// irrelevant to ExtractOpReturn, only the output scripts matter.
 func buildRawTx(t *testing.T, scripts ...[]byte) string {
 	t.Helper()
 	tx := wire.NewMsgTx(2)

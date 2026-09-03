@@ -30,7 +30,7 @@ func FuzzParsePrefixByte(f *testing.F) {
 	})
 }
 
-// FuzzParseTime: `convert time` parser — RFC 3339 or Unix-{s,ms,us,ns}.
+// FuzzParseTime: `convert time` parser, RFC 3339 or Unix-{s,ms,us,ns}.
 func FuzzParseTime(f *testing.F) {
 	for _, raw := range []string{"", "now", "1700000000", "2026-04-21T12:00:00Z", "garbage"} {
 		for _, from := range []string{"", "auto", "rfc3339", "unix-s", "unix-ms", "unix-us", "unix-ns"} {
@@ -103,8 +103,8 @@ func FuzzResolveZone(f *testing.F) {
 
 // FuzzPrettyJSON: `convert proof --to json` re-indents the marshaled
 // bundle without re-encoding it, so json.Indent is handed bytes derived
-// from an attacker-supplied proof. It must never panic, and — the whole
-// reason it replaced a round-trip through `any` — must never alter a
+// from an attacker-supplied proof. It must never panic, and, the whole
+// reason it replaced a round-trip through `any`, must never alter a
 // number literal, which is what a claims_hash is computed over. Seeds
 // cover the boundary Appendix C.2a pins (2^53 and 2^53 + 1), a uint64
 // that overflows float64, floats, and the shapes json.Indent rejects.

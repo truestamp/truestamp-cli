@@ -150,8 +150,8 @@ func Classify(err error) Outcome {
 		return OutcomeUnavailable
 	}
 
-	// Everything else — transport failure, DNS, TLS, client timeout,
-	// context cancellation, or an error shape we do not recognize —
+	// Everything else, transport failure, DNS, TLS, client timeout,
+	// context cancellation, or an error shape we do not recognize,
 	// means no answer was obtained.
 	return OutcomeUnavailable
 }

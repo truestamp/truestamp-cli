@@ -110,7 +110,7 @@ func TestGoFor_Format(t *testing.T) {
 	}
 }
 
-// populateFromBuildInfo unit tests — exercise every branch of the
+// populateFromBuildInfo unit tests, exercise every branch of the
 // BuildInfo parser without relying on runtime.debug.ReadBuildInfo
 // (which is controlled by whatever the test harness built us with).
 func TestPopulateFromBuildInfo_UsesMainPath(t *testing.T) {

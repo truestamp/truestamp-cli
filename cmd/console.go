@@ -22,13 +22,13 @@ var consoleCmd = &cobra.Command{
 	Short: "Open the interactive Truestamp console (TUI)",
 	Long: `Open an authenticated WebSocket console with multiple panes:
 
-  • Monitor    — live waterfall of block, commitment, and entropy events
+  • Monitor   , live waterfall of block, commitment, and entropy events
                  (subscribe/unsubscribe to streams on demand)
-  • New Item   — create a timestamped item and watch its lifecycle live
-  • Teams      — switch the active team in place, or create a new one
-  • Connection — diagnostics, scope, push counts, log file path
+  • New Item  , create a timestamped item and watch its lifecycle live
+  • Teams     , switch the active team in place, or create a new one
+  • Connection, diagnostics, scope, push counts, log file path
 
-Authentication uses your active Truestamp session — an OAuth sign-in (run
+Authentication uses your active Truestamp session, an OAuth sign-in (run
 'truestamp auth login') or, for headless/CI use, an API key via
 TRUESTAMP_API_KEY. The wire protocol is Phoenix Channels' V2 JSON-array
 format and is hand-writable from websocat for scripting.
@@ -51,7 +51,7 @@ func init() {
 
 func runConsole(cmd *cobra.Command, _ []string) error {
 	if !authConfigured() {
-		return fmt.Errorf("not authenticated — run `truestamp auth login` (or set TRUESTAMP_API_KEY)")
+		return fmt.Errorf("not authenticated, run `truestamp auth login` (or set TRUESTAMP_API_KEY)")
 	}
 
 	// Resolve the WebSocket URL. Default comes from base_url via Config;
@@ -62,7 +62,7 @@ func runConsole(cmd *cobra.Command, _ []string) error {
 		wsURL = appConfig.WebSocketURL
 	}
 
-	// First-run team picker — only when stdin is a TTY and no team
+	// First-run team picker, only when stdin is a TTY and no team
 	// is configured. Non-TTY callers fall through to the existing
 	// personal-team-fallback behaviour. The picker writes the chosen
 	// team id to config.toml so subsequent invocations skip this
@@ -119,19 +119,19 @@ func promptForFirstRunTeam(ctx context.Context) (string, error) {
 	memberships, err := teams.ListMyMemberships(pctx, cfg)
 	if err != nil {
 		// Soft-fail: the user can still launch the console without
-		// configuring a team — the server falls back to the personal
+		// configuring a team, the server falls back to the personal
 		// team. Surface a faint warning so they know why the picker
 		// didn't appear.
 		fmt.Fprintln(os.Stderr,
 			ui.FaintStyle().Render(
 				"  Could not list teams: "+err.Error()+
-					" — proceeding with personal-team fallback."))
+					", proceeding with personal-team fallback."))
 		return "", nil
 	}
 	if len(memberships) == 0 {
 		fmt.Fprintln(os.Stderr,
 			ui.FaintStyle().Render(
-				"  No teams found for this API key — proceeding with personal-team fallback."))
+				"  No teams found for this API key, proceeding with personal-team fallback."))
 		return "", nil
 	}
 

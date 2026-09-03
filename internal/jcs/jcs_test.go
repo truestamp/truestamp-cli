@@ -25,7 +25,7 @@ func digest0x11(canonical []byte) string {
 }
 
 // TestC2aVectors is the self-certification set Appendix E.25 points a port at.
-// The last row — 2^53 + 1 — is the regression anchor for this package: with
+// The last row, 2^53 + 1, is the regression pin for this package: with
 // gowebpki/jcs alone it rounds down and collides with the 2^53 row above it,
 // mapping two distinct normative vectors onto one digest.
 func TestC2aVectors(t *testing.T) {
@@ -236,7 +236,7 @@ func TestArbitraryPrecisionInteger(t *testing.T) {
 
 // TestSilentRewritesAreRejected is the regression net for the strict RFC 8259
 // gate. Every row is a document gowebpki/jcs accepts and rewrites into a
-// DIFFERENT valid document — the failure mode is not a crash but a confident
+// DIFFERENT valid document, the failure mode is not a crash but a confident
 // wrong digest, so each row asserts both that Canonicalize refuses and that the
 // library on its own would have produced the named impostor.
 func TestSilentRewritesAreRejected(t *testing.T) {
@@ -281,7 +281,7 @@ func TestSilentRewritesAreRejected(t *testing.T) {
 
 // TestSilentRewritesDoNotCollide is the user-facing half of the same defect:
 // `truestamp hash --jcs` digests whatever Canonicalize returns, so before the
-// gate two byte-distinct inputs — one malformed, one not — produced one digest.
+// gate two byte-distinct inputs, one malformed, one not, produced one digest.
 func TestSilentRewritesDoNotCollide(t *testing.T) {
 	malformed, wellFormed := []byte(`{"a":1 2}`), []byte(`{"a":12}`)
 
@@ -341,7 +341,7 @@ func TestLibraryErrorTextPreserved(t *testing.T) {
 
 // TestValidInputStillCanonicalizes is the counterweight to the gate: everything
 // RFC 8259 allows must still come through, including the shapes that make the
-// gate non-trivial — a bare top-level scalar, a 400-digit integer the library
+// gate non-trivial, a bare top-level scalar, a 400-digit integer the library
 // alone cannot handle, trailing whitespace, and a duplicate key that only the
 // library rejects.
 func TestValidInputStillCanonicalizes(t *testing.T) {
@@ -367,8 +367,8 @@ func TestValidInputStillCanonicalizes(t *testing.T) {
 }
 
 // TestFloatsAreNeverFlagged pins the settled F3 rule that only integers reach
-// the Appendix E.4 report. The classification lives in one place — the base-10
-// big.Int parse — and this table is what keeps a future refactor of it from
+// the Appendix E.4 report. The classification lives in one place, the base-10
+// big.Int parse, and this table is what keeps a future refactor of it from
 // silently starting to flag floats, which would add a warn row E.25 containment
 // forbids.
 func TestFloatsAreNeverFlagged(t *testing.T) {
@@ -616,7 +616,7 @@ func TestThresholdsDifferByOne(t *testing.T) {
 	if MaxSafeInteger != MaxExactInteger-1 {
 		t.Fatalf("MaxSafeInteger = %d, MaxExactInteger = %d: the producer bound must be "+
 			"exactly one below the verifier bound. If you are here to unify them, read the "+
-			"doc comments on both constants first — the gap is deliberate.",
+			"doc comments on both constants first, the gap is deliberate.",
 			MaxSafeInteger, MaxExactInteger)
 	}
 	if MaxSafeInteger != 9007199254740991 {
@@ -669,7 +669,7 @@ func TestUnsafeIntegersBoundary(t *testing.T) {
 					t.Errorf("path = %q, want %q", got[0].Path, "claims.n")
 				}
 				if got[0].Literal != tc.lit {
-					t.Errorf("literal = %q, want %q — the reported value must be the user's own bytes", got[0].Literal, tc.lit)
+					t.Errorf("literal = %q, want %q, the reported value must be the user's own bytes", got[0].Literal, tc.lit)
 				}
 				return
 			}
@@ -702,7 +702,7 @@ func TestUnsafeIntegersIgnoresFloats(t *testing.T) {
 }
 
 // TestUnsafeIntegersIgnoresStrings confirms the documented escape hatch works:
-// the fix a user is told to apply — send the value as a string — actually
+// the fix a user is told to apply, send the value as a string, actually
 // clears the guard.
 func TestUnsafeIntegersIgnoresStrings(t *testing.T) {
 	doc := `{"id":"18446744073709551615","nested":{"n":"9007199254740993"}}`
@@ -803,8 +803,8 @@ func TestUnsafeIntegersEmptyAndPortable(t *testing.T) {
 	}
 }
 
-// TestUnsafeIntegerMessage pins the four facts the message must carry — path,
-// value, allowed range, and the stringify remedy — and the exact wording, which
+// TestUnsafeIntegerMessage pins the four facts the message must carry, path,
+// value, allowed range, and the stringify remedy, and the exact wording, which
 // mirrors Truestamp.SafeIntegers.message/2 server-side so the local and remote
 // rejections read as one system.
 func TestUnsafeIntegerMessage(t *testing.T) {

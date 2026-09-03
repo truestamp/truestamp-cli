@@ -62,8 +62,8 @@ var appStartTime time.Time
 
 var rootCmd = &cobra.Command{
 	Use:     "truestamp",
-	Short:   "Truestamp CLI — tools for cryptographic timestamping",
-	Long:    "Truestamp CLI — tools for cryptographic timestamping\n\n" + version.Copyright(),
+	Short:   "Truestamp CLI, tools for cryptographic timestamping",
+	Long:    "Truestamp CLI, tools for cryptographic timestamping\n\n" + version.Copyright(),
 	Version: version.Short(),
 	PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
 		// Skip initialization for completion/help (no config/HTTP/log
@@ -110,7 +110,7 @@ var rootCmd = &cobra.Command{
 
 		// Build the process-wide logger once config has been resolved
 		// so user-supplied --log-file / TRUESTAMP_LOGGING_FILE / TOML
-		// settings are honored. File creation failures are non-fatal —
+		// settings are honored. File creation failures are non-fatal,
 		// we fall back to a discard logger and emit a one-line stderr
 		// warning so a read-only home directory doesn't break commands.
 		logger, logPath, lerr := logging.New(logging.Options{
@@ -162,7 +162,7 @@ func init() {
 
 // loggerContextKey is the context.Value key for the process logger.
 // Unexported so external packages can't fish it out by guessing the
-// key — they must call LoggerFrom or read appLogger directly (only
+// key, they must call LoggerFrom or read appLogger directly (only
 // possible from the cmd package).
 type loggerContextKey struct{}
 
@@ -189,8 +189,8 @@ func LoggerFrom(ctx context.Context) *slog.Logger {
 	return logging.Discard()
 }
 
-// authConfigured reports whether any credential — an OAuth session or an
-// API key — is active for this invocation. Subcommands gate on it before
+// authConfigured reports whether any credential, an OAuth session or an
+// API key, is active for this invocation. Subcommands gate on it before
 // making authenticated calls so the user gets a clear "log in" message
 // instead of a raw 401.
 func authConfigured() bool { return auth.Default().Mode() != auth.ModeNone }
@@ -212,7 +212,7 @@ func maybeEmitUpgradeNotice(cmd *cobra.Command) {
 		return
 	}
 
-	// Don't emit on non-TTY or CI — the Disabled() check handles those.
+	// Don't emit on non-TTY or CI, the Disabled() check handles those.
 	flagDisabled, _ := cmd.Flags().GetBool("no-upgrade-check")
 	upgradecheck.MaybeNotify(cmd.ErrOrStderr(), flagDisabled, version.Version)
 }
@@ -258,7 +258,7 @@ func Execute() (err error) {
 
 	err = rootCmd.Execute()
 	// Mirror the final outcome to the log so a single grep over
-	// truestamp.log shows every invocation's exit shape — even when
+	// truestamp.log shows every invocation's exit shape, even when
 	// the failure short-circuited PersistentPostRun.
 	if !appStartTime.IsZero() {
 		dur := time.Since(appStartTime)

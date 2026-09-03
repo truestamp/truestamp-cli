@@ -17,8 +17,8 @@ import (
 var teamShowCmd = &cobra.Command{
 	Use:   "show [id]",
 	Short: "Show the active team in detail (or a specific team by id)",
-	Long: `Show the active team — the one currently configured under 'team' in
-config.toml — with its name, role, personal flag, ownership model, and
+	Long: `Show the active team, the one currently configured under 'team' in
+config.toml, with its name, role, personal flag, ownership model, and
 public-web links. With no argument, defaults to the active team.
 
 Pass an explicit team id to inspect a different team. The id must be
@@ -61,7 +61,7 @@ func runTeamShow(cmd *cobra.Command, args []string) error {
 	}
 
 	// Use the actor's CURRENT active tenant (cfg.Team) as the tenant
-	// header — never the id we're looking up. The server's tenant
+	// header, never the id we're looking up. The server's tenant
 	// resolution rejects the request with 403 if the tenant header
 	// names a team the actor isn't a member of, which would mask the
 	// real "not found" / "no membership" cause behind a misleading
@@ -73,7 +73,7 @@ func runTeamShow(cmd *cobra.Command, args []string) error {
 
 	role, err := teams.GetMyRoleOnTeam(cmd.Context(), cfg, teamID)
 	if err != nil {
-		// Soft-fail the role lookup — the team detail is the headline
+		// Soft-fail the role lookup, the team detail is the headline
 		// info; missing role degrades to "(unknown)" rather than
 		// erroring the whole subcommand.
 		if !silent && !errors.Is(err, teams.ErrUnauthorized) {

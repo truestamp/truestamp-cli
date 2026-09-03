@@ -22,7 +22,7 @@ import (
 //
 // `id` is not decoration: it is the only field that ties the answer to
 // the question. Height is a pointer so an absent `height` is
-// distinguishable from a real height of 0 — without that, a body that
+// distinguishable from a real height of 0, without that, a body that
 // says nothing about height decodes to 0 and the caller reports "the
 // chain reports 0" as a positive statement about Bitcoin.
 type blockstreamBlock struct {
@@ -79,7 +79,7 @@ func blockstreamBaseURL(network string) (string, bool) {
 // unrecognised all land there.
 //
 // Known consequence: `net` is not in the 0x61 signature payload, so this
-// is an unauthenticated downgrade lever — a bundle whose header is
+// is an unauthenticated downgrade lever, a bundle whose header is
 // genuinely absent from mainnet can have `net` rewritten and the
 // definitive on-chain refutation becomes a skip. It cannot be closed by
 // grading: regtest is a legitimate Truestamp network with no public API,
@@ -128,7 +128,7 @@ func VerifyBitcoinBlock(blockHash, network string) (*BitcoinResult, bool, error)
 	// "against something outside the bundle", so the answer MUST be
 	// about the block that was asked for. Without this guard a 200 body
 	// describing any other block is reported as `pass ... confirmed on
-	// mainnet` with externally_verified true — a binding the lookup
+	// mainnet` with externally_verified true, a binding the lookup
 	// never established.
 	//
 	// A non-matching id is graded Malformed, not Mismatch: the bundle
@@ -183,7 +183,7 @@ type BitcoinBlockHeader struct {
 
 // GetBitcoinBlockHeader fetches a Bitcoin block header from Blockstream by
 // block hash. Returns (nil, skipped=true, nil) when `net` resolves to no
-// public Blockstream endpoint — regtest, an absent net, or an unrecognised
+// public Blockstream endpoint, regtest, an absent net, or an unrecognised
 // name (see [BitcoinNetworkSkipReason]). Errors are typed for [Classify].
 func GetBitcoinBlockHeader(blockHash, network string) (*BitcoinBlockHeader, bool, error) {
 	baseURL, ok := blockstreamBaseURL(network)

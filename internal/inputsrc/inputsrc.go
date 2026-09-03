@@ -28,8 +28,8 @@ import (
 )
 
 // Sentinel flag values set via pflag's NoOptDefVal. The parenthesised
-// form is used so that pflag's help renderer — which prints
-// `--file string[="<NoOptDefVal>"]` — produces something readable
+// form is used so that pflag's help renderer, which prints
+// `--file string[="<NoOptDefVal>"]`, produces something readable
 // rather than whitespace or control characters. A user typing
 // `--file=(pick)` or `--url=(prompt)` will hit the interactive flow,
 // which is harmless since those literal filenames/URLs are effectively
@@ -108,7 +108,7 @@ type Options struct {
 	// File paths are streamed straight from disk and are not affected.
 	MaxBytes int64
 
-	// HTTPTimeout is currently unused — downloads go through the shared
+	// HTTPTimeout is currently unused, downloads go through the shared
 	// httpclient, whose process-wide timeout (set during startup) always
 	// applies. Kept for a future per-call override.
 	HTTPTimeout time.Duration
@@ -329,7 +329,7 @@ func pickFile(opts Options) (string, error) { return pickFileFunc(opts) }
 func promptURL(opts Options) (string, error) { return promptURLFunc(opts) }
 
 // defaultPickFile launches the shared interactive picker. Fails fast with
-// [ErrNoTTY] when stdin isn't a terminal — otherwise huh would crash deep
+// [ErrNoTTY] when stdin isn't a terminal, otherwise huh would crash deep
 // in its render path with a cryptic error.
 func defaultPickFile(opts Options) (string, error) {
 	if !IsStdinTerminal() {
@@ -343,7 +343,7 @@ func defaultPickFile(opts Options) (string, error) {
 }
 
 // defaultPromptURL collects a URL via a huh text input form. Fails fast
-// with [ErrNoTTY] when stdin isn't a terminal — otherwise huh would
+// with [ErrNoTTY] when stdin isn't a terminal, otherwise huh would
 // crash deep in its render path with a cryptic error.
 func defaultPromptURL(opts Options) (string, error) {
 	if !IsStdinTerminal() {
@@ -390,7 +390,7 @@ func validateURL(s string) error {
 }
 
 // downloadURL validates the URL shape and fetches bytes through the
-// shared HTTP client. Kept generic — does not assume a JSON body.
+// shared HTTP client. Kept generic, does not assume a JSON body.
 func downloadURL(ctx context.Context, rawURL string, opts Options) ([]byte, error) {
 	if !isHTTPURL(rawURL) {
 		return nil, fmt.Errorf("URL must be http:// or https:// with a host: %q", rawURL)

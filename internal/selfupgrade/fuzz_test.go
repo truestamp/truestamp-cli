@@ -74,7 +74,7 @@ func FuzzExtractBinary(f *testing.F) {
 		if len(body) > 1<<16 {
 			return
 		}
-		// Reject non-UTF8 names defensively — not the thing we're
+		// Reject non-UTF8 names defensively, not the thing we're
 		// fuzzing. (Real tarballs carry arbitrary bytes but that's
 		// filesystem-dependent and not our attack surface here.)
 		if !isPrintableName(tarName) {
@@ -138,8 +138,8 @@ func makeFuzzTarGz(path, name string, body []byte) error {
 }
 
 // isPrintableName keeps the fuzzer within the set of names a real
-// GoReleaser tarball could plausibly carry — no NUL bytes, no control
-// characters — so the test focuses on semantic escapes (../) rather
+// GoReleaser tarball could plausibly carry, no NUL bytes, no control
+// characters, so the test focuses on semantic escapes (../) rather
 // than OS-filesystem edge cases.
 func isPrintableName(s string) bool {
 	for _, r := range s {

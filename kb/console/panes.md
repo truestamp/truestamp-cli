@@ -148,7 +148,7 @@ field.
 | `enter` | create |
 | `esc` | cancel |
 | `ctrl+c` | quit (raises the quit-confirmation prompt) |
-| `ctrl+tab` / `ctrl+shift+tab` | switch panes — the only other bindings the modal doesn't capture |
+| `ctrl+tab` / `ctrl+shift+tab` | switch panes, the only other bindings the modal doesn't capture |
 
 **Connection** (`ConnectionKeys`):
 

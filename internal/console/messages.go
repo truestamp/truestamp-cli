@@ -77,7 +77,7 @@ type authFailedMsg struct {
 	Reason string
 }
 
-// welcomeMsg is dispatched after a successful Connect — it carries the
+// welcomeMsg is dispatched after a successful Connect, it carries the
 // initial welcome envelope from the server (scope summary, stream catalog,
 // server build info).
 type welcomeMsg struct {
@@ -135,7 +135,7 @@ type teamAccessMsg struct {
 // Silent suppresses the in-pane "Switched to X" notice. Set when the
 // switch was an automatic alignment fired by applyWelcomeToScope to
 // reconcile the server-side default scope (always Personal at WS
-// connect time) with the user's persisted config preference — that
+// connect time) with the user's persisted config preference, that
 // reconciliation is supposed to be invisible. User-initiated
 // switches (enter on a row) leave Silent false so the user gets the
 // confirmation feedback.
@@ -240,7 +240,7 @@ func waitForPush(client *wschannel.Client) tea.Cmd {
 		}
 
 		// Synthetic event that fires after each successful rejoin
-		// on reconnect — the pane code uses it to replay any
+		// on reconnect, the pane code uses it to replay any
 		// in-channel subscriptions the server has forgotten.
 		if p.Event == wschannel.ReconnectedEvent {
 			return rejoinedMsg{Topic: p.Topic, Welcome: p.Payload}

@@ -241,7 +241,7 @@ func readYes(r io.Reader) bool {
 
 // stdinIsTerminal reports whether the program's stdin is attached to
 // a real interactive terminal. The earlier `(info.Mode() & os.ModeCharDevice) != 0`
-// check was too lax — `/dev/null` is also a character device, so any
+// check was too lax, `/dev/null` is also a character device, so any
 // `cmd < /dev/null` invocation incorrectly looked like a TTY and the
 // CLI would happily try to spawn an interactive picker that then read
 // EOF immediately. golang.org/x/term.IsTerminal goes through tcgetattr,

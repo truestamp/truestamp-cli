@@ -1,0 +1,54 @@
+# Appendix D derivation trace (all values reproduce from bundle.json)
+illustrative_private_seed(hex) = 4242424242424242424242424242424242424242424242424242424242424242   (DO NOT USE; example only)
+public_key(base64) = IVL40Zt5HSRFMkLhXy6rbLfP+ntqXtMAl5YOBpiB2xI=
+key_id             = f2c39df9
+
+subject:
+  JCS(subject.claims) = {"description":"Illustrative item for the Truestamp whitepaper. Not a production record.","hash":"b47cc0f104b62d4c7c30bcd68fd8e67613e287dc4ad8c310ef10cbadea9c4380","hash_type":"sha256","name":"Appendix D worked example"}
+  claims_hash 0x11 = ae5cdc73a52359a4fb0e335f004a6cd0cb1247024e812263e362368915a4b924
+  JCS(subject.metadata) = {"witnesses":{"block":"f6912793a49f289affc65a9571993444ae33760307ee973d37a8f90ea3b2d8e9","entropy_bitcoin":"e358c850958e1f1e8ad4c60c237a565ccf7f4f09788243d6d9efafcd131e3e3d","entropy_nist":"0a5eb1a1721a463924404929e46ba7afb5457d279a76cde217f38777f4610bfa","entropy_stellar":"8a7e002361b83a4e05e09150dd2d04497c3480ef59d833198c6d41acd9fd8f70"}}
+  metadata_hash 0x12 = 813f13eb570f99f533500f4aba9d6e93c012bff95d3bb18c4720d8a22ece8cb6
+  item_hash 0x13 = d186ed38f08b5fc2e41dde049d2bf013823e927f206fbed3b47d4e4955b67465
+
+witnesses (each recomputed from the detail the bundle carries):
+  block           -> f6912793a49f289affc65a9571993444ae33760307ee973d37a8f90ea3b2d8e9  (head block 019f93fd-c670-7001-8000-000000000001)
+  entropy_stellar -> 8a7e002361b83a4e05e09150dd2d04497c3480ef59d833198c6d41acd9fd8f70  (ledger closed 2026-07-24T11:58:10Z)
+  entropy_nist    -> 0a5eb1a1721a463924404929e46ba7afb5457d279a76cde217f38777f4610bfa  (pulse published 2026-07-24T11:58:00.000Z)
+  entropy_bitcoin -> e358c850958e1f1e8ad4c60c237a565ccf7f4f09788243d6d9efafcd131e3e3d  (header time 1784894100 = 2026-07-24T11:55:00Z)
+  block.previous_block_hash equals the head block hash, so the item's ledger
+  position needs no block_path.
+
+block leaves (sorted by key):
+  019f93fe-3c04-70a1-8000-0000000000a1 -> e4e5bf625168c678a5b15fc911c4714cade1c4b5e62f2b14e430610cd0808b9b
+  019f93fe-3c68-70b2-8000-0000000000b2 -> 7be2f500cd76731d4cb76e5eab78e7361e8ae82631e40fe3826fcbecc7cf11f0
+  01KY9ZWEX0248J48HK6D248NAN -> d186ed38f08b5fc2e41dde049d2bf013823e927f206fbed3b47d4e4955b67465
+  01KY9ZWEX7CSK7EXW8H2CSKANA -> 44f101eeaaf1893c82989f3aca795d9ad13275780b4ba0927c6bfda4664a578c
+  merkle_root = 7c40e8809aafdbc946bdc51484dc0f76811350ce4855744edfdcc5d62442b98c
+
+inclusion proof (item):
+  decoded steps = ["r:01a4bde69bd17911f48c5142e20a9974665bfe8c4bc28c9d3652b80cb69032aa", "l:3ad6603cccba87eb7a5bcfe89a8e3d511e9f5559ef39c74de3158601736aa614"]
+  compact bytes = 020101a4bde69bd17911f48c5142e20a9974665bfe8c4bc28c9d3652b80cb69032aa3ad6603cccba87eb7a5bcfe89a8e3d511e9f5559ef39c74de3158601736aa614
+  inclusion_proof (base64url) = AgEBpL3mm9F5EfSMUULiCpl0Zlv-jEvCjJ02UrgMtpAyqjrWYDzMuofrelvP6JqOPVEen1VZ7znHTeMVhgFzaqYU
+
+block hash:
+  block.previous_block_hash = f6912793a49f289affc65a9571993444ae33760307ee973d37a8f90ea3b2d8e9
+  block.merkle_root         = 7c40e8809aafdbc946bdc51484dc0f76811350ce4855744edfdcc5d62442b98c
+  JCS(block.metadata)       = {}
+  block metadata_hash 0x33  = 14fe55ee4ce3cdbc8118a0a28e5a80a44f1f8a24d73d9949c0ecd91ee582ebe1
+  block_hash 0x32           = 806ef5083f475ed7e2f2f3fc15d2d12d842f2c43686caab767e226664910a7c9
+
+epoch proofs:
+  stellar epoch_merkle_root = f5c2df8d5fdc24b0aef14c7ab3813c46c6d17c0545d9422f9272fe6a2e672e46  steps=["l:235ee977773d2b7cf21ee00a1c8a58ef84f82dbf37e738019afa58e173a27df0", "r:47633684d35b1e312d815e7a90f7c35c20e9492ab45767a22550f780775f242c"]  epoch_proof=AgIjXul3dz0rfPIe4AociljvhPgtvzfnOAGa-ljhc6J98EdjNoTTWx4xLYFeepD3w1wg6UkqtFdnoiVQ94B3XyQs
+  bitcoin epoch_merkle_root = d1526bd295f222761a81bef1389ee0108bc133db0c66dff03a9c617f6ff2604e  steps=["r:48d22956ed7700d0637bbc6f91e55ec7583359a74b9d91b202086fdb9983198b"]  epoch_proof=AQFI0ilW7XcA0GN7vG-R5V7HWDNZp0udkbICCG_bmYMZiw
+
+signing key event:
+  block 019f93c8-3780-70a0-8000-0000000000a0, key event type genesis, sequence 0
+  JCS(metadata) = {"key_event":{"key_id":"f2c39df9","prerotation_commitment":null,"public_key":"IVL40Zt5HSRFMkLhXy6rbLfP+ntqXtMAl5YOBpiB2xI=","sequence":0,"type":"genesis"}}
+  key event block_hash 0x32 = 547624cfa69c137785e74086ebae12737bacfbb32b35f9f35724365f3bacd6da
+  epoch_merkle_root = 5ee58a111980722fb7bf2cb4dfd54697188bd3d12a6bfb2e2c480113a09f4c0f  steps=["r:fef684acf2f41325b6571384d24668d1931805e171641ffadeabd90c12237dbe"]  epoch_proof=AQH-9oSs8vQTJbZXE4TSRmjRkxgF4XFkH_req9kMEiN9vg
+
+signature payload (81 + 32*2 = 145 bytes):
+  hex = 010014f2c39df90000019f93ff2600d186ed38f08b5fc2e41dde049d2bf013823e927f206fbed3b47d4e4955b67465806ef5083f475ed7e2f2f3fc15d2d12d842f2c43686caab767e226664910a7c90002f5c2df8d5fdc24b0aef14c7ab3813c46c6d17c0545d9422f9272fe6a2e672e46d1526bd295f222761a81bef1389ee0108bc133db0c66dff03a9c617f6ff2604e
+  proof_hash 0x61 = d0262b93c8015c31f5617a127f5c043d5e9527d2d37709bf813728213238d788
+  signature(base64) = BfZua6JEboOJUVHvC/IcEfzBQazK/gCF2atLSlT1wJEjohjFmLcQADn1q8IsrhOb5+hHrCtsRBVOgYzYM2+ZBw==
+  ed25519 verify = true

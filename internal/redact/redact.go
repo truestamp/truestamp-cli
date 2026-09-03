@@ -9,7 +9,7 @@
 // [internal/wschannel].Client both flow every observable string through
 // [String] so a future contributor can't accidentally leak a key by
 // adding a `slog.String("url", urlWithKey)` call. Treat that handler as
-// a safety net, not as license — call sites should still avoid putting
+// a safety net, not as license, call sites should still avoid putting
 // secrets in attributes.
 package redact
 
@@ -17,7 +17,7 @@ import "regexp"
 
 // REDACTED is the sentinel that replaces matched secret values. Tests in
 // this package and downstream packages assert "the secret is gone" by
-// asserting "REDACTED is present" — keep the constant exported so those
+// asserting "REDACTED is present", keep the constant exported so those
 // assertions don't drift.
 const REDACTED = "REDACTED"
 
@@ -46,12 +46,12 @@ var (
 	// oauthJSONRe matches the same secrets as JSON string values
 	// (`"refresh_token":"…"`), the shape of a token-endpoint response body
 	// that a RetrieveError may surface. `code` is intentionally excluded
-	// here — as a JSON key it is too often an innocuous error/status code.
+	// here, as a JSON key it is too often an innocuous error/status code.
 	oauthJSONRe = regexp.MustCompile(`(?i)("(?:access_token|refresh_token|code_verifier|client_secret)"\s*:\s*")[^"]*(")`)
 )
 
 // String applies every redaction pattern to s and returns the cleaned
-// copy. Safe for arbitrary input — no panics, no allocations beyond
+// copy. Safe for arbitrary input, no panics, no allocations beyond
 // what regexp.ReplaceAllString needs. Returns s unchanged when no
 // pattern matches, so the common "clean string" path is cheap.
 func String(s string) string {
@@ -79,7 +79,7 @@ func Error(err error) string {
 // WrapError returns an error whose Error() string is redacted but which
 // still unwraps to err, so errors.Is / errors.As keep working through it.
 // Use this (instead of fmt.Errorf with %s + Error) when an error must be
-// both redacted for display AND remain classifiable by the caller — e.g.
+// both redacted for display AND remain classifiable by the caller, e.g.
 // a token error that has to stay errors.Is(ErrSessionExpired) for the
 // WebSocket's fatal-session detection while never leaking token bytes.
 func WrapError(err error) error {

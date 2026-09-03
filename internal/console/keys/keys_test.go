@@ -12,7 +12,7 @@ import (
 
 // TestKeyMapsImplementHelpKeyMap is a compile-time + runtime check
 // that every pane's KeyMap satisfies bubbles/help.KeyMap. The footer
-// component requires this interface — if we ever drop ShortHelp /
+// component requires this interface, if we ever drop ShortHelp /
 // FullHelp on a struct, this test catches it before runtime.
 func TestKeyMapsImplementHelpKeyMap(t *testing.T) {
 	t.Parallel()
@@ -82,12 +82,12 @@ func TestTabKeyIsClaimedByNewItemPaneNotApp(t *testing.T) {
 	app := NewAppKeys()
 	for _, k := range app.NextPane.Keys() {
 		if k == "tab" {
-			t.Fatalf("AppKeys.NextPane includes %q — tab must be left for the New Item form", k)
+			t.Fatalf("AppKeys.NextPane includes %q, tab must be left for the New Item form", k)
 		}
 	}
 	for _, k := range app.PrevPane.Keys() {
 		if k == "shift+tab" {
-			t.Fatalf("AppKeys.PrevPane includes %q — shift+tab must be left for the form", k)
+			t.Fatalf("AppKeys.PrevPane includes %q, shift+tab must be left for the form", k)
 		}
 	}
 

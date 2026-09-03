@@ -63,7 +63,7 @@ func runTeamSet(cmd *cobra.Command, args []string) error {
 		}
 		if picked == "" {
 			// User cancelled the picker (Esc). Treat as a no-op silent
-			// success — exit 0 so chained commands don't see a failure.
+			// success, exit 0 so chained commands don't see a failure.
 			fmt.Fprintln(cmd.ErrOrStderr(), ui.FaintStyle().Render("  Cancelled."))
 			return nil
 		}
@@ -71,7 +71,7 @@ func runTeamSet(cmd *cobra.Command, args []string) error {
 	} else {
 		// Explicit id: validate by hitting the API before persisting.
 		// Tenant header stays at the actor's current active team
-		// (cfg.Team) — never the lookup target — so the server's
+		// (cfg.Team), never the lookup target, so the server's
 		// tenant-resolution check doesn't 403 us before the path
 		// handler can answer "team not found / not a member".
 		if _, err := teams.GetTeam(cmd.Context(), cfg, targetID); err != nil {

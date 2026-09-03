@@ -1,0 +1,1 @@
+{"errors":[{"code":"invalid","id":"f3e66730-e553-44d0-926e-273b4c869b3b","meta":{"code":"invalid_proof","reason":"unsupported_layout"},"status":"400","title":"Invalid","detail":"Invalid proof: :unsupported_layout"}],"jsonapi":{"version":"1.0"}}
