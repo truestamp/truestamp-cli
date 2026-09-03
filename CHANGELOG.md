@@ -104,6 +104,16 @@ draft layout are no longer readable, and every proof must be regenerated.
   `--json` document described above.
 - The draft-layout shipped samples under `samples/`.
 
+### Security
+
+- **Go toolchain bumped to 1.26.8.** Go 1.26.5 carried five standard
+  library vulnerabilities this binary reaches (GO-2026-6218 quadratic
+  `net/url` path resolution, GO-2026-6090 unbounded post-handshake
+  messages in `crypto/tls`, GO-2026-6089 the `net/http` h2c read-header
+  timeout, GO-2026-5972 `encoding/asn1` recursion depth, GO-2026-5026
+  `net/http` Punycode labels), all fixed in 1.26.6. `task vuln-check` is
+  clean again on the new pin.
+
 ### Documentation
 
 - `kb/proof-bundle-format.md` and `kb/verification-steps.md` describe the
