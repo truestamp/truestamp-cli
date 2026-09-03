@@ -2,14 +2,18 @@
 # Bump intentionally after vetting the upstream changelog; do not let
 # the stdlib (or any other tool below) drift under the project via `latest`.
 #
-# Go 1.26.5 is the current pin (adds the crypto/tls GO-2026-5856 ECH fix;
-# `task vuln-check` clean as of 2026-07-23). 1.26.4 was the prior pin;
-# 1.26.3 was the previous security floor: 1.26.2 carried two stdlib
-# vulnerabilities (GO-2026-4971 panic in net.Dial/LookupPort on Windows
-# NUL bytes; GO-2026-4918 infinite loop in net/http/internal/http2 on bad
-# SETTINGS_MAX_FRAME_SIZE); 1.26.1 carried six (5 in crypto/x509, 1 in
-# html/template). Re-run `task vuln-check` after every Go bump.
-go 1.26.5
+# Go 1.26.8 is the current pin (`task vuln-check` clean as of 2026-09-03).
+# 1.26.5, the prior pin, carried five stdlib vulnerabilities this code
+# reaches, all fixed in 1.26.6 (GO-2026-6218 quadratic net/url.resolvePath;
+# GO-2026-6090 unbounded post-handshake messages in crypto/tls; GO-2026-6089
+# ReadHeaderTimeout on the net/http h2c check; GO-2026-5972 encoding/asn1
+# recursion depth; GO-2026-5026 net/http idna Punycode labels); the pin
+# takes the newest patch release so the next advisory is less likely to
+# land on a pin that is already behind. Earlier floors: 1.26.5 added the
+# crypto/tls GO-2026-5856 ECH fix; 1.26.2 carried GO-2026-4971 and
+# GO-2026-4918; 1.26.1 carried six (5 in crypto/x509, 1 in html/template).
+# Re-run `task vuln-check` after every Go bump.
+go 1.26.8
 goreleaser 2.17.0
 cosign 3.1.2
 shellcheck 0.11.0
