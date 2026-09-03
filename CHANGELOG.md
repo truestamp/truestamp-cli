@@ -7,6 +7,46 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- **Go module dependencies refreshed across the board.** Direct bumps:
+  `bubbles` v2.1.1 → v2.2.1, `bubbletea` v2.0.8 → v2.0.9, `lipgloss`
+  v2.0.5 → v2.0.6, `fxamacker/cbor` v2.9.2 → v2.9.3, `gofrs/uuid`
+  v5.4.0 → v5.5.1, `koanf` v2.3.5 → v2.3.6 with its `toml`, `confmap`,
+  `env` and `posflag` providers, `x/crypto` v0.54.0 → v0.56.0, and
+  `x/mod` v0.38.0 → v0.40.0; notable indirects `charmbracelet/ultraviolet`,
+  `x/ansi` v0.11.8, `go-runewidth` v0.0.29, `go-colorful` v1.4.1,
+  `koanf/maps` v0.1.3 and `xo/terminfo` v1.0.0. Every upstream changelog
+  was read before taking the bump. **No source changes were required and
+  there are no user-facing behavior changes.**
+- **The deterministic CBOR encoder is provably unaffected by the cbor
+  bump.** v2.9.3's entire production diff is two `d.skip()` calls added to
+  `parseToTime`'s error return paths in `decode.go`; `encode.go` is
+  untouched, so `CoreDetEncOptions` and the encoder behind
+  `internal/proof` are bit-identical to v2.9.2. Confirmed empirically:
+  a JSON → CBOR → JSON → CBOR round-trip is byte-identical, and the
+  v2.9.2 and v2.9.3 binaries emit the same bytes for the same bundle.
+- **The hash algorithms are untouched by the `x/crypto` bump.** Not one
+  line of `sha3/`, `blake2b/` or `blake2s/` changed between v0.54.0 and
+  v0.56.0; the diff is `ssh/`, `acme/`, `ocsp/`, `x509roots` and a
+  riscv64 poly1305 assembly file, none of which this binary imports. All
+  six `truestamp hash` algorithm families still emit the published test
+  vectors for `abc`.
+
+### Security
+
+- **Two upstream security fixes ride along, neither one an exposure this
+  binary had.** `x/mod` v0.40.0 fixes CVE-2026-56865, an authentication
+  bypass in `sumdb/tlog`'s `TileHashReader` where a slice of tiles was
+  returned without being verified against its parents; this CLI imports
+  only `x/mod/semver`, which is byte-for-byte unchanged in the range.
+  `x/crypto` v0.56.0 carries hardening around CVE-2026-46595 in `ssh/`,
+  which was already patched in v0.52.0 and which this binary never
+  imported. `govulncheck` reports 0 called and 0 imported vulnerabilities;
+  the single residual module-level finding (`GO-2026-5932`,
+  `x/crypto/openpgp` unmaintained, no fix available) is pre-existing and
+  unreachable.
+
 ## [0.13.0] - 2026-09-03
 
 The next release is a breaking one: proof bundles in the pre-publication
