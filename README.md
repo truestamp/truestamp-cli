@@ -183,7 +183,7 @@ on the mode.
 
 ### Download a proof bundle
 
-After an item has been committed to a block, download its proof by ID. Item IDs are ULIDs, so a ULID with no `--type` defaults to `--type item`:
+After an item has been committed to a block and to a public chain, download its proof by ID. Item IDs are ULIDs, so a ULID with no `--type` defaults to `--type item`:
 
 ```sh
 truestamp download 01KNN33GX5E470CB9TRWAYF9DD
@@ -196,6 +196,13 @@ truestamp download -f cbor -o proof.cbor 01KNN33GX5E470CB9TRWAYF9DD
 truestamp download -o /tmp/proof.json 01KNN33GX5E470CB9TRWAYF9DD
 ```
 
+Choose which witness details the bundle carries. The default is the **complete** bundle (every witness the item's metadata commits to: the head block and the entropy observations captured at submission); `--witnesses none` is the **compact** bundle (the committed hashes stay in the subject metadata, the details are left out); a list selects a subset. All three verify; the compact one just cannot establish the submitted-after edge on its own.
+
+```sh
+truestamp download --witnesses none 01KNN33GX5E470CB9TRWAYF9DD            # truestamp-item-<id>-compact.json
+truestamp download --witnesses block,entropy_nist 01KNN33GX5E470CB9TRWAYF9DD   # truestamp-item-<id>-partial.json
+```
+
 Every other subject type uses a UUIDv7, and entropy observations, blocks and beacons are indistinguishable by id shape, so `--type` is **required** for a UUIDv7. Omitting it exits with an error listing the five valid values rather than guessing:
 
 ```sh
@@ -204,7 +211,7 @@ truestamp download --type block  019db7cd-efc0-7196-b763-682a84d71919
 truestamp download --type beacon 019db7cd-efc0-7196-b763-682a84d71919
 ```
 
-Valid `--type` values are exactly `item | entropy_nist | entropy_stellar | entropy_bitcoin | block | beacon`. There is no `auto` and no bare `entropy`, and the hyphenated spellings (`entropy-nist`) are rejected: flag values use underscores. Generated filenames go the other way and use hyphens, so `--type entropy_nist` writes `truestamp-entropy-nist-<id>.json`.
+Valid `--type` values are exactly `item | entropy_nist | entropy_stellar | entropy_bitcoin | block | beacon`. There is no `auto` and no bare `entropy`, and the hyphenated spellings (`entropy-nist`) are rejected: flag values use underscores. Generated filenames go the other way and use hyphens, so `--type entropy_nist` writes `truestamp-entropy-nist-<id>.json`. The `type` inside the file is authoritative; the filename never is.
 
 The id shape is checked before any network call: `--type item` requires a ULID, and every other type requires a UUIDv7.
 
@@ -214,12 +221,20 @@ The id shape is checked before any network call: `--type item` requires a ULID, 
 truestamp verify proof.json
 ```
 
-Exit code `0` on success, `1` on failure or structural error.
+Exit code `0` when the proof passes, `1` when it fails or is rejected. JSON and CBOR are both accepted.
 
-Offline verification (no calls to Truestamp, Stellar, or Bitcoin APIs):
+Offline verification (no calls to Truestamp, Stellar, Bitcoin or the entropy sources; every cryptographic check still runs, and every check that needs a source is reported as skipped, never failed):
 
 ```sh
-truestamp verify proof.json --skip-external
+truestamp verify proof.json --offline
+```
+
+Compare the hash of a file you hold against the hash the item's claims commit to, and pin a local copy of Truestamp's keyring so the key binding check works offline:
+
+```sh
+curl -sO https://www.truestamp.com/.well-known/keyring.json
+truestamp verify proof.json --offline --keyring keyring.json \
+  --expected-hash "$(truestamp hash -a sha256 --style bare contract.pdf)"
 ```
 
 Silent mode for scripting:
@@ -237,12 +252,20 @@ truestamp verify --url                             # Interactive URL prompt
 cat proof.json | truestamp verify                  # stdin pipe
 ```
 
+See what a bundle carries without verifying it:
+
+```sh
+truestamp inspect proof.json
+truestamp inspect proof.cbor --json
+```
+
 ## Commands
 
 ```
 truestamp create [file]              Create a new Truestamp item (submit claims / file hash)
-truestamp download <id>              Download a proof bundle (--type required for UUIDv7 ids)
-truestamp verify [proof]             Verify a Truestamp proof bundle
+truestamp download <id>              Download a proof bundle (--type required for UUIDv7 ids; --witnesses all|none|<list>)
+truestamp verify [proof]             Verify a Truestamp proof bundle (JSON or CBOR), offline or online
+truestamp inspect [proof]            Print a proof bundle's key fields without verifying it
 truestamp hash [path ...]            Compute cryptographic digests (SHA-2 / SHA-3 / BLAKE2 / MD5 / SHA-1)
 truestamp encode [file]              Encode raw bytes into hex / base64 / base64url
 truestamp decode [file]              Decode hex / base64 / base64url into raw bytes
@@ -287,7 +310,7 @@ truestamp hash --prefix 0x11 --jcs -a sha256 --style bare --no-filename < claims
 truestamp jcs < claims.json | truestamp hash --prefix 0x11 -a sha256 --style bare --no-filename
 
 # Round-trip a proof between wire formats and verify end-to-end
-truestamp convert proof --to cbor proof.json | truestamp verify --skip-external
+truestamp convert proof --to cbor proof.json | truestamp verify --offline
 
 # Derive the 4-byte kid fingerprint from an Ed25519 pubkey
 truestamp convert keyid CTwMqDZnPd/QTLSq8aTeSD3a+j2DQxKcGfhhIYJQ65Y=
@@ -387,48 +410,65 @@ Settings are resolved in this order (later overrides earlier):
 | ---- | ------- | ------- |
 | `--file [path]` |   |   |
 | `--url [url]` |   |   |
-| `--hash` |   |   |
+| `--expected-hash` (alias `--hash`) |   |   |
+| `--keyring` | `TRUESTAMP_VERIFY_KEYRING` | none |
 | `--type` |   |   |
 | `--remote` | `TRUESTAMP_VERIFY_REMOTE` | `false` |
 | `--silent` / `-s` | `TRUESTAMP_VERIFY_SILENT` | `false` |
 | `--json` | `TRUESTAMP_VERIFY_JSON` | `false` |
-| `--skip-external` | `TRUESTAMP_VERIFY_SKIP_EXTERNAL` | `false` |
+| `--offline` (alias `--skip-external`) | `TRUESTAMP_VERIFY_SKIP_EXTERNAL` | `false` |
 | `--skip-signatures` | `TRUESTAMP_VERIFY_SKIP_SIGNATURES` | `false` |
 
-`--type` asserts which subject type you expected (`item | entropy_nist | entropy_stellar | entropy_bitcoin | block | beacon`); a disagreement with the bundle's own signed `t` is reported as a failing `Subject Type` step and exits 1. It has no default and is never inferred: **the filename is never consulted**, so renaming a proof can never change a verdict.
+`--expected-hash` is the hash of a file you hold; it is compared against `subject.claims.hash` for an item and reported under Hash Comparison. `--keyring` pins a local copy of `/.well-known/keyring.json` for the Key Binding step; without it an online run fetches the live keyring from `--base-url` and an offline run reports the binding as not checked. `--type` asserts which subject type you expected (`item | entropy_nist | entropy_stellar | entropy_bitcoin | block | beacon`); a disagreement with the bundle's own signed `type` is the hard rejection `subject_type_mismatch` and exits 1. It has no default and is never inferred: **the filename is never consulted**, so renaming a proof can never change a verdict.
 
-Because the verify behaviour flags (`--remote`, `--silent`, `--json`, `--skip-external`, `--skip-signatures`) are also config keys, an ambient `TRUESTAMP_VERIFY_SKIP_SIGNATURES` (or `[verify] skip_signatures = true` in `config.toml`) silently weakens a run that still exits 0. Scripts that need a full check should pass the flags explicitly and read the report, not just the exit code.
+Because the verify behaviour flags (`--remote`, `--silent`, `--json`, `--offline`, `--skip-signatures`) are also config keys, an ambient `TRUESTAMP_VERIFY_SKIP_SIGNATURES` (or `[verify] skip_signatures = true` in `config.toml`) silently weakens a run that still exits 0. Scripts that need a full check should pass the flags explicitly and read the report, not just the exit code.
 
 ## What gets verified
 
-`truestamp verify` implements Appendix E of the [Truestamp whitepaper](https://github.com/truestamp/truestamp-v2/blob/main/whitepaper/whitepaper.pdf), which is the normative specification for a conforming verifier. Every run produces a report of graded steps:
+`truestamp verify` implements Appendix E of the [Truestamp whitepaper](https://github.com/truestamp/truestamp-v2/blob/main/whitepaper/whitepaper.pdf), the normative specification for a conforming verifier, and is a port of the whitepaper's reference verifier: on any bundle the two produce reports whose statuses match. Nothing in a bundle is opaque. It carries the subject's claims (or entropy payload), the subject and block metadata maps, and the witness details, and it carries no metadata hash and no block hash, so every value below is recomputed from bytes the bundle carries. The report is five categories in a fixed order:
 
-1. **Hash Comparison**: does the value you passed to `--hash` match the hash the proof commits to? When the bundle commits to an external file hash and you did not pass `--hash`, this group emits a single warning saying the file hash was not checked. A warning does not fail the proof. Bundles that carry no external hash (claims-as-source-of-truth items, and block-like subjects) produce no Hash Comparison row when `--hash` is omitted; passing `--hash` against one produces a single `skip` row recording that the argument was not applicable.
-2. **Subject Type**: only when `--type` is supplied, does the bundle's own signed `t` agree with what you asserted?
-3. **Signing Key**: `pk` decodes to a 32-byte Ed25519 key and yields a 4-byte key id.
-4. **Key Binding**: that key id and `pk` are cross-checked against Truestamp's published keyring. This is a separate step from the one above, because parsing a key says nothing about whose key it is. It reads the keyring over the network.
-5. **Structure**: the bundle format version is the one this verifier understands.
-6. **Subject Data**: subject hash (`0x11` claims / `0x21` entropy) and the composite fingerprint (`0x13` item / `0x23` observation) are recomputed from the bundle's own bytes.
-7. **Inclusion Proof**: RFC 6962 Merkle walk from the subject hash to the block's Merkle root.
-8. **Block Hash**: `0x32` derivation from the five block fields.
-9. **Epoch Proof**: one per commitment, mapping the block hash to the value committed on each public chain.
-10. **Proof Signature**: Ed25519 over the fixed-width binary payload.
-11. **Submission Window**: the subject's own timestamp precedes the committed block's. This ordering is asserted by Truestamp, not established externally.
-12. **Submitted Before** and **Submitted After**: the two edges of the window, always informational. One names the earliest commitment whose on-chain confirmation would ground the submitted-before edge; the other names what a bundle cannot ground on its own.
-13. **Temporal Info**: the submitted and committed timeline, rendered for the reader.
-14. **Entropy Source**: for entropy subjects only, the captured value is byte-compared against the upstream publisher (NIST beacon, Stellar Horizon, or Blockstream).
-15. **Stellar Commitment** and **Bitcoin Commitment**: the on-chain transactions. Bitcoin is verified locally first (OP_RETURN extraction, txid recomputation, partial Merkle tree), then optionally confirmed against Blockstream.
+**Data Integrity**
 
-For block (`t=10`) and beacon (`t=11`) bundles the block is its own subject, so there is no subject hash to derive and no leaf to prove: Subject Data, Submission Window, Submitted Before and Submitted After emit no rows at all, Inclusion Proof reports a `skip`, and Temporal Info carries only the committed time.
+1. **Hash Comparison**: does `--expected-hash` match the hash the item's claims commit to? Without the flag, an item that commits to a file hash gets a warning that the file was not checked; an item that timestamped its claims content itself (no file hash) gets a warning if you pass a hash anyway. A warning never fails a proof. Any other subject type reports the flag as not applicable.
 
-`--json` renders the same report as structured output. Alongside the summary keys (`result`, `subject_type`, `subject_id`, `signatures_checked`, `subject`, `hash_comparison`, `timeline`, `commitments`, `verification_notes`, `issues`, `summary`) it carries a `steps` array, one object per graded step, each with `group`, `category`, `status` and `message`. That array is the machine-readable form of the list above.
+**Cryptographic**
+
+2. **Signing Key**: `public_key` decodes to 32 bytes and yields the derived key id `SHA-256(0x51 || public_key)[0..3]`.
+3. **Subject Data**: the data hash (`0x11` claims / `0x21` entropy), the metadata hash (`0x12` / `0x22`, derived from the carried map) and the composite fingerprint (`0x13` / `0x23`) are recomputed. An integer beyond 2^53 in the data map is canonicalized exactly and reported as not portably verifiable.
+4. **Inclusion Proof**: the compact Merkle proof walked from the subject hash to `block.merkle_root`.
+5. **Block Hash**: the block metadata hash (`0x33`) and the block hash (`0x32`) from the five carried block fields.
+6. **Epoch Proof**: one per commitment, walking the block hash to that entry's `epoch_merkle_root`.
+7. **Proof Signature**: Ed25519 over the fixed-width payload rebuilt from the derived values.
+8. **Key Binding**: the derived key id and `public_key` cross-checked against Truestamp's keyring (`--keyring` file, or the live keyring online). Reported as skipped when no keyring is in hand: a passing signature alone says only that some key signed the bundle.
+9. **Signing Key Event**: when carried, the ledger block that introduced the signing key: its key event names this key, its hash is recomputed from the carried map, and its own commitments are walked and (online) confirmed on chain.
+
+**Structural**
+
+10. **Structure**: `version` is 1, and every hex field is lowercase (a mis-cased field is named and failed as `invalid_hex_encoding`).
+
+**Timing**
+
+11. **Witnesses**: each witness the item's metadata commits to (the head block, and the NIST, Stellar and Bitcoin observations captured at submission) is recomputed from the carried detail and compared to the committed hash; the head block's link to the containing block is checked. A committed witness whose detail was not carried is skipped, an unknown witness name is skipped, a carried detail the metadata does not commit to fails.
+12. **Submission Window**: the subject's embedded time is at or before the block's. Asserted by Truestamp, not externally verified.
+13. **Submitted After** and **Submitted Before**: the two edges of the submission window. Submitted After rests on the witnesses: it passes when the latest witness has been confirmed against its source, and is informational offline. Submitted Before rests on the commitments: it passes on the earliest commitment confirmed on chain, and is informational offline.
+14. **Temporal Info**: the submitted and committed instants, for the reader.
+
+**Blockchain**
+
+15. **Stellar Commitment**: the transaction is fetched from Horizon; its memo must equal the epoch root and its ledger must match.
+16. **Bitcoin Commitment**: the raw transaction and txoutproof are checked for internal consistency (OP_RETURN, txid, partial Merkle tree, header hash), then the header is confirmed against the chain. Only that confirmation can pass the commitment; the offline checks are informational.
+17. **Entropy Source**: an entropy subject, and every carried entropy witness, is re-fetched from its publisher (the NIST Randomness Beacon, Stellar Horizon, or Blockstream) and compared. A match establishes that the record exists, never that it was fresh.
+
+For `block` and `beacon` bundles the block is its own subject: Subject Data and Submission Window emit no rows, and Inclusion Proof, Witnesses and Submitted After report a skip.
+
+`--json` renders the same report with the field names the Truestamp API uses (`passed`, `steps` with `group`, `category`, `status` and `message`, the five counts, `hash_provided`, `expected_hash_provided`, `hash_matched`, `proof_version`, `skipped_external`, `temporal`), plus `verifier` and, for a bundle refused before any step ran, `rejection`.
 
 Two rules run through the whole report and are worth knowing before you read one:
 
-- **A step that could not run is a `skip`, never a `fail`.** An unreachable keyring, a Horizon timeout or a chain with no public API establishes nothing either way, and none of them can make a sound proof report as defective.
+- **A step that could not run is a `skip`, never a `fail`.** An unreachable keyring, a Horizon timeout or a chain with no public API establishes nothing either way, and none of them can make a sound proof report as defective. The verdict says so: any `skip` is a check the run did not perform, not a check that failed.
 - **A `skip` never changes the verdict.** Only a step that ran and disagreed fails a proof.
 
-`--skip-external` skips every network step (Key Binding, Entropy Source, and the two commitment confirmations). `--skip-signatures` skips the Ed25519 Proof Signature check and the keyring cross-check; the verdict line then reads `VERIFIED - but the signature was NOT checked (--skip-signatures)`, because a run that did not check the signature has not established who issued the proof. The Signing Key step still runs under both flags, and `--json` reports `"signatures_checked": false`.
+`--offline` skips every network step (Key Binding, Entropy Source, the commitment confirmations and the key event's). `--skip-signatures` skips the Ed25519 Proof Signature check and the key binding; the report discloses it under the verdict and `--json` reports `"signatures_checked": false`. The Signing Key step still runs under both flags.
 
 ## Exit codes
 

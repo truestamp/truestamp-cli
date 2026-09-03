@@ -8,7 +8,7 @@ Settings are resolved in priority order (highest priority last):
 
 Authentication is OAuth-first: the access/refresh token pair lives in the **OS keychain** (0600-file fallback), *not* in config.toml. The config-file `api_key` and the explicit `--api-key` / `TRUESTAMP_API_KEY` are the CI/headless path only; an explicit key (env or flag, tracked as `config.Config.APIKeyExplicit`, computed in `config.Load`) overrides a stored OAuth session, while a config-file key is consulted only after the OAuth session. See [authentication.md](authentication.md) for the full precedence.
 
-## Global Flags — the non-obvious ones
+## Global Flags, the non-obvious ones
 
 Run `truestamp --help` for the full persistent-flag list. What `--help` does not say:
 
@@ -19,7 +19,7 @@ Run `truestamp --help` for the full persistent-flag list. What `--help` does not
 
 There is **no `--api-url` and no `--keyring-url`**: both flags, and the `api_url` / `keyring_url` TOML keys, were retired in favour of the single `base_url`. `config.Load` warns once ("no longer recognized") when it finds the old TOML keys, and cobra rejects the old flags outright with `unknown flag`.
 
-## Verify Flags — the two that carry contracts
+## Verify Flags, the two that carry contracts
 
 `truestamp verify --help` lists all of them. The two with semantics `--help` cannot convey:
 
@@ -30,7 +30,7 @@ There is **no `--api-url` and no `--keyring-url`**: both flags, and the `api_url
 
 Flags and the 14-algorithm inventory: `truestamp hash --help` and `truestamp hash --list`.
 
-MD5 and SHA-1 emit a one-line stderr warning when selected, suppressed under `--json` or `--silent`. Algorithm output is byte-identical to `sha256sum`, `md5sum`, and `shasum --tag` for the corresponding vectors; tests in `internal/hashing/hashing_test.go` anchor against the canonical NIST FIPS 180-4, FIPS 202, RFC 6234, RFC 7693 vectors.
+MD5 and SHA-1 emit a one-line stderr warning when selected, suppressed under `--json` or `--silent`. Algorithm output is byte-identical to `sha256sum`, `md5sum`, and `shasum --tag` for the corresponding vectors; tests in `internal/hashing/hashing_test.go` pin against the canonical NIST FIPS 180-4, FIPS 202, RFC 6234, RFC 7693 vectors.
 
 ## Download subcommand
 

@@ -29,7 +29,7 @@ func FuzzFrameUnmarshal(f *testing.F) {
 		`[null,"h1","phoenix","heartbeat",{}]`,
 		`["2","42","console:lobby","items.create",{"name":"x","hash":"deadbeef"}]`,
 		`["1","1","console:lobby","phx_reply",{"status":"ok","response":{}}]`,
-		// Common malformed shapes the SafeV2Serializer fix targeted —
+		// Common malformed shapes the SafeV2Serializer fix targeted,
 		// these MUST surface as errors, not panics.
 		`[`,
 		`null`,
@@ -64,7 +64,7 @@ func FuzzFrameUnmarshal(f *testing.F) {
 			t.Fatalf("round-trip decode failed for %q: %v (encoded as %q)",
 				data, err, out)
 		}
-		// Topic and Event must round-trip exactly — strings of arbitrary
+		// Topic and Event must round-trip exactly, strings of arbitrary
 		// bytes including invalid UTF-8 should still match themselves.
 		if f2.Topic != frame.Topic {
 			t.Fatalf("topic round-trip mismatch: %q -> %q", frame.Topic, f2.Topic)
@@ -78,7 +78,7 @@ func FuzzFrameUnmarshal(f *testing.F) {
 // FuzzParseReply feeds arbitrary phx_reply payloads to ParseReply,
 // confirming malformed status/response objects produce errors rather
 // than panics. Unlike FuzzFrameUnmarshal, this exercises only the
-// inner payload decoder — the frame envelope is fixed.
+// inner payload decoder, the frame envelope is fixed.
 //
 // Run:
 //
@@ -106,7 +106,7 @@ func FuzzParseReply(f *testing.F) {
 			Event:   "phx_reply",
 			Payload: json.RawMessage(payload),
 		}
-		// Either a valid reply or an error — never a panic.
+		// Either a valid reply or an error, never a panic.
 		_, _ = ParseReply(frame)
 	})
 }
@@ -120,7 +120,7 @@ func FuzzParseReply(f *testing.F) {
 //
 // The shared regex `api_key=[^&"\s]*` is bounded (negated character
 // class, no backtracking), so this is mostly a regression net rather
-// than a bug hunt — it pins behavior so a future "improvement" can't
+// than a bug hunt, it pins behavior so a future "improvement" can't
 // accidentally reintroduce a leak. Lives in wschannel as well as in
 // the redact package itself because the WebSocket dial path is the
 // historically attested leak path the regex was added to plug.

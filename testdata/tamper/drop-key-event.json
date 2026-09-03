@@ -1,0 +1,71 @@
+{
+  "block": {
+    "id": "01a0680e-42b6-712a-9137-5b59dc891f19",
+    "merkle_root": "d175d1ef04595ffbea81cf9864780889615a73bdb0184c6efa43de184f5c24a2",
+    "metadata": {},
+    "previous_block_hash": "e36f824dea9508d5dca570c77edc06eb4bc830b413b3db4e4d983ce3f85e9d78",
+    "signing_key_id": "3c19f776"
+  },
+  "commitments": [
+    {
+      "chain": "stellar",
+      "epoch_merkle_root": "52c7d34ebc4291db0b945dc0414bbfdaab7dc862b8c9a38b23417dda651d578b",
+      "epoch_proof": "AwfwB4JpAbiMgUFIJ_EsqKAbhfdUXenojF3HFOdRGEdVWsznVKzupBca9qJ0roYNtrqeBPxKSlfQN6JkVmiqUo4OCYXwSKhq6V38oJQL0G5p6vOc4v-fUk0o_dFkoP7BHKY",
+      "ledger": 64256842,
+      "network": "public",
+      "timestamp": "2026-09-03T16:20:05Z",
+      "transaction_hash": "9a58b4414607648452500674e83c778567a155573205932138ef5b25955979a2"
+    }
+  ],
+  "generated_at": "2026-09-03T16:20:22Z",
+  "inclusion_proof": "BR9yUfK2wBr-PR8bRyNWZkH38lkOjKqGvhcGuLKR1x3DhppWE1hBuJ8RGiyes0THAj_bwk6z51BKAPC9ZyVaLf_jJleI0_P5oDzoRSvljJy_yFtznPH1IWwO7zsUcwm9X0WEW5jARp6b_FH81nVhMca2EmJL_9tNcpgIqxNZzJSGRzMBCuBKIu8lBcLkB59jNJHq5n9qOegokik1z1Z3brSU",
+  "public_key": "1hHbF5H5u8LiSp+nVMRb8duR2eGkOo5Q1JYfcmAtF28=",
+  "signature": "OZIoL6Jvc027uFr8sJ4atRuOlKlw8JvqcqjKps4NjfinpussAyMZ7a0JfiPzx7nTNLsf8P5S+D1LrzZsLL2DDg==",
+  "subject": {
+    "claims": {
+      "description": "Hooke published his elasticity law in 1676 as the anagram ceiiinosssttuu, claiming priority without disclosure while he pursued a watch patent. He unsealed it in 1678 as ut tensio, sic vis, meaning: as the extension, so the force.",
+      "name": "Ut tensio, sic vis"
+    },
+    "id": "01M1M0V3SE3C5P32TRAJSNX6QF",
+    "metadata": {
+      "witnesses": {
+        "block": "e36f824dea9508d5dca570c77edc06eb4bc830b413b3db4e4d983ce3f85e9d78",
+        "entropy_bitcoin": "712b47e1ea379e093f2b4b5348a9873e9d4187fb512cedb4c056aa40263cfc56",
+        "entropy_nist": "ad333a58c6b61eac5bee644edee2ec627f41c955af8ecde9ad293c81fb641781",
+        "entropy_stellar": "fd6df57b6afa30f646c24a91133c29d5b0f65d3977fc225d19e954634c9c66c8"
+      }
+    },
+    "signing_key_id": "3c19f776",
+    "witnesses": {
+      "block": {
+        "id": "01a0680d-5834-7919-8248-37cc7bf79969",
+        "merkle_root": "d14adef41556cea7abadf197c52a9d1d7b2899794ec66c0ad1e35373251d9c76",
+        "metadata": {},
+        "previous_block_hash": "185de486c1d24352eed65c463f8905fdc1b226279a5da66c817b1e318f408b94",
+        "signing_key_id": "3c19f776"
+      },
+      "entropy_bitcoin": {
+        "hash": "000000000000000000018fc5a898619b4b97c3dde295b675bede94d915f955f0",
+        "height": 965340,
+        "time": 1788452055
+      },
+      "entropy_nist": {
+        "pulse": {
+          "chainIndex": 2,
+          "outputValue": "7E0BA0E45296128598C992C13E7DAAAF0CED3D792A6F1495DA7F9F5289BED15C6809910162E5484BE8BBEEE2CD464A85FFC52E1A6DA9EFA87FE928770DAFE3D6",
+          "pulseIndex": 1925450,
+          "timeStamp": "2026-09-03T16:14:00.000Z",
+          "version": "2.0"
+        }
+      },
+      "entropy_stellar": {
+        "closed_at": "2026-09-03T16:15:10Z",
+        "hash": "9e23a5b4ec2e4345d5dadcb8123b9e40a1b478e9c57b2c5c2094da08cfb1577c",
+        "paging_token": "275980811595939840",
+        "sequence": 64256790
+      }
+    }
+  },
+  "type": "item",
+  "version": 1
+}

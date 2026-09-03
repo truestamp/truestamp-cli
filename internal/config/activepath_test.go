@@ -45,7 +45,7 @@ func TestActivePath_HonorsOverride(t *testing.T) {
 	if got := ActivePath(); got != custom {
 		t.Errorf("ActivePath with override: got %q, want %q", got, custom)
 	}
-	// ConfigFilePath keeps meaning "platform default" — cmd/root.go's
+	// ConfigFilePath keeps meaning "platform default", cmd/root.go's
 	// --config help text depends on it never following the override.
 	if got := ConfigFilePath(); got == custom {
 		t.Error("ConfigFilePath must not follow the --config override")
@@ -149,7 +149,7 @@ func TestActivePath_Concurrent(t *testing.T) {
 
 func TestEnsureDefaultConfig_CreatesAtOverride(t *testing.T) {
 	dir := isolateConfig(t)
-	// A nested directory that does not exist yet — the directory must be
+	// A nested directory that does not exist yet, the directory must be
 	// derived from the active path, not from ConfigDir().
 	custom := filepath.Join(dir, "nested", "custom.toml")
 	SetActivePath(custom)

@@ -225,7 +225,7 @@ var jcsCmd = &cobra.Command{
 	Use:   "jcs [flags] [file]",
 	Short: "Canonicalize JSON per RFC 8785 (JSON Canonicalization Scheme)",
 	Long: `Apply RFC 8785 JSON Canonicalization to the input. The output is a
-byte-stable form suitable for hashing and signing — pipes directly into
+byte-stable form suitable for hashing and signing, pipes directly into
 'truestamp hash' (or use 'truestamp hash --jcs' as a shortcut).
 
 One deviation from RFC 8785 matches the Truestamp producer: an integer
@@ -297,7 +297,7 @@ func runJCS(cmd *cobra.Command, args []string) error {
 // representable IEEE-754 double range.
 //
 // Truestamp emits such integers verbatim, so reproducing the producer's
-// digest means preserving them — but a strict RFC 8785 implementation
+// digest means preserving them, but a strict RFC 8785 implementation
 // rounds them, and E.4 requires a verifier to say so rather than hide it.
 // The warning is advisory: the digest above it is the correct one, so the
 // exit code stays 0, matching how `truestamp hash` treats its legacy-
@@ -314,7 +314,7 @@ func warnOversizedIntegers(cmd *cobra.Command, label string, oversized []string,
 	if label != "" {
 		prefix = label + ": "
 	}
-	// oversized is ascending, so [0] names the smallest offender — the
+	// oversized is ascending, so [0] names the smallest offender, the
 	// same one the reference verifier reports.
 	suffix := ""
 	if len(oversized) > 1 {

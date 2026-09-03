@@ -51,7 +51,7 @@ func Replace(destPath, newBinPath string) (backupPath string, err error) {
 			if err := copyFile(destPath, backupPath); err != nil {
 				return "", fmt.Errorf("backup current binary: %w", err)
 			}
-			// Remove the original — we've got a copy. Ignore error:
+			// Remove the original, we've got a copy. Ignore error:
 			// the rename below will error out more usefully if this fails.
 			_ = os.Remove(destPath)
 		}
@@ -122,7 +122,7 @@ func clearQuarantineDarwin(path string) {
 }
 
 // pruneOldBackups deletes `<destPath>.bak.*` entries in dir whose mtime
-// is older than 7 days. Errors are swallowed — cleanup is lazy and
+// is older than 7 days. Errors are swallowed, cleanup is lazy and
 // never load-bearing.
 func pruneOldBackups(dir, destPath string) error {
 	entries, err := os.ReadDir(dir)

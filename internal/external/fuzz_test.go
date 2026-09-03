@@ -37,7 +37,7 @@ func FuzzCompactError(f *testing.F) {
 
 // FuzzClassify: an error shape this package does not recognise must
 // always grade as "no answer obtained", never as a success and never as
-// a mismatch — E.22 forbids an unrecognised failure from failing a
+// a mismatch, E.22 forbids an unrecognised failure from failing a
 // proof.
 func FuzzClassify(f *testing.F) {
 	for _, s := range []string{"", "HTTP 404: nope", "memo mismatch: expected a, got b", "context deadline exceeded"} {
@@ -87,7 +87,7 @@ func (b *bodyServer) serve(body []byte) {
 
 // FuzzVerifyKeyringBody pins E.17/E.22's separation: a 200 body may fail
 // a proof (KeyBindingError -> OutcomeMismatch) only when it really is a
-// keyring document — a JSON object carrying a `keys` array. Anything
+// keyring document, a JSON object carrying a `keys` array. Anything
 // else is an answer this client cannot read, and E.22 forbids it from
 // failing a sound proof. Before the `keys` gate, every JSON object
 // reached the per-key loop and returned "not found in keyring".

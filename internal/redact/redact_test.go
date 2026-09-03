@@ -173,9 +173,9 @@ func TestErrorHelper(t *testing.T) {
 // FuzzRedact asserts the invariants we care about under arbitrary input:
 //
 //  1. No panic.
-//  2. Idempotent — String(String(s)) == String(s); a second pass must
+//  2. Idempotent, String(String(s)) == String(s); a second pass must
 //     find nothing left to redact.
-//  3. Self-checking against the regexes — running them over the output
+//  3. Self-checking against the regexes, running them over the output
 //     must find no matches other than the REDACTED sentinel.
 //
 // The seed corpus exercises the patterns that have hit production paths
@@ -213,7 +213,7 @@ func FuzzRedact(f *testing.F) {
 		}
 		for _, m := range bearerRe.FindAllString(out, -1) {
 			// bearerRe is case-insensitive but ReplaceAllString
-			// substitutes the literal "Bearer REDACTED" — so any
+			// substitutes the literal "Bearer REDACTED", so any
 			// remaining match should equal that exactly.
 			if m != "Bearer "+REDACTED {
 				t.Fatalf("Bearer match not redacted: %q (in %q)", m, out)

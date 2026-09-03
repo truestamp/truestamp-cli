@@ -13,7 +13,7 @@ import (
 // connErrorKind classifies common WebSocket connect-time failures so
 // the UI can render a short, friendly status pill plus a longer
 // explanation with concrete next steps. We keep the categories small
-// and additive — anything that doesn't match falls through to
+// and additive, anything that doesn't match falls through to
 // connErrorUnknown which still shows the raw error for debugging.
 type connErrorKind int
 
@@ -42,7 +42,7 @@ func classifyConnError(err error) connErrorKind {
 		return connErrorUnknown
 	}
 	// A dead or absent OAuth session is an auth failure, not a generic
-	// transport error — route it to the auth kind so the user is told to
+	// transport error, route it to the auth kind so the user is told to
 	// re-authenticate rather than to check their network.
 	if errors.Is(err, auth.ErrSessionExpired) || errors.Is(err, auth.ErrNoCredentials) {
 		return connErrorAuth
@@ -140,7 +140,7 @@ func (k connErrorKind) title() string {
 }
 
 // hints returns one or more short "what to try" lines tailored to the
-// failure mode. They are written for everyday users — no jargon
+// failure mode. They are written for everyday users, no jargon
 // (no "DNS", "TLS handshake", "WebSocket upgrade", "reverse proxy",
 // "preview server") and no developer-only commands like `task serve`.
 // Each bullet is a concrete action a non-technical user can take.
@@ -166,18 +166,18 @@ func (k connErrorKind) hints() []string {
 	case connErrorRefused:
 		return []string{
 			"Check that you're connected to the internet.",
-			"Try opening the server address in a web browser — if it doesn't load there either, the server is offline.",
+			"Try opening the server address in a web browser, if it doesn't load there either, the server is offline.",
 			"Make sure your settings point at the official Truestamp server (`https://www.truestamp.com`) unless someone gave you a different address to use.",
 		}
 	case connErrorTimeout:
 		return []string{
 			"Check that you're connected to the internet.",
-			"If you're on a work or school network, ask whether it blocks outgoing connections — try again on a different network (for example, your home Wi-Fi or phone hotspot).",
+			"If you're on a work or school network, ask whether it blocks outgoing connections, try again on a different network (for example, your home Wi-Fi or phone hotspot).",
 			"Try again in a moment; the server may just be slow to respond.",
 		}
 	case connErrorTLS:
 		return []string{
-			"Check that the date and time on your computer are correct — a wrong clock breaks secure connections.",
+			"Check that the date and time on your computer are correct, a wrong clock breaks secure connections.",
 			"If your network requires a VPN or special security software, make sure it's running.",
 			"Try again in a few minutes, or contact support if it keeps happening.",
 		}
@@ -194,13 +194,13 @@ func (k connErrorKind) hints() []string {
 		}
 	case connErrorServerError:
 		return []string{
-			"The Truestamp server is having a problem on its end — this is not something you can fix on your computer.",
+			"The Truestamp server is having a problem on its end, this is not something you can fix on your computer.",
 			"Wait a few minutes and try again.",
 			"If it doesn't recover, contact support and include the error shown below.",
 		}
 	case connErrorProtocol:
 		return []string{
-			"Something on the network is blocking the connection — often a work or school firewall, or a VPN.",
+			"Something on the network is blocking the connection, often a work or school firewall, or a VPN.",
 			"Try the same command on a different network (for example, your home Wi-Fi or phone hotspot) to see if that helps.",
 		}
 	case connErrorDecodeWelcome:

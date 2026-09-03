@@ -150,10 +150,10 @@ type Client struct {
 
 	// Two-stage readiness gate:
 	//
-	//   socketReady — closed once the active WebSocket can carry frames.
+	//   socketReady, closed once the active WebSocket can carry frames.
 	//                 Rejoin uses this to send phx_join during reconnect
 	//                 before the application gate opens.
-	//   sessionReady — closed once the socket is live AND every previously
+	//   sessionReady, closed once the socket is live AND every previously
 	//                 active topic has been re-joined. Application calls
 	//                 (Push, JoinTopic) wait on this so they never race
 	//                 against the rejoin replay.
@@ -191,9 +191,9 @@ type Client struct {
 	// firstConnectDone flips to true once Connect() has opened the
 	// session gate. Together they let Status() distinguish:
 	//
-	//   StatusInit         — connectStarted == false
-	//   StatusConnecting   — connectStarted == true, firstConnectDone == false
-	//   StatusReconnecting — firstConnectDone == true, session gate closed
+	//   StatusInit        , connectStarted == false
+	//   StatusConnecting  , connectStarted == true, firstConnectDone == false
+	//   StatusReconnecting, firstConnectDone == true, session gate closed
 	connectStarted   atomic.Bool
 	firstConnectDone atomic.Bool
 	// authDead is set when the OAuth session is permanently dead (a
@@ -241,7 +241,7 @@ type Options struct {
 	FatalDialErr func(error) bool
 
 	// ForceRefresh, when set, is invoked on a server `token_expired` push
-	// to obtain a brand-new access token *before* the reconnect re-dials —
+	// to obtain a brand-new access token *before* the reconnect re-dials,
 	// so the new socket never reuses the just-rejected token (which would
 	// otherwise loop when local/server clocks disagree). Nil disables it.
 	ForceRefresh func(context.Context) error
@@ -259,7 +259,7 @@ type Options struct {
 	// via JoinTopic.
 	Topic string
 
-	// HeartbeatInterval — Phoenix's default is 30s; set lower for tests.
+	// HeartbeatInterval, Phoenix's default is 30s; set lower for tests.
 	// Zero or negative falls back to 30s.
 	HeartbeatInterval time.Duration
 
@@ -269,7 +269,7 @@ type Options struct {
 	// Logger receives transport diagnostics (read EOFs, dial failures,
 	// frame decode errors, push channel overflow). When nil, logs are
 	// discarded. The TUI is the typical caller and should pass a
-	// file-backed logger from internal/logging — these messages are
+	// file-backed logger from internal/logging, these messages are
 	// noisy by design and would clutter the UI.
 	Logger *slog.Logger
 }
@@ -431,8 +431,8 @@ func (c *Client) dial(ctx context.Context) error {
 
 	conn, _, err := websocket.Dial(ctx, u.String(), nil)
 	if err != nil {
-		// The library's error embeds the upgrade URL — which includes our
-		// api_key or access_token — verbatim. Redact eagerly so the
+		// The library's error embeds the upgrade URL, which includes our
+		// api_key or access_token, verbatim. Redact eagerly so the
 		// cleartext credential can't reach an upstream caller's UI or logger.
 		return fmt.Errorf("dial: %s", redact.Error(err))
 	}
@@ -461,7 +461,7 @@ func (c *Client) openSocketGate() { closeOnce(&c.gatesMu, &c.socketReady) }
 func (c *Client) openSessionGate() { closeOnce(&c.gatesMu, &c.sessionReady) }
 
 // resetGates installs fresh (un-closed) gates if the current ones are
-// already open. Idempotent — calling twice in a row is a no-op so it's
+// already open. Idempotent, calling twice in a row is a no-op so it's
 // safe to invoke from both dropConn and the session loop.
 func (c *Client) resetGates() {
 	c.gatesMu.Lock()
@@ -522,10 +522,10 @@ func (c *Client) sessionLoop() {
 		case <-c.runCtx.Done():
 			return
 		case <-c.disconnect:
-			// Disconnected — fall through to reconnect.
+			// Disconnected, fall through to reconnect.
 		}
 
-		// A permanently-dead OAuth session must not be retried — the
+		// A permanently-dead OAuth session must not be retried, the
 		// reconnect would re-present a token the server already rejected.
 		if c.authDead.Load() {
 			return
@@ -553,7 +553,7 @@ func (c *Client) sessionLoop() {
 			cancel()
 			if err != nil {
 				if c.fatalDialErr != nil && c.fatalDialErr(err) {
-					// Dead OAuth session — retrying can't help. Surface
+					// Dead OAuth session, retrying can't help. Surface
 					// it and stop the reconnect loop; the UI prompts the
 					// user to re-authenticate.
 					c.logErr(slog.LevelWarn, "fatal auth error; stopping reconnect", err)
@@ -631,7 +631,7 @@ func (c *Client) rejoinAllTopics() error {
 // dropConn closes the active websocket, clears the pointer (so the
 // session loop's disconnect signal fires), and resets the readiness
 // gates so persistent read/write loops park until reconnect succeeds.
-// Safe to call multiple times — only the first call has an effect.
+// Safe to call multiple times, only the first call has an effect.
 func (c *Client) dropConn(code websocket.StatusCode, reason string) {
 	c.connMu.Lock()
 	conn := c.conn
@@ -858,7 +858,7 @@ func (c *Client) writeLoop() {
 }
 
 func (c *Client) writeFrame(f Frame) error {
-	// Wait for an active conn, with reasonable timeout — a hard-down
+	// Wait for an active conn, with reasonable timeout, a hard-down
 	// server shouldn't queue indefinitely on out.
 	ctx, cancel := context.WithTimeout(c.runCtx, 30*time.Second)
 	defer cancel()
@@ -897,7 +897,7 @@ func (c *Client) readLoop() {
 
 		conn := c.activeConn()
 		if conn == nil {
-			// No live conn — wait for the session loop to dial a new
+			// No live conn, wait for the session loop to dial a new
 			// one (which then opens the socket gate).
 			select {
 			case <-c.socketGate():
@@ -942,7 +942,7 @@ func (c *Client) readLoop() {
 		// OAuth access-token expiry. The server pushes token_expired on
 		// the joined topic, then stops that channel. Because the token is
 		// validated at *connect* (not at channel join), a re-join alone
-		// won't re-authenticate — we must re-dial the whole socket with a
+		// won't re-authenticate, we must re-dial the whole socket with a
 		// fresh token. Surface a "refreshing" hint, then drop the conn to
 		// trigger the reconnect path, whose dial pulls a refreshed token.
 		if f.Event == "token_expired" {
@@ -972,7 +972,7 @@ func (c *Client) readLoop() {
 			continue
 		}
 
-		// Ignore phx_close / phx_error here for V1 — the read error
+		// Ignore phx_close / phx_error here for V1, the read error
 		// path will handle disconnects.
 		if f.Event == "phx_close" || f.Event == "phx_error" {
 			continue
@@ -982,7 +982,7 @@ func (c *Client) readLoop() {
 		select {
 		case c.pushes <- Push{Topic: f.Topic, Event: f.Event, Payload: f.Payload}:
 		default:
-			// Drop if the consumer is slow — better than blocking the
+			// Drop if the consumer is slow, better than blocking the
 			// reader (and thus the heartbeat).
 			c.log.Warn("dropped push (consumer slow)", "topic", f.Topic, "event", f.Event)
 		}
@@ -1098,7 +1098,7 @@ func (c *Client) inBandRefresh() {
 
 	reply, err := c.Push(ctx, c.primaryTopic, tokenRefreshCommand, map[string]string{"access_token": tok})
 	if err != nil {
-		// Couldn't deliver (socket hiccup) — the reconnect / token_expired
+		// Couldn't deliver (socket hiccup), the reconnect / token_expired
 		// path re-establishes with the already-refreshed token.
 		c.logErr(slog.LevelWarn, "in-band refresh: token.refresh push failed (reconnect will recover)", err)
 		return
@@ -1137,7 +1137,7 @@ func (c *Client) logErr(level slog.Level, msg string, err error, attrs ...any) {
 }
 
 // emitReconnecting injects a synthetic Push describing an upcoming
-// reconnect attempt. Drop-on-full is fine — the next attempt will emit
+// reconnect attempt. Drop-on-full is fine, the next attempt will emit
 // a fresh status, and the consumer only needs the latest value.
 func (c *Client) emitReconnecting(attempt int, nextAttemptAt time.Time) {
 	payload, _ := json.Marshal(map[string]any{
@@ -1170,7 +1170,7 @@ func (c *Client) drainPending() {
 		select {
 		case ch <- Frame{Event: "phx_reply", Ref: &r, Payload: errPayload}:
 		default:
-			// Channel buffer (1) full — caller must be gone.
+			// Channel buffer (1) full, caller must be gone.
 		}
 	}
 }
@@ -1180,7 +1180,7 @@ func (c *Client) shutdown(code websocket.StatusCode, reason string) {
 		close(c.done)
 		c.runCancel()
 		c.dropConn(code, reason)
-		// pushes is NOT closed here — sessionLoop / readLoop may still
+		// pushes is NOT closed here, sessionLoop / readLoop may still
 		// be running and could attempt to write to it. Close() does it
 		// after wg.Wait().
 	})

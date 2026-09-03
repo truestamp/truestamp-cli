@@ -90,7 +90,7 @@ func TestCreateTeam_HappyPath(t *testing.T) {
 	if attrs["ownership_model"] != OwnershipTeamRetains {
 		t.Errorf("attributes.ownership_model = %v", attrs["ownership_model"])
 	}
-	// The server rejects unknown attributes — the CLI must not send these.
+	// The server rejects unknown attributes, the CLI must not send these.
 	if _, ok := attrs["creator_id"]; ok {
 		t.Error("attributes must not contain creator_id")
 	}

@@ -100,7 +100,7 @@ func TestClassifyConnError(t *testing.T) {
 }
 
 // TestConnErrorKindHasUserFacingText guards the contract that every
-// kind has non-empty short status / title / hints — empty strings
+// kind has non-empty short status / title / hints, empty strings
 // would leave a blank header pill or an empty pane section in
 // production.
 func TestConnErrorKindHasUserFacingText(t *testing.T) {
@@ -120,7 +120,7 @@ func TestConnErrorKindHasUserFacingText(t *testing.T) {
 }
 
 // TestClassifyConnErrorNil ensures the classifier doesn't panic on
-// a nil error — it shouldn't be called that way but defensive cheap.
+// a nil error, it shouldn't be called that way but defensive cheap.
 func TestClassifyConnErrorNil(t *testing.T) {
 	t.Parallel()
 	if got := classifyConnError(nil); got != connErrorUnknown {

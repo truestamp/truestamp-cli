@@ -39,7 +39,7 @@ type monitorModel struct {
 	// -1 means "no events yet". When the user is at the most recent
 	// event (selected == len(events)-1), new events arriving auto-advance
 	// selected so the cursor follows live data. Otherwise the cursor
-	// stays anchored on a specific event while the buffer grows behind it.
+	// stays pinned on a specific event while the buffer grows behind it.
 	//
 	// viewStart is the absolute index of the first event in the visible
 	// window (in chronological order; reverseOrder only flips rendering).
@@ -124,7 +124,7 @@ func (m *monitorModel) Update(msg tea.Msg) (*monitorModel, tea.Cmd) {
 			return m, nil
 		}
 
-		// Reverse order works regardless of focus — it's the only
+		// Reverse order works regardless of focus, it's the only
 		// operation specific to the waterfall that we surface globally
 		// so users don't have to remember to focus first.
 		if key == "r" {
@@ -134,7 +134,7 @@ func (m *monitorModel) Update(msg tea.Msg) (*monitorModel, tea.Cmd) {
 
 		// Detail Panel toggle: works regardless of focus so users
 		// can collapse/expand from any state. Hidden state survives
-		// pane switches — once a user opts out, we don't re-show
+		// pane switches, once a user opts out, we don't re-show
 		// until they ask.
 		if key == "d" {
 			m.detailPanelHidden = !m.detailPanelHidden
@@ -177,14 +177,14 @@ func (m *monitorModel) Update(msg tea.Msg) (*monitorModel, tea.Cmd) {
 			case "pgdn", "J":
 				m.moveSelected(screenDnDelta * pageStep)
 			case "home", "g":
-				// "Top of screen" — newest in reverse, oldest in chrono.
+				// "Top of screen", newest in reverse, oldest in chrono.
 				if m.reverseOrder {
 					m.setSelected(len(m.events) - 1)
 				} else {
 					m.setSelected(0)
 				}
 			case "end", "G":
-				// "Bottom of screen" — oldest in reverse, newest in chrono.
+				// "Bottom of screen", oldest in reverse, newest in chrono.
 				if m.reverseOrder {
 					m.setSelected(0)
 				} else {
@@ -204,7 +204,7 @@ func (m *monitorModel) Update(msg tea.Msg) (*monitorModel, tea.Cmd) {
 			}
 			return m, nil
 		}
-		// Server is the source of truth — mirror the canonical set.
+		// Server is the source of truth, mirror the canonical set.
 		if msg.subscribe {
 			for _, id := range msg.subscribed {
 				m.active[id] = true
@@ -495,7 +495,7 @@ const (
 
 func (m *monitorModel) View(width, height int) string {
 	if width < 40 {
-		// Skinny terminal — render a single-column fallback.
+		// Skinny terminal, render a single-column fallback.
 		return paneStyle(width, height).Render(m.renderStreamList(width-4) + "\n\n" + m.renderWaterfall(width-4, height-len(m.streams)-4))
 	}
 	leftWidth := 32
@@ -626,7 +626,7 @@ func (m *monitorModel) renderWaterfall(width, height int) string {
 	}
 
 	// Build the rendered block via lipgloss/v2/table. Each visible
-	// event maps to one [time, kind, id] row — Detail moved to the
+	// event maps to one [time, kind, id] row, Detail moved to the
 	// per-selection panel below. A faint header row labels the
 	// columns.
 	tableData := make([][]string, len(visibleAbs))
@@ -685,7 +685,7 @@ func (m *monitorModel) renderWaterfall(width, height int) string {
 	}
 
 	// Title row carries the indicator on the right side so its
-	// position is anchored to the top of the pane and never shifts
+	// position is pinned to the top of the pane and never shifts
 	// as the table grows / shrinks below.
 	indicator := m.scrollIndicator(m.viewStart, end, total)
 	titleRow := titleText + "   " + indicator
@@ -706,7 +706,7 @@ func (m *monitorModel) renderWaterfall(width, height int) string {
 // truncation. Long values (64-char hashes, ULID/UUID lists, etc.) wrap
 // onto continuation lines indented under their field name. The panel
 // is bounded by `height` body rows; if the selected row has more
-// content than fits, a faint "(N more lines — d hides panel)" footer
+// content than fits, a faint "(N more lines, d hides panel)" footer
 // replaces the last line.
 func (m *monitorModel) renderDetailPanel(width, height int) string {
 	rule := panelRuleStyle.Render("── Selected " + strings.Repeat("─", maxInt(0, width-len("── Selected ")-2)))
@@ -734,7 +734,7 @@ func (m *monitorModel) renderDetailPanel(width, height int) string {
 		if rendered == height-1 && len(lines) > height {
 			more := len(lines) - rendered
 			hint := fmt.Sprintf("  %s", panelHintStyle.Render(
-				fmt.Sprintf("(%d more lines — d hides panel)", more)))
+				fmt.Sprintf("(%d more lines, d hides panel)", more)))
 			sb.WriteString(hint)
 			sb.WriteString("\n")
 			rendered++
@@ -781,7 +781,7 @@ func buildPanelLines(e events.Row, width int) []string {
 		}
 	}
 
-	// Top synthetic fields — always on, in canonical order.
+	// Top synthetic fields, always on, in canonical order.
 	addField("kind", e.RawKind)
 	addField("id", e.ID)
 	if e.Stream != "" {
@@ -791,7 +791,7 @@ func buildPanelLines(e events.Row, width int) []string {
 
 	// Payload fields. Skip "id" since we surfaced it above; skip
 	// "kind"/"stream"/"at" if the server snuck them into Data
-	// (defensive — they should only be at the Push level).
+	// (defensive, they should only be at the Push level).
 	skip := map[string]bool{"id": true, "kind": true, "stream": true, "at": true}
 
 	for _, key := range orderedPayloadKeys(e.Payload, skip) {
@@ -884,7 +884,7 @@ func formatPanelValue(v any) string {
 	case string:
 		return x
 	case float64:
-		// JSON numbers decode to float64 — render integer-shaped
+		// JSON numbers decode to float64, render integer-shaped
 		// numbers without a decimal tail.
 		if x == float64(int64(x)) {
 			return fmt.Sprintf("%d", int64(x))
@@ -1010,7 +1010,7 @@ func kindStyleFor(kind string) lipgloss.Style {
 }
 
 // scrollIndicator renders the live/scrolled status, range, and
-// chronological order in a faint, subtle style — closer to the
+// chronological order in a faint, subtle style, closer to the
 // header clock's treatment than to a status pill. The live/scrolled
 // glyph keeps its color cue (green dot / yellow pause) so it's
 // scannable at a glance, but the surrounding text is dim so the

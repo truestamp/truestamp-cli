@@ -32,7 +32,7 @@ type Theme struct {
 	HeaderHeight int
 	FooterHeight int
 
-	// Foreground colors — re-exported from ui.* for ergonomic access
+	// Foreground colors, re-exported from ui.* for ergonomic access
 	// inside this package and in the chrome consumers.
 	AccentFg color.Color // active tab text, focused pane title
 	OkFg     color.Color // connected status, "live" indicator
@@ -95,7 +95,7 @@ func NewTheme() *Theme {
 	t.StatusErr = t.StatusPill.Foreground(ui.Red)
 
 	// HeaderUnderln draws a thin horizontal rule beneath the tab row.
-	// Rendered by repeating "─" across the page width — gives the
+	// Rendered by repeating "─" across the page width, gives the
 	// header a clear bottom edge so it reads as a banded zone instead
 	// of floating text.
 	t.HeaderUnderln = lipgloss.NewStyle().Foreground(ui.Dim)

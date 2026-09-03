@@ -64,7 +64,7 @@ func TestRenderWaterfallShape(t *testing.T) {
 		}
 	}
 
-	// Compact kinds — full set
+	// Compact kinds, full set
 	for _, want := range []string{"block.finalized", "beacon", "item.committed", "item.burst", "block_healing.forward"} {
 		if !strings.Contains(out, want) {
 			t.Errorf("waterfall missing compact kind %q", want)
@@ -98,7 +98,7 @@ func TestRenderWaterfallShape(t *testing.T) {
 }
 
 // TestRenderDetailPanelFullPayload: the panel renders the FULL
-// untruncated payload of the selected row — every field, with long
+// untruncated payload of the selected row, every field, with long
 // hashes shown in their entirety (possibly across multiple lines).
 func TestRenderDetailPanelFullPayload(t *testing.T) {
 	t.Parallel()
@@ -147,7 +147,7 @@ func TestRenderDetailPanelFullPayload(t *testing.T) {
 }
 
 // TestRenderDetailPanelWrapsLongHashOnNarrowPane: with a narrow pane
-// width the panel must wrap long values onto continuation lines —
+// width the panel must wrap long values onto continuation lines,
 // concatenated, those continuation lines must reproduce the full
 // untruncated value.
 func TestRenderDetailPanelWrapsLongHashOnNarrowPane(t *testing.T) {
@@ -167,7 +167,7 @@ func TestRenderDetailPanelWrapsLongHashOnNarrowPane(t *testing.T) {
 	out := plain(m.renderDetailPanel(60, 12))
 
 	// On 60 cols the hash will wrap. The bytes are still all there,
-	// just split across lines — strip whitespace and concatenate to
+	// just split across lines, strip whitespace and concatenate to
 	// confirm.
 	flat := strings.Join(strings.Fields(out), "")
 	if !strings.Contains(flat, fullHash) {

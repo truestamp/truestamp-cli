@@ -22,7 +22,7 @@ func TestDisconnectSignalFiresOnDropConn(t *testing.T) {
 	}
 	t.Cleanup(func() { _ = c.Close() })
 
-	// dropConn on a client with no active conn still fires the signal —
+	// dropConn on a client with no active conn still fires the signal,
 	// the session loop relies on this idempotency.
 	c.dropConn(websocket.StatusAbnormalClosure, "test")
 
@@ -58,7 +58,7 @@ func TestDisconnectSignalCoalesces(t *testing.T) {
 		t.Fatal("expected one signal in buffer")
 	}
 
-	// Buffer should be empty now — no further signals are queued.
+	// Buffer should be empty now, no further signals are queued.
 	select {
 	case <-c.disconnect:
 		t.Fatal("multiple dropConn calls leaked signals; coalescing broken")

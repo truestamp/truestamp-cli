@@ -10,7 +10,7 @@ import (
 // Page is a value type carrying the terminal dimensions and a Theme
 // reference. Constructed fresh on every render with the latest size.
 //
-// Page itself owns no state — it's a thin renderer that knows how the
+// Page itself owns no state, it's a thin renderer that knows how the
 // header / body / footer compose. Centralizing this composition keeps
 // every pane a single Render(width, height) -> string call away from
 // the rest of the layout, with no per-pane chrome reimplementation.
@@ -22,7 +22,7 @@ type Page struct {
 
 // BodyArea returns the inner-content rectangle for a given header
 // and footer. Caller passes the already-rendered chrome strings;
-// BodyArea measures their actual height (which can vary — the
+// BodyArea measures their actual height (which can vary, the
 // footer's bubbles/help expands when ShowAll toggles on) and
 // subtracts. Clamped to a 1x1 minimum so a tiny terminal still
 // produces something renderable rather than panicking on negative

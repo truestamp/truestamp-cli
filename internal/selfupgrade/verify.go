@@ -26,7 +26,7 @@ var ErrChecksumMissing = errors.New("archive not listed in checksums.txt")
 
 // ErrCosignMissing is returned when cosign verification is required
 // (TRUESTAMP_REQUIRE_COSIGN=1) but the cosign binary could not be
-// resolved — either the operator-pinned cosign_path is unusable
+// resolved, either the operator-pinned cosign_path is unusable
 // (relative, absent, a directory, or non-executable) or `cosign` is not
 // on PATH.
 var ErrCosignMissing = errors.New("cosign required but not on PATH")
@@ -116,7 +116,7 @@ type CosignOptions struct {
 }
 
 // DefaultCosignOptions returns the identity values wired into
-// install.sh:256-261 — the release.yml workflow in truestamp/truestamp-cli
+// install.sh:256-261, the release.yml workflow in truestamp/truestamp-cli
 // signed by GitHub Actions' OIDC token endpoint. pinnedPath is optional
 // (empty = $PATH lookup) and is forwarded verbatim to CosignOptions.
 func DefaultCosignOptions(required bool, pinnedPath string) CosignOptions {
@@ -130,7 +130,7 @@ func DefaultCosignOptions(required bool, pinnedPath string) CosignOptions {
 
 // resolveCosignBinary returns a usable path to the cosign binary.
 // pinned, when non-empty, must be an absolute path to an executable
-// file — operators use this to avoid $PATH hijacking in hardened
+// file, operators use this to avoid $PATH hijacking in hardened
 // environments. The absolute-path check is redundant with the
 // validation in config.Load but defensive: this function is also
 // callable from tests and any future direct caller.
@@ -140,7 +140,7 @@ func DefaultCosignOptions(required bool, pinnedPath string) CosignOptions {
 // The G703 suppression below is the tightest surface gosec worries
 // about: by the time we call os.Stat, the input is a caller-supplied
 // absolute path, and the result only gates whether we return that
-// exact path as a command to exec — no other filesystem access is
+// exact path as a command to exec, no other filesystem access is
 // derived from it.
 func resolveCosignBinary(pinned string) (string, error) {
 	pinned = strings.TrimSpace(pinned)

@@ -48,7 +48,7 @@ func init() {
 func populateFromBuildInfo(info *debug.BuildInfo) {
 	// Main.Path is the module path from go.mod. Reliable for
 	// `go install`-produced binaries; may be "command-line-arguments"
-	// for `go run` or local `go build .` — in that case keep the default.
+	// for `go run` or local `go build .`, in that case keep the default.
 	if info.Main.Path != "" && info.Main.Path != "command-line-arguments" {
 		Path = info.Main.Path
 	}
@@ -77,7 +77,7 @@ func populateFromBuildInfo(info *debug.BuildInfo) {
 			}
 		case "vcs.modified":
 			// Mark dirty builds, but only when the version string came from
-			// BuildInfo — an explicit ldflags Version is trusted as-is.
+			// BuildInfo, an explicit ldflags Version is trusted as-is.
 			if s.Value == "true" && usedInfoVersion {
 				Version += "-dirty"
 			}
@@ -97,7 +97,7 @@ func Short() string {
 
 // Copyright returns the copyright notice with dynamic end year.
 func Copyright() string {
-	return fmt.Sprintf("Truestamp, Inc. — https://truestamp.com\nCopyright (c) 2019-%s Truestamp, Inc. All rights reserved.", BuildYear)
+	return fmt.Sprintf("Truestamp, Inc., https://truestamp.com\nCopyright (c) 2019-%s Truestamp, Inc. All rights reserved.", BuildYear)
 }
 
 // Platform returns the GOOS/GOARCH pair for this binary.

@@ -9,17 +9,17 @@ import "strings"
 // CLI surfaces in its post-action "card" output (after beacon get,
 // download, create, etc.). Two flavours per subject:
 //
-//   - Details URL — the subject's own detail page (item / block /
+//   - Details URL, the subject's own detail page (item / block /
 //     entropy / beacon). Keyed by id for everything except beacon,
 //     which has a hash-keyed detail route the server exposes at
 //     /beacons/<hash>. Callers with only the id can still link via the
 //     underlying block's page (see SubjectDetailURL's beacon row).
 //
-//   - Verify URL — the typed sub-path `/verify/<type>/<id>` route
+//   - Verify URL, the typed sub-path `/verify/<type>/<id>` route
 //     introduced in the t=11 cutover. Always id-keyed and always
 //     available for all six subject types.
 //
-// URLs are emitted unconditionally — localhost and plain-http hosts
+// URLs are emitted unconditionally, localhost and plain-http hosts
 // render URLs too. The earlier "suppress dev hosts" filter was removed
 // so developers can see the card URLs against their local server. The
 // corresponding small risk (a dev-host URL in a shared transcript) is
@@ -37,7 +37,7 @@ func publicWebBase(apiURL string) string {
 // subjectDetailPath maps each of the six canonical wire-type values to
 // the server's detail-page root. Id-keyed for all six. Beacon shares
 // the block's detail page because a beacon proof commits to the same
-// block a plain block proof does — pointing `--type beacon` downloads
+// block a plain block proof does, pointing `--type beacon` downloads
 // at `/blocks/<id>` is accurate and uses an id we have on hand (the
 // hash-keyed `/beacons/<hash>` form requires computing the block hash
 // from bundle bytes, which the beacon-listing card already does with

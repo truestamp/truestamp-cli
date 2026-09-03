@@ -21,7 +21,7 @@ var convertKeyIDCmd = &cobra.Command{
 	Use:   "keyid [pubkey]",
 	Short: "Derive the 4-byte Truestamp kid fingerprint from an Ed25519 public key",
 	Long: `The Truestamp kid ("key ID") is computed as
-truncate4(SHA256(0x51 || pubkey)) — the first 4 bytes of the SHA-256
+truncate4(SHA256(0x51 || pubkey)), the first 4 bytes of the SHA-256
 digest of the key with domain prefix 0x51. Each proof's "kid" field is
 this value rendered as 8 hex characters; deriving it locally lets you
 cross-check the signing key your proof was issued against.

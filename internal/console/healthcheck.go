@@ -77,7 +77,7 @@ const healthCheckMinInterval = 3 * time.Second
 // keyring URLs are passed in (they're computed from base_url over
 // in package config) so user overrides flow through; the third-
 // party verification endpoints (NIST, Stellar, Blockstream) use
-// production URLs by design — we don't have testnet URLs in the
+// production URLs by design, we don't have testnet URLs in the
 // CLI's config surface, and a user verifying a mainnet item would
 // always pull from these regardless.
 //
@@ -113,7 +113,7 @@ func DefaultHealthTargets(healthURL, keyringURL string) []HealthTarget {
 //
 // Probe shape: HEAD first. If the server returns 405 Method Not
 // Allowed (common on simple JSON endpoints), retry with GET. We
-// don't read the body — we only care that the host responded.
+// don't read the body, we only care that the host responded.
 func checkHealthTarget(ctx context.Context, t HealthTarget) healthResult {
 	r := healthResult{Target: t, At: time.Now()}
 
@@ -159,7 +159,7 @@ func checkHealthTarget(ctx context.Context, t HealthTarget) healthResult {
 }
 
 // probeOnce issues a single HTTP request and returns the status code
-// (or an error). The body is discarded — we don't care about content
+// (or an error). The body is discarded, we don't care about content
 // for liveness probing.
 func probeOnce(ctx context.Context, method, target string) (int, error) {
 	req, err := http.NewRequestWithContext(ctx, method, target, nil)

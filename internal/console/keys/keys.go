@@ -174,7 +174,7 @@ type NewItemKeys struct {
 }
 
 // NewNewItemKeys returns the New Item form bindings. Plain `tab` is
-// kept inside the form here — the root model only consumes pane-
+// kept inside the form here, the root model only consumes pane-
 // switch keys (`]`, `[`, `1`-`4`) so this binding wins for
 // in-form navigation.
 func NewNewItemKeys(app AppKeys) NewItemKeys {
@@ -221,7 +221,7 @@ func (k NewItemKeys) FullHelp() [][]key.Binding {
 }
 
 // NewItemWatchingKeys covers the New Item pane after a successful
-// items.create — the form is gone, the lifecycle card is up, and
+// items.create, the form is gone, the lifecycle card is up, and
 // the only pane-local action is starting over with `n`. We surface
 // a separate keymap for this state so the footer doesn't continue
 // to advertise tab/shift+tab/enter/esc, none of which apply.
@@ -333,7 +333,7 @@ type TeamCreateKeys struct {
 
 // NewTeamCreateKeys returns the create-modal bindings. The modal captures
 // every key (including q, 1-4, [, ], ?) into the form, so quit is advertised
-// as ctrl+c — the only key that still quits while the modal is open.
+// as ctrl+c, the only key that still quits while the modal is open.
 func NewTeamCreateKeys(app AppKeys) TeamCreateKeys {
 	return TeamCreateKeys{
 		App: app,

@@ -15,7 +15,7 @@ import (
 
 // TestCLI_Hash_StdinABC cross-validates the CLI output for SHA-256("abc")
 // against the canonical NIST FIPS 180-4 vector. If this ever drifts, every
-// user's scripted output changes — catch it the moment it breaks.
+// user's scripted output changes, catch it the moment it breaks.
 func TestCLI_Hash_StdinABC(t *testing.T) {
 	cmd := exec.Command(binaryPath, "hash", "-a", "sha256")
 	cmd.Stdin = strings.NewReader("abc")
@@ -194,7 +194,7 @@ func TestCLI_Hash_PrefixAndJCS(t *testing.T) {
 
 // TestCLI_Hash_PrefixAlone_EqualsJCSSeparately verifies that hashing
 // `{"a":1,"b":2}` (already canonical) with --prefix 0x11 matches what
-// `jcs` + `hash --prefix 0x11` produce — i.e. that the two forms
+// `jcs` + `hash --prefix 0x11` produce, i.e. that the two forms
 // compose.
 func TestCLI_Hash_PrefixMatchesJCS(t *testing.T) {
 	input := `{"a":1,"b":2}`

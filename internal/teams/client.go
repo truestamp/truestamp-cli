@@ -54,9 +54,9 @@ type Membership struct {
 // Errors surfaced by the client. CLI layers may errors.Is these to pick
 // an exit code and user-facing message.
 //
-// ErrUnauthorized covers 401 (the credential was rejected — a dead or
+// ErrUnauthorized covers 401 (the credential was rejected, a dead or
 // expired OAuth session, or an invalid API key).
-// ErrForbidden covers 403 — auth was accepted but the actor isn't allowed
+// ErrForbidden covers 403, auth was accepted but the actor isn't allowed
 // to read this resource (typically: the tenant header points to a team
 // the actor isn't a member of). Distinguishing the two matters because
 // the user-facing remediation is completely different: 401 → run `auth
@@ -77,7 +77,7 @@ var (
 	ErrTeamLimitReached = errors.New("team limit reached")
 	// ErrOwnershipNotEntitled is returned by CreateTeam when the requested
 	// ownership_model (e.g. team_retains) requires a plan entitlement the
-	// actor lacks — distinct from the team-count limit.
+	// actor lacks, distinct from the team-count limit.
 	ErrOwnershipNotEntitled = errors.New("ownership model not entitled")
 )
 
@@ -114,7 +114,7 @@ type Config struct {
 // ListMyMemberships returns one Membership row per team the
 // authenticated actor has access to, with that actor's role on the team.
 //
-// The implementation anchors on `GET /teams` (source of truth for
+// The implementation is keyed on `GET /teams` (source of truth for
 // "teams I can read", per the server-side `relates_to_actor_via(:members)`
 // READ policy) rather than `/memberships` because:
 //
@@ -122,17 +122,17 @@ type Config struct {
 //     (orphaned dev seed data, mid-cascade-delete races).
 //  2. Under admin bypass policies, `/memberships` may return
 //     memberships from other users that the actor doesn't actually
-//     hold. Anchoring on the team list ensures every returned row
+//     hold. Keying on the team list ensures every returned row
 //     represents a team the actor can actually read.
-//  3. `?include=team` on the memberships endpoint is unreliable —
+//  3. `?include=team` on the memberships endpoint is unreliable,
 //     the included array is sparse for reasons we haven't fully
 //     diagnosed (possibly Ash's per-response include limits or
 //     relationship-load authorization filtering).
 //
 // Roles are joined from a parallel `/memberships` request and
 // deduplicated by team_id (when multiple memberships exist for the
-// same team — e.g. different users on the same team under admin
-// bypass — we take the first match deterministically).
+// same team, e.g. different users on the same team under admin
+// bypass, we take the first match deterministically).
 //
 // Both endpoints walk `links.next` so users with many memberships
 // or teams aren't silently truncated by the server's default page size.
@@ -159,7 +159,7 @@ func ListMyMemberships(ctx context.Context, cfg Config) ([]Membership, error) {
 			continue
 		}
 		if _, valid := teamsByID[m.TeamID]; !valid {
-			// Drop memberships whose team isn't readable — these are
+			// Drop memberships whose team isn't readable, these are
 			// either orphaned (team deleted) or admin-bypass leakage
 			// from other users' teams. The team list is the source
 			// of truth.
@@ -178,7 +178,7 @@ func ListMyMemberships(ctx context.Context, cfg Config) ([]Membership, error) {
 			Team:   t,
 		})
 	}
-	// Sort by team id so callers see a stable order — the map
+	// Sort by team id so callers see a stable order, the map
 	// iteration above is non-deterministic. The CLI's own renderers
 	// sort by privilege rank afterwards; this just gives JSON
 	// output and tests a reproducible baseline.
@@ -200,7 +200,7 @@ func teamsToMembershipsNoRole(teamsByID map[string]*Team) []Membership {
 }
 
 // listMembershipsRaw walks the `/memberships` paginated endpoint and
-// returns every page concatenated. No include — see the note on
+// returns every page concatenated. No include, see the note on
 // ListMyMemberships for why.
 func listMembershipsRaw(ctx context.Context, cfg Config) ([]Membership, error) {
 	pageSize := 200
@@ -273,7 +273,7 @@ func walkPages(ctx context.Context, cfg Config, firstPath string, onPage func([]
 
 // stripAPIBase converts a full URL from `links.next` back into a path
 // relative to cfg.APIURL so doGet can compose it. If `full` doesn't
-// share the cfg.APIURL prefix (unexpected — would only happen if the
+// share the cfg.APIURL prefix (unexpected, would only happen if the
 // server returns a different host), we return the URL as-is and let
 // doGet handle it.
 func stripAPIBase(apiURL, full string) string {
@@ -342,7 +342,7 @@ func parseTeamsPage(body []byte) ([]*Team, string, error) {
 
 // jsonAPILinks captures the subset of the JSON:API top-level `links`
 // object the CLI uses for pagination. `next` is `null` when there
-// are no more pages — UnmarshalJSON on the wrapper type coerces it
+// are no more pages, UnmarshalJSON on the wrapper type coerces it
 // to an empty string so the walk loop can use a single `next == ""`
 // terminator.
 type jsonAPILinks struct {
@@ -409,7 +409,7 @@ func GetMyRoleOnTeam(ctx context.Context, cfg Config, teamID string) (string, er
 const createTeamPath = "/teams"
 
 // ownershipModelPointer is the JSON:API errors[].source.pointer the server
-// sets on the ownership-entitlement validation error — the stable structural
+// sets on the ownership-entitlement validation error, the stable structural
 // discriminator separating it from the (pointer-less) plan-limit error.
 const ownershipModelPointer = "/data/attributes/ownership_model"
 
@@ -438,9 +438,9 @@ func OwnershipLabel(model string) string {
 func OwnershipDescription(model string) string {
 	switch model {
 	case OwnershipCreatorRetains:
-		return "Items you create stay yours — you keep them if you leave the team."
+		return "Items you create stay yours, you keep them if you leave the team."
 	case OwnershipTeamRetains:
-		return "Items you create belong to the team — they stay if you leave or are removed."
+		return "Items you create belong to the team, they stay if you leave or are removed."
 	}
 	return ""
 }
@@ -507,14 +507,14 @@ func mapCreateError(err error) error {
 }
 
 // mentionsTeamLimit reports whether a server error detail describes the plan
-// team-count limit — the documented signal for the (structurally unmarked)
+// team-count limit, the documented signal for the (structurally unmarked)
 // plan-limit rejection.
 func mentionsTeamLimit(detail string) bool {
 	return strings.Contains(strings.ToLower(detail), "team limit")
 }
 
-// doRequest issues an authenticated request to the JSON:API — an optional
-// JSON body for writes — and returns the response body on 2xx, or an
+// doRequest issues an authenticated request to the JSON:API, an optional
+// JSON body for writes, and returns the response body on 2xx, or an
 // *APIError wrapping a class sentinel on non-2xx (with errors[].source.pointer
 // captured for create-error discrimination, and Retry-After on 429). doGet and
 // doPost are thin wrappers so the auth gate, tenant header, body cap, and
@@ -593,7 +593,7 @@ func parseAPIError(status int, body []byte) *APIError {
 		} `json:"errors"`
 	}
 	if err := json.Unmarshal(body, &envelope); err == nil && len(envelope.Errors) > 0 {
-		// Prefer an error carrying a source.pointer — the structural
+		// Prefer an error carrying a source.pointer, the structural
 		// discriminator. The server can return MULTIPLE errors at once (a
 		// free-plan user requesting team_retains trips both the plan-limit
 		// and the ownership-entitlement rejection), so we classify on the

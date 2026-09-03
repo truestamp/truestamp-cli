@@ -185,7 +185,7 @@ func (s Store) Location() string {
 	}
 	if p, err := s.fileStorePath(); err == nil {
 		if _, ferr := os.Stat(p); ferr == nil {
-			return p + " (0600 — no OS keychain available)"
+			return p + " (0600, no OS keychain available)"
 		}
 	}
 	return "OS keychain (0600 file fallback)"

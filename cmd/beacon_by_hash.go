@@ -11,7 +11,7 @@ import (
 var beaconByHashCmd = &cobra.Command{
 	Use:   "by-hash <hash>",
 	Short: "Show a beacon by its 64-hex-char hash",
-	Long: `Fetch a single beacon by its hash — useful when all you have is the
+	Long: `Fetch a single beacon by its hash, useful when all you have is the
 hash (e.g. printed on a receipt or read out of photo metadata).
 
 The hash must be exactly 64 lowercase hexadecimal characters.

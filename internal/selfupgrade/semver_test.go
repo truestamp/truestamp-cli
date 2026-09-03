@@ -37,7 +37,7 @@ func TestParseSemver(t *testing.T) {
 			t.Errorf("ParseSemver(%q) unexpected error: %v", c.in, err)
 			continue
 		}
-		// Compare public fields one-by-one — struct equality would trip on
+		// Compare public fields one-by-one, struct equality would trip on
 		// the unexported `canonical` field populated from x/mod/semver.
 		if got.Major != c.want.Major || got.Minor != c.want.Minor || got.Patch != c.want.Patch ||
 			got.PreRelease != c.want.PreRelease || got.BuildMetadata != c.want.BuildMetadata ||
@@ -117,14 +117,14 @@ func TestIsGitDescribeDev(t *testing.T) {
 		in   string
 		want bool
 	}{
-		// git-describe outputs — should match
+		// git-describe outputs, should match
 		{"0.5.0-4-g356ee75-dirty", true},
 		{"0.5.0-4-g356ee75", true},
 		{"v0.5.0-4-g356ee75-dirty", true},
 		{"1.2.3-99-g0000000", true},
 		{"0.5.0-rc.1-2-gdeadbeef", true}, // dev build ahead of pre-release tag
 		{"0.5.0-rc.1-2-gdeadbeef-dirty", true},
-		// Not git-describe — should NOT match
+		// Not git-describe, should NOT match
 		{"0.5.0", false},
 		{"v0.5.0", false},
 		{"0.5.0-rc.1", false},
@@ -153,17 +153,17 @@ func TestUpgradeAvailable(t *testing.T) {
 		want            bool
 		note            string
 	}{
-		// Normal (non-git-describe) behavior — strict semver.
+		// Normal (non-git-describe) behavior, strict semver.
 		{"v0.5.0", "v0.5.1", true, "patch bump"},
 		{"v0.5.0", "v0.5.0", false, "same version"},
 		{"v0.5.1", "v0.5.0", false, "latest is older"},
 		{"v1.0.0-rc.1", "v1.0.0", true, "rc → final is an upgrade"},
-		// Git-describe dev builds — compare cores only.
+		// Git-describe dev builds, compare cores only.
 		{"0.5.0-4-g356ee75-dirty", "v0.5.0", false,
 			"dev build 4 commits past v0.5.0 should NOT offer v0.5.0 as an upgrade (it's a downgrade)"},
 		{"0.5.0-4-g356ee75", "v0.5.0", false, "clean git-describe, same outcome"},
 		{"0.5.0-4-g356ee75-dirty", "v0.5.1", true,
-			"dev build past v0.5.0 SHOULD offer v0.5.1 — real upgrade"},
+			"dev build past v0.5.0 SHOULD offer v0.5.1, real upgrade"},
 		{"0.5.0-4-g356ee75-dirty", "v0.6.0", true, "minor bump past dev-build's base"},
 		{"0.5.0-4-g356ee75-dirty", "v1.0.0", true, "major bump past dev-build's base"},
 		{"0.5.0-4-g356ee75-dirty", "v0.4.9", false, "latest is behind dev-build's base"},

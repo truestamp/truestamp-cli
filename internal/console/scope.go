@@ -5,9 +5,9 @@ package console
 
 // activeScope is the canonical source of truth for "what team is the
 // console currently scoped to" inside the TUI. Every pane that needs
-// to render the active team — the chrome header label, the
+// to render the active team, the chrome header label, the
 // Connection pane's scope rows, the Teams pane's ★ marker and active-
-// team card — reads from this single struct on the root model
+// team card, reads from this single struct on the root model
 // instead of carrying its own copy.
 //
 // Update points are explicit and centralized in app.go's Update:
@@ -20,7 +20,7 @@ package console
 //     id we're scoped to; flips AccessLost on a 403/404.
 //   - teamSwitchedMsg → applies the post-switch team data verbatim.
 //
-// Panes never mutate this struct directly — they read it during their
+// Panes never mutate this struct directly, they read it during their
 // View() to render the right thing.
 type activeScope struct {
 	// UserID + Plan come from the welcome envelope at session start.
@@ -87,7 +87,7 @@ func (s *activeScope) applyTeamAccess(msg teamAccessMsg) {
 }
 
 // applyTeamSwitched records the result of a successful
-// scope.switch_team push. The reply is authoritative — TeamID +
+// scope.switch_team push. The reply is authoritative, TeamID +
 // metadata replace whatever was there.
 func (s *activeScope) applyTeamSwitched(reply *teamSwitchReply) {
 	if reply == nil {

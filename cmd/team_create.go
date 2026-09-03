@@ -28,9 +28,9 @@ The name may be given as the positional argument or with --name. With
 neither on an interactive terminal, a short form prompts for the name and
 ownership model. The --ownership-model flag chooses how ownership is held:
 
-  creator_retains  Items you create stay yours — you keep them if you
+  creator_retains  Items you create stay yours, you keep them if you
                    leave the team (the default).
-  team_retains     Items you create belong to the team — they stay with
+  team_retains     Items you create belong to the team, they stay with
                    the team if you leave or are removed. Requires a plan
                    entitlement.
 
@@ -78,7 +78,7 @@ func runTeamCreate(cmd *cobra.Command, args []string) error {
 	// Prompt for the name (and ownership model) when missing on a TTY. In
 	// --json/--silent or non-interactive use, a missing name is a hard error
 	// so scripted callers get a clear failure instead of a hang. The server
-	// is the authority on plan entitlement — there is no pre-flight check.
+	// is the authority on plan entitlement, there is no pre-flight check.
 	if name == "" {
 		if jsonOut || silent || !stdinIsTerminal() {
 			return fmt.Errorf("team name is required (pass a name argument or --name)")
@@ -144,7 +144,7 @@ func promptTeamCreate(name, ownership string) (string, string, error) {
 	models := teams.OwnershipModels()
 	opts := make([]huh.Option[string], 0, len(models))
 	for _, m := range models {
-		opts = append(opts, huh.NewOption(teams.OwnershipLabel(m)+" — "+teams.OwnershipDescription(m), m))
+		opts = append(opts, huh.NewOption(teams.OwnershipLabel(m)+", "+teams.OwnershipDescription(m), m))
 	}
 
 	form := huh.NewForm(
@@ -163,7 +163,7 @@ func promptTeamCreate(name, ownership string) (string, string, error) {
 	).WithTheme(ui.HuhTheme())
 
 	if err := form.Run(); err != nil {
-		// Treat any Run() error as cancel — the user can re-run.
+		// Treat any Run() error as cancel, the user can re-run.
 		return "", "", nil
 	}
 	return strings.TrimSpace(name), ownership, nil

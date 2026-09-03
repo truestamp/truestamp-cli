@@ -1,0 +1,48 @@
+
+==============================================================================
+VERIFICATION REPORT
+==============================================================================
+
+Data Integrity
+  [SKIP]  Hash Comparison      no file hash in this proof
+
+Cryptographic
+  [PASS]  Signing Key          public key valid, key_id 3c19f776
+  [PASS]  Subject Data         data hash derived (0x11) from JCS(subject.claims)
+  [PASS]  Subject Data         metadata hash derived (0x12) from JCS(subject.metadata), which the bundle carries
+  [PASS]  Subject Data         composite fingerprint derived (0x13) from 111-byte preimage
+  [PASS]  Inclusion Proof      5 steps; derived root matches block.merkle_root
+  [PASS]  Block Hash           block metadata hash derived (0x33) from JCS(block.metadata), which the bundle carries
+  [PASS]  Block Hash           block hash (0x32) derived from 157-byte preimage: ac8dacefba431b1a21f0deec4e229ab28a285a6a63d0c966d1b1c0ed2db55c1f
+  [PASS]  Epoch Proof          stellar: 3 steps; derived root matches epoch_merkle_root
+  [PASS]  Proof Signature      Ed25519 valid over the 0x61 proof hash (113-byte payload, type code 20, N=1)
+  [PASS]  Key Binding          key_id 3c19f776 found in the pinned keyring (sequence 0, active true)
+  [SKIP]  Signing Key Event    no signing key event carried: this bundle does not bind its signing key to a chain-recorded key event
+
+Structural
+  [PASS]  Structure            proof format version 1
+
+Timing
+  [SKIP]  Witnesses            block committed in the subject metadata but not carried in this bundle
+  [SKIP]  Witnesses            entropy_bitcoin committed in the subject metadata but not carried in this bundle
+  [SKIP]  Witnesses            entropy_nist committed in the subject metadata but not carried in this bundle
+  [SKIP]  Witnesses            entropy_stellar committed in the subject metadata but not carried in this bundle
+  [PASS]  Submission Window    subject id time 2026-09-03T16:15:14.222Z is at or before block id time 2026-09-03T16:16:00.182Z (asserted by Truestamp, not externally verified)
+  [INFO]  Temporal Info        submitted 2026-09-03T16:15:14.222Z, committed into a block 2026-09-03T16:16:00.182Z
+  [INFO]  Submitted After      not established from this bundle: no witness details carried; the metadata commits to block, entropy_bitcoin, entropy_nist, entropy_stellar
+  [INFO]  Submitted Before     submitted before 2026-09-03T16:20:05Z is a candidate from the stellar commitment; that commitment was not confirmed in this run
+
+Blockchain
+  [SKIP]  Stellar Commitment   not checked offline: confirm memo 52c7d34ebc4291db... in tx 9a58b44146076484... on Horizon
+
+------------------------------------------------------------------------------
+  12 passed   0 failed   0 warned   7 skipped   3 info
+  file hash provided: no
+
+  VERDICT: PASSED
+
+  The proof is internally sound: every value in it reproduces, and the
+  signature over those values is valid. Any `skip` above is a check this
+  run did not perform, not a check that failed.
+
+==============================================================================

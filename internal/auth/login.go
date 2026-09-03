@@ -40,7 +40,7 @@ type callbackResult struct {
 
 // Login runs the browser-based loopback Authorization Code + PKCE flow
 // against baseOrigin, persists the resulting session via store, and returns
-// it. ctx bounds the whole flow (caller should pass a generous deadline —
+// it. ctx bounds the whole flow (caller should pass a generous deadline,
 // the user has to sign in and consent in a browser).
 func Login(ctx context.Context, baseOrigin string, store Store, opts LoginOptions) (*Session, error) {
 	if opts.Open == nil {
@@ -97,7 +97,7 @@ func Login(ctx context.Context, baseOrigin string, store Store, opts LoginOption
 	fmt.Fprintln(opts.Out, "Opening your browser to sign in:")
 	fmt.Fprintln(opts.Out, "  "+authURL)
 	if err := opts.Open(authURL); err != nil {
-		fmt.Fprintln(opts.Out, "Could not open a browser automatically — visit the URL above to continue.")
+		fmt.Fprintln(opts.Out, "Could not open a browser automatically, visit the URL above to continue.")
 	}
 
 	var code string
@@ -124,7 +124,7 @@ func Login(ctx context.Context, baseOrigin string, store Store, opts LoginOption
 }
 
 // Logout best-effort revokes the stored refresh token (RFC 7009) and clears
-// the local session. Revocation failures are non-fatal — the local session
+// the local session. Revocation failures are non-fatal, the local session
 // is cleared regardless, and access tokens are short-lived stateless JWTs.
 func Logout(ctx context.Context, store Store) (revoked bool, err error) {
 	sess, loadErr := store.Load()
@@ -176,7 +176,7 @@ func listenLoopback() (net.Listener, string, error) {
 		}
 		lastErr = err
 	}
-	return nil, "", fmt.Errorf("could not bind a loopback callback port (tried %v): %w — close whatever is using them and retry", loopbackPorts, lastErr)
+	return nil, "", fmt.Errorf("could not bind a loopback callback port (tried %v): %w, close whatever is using them and retry", loopbackPorts, lastErr)
 }
 
 // callbackHandler serves the single OAuth redirect, validates state, and
@@ -191,7 +191,7 @@ func callbackHandler(state string, resCh chan<- callbackResult) http.Handler {
 		}
 		q := r.URL.Query()
 		// A request that doesn't carry THIS flow's crypto-random state is
-		// not our redirect — it's a stray probe (a co-resident process, a
+		// not our redirect, it's a stray probe (a co-resident process, a
 		// browser prefetch) hitting the fixed loopback port. Reject it with
 		// a 400 but DO NOT resolve the flow, so it can't abort a legitimate
 		// login. Only a matching-state request (success or an explicit

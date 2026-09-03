@@ -15,7 +15,7 @@ import (
 
 // TestExecutePanicRecovery exercises the deferred recover() in
 // Execute() end-to-end. Triggering a panic in-process would require
-// catching os.Exit, which the testing runtime doesn't allow — so we
+// catching os.Exit, which the testing runtime doesn't allow, so we
 // shell out to the real binary, point it at a temp log file via
 // --log-file, run the hidden __test-panic command, and assert:
 //
@@ -26,7 +26,7 @@ import (
 //     panic=<value>, and a non-empty stack attribute
 //
 // If a future refactor removes the defer, exit code stays 2 (Go's
-// default) but the log assertion fails — which is the regression we
+// default) but the log assertion fails, which is the regression we
 // want to catch.
 func TestExecutePanicRecovery(t *testing.T) {
 	logPath := filepath.Join(t.TempDir(), "panic.log")
@@ -60,7 +60,7 @@ func TestExecutePanicRecovery(t *testing.T) {
 
 	// Log file should contain a command_end record at error level with
 	// the panic value and stack captured. Walk lines and look for the
-	// matching JSON object — there may be multiple records (command_start
+	// matching JSON object, there may be multiple records (command_start
 	// fires before the panic).
 	data, rerr := os.ReadFile(logPath)
 	if rerr != nil {

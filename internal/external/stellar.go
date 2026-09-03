@@ -47,8 +47,8 @@ const (
 )
 
 // horizonBaseURL implements whitepaper E.18's endpoint rule verbatim:
-// "public" selects the public instance, anything else — including an
-// absent `net` — selects the testnet instance. There is deliberately no
+// "public" selects the public instance, anything else, including an
+// absent `net`, selects the testnet instance. There is deliberately no
 // error branch. E.5 forbids the absence of an optional field from
 // skipping or failing a confirmation step, so an unnamed network is
 // looked up against the default and graded like any other lookup.
@@ -117,13 +117,13 @@ func VerifyStellar(transactionHash, expectedMemoHash, network string, expectedLe
 	}
 
 	// E.18: the transaction's memo_type MUST be `hash`. A transaction
-	// that carries another memo type cannot be the commitment — but an
+	// that carries another memo type cannot be the commitment, but an
 	// ABSENT memo_type is not a transaction saying its memo is not a
 	// hash, it is a body with no memo_type in it. Every sibling lookup
 	// grades a missing expected field Malformed (see [GetStellarLedger],
 	// [GetNISTPulse], [GetBitcoinBlockHeader]); grading it Mismatch here
 	// would fail a sound proof with "memo_type mismatch: expected hash,
-	// got " — a positive claim about the chain from a body that carried
+	// got ", a positive claim about the chain from a body that carried
 	// no transaction.
 	if tx.MemoType == "" {
 		return nil, &MalformedResponseError{Source: "Horizon", Detail: "transaction response carries no memo_type"}

@@ -31,7 +31,7 @@ const (
 )
 
 // HeaderInput bundles everything the renderer needs. Built fresh on
-// each render call so the Header itself stays stateless — easier to
+// each render call so the Header itself stays stateless, easier to
 // reason about, easier to test.
 type HeaderInput struct {
 	Width      int
@@ -45,7 +45,7 @@ type HeaderInput struct {
 
 // Render returns a 2-row block: the tab/status line plus a thin
 // horizontal rule beneath it. The rule is the only structural element
-// — no colored background, no hard border — so the header reads as a
+// , no colored background, no hard border, so the header reads as a
 // "zone" without dominating the screen visually.
 //
 // Layout:

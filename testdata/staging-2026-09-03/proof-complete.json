@@ -1,0 +1,123 @@
+{
+  "block": {
+    "id": "01a06872-f7b4-71e7-a023-215678ba6c83",
+    "merkle_root": "0f275342989fb8027a2a6c1c5786f1f3acee9a5ca64e00481fccc365d9176a4e",
+    "metadata": {},
+    "previous_block_hash": "b2605d453ac098434d39872d482204f24192b8dc02637e5efa2c2354920261fb",
+    "signing_key_id": "96b1cd2f"
+  },
+  "commitments": [
+    {
+      "block_height": 56062,
+      "block_merkle_root": "8b30945fb599b2a3bda46ed0f8a290d65ca2ae2e47c6183efc5afd14ec0ad792",
+      "chain": "bitcoin",
+      "epoch_merkle_root": "1706e3d19201b806508fb177a212e748f59a20c152c588fef942814b772345f4",
+      "epoch_proof": "BApnoznjiS2loYpDNXRMTB-nrcIlUYK7zN0SsKbioXPJPkKsdlQW_clqRZM2yPXySJrQ1hF0ws2_XK8MYPFIBKP7tKjNpUf9HEsAh8Kwr-CKmtBhzjY0znRRAJwVuYHSeBOrWEpfAlBI9D5CyH1ixJnffIbjVya-jW59akAnIzuyMg",
+      "network": "regtest",
+      "raw_transaction": "02000000000102c29ce2cc348705cc69dce93987f69a0bb070d7ff0ea533e6189dfac83ddde9f20000000000fdffffff1a14a7f457ea5bafbfc733b68cccce5dc507aac02bc6420d43976d1170fb8ee80000000000fdffffff0260c30000000000002251204499254275e5b05118d50c7f6ec0026619de4c261d170c2556038b3fbcc9fda20000000000000000226a201706e3d19201b806508fb177a212e748f59a20c152c588fef942814b772345f40140e0e45126670b83a39975b5170c47272b7eeff079020d5fbdfde9957caa054ec546a5658bcba4d2c62c8e9e768d7deadd2d1113b4f339225ff9affb4e618d193d0140228642e0f3cb18c48e122cfc2885249e12cb962d9d3ac40dd1e190dd554355190831451e124f3ad57c03449d87445686a37e02b569d3ca686fcd8bffdc645d6b00000000",
+      "timestamp": "2026-09-03T18:15:06Z",
+      "transaction_hash": "3ebe32a3cd2fb711405f5d7789309375a877fdc0e3ba5d7b63e182082a278e95",
+      "txoutproof": "00000020796b397a8d3de8fbb61d93f50a9e515da6afe164448a1a9165781aeffb54f04b92d70aec14fd5afc3e18c6472eaea25cd690a2f8d06ea4bda3b299b55f94308b2ab9996affff7f20000000000200000002f73b5d2a3fa35f56dd8a2770523cc5726b3943b2bcf9a38afd0743956ff48e00958e272a0882e1637b5dbae3c0fd77a875933089775d5f4011b72fcda332be3e0105"
+    },
+    {
+      "chain": "stellar",
+      "epoch_merkle_root": "020d4eae8bb21100c619ac9733cd6c0d49013b03c66a26fbd2e535f4870cf3e2",
+      "epoch_proof": "AgNDTDeGyQMYU8LOfXnwqZlRjk6vZAcXxWmf7C2hdRQ0hx8YVMedIqcayxLpk-sIlfMlOJmC7QbIrxVpzsBbvIMK",
+      "ledger": 4487083,
+      "network": "testnet",
+      "timestamp": "2026-09-03T18:10:02Z",
+      "transaction_hash": "75766d985e9e94bfca9ab4d863b5e3dab9261115c91d6a3d7595f1f016beebd3"
+    }
+  ],
+  "generated_at": "2026-09-03T18:31:10Z",
+  "inclusion_proof": "BA-ZjkHuIMr5LBJJWX_6PoBuWpnVsBlGIUJ7WcVWxqNb5N7f6V8jjph9s1k7ll46CsVvtnUMsnpsS1v3UK8kek4SxxtpcRwCtoClOLEKCQf_SQzSp7uBvns1RSqNEaU-6UtmFyZ74_jZKGh5znmRyD0JdNH5kSeEmdPlMWQolBiPtA",
+  "public_key": "sYfRKf1R/ILtfRv1KjBgk6F6kgIrXDfVbz3Pl+kgE2U=",
+  "signature": "oylPYHAx0xxyaZnua2Q+qQp6NMeQodVbY3pIREX0fWFgdV7e0nf0WrDI8vBTeN/MIVl1GucKuNyd+QJweHdGAg==",
+  "signing_key_event": {
+    "block": {
+      "id": "019fcf12-9a25-7ec9-839c-92ecbcdbb31b",
+      "merkle_root": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "metadata": {
+        "key_event": {
+          "key_id": "96b1cd2f",
+          "prerotation_commitment": null,
+          "public_key": "sYfRKf1R/ILtfRv1KjBgk6F6kgIrXDfVbz3Pl+kgE2U=",
+          "sequence": 0,
+          "type": "genesis"
+        }
+      },
+      "previous_block_hash": "96118892a96ced7df9875cca4b09f5c867728f63adcea4f189acc2f38fe75c95",
+      "signing_key_id": "96b1cd2f"
+    },
+    "commitments": [
+      {
+        "block_height": 47214,
+        "block_merkle_root": "f04ee32b7d40ee04718e84c9e763c6caa48780fc8e97d35ec62cbd8d3ea55115",
+        "chain": "bitcoin",
+        "epoch_merkle_root": "783c901e365961c17c007977ceeb49f9aedaec448e86859765ff7e20636829a9",
+        "epoch_proof": "BA-z1I4vAkui_ZSSdvImuWqPlSSjdC3vYBYw2IWb-64im4nCiQqEJJ-3eokg-7ZCQnwjw7zCrRFFM5OEthjvDBZdcQH9bp6fe6D6IMYr5Akzn2ncoArZDXgCer0vH1YXtsZ4RK2pYvY1nrh1Tzu7W75mwpy40ZIf7Rt8KTI_SrU3Ug",
+        "network": "regtest",
+        "raw_transaction": "020000000001022e7b7ad4bcc3abb2d9ffa38fb17156d5e4fee3f05889ca01d020c65b476e44e80100000000fdffffff75db377da10c5dfee7615cbfd0310ad8c0625476542eb47e3a2560b7d2aa8d120000000000fdffffff0256c3000000000000225120e4ddfce26385a892cf52fcdfdabb925cf9e37cf6f5ed023d669c7b45bb9ecb090000000000000000226a20783c901e365961c17c007977ceeb49f9aedaec448e86859765ff7e20636829a901408f49cf7f89589873427b07a947832eab1286f8d257c2bce27d67babfe41d0ba1cd1d9bd390b04a9c5d3adaae8933e2cc70b065aedba41ad01d78db52c80073b001405829b347feb9eb70f0326691e14916310ec6ea85788ff7e38d04f90dba69e2dec776f827186025f3b2596643f847c2e6799f7e9628906988f162c9f47ed0f24500000000",
+        "timestamp": "2026-08-04T23:30:05Z",
+        "transaction_hash": "eea0da7c75aa44ce52adb7f9e79204a0a653b13d63540988f4e42004f83aabcb",
+        "txoutproof": "00000020eaff9642eae134488ba30c202d16f3549b6f8b29412969729a6383c8ef549a211551a53e8dbd2cc65ed3978efc8087a4cac663e7c9848e7104ee407d2be34ef0fd75726affff7f2002000000020000000219520d9d3deac7e5717e14ae90140b13b6eec8e7be25f8ccfe6933125c656673cbab3af80420e4f4880954633db153a6a00492e7f9b7ad52ce44aa757cdaa0ee0105"
+      },
+      {
+        "chain": "stellar",
+        "epoch_merkle_root": "30426dbf474b009f9b2acebc90f625a4b2cac1ab537faa9a2486185d8d06221a",
+        "epoch_proof": "AQGz1I4vAkui_ZSSdvImuWqPlSSjdC3vYBYw2IWb-64imw",
+        "ledger": 3973098,
+        "network": "testnet",
+        "timestamp": "2026-08-04T23:20:03Z",
+        "transaction_hash": "27322576828fbd65050cbf217ca577419eb5330318ab831efd5ee3e193d7170e"
+      }
+    ]
+  },
+  "subject": {
+    "claims": {
+      "description": "Round-trip item for the truestamp-cli version 1 proof format parity work, created 2026-09-03.",
+      "name": "CLI parity round trip"
+    },
+    "id": "01M1M74XBVCAMMWGY8SZJD7YPZ",
+    "metadata": {
+      "witnesses": {
+        "block": "b2605d453ac098434d39872d482204f24192b8dc02637e5efa2c2354920261fb",
+        "entropy_bitcoin": "d715b11fc28f43d38a8a31fb53bc32137b1be62bac7ffc0cbb188b3574152ce5",
+        "entropy_nist": "ea09f883c7970891869fd4fd23850ba3c0e93a92e2d97fdaa4baddfc78305e73",
+        "entropy_stellar": "51e1ab3f181795646aef4a2804c2f43a82c54e0636a72ed07754fb4861988f45"
+      }
+    },
+    "signing_key_id": "96b1cd2f",
+    "witnesses": {
+      "block": {
+        "id": "01a06872-0d81-7591-b240-894b1aa4aa78",
+        "merkle_root": "d95b7c9bafc9e275d195bf85ee7e4d2510b27afc9c8e3a6ebafa64d12593454a",
+        "metadata": {},
+        "previous_block_hash": "2ca4a35cb1b25ca40f89833b9bdd2a1159ad2446f6c4d1536d7ed9033bdf99b5",
+        "signing_key_id": "96b1cd2f"
+      },
+      "entropy_bitcoin": {
+        "hash": "000000000000000000020f77664f883f414c4d83672680df3553a662b3dfb6e5",
+        "height": 965350,
+        "time": 1788458025
+      },
+      "entropy_nist": {
+        "pulse": {
+          "chainIndex": 2,
+          "outputValue": "899878C9C3BA228907502BC288C825448D88B609EE5D8A027CDD9AC1CA6AE1D3B455D53D49E0A51CBCAF64938724A9F76032DF41C577D47F3C50DDC79BD50765",
+          "pulseIndex": 1925560,
+          "timeStamp": "2026-09-03T18:04:00.000Z",
+          "version": "2.0"
+        }
+      },
+      "entropy_stellar": {
+        "closed_at": "2026-09-03T18:05:22Z",
+        "hash": "879b875dfd747881999e631f66b6e0435947f8449475b0aa9b242394e0fa71de",
+        "paging_token": "19271634221268992",
+        "sequence": 4487027
+      }
+    }
+  },
+  "type": "item",
+  "version": 1
+}

@@ -33,7 +33,7 @@ const (
 // teamCreateModel is the in-pane "create a new team" modal: a bubbles
 // textinput for the name, a vertical ownership-model radio, and Create /
 // Cancel buttons, driven entirely by the keyboard (tab / shift-tab / arrows
-// / enter / esc). It owns no network — the parent teamModel fires the create
+// / enter / esc). It owns no network, the parent teamModel fires the create
 // call when the modal reports a submit, and the server is the authority on
 // plan entitlement (there is no pre-flight check).
 type teamCreateModel struct {
@@ -205,7 +205,7 @@ func (m *teamCreateModel) render(width int) string {
 	}
 	line("")
 
-	// Ownership radio — one option per line, color-independent ●/○ glyphs.
+	// Ownership radio, one option per line, color-independent ●/○ glyphs.
 	line("  " + teamCreateLabel.Render("Ownership model") + m.focusMark(focusOwnership))
 	for i, model := range m.ownership {
 		marker := "○"
@@ -347,7 +347,7 @@ func friendlyCreateError(err error) string {
 	case errors.Is(err, teams.ErrOwnershipNotEntitled):
 		return "That ownership model isn't available on your plan."
 	case errors.Is(err, teams.ErrUnauthorized):
-		return "Authentication failed — re-run `truestamp auth login`."
+		return "Authentication failed, re-run `truestamp auth login`."
 	}
 	var ae *teams.APIError
 	if errors.As(err, &ae) && ae.Detail != "" {

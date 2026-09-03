@@ -28,7 +28,7 @@ var beaconCmd = &cobra.Command{
 A Beacon is a compact projection of a finalized Truestamp block:
 {id, hash, timestamp, previous_hash}. It commits to every item and
 entropy observation finalized inside a minute window and makes a great
-"proof of life" anchor.
+"proof of life" commitment.
 
 Sub-commands:
   latest     Show the current head beacon
@@ -43,7 +43,7 @@ Shared flags:
   --hash-only    Print only the hash field + newline (for shell substitution)
   -s, --silent   No output, exit code only
 
-Requires authentication — run 'truestamp auth login', or set TRUESTAMP_API_KEY / --api-key for headless/CI use.`,
+Requires authentication, run 'truestamp auth login', or set TRUESTAMP_API_KEY / --api-key for headless/CI use.`,
 	Args:          cobra.NoArgs,
 	SilenceUsage:  true,
 	SilenceErrors: true,
@@ -169,9 +169,9 @@ func renderBeacon(cmd *cobra.Command, b *beacons.Beacon, jsonOut, hashOnly, sile
 // renderBeaconCard prints the 4-field human-readable card followed by
 // two public-web links (suppressed under --silent / --json upstream):
 //
-//	Details — the beacon detail page, keyed by hash (useful when a
+//	Details, the beacon detail page, keyed by hash (useful when a
 //	          user has only the hash, e.g. printed on a receipt)
-//	Verify  — the verify page, keyed by the typed sub-path
+//	Verify , the verify page, keyed by the typed sub-path
 //	          /verify/beacon/<id> (the shareable "go verify this"
 //	          URL format introduced in the t=11 cutover)
 func renderBeaconCard(w io.Writer, apiURL string, b *beacons.Beacon) {
@@ -194,7 +194,7 @@ func renderBeaconCard(w io.Writer, apiURL string, b *beacons.Beacon) {
 		tbl = tbl.Row("Verify", verify)
 	}
 
-	// Plain newline-join — see note in internal/verify/presenter.go
+	// Plain newline-join, see note in internal/verify/presenter.go
 	// Present(). lipgloss.JoinVertical pads every line to match the
 	// widest line, which can blow up vertical spacing when a long line
 	// forces terminal wrap on every row.
@@ -235,7 +235,7 @@ func humanizeAge(d time.Duration) string {
 
 // URL helpers (publicWebBase, SubjectDetailURL, SubjectVerifyURL,
 // BeaconDetailURL, BeaconVerifyURL, TeamDetailURL, TeamCreateURL) all
-// live in internal/ui/weburls.go — they're shared across the beacon
+// live in internal/ui/weburls.go, they're shared across the beacon
 // card, download card, create card, and team card, so centralization
 // avoids drift.
 

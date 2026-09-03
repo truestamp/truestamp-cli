@@ -6,6 +6,7 @@ package cmd
 import (
 	"encoding/base64"
 	"encoding/json"
+	"github.com/truestamp/truestamp-cli/internal/testfixtures"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -15,7 +16,7 @@ import (
 	"testing"
 )
 
-// These tests plug the gaps the regular suite leaves uncovered — mostly
+// These tests plug the gaps the regular suite leaves uncovered, mostly
 // subprocess exercises of `convert merkle`, `upgrade --check`, `auth
 // status/login/logout`, `download`, and various convert-helper branches
 // that only fire on specific inputs (raw extract, zone fallback, etc.).
@@ -59,7 +60,7 @@ func TestCLI_ConvertMerkle_Invalid(t *testing.T) {
 	}
 }
 
-// (removed no-input test — stdin isn't a TTY in tests, so the command
+// (removed no-input test, stdin isn't a TTY in tests, so the command
 // would try to read an empty stdin and error; exercising that path is
 // already covered by gatherMerkleInput's stdin branch.)
 
@@ -398,7 +399,7 @@ func TestCLI_ConvertKeyID_ExplicitFrom(t *testing.T) {
 // --- convert proof: all branches ---
 
 func TestCLI_ConvertProof_CBORtoJSON_JSONEnvelope(t *testing.T) {
-	src := filepath.Join("..", "internal", "verify", "testdata", "proof_item.cbor")
+	src := testfixtures.Path(testfixtures.ProdDir, testfixtures.ProdCBOR)
 	if _, err := os.Stat(src); err != nil {
 		t.Skipf("no fixture: %v", err)
 	}
@@ -417,7 +418,7 @@ func TestCLI_ConvertProof_CBORtoJSON_JSONEnvelope(t *testing.T) {
 }
 
 func TestCLI_ConvertProof_JSONtoCBOR_JSONEnvelope(t *testing.T) {
-	src := filepath.Join("..", "internal", "verify", "testdata", "proof_item.json")
+	src := testfixtures.Path(testfixtures.ProdDir, testfixtures.ProdComplete)
 	if _, err := os.Stat(src); err != nil {
 		t.Skipf("no fixture: %v", err)
 	}
@@ -439,7 +440,7 @@ func TestCLI_ConvertProof_JSONtoCBOR_JSONEnvelope(t *testing.T) {
 }
 
 func TestCLI_ConvertProof_ExplicitFromJSON(t *testing.T) {
-	src := filepath.Join("..", "internal", "verify", "testdata", "proof_item.json")
+	src := testfixtures.Path(testfixtures.ProdDir, testfixtures.ProdComplete)
 	if _, err := os.Stat(src); err != nil {
 		t.Skipf("no fixture: %v", err)
 	}
@@ -450,7 +451,7 @@ func TestCLI_ConvertProof_ExplicitFromJSON(t *testing.T) {
 }
 
 func TestCLI_ConvertProof_ExplicitFromCBOR(t *testing.T) {
-	src := filepath.Join("..", "internal", "verify", "testdata", "proof_item.cbor")
+	src := testfixtures.Path(testfixtures.ProdDir, testfixtures.ProdCBOR)
 	if _, err := os.Stat(src); err != nil {
 		t.Skipf("no fixture: %v", err)
 	}
@@ -461,13 +462,13 @@ func TestCLI_ConvertProof_ExplicitFromCBOR(t *testing.T) {
 }
 
 func TestCLI_ConvertProof_InvalidFrom(t *testing.T) {
-	src := filepath.Join("..", "internal", "verify", "testdata", "proof_item.json")
+	src := testfixtures.Path(testfixtures.ProdDir, testfixtures.ProdComplete)
 	if _, err := os.Stat(src); err != nil {
 		t.Skipf("no fixture: %v", err)
 	}
-	// Give it CBOR content but claim JSON — should error.
+	// Give it CBOR content but claim JSON, should error.
 	cmd := exec.Command(binaryPath, "convert", "proof", "--from", "json", "--to", "cbor")
-	cborSrc := filepath.Join("..", "internal", "verify", "testdata", "proof_item.cbor")
+	cborSrc := testfixtures.Path(testfixtures.ProdDir, testfixtures.ProdCBOR)
 	data, _ := os.ReadFile(cborSrc)
 	cmd.Stdin = strings.NewReader(string(data))
 	if err := cmd.Run(); err == nil {
@@ -609,15 +610,15 @@ func TestCLI_Hash_FileAndPositional_Conflict(t *testing.T) {
 // --- verify JSON output path ---
 
 func TestCLI_Verify_JSON(t *testing.T) {
-	path := writeProofFile(t, fakeProofJSON)
-	cmd := exec.Command(binaryPath, "verify", path, "--skip-external", "--json")
+	path := testfixtures.Path(testfixtures.ProdDir, testfixtures.ProdComplete)
+	cmd := exec.Command(binaryPath, "verify", path, "--offline", "--json")
 	out, _ := cmd.Output()
 	var m map[string]any
 	if err := json.Unmarshal(out, &m); err != nil {
 		t.Fatalf("not valid JSON: %v\n%s", err, out)
 	}
-	if m["result"] == nil {
-		t.Errorf("result field missing: %+v", m)
+	if m["passed"] != true || m["steps"] == nil {
+		t.Errorf("passed/steps missing: %+v", m)
 	}
 }
 
@@ -708,21 +709,6 @@ func errorsNewString(s string) error { return stringError(s) }
 type stringError string
 
 func (e stringError) Error() string { return string(e) }
-
-func TestWriteTempProof(t *testing.T) {
-	path, err := writeTempProof([]byte("hello"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer os.Remove(path)
-	got, err := os.ReadFile(path)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if string(got) != "hello" {
-		t.Errorf("got %q", got)
-	}
-}
 
 func TestStdinIsTerminal_DoesNotPanic(t *testing.T) {
 	// The actual return value depends on the test env; we just exercise

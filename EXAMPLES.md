@@ -19,6 +19,7 @@ Run `truestamp <command> --help` at any time for exhaustive flag documentation.
 - [`truestamp create`](#truestamp-create)
 - [`truestamp download`](#truestamp-download)
 - [`truestamp verify`](#truestamp-verify)
+- [`truestamp inspect`](#truestamp-inspect)
 - [`truestamp team`](#truestamp-team)
 - [`truestamp console`](#truestamp-console)
 - [`truestamp hash`](#truestamp-hash)
@@ -249,7 +250,9 @@ truestamp download 01KNN33GX5E470CB9TRWAYF9DD -o contract.proof.json
 
 # 3. Verify the proof end-to-end
 truestamp verify contract.proof.json
-# walks signing key, merkle proof, block hash, commitments; exits 0 on success
+# recomputes every hash, walks the Merkle and epoch proofs, checks the
+# signature, the witnesses and the submission window, confirms the
+# commitments on chain; exits 0 when the proof passes
 ```
 
 ---
@@ -396,20 +399,40 @@ which kind of proof you want; there is no auto-detection at the server,
 so every UUIDv7 id needs an explicit `--type`. ULID ids default to
 `--type item` client-side (the only zero-flag shortcut).
 
-The six `--type` values map 1:1 to server subject codes:
+The six `--type` values map 1:1 to the registry names the bundle carries in
+its `type` field, and to the frozen code bound into the signed payload:
 
-| `--type` | Wire value | Returned `t` | Filename stem |
+| `--type` | Wire value | Returned `type` (code) | Filename stem |
 | --- | --- | --- | --- |
-| `item` | `item` | 20 | `item` |
-| `entropy_nist` | `entropy_nist` | 30 | `entropy-nist` |
-| `entropy_stellar` | `entropy_stellar` | 31 | `entropy-stellar` |
-| `entropy_bitcoin` | `entropy_bitcoin` | 32 | `entropy-bitcoin` |
-| `block` | `block` | 10 | `block` |
-| `beacon` | `beacon` | 11 | `beacon` |
+| `item` | `item` | `item` (20) | `item` |
+| `entropy_nist` | `entropy_nist` | `entropy_nist` (30) | `entropy-nist` |
+| `entropy_stellar` | `entropy_stellar` | `entropy_stellar` (31) | `entropy-stellar` |
+| `entropy_bitcoin` | `entropy_bitcoin` | `entropy_bitcoin` (32) | `entropy-bitcoin` |
+| `block` | `block` | `block` (10) | `block` |
+| `beacon` | `beacon` | `beacon` (11) | `beacon` |
 
 Flag values use **underscores**; generated filenames use **hyphens** (the CLI
 translates between them so filenames stay readable). `--type entropy-nist`,
 bare `--type entropy` and `--type auto` are all rejected.
+
+`--witnesses` selects which witness details an item bundle carries. A
+witness is a public record that existed before the submission and that the
+item's fingerprint commits to: the head block of the ledger at submission,
+and the NIST, Stellar and Bitcoin entropy observations captured then. The
+committed hashes always ride in `subject.metadata`; the flag decides
+whether the details ride alongside under `subject.witnesses`.
+
+| `--witnesses` | Bundle | Filename |
+| --- | --- | --- |
+| `all` (default) | complete: every committed witness's detail, plus the signing key event | `truestamp-item-<id>.json` |
+| `none` | compact: hashes only | `truestamp-item-<id>-compact.json` |
+| `block,entropy_nist,...` | partial: the named subset | `truestamp-item-<id>-partial.json` |
+
+Valid names: `block`, `entropy_stellar`, `entropy_nist`, `entropy_bitcoin`,
+`signing_key_event`. All three variants are ordinary version 1 bundles and
+all three verify; the only difference a verifier sees is how many Witnesses
+and Submitted After rows it can report, so a compact bundle cannot establish
+the submitted-after edge on its own.
 
 ```sh
 # ULID id, defaults to --type item, produces truestamp-item-<ulid>.json
@@ -417,6 +440,10 @@ truestamp download 01KNN33GX5E470CB9TRWAYF9DD
 
 # Same, with an explicit type (identical behaviour)
 truestamp download --type item 01KNN33GX5E470CB9TRWAYF9DD
+
+# The compact and a partial variant
+truestamp download --witnesses none 01KNN33GX5E470CB9TRWAYF9DD
+truestamp download --witnesses block,entropy_nist 01KNN33GX5E470CB9TRWAYF9DD
 
 # Override the auto-generated filename
 truestamp download 01KNN33GX5E470CB9TRWAYF9DD -o contract.proof.json
@@ -429,17 +456,17 @@ truestamp download --type entropy_stellar 019cf813-99b8-730a-84f1-5a711a9c355e
 truestamp download --type entropy_nist    019cf813-99b8-730a-84f1-5a711a9c355e
 truestamp download --type entropy_bitcoin 019cf813-99b8-730a-84f1-5a711a9c355e
 
-# Block proof (t=10) for a committed block
+# Block proof for a committed block
 truestamp download --type block 019db7cd-efc0-7196-b763-682a84d71919
 
-# Beacon proof (t=11) for the same block: structurally identical to a
-# block proof but carries a distinct type code and a different signature
-# (the `t` byte is part of the signing payload). The CLI downloads a
-# self-describing t=11 bundle.
+# Beacon proof for the same block: structurally identical to a block
+# proof but carries a distinct type code in the signed payload, and so a
+# different signature. The bundle's own `type` says which one you got.
 truestamp download --type beacon 019db7cd-efc0-7196-b763-682a84d71919
 
-# Resulting files (default naming: truestamp-<stem>-<id>.<ext>):
+# Resulting files (default naming: truestamp-<stem>-<id><variant>.<ext>):
 #   truestamp-item-01KNN33GX5E470CB9TRWAYF9DD.json
+#   truestamp-item-01KNN33GX5E470CB9TRWAYF9DD-compact.json
 #   truestamp-entropy-stellar-019cf813-99b8-730a-84f1-5a711a9c355e.json
 #   truestamp-block-019db7cd-efc0-7196-b763-682a84d71919.json
 #   truestamp-beacon-019db7cd-efc0-7196-b763-682a84d71919.json
@@ -457,6 +484,12 @@ truestamp download 019db7cd-efc0-7196-b763-682a84d71919
 # One of: entropy_nist | entropy_stellar | entropy_bitcoin | block | beacon
 ```
 
+A proof exists only after the subject's first public-chain commitment.
+Items commit to a Truestamp block within about a minute of submission and
+to Stellar within about five; until then the server answers
+`no_external_commitments` and the CLI says to try again after the next
+epoch commit.
+
 UUIDv7 ids are ambiguous, because entropy observations, blocks, and beacons
 all use UUIDv7, so the CLI cannot infer what you want. Use
 `truestamp beacon by-hash <hash>` first if you only have a hash and need the id.
@@ -465,12 +498,19 @@ all use UUIDv7, so the CLI cannot infer what you want. Use
 
 ## `truestamp verify`
 
-Verify the full cryptographic chain: signing key, claims hash, item hash,
-Merkle proof, block hash, then the Stellar / Bitcoin commitments.
+Verify the full cryptographic chain of a proof bundle, JSON or CBOR: every
+hash is recomputed from bytes the bundle carries (the subject's claims or
+entropy payload, the subject and block metadata maps, the witness details),
+the Merkle inclusion proof and each epoch proof are walked, the Ed25519
+signature is checked over the derived values, the witnesses that open the
+submitted-after edge are recomputed, the signing key event is checked, and
+online the Stellar and Bitcoin commitments, each entropy witness's source,
+and the keyring are consulted.
 
 ```sh
-# Local file
+# Local file, JSON or CBOR (detected by content)
 truestamp verify contract.proof.json
+truestamp verify contract.proof.cbor
 
 # URL, auto-detected from the positional argument
 truestamp verify https://example.com/proof.json
@@ -481,27 +521,32 @@ cat contract.proof.json | truestamp verify
 # Interactive picker
 truestamp verify --file
 
-# Pin the expected subject hash and fail if it doesn't match
+# Compare the hash of the file you hold against the hash the item's
+# claims commit to; a mismatch fails the run
 truestamp verify contract.proof.json \
-  --hash e08764deac64ca9a1046901c5b23674941f1e86f0e2d0429ee07c5e311a15ce7
+  --expected-hash e08764deac64ca9a1046901c5b23674941f1e86f0e2d0429ee07c5e311a15ce7
 
-# The subject type always comes from the bundle's own signed `t` field.
+# Offline: no calls to Truestamp, Stellar, Bitcoin or the entropy sources.
+# Every cryptographic step still runs; each check that needs a source is
+# reported as skipped, never failed.
+truestamp verify contract.proof.json --offline
+
+# Pin a local copy of the keyring so the key binding check works offline
+curl -sO https://www.truestamp.com/.well-known/keyring.json
+truestamp verify contract.proof.json --offline --keyring keyring.json
+
+# The subject type always comes from the bundle's own signed `type`.
 # The filename is never consulted: a file named truestamp-beacon-<id>.json
-# may legitimately carry a t=10 block proof, and renaming a file can
+# may legitimately carry a `type: block` bundle, and renaming a file can
 # never change a verdict.
-truestamp verify truestamp-beacon-019d....json          # reports whatever t says
+truestamp verify truestamp-beacon-019d....json          # reports whatever type says
 
-# Pass --type to additionally assert which type you expected. The verify
-# fails if the bundle's t disagrees. Useful as a guard when you fetched a
-# proof for a specific subject and want to be told if you got another.
+# Pass --type to assert which type you expected. A disagreement with the
+# bundle's signed type is the hard rejection subject_type_mismatch.
 truestamp verify --type beacon truestamp-beacon-019d....json
 truestamp verify --type item   truestamp-item-01K....json
-truestamp verify --type entropy_stellar truestamp-entropy-stellar-019c....json
 
-# Skip the public-blockchain checks (offline / restricted networks)
-truestamp verify contract.proof.json --skip-external
-
-# Skip all signature verification (structural check only)
+# Skip the signature check (disclosed in the report; never a full verify)
 truestamp verify contract.proof.json --skip-signatures
 
 # Script-friendly modes
@@ -509,59 +554,107 @@ truestamp verify contract.proof.json --json        # structured output
 truestamp verify contract.proof.json --silent      # exit code only
 ```
 
-`--hash` takes the hex digest the proof commits to for the subject, that is,
-the value the bundle carries at `.s.d.hash` for an external-hash item. It is
-compared byte-for-byte and reported under a `Hash Comparison` step.
+`--expected-hash` takes the hex digest of the file you hold; it is
+trimmed, lowercased, and compared in constant time against the value the
+bundle carries at `.subject.claims.hash`, reported under `Hash Comparison`.
+The older spelling `--hash` still works. Passing it against an item that
+timestamped its claims content itself (no file hash) produces a warning,
+never a failure; passing it against a block, beacon or entropy bundle
+produces a skip.
 
-The rendered report groups its steps into Proof, Item Claims, Timeline,
-Commitments, Verification Notes, Issues and Verification Summary blocks.
-Under `--json` the top-level keys are `result`, `summary`, `steps`,
-`subject`, `subject_id`, `subject_type`, `timeline`, `commitments`,
-`issues`, `hash_comparison`, `signatures_checked` and `verification_notes`.
-Each entry in `steps` carries `group`, `category`, `status` and `message`.
+The report is the whitepaper's reference verifier's shape: a short bundle
+header, then five categories in a fixed order (Data Integrity,
+Cryptographic, Structural, Timing, Blockchain), each row a `[PASS]`,
+`[FAIL]`, `[WARN]`, `[SKIP]` or `[INFO]` badge with its group and message,
+then the counts, whether a file hash was provided, and the verdict.
+A proof passes when no row fails; warnings, skips and infos never fail
+it, and any skip is a check the run did not perform, not a check that
+failed.
 
-Use `--remote` to delegate verification to the Truestamp server (requires
-authentication: `truestamp auth login` or `TRUESTAMP_API_KEY`). Local
-verification is the default and needs no credentials.
+Under `--json` the document uses the field names the Truestamp API's
+`/proof/verify` result uses, so a CLI report and an API report are directly
+diffable: `passed`, `steps` (each with `group`, `status`, `category`,
+`message`, in category order), `pass_count`, `failed_count`, `warn_count`,
+`skip_count`, `info_count`, `hash_provided`, `expected_hash_provided`,
+`hash_matched`, `proof_version`, `skipped_external`, `generated_at`,
+`temporal`, plus `verifier` (this CLI's name and version) and
+`signatures_checked`.
 
-Delegating does not mean trusting blindly. Even in `--remote` mode the CLI
-still does four things itself:
+Use `--remote` to also ask the Truestamp server to verify the bundle
+(requires authentication: `truestamp auth login` or `TRUESTAMP_API_KEY`).
+Local verification is the default, needs no credentials, and never depends
+on the server: the server's verifier is not part of the proof's
+independence argument. Even in `--remote` mode the CLI still:
 
-- **Parses the bundle first**, so a structurally invalid file is refused locally and never posted.
-- **Asserts `--type` locally**, then forwards `data.type` only when the assertion already holds. A mismatch is reported as a `Subject Type` failure alongside the server's own steps; forwarding it instead would make the server answer 4xx and you would get an error string with no report at all.
-- **Performs the `--hash` comparison itself**, treating the server's `hash_matched` as corroboration and failing on a disagreement in either direction. The client holds both values, so a server that ignored `expected_hash` cannot turn a mismatch into a pass.
-- **Fails closed on a report it cannot read.** A step with no `status`, a status outside the five this verifier knows, a result carrying zero steps, or a server verdict that contradicts its own step list. Each is reported under a `Server Verdict` row rather than silently scored as passing.
+- **Parses the bundle first**, applying the same structural gates, so a bundle it would refuse is never posted, and posts a CBOR input as its JSON conversion.
+- **Asserts `--type` locally** as the same `subject_type_mismatch` rejection, then forwards it.
+- **Performs the `--expected-hash` comparison itself**, treating the server's `hash_matched` as corroboration and failing on a disagreement in either direction.
+- **Fails closed on a report it cannot read**: a step with no `status`, a status outside the five, zero steps, or a server verdict that contradicts its own step list is reported under a `Server Verdict` row rather than scored as passing.
+- **Renders a server-side rejection** (HTTP 400 `invalid_proof` with an Appendix E.23 reason) exactly like a local one.
 
 ### Structurally malformed bundles
 
 A bundle that is malformed at the structural level is refused before any
-check runs, so there is no report to render. Under `--json` the refusal is
-reported as a stable identifier rather than an English sentence, so two
-independent verifiers can be compared on it:
+check runs, so there is no report to render, only the identifier, the
+detail and one line of advice. Under `--json` the refusal is reported as
+the stable identifier, so two independent verifiers can be compared on it:
 
 ```sh
-echo '{"v":1,"t":99}' | truestamp verify --json
+echo '{"version":1,"type":"nope","block":{}}' | truestamp verify --json
 ```
 
 ```json
 {
-  "result": "rejected",
+  "verifier": {"name": "truestamp-cli", "version": "..."},
+  "passed": false,
   "rejection": {
-    "code": "invalid_subject_type_code",
-    "detail": "invalid subject type code: 99"
-  }
+    "code": "invalid_subject_type",
+    "detail": "type is \"nope\"; expected one of block, beacon, item, entropy_nist, entropy_stellar, entropy_bitcoin",
+    "advice": "This input is not a well-formed proof bundle, so no steps were run."
+  },
+  "steps": []
 }
 ```
 
-Exit code `1`. The identifiers are `not_a_json_object`, `missing_type_code`,
-`invalid_subject_type_code`, `missing_block`, `no_external_commitments`,
-`invalid_external_commitment_entry`, `unexpected_subject_fields_for_block_like`,
-`missing_subject`, `missing_inclusion_proof` and `invalid_subject_data`.
+Exit code `1`. The identifiers, in the order the gates apply, are
+`not_a_json_object`, `invalid_subject_data` (CBOR only), `unsupported_layout`,
+`invalid_subject_type`, `missing_block`,
+`unexpected_subject_fields_for_block_like`, `missing_subject`,
+`missing_inclusion_proof`, `missing_metadata`, `no_external_commitments`
+and `invalid_commitment_entry`, plus the CLI-side `subject_type_mismatch`
+for a `--type` that disagrees with the bundle.
+
+`unsupported_layout` is the one to know: a bundle carrying a top-level `v`
+or `t` key is in the pre-publication draft layout that version 1 replaced.
+No verifier reads it. Ask the holder to regenerate the proof.
 
 ```sh
 # Branch on the reason in a script
 code=$(truestamp verify proof.json --json 2>/dev/null | jq -r '.rejection.code // empty')
 [ -n "$code" ] && echo "bundle refused: $code"
+```
+
+---
+
+## `truestamp inspect`
+
+Print what a bundle carries without verifying anything: the format,
+version and type, the ids, the witnesses the subject metadata commits to
+and the details carried, the block, the commitments, and the signing key
+event. No hash is recomputed and no signature is checked; the structural
+gates still apply, so a malformed or draft-layout bundle is rejected with
+the same identifier `verify` would report.
+
+```sh
+truestamp inspect proof.json
+truestamp inspect proof.cbor --json
+cat proof.json | truestamp inspect
+
+# Which witness details does this bundle carry?
+truestamp inspect proof.json --json | jq -r '.subject.carried_witnesses[]'
+
+# Is a signing key event carried?
+truestamp inspect proof.json --json | jq 'has("signing_key_event")'
 ```
 
 ---
@@ -623,7 +716,7 @@ Truestamp server. Four panes share one long-lived connection:
   lifecycle, internal/external commitments, NIST/Stellar/Bitcoin
   entropy observations, item events for your team) plus a scrollable,
   reversible event waterfall. Newest at top by default.
-- **New Item**, a two-mode form (submission mode, name, description —
+- **New Item**, a two-mode form (submission mode, name, description,
   plus hash type and hash in external-hash mode, hidden in
   claims-as-source-of-truth mode, where the description must be ≥ 32
   characters) that creates a timestamped item over the same socket and
@@ -1006,9 +1099,17 @@ and `unix-ns`. `--format` accepts the same Unix variants plus `rfc3339`
 
 ## `truestamp convert proof`
 
-Convert a proof bundle between JSON and CBOR. The CBOR output uses **RFC 8949
+Convert a proof bundle between JSON and CBOR. The conversion applies
+Appendix E.3's field-type correspondence: `public_key` and `signature` are
+byte strings in CBOR and padded base64 in JSON; every hash slot
+(`signing_key_id`, `previous_block_hash`, `merkle_root`,
+`epoch_merkle_root`, `transaction_hash`, `block_merkle_root`) is a byte
+string in CBOR and lowercase hex in JSON; every map that is a JCS preimage
+(claims, entropy, both metadata maps, witness payloads) keeps the JSON value
+space in both. Every number survives exactly. The CBOR output uses **RFC 8949
 section 4.2 core deterministic encoding** and is prefixed with the
-self-describing tag 55799 so `truestamp verify` auto-detects it.
+self-describing tag 55799 so `truestamp verify` auto-detects it; JSON output
+preserves the input's key order.
 
 ```sh
 # JSON to CBOR
@@ -1024,7 +1125,7 @@ truestamp convert proof --from json --to cbor < proof.json
 truestamp convert proof --to json --compact proof.cbor
 
 # Round-trip verification (the CBOR output must verify end-to-end)
-truestamp convert proof --to cbor proof.json | truestamp verify --skip-external
+truestamp convert proof --to cbor proof.json | truestamp verify --offline
 ```
 
 `--to` is required. `--from` accepts `auto` (default), `json` or `cbor`.
@@ -1083,7 +1184,7 @@ truestamp convert keyid --from hex \
 truestamp convert keyid <pubkey-from-anywhere>
 
 # From stdin
-jq -r .pk proof.json | truestamp convert keyid
+jq -r .public_key proof.json | truestamp convert keyid
 ```
 
 `--from` accepts `auto` (default), `hex`, `base64` or `base64url`.
@@ -1092,18 +1193,19 @@ jq -r .pk proof.json | truestamp convert keyid
 
 ## `truestamp convert merkle`
 
-Decode a compact base64url Merkle proof (the `ip` field of an item proof or
-the `ep` field inside each `cx` commitment) into a human-readable sibling list.
+Decode a compact base64url Merkle proof (the `inclusion_proof` field of an
+item or entropy proof, or the `epoch_proof` inside each commitment entry)
+into a human-readable sibling list.
 
 ```sh
 # Positional argument
 truestamp convert merkle "BAKbGnC2S9wB-uoc..."
 
 # From stdin (common when fed from jq)
-jq -r .ip proof.json | truestamp convert merkle
+jq -r .inclusion_proof proof.json | truestamp convert merkle
 
 # JSON envelope (depth, siblings with position + hash)
-jq -r .ip proof.json | truestamp convert merkle --json
+jq -r .inclusion_proof proof.json | truestamp convert merkle --json
 ```
 
 The text form prints `depth: N` followed by one indexed line per sibling with
@@ -1237,8 +1339,9 @@ Real-world compositions that solve a specific problem.
 The Truestamp protocol computes an internal intermediate,
 `claims_hash = SHA256(0x11 || JCS(claims))`, while deriving the item_hash
 that gets signed into the block. The value itself is **not serialized** into
-the proof bundle (the proof stores `s.d`, the raw claims, and `s.mh`, the
-*metadata*_hash under prefix `0x12`, which is a different value).
+the proof bundle: the proof stores `subject.claims`, the raw claims, and
+`subject.metadata`, the witness map whose `0x12` digest is a different
+intermediate. A verifier recomputes both.
 
 If you want to reproduce or audit that intermediate against a claims JSON
 document:
@@ -1258,47 +1361,49 @@ truestamp jcs < claims.json \
 ```
 
 **To confirm that a file matches what was timestamped**, you don't need this
-intermediate. Compare the file's plain SHA-256 against `s.d.hash`, or
-pass `--hash <sha256-hex>` to `truestamp verify` (see the next two recipes).
+intermediate. Compare the file's plain SHA-256 against
+`subject.claims.hash`, or pass `--expected-hash <sha256-hex>` to
+`truestamp verify` (see the next two recipes).
 
 ### Convert a JSON proof to CBOR and verify
 
 ```sh
 truestamp convert proof --to cbor proof.json \
-  | truestamp verify --skip-external
+  | truestamp verify --offline
 ```
 
 ### Derive a kid from a proof's embedded public key, without `jq`
 
-Canonicalize first so the `"pk"` field is guaranteed to be compact, then
-slice it out with plain `grep` / `cut`:
+Canonicalize first so the `"public_key"` field is guaranteed to be compact,
+then slice it out with plain `grep` / `cut` (the first match is the
+bundle's own key; a signing key event carries the same value again):
 
 ```sh
 truestamp jcs < proof.json \
-  | grep -o '"pk":"[^"]*"' | cut -d'"' -f4 \
+  | grep -o '"public_key":"[^"]*"' | head -1 | cut -d'"' -f4 \
   | truestamp convert keyid
 ```
 
 Skipping the `jcs` step only works on an already-minified bundle; a
-pretty-printed proof writes `"pk": "..."` with a space, which the pattern
-above would miss.
+pretty-printed proof writes `"public_key": "..."` with a space, which the
+pattern above would miss.
 
 With `jq` (cleaner):
 
 ```sh
-jq -r .pk proof.json | truestamp convert keyid
+jq -r .public_key proof.json | truestamp convert keyid
 ```
 
 ### Extract the item timestamp from a proof
 
 ```sh
-jq -r .s.id proof.json | truestamp convert id
+jq -r .subject.id proof.json | truestamp convert id
 ```
 
 ### Extract the block commit time from a proof (in your local zone)
 
 ```sh
-jq -r .b.id proof.json | truestamp convert id --to-zone Local
+jq -r .block.id proof.json | truestamp convert id --to-zone Local
 ```
 
 ### Confirm a downloaded file matches what you timestamped
@@ -1306,7 +1411,7 @@ jq -r .b.id proof.json | truestamp convert id --to-zone Local
 ```sh
 # Hash the local file, compare against the hash the proof commits to.
 # Exit 0 if they match; 1 otherwise.
-expected="$(jq -r .s.d.hash proof.json)"
+expected="$(jq -r .subject.claims.hash proof.json)"
 actual="$(truestamp hash -a sha256 --style bare contract.pdf)"
 [ "$expected" = "$actual" ] && echo "match" || echo "MISMATCH"
 ```
@@ -1315,20 +1420,20 @@ This recipe is **external-hash mode only**. For
 claims-as-source-of-truth proofs there's no separate file to
 compare, because the claims content itself is what the proof commits to.
 You can spot a claims-only proof at a glance with
-`jq '.s.d | has("hash") | not' proof.json`; the verify report
-also omits the Hash row for claims-only items.
+`jq '.subject.claims | has("hash") | not' proof.json`; the verify report's
+Hash Comparison row reads "no file hash in this proof" for it.
 
 ### Verify a proof while passing the expected hash inline
 
 ```sh
-truestamp verify proof.json --hash "$(truestamp hash -a sha256 --style bare contract.pdf)"
+truestamp verify proof.json --expected-hash "$(truestamp hash -a sha256 --style bare contract.pdf)"
 ```
 
 ### Batch-verify every proof in a directory, silently
 
 ```sh
 find proofs -name '*.json' -print0 \
-  | xargs -0 -I{} sh -c 'truestamp verify --silent --skip-external "{}" || echo "FAIL: {}"'
+  | xargs -0 -I{} sh -c 'truestamp verify --silent --offline "{}" || echo "FAIL: {}"'
 ```
 
 ### Hash a file with every supported algorithm in one pass
@@ -1354,13 +1459,13 @@ round="$(truestamp convert proof --to cbor proof.json \
 ### Inspect every Merkle sibling in a proof's inclusion path
 
 ```sh
-jq -r .ip proof.json | truestamp convert merkle
+jq -r .inclusion_proof proof.json | truestamp convert merkle
 ```
 
-### Convert every `cx[].ts` commitment timestamp to your local zone
+### Convert every commitment timestamp to your local zone
 
 ```sh
-jq -r '.cx[].ts' proof.json \
+jq -r '.commitments[].timestamp' proof.json \
   | while read -r ts; do
       truestamp convert time "$ts" --to-zone Local
     done
@@ -1369,8 +1474,8 @@ jq -r '.cx[].ts' proof.json \
 ### Show the embedded item time and block time side-by-side
 
 ```sh
-printf "item:  "; jq -r .s.id proof.json | truestamp convert id
-printf "block: "; jq -r .b.id proof.json | truestamp convert id
+printf "item:  "; jq -r .subject.id proof.json | truestamp convert id
+printf "block: "; jq -r .block.id proof.json | truestamp convert id
 ```
 
 ---
@@ -1381,35 +1486,44 @@ Every inspection command supports `--json`. Combined with `jq`, you can
 build sophisticated pipelines with no parsing glue code.
 
 ```sh
-# Pull the hash found in the proof (`hash_comparison` is always
-# emitted; --hash additionally populates .provided and makes
-# .supplied / .matched meaningful)
-truestamp verify proof.json --json | jq -r .hash_comparison.found
+# The verdict: true when no step failed
+truestamp verify proof.json --json | jq -r .passed
 
-# Extract the verify result ("verified" / "fully_verified" /
-# "hash_mismatch" / "failed" / "rejected"). Supplying --hash upgrades a
-# clean pass to "fully_verified" and turns a failure confined to the
-# hash comparison into "hash_mismatch"; "rejected" comes from a
-# structural parse abort and carries no `steps` array.
-truestamp verify proof.json --json | jq -r .result
+# Whether an expected hash was supplied, and whether it matched. E.7 keeps
+# the two apart so "not provided" can never read as "mismatch".
+truestamp verify proof.json --json --expected-hash "$expected" \
+  | jq '{expected_hash_provided, hash_matched}'
 
-# Compute a digest and pipe it into another command's --hash flag
+# Every failing row, if any
+truestamp verify proof.json --json | jq -r '.steps[] | select(.status=="fail") | "\(.group): \(.message)"'
+
+# The submission window the run established (server field names)
+truestamp verify proof.json --json | jq .temporal
+
+# Compute a digest and pipe it into another command's --expected-hash flag
 expected="$(truestamp hash -a sha256 --json contract.pdf | jq -r .digest.hex)"
-truestamp verify proof.json --hash "$expected"
+truestamp verify proof.json --expected-hash "$expected"
 
 # Compare the claims.hash field in a proof against a fresh local hash.
 # Works for external-hash proofs only; claims-only proofs have no
-# .s.d.hash field (jq returns "null") and don't need this comparison,
-# because the claims content is already in s.d.
-proof_hash="$(jq -r .s.d.hash proof.json)"
+# .subject.claims.hash field (jq returns "null") and don't need this
+# comparison, because the claims content is already in the bundle.
+proof_hash="$(jq -r .subject.claims.hash proof.json)"
 fresh_hash="$(truestamp hash -a sha256 --json contract.pdf | jq -r .digest.hex)"
 [ "$proof_hash" = "$fresh_hash" ] && echo "match" || echo "MISMATCH"
 
 # Branch on submission mode at the jq layer
-jq 'if .s.d | has("hash") then "external-hash mode" else "claims-only mode" end' proof.json
+jq 'if .subject.claims | has("hash") then "external-hash mode" else "claims-only mode" end' proof.json
 
-# Tag-style report of every commitment's type, network, and timestamp
-jq -r '.cx[] | "\(.t) (\(.net)) committed at \(.ts)"' proof.json
+# Tag-style report of every commitment's chain, network, and timestamp
+jq -r '.commitments[] | "\(.chain) (\(.network)) committed at \(.timestamp)"' proof.json
+
+# The witnesses an item commits to, and which details this bundle carries
+jq '.subject.metadata.witnesses' proof.json
+truestamp inspect proof.json --json | jq '.subject.carried_witnesses'
+
+# A refused bundle carries a rejection object and no steps
+truestamp verify draft.json --json | jq -r '.rejection.code // "accepted"'
 ```
 
 ---
@@ -1419,8 +1533,8 @@ jq -r '.cx[] | "\(.t) (\(.net)) committed at \(.ts)"' proof.json
 For automated pipelines, use the following conventions:
 
 ```sh
-# Silent verification: exit code 0 = pass, 1 = fail
-if truestamp verify --silent --skip-external proof.json; then
+# Silent verification: exit code 0 = pass, 1 = fail or rejected
+if truestamp verify --silent --offline proof.json; then
   echo "valid"
 else
   echo "invalid"
@@ -1429,7 +1543,7 @@ fi
 
 # JSON-structured output for parsers
 truestamp verify proof.json --json > verify-report.json
-jq '.result' verify-report.json
+jq '.passed' verify-report.json
 
 # Suppress the once-per-day passive upgrade notice in CI
 export TRUESTAMP_NO_UPGRADE_CHECK=1
@@ -1477,36 +1591,50 @@ install` binary plain `truestamp upgrade` only prints instructions and stays
 offline.
 
 ```sh
-# Fully offline verification: no calls to Truestamp, Stellar, or Bitcoin APIs
-truestamp verify proof.json --skip-external
+# Fully offline verification: no calls to Truestamp, Stellar, Bitcoin or
+# the entropy sources. Pin a keyring copied earlier so the key binding
+# check runs too.
+truestamp verify proof.json --offline --keyring keyring.json
 
-# The convert / hash / encode / decode / jcs primitives compute locally and
-# make no network calls - unless you explicitly pass --url, which downloads
-# the input (hash, encode, decode, jcs and convert proof accept it; convert
-# time / id / keyid / merkle have no --url and are unconditionally offline).
+# The convert / hash / encode / decode / jcs / inspect primitives compute
+# locally and make no network calls - unless you explicitly pass --url,
+# which downloads the input (hash, encode, decode, jcs, inspect and convert
+# proof accept it; convert time / id / keyid / merkle have no --url and are
+# unconditionally offline).
 truestamp hash -a sha256 file.bin
 truestamp jcs < claims.json
 truestamp convert id 01KNN33GX5E470CB9TRWAYF9DD
 truestamp convert proof --to cbor proof.json
+truestamp inspect proof.json
 ```
 
-`truestamp verify` without `--skip-external` performs four classes of
-outbound requests:
+Offline operation is a first-class mode of the whitepaper's verifier
+(Appendix E.2): every step from the structural gates through the signature,
+the witnesses and the submission window runs with zero network access. What
+an offline run cannot do is tie the proof to a clock outside Truestamp: the
+Stellar and Bitcoin commitments, each entropy witness's source, the key
+event's own commitments and the keyring are each reported as skipped, and
+the two edges of the submission window stay informational rather than
+passing. A skipped check is a check the run did not perform, never a check
+that failed, and the verdict is PASSED when nothing failed.
 
-1. Fetches the Truestamp keyring at `{base-url}/.well-known/keyring.json` (default `https://www.truestamp.com/...`) to cross-check the signing key. This one happens for every bundle.
-2. If a Stellar commitment is present, hits the Horizon API (`horizon.stellar.org` or `horizon-testnet.stellar.org`).
-3. If a Bitcoin commitment is present on mainnet or testnet, hits the Blockstream API (`blockstream.info`). Regtest has no public API, so that case is local-only.
-4. For an entropy subject, hits the upstream publisher the observation came from, to byte-compare the captured value: the **NIST Randomness Beacon** (`beacon.nist.gov`) for `entropy_nist`, Horizon for `entropy_stellar`, Blockstream mainnet for `entropy_bitcoin`.
+`truestamp verify` without `--offline` performs five classes of outbound
+requests:
 
-`--skip-external` skips all four. `--skip-signatures` skips the Ed25519
-**Proof Signature** check and the **Key Binding** keyring cross-check. Note
-that it does *not* skip the **Signing Key** step, which still decodes `pk`
-and derives its key id, so an undecodable public key still fails. A run with
-`--skip-signatures` says so on its verdict line
-(`VERIFIED - but the signature was NOT checked (--skip-signatures)`), because
-it establishes nothing about who issued the proof. Everything else local
-(subject hash, Merkle inclusion, block hash, epoch proofs) is always
-performed.
+1. Fetches the Truestamp keyring at `{base-url}/.well-known/keyring.json` (default `https://www.truestamp.com/...`) to bind the signing key, unless `--keyring <file>` pins a local copy.
+2. If a Stellar commitment is present (in the bundle or in the signing key event), hits the Horizon API (`horizon.stellar.org` for `network: public`, otherwise `horizon-testnet.stellar.org`).
+3. If a Bitcoin commitment is present on mainnet or testnet, hits the Blockstream API (`blockstream.info`) to bind the header recomputed from the bundle's own bytes. Regtest has no public API, so that case is local-only and stays unconfirmed.
+4. For an entropy subject, and for every entropy witness an item bundle carries, hits the upstream publisher the observation came from, to compare the captured value: the **NIST Randomness Beacon** (`beacon.nist.gov`) for `entropy_nist`, Horizon for `entropy_stellar`, Blockstream mainnet for `entropy_bitcoin`.
+5. With `--remote`, posts the bundle to the Truestamp API's `/proof/verify`.
+
+`--offline` skips the first four. `--skip-signatures` skips the Ed25519
+**Proof Signature** check and the **Key Binding** cross-check. Note that it
+does *not* skip the **Signing Key** step, which still decodes `public_key`
+and derives its key id, so an undecodable public key still fails. A run
+with `--skip-signatures` says so under its verdict, because it establishes
+nothing about who issued the proof. Everything else local (subject hash,
+Merkle inclusion, block hash, epoch proofs, witnesses, submission window)
+is always performed.
 
 ---
 

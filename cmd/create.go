@@ -29,7 +29,7 @@ import (
 // claimsOnlyMinDescription is the minimum length (in non-whitespace
 // characters, after trimming) of claims.description for an item submitted
 // without an external hash. Mirrors the threshold enforced server-side in
-// lib/truestamp/items/validations/validate_claims_only_content.ex — do not
+// lib/truestamp/items/validations/validate_claims_only_content.ex, do not
 // drift from this value without coordinating with the backend.
 const claimsOnlyMinDescription = 32
 
@@ -69,7 +69,7 @@ Input methods (resolved in priority order):
 Flags override values from file/auto-hash, enabling combinations like:
   truestamp create report.pdf -n "Q1 Report" -v public -t finance
 
-Requires authentication — run 'truestamp auth login', or set TRUESTAMP_API_KEY / --api-key for headless/CI use.`,
+Requires authentication, run 'truestamp auth login', or set TRUESTAMP_API_KEY / --api-key for headless/CI use.`,
 	Args:          cobra.MaximumNArgs(1),
 	SilenceUsage:  true,
 	SilenceErrors: true,
@@ -87,7 +87,7 @@ Requires authentication — run 'truestamp auth login', or set TRUESTAMP_API_KEY
 
 		cfg := appConfig
 		if !authConfigured() {
-			return fmt.Errorf("not authenticated — run `truestamp auth login`, or set TRUESTAMP_API_KEY / --api-key for headless use")
+			return fmt.Errorf("not authenticated, run `truestamp auth login`, or set TRUESTAMP_API_KEY / --api-key for headless use")
 		}
 
 		jsonOutput, _ := cmd.Flags().GetBool("json")
@@ -289,7 +289,7 @@ func autoHashFile(path string) (map[string]any, error) {
 // silently rewrites any integer outside +/- 2^53 before a single line of
 // validation or presentation code can see it. A user timestamping a 64-bit id
 // would get a proof committing to a DIFFERENT number than the one they
-// submitted — 18446744073709551615 became 18446744073709552000 on the wire —
+// submitted, 18446744073709551615 became 18446744073709552000 on the wire,
 // and a server-side portability rejection would name a value they never wrote.
 // json.Number carries the literal text and encoding/json re-emits it verbatim
 // when marshaling, so the bytes the user wrote are the bytes that get signed.
@@ -300,7 +300,7 @@ func autoHashFile(path string) (map[string]any, error) {
 //
 // json.Decoder is also more permissive than json.Unmarshal about trailing
 // content, so the extra Token call restores Unmarshal's "exactly one document"
-// rule — a truncated or concatenated claims file must be an error, never a
+// rule, a truncated or concatenated claims file must be an error, never a
 // silently accepted prefix.
 func decodeUserJSON(data []byte) (map[string]any, error) {
 	// json.Decoder reports empty input as a bare io.EOF, where json.Unmarshal
@@ -420,7 +420,7 @@ func overlayFlags(cmd *cobra.Command, claims map[string]any) error {
 	}
 
 	// Metadata: parse JSON string. Decoded with the same literal-preserving
-	// reader as a claims file — a big integer injected through this flag is
+	// reader as a claims file, a big integer injected through this flag is
 	// exactly as destructible as one read from disk.
 	if cmd.Flags().Changed("metadata") {
 		metaStr, _ := cmd.Flags().GetString("metadata")
@@ -491,7 +491,7 @@ func validateClaims(claims map[string]any) error {
 	hashType := strings.TrimSpace(rawHashType)
 
 	// Treat whitespace-only as absent. Strip the keys so the outgoing
-	// payload doesn't carry empty strings — the server treats empty as
+	// payload doesn't carry empty strings, the server treats empty as
 	// nil but explicit omission is cleaner over the wire.
 	if hash == "" {
 		delete(claims, "hash")
@@ -550,7 +550,7 @@ func validateClaims(claims map[string]any) error {
 // canonicalize portably, mirroring the server's ValidateClaimsSafeIntegers so
 // the failure lands locally with the same wording instead of as a 422.
 //
-// The threshold is the PRODUCER bound, jcs.MaxSafeInteger (2^53 - 1) — one
+// The threshold is the PRODUCER bound, jcs.MaxSafeInteger (2^53 - 1), one
 // stricter than the verifier's jcs.MaxExactInteger. See the comment on those
 // constants before touching either.
 //
@@ -561,7 +561,7 @@ func checkClaimsPortability(cmd *cobra.Command, claims map[string]any, jsonOutpu
 	if len(found) == 0 {
 		// The unsafe-integer walk is about values that survive canonicalization
 		// but mean something different afterwards. It says nothing about values
-		// that cannot be canonicalized at all — a float literal overflowing a
+		// that cannot be canonicalized at all, a float literal overflowing a
 		// double (1e1000) is legal JSON, passes the walk, and then fails
 		// jcs.Canonicalize, which is what verification runs over s.d. Refusing
 		// to submit what we could never verify is the stronger invariant, so
@@ -607,8 +607,8 @@ type unsafeIntegerJSON struct {
 // unsafeIntegerEntry locates one offending value.
 //
 // Value, Min and Max are JSON STRINGS on purpose. Emitting them as numbers
-// would hand a consumer that parses JSON with doubles — every JavaScript
-// caller, jq included — the rounded value, so the report warning about lossy
+// would hand a consumer that parses JSON with doubles, every JavaScript
+// caller, jq included, the rounded value, so the report warning about lossy
 // integers would itself be lossy.
 type unsafeIntegerEntry struct {
 	Path  string `json:"path"`
@@ -641,8 +641,8 @@ func buildUnsafeIntegerJSON(found []jcs.UnsafeInteger) unsafeIntegerJSON {
 //
 // A single violation gets the server's sentence verbatim, so the local and
 // remote errors are byte-identical for the case the server also reports.
-// Several violations get one line each — repeating the shared explanation per
-// value would bury the paths — followed by that explanation once.
+// Several violations get one line each, repeating the shared explanation per
+// value would bury the paths, followed by that explanation once.
 func unsafeIntegerText(found []jcs.UnsafeInteger) string {
 	if len(found) == 1 {
 		return jcs.UnsafeIntegerMessage(found[0].Path, found[0].Literal)
@@ -730,10 +730,10 @@ func presentCreate(resp *items.CreateItemResponse) {
 		tbl = tbl.Row("Team", resp.TeamID)
 	}
 
-	// Shareable public-web links as rows of the SAME table — they share
+	// Shareable public-web links as rows of the SAME table, they share
 	// the right-aligned-label / value column alignment. Note the verify
 	// link will render "not yet committed" until the item lands in a
-	// finalized block — still useful to surface the stable URL format
+	// finalized block, still useful to surface the stable URL format
 	// so the user can come back later.
 	if detail := ui.SubjectDetailURL(appConfig.APIURL, "item", resp.ID); detail != "" {
 		tbl = tbl.Row("Details", detail)
@@ -742,7 +742,7 @@ func presentCreate(resp *items.CreateItemResponse) {
 		tbl = tbl.Row("Verify", verify)
 	}
 
-	// Plain newline-join — see note in internal/verify/presenter.go
+	// Plain newline-join, see note in internal/verify/presenter.go
 	// Present(). lipgloss.JoinVertical pad-to-widest can cause phantom
 	// blank lines after every table row on narrow terminals.
 	lipgloss.Println(strings.Join([]string{header, tbl.String()}, "\n"))

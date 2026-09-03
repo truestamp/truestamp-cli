@@ -11,7 +11,7 @@
 // All five elements are present in every message. join_ref and ref may be
 // JSON null. Topics, events, and payloads are arbitrary JSON.
 //
-// This package is intentionally small — it does not depend on the Go
+// This package is intentionally small, it does not depend on the Go
 // "phx" community library so that we control reconnection behaviour and
 // keep the dependency tree shallow. The codec is exposed for unit tests
 // and for callers that want to drive a raw connection.
@@ -65,7 +65,7 @@ func (f *Frame) UnmarshalJSON(data []byte) error {
 }
 
 // PhxReply is the payload shape Phoenix sends back for messages that have
-// a ref — i.e. anything that expects a reply.
+// a ref, i.e. anything that expects a reply.
 //
 //	{"status":"ok","response":{...}}    or    {"status":"error","response":{...}}
 type PhxReply struct {

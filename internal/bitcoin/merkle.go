@@ -69,7 +69,7 @@ func VerifyPartialMerkleTree(
 // array equality, which lowers to runtime.memequal and short-circuits on the
 // first differing byte. Appendix E.4 of the whitepaper makes every hash and
 // digest comparison constant-time without qualification, so the CLI wraps
-// btcd rather than forking it and applies one rule everywhere — including the
+// btcd rather than forking it and applies one rule everywhere, including the
 // CVE-2012-2459 duplicate check, where both operands are public and the
 // uniformity is the point rather than a live side channel. Nil handling is
 // identical to IsEqual.

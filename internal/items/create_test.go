@@ -255,7 +255,7 @@ func TestCreateItem_TagsEchoedInRequest(t *testing.T) {
 // contract: that a json.Number in the claims map survives THIS package's
 // json.Marshal and lands in the request body as the exact bytes the user
 // typed. It asserts on the raw body read off the connection rather than on a
-// re-decoded map, because the corruption happened during decode — a test that
+// re-decoded map, because the corruption happened during decode, a test that
 // decoded the body again in-process would round the value a second time and
 // happily agree with itself.
 //

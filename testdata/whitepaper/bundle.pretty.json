@@ -1,0 +1,109 @@
+{
+  "version": 1,
+  "type": "item",
+  "generated_at": "2026-07-24T12:00:00Z",
+  "public_key": "IVL40Zt5HSRFMkLhXy6rbLfP+ntqXtMAl5YOBpiB2xI=",
+  "signature": "BfZua6JEboOJUVHvC/IcEfzBQazK/gCF2atLSlT1wJEjohjFmLcQADn1q8IsrhOb5+hHrCtsRBVOgYzYM2+ZBw==",
+  "subject": {
+    "id": "01KY9ZWEX0248J48HK6D248NAN",
+    "claims": {
+      "description": "Illustrative item for the Truestamp whitepaper. Not a production record.",
+      "hash": "b47cc0f104b62d4c7c30bcd68fd8e67613e287dc4ad8c310ef10cbadea9c4380",
+      "hash_type": "sha256",
+      "name": "Appendix D worked example"
+    },
+    "metadata": {
+      "witnesses": {
+        "block": "f6912793a49f289affc65a9571993444ae33760307ee973d37a8f90ea3b2d8e9",
+        "entropy_bitcoin": "e358c850958e1f1e8ad4c60c237a565ccf7f4f09788243d6d9efafcd131e3e3d",
+        "entropy_nist": "0a5eb1a1721a463924404929e46ba7afb5457d279a76cde217f38777f4610bfa",
+        "entropy_stellar": "8a7e002361b83a4e05e09150dd2d04497c3480ef59d833198c6d41acd9fd8f70"
+      }
+    },
+    "signing_key_id": "f2c39df9",
+    "witnesses": {
+      "block": {
+        "id": "019f93fd-c670-7001-8000-000000000001",
+        "previous_block_hash": "a3b8c9d0e1f2a3b4c5d6e7f80910111213141516171819202122232425262728",
+        "merkle_root": "dcbf10256899ea68cbe0c1122d9f589ae62f6fd3ce12c27d5ec566c3737a8345",
+        "metadata": {},
+        "signing_key_id": "f2c39df9"
+      },
+      "entropy_bitcoin": {
+        "hash": "cdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcd",
+        "height": 870455,
+        "time": 1784894100
+      },
+      "entropy_nist": {
+        "pulse": {
+          "chainIndex": 1,
+          "outputValue": "abababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababab",
+          "pulseIndex": 2847559,
+          "timeStamp": "2026-07-24T11:58:00.000Z",
+          "version": "2.0"
+        }
+      },
+      "entropy_stellar": {
+        "closed_at": "2026-07-24T11:58:10Z",
+        "hash": "9c9c9c9c9c9c9c9c9c9c9c9c9c9c9c9c9c9c9c9c9c9c9c9c9c9c9c9c9c9c9c9c",
+        "sequence": 51234501
+      }
+    }
+  },
+  "inclusion_proof": "AgEBpL3mm9F5EfSMUULiCpl0Zlv-jEvCjJ02UrgMtpAyqjrWYDzMuofrelvP6JqOPVEen1VZ7znHTeMVhgFzaqYU",
+  "block": {
+    "id": "019f93ff-2600-7c30-8000-000000000c30",
+    "previous_block_hash": "f6912793a49f289affc65a9571993444ae33760307ee973d37a8f90ea3b2d8e9",
+    "merkle_root": "7c40e8809aafdbc946bdc51484dc0f76811350ce4855744edfdcc5d62442b98c",
+    "metadata": {},
+    "signing_key_id": "f2c39df9"
+  },
+  "commitments": [
+    {
+      "chain": "stellar",
+      "epoch_merkle_root": "f5c2df8d5fdc24b0aef14c7ab3813c46c6d17c0545d9422f9272fe6a2e672e46",
+      "epoch_proof": "AgIjXul3dz0rfPIe4AociljvhPgtvzfnOAGa-ljhc6J98EdjNoTTWx4xLYFeepD3w1wg6UkqtFdnoiVQ94B3XyQs",
+      "transaction_hash": "5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e",
+      "network": "public",
+      "timestamp": "2026-07-24T12:00:12Z",
+      "ledger": 51234567
+    },
+    {
+      "chain": "bitcoin",
+      "epoch_merkle_root": "d1526bd295f222761a81bef1389ee0108bc133db0c66dff03a9c617f6ff2604e",
+      "epoch_proof": "AQFI0ilW7XcA0GN7vG-R5V7HWDNZp0udkbICCG_bmYMZiw",
+      "transaction_hash": "7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a",
+      "network": "mainnet",
+      "timestamp": "2026-07-24T12:40:00Z",
+      "block_height": 870456
+    }
+  ],
+  "signing_key_event": {
+    "block": {
+      "id": "019f93c8-3780-70a0-8000-0000000000a0",
+      "previous_block_hash": "96118892a96ced7df9875cca4b09f5c867728f63adcea4f189acc2f38fe75c95",
+      "merkle_root": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "metadata": {
+        "key_event": {
+          "key_id": "f2c39df9",
+          "prerotation_commitment": null,
+          "public_key": "IVL40Zt5HSRFMkLhXy6rbLfP+ntqXtMAl5YOBpiB2xI=",
+          "sequence": 0,
+          "type": "genesis"
+        }
+      },
+      "signing_key_id": "f2c39df9"
+    },
+    "commitments": [
+      {
+        "chain": "stellar",
+        "epoch_merkle_root": "5ee58a111980722fb7bf2cb4dfd54697188bd3d12a6bfb2e2c480113a09f4c0f",
+        "epoch_proof": "AQH-9oSs8vQTJbZXE4TSRmjRkxgF4XFkH_req9kMEiN9vg",
+        "transaction_hash": "3f3f3f3f3f3f3f3f3f3f3f3f3f3f3f3f3f3f3f3f3f3f3f3f3f3f3f3f3f3f3f3f",
+        "network": "public",
+        "timestamp": "2026-07-24T11:00:14Z",
+        "ledger": 51230004
+      }
+    ]
+  }
+}

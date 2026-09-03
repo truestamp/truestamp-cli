@@ -34,7 +34,7 @@ func TestExtractULIDTimestamp_TooShort(t *testing.T) {
 
 func TestExtractULIDTimestamp_InvalidChar(t *testing.T) {
 	t.Parallel()
-	// 'U' is not in Crockford Base32 — 26-char string with invalid chars
+	// 'U' is not in Crockford Base32, 26-char string with invalid chars
 	_, err := ExtractULIDTimestamp("0UUUUUUUUUUUUUUUUUUUUUUUUU")
 	if err == nil {
 		t.Error("expected error for invalid Crockford character")

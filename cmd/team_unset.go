@@ -19,7 +19,7 @@ without an explicit tenant header; the server falls back to the
 caller's personal team.
 
 Most users should prefer 'truestamp team set' over 'unset' so the
-team id is always sent explicitly with API requests — that avoids a
+team id is always sent explicitly with API requests, that avoids a
 server-side personal-team lookup on every call.`,
 	Args:          cobra.NoArgs,
 	SilenceUsage:  true,

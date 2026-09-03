@@ -159,7 +159,7 @@ func TestResolveCosignBinary_pinnedPath(t *testing.T) {
 
 	// Whitespace-only is treated as empty (falls back to $PATH); this
 	// call may or may not succeed depending on whether cosign is
-	// installed on the test host. Either is acceptable — we just want
+	// installed on the test host. Either is acceptable, we just want
 	// to verify the path isn't pinned-validated.
 	_, _ = resolveCosignBinary("   ")
 }

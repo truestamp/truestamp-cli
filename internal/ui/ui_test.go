@@ -9,7 +9,7 @@ import (
 )
 
 // These tests exercise the styling functions' call paths. Actual visual
-// correctness is out of scope — we just verify the functions produce
+// correctness is out of scope, we just verify the functions produce
 // non-empty, non-panicking output for a known input.
 
 func TestInit_NoColor(t *testing.T) {

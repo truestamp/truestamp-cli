@@ -127,7 +127,7 @@ func TestStatusDuringReconnect(t *testing.T) {
 	s.KillConnection()
 
 	// Wait for the transition to StatusReconnecting (the session loop
-	// closes the gate and starts backing off — this is event-driven now,
+	// closes the gate and starts backing off, this is event-driven now,
 	// so it should land within a few ms).
 	if !waitForStatus(c, StatusReconnecting, 500*time.Millisecond) {
 		t.Fatalf("Status() did not transition to %s after kill, still %s",

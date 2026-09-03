@@ -150,8 +150,8 @@ func TestLoad_FlagOverridesEnv(t *testing.T) {
 }
 
 // TestLoad_ComposesAllServiceURLs checks that BaseURL drives every
-// derived URL — JSON API, keyring, console WebSocket (with scheme
-// swap), and health — and that paths/queries on the configured base
+// derived URL, JSON API, keyring, console WebSocket (with scheme
+// swap), and health, and that paths/queries on the configured base
 // are normalised away so composition is deterministic.
 func TestLoad_ComposesAllServiceURLs(t *testing.T) {
 	cases := []struct {
@@ -240,7 +240,7 @@ func TestLoad_BaseURLValidation(t *testing.T) {
 
 // TestLoad_LegacyKeysWarn confirms the migration aid: a config still
 // using api_url / keyring_url loads without erroring (the values are
-// ignored — defaults take over) but a stderr warning fires so the
+// ignored, defaults take over) but a stderr warning fires so the
 // user knows to migrate.
 func TestLoad_LegacyKeysWarn(t *testing.T) {
 	dir := t.TempDir()
@@ -400,7 +400,7 @@ func TestToTOML_IncludesAllSections(t *testing.T) {
 			t.Errorf("ToTOML missing %q, full output:\n%s", want, out)
 		}
 	}
-	// Computed URL fields should NOT leak into rendered TOML — copying
+	// Computed URL fields should NOT leak into rendered TOML, copying
 	// the output back to a config file would otherwise hardcode stale
 	// derived URLs that base_url no longer drives.
 	for _, leak := range []string{`api_url`, `keyring_url`, `health_url`, `websocket_url`} {
@@ -499,7 +499,7 @@ func TestLoad_DefaultPathFallback(t *testing.T) {
 }
 
 // TestLoad_UnknownFlagInFlagMapIsIgnored ensures flags that are not in
-// flagKeyMap don't error — the closure returns ("", nil) and koanf
+// flagKeyMap don't error, the closure returns ("", nil) and koanf
 // skips them.
 func TestLoad_UnknownFlagInFlagMapIsIgnored(t *testing.T) {
 	flags := pflag.NewFlagSet("test", pflag.ContinueOnError)

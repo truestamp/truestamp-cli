@@ -3,7 +3,7 @@
 
 // Package config resolves the CLI's runtime configuration from compiled
 // defaults, an optional TOML config file, environment variables, and
-// command-line flags — in that order, with later sources overriding
+// command-line flags, in that order, with later sources overriding
 // earlier ones.
 package config
 
@@ -31,7 +31,7 @@ var DefaultTOML string
 
 // Config holds the resolved configuration for the CLI.
 //
-// All Truestamp service URLs derive from a single BaseURL — the JSON
+// All Truestamp service URLs derive from a single BaseURL, the JSON
 // API, keyring, console WebSocket, and health endpoint paths are
 // fixed by the server and computed from BaseURL during Load. Callers
 // that need a specific URL read the corresponding field directly
@@ -44,7 +44,7 @@ type Config struct {
 	// or --base-url flag.
 	BaseURL string `koanf:"base_url"`
 
-	// Computed from BaseURL during Load — not user-settable.
+	// Computed from BaseURL during Load, not user-settable.
 	APIURL       string `koanf:"-"`
 	KeyringURL   string `koanf:"-"`
 	WebSocketURL string `koanf:"-"`
@@ -52,7 +52,7 @@ type Config struct {
 
 	APIKey string `koanf:"api_key"`
 	// APIKeyExplicit is true when api_key came from an intentional
-	// override — the --api-key flag or the TRUESTAMP_API_KEY env var —
+	// override, the --api-key flag or the TRUESTAMP_API_KEY env var,
 	// rather than the config file. An explicit key wins over a stored
 	// OAuth session so CI/headless behavior stays deterministic. Computed
 	// during Load; not user-settable.
@@ -99,7 +99,7 @@ type LoggingConfig struct {
 
 // Timeout parses the HTTPTimeout string as a Go duration. A zero or
 // negative parsed value (which http.Client treats as "no timeout") is
-// rejected in favour of the 10-second default — Load validates this up
+// rejected in favour of the 10-second default, Load validates this up
 // front, so reaching the fallback here means the config bypassed Load.
 func (c Config) Timeout() time.Duration {
 	d, err := time.ParseDuration(c.HTTPTimeout)
@@ -116,6 +116,12 @@ type VerifyConfig struct {
 	SkipExternal   bool `koanf:"skip_external"`
 	SkipSignatures bool `koanf:"skip_signatures"`
 	Remote         bool `koanf:"remote"`
+
+	// Keyring is the path of a pinned copy of /.well-known/keyring.json
+	// used for the Appendix E.17 key binding. Empty means an online run
+	// fetches the live keyring from BaseURL and an offline run reports the
+	// binding as not checked.
+	Keyring string `koanf:"keyring"`
 }
 
 // HashConfig holds hash-subcommand-specific configuration.
@@ -148,8 +154,10 @@ var flagKeyMap = map[string]string{
 	"silent":          "verify.silent",
 	"json":            "verify.json",
 	"skip-external":   "verify.skip_external",
+	"offline":         "verify.skip_external",
 	"skip-signatures": "verify.skip_signatures",
 	"remote":          "verify.remote",
+	"keyring":         "verify.keyring",
 	// Hash subcommand flags
 	"algorithm": "hash.algorithm",
 	"encoding":  "hash.encoding",
@@ -177,6 +185,7 @@ func Load(configPath string, flags *pflag.FlagSet) (*Config, error) {
 		"verify.skip_external":   false,
 		"verify.skip_signatures": false,
 		"verify.remote":          false,
+		"verify.keyring":         "",
 		"hash.algorithm":         "sha256",
 		"hash.encoding":          "hex",
 		"hash.style":             "gnu",
@@ -244,8 +253,8 @@ func Load(configPath string, flags *pflag.FlagSet) (*Config, error) {
 
 	// Detect legacy keys still lingering in the user's TOML / env / flags
 	// (api_url, keyring_url, --api-url, --keyring-url) and warn once on
-	// stderr. We don't error on them — the defaults are correct for the
-	// production www.truestamp.com host — but the user should know they
+	// stderr. We don't error on them, the defaults are correct for the
+	// production www.truestamp.com host, but the user should know they
 	// are no longer load-bearing so they can clean up their config.
 	warnLegacyURLKeys(k)
 
@@ -271,7 +280,7 @@ func Load(configPath string, flags *pflag.FlagSet) (*Config, error) {
 
 	// Validate http_timeout is parseable and positive. A zero or negative
 	// duration is treated by http.Client as "no timeout", which would
-	// silently disable the guard — reject it up front so the user gets
+	// silently disable the guard, reject it up front so the user gets
 	// a clear error instead of a hung request.
 	d, err := time.ParseDuration(cfg.HTTPTimeout)
 	if err != nil {
@@ -283,7 +292,7 @@ func Load(configPath string, flags *pflag.FlagSet) (*Config, error) {
 
 	// Validate cosign_path: when set, it must be an absolute path.
 	// Existence and the executable bit are re-checked lazily at use
-	// time in selfupgrade.resolveCosignBinary — the upgrade command is
+	// time in selfupgrade.resolveCosignBinary, the upgrade command is
 	// the only consumer, and the filesystem state there can differ from
 	// startup (cosign installed/removed between a session's commands).
 	if cfg.CosignPath != "" && !filepath.IsAbs(cfg.CosignPath) {
@@ -346,7 +355,7 @@ func wsScheme(s string) string {
 // warnLegacyURLKeys emits a one-line stderr warning if any of the
 // retired URL knobs (api_url, keyring_url, --api-url, --keyring-url,
 // or their TRUESTAMP_* env equivalents) are still set. This is a
-// transition aid: the keys have no effect on the resolved config —
+// transition aid: the keys have no effect on the resolved config,
 // callers should set base_url instead.
 func warnLegacyURLKeys(k *koanf.Koanf) {
 	hasOld := k.Exists("api_url") || k.Exists("keyring_url")
@@ -361,12 +370,12 @@ func warnLegacyURLKeys(k *koanf.Koanf) {
 
 // ConfigDir returns the config directory path. The implementation is
 // split across config_unix.go and config_windows.go via build tags so
-// each platform's branch is exercised — and scored for coverage — only
+// each platform's branch is exercised, and scored for coverage, only
 // on the platform where it can actually run.
 func ConfigDir() string { return configDir() }
 
 // ConfigFilePath returns the full path to the PLATFORM DEFAULT config
-// file — the location used when the user did not pass --config. It
+// file, the location used when the user did not pass --config. It
 // deliberately ignores any override so cmd/root.go can render it as the
 // documented default in the --config flag's help text (built at init()
 // time, long before any config is loaded).
@@ -412,7 +421,7 @@ func activeOverridePath() string {
 // ActivePath returns the config file actually in effect: the --config
 // override when one was supplied, otherwise the platform default.
 //
-// It is correct even when [Load] was never called — some commands and
+// It is correct even when [Load] was never called, some commands and
 // tests reach display/persistence sites before (or without) loading the
 // config, and they must not silently target a different file than the
 // one that was read.
@@ -489,6 +498,7 @@ json = %v
 skip_external = %v
 skip_signatures = %v
 remote = %v
+keyring = %q
 
 [hash]
 algorithm = %q
@@ -506,7 +516,7 @@ max_backups = %d
 max_age_days = %d
 `, c.BaseURL, apiKey, c.Team, c.HTTPTimeout, c.CosignPath,
 		c.Verify.Silent, c.Verify.JSON,
-		c.Verify.SkipExternal, c.Verify.SkipSignatures, c.Verify.Remote,
+		c.Verify.SkipExternal, c.Verify.SkipSignatures, c.Verify.Remote, c.Verify.Keyring,
 		c.Hash.Algorithm, c.Hash.Encoding, c.Hash.Style,
 		c.Convert.TimeZone,
 		c.Logging.File, c.Logging.Level,

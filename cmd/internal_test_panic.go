@@ -13,7 +13,7 @@ import (
 // the panic-recovery integration test in root_panic_test.go trigger a
 // real panic from the cobra Run path. Registration is gated on the
 // TRUESTAMP_INTERNAL_TEST_PANIC env var so the command is invisible in
-// production builds — never appearing in `--help`, never affecting
+// production builds, never appearing in `--help`, never affecting
 // column padding, never callable. The test sets the env var when
 // invoking the subprocess; nothing else does.
 var internalTestPanicCmd = &cobra.Command{

@@ -113,7 +113,7 @@ func TestCLI_JCS_CanonicalizesJSON(t *testing.T) {
 }
 
 // TestCLI_JCS_HashEquivalence confirms that 'jcs | hash' produces the
-// same digest as 'hash --jcs' — the primary design invariant for the
+// same digest as 'hash --jcs', the primary design invariant for the
 // flagship "recompute a claims hash" use case.
 func TestCLI_JCS_HashEquivalence(t *testing.T) {
 	input := `{"b":2,"a":1}`

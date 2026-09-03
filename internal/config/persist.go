@@ -20,7 +20,7 @@ func keyLineRe(key string) *regexp.Regexp {
 }
 
 // SetAPIKey writes key as the top-level api_key value in the config file
-// in effect ([ActivePath] — the --config override when one was given,
+// in effect ([ActivePath], the --config override when one was given,
 // otherwise the platform default), preserving comments and other
 // settings. Creates the file from the embedded default if it does not
 // yet exist, and tightens permissions to 0600 because the file now
@@ -30,10 +30,10 @@ func SetAPIKey(key string) error {
 }
 
 // SetTeam writes id as the top-level team value in the config file in
-// effect ([ActivePath] — the --config override when one was given,
+// effect ([ActivePath], the --config override when one was given,
 // otherwise the platform default), preserving comments and other
 // settings. Creates the file from the embedded default if it does not
-// yet exist. Permissions are kept at 0600 to match SetAPIKey — the file
+// yet exist. Permissions are kept at 0600 to match SetAPIKey, the file
 // co-exists with the api_key secret, so a less-tight regime would only
 // loosen security on the shared file.
 func SetTeam(id string) error {
@@ -83,7 +83,7 @@ func replaceTopLevelAPIKey(contents []byte, key string) ([]byte, error) {
 // TOML section and rewrites it. If no such line exists, a new line is
 // inserted just before the first `[section]` header, or appended if the
 // file has no sections. Lines inside any `[section]` are never touched
-// — `api_key = "..."` inside `[verify]` would be a different setting
+// , `api_key = "..."` inside `[verify]` would be a different setting
 // even though it shares a name.
 func replaceTopLevelKey(contents []byte, key, value string) ([]byte, error) {
 	newLine := fmt.Sprintf("%s = %s", key, tomlQuote(value))

@@ -5,8 +5,8 @@ package ptype
 
 import "testing"
 
-// TestRegistryFrozen anchors the exact integer values assigned to each code.
-// These values are a long-lived wire contract — renumbering any of them
+// TestRegistryFrozen pins the exact integer values assigned to each code.
+// These values are a long-lived wire contract, renumbering any of them
 // breaks every previously-issued proof bundle, so this test is intentionally
 // a spec-lock. A change here must be accompanied by a version-bump
 // conversation with downstream verifier implementers.
@@ -60,21 +60,6 @@ func TestIsBlockLikeSubject(t *testing.T) {
 	}
 }
 
-func TestIsValidExternalCommitment(t *testing.T) {
-	valid := []Code{CommitmentStellar, CommitmentBitcoin}
-	for _, c := range valid {
-		if !IsValidExternalCommitment(c) {
-			t.Errorf("IsValidExternalCommitment(%d) = false, want true", c)
-		}
-	}
-	invalid := []Code{0, 10, 20, 30, 42, 49, 50, 9999}
-	for _, c := range invalid {
-		if IsValidExternalCommitment(c) {
-			t.Errorf("IsValidExternalCommitment(%d) = true, want false", c)
-		}
-	}
-}
-
 func TestIsEntropySubject(t *testing.T) {
 	if !IsEntropySubject(EntropyNIST) || !IsEntropySubject(EntropyStellar) || !IsEntropySubject(EntropyBitcoin) {
 		t.Error("all entropy codes should be entropy subjects")
@@ -98,8 +83,8 @@ func TestNameAndHumanize(t *testing.T) {
 		{EntropyNIST, "entropy_nist", "NIST Beacon"},
 		{EntropyStellar, "entropy_stellar", "Stellar Ledger"},
 		{EntropyBitcoin, "entropy_bitcoin", "Bitcoin Block"},
-		{CommitmentStellar, "commitment_stellar", "Stellar"},
-		{CommitmentBitcoin, "commitment_bitcoin", "Bitcoin"},
+		{CommitmentStellar, "stellar", "Stellar"},
+		{CommitmentBitcoin, "bitcoin", "Bitcoin"},
 	}
 	for _, c := range cases {
 		if got := Name(c.code); got != c.name {
@@ -117,5 +102,25 @@ func TestNameUnknown(t *testing.T) {
 	}
 	if Humanize(Code(999)) != "unknown" {
 		t.Error("Humanize for unknown code must be \"unknown\"")
+	}
+}
+
+func TestNameRegistry(t *testing.T) {
+	for name, want := range map[string]Code{"block": Block, "beacon": Beacon, "item": Item, "entropy_nist": EntropyNIST, "entropy_stellar": EntropyStellar, "entropy_bitcoin": EntropyBitcoin} {
+		got, ok := FromName(name)
+		if !ok || got != want || !IsSubjectName(name) {
+			t.Errorf("FromName(%q) = %d ok=%v, want %d", name, got, ok, want)
+		}
+	}
+	for _, name := range []string{"stellar", "bitcoin", "commitment_stellar", "", "Item"} {
+		if _, ok := FromName(name); ok || IsSubjectName(name) {
+			t.Errorf("%q must not resolve to a subject code", name)
+		}
+	}
+	if !IsChainName("stellar") || !IsChainName("bitcoin") || IsChainName("ethereum") {
+		t.Error("chain names")
+	}
+	if len(SubjectNames) != 6 {
+		t.Errorf("SubjectNames = %v", SubjectNames)
 	}
 }

@@ -65,7 +65,7 @@ func inCI() bool {
 }
 
 // isTerminal reports whether f refers to a character device (a TTY).
-// Uses os.Stat and the ModeCharDevice bit — no new dependencies needed.
+// Uses os.Stat and the ModeCharDevice bit, no new dependencies needed.
 func isTerminal(f *os.File) bool {
 	if f == nil {
 		return false
@@ -81,13 +81,13 @@ func isTerminal(f *os.File) bool {
 // an upgrade is available. No-op when Disabled() returns true.
 //
 // The flow:
-//  1. If cache is fresh (<24h), use the cached result — no network.
+//  1. If cache is fresh (<24h), use the cached result, no network.
 //  2. Otherwise, spawn a goroutine with a 2-second deadline to refresh
 //     the cache. Wait up to 500ms for it to complete; if it doesn't, we
 //     skip emitting a notice this invocation. The cache write is still
 //     committed when the goroutine finishes, so the next run picks it up.
 //
-// All errors are swallowed — upgrade checks must never interfere with
+// All errors are swallowed, upgrade checks must never interfere with
 // the primary command's output.
 func MaybeNotify(w io.Writer, flagDisabled bool, currentVersion string) {
 	if Disabled(flagDisabled, os.Stderr, currentVersion) {

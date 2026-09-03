@@ -26,7 +26,7 @@ const (
 
 // startBeaconServer spins up an httptest server that serves static beacon
 // responses. Returns the base URL and a cleanup func. The stub is minimal
-// by design — unit coverage of the client lives in internal/beacons.
+// by design, unit coverage of the client lives in internal/beacons.
 func startBeaconServer(t *testing.T) (string, func()) {
 	t.Helper()
 	mux := http.NewServeMux()
@@ -61,7 +61,7 @@ func requireBearer(t *testing.T, r *http.Request) {
 }
 
 // Unit coverage for the public-web link helpers. URLs render
-// unconditionally — localhost, 127.0.0.1, and plain-http all produce
+// unconditionally, localhost, 127.0.0.1, and plain-http all produce
 // a rendered link; suppression was removed by explicit user request
 // so developers can see card URLs against their dev server.
 func TestBeaconURLHelpers(t *testing.T) {
@@ -293,7 +293,7 @@ func TestCLI_Beacon_ByHash_HashOnly(t *testing.T) {
 }
 
 func TestCLI_Beacon_Get_BadUUIDClientSide(t *testing.T) {
-	// Server should never be hit — client-side validation rejects first.
+	// Server should never be hit, client-side validation rejects first.
 	called := false
 	srv := httptest.NewServer(http.HandlerFunc(func(_ http.ResponseWriter, _ *http.Request) {
 		called = true

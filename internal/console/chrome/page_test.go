@@ -33,7 +33,7 @@ func TestPageBodyAreaSubtractsChrome(t *testing.T) {
 
 // TestPageBodyAreaShrinksWithExpandedFooter verifies that when the
 // footer grows (e.g. help.ShowAll = true), the body shrinks by the
-// same amount — the help toggle expands into the body, never past
+// same amount, the help toggle expands into the body, never past
 // the bottom of the screen.
 func TestPageBodyAreaShrinksWithExpandedFooter(t *testing.T) {
 	t.Parallel()
@@ -57,7 +57,7 @@ func TestPageBodyAreaShrinksWithExpandedFooter(t *testing.T) {
 }
 
 // TestPageBodyAreaClampMinimum verifies tiny terminals don't produce
-// negative dimensions — we render *something* even at 1x1.
+// negative dimensions, we render *something* even at 1x1.
 func TestPageBodyAreaClampMinimum(t *testing.T) {
 	t.Parallel()
 
@@ -81,7 +81,7 @@ func TestPageRenderHeightExact(t *testing.T) {
 	theme := NewTheme()
 	p := Page{Width: 80, Height: 24, Theme: theme}
 
-	// Pane under-renders (one line of body content) — Render's
+	// Pane under-renders (one line of body content), Render's
 	// internal Height() clamp should pad to fill the body area.
 	out := p.Render(
 		"H1\nH2",       // 2-line header

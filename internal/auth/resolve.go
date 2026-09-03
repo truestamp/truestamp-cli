@@ -19,7 +19,7 @@ type Credentials struct {
 	// APIKey is the merged api_key value (config file, env, or flag).
 	APIKey string
 	// APIKeyExplicit is true when the key came from an intentional
-	// override — the --api-key flag or TRUESTAMP_API_KEY env — as opposed
+	// override, the --api-key flag or TRUESTAMP_API_KEY env, as opposed
 	// to the config file. An explicit key wins over an OAuth session so
 	// CI/headless behavior is deterministic.
 	APIKeyExplicit bool
@@ -185,7 +185,7 @@ func (a *oauthAuthorizer) token(ctx context.Context, force bool) (*oauth2.Token,
 	if scope, ok := nt.Extra("scope").(string); ok && scope != "" {
 		a.sess.Scope = scope
 	}
-	// Best-effort persist: a failed write must not break the request — the
+	// Best-effort persist: a failed write must not break the request, the
 	// in-memory token is still valid for this process.
 	_ = a.store.Save(a.sess)
 	return a.tok, nil
@@ -194,7 +194,7 @@ func (a *oauthAuthorizer) token(ctx context.Context, force bool) (*oauth2.Token,
 // refreshConfig builds the oauth2.Config used for refresh (and revoke).
 // AuthStyleInParams is set because the CLI is a public client
 // (token_endpoint_auth_method=none): client_id goes in the form body, not
-// HTTP Basic — and we skip oauth2's auth-style autodetect probe.
+// HTTP Basic, and we skip oauth2's auth-style autodetect probe.
 func refreshConfig(sess Session) *oauth2.Config {
 	return &oauth2.Config{
 		ClientID: ClientID,
@@ -212,7 +212,7 @@ func refreshConfig(sess Session) *oauth2.Config {
 // token refresh when the server returns 401. The server's OAuth→API-key
 // fallback means an expired OAuth token can surface as a bare 401 without a
 // `WWW-Authenticate` challenge, so the contract is "treat any 401 in OAuth
-// mode as refresh-and-retry-once" — implemented here, centrally, for every
+// mode as refresh-and-retry-once", implemented here, centrally, for every
 // HTTP call site.
 type retryTransport struct{ base http.RoundTripper }
 
@@ -231,7 +231,7 @@ func (t retryTransport) RoundTrip(req *http.Request) (*http.Response, error) {
 		return resp, err
 	}
 	// Only retry requests WE authenticated (they carry a Bearer header) in
-	// OAuth mode — never an unrelated 401 from an external API or an
+	// OAuth mode, never an unrelated 401 from an external API or an
 	// API-key request (which can't be refreshed).
 	azr := Default()
 	if azr.Mode() != ModeOAuth || req.Header.Get("Authorization") == "" {
@@ -268,7 +268,7 @@ func drainAndClose(resp *http.Response) {
 }
 
 // IsInvalidGrant reports whether err is an OAuth `invalid_grant` token
-// error — the signal that a refresh token is expired, reused, or revoked
+// error, the signal that a refresh token is expired, reused, or revoked
 // and the session is permanently dead (the caller should stop retrying and
 // prompt re-login).
 func IsInvalidGrant(err error) bool {

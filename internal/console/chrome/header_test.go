@@ -13,7 +13,7 @@ import (
 // TestHeaderRendersTabsAndStatus confirms a typical input produces a
 // header containing every tab label and the status text.
 // We strip ANSI escapes via lipgloss.Width-style measurement isn't
-// what we want here — assert on plain content via Contains since
+// what we want here, assert on plain content via Contains since
 // styles don't change the rendered glyphs.
 func TestHeaderRendersTabsAndStatus(t *testing.T) {
 	t.Parallel()
@@ -45,7 +45,7 @@ func TestHeaderRendersTabsAndStatus(t *testing.T) {
 }
 
 // TestHeaderUnderlineSpansFullWidth confirms the rule row beneath the
-// tabs reaches the configured page width — visual containment relies
+// tabs reaches the configured page width, visual containment relies
 // on the rule extending edge-to-edge.
 func TestHeaderUnderlineSpansFullWidth(t *testing.T) {
 	t.Parallel()
@@ -72,7 +72,7 @@ func TestHeaderUnderlineSpansFullWidth(t *testing.T) {
 }
 
 // TestHeaderRespectsZeroWidth verifies a degenerate input doesn't
-// panic — the chrome package should always degrade gracefully.
+// panic, the chrome package should always degrade gracefully.
 func TestHeaderRespectsZeroWidth(t *testing.T) {
 	t.Parallel()
 

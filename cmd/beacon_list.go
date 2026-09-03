@@ -72,7 +72,7 @@ func runBeaconList(cmd *cobra.Command, _ []string) error {
 }
 
 // renderBeaconList prints a compact three-column table. Hashes are
-// always shown full-width — truncation would silently drop the bytes a
+// always shown full-width, truncation would silently drop the bytes a
 // user came here to capture (the whole point of `beacon list` is to
 // surface the hash for copy-paste or shell substitution).
 func renderBeaconList(w io.Writer, items []beacons.Beacon) {
@@ -97,7 +97,7 @@ func renderBeaconList(w io.Writer, items []beacons.Beacon) {
 		}).
 		Rows(rows...)
 
-	// Plain newline-join — see note in internal/verify/presenter.go
+	// Plain newline-join, see note in internal/verify/presenter.go
 	// Present(). Avoids lipgloss.JoinVertical's pad-to-widest behaviour,
 	// which would make long hash rows blow up vertical spacing on
 	// narrow terminals.
@@ -108,7 +108,7 @@ func init() {
 	f := beaconListCmd.Flags()
 	f.Int("limit", beaconListDefaultLimit, "How many beacons to fetch (1..100)")
 	f.Bool("json", false, "Print the raw JSON response, pretty-printed")
-	f.Bool("hash-only", false, "(invalid on 'list' — use --json + jq)")
+	f.Bool("hash-only", false, "(invalid on 'list', use --json + jq)")
 	f.BoolP("silent", "s", false, "No output, exit code only")
 
 	beaconCmd.AddCommand(beaconListCmd)

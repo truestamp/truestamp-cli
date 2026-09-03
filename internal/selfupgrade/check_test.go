@@ -136,7 +136,7 @@ func TestCheck_preReleaseLatest_layer1(t *testing.T) {
 }
 
 // TestCheck_preRelease_explicitPin confirms that --version pinning
-// bypasses the pre-release defense — the user asked for it by name.
+// bypasses the pre-release defense, the user asked for it by name.
 func TestCheck_preRelease_explicitPin(t *testing.T) {
 	byTag := map[string]Release{
 		"v1.0.0-rc.1": {TagName: "v1.0.0-rc.1"},
@@ -162,7 +162,7 @@ func TestCheck_preRelease_explicitPin(t *testing.T) {
 
 func TestCheck_unparseableCurrent(t *testing.T) {
 	// "dev" doesn't parse as semver. Check should still return a
-	// useful result with UpgradeAvail=true — we always prefer
+	// useful result with UpgradeAvail=true, we always prefer
 	// over-reporting to leaving dev builds stale.
 	srv := stubReleaseServer(t, Release{TagName: "v0.4.0"}, nil)
 	defer srv.Close()

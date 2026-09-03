@@ -7,7 +7,113 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-## [0.12.1] — 2026-07-30
+The next release is a breaking one: proof bundles in the pre-publication
+draft layout are no longer readable, and every proof must be regenerated.
+
+### Changed
+
+- **The CLI now speaks version 1 of the proof bundle format as published
+  on 2026-09-03.** The pre-publication draft layout (short keys `v`, `t`,
+  `s`, `b`, `cx`, `ip`, carried `metadata_hash` and block-hash fields) is
+  refused outright with the hard rejection `unsupported_layout` and the
+  holder is told to regenerate the proof; no second code path for it
+  exists here or in any other verifier. Version 1 uses long keys
+  (`version`, `type`, `generated_at`, `public_key`, `signature`, `subject`,
+  `inclusion_proof`, `block`, `block_path`, `commitments`,
+  `signing_key_event`), carries `type` as a registry name, carries every
+  metadata map instead of its digest so nothing in a bundle is opaque,
+  names the on-chain value `epoch_merkle_root` on both chains, and adds
+  three things a verifier can now check: the **witnesses** an item's
+  metadata commits to (the head block and the three entropy observations
+  captured at submission), an optional **block path** linking the head
+  block to the containing block, and an optional **signing key event**
+  binding the signing key to a chain-committed ledger block. See
+  `kb/proof-bundle-format.md`.
+- **The verifier is a port of the reference verifier.** Every step of
+  whitepaper Appendix E runs in the reference's order with its wording:
+  the metadata hashes are derived (0x12, 0x22, 0x33) rather than read,
+  the Witnesses and Signing Key Event groups are new, each entropy
+  witness is re-fetched from its source online, and the submission window
+  reports its two edges the way E.20 specifies: Submitted Before passes on
+  the earliest confirmed commitment, Submitted After passes on the latest
+  source-confirmed witness, and both stay informational offline. An item
+  with no file hash given an expected hash now warns instead of skipping.
+  A `--type` mismatch is the hard rejection `subject_type_mismatch` rather
+  than a failing row. Conformance is pinned in `internal/verify`: the
+  three production bundles reproduce the reference verifier's reports row
+  for row, the Appendix D bundle contains every D.4 row, the tamper table
+  matches both the reference and the server, every Appendix C vector and
+  D.3 value reproduces, and an online run contains every row of the
+  server's own reports.
+- **The terminal report is the reference verifier's shape**: a short
+  bundle header, the five categories in Appendix E.22's display order,
+  `[PASS]`/`[FAIL]`/`[WARN]`/`[SKIP]`/`[INFO]` badges with the group and
+  message, the counts line, whether a file hash was provided, and the
+  verdict with its two explanatory sentences. `--json` now uses the same
+  field names as the Truestamp API's `/proof/verify` result (`passed`,
+  `steps`, the five counts, `hash_provided`, `expected_hash_provided`,
+  `hash_matched`, `proof_version`, `skipped_external`, `temporal`) plus
+  `verifier` and, for a hard rejection, `rejection`, so a CLI report and
+  an API report are directly diffable. The `result`, `subject`,
+  `hash_comparison`, `issues`, `verification_notes` and `summary` keys of
+  the old document are gone.
+- **CBOR decoding is a value-space conversion.** A CBOR bundle (tag 55799
+  or bare) is converted to the equivalent JSON document by Appendix E.3's
+  field-type correspondence and then parsed exactly as JSON, so the two
+  serializations grade one bundle identically. Every map that is a JCS
+  preimage (claims, entropy, both metadata maps, every witness payload) is
+  validated against the JSON value space; a byte string, tag, `undefined`,
+  non-finite float, non-text key or invalid UTF-8 inside one is
+  `invalid_subject_data`. `inclusion_proof` and `epoch_proof` are text in
+  CBOR, as the schema says.
+- `truestamp verify` gains `--expected-hash` (the older `--hash` remains
+  as an alias), `--keyring <file>` to pin a local copy of
+  `/.well-known/keyring.json` (an online run without one fetches the live
+  keyring; an offline run reports the binding as not checked), and
+  `--offline` as the plain-language spelling of `--skip-external`.
+  `--remote` now forwards `skip_external` and renders a server-side
+  rejection like a local one. The config key `verify.keyring`
+  (`TRUESTAMP_VERIFY_KEYRING`) pins a keyring persistently.
+- `truestamp download` gains `--witnesses all|none|<list>` selecting which
+  witness details the bundle carries, and names the file
+  `truestamp-<type>-<id>-compact.<ext>` or `-partial` for the two smaller
+  variants. Downloaded JSON is re-indented without re-encoding, so a
+  large integer in a claims map survives exactly.
+- `truestamp convert proof` follows the new model: hash slots become byte
+  strings, JCS-preimage maps keep the JSON value space, key order is
+  preserved on the way out, and numbers are never rounded.
+
+### Added
+
+- `truestamp inspect <file>` prints a bundle's key fields (format,
+  version, type, ids, the witnesses committed and carried, the block, the
+  commitments, the signing key event) without verifying anything, as text
+  or `--json`.
+- Shared golden test data under `testdata/`: a real production item in all
+  three variants and as CBOR with the reference verifier's and the
+  server's reports, the tamper table, the Appendix D bundle with its
+  derivation trace, the Appendix C vectors, and a staging item whose
+  bundle carries a real Bitcoin regtest commitment with its raw
+  transaction and txoutproof. The draft-layout fixtures, samples and
+  entropy generator are gone.
+
+### Removed
+
+- The `Subject Type`, `Verification Notes` and `Server Verdict`-adjacent
+  display groups, the card-style terminal renderer, and the CLI-specific
+  `--json` document described above.
+- The draft-layout shipped samples under `samples/`.
+
+### Documentation
+
+- `kb/proof-bundle-format.md` and `kb/verification-steps.md` describe the
+  published format and the ported verifier; `README.md`, `EXAMPLES.md`,
+  `CLAUDE.md` and the rest of `kb/` follow. The vocabulary is the
+  whitepaper's: commitments (never anchors), the submission window and its
+  submitted-after and submitted-before edges, witnesses, head and
+  containing blocks, complete and compact bundles.
+
+## [0.12.1] - 2026-07-30
 
 A documentation audit checked every markdown file and Go comment in the
 repository against the code that backs it. Most of what it turned up was
@@ -35,7 +141,7 @@ and an upgrade command that could not work on Windows.
 - **`truestamp upgrade` printed an unusable `go install` command on
   Windows.** The instruction was assembled by hand from the repository
   slug, which carries no host, so it read
-  `go install truestamp/truestamp-cli/cmd/truestamp@latest` — a path
+  `go install truestamp/truestamp-cli/cmd/truestamp@latest`, a path
   `go install` rejects. It now prints the full module path. Windows is
   print-only for `upgrade`, so this was the whole upgrade path for
   those users, and no test covered the string.
@@ -58,20 +164,20 @@ and an upgrade command that could not work on Windows.
   now lives in `kb/` behind an index, read on demand. Prohibitions
   stayed in `CLAUDE.md`: a rule in a file nobody opens is not a rule.
   `docs/engineering/console.md` moved to `kb/console/` and split by
-  package — it was contributor documentation that `docs/` published by
+  package, it was contributor documentation that `docs/` published by
   accident of placement, and `get.truestamp.com/engineering/console.*`
   now returns 404.
 - **111 statements that disagreed with the code were corrected** across
   the markdown files and Go comments. Among them: a comment declaring
   reconnect-with-backoff "intentionally NOT in V1" in the file that
   implements it, a claim that OAuth rides a `Bearer` header on the
-  console WebSocket upgrade (it cannot — a Phoenix upgrade never sees
+  console WebSocket upgrade (it cannot, a Phoenix upgrade never sees
   that header, so the token travels as a query parameter), a package
   describing itself as the set of hash algorithms the backend accepts
   when it is in fact the CLI-facing set, and `--remote`'s flag help
   still requiring `--api-key` after OAuth became the default.
 
-## [0.12.0] — 2026-07-28
+## [0.12.0] - 2026-07-28
 
 Conformance pass against Appendix E of the Truestamp whitepaper, the
 normative specification for an independent proof verifier. The headline
@@ -144,7 +250,7 @@ carried it, and not whether a third-party service happened to answer.
 ### Changed
 
 - **Report step groups follow the whitepaper's normative table.**
-  `Temporal Window` is now `Submission Window`; the keyring cross-check
+  the group that reported the id ordering is now `Submission Window`; the keyring cross-check
   moved out of `Signing Key` into its own `Key Binding` group (decoding
   a public key and binding it to Truestamp are separate claims, and
   only the second needs the network); a `Temporal Info` timing row
@@ -222,7 +328,7 @@ carried it, and not whether a third-party service happened to answer.
 ### Fixed
 
 - **Malformed CBOR-only bundles that verified as sound proofs are now
-  refused.** All predate this work. The type code `t` was read into a
+  refused.** All were present before this work. The type code `t` was read into a
   16-bit field, so `t = 65546` truncated to `10` and a bundle claiming
   an unregistered subject type verified, with exit 0, as a block. A
   non-integer `v` (`1.9`) or `t` (`20.5`) passed the version and type
@@ -392,12 +498,12 @@ carried it, and not whether a third-party service happened to answer.
   protocol pointing at their `kb/` locations. Every path was verified to
   exist.
 
-## [0.11.1] — 2026-07-23
+## [0.11.1] - 2026-07-23
 
 ### Changed
 - **Dependency and toolchain refresh.** Brought the bundled Go modules up to
-  their latest compatible versions — notably `golang.org/x/crypto` and the
-  Charm TUI libraries (bubbletea / bubbles / lipgloss) — and migrated the
+  their latest compatible versions, notably `golang.org/x/crypto` and the
+  Charm TUI libraries (bubbletea / bubbles / lipgloss), and migrated the
   Bitcoin commitment parsing onto btcsuite/btcd's v0.26.0 `/v2` submodules.
   The btcd change is a behavior-preserving module restructure (same package
   APIs), verified byte-identical against the real-transaction, txoutproof, and
@@ -408,13 +514,13 @@ carried it, and not whether a third-party service happened to answer.
   tasks instead of `go install ...@latest`, so CI and local checks share a
   single source of truth for tool versions and can no longer drift.
 
-## [0.11.0] — 2026-07-23
+## [0.11.0] - 2026-07-23
 
 ### Changed
 - **Entropy observation timestamp is now `inserted_at`, following a server
   rename.** The Truestamp service renamed the entropy observation's record
   timestamp from `captured_at` to `inserted_at` (the Ash default). It is the
-  same value — the moment Truestamp recorded the observation — and no hash or
+  same value, the moment Truestamp recorded the observation, and no hash or
   signature covers it, so proof verification is completely unaffected.
   `truestamp verify --remote` now reads the server's `inserted_at` temporal
   key, and the `--json` verification output emits the timeline timestamp under
@@ -430,13 +536,13 @@ carried it, and not whether a third-party service happened to answer.
   Release binaries and `go install` builds are now produced with the patched
   toolchain.
 
-## [0.10.0] — 2026-06-24
+## [0.10.0] - 2026-06-24
 
 ### Added
 - **Create teams from the CLI and the console.** A new `truestamp team
   create [name]` subcommand and a keyboard-driven create-team modal in the
   console Teams pane (open with `c`) both create a team via
-  `POST /api/json/teams` — the authenticated user becomes the owner and the
+  `POST /api/json/teams`, the authenticated user becomes the owner and the
   owner membership is created server-side. The subcommand takes
   `--ownership-model creator_retains|team_retains`, `--set` (make the new
   team active), and `--json` (including a parseable error object on
@@ -451,12 +557,12 @@ carried it, and not whether a third-party service happened to answer.
 
 ### Fixed
 - **Console: keys typed into the create-team name field no longer switch
-  panes.** While the create modal is open it is fully modal — the numeric
+  panes.** While the create modal is open it is fully modal, the numeric
   pane-jump keys (`1`-`4`), `[` / `]`, and `?` land in the name field (so a
   team named "Q3" is typable); `ctrl+tab` / `ctrl+shift+tab` still switch
   panes, and `ctrl+c` still quits.
 
-## [0.9.0] — 2026-06-24
+## [0.9.0] - 2026-06-24
 
 ### Added
 - **OAuth 2.1 browser sign-in, now the primary authentication method.**
@@ -504,15 +610,15 @@ carried it, and not whether a third-party service happened to answer.
   accepting an authorization code; and the discovery document's endpoints
   are pinned to the configured origin.
 
-## [0.8.2] — 2026-06-11
+## [0.8.2] - 2026-06-11
 
 ### Security
 - **Go toolchain 1.26.3 → 1.26.4.** Picks up three stdlib CVE fixes
   that all sit on this CLI's HTTPS client path: CVE-2026-42504
-  (net/textproto — attacker-controlled server could inject unescaped
+  (net/textproto, attacker-controlled server could inject unescaped
   content into errors surfaced by net/http clients reading MIME
-  headers), CVE-2026-42507 (mime — CPU exhaustion decoding malicious
-  MIME headers), and CVE-2026-27145 (crypto/x509 — quadratic
+  headers), CVE-2026-42507 (mime, CPU exhaustion decoding malicious
+  MIME headers), and CVE-2026-27145 (crypto/x509, quadratic
   `VerifyHostname` cost on large DNS SAN lists during TLS
   verification). `task vuln-check` is clean on 1.26.4.
 
@@ -520,11 +626,11 @@ carried it, and not whether a third-party service happened to answer.
 - **Toolchain pins bumped in `.tool-versions`** after vetting each
   upstream changelog: goreleaser 2.15.2 → 2.16.0 (XZ archive support,
   secret-redaction hardening in 2.15.3; the newly-deprecated `brews:`
-  config section does not affect us — `.goreleaser.yaml` already uses
+  config section does not affect us, `.goreleaser.yaml` already uses
   `homebrew_casks`, and `goreleaser check` validates clean), cosign
   3.0.6 → 3.1.1 (Sigstore bundle format now the default; legacy
   detached-signature `verify-blob` used by `truestamp upgrade` and
-  `install.sh` keeps working in v3 — flag removals land in cosign v4),
+  `install.sh` keeps working in v3, flag removals land in cosign v4),
   syft 1.42.4 → 1.45.1, caddy 2.11.2 → 2.11.4 (upstream security
   patches; dev-docs server only). shellcheck and websocat were already
   current.
@@ -532,7 +638,7 @@ carried it, and not whether a third-party service happened to answer.
   v2.0.7 (mouse-handling race fixes that directly benefit
   `truestamp console`), koanf v2.3.5, x/crypto v0.53.0, x/mod v0.37.0,
   x/term v0.44.0, and notable indirects btcec v2.5.0 + btcutil v1.2.0
-  (first releases on btcsuite's post-module-split graph — the new
+  (first releases on btcsuite's post-module-split graph, the new
   `chainhash/v2` module enters the graph via btcec; the breaking
   `*/v2.0.0` btcsuite line was deliberately *not* taken), fsnotify
   v1.10.1, x/sys v0.46.0. No breaking changes per upstream release
@@ -544,7 +650,7 @@ carried it, and not whether a third-party service happened to answer.
   keeping `task lint` and `task vuln-check` reproducible across
   machines and Go toolchain bumps (#19).
 
-## [0.8.1] — 2026-05-27
+## [0.8.1] - 2026-05-27
 
 ### Fixed
 - **Self-upgrade backup vanished for binaries older than 7 days.**
@@ -552,8 +658,8 @@ carried it, and not whether a third-party service happened to answer.
   rollback file via `os.Rename(destPath, backupPath)`. On Unix,
   `rename(2)` leaves the file's mtime untouched, so the backup
   arrived carrying the previous binary's install-time mtime. When
-  the previous install was more than 7 days old — the common case
-  for users upgrading between releases — the `pruneOldBackups` call
+  the previous install was more than 7 days old, the common case
+  for users upgrading between releases, the `pruneOldBackups` call
   that ends `Replace` reaped the freshly-created backup before
   `Replace` returned. The CLI continued to announce the backup path
   on stderr while the file was already gone, silently breaking the
@@ -562,7 +668,7 @@ carried it, and not whether a third-party service happened to answer.
   the actual backup-creation time. Regression test
   `TestReplace_BackupSurvivesAgedPriorBinary` backdates the source
   file 30 days before calling `Replace` and asserts the backup
-  survives with the old contents and a refreshed mtime — the
+  survives with the old contents and a refreshed mtime, the
   failure shape the previous test
   (`TestReplace_WithExistingBinary_CreatesBackup`) couldn't catch
   because its `os.WriteFile`'d destination always had a near-now
@@ -570,14 +676,14 @@ carried it, and not whether a third-party service happened to answer.
   the v0.8.0 release upgrade against a 33-day-old `install.sh`
   binary.
 
-## [0.8.0] — 2026-05-27
+## [0.8.0] - 2026-05-27
 
 ### Added
 - **`truestamp console` interactive TUI.** New subcommand opens a
   long-lived, authenticated WebSocket to the Truestamp backend
   (multiplexed Phoenix Channels: `console:lobby` for commands +
   stream events, `console:clock` for server-time ticks) and renders
-  four panes — **Monitor** (toggleable stream subscriptions with a
+  four panes, **Monitor** (toggleable stream subscriptions with a
   scrollable, reversible event waterfall; 24h time-windowed
   retention, 100k hard cap), **New Item** (form + live
   `items.created → items.committed` lifecycle card with a leading
@@ -599,7 +705,7 @@ carried it, and not whether a third-party service happened to answer.
   single-beacon card emits two shareable public-web links
   (`Details → {host}/beacons/<hash>` and
   `Verify → {host}/verify/beacon/<id>`) and renders unconditionally
-  — localhost and plain-http hosts too — so links work when
+ , localhost and plain-http hosts too, so links work when
   developing against a local server.
 - **`truestamp team` subcommand.** `team list / show / set /
   unset`. `team list` emits a four-column `★/ID/NAME/ROLE` table
@@ -614,7 +720,7 @@ carried it, and not whether a third-party service happened to answer.
   / `Team Role` rows alongside the bare id.
 - **Claims-as-source-of-truth submission mode for `truestamp
   create`.** A second submission mode where no external file is
-  required — the claims content itself is what gets timestamped,
+  required, the claims content itself is what gets timestamped,
   gated by a server-side meaningful-content rule (≥ 32-char
   description or non-empty metadata). The `--hash` / `--hash-type`
   pair is now co-required: both supplied (external-hash mode) or
@@ -625,7 +731,7 @@ carried it, and not whether a third-party service happened to answer.
 - **CLI-wide JSON logger with redaction and panic recovery.**
   `internal/logging` extends a single structured `slog` JSON logger
   across every subcommand. `internal/redact` scrubs api_key
-  patterns from log payloads (security-critical — covered by the
+  patterns from log payloads (security-critical, covered by the
   `TestRedactSecrets` fuzz target). A top-level panic recovery
   installs a `slog.Error("panic", ...)` handler that captures
   goroutine stacks before the process exits, so the console's
@@ -651,7 +757,7 @@ carried it, and not whether a third-party service happened to answer.
   configs surfaced multiple endpoint URLs (api_url, keyring_url,
   websocket_url, health_url) that all derived from the same
   Truestamp deployment. The new `base_url` (default
-  `https://www.truestamp.com`) is the single dial — `api_url`,
+  `https://www.truestamp.com`) is the single dial, `api_url`,
   `keyring_url`, the console WebSocket URL, and the health-check
   URL are all derived from it at config load, with the per-URL
   flags / env vars preserved for explicit override. `config show`
@@ -660,11 +766,11 @@ carried it, and not whether a third-party service happened to answer.
 - **Console monitor waterfall redesigned.** Table-driven layout
   via `lipgloss/v2/table`, mouse-wheel scrolling, deterministic
   reverse-chronological event ordering, ID column no longer
-  truncates the primary id, scroll indicator anchored to the title
+  truncates the primary id, scroll indicator pinned to the title
   row, footer state-aware to whichever pane is focused. Default
   focus on app launch goes straight to the events waterfall so
   `j/k`/arrows scroll without a leading Tab. Header status trimmed
-  — plan + stream count moved to the Connection pane to declutter
+ , plan + stream count moved to the Connection pane to declutter
   the Monitor.
 - **New Item form ergonomics.** Migrated to `huh/v2`, the
   hash-type Select uses the canonical Display names shared with
@@ -678,7 +784,7 @@ carried it, and not whether a third-party service happened to answer.
   in flight.
 - **Go toolchain pinned to 1.26.3.** `.tool-versions` (single
   source of truth for CI via `mise`) and `go.mod` both bumped from
-  1.26.2 — see Security below.
+  1.26.2, see Security below.
 
 ### Fixed
 - **Health-check latency flake on fast loopback.** The Connection
@@ -733,7 +839,7 @@ carried it, and not whether a third-party service happened to answer.
 - `github/codeql-action` (workflow) 4.35.2 → 4.35.3
 - `goreleaser/goreleaser-action` (workflow) patch bump
 
-## [0.7.1] — 2026-04-23
+## [0.7.1] - 2026-04-23
 
 ### Changed
 - **Release workflow gated on full CI.** `release.yml` now runs the
@@ -745,10 +851,10 @@ carried it, and not whether a third-party service happened to answer.
   re-run on the tag SHA itself at release time.
 - **Release pre-flight steps in GoReleaser job.** Before the real
   `goreleaser release`, the workflow now runs `goreleaser check`
-  (validates `.goreleaser.yaml` syntax — catches a malformed config
+  (validates `.goreleaser.yaml` syntax, catches a malformed config
   in under a second) and `goreleaser release --snapshot --clean`
   (full cross-compile dry-run: SBOM generation, archive creation,
-  cask template rendering — surfaces platform-specific build
+  cask template rendering, surfaces platform-specific build
   breakage before anything touches GitHub Release or cosign).
   Tag-push → published release now takes ~7-9 min instead of ~4,
   in exchange for a half-publish-proof pipeline.
@@ -773,7 +879,7 @@ carried it, and not whether a third-party service happened to answer.
   flags that the `.goreleaser.yaml` header comment documents as the
   correct local dry-run invocation. Without the skips, cosign tries
   keyless signing, which requires a GitHub OIDC token only the
-  release workflow has — the local task sat waiting for a device-flow
+  release workflow has, the local task sat waiting for a device-flow
   OAuth code it couldn't receive, then failed after five minutes.
   Fixed: task now matches the documented dry-run.
 - **`CONTRIBUTING.md` release procedure updated for the
@@ -798,7 +904,7 @@ carried it, and not whether a third-party service happened to answer.
 
 ### Security
 - **Branch-protection ruleset (`protect-main`) active on `main`.**
-  Not a code change — this is a repo-settings change — but
+  Not a code change, this is a repo-settings change, but
   documenting it here because it's load-bearing for the release
   flow: pushes to `main` (direct or PR-merged) now require the
   `Test (ubuntu-latest)` and `Test (macos-latest)` checks to be
@@ -814,7 +920,7 @@ carried it, and not whether a third-party service happened to answer.
   non-Go source files (GitHub workflow YAMLs, issue templates,
   `dependabot.yml`, `.goreleaser.yaml`, `Taskfile.yml`, the
   install shell scripts, and `defaults/config.toml`) did not.
-  Now uniform across the tree — SBOM / license scanners see a
+  Now uniform across the tree, SBOM / license scanners see a
   consistent per-file license declaration. The TOML header
   propagates into user configs generated by `truestamp config init`.
 - **Copyright year range rolled to 2019-2026.** `2021-2026` was
@@ -822,7 +928,7 @@ carried it, and not whether a third-party service happened to answer.
   the correct founding year. Applied uniformly across all 151
   header-carrying files.
 
-## [0.7.0] — 2026-04-23
+## [0.7.0] - 2026-04-23
 
 ### Added
 - **`cosign_path` config setting.** Operators can pin the absolute
@@ -877,7 +983,7 @@ carried it, and not whether a third-party service happened to answer.
 - Release workflow: direct `gh pr merge --merge` on the
   homebrew-tap PR instead of `gh pr merge --auto --merge`. The
   tap's `protect-main` ruleset only blocks branch deletion and
-  non-fast-forward pushes — no required checks or reviews — so
+  non-fast-forward pushes, no required checks or reviews, so
   nothing gates mergeability, and `--auto` rejected the
   instantly-clean PR with "Pull request is in clean status". The
   simplification removes a manual merge step that the 0.6.0
@@ -893,7 +999,7 @@ carried it, and not whether a third-party service happened to answer.
   chain entirely.
 - **Cosign `$PATH` lookup hardened.** `selfupgrade.VerifyCosign`
   no longer falls back to `$PATH` when a pinned path is
-  configured — an operator who set `cosign_path` gets their
+  configured, an operator who set `cosign_path` gets their
   chosen binary or a clear error, never a silent $PATH
   substitution. SHA-256 verification remains mandatory regardless
   of cosign status; cosign stays best-effort unless
@@ -903,8 +1009,8 @@ carried it, and not whether a third-party service happened to answer.
 - **Trust model documented for `external.VerifyKeyring`.** The
   function's doc comment now states explicitly that the keyring's
   authenticity is rooted entirely in TLS chain verification to
-  the configured `keyring-url` — there is no in-band signature
-  over the keyring payload — and spells out the implications for
+  the configured `keyring-url`, there is no in-band signature
+  over the keyring payload, and spells out the implications for
   operators choosing a `keyring_url` value.
 - **Defensive abs-path check on pinned cosign.** The path stored
   in `cosign_path` / `TRUESTAMP_COSIGN_PATH` must be absolute;
@@ -913,7 +1019,7 @@ carried it, and not whether a third-party service happened to answer.
   otherwise resolve against whatever directory the CLI happened
   to run from. The `gosec` G703 warning on the consequent
   `os.Stat(pinned)` is suppressed with a targeted `#nosec` and
-  justification — the input has been reduced to an
+  justification, the input has been reduced to an
   operator-chosen absolute path on a CLI running with the user's
   own privileges, and the stat result only gates whether we
   return that exact path as a command to exec.
@@ -926,7 +1032,7 @@ carried it, and not whether a third-party service happened to answer.
   race-clean under `go test -race ./...`.
 - **New regression tests:**
   `TestResolveCosignBinary_pinnedPath` (valid exec, missing,
-  directory, non-executable, relative — five cases),
+  directory, non-executable, relative, five cases),
   `TestExtractBinary_rejectsSymlink`, `TestDefaultPickFile_NoTTY`,
   `TestDefaultPromptURL_NoTTY`, `TestLoad_NonPositiveHTTPTimeout`
   (both 0s and -1s), `TestLoad_CosignPathAbsolute` (four
@@ -953,7 +1059,7 @@ carried it, and not whether a third-party service happened to answer.
   and the README's Upgrading section calls out the pin option
   alongside `TRUESTAMP_REQUIRE_COSIGN`.
 
-## [0.6.0] — 2026-04-23
+## [0.6.0] - 2026-04-23
 
 ### Added
 - **Proof format restructure.** The subject-kind discriminator moves
@@ -961,7 +1067,7 @@ carried it, and not whether a third-party service happened to answer.
   both the subject and every external-commitment chain. The byte is
   emitted as a 2-byte big-endian u16 right after the version byte in
   the Ed25519 signing pre-image, so flipping `t` on a bundle without
-  re-signing breaks signature verification — real cryptographic
+  re-signing breaks signature verification, real cryptographic
   domain separation between subject kinds. Frozen type-code registry
   (single source of truth at `internal/proof/ptype/ptype.go`):
   - `10` block · `20` item · `30` entropy_nist · `31` entropy_stellar
@@ -976,12 +1082,12 @@ carried it, and not whether a third-party service happened to answer.
 - **Beacons are first-class proof subjects (`t = 11`).** Beacon and
   block (`t = 10`) share the same wire shape (no `s`, no `ip`,
   `subject_hash == block_hash`) but are cryptographically distinct
-  because `t` is in the signed payload — a block bundle and a beacon
+  because `t` is in the signed payload, a block bundle and a beacon
   bundle over the same underlying block have different signatures.
   Verify dispatches both through the same pipeline via the new
   `ptype.IsBlockLikeSubject` / `ProofBundle.IsBlockLike()` predicates;
   the report's Type row reads "Beacon" for `t=11`, "Block" for `t=10`.
-- **`truestamp beacon {latest,list,get,by-hash}`** — read-only client
+- **`truestamp beacon {latest,list,get,by-hash}`**, read-only client
   for the Truestamp Beacons JSON:API (`GET /api/json/beacons/*`).
   Shared `--json` / `--hash-only` / `--silent` flags, client-side
   UUIDv7 and 64-hex validation before the network round-trip, and
@@ -998,7 +1104,7 @@ carried it, and not whether a third-party service happened to answer.
   filenames use the `truestamp-<stem>-<id>.<ext>` convention with
   hyphenated stems (`truestamp-entropy-nist-<id>.json`) while the
   wire value stays underscored to match the server enum.
-- **`truestamp verify --type`** — assert the expected subject type
+- **`truestamp verify --type`**, assert the expected subject type
   locally and remotely, defending against swapped-file confused-deputy
   scenarios (block and beacon are wire-identical apart from the `t`
   byte, so both verify cleanly on their own). Local mode surfaces a
@@ -1015,12 +1121,12 @@ carried it, and not whether a third-party service happened to answer.
 - **Live entropy-source consistency checks.** The Entropy Source
   verification step now contacts the canonical upstream source for
   each subject type and byte-compares the bundle's stored value:
-  - NIST Beacon (`t=30`) — `beacon.nist.gov/beacon/2.0/chain/{c}/pulse/{p}`,
+  - NIST Beacon (`t=30`), `beacon.nist.gov/beacon/2.0/chain/{c}/pulse/{p}`,
     compare `outputValue` and `timeStamp`.
-  - Stellar ledger (`t=31`) — Horizon `/ledgers/{seq}` on the network
+  - Stellar ledger (`t=31`), Horizon `/ledgers/{seq}` on the network
     derived from the bundle's Stellar commitment; compare `hash` and
     `closed_at`.
-  - Bitcoin block (`t=32`) — `blockstream.info/api/block/{hash}` pinned
+  - Bitcoin block (`t=32`), `blockstream.info/api/block/{hash}` pinned
     to mainnet (the authoritative public-randomness source, even in
     dev deployments that commit to regtest/testnet); compare `height`
     and `time`.
@@ -1030,10 +1136,10 @@ carried it, and not whether a third-party service happened to answer.
   comes from the shared `ui.SubjectDetailURL` / `ui.SubjectVerifyURL`
   / `ui.BeaconDetailURL` / `ui.BeaconVerifyURL` helpers, routed
   through one `publicWebBase` that strips a trailing `/api/json`.
-  URLs render unconditionally — localhost, 127.0.0.1, and plain-http
-  hosts too — so the links are visible when developing against a
+  URLs render unconditionally, localhost, 127.0.0.1, and plain-http
+  hosts too, so the links are visible when developing against a
   local server.
-- `internal/beacons` — HTTP client for the Beacons JSON:API (Latest /
+- `internal/beacons`, HTTP client for the Beacons JSON:API (Latest /
   List / Get / ByHash) with typed errors, 429 `Retry-After` surfacing,
   and a fuzz suite over the parser + UUIDv7 / 64-hex validators.
 
@@ -1044,7 +1150,7 @@ carried it, and not whether a third-party service happened to answer.
   shortest-prefix rules from SemVer §11) now comes from battle-tested
   upstream code. Public API (`Semver`, `ParseSemver`, `Compare`,
   `Display`, `IsPreRelease`) is preserved. `go.mod` gains a direct
-  `golang.org/x/mod` dependency — already transitive, so effectively
+  `golang.org/x/mod` dependency, already transitive, so effectively
   zero footprint growth in real-world installs.
 - **Upgrade-check no longer mis-ranks git-describe dev builds.** A
   locally-built `0.5.0-4-g356ee75-dirty` binary is conceptually
@@ -1073,7 +1179,7 @@ carried it, and not whether a third-party service happened to answer.
   `""` separators in `strings.Join`, doubling the apparent gap
   between a section header and its first row. New
   `ui.CompactTable()` helper returns a table with `HiddenBorder`
-  plus `BorderTop/Bottom/Left/Right(false)` — content is flush to
+  plus `BorderTop/Bottom/Left/Right(false)`, content is flush to
   whatever comes before and after, and callers control inter-section
   spacing explicitly. Applied at 16 call sites across `cmd/` and
   `internal/verify/presenter.go`.
@@ -1082,7 +1188,7 @@ carried it, and not whether a third-party service happened to answer.
   contexts (hash-mismatch diffs, entropy-source mismatch, Bitcoin
   fetch/height errors) now emit the full 64-char hex. Two different
   hashes sharing prefix + suffix used to read as visually identical
-  — no longer. Commitments section already did, so this is the
+ , no longer. Commitments section already did, so this is the
   convergence pass. `cmd/beacon_list.go` also drops its local
   `truncateHashShort` in favour of TTY-aware width logic.
 - **Centralized timestamp truncation.** Promoted the package-local
@@ -1094,13 +1200,13 @@ carried it, and not whether a third-party service happened to answer.
   mismatch errors keep full precision so a sub-second diff isn't
   masked.
 - **Stellar `net` strict.** Only `"testnet"` and `"public"` accepted
-  — the previous tolerance of other values is gone.
+ , the previous tolerance of other values is gone.
 - **Legacy `s.kid == b.kid` equality check removed.** Legitimate key
   rotation can produce divergent kids; subject-kid tampering is
   still detected because `kid` is an input to the 0x13 / 0x23
   composite hash.
 - Verify report groups renamed to match the authoritative spec:
-  Subject Data, Block Hash, Epoch Proof, Temporal Window,
+  Subject Data, Block Hash, Epoch Proof, the id-ordering group,
   Entropy Source.
 - Subject-card URL rows now render as rows of the SAME table as
   labels (Details / Verify inherit the right-aligned-label column),
@@ -1110,7 +1216,7 @@ carried it, and not whether a third-party service happened to answer.
   matching the JSON parser. Marshaller emits no `s` / `ip` for both.
 
 ### Removed
-- `--type auto` and bare `--type entropy` on `download` — rejected
+- `--type auto` and bare `--type entropy` on `download`, rejected
   client-side before any I/O. The server's strict six-value enum is
   the contract.
 - Old `s.src` string discriminator. All callers branch on the `t`
@@ -1120,14 +1226,14 @@ carried it, and not whether a third-party service happened to answer.
 - Build pulls `golang.org/x/mod` direct; `task vuln-check` clean.
 - Dependabot: `github-actions` group updates ([#4](https://github.com/truestamp/truestamp-cli/pull/4)).
 
-## [0.5.0] — 2026-04-21
+## [0.5.0] - 2026-04-21
 
 ### Added
 - Five new pipe-friendly sub-commands that replace the ad-hoc external
   tool chain (`sha256sum`, `shasum`, `xxd`, `base64`, `jq`, `date`)
   with built-ins that behave identically across macOS, Linux, BSD,
   WSL, and Git-Bash on Windows:
-  - `truestamp hash` — SHA-2 / SHA-3 / BLAKE2 / MD5 / SHA-1 digests
+  - `truestamp hash`, SHA-2 / SHA-3 / BLAKE2 / MD5 / SHA-1 digests
     for files, stdin, URLs, or a picked file. Default output is
     byte-identical to GNU coreutils' `sha256sum` (including the
     standard `\`-escaping for filenames with newlines/backslashes).
@@ -1138,44 +1244,44 @@ carried it, and not whether a third-party service happened to answer.
     hashing) and `--jcs` (apply RFC 8785 canonicalization first), so
     the Truestamp claims-hash intermediate is a one-liner:
     `truestamp hash --prefix 0x11 --jcs -a sha256 --style bare < claims.json`.
-  - `truestamp encode` and `truestamp decode` — byte-encoding
+  - `truestamp encode` and `truestamp decode`, byte-encoding
     conversions among `hex`, `base64`, `base64url`, and `binary`,
     with strict cross-encoding-alphabet rejection. Both support
     text-to-text conversion via `--from`/`--to`.
-  - `truestamp jcs` — apply RFC 8785 JSON Canonicalization to the
+  - `truestamp jcs`, apply RFC 8785 JSON Canonicalization to the
     input. Pipes directly into `truestamp hash` for hashing
     pipelines; `truestamp hash --jcs` is the shortcut.
-  - `truestamp convert` — umbrella for domain-specific conversions:
-    - `convert time` — parse and re-format timestamps across zones
+  - `truestamp convert`, umbrella for domain-specific conversions:
+    - `convert time`, parse and re-format timestamps across zones
       and Unix formats (auto / rfc3339 / unix-{s,ms,us,ns}, IANA
       zones, Go time layouts as `--format`).
-    - `convert proof` — switch a proof bundle between JSON and CBOR
+    - `convert proof`, switch a proof bundle between JSON and CBOR
       wire formats. CBOR output uses RFC 8949 §4.2 core
       deterministic encoding and prepends the self-describing tag
       55799 so `truestamp verify` auto-detects the format.
-    - `convert id` — extract the embedded millisecond timestamp
+    - `convert id`, extract the embedded millisecond timestamp
       from a ULID (item IDs) or UUIDv7 (block and entropy IDs).
       Auto-detects the type; supports `--to-zone` for display.
-    - `convert keyid` — derive the 4-byte Truestamp `kid`
+    - `convert keyid`, derive the 4-byte Truestamp `kid`
       fingerprint (`truncate4(SHA256(0x51 || pubkey))`) from an
       Ed25519 public key in hex, base64, or base64url.
-    - `convert merkle` — decode a compact base64url Merkle proof
+    - `convert merkle`, decode a compact base64url Merkle proof
       (`ip` / `ep` fields) into a human-readable sibling list with
       position + hash per step.
-- `internal/inputsrc` — shared six-mode input resolver (positional,
+- `internal/inputsrc`, shared six-mode input resolver (positional,
   `--file [path]`, `--file` picker, `--url [url]`, `--url` prompt,
   stdin pipe). Used uniformly by `verify`, `create`, and every new
   sub-command. `pflag` `NoOptDefVal` sentinels are now readable
   `(pick)` / `(prompt)` strings so `--help` renders cleanly; `-`
   as a positional is accepted as the Unix-standard stdin alias.
-- `internal/encoding` — RFC 4648 hex/base64/base64url round-trip with
+- `internal/encoding`, RFC 4648 hex/base64/base64url round-trip with
   tolerance for trailing whitespace and rejection of mismatched
   alphabets.
-- `internal/hashing` — 14-algorithm registry built on `crypto/{md5,
+- `internal/hashing`, 14-algorithm registry built on `crypto/{md5,
   sha1,sha256,sha512}` + `golang.org/x/crypto/{sha3,blake2b,blake2s}`,
   streaming `Compute`, and `sha256sum` / `shasum --tag` output
   formatters with proper filename escaping.
-- `ProofBundle.MarshalCBOR` on `internal/proof` — deterministic CBOR
+- `ProofBundle.MarshalCBOR` on `internal/proof`, deterministic CBOR
   encoding (RFC 8949 §4.2) with the 0xd9d9f7 self-describing tag.
   Byte-valued fields (`pk`, `sig`, hashes, epoch/inclusion proofs)
   are re-encoded as CBOR major-type-2 byte strings per an explicit
@@ -1194,7 +1300,7 @@ carried it, and not whether a third-party service happened to answer.
     all 14 algorithms (SHA-256 ~2.9 GB/s, BLAKE2b ~1.1 GB/s on M3
     Max), encoding round-trip, proof parse / marshal (JSON + CBOR),
     Merkle decode + verify, domain-prefixed hashing.
-  - **9 golden-output snapshot tests** — `testdata/golden/` fixtures
+  - **9 golden-output snapshot tests**, `testdata/golden/` fixtures
     for `--help` output on root/verify/hash, `hash --list`, and JSON
     envelopes for `hash`, `encode`, and `convert {time,id,keyid}`.
     JSON is canonicalized before diffing so tests don't flake on
@@ -1206,25 +1312,25 @@ carried it, and not whether a third-party service happened to answer.
     branches on a macOS/Linux runner, self-upgrade pipeline that
     needs a real release tarball + cosign binary).
 - New Taskfile entry points:
-  - `task test-coverage-full` — covers CLI subprocess runs too by
+  - `task test-coverage-full`, covers CLI subprocess runs too by
     building the binary with `-cover -coverpkg=./...` and routing
     its `GOCOVERDIR` through a task-controlled directory (works
     around `go test -cover` clobbering `GOCOVERDIR` in the test
     process's environment).
-  - `task test-race` — full suite under the race detector; currently
+  - `task test-race`, full suite under the race detector; currently
     zero-finding.
-  - `task bench` / `task bench-compare` — benchmarks with `-benchmem`
+  - `task bench` / `task bench-compare`, benchmarks with `-benchmem`
     and a `-count=5` baseline suitable for `benchstat` comparison.
   - `task fuzz` / `task fuzz-deep` / `task fuzz-list`.
-  - `task lint` — `go vet` + `gofmt -l` + `staticcheck` + `gosec`
+  - `task lint`, `go vet` + `gofmt -l` + `staticcheck` + `gosec`
     with documented exclusions for CLI-standard patterns
     (user-specified file paths, supported-with-warning legacy
     hashes, Unix-standard file permissions, hard-coded subprocess
     names).
-  - `task vuln-check` — `govulncheck` against `go.mod` and stdlib.
-  - `task precommit-full` — strict pre-release gate (fmt + lint +
+  - `task vuln-check`, `govulncheck` against `go.mod` and stdlib.
+  - `task precommit-full`, strict pre-release gate (fmt + lint +
     test-race + fuzz seeds + vuln-check + build-all, ~3-5 min).
-- `EXAMPLES.md` — new, ~800 lines. Per-sub-command tour with
+- `EXAMPLES.md`, new, ~800 lines. Per-sub-command tour with
   copy-pastable examples, ~15 pipeline recipes, `--json` + `jq`
   scripting patterns, CI conventions, and an offline/air-gapped
   usage section. Every example was exercised end-to-end against a
@@ -1237,7 +1343,7 @@ carried it, and not whether a third-party service happened to answer.
   Security below. All other entries in `.tool-versions` are now
   explicitly version-pinned rather than tracking `latest` to avoid
   silent drift.
-- `task precommit` slimmed to a **fast** hot-cache pass — `fmt` +
+- `task precommit` slimmed to a **fast** hot-cache pass, `fmt` +
   `lint` + `test` + `build` (single-platform). ~2 s hot, ~8 s cold.
   Fuzz seed replay happens automatically as part of `task test` so
   no separate fuzz step is needed here. The comprehensive gate
@@ -1251,15 +1357,15 @@ carried it, and not whether a third-party service happened to answer.
   making `bare` accidentally byte-identical to `gnu` when a filename
   was available). The three styles now produce three distinct
   shapes:
-  - `gnu` — `<hex>  <filename>` (sha256sum-compatible)
-  - `bsd` — `<ALGO> (<filename>) = <hex>` (shasum --tag)
-  - `bare` — `<hex>` (digest only, always)
+  - `gnu`, `<hex>  <filename>` (sha256sum-compatible)
+  - `bsd`, `<ALGO> (<filename>) = <hex>` (shasum --tag)
+  - `bare`, `<hex>` (digest only, always)
 - `internal/config.ConfigDir` and `internal/upgradecheck.cacheDir`
   split into `*_unix.go` / `*_windows.go` via build tags so each
   platform's branch is counted for coverage only on the platform
   where it can execute.
 - `ProofBundle.MarshalJSON` now writes `ts`, `pk`, `sig`, `s`, `b`,
-  `ip`, `cx` in a stable map — with `encoding/json`'s alphabetical
+  `ip`, `cx` in a stable map, with `encoding/json`'s alphabetical
   key ordering this yields a canonical JSON form suitable for
   round-trip comparisons against JCS.
 - `CONTRIBUTING.md` significantly expanded with a "When to run which
@@ -1290,19 +1396,19 @@ carried it, and not whether a third-party service happened to answer.
   assignment in `cmd/coverage_extra_test.go` that the prior test
   suite never caught.
 
-## [0.4.0] — 2026-04-17
+## [0.4.0] - 2026-04-17
 
 ### Added
 - New `truestamp auth` parent command with `login`, `logout`, and
   `status` subcommands for managing the API key stored in
   `~/.config/truestamp/config.toml`.
   - `truestamp auth login` prints the web app's API-keys URL (derived
-    from the configured `api_url` — so a local `http://localhost:4000/api/json`
+    from the configured `api_url`, so a local `http://localhost:4000/api/json`
     maps to `http://localhost:4000/api-keys`) and prompts for the key
     via a hidden-input field (`huh.EchoModePassword`). There is
     intentionally no `--api-key` flag; the key must be pasted into the
     prompt. The help text and on-screen hint both instruct the user to
-    **create and copy a new key** — Truestamp does not allow re-copying
+    **create and copy a new key**, Truestamp does not allow re-copying
     existing keys after initial creation. The resulting config file is
     written with 0600 permissions.
   - `truestamp auth logout` confirms via an interactive `huh.Confirm`
@@ -1319,7 +1425,7 @@ carried it, and not whether a third-party service happened to answer.
     and display the team's friendly name alongside its id
     (e.g. `Team: Acme Corp  [team_42]`). A 401/403 on the user probe
     is reported as "API key rejected by the server"; a 401/403/404 on
-    the team probe is reported as "Team <id> is not accessible" —
+    the team probe is reported as "Team <id> is not accessible",
     both exit 1, as does any transport-level failure. No offline mode
     is offered.
 - New `internal/config.SetAPIKey` helper persists the API key to the
@@ -1346,7 +1452,7 @@ carried it, and not whether a third-party service happened to answer.
   the other tools `mise install` bootstraps (added in 0.3.1 for the
   `task docs-serve` workflow).
 
-## [0.3.3] — 2026-04-16
+## [0.3.3] - 2026-04-16
 
 ### Changed
 - Release workflow now auto-merges the GoReleaser-generated PR on
@@ -1356,7 +1462,7 @@ carried it, and not whether a third-party service happened to answer.
   `goreleaser-<version>` branch using the existing
   `HOMEBREW_TAP_GITHUB_TOKEN` PAT. The step is `continue-on-error`
   so that a merge failure (conflict, rate limit, etc.) doesn't mask
-  an otherwise-successful release — the tap PR can always be merged
+  an otherwise-successful release, the tap PR can always be merged
   manually. Addresses the friction of having two open cask PRs
   stacking up during rapid back-to-back releases (see
   truestamp/homebrew-tap#3 and #4 for the last instance where PR #3
@@ -1373,7 +1479,7 @@ carried it, and not whether a third-party service happened to answer.
   consistent style regardless of whether the source is a ldflags-
   injected build version (no `v` prefix) or a GitHub release tag
   (`v` prefix). Previously the "from" and "to" sides of the upgrade
-  line — e.g. `0.3.1 → v0.3.2` — could mix prefixes. A new
+  line, e.g. `0.3.1 → v0.3.2`, could mix prefixes. A new
   `selfupgrade.Display()` helper strips any leading `v` and is used
   everywhere user-facing version strings are printed (check output,
   confirmation prompt, success line, "already at" message, pre-release
@@ -1382,7 +1488,7 @@ carried it, and not whether a third-party service happened to answer.
   tags with the `v` prefix to match what users see on the GitHub
   Releases page.
 
-## [0.3.2] — 2026-04-16
+## [0.3.2] - 2026-04-16
 
 ### Added
 - Retroactive 0.3.1 entry in this CHANGELOG documenting the
@@ -1392,7 +1498,7 @@ carried it, and not whether a third-party service happened to answer.
   (download archive, verify SHA-256, verify cosign bundle, atomic
   replace, darwin quarantine clear).
 
-## [0.3.1] — 2026-04-16
+## [0.3.1] - 2026-04-16
 
 ### Added
 - `truestamp upgrade` subcommand with install-method detection.
@@ -1405,7 +1511,7 @@ carried it, and not whether a third-party service happened to answer.
   `TRUESTAMP_REQUIRE_COSIGN=1`), extract, atomic replace with
   `.bak.<rfc3339>` backup, clear the macOS quarantine xattr. A
   7-day-old-backup prune runs on every successful upgrade.
-- `--check` flag on `upgrade` — report status without installing.
+- `--check` flag on `upgrade`, report status without installing.
   Exit codes: `0` up-to-date, `1` upgrade available, `2` network
   error, `3` latest release is a pre-release.
 - `--yes` and `--version <tag>` flags on `upgrade` for non-interactive
@@ -1427,29 +1533,29 @@ carried it, and not whether a third-party service happened to answer.
   env var to opt out of the passive notice.
 - New `install` line in `truestamp version` output showing the
   detected install method.
-- `docs-serve` Taskfile task —
-  `mise exec -- caddy file-server --listen :8080 --root docs` —
+- `docs-serve` Taskfile task,
+  `mise exec -- caddy file-server --listen :8080 --root docs`,
   for previewing `docs/index.html` and testing `docs/install.sh`
   changes locally before they reach `get.truestamp.com`.
 - `caddy` entry in `.tool-versions` so `mise install` bootstraps the
   binary used by `task docs-serve` via the Aqua backend
   (`caddyserver/caddy`).
 - New internal packages:
-  - `internal/install` — classify the running binary by resolved
+  - `internal/install`, classify the running binary by resolved
     executable path plus `runtime/debug.BuildInfo`. `sameDir`
     resolves symlinks so `/tmp → /private/tmp` and other macOS
     symlinked prefixes classify correctly.
-  - `internal/selfupgrade` — orchestrator plus SemVer,
+  - `internal/selfupgrade`, orchestrator plus SemVer,
     GitHub Releases client, SHA-256 + cosign verification, tar.gz
     extraction with path-traversal rejection, and Unix/Windows
     atomic-replace implementations.
-  - `internal/upgradecheck` — passive check runner with JSON cache
+  - `internal/upgradecheck`, passive check runner with JSON cache
     and all suppression rules.
 - `DownloadCtx` and `DownloadBytesCtx` helpers in `internal/httpclient`
   (bounded, context-aware). `DownloadCtx` streams to disk with a
   200 MB default cap.
 - Test suite additions: 111 total passing cases across the touched
-  packages — path-heuristic coverage for all four install methods, a
+  packages, path-heuristic coverage for all four install methods, a
   regression test for the `sameDir` symlink bug, httptest-stubbed
   `selfupgrade.Check()` tests locking in both layers of the
   pre-release defense, tar-extraction path-traversal rejection, all
@@ -1465,12 +1571,12 @@ carried it, and not whether a third-party service happened to answer.
   specific non-zero code without cobra printing an error line.
 
 ### Notes
-- Windows is print-only for `upgrade` in this release —
+- Windows is print-only for `upgrade` in this release,
   rename-running-exe-to-`.bak` is deferred to a future minor version.
   Windows users always get `go install …@latest` printed regardless
   of detected method.
 
-## [0.3.0] — 2026-04-15
+## [0.3.0] - 2026-04-15
 
 ### Added
 - Cosign keyless signing of every release's `checksums.txt`, published
@@ -1538,7 +1644,7 @@ carried it, and not whether a third-party service happened to answer.
   `Contents: Read and write` + `Pull requests: Read and write`. The
   previous classic-PAT guidance has been corrected.
 
-## [0.2.0] — 2026-04-15
+## [0.2.0] - 2026-04-15
 
 ### Added
 - Curl-bash installer hosted at `https://get.truestamp.com/install.sh` for
@@ -1560,11 +1666,11 @@ carried it, and not whether a third-party service happened to answer.
 - Updated `truestamp --help` footer copyright start year from 2019 to
   2021 to match the repository LICENSE file.
 
-## [0.1.0] — 2026-04-14
+## [0.1.0] - 2026-04-14
 
 ### Added
 - First release of the Go rewrite of the Truestamp CLI.
-- `truestamp verify` — end-to-end proof bundle verification including signing key
+- `truestamp verify`, end-to-end proof bundle verification including signing key
   resolution against the published keyring, RFC 6962 Merkle inclusion proof,
   Ed25519 signature verification, Stellar Horizon and Bitcoin Blockstream
   external commitment checks, and temporal ordering.

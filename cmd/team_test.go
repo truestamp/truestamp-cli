@@ -39,8 +39,8 @@ const (
 // startTeamServer mirrors startBeaconServer (cmd/beacon_test.go) for the
 // team JSON:API surface. Routes match the production layout under
 // <base_url>/api/json/... so tests pass --base-url <srv.URL>. The
-// production CLI flow makes two parallel requests — `/teams` and
-// `/memberships` — and joins client-side; the harness serves both.
+// production CLI flow makes two parallel requests, `/teams` and
+// `/memberships`, and joins client-side; the harness serves both.
 func startTeamServer(t *testing.T) (string, func()) {
 	t.Helper()
 	const teamsListBody = `{

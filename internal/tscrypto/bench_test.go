@@ -22,7 +22,7 @@ func BenchmarkDomainHash(b *testing.B) {
 }
 
 // BenchmarkComputeItemHash profiles the length-prefixed item hash
-// builder — the inner loop of proof verification. Uses realistic
+// builder, the inner loop of proof verification. Uses realistic
 // field sizes drawn from actual proofs.
 func BenchmarkComputeItemHash(b *testing.B) {
 	const (
@@ -52,7 +52,7 @@ func BenchmarkDecodeCompactMerkleProof(b *testing.B) {
 	}
 }
 
-// BenchmarkVerifyMerkleProof measures the RFC 6962 walk — run once
+// BenchmarkVerifyMerkleProof measures the RFC 6962 walk, run once
 // per proof against block.merkle_root.
 func BenchmarkVerifyMerkleProof(b *testing.B) {
 	leaf := "14fe55ee4ce3cdbc8118a0a28e5a80a44f1f8a24d73d9949c0ecd91ee582ebe1"
@@ -80,7 +80,7 @@ func BenchmarkComputeKeyID(b *testing.B) {
 // BenchmarkHexEqualEarlyDiff and BenchmarkHexEqualLateDiff document the
 // constant-time property of HexEqual on realistic 64-char digest operands:
 // the two should report the same ns/op regardless of WHERE the operands
-// diverge. They are documentation, not a gate — timing is not reliably
+// diverge. They are documentation, not a gate, timing is not reliably
 // assertable in CI, so nothing asserts on the ratio.
 func BenchmarkHexEqualEarlyDiff(b *testing.B) {
 	base := strings.Repeat("a", 64)

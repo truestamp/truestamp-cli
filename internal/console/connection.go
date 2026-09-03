@@ -18,7 +18,7 @@ import (
 
 // connectionModel renders connection diagnostics: scope summary, push
 // counts by event, reconnect summary, and the log file path. It does
-// not display individual transport errors — those are routed to the
+// not display individual transport errors, those are routed to the
 // file logger so the UI stays focused on operational state, not
 // per-event diagnostic noise.
 //
@@ -32,7 +32,7 @@ type connectionModel struct {
 
 	// scope points at the root model's activeScope. The pane reads
 	// the active team's name / role / access state from there
-	// during render — no local copies kept in sync.
+	// during render, no local copies kept in sync.
 	scope *activeScope
 
 	// Reconnect bookkeeping. Updated by the root model on each
@@ -68,7 +68,7 @@ type connectionModel struct {
 	// rows below mirror this slice's length and order.
 	healthTargets []HealthTarget
 
-	// healthResults parallels healthTargets — index i in this slice
+	// healthResults parallels healthTargets, index i in this slice
 	// is the latest outcome for healthTargets[i]. Updated in place
 	// as healthCheckResultMsg events arrive so the table doesn't
 	// flicker between cycles.
@@ -101,7 +101,7 @@ func newConnectionModel(logFilePath, configFilePath string, healthTargets []Heal
 	}
 }
 
-// Update is a no-op for the connection pane today — the scope state
+// Update is a no-op for the connection pane today, the scope state
 // it depends on is mutated by the root Update via the shared
 // activeScope. Health checks flow through dedicated message types
 // handled at the root.
@@ -136,7 +136,7 @@ func (m *connectionModel) setActiveStreams(n int) {
 
 // setConnError records a hard connect-time failure plus the URL we
 // tried, so the pane can render a friendly diagnostic section. The
-// root model calls this on connectFailedMsg and never clears it —
+// root model calls this on connectFailedMsg and never clears it,
 // once we hit a fatal connect error, the user is in an inspect-and-
 // retry mode for the rest of this session.
 func (m *connectionModel) setConnError(err error, wsURL string) {
@@ -167,7 +167,7 @@ func (m *connectionModel) stopHealthPolling() {
 }
 
 // tickHealthChecks handles a healthCheckTickMsg. Returns the next
-// wave of probe Cmds plus a re-armed tick — but only if the chain
+// wave of probe Cmds plus a re-armed tick, but only if the chain
 // is still active (the pane is still the focus). When the user has
 // tabbed away the chain dies silently here.
 func (m *connectionModel) tickHealthChecks(ctx context.Context) tea.Cmd {
@@ -196,7 +196,7 @@ func (m *connectionModel) dispatchAllChecks(ctx context.Context) tea.Cmd {
 }
 
 // applyHealthResult updates the row at the indicated index. Out-of-
-// range indices are silently ignored — they would only happen if
+// range indices are silently ignored, they would only happen if
 // the targets list mutated mid-poll, which it currently can't.
 func (m *connectionModel) applyHealthResult(msg healthCheckResultMsg) {
 	if msg.Index < 0 || msg.Index >= len(m.healthResults) {
@@ -235,7 +235,7 @@ var (
 func (m *connectionModel) View(width, height int) string {
 	var sections []string
 	if m.connErr != nil {
-		// Lead with the error block — it's why the user is on this
+		// Lead with the error block, it's why the user is on this
 		// pane. Scope / Push / Reconnect would all render empty
 		// because we never received a welcome envelope, so we
 		// suppress them. Health checks DO render here because they
@@ -269,7 +269,7 @@ func (m *connectionModel) View(width, height int) string {
 // the labels line up regardless of value width.
 //
 // "Active streams" lives here rather than the header because the
-// number is reference data — it changes when the user toggles
+// number is reference data, it changes when the user toggles
 // subscriptions and is otherwise stable. Ambient chrome should carry
 // liveness state only.
 func (m *connectionModel) renderScopeSection() string {
@@ -282,7 +282,7 @@ func (m *connectionModel) renderScopeSection() string {
 		teamCell = fmt.Sprintf("%s  [%s]", label, m.welcome.Scope.TeamID)
 	}
 	if m.scope.AccessLost {
-		teamCell = connHealthFail.Render(teamCell + " — membership lost; press 3 to switch team")
+		teamCell = connHealthFail.Render(teamCell + ", membership lost; press 3 to switch team")
 	}
 
 	rows := [][]string{
@@ -310,7 +310,7 @@ func (m *connectionModel) renderScopeSection() string {
 }
 
 // connFormatRole humanizes role atoms for the scope row. Mirrors
-// teams.FormatRole verbatim — duplicated here to keep connection.go
+// teams.FormatRole verbatim, duplicated here to keep connection.go
 // from depending on internal/teams (which is a CLI-side HTTP client).
 func connFormatRole(role string) string {
 	switch role {
@@ -469,7 +469,7 @@ func padRight(s string, n int) string {
 // connect-time failure: a one-line headline, the URL we tried, the
 // classified hints ("what to try"), and the raw error string at the
 // bottom in dim italic for the rare cases where the user wants to
-// share it with support. Nothing here scrolls — if hints overflow
+// share it with support. Nothing here scrolls, if hints overflow
 // the pane height the user can resize the terminal.
 func (m *connectionModel) renderErrorSection(_ int) string {
 	kind := classifyConnError(m.connErr)
@@ -533,7 +533,7 @@ func (m *connectionModel) renderLogsSection() string {
 
 // keyValueTable builds a small 2-column table with the key column
 // styled as a label and the value column styled as a value. No
-// borders — the section title above and the leading indent provide
+// borders, the section title above and the leading indent provide
 // enough visual containment for a stat block.
 func keyValueTable(rows [][]string) *ltable.Table {
 	return ltable.New().

@@ -1,6 +1,6 @@
-Truestamp CLI — tools for cryptographic timestamping
+Truestamp CLI, tools for cryptographic timestamping
 
-Truestamp, Inc. — https://truestamp.com
+Truestamp, Inc., https://truestamp.com
 Copyright (c) 2019-2026 Truestamp, Inc. All rights reserved.
 
 Usage:
@@ -19,6 +19,7 @@ Available Commands:
   encode      Encode raw bytes into hex, base64, or base64url
   hash        Compute cryptographic digests (SHA-2 / SHA-3 / BLAKE2 / MD5 / SHA-1)
   help        Help about any command
+  inspect     Print a proof bundle's key fields without verifying it
   jcs         Canonicalize JSON per RFC 8785 (JSON Canonicalization Scheme)
   team        Manage the active Truestamp team context
   upgrade     Upgrade the truestamp CLI to the latest release

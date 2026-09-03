@@ -12,6 +12,7 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"strings"
 
 	"github.com/truestamp/truestamp-cli/internal/auth"
 	"github.com/truestamp/truestamp-cli/internal/httpclient"
@@ -42,53 +43,146 @@ func DownloadCtx(ctx context.Context, rawURL string) ([]byte, error) {
 		return nil, fmt.Errorf("downloading proof: %w", err)
 	}
 
-	// Quick-validate: check that the response looks like a proof bundle
-	// (compact format). `v` is deliberately not part of the test — E.6
-	// exempts the version from structural gating, and a wrong or absent
-	// one belongs in the report as a failing step, not in a download error.
+	// Quick-validate: the response should look like a bundle. `version`
+	// is deliberately not part of the test: E.6 exempts it from structural
+	// gating, and a wrong or absent one belongs in the report as a failing
+	// step, not in a download error. The draft layout is refused by the
+	// parser with `unsupported_layout`, so it is not pre-empted here.
 	var shape struct {
-		PublicKey string          `json:"pk"`
-		Signature string          `json:"sig"`
-		Subject   json.RawMessage `json:"s"`
-		Block     json.RawMessage `json:"b"`
+		PublicKey string          `json:"public_key"`
+		Signature string          `json:"signature"`
+		Block     json.RawMessage `json:"block"`
 	}
 	if err := json.Unmarshal(data, &shape); err != nil {
 		return nil, fmt.Errorf("response is not valid JSON: %w", err)
 	}
-	// Block proofs (t == 10) have no "s" field; don't require it here.
 	if shape.PublicKey == "" || shape.Signature == "" || len(shape.Block) == 0 {
-		return nil, fmt.Errorf("response does not appear to be a Truestamp proof bundle (missing pk, sig, or b)")
+		return nil, fmt.Errorf("response does not appear to be a Truestamp proof bundle (missing public_key, signature, or block)")
 	}
 
 	return data, nil
 }
 
+// WitnessSelection is the `witnesses` argument of proof generation: which
+// witness details the bundle should carry. The zero value selects every
+// witness (the complete bundle); [NoWitnesses] selects none (the compact
+// bundle); [SelectWitnesses] selects a subset (a partial bundle). All three
+// are ordinary version 1 bundles.
+type WitnessSelection struct {
+	explicit bool
+	names    []string
+}
+
+// AllWitnesses selects every witness; the argument is omitted from the
+// request.
+func AllWitnesses() WitnessSelection { return WitnessSelection{} }
+
+// NoWitnesses selects no witness details; the request carries `[]`.
+func NoWitnesses() WitnessSelection { return WitnessSelection{explicit: true} }
+
+// SelectWitnesses selects the named witnesses. Every name must be a
+// registered witness name (the server rejects an unknown one with
+// `invalid_witness`, and so does this).
+func SelectWitnesses(names []string) (WitnessSelection, error) {
+	var out []string
+	seen := map[string]bool{}
+	for _, n := range names {
+		n = strings.TrimSpace(n)
+		if n == "" {
+			continue
+		}
+		if !IsWitnessName(n) {
+			return WitnessSelection{}, fmt.Errorf("unknown witness %q; valid names: %s", n, strings.Join(WitnessNames, ", "))
+		}
+		if !seen[n] {
+			seen[n] = true
+			out = append(out, n)
+		}
+	}
+	if len(out) == 0 {
+		return NoWitnesses(), nil
+	}
+	return WitnessSelection{explicit: true, names: out}, nil
+}
+
+// ParseWitnessSelection parses a `--witnesses` flag value: "" or "all"
+// selects every witness, "none" selects none, and a comma-separated list
+// selects a subset.
+func ParseWitnessSelection(flag string) (WitnessSelection, error) {
+	switch strings.ToLower(strings.TrimSpace(flag)) {
+	case "", "all":
+		return AllWitnesses(), nil
+	case "none":
+		return NoWitnesses(), nil
+	}
+	return SelectWitnesses(strings.Split(flag, ","))
+}
+
+// IsAll reports whether every witness is selected.
+func (w WitnessSelection) IsAll() bool { return !w.explicit }
+
+// IsNone reports whether no witness detail is selected.
+func (w WitnessSelection) IsNone() bool { return w.explicit && len(w.names) == 0 }
+
+// Names returns the selected names; nil for every witness.
+func (w WitnessSelection) Names() []string { return w.names }
+
+// FilenameSuffix returns the artifact filename suffix Appendix E.2 gives
+// each variant: "" for complete, "-compact" for none, "-partial" for a
+// subset.
+func (w WitnessSelection) FilenameSuffix() string {
+	switch {
+	case w.IsAll():
+		return ""
+	case w.IsNone():
+		return "-compact"
+	default:
+		return "-partial"
+	}
+}
+
+// String renders the selection the way the flag spells it.
+func (w WitnessSelection) String() string {
+	switch {
+	case w.IsAll():
+		return "all"
+	case w.IsNone():
+		return "none"
+	default:
+		return strings.Join(w.names, ",")
+	}
+}
+
 // Generate calls [GenerateCtx] with [context.Background].
-func Generate(apiURL, team, id, subjectType, format string) ([]byte, error) {
-	return GenerateCtx(context.Background(), apiURL, team, id, subjectType, format)
+func Generate(apiURL, team, id, subjectType, format string, witnesses WitnessSelection) ([]byte, error) {
+	return GenerateCtx(context.Background(), apiURL, team, id, subjectType, format, witnesses)
 }
 
 // GenerateCtx requests a proof bundle from the Truestamp API for the given
-// subject ID. subjectType MUST be one of the six canonical values on the
-// server's /proof/generate type enum (empty string omits the field, which
-// the server rejects under the post-cutover schema — callers should always
-// pass an explicit value):
+// subject ID. subjectType MUST be one of the six registry names (the server
+// does no auto-detection):
 //
 //	item | entropy_nist | entropy_stellar | entropy_bitcoin | block | beacon
 //
-// "auto" and bare "entropy" were removed when the server cut over to the
-// strict enum alongside t=11 beacon support. Use the matching subtype.
-//
-// format is "json" or "cbor". Returns raw bytes ready to write to a file
-// (pretty JSON or decoded CBOR binary). ctx cancels the in-flight request.
-// The credential is applied by the process-wide [auth.Authorizer].
-func GenerateCtx(ctx context.Context, apiURL, team, id, subjectType, format string) ([]byte, error) {
-	dataFields := map[string]string{"id": id}
+// format is "json" or "cbor". witnesses selects which witness details the
+// bundle carries. Returns raw bytes ready to write to a file (pretty JSON,
+// with every number literal preserved, or decoded CBOR binary). ctx cancels
+// the in-flight request. The credential is applied by the process-wide
+// [auth.Authorizer].
+func GenerateCtx(ctx context.Context, apiURL, team, id, subjectType, format string, witnesses WitnessSelection) ([]byte, error) {
+	dataFields := map[string]any{"id": id}
 	if format != "" && format != "json" {
 		dataFields["format"] = format
 	}
 	if subjectType != "" {
 		dataFields["type"] = subjectType
+	}
+	if !witnesses.IsAll() {
+		names := witnesses.Names()
+		if names == nil {
+			names = []string{}
+		}
+		dataFields["witnesses"] = names
 	}
 	requestBody := map[string]any{"data": dataFields}
 	bodyBytes, err := json.Marshal(requestBody)
@@ -102,6 +196,7 @@ func GenerateCtx(ctx context.Context, apiURL, team, id, subjectType, format stri
 		return nil, fmt.Errorf("creating request: %w", err)
 	}
 	req.Header.Set("Content-Type", "application/vnd.api+json")
+	req.Header.Set("Accept", "application/vnd.api+json")
 	if err := auth.AuthorizeRequest(ctx, req); err != nil {
 		return nil, err
 	}
@@ -148,26 +243,37 @@ func GenerateCtx(ctx context.Context, apiURL, team, id, subjectType, format stri
 		return decoded, nil
 	}
 
-	// JSON format: pretty-print the result map
-	var raw any
-	if err := json.Unmarshal(envelope.Result, &raw); err != nil {
-		return nil, fmt.Errorf("parsing proof JSON: %w", err)
+	// JSON format: re-indent the result without re-encoding it, so every
+	// number literal survives as the server wrote it. A round trip through
+	// `any` parses numbers into float64 and silently rounds anything past
+	// 2^53, which changes the bytes a hash is computed over.
+	if !isObject(envelope.Result) {
+		return nil, fmt.Errorf("API response 'result' is not a proof object")
 	}
-	pretty, err := json.MarshalIndent(raw, "", "  ")
-	if err != nil {
+	var pretty bytes.Buffer
+	if err := json.Indent(&pretty, envelope.Result, "", "  "); err != nil {
 		return nil, fmt.Errorf("formatting proof JSON: %w", err)
 	}
-	return append(pretty, '\n'), nil
+	pretty.WriteByte('\n')
+	return pretty.Bytes(), nil
 }
 
-// Removed: InspectBundleType. Its doc claimed downloaders used it "to pick
-// a filename stem from the authoritative server-returned type", which had
-// stopped being true — `download` derives the stem from the --type it
-// requested (see cmd/download.go's client-side smart default), and nothing
-// else ever called it. A helper that reads `t` out of an unverified blob
-// is also the wrong shape to leave lying around: Appendix E.24 makes the
-// signed `t` the only authority, and it is only signed once ParseBytes /
-// ParseCBOR have run.
+// GenerateAPIError is a structured error from /proof/generate carrying the
+// server's `meta.code` when one was sent (for example
+// `no_external_commitments` for a subject not yet committed to a public
+// chain, or `invalid_witness` for an unknown witness name).
+type GenerateAPIError struct {
+	StatusCode int
+	Code       string
+	Detail     string
+}
+
+func (e *GenerateAPIError) Error() string {
+	if e.Code != "" {
+		return fmt.Sprintf("API error (HTTP %d, %s): %s", e.StatusCode, e.Code, e.Detail)
+	}
+	return fmt.Sprintf("API error (HTTP %d): %s", e.StatusCode, e.Detail)
+}
 
 // parseGenerateError extracts a meaningful error message from the API response.
 func parseGenerateError(statusCode int, body []byte) error {
@@ -176,15 +282,19 @@ func parseGenerateError(statusCode int, body []byte) error {
 			Status string `json:"status"`
 			Detail string `json:"detail"`
 			Title  string `json:"title"`
+			Meta   struct {
+				Code string `json:"code"`
+			} `json:"meta"`
 		} `json:"errors"`
 	}
 	if err := json.Unmarshal(body, &envelope); err == nil && len(envelope.Errors) > 0 {
 		first := envelope.Errors[0]
-		if first.Detail != "" {
-			return fmt.Errorf("API error (HTTP %d): %s", statusCode, first.Detail)
+		detail := first.Detail
+		if detail == "" {
+			detail = first.Title
 		}
-		if first.Title != "" {
-			return fmt.Errorf("API error (HTTP %d): %s", statusCode, first.Title)
+		if detail != "" {
+			return &GenerateAPIError{StatusCode: statusCode, Code: first.Meta.Code, Detail: detail}
 		}
 	}
 

@@ -9,7 +9,7 @@
 // registry: it is a differently-named superset of the twelve Appendix
 // E.11 types in internal/tscrypto/hash.go (blake2b-256 and blake2b-384
 // have no `hash_type` counterpart at all), and the two must not be
-// reconciled — see kb/architecture.md. The backend spellings
+// reconciled, see kb/architecture.md. The backend spellings
 // (sha3_256, blake2s, blake2b) are reachable here only as aliases, and
 // every name is matched case-insensitively.
 // Output formatting is byte-identical to GNU coreutils' sha256sum (text
@@ -44,7 +44,7 @@ type Algorithm struct {
 	New     func() hash.Hash // constructor; never returns nil
 }
 
-// newBlake2s256 wraps blake2s.New256(nil) — keyless construction never
+// newBlake2s256 wraps blake2s.New256(nil), keyless construction never
 // errors, but the stdlib API returns (hash.Hash, error) so we unwrap it.
 func newBlake2s256() hash.Hash {
 	h, err := blake2s.New256(nil)

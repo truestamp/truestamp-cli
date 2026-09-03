@@ -19,7 +19,7 @@ import (
 var ErrBinaryNotInArchive = errors.New("binary not found in archive")
 
 // extractMaxBytes caps the amount extracted from the archive at 200 MB
-// per file — matches httpclient.DefaultMaxDownloadSize and keeps a
+// per file, matches httpclient.DefaultMaxDownloadSize and keeps a
 // malicious tarball from filling disk.
 const extractMaxBytes = 200 << 20
 
@@ -28,10 +28,10 @@ const extractMaxBytes = 200 << 20
 // full path of the written file. The file is written with 0755 perms.
 //
 // Rejects:
-//   - non-regular tar entries (symlinks, hardlinks, devices) — GoReleaser
+//   - non-regular tar entries (symlinks, hardlinks, devices), GoReleaser
 //     tarballs ship only regular files, so these are always suspicious.
 //   - tar entries with `..` path components (defense against path
-//     traversal — shouldn't happen with GoReleaser output, defensive).
+//     traversal, shouldn't happen with GoReleaser output, defensive).
 //   - entries larger than extractMaxBytes.
 func ExtractBinary(archivePath, binaryName, destDir string) (string, error) {
 	f, err := os.Open(archivePath)
@@ -55,7 +55,7 @@ func ExtractBinary(archivePath, binaryName, destDir string) (string, error) {
 		if err != nil {
 			return "", fmt.Errorf("tar entry: %w", err)
 		}
-		// Match on the basename — GoReleaser tarballs have the binary
+		// Match on the basename, GoReleaser tarballs have the binary
 		// at the archive root as plain `truestamp`.
 		if filepath.Base(hdr.Name) != binaryName {
 			continue

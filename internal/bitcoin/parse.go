@@ -54,7 +54,7 @@ func DecodeTransaction(rawTxHex string) (*wire.MsgTx, error) {
 // therefore on the leading opcode alone, not on txscript.IsNullData, which
 // additionally enforces a single push and the 80-byte MaxDataCarrierSize
 // policy limit. Once that output is chosen the parse runs on it and nothing
-// else — scanning past a malformed or oversized first OP_RETURN to a later,
+// else, scanning past a malformed or oversized first OP_RETURN to a later,
 // well-formed one would let a crafted transaction present a payload
 // generation never emitted.
 func ExtractOpReturn(rawTxHex string) (string, error) {
