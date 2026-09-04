@@ -25,7 +25,7 @@ Detail lives in [`kb/`](kb/), not in this file. Read the one that matches what y
 | [`kb/authentication.md`](kb/authentication.md) | `internal/auth`, OAuth/PKCE, token storage, the 401-retry transport, credential precedence |
 | [`kb/jcs-canonicalization.md`](kb/jcs-canonicalization.md) | `internal/jcs`, RFC 8785, the oversized-integer deviation, the two safe-integer thresholds |
 | [`kb/external-apis.md`](kb/external-apis.md) | Egress: which third-party services this binary talks to and when |
-| [`kb/team-management.md`](kb/team-management.md) | `truestamp team`, the console Teams pane, team creation and ownership models |
+| [`kb/team-management.md`](kb/team-management.md) | `truestamp teams`, the console Teams pane, team creation and ownership models |
 | [`kb/console/`](kb/console/README.md) | `truestamp console`, split by package: panes, WebSocket client, logging, limits, testing |
 
 ## Hard rules
@@ -42,7 +42,7 @@ These are prohibitions. They are stated here rather than only in `kb/` because a
 - **Never weaken either layer of the pre-release upgrade defense** without adding the opt-in `--pre` flag that is listed as future work. ([`kb/upgrade-and-install.md`](kb/upgrade-and-install.md))
 - **Never keep or add a code path for the pre-publication draft layout** (top-level `v`/`t`, short keys, carried `metadata_hash`). Version 1 as published is the only format; a bundle in the draft layout is the hard rejection `unsupported_layout` and the holder regenerates the proof (Appendix E.24). ([`kb/proof-bundle-format.md`](kb/proof-bundle-format.md))
 - **Never dispatch on which epoch-root key is present.** `epoch_merkle_root` is one key on both chains; `chain` is the only field that says which chain an entry belongs to (Appendix E.5, E.15). ([`kb/proof-bundle-format.md`](kb/proof-bundle-format.md))
-- **Never invent a command verb.** Read verbs are the closed set `list` / `get` / `latest` / `current` / `genesis`; write verbs are the closed set `create` / `update`. `show`, `view`, `describe`, `info`, `fetch`, `download`, `new`, `add`, `edit` are banned as synonyms, and `status` means credential liveness only. A new capability is a flag (R8) unless it passes all four domain-verb tests (R5). ([`kb/command-tree.md`](kb/command-tree.md))
+- **Never invent a command verb.** Read verbs are the closed set `list` / `get` / `latest` / `current` / `genesis`; write verbs are the closed set `create` / `update` / `edit`. `show`, `view`, `describe`, `info`, `fetch`, `download`, `new`, `add`, `set` are banned as synonyms, and `status` means credential liveness only. `edit` is not a synonym of `update` — it hands a whole document to `$EDITOR` where `update` sets named fields from flags — and it is confined to files this CLI owns (`config edit`); there is no `items edit`. A new capability is a flag (R8) unless it passes all four domain-verb tests (R5). ([`kb/command-tree.md`](kb/command-tree.md))
 - **Never add a cobra help topic, or any reference documentation inside the binary.** Three existed briefly (`glossary`, `formatting`, `exit-codes`) and each was a third copy of something owned elsewhere: the vocabulary by the whitepaper in `truestamp-v2`, the output contract and exit codes by `README.md`, the registries by `truestamp schema` (which is generated). Prose in a Go string cannot be kept in sync with a document in another repo and no test can check it. Per-command `--help` carries the constraints that apply to *that command*. ([`kb/command-tree.md`](kb/command-tree.md))
 - **Never add an alias.** No cobra `Aliases`, no hidden shims, no `Deprecated` warnings, no flag aliases, no "was: X" pointers in help. The reorganization is a clean break; a compatibility affordance re-opens it. ([`kb/command-tree.md`](kb/command-tree.md))
 - **Never register a command whose server route does not exist.** It is absent from the binary, not present-and-erroring: predicting a command correctly and then hitting "not available" is worse than the command not existing. ([`kb/command-tree.md`](kb/command-tree.md))
@@ -70,7 +70,7 @@ Read-only `git log`, `git show`, `git diff`, `git blame`, and `gh ...` commands 
 
 `task build` produces `build/truestamp`. For the subcommand and flag inventory, run `./build/truestamp --help` (and `<subcommand> --help`), or read `README.md` §Commands / §Configuration. The flag semantics `--help` cannot convey are in [`kb/configuration.md`](kb/configuration.md).
 
-Server-side cap worth knowing: `beacon list --limit N` accepts 1..100 (default 25) and the server caps it at 100.
+Pagination limits: the CLI enforces only the floor (`--limit 0` is refused locally; the OpenAPI document states `page.limit` `minimum: 1` and **no maximum anywhere**). The ceiling belongs to the server and differs by endpoint: `beacons` refuses over 100 (`HTTP 400: must be less than or equal to 100`), while the JSON:API resources do not — `blocks list --limit 250` returns 250. A `MaxLimit = 100` constant used to live in `internal/items` and `internal/blocks`; it was both unbacked and wrong, and was removed. See `cmd/limits.go`.
 
 ### Pipeline recipes
 

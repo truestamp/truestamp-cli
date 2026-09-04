@@ -11,6 +11,8 @@ import (
 	"net/url"
 	"os/exec"
 	"strings"
+	"sync"
+	"sync/atomic"
 	"testing"
 )
 
@@ -29,10 +31,40 @@ func runCLIOut(t *testing.T, args ...string) (string, error) {
 // rendered output.
 type itemsServer struct {
 	*httptest.Server
+	// The handler runs on the server's own goroutines while the test body
+	// runs on its own, and `runCLI` shells out, so there is no
+	// happens-before edge between the write and the read that the race
+	// detector can see. Guard the recorded request rather than relying on
+	// the subprocess boundary.
+	mu         sync.Mutex
 	lastPath   string
 	lastQuery  url.Values
 	lastBody   string
 	lastMethod string
+}
+
+func (s *itemsServer) record(r *http.Request, body string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.lastPath, s.lastQuery, s.lastBody, s.lastMethod = r.URL.Path, r.URL.Query(), body, r.Method
+}
+
+func (s *itemsServer) query() url.Values {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.lastQuery
+}
+
+func (s *itemsServer) body() string {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.lastBody
+}
+
+func (s *itemsServer) method() string {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.lastMethod
 }
 
 func startItemsServer(t *testing.T, handler func(w http.ResponseWriter, r *http.Request)) *itemsServer {
@@ -40,7 +72,7 @@ func startItemsServer(t *testing.T, handler func(w http.ResponseWriter, r *http.
 	s := &itemsServer{}
 	s.Server = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		body, _ := io.ReadAll(r.Body)
-		s.lastPath, s.lastQuery, s.lastBody, s.lastMethod = r.URL.Path, r.URL.Query(), string(body), r.Method
+		s.record(r, string(body))
 		w.Header().Set("Content-Type", "application/vnd.api+json")
 		handler(w, r)
 	}))
@@ -69,30 +101,50 @@ func TestCLI_Items_List_RequestsNonDefaultFields(t *testing.T) {
 	if exit != 0 {
 		t.Fatalf("exit=%d stderr=%q", exit, stderr)
 	}
-	fields := s.lastQuery.Get("fields[item]")
+	fields := s.query().Get("fields[item]")
 	for _, want := range []string{"inserted_at", "updated_at", "expires_at"} {
 		if !strings.Contains(fields, want) {
 			t.Errorf("fields[item] must name %q (it is not a default field), got %q", want, fields)
 		}
 	}
-	if s.lastQuery.Get("page[limit]") == "" {
+	if s.query().Get("page[limit]") == "" {
 		t.Error("a limit must always be sent: the server's block/item read declares no default page size")
 	}
 }
 
 // TestCLI_Items_List_LimitIsBounded keeps the client-side guard, so the
 // error names the flag rather than surfacing a server 400.
-func TestCLI_Items_List_LimitIsBounded(t *testing.T) {
+// TestCLI_Items_List_LimitFloorIsOursCeilingIsTheServers pins where each
+// bound lives. The CLI used to reject anything over a local MaxLimit = 100,
+// which was both unbacked -- the server's OpenAPI document declares
+// page.limit with "minimum": 1 and no maximum anywhere -- and wrong: the
+// server happily serves 250 blocks. The floor is the one bound the
+// published contract states, so it is the one the CLI enforces.
+func TestCLI_Items_List_LimitFloorIsOursCeilingIsTheServers(t *testing.T) {
+	var gotLimit string
 	s := startItemsServer(t, func(w http.ResponseWriter, r *http.Request) {
+		gotLimit = r.URL.Query().Get("page[limit]")
 		_, _ = w.Write([]byte(`{"data":[]}`))
 	})
+
+	// Below the documented minimum: refused locally, by name, no request.
 	_, stderr, exit := runCLI(t, "--base-url", s.URL, "--api-key", "k",
-		"items", "list", "--limit", "500")
+		"items", "list", "--limit", "0")
 	if exit == 0 {
-		t.Fatal("--limit 500 should be rejected")
+		t.Error("--limit 0 is below the documented minimum and must be refused")
 	}
 	if !strings.Contains(stderr, "--limit") {
 		t.Errorf("the error should name the flag, got %q", stderr)
+	}
+
+	// Large: forwarded verbatim, for the server to accept or refuse.
+	_, _, exit = runCLI(t, "--base-url", s.URL, "--api-key", "k",
+		"items", "list", "--limit", "500")
+	if exit != 0 {
+		t.Errorf("a large --limit must be forwarded, not judged locally; exit %d", exit)
+	}
+	if gotLimit != "500" {
+		t.Errorf("page[limit] = %q, want the value forwarded verbatim", gotLimit)
 	}
 }
 
@@ -117,15 +169,17 @@ func TestCLI_Items_List_CommittedAndPendingConflict(t *testing.T) {
 // than silently returning the first page. Two pages are served; the test
 // asserts both are present and that the second request carried the cursor.
 func TestCLI_Items_List_AllFollowsCursors(t *testing.T) {
-	var calls int
-	var s *itemsServer
-	s = startItemsServer(t, func(w http.ResponseWriter, r *http.Request) {
-		calls++
+	var calls atomic.Int64
+	s := startItemsServer(t, func(w http.ResponseWriter, r *http.Request) {
+		calls.Add(1)
 		if r.URL.Query().Get("page[after]") == "" {
 			// The `next` link is the server's, so the test proves the cursor
 			// is extracted from it rather than synthesised by the client.
+			// Built from r.Host rather than the server value the test is
+			// still assigning, which was a read of that variable from the
+			// handler goroutine while the test goroutine wrote it.
 			_, _ = w.Write([]byte(`{"data":[{"type":"item","id":"01AAA","attributes":{` + itemAttrs + `}}],
-			  "links":{"next":"` + s.URL + `/items?page%5Bafter%5D=CURSOR1"}}`))
+			  "links":{"next":"http://` + r.Host + `/items?page%5Bafter%5D=CURSOR1"}}`))
 			return
 		}
 		_, _ = w.Write([]byte(`{"data":[{"type":"item","id":"01BBB","attributes":{` + itemAttrs + `}}]}`))
@@ -135,16 +189,16 @@ func TestCLI_Items_List_AllFollowsCursors(t *testing.T) {
 	if exit != 0 {
 		t.Fatalf("exit=%d stderr=%q", exit, stderr)
 	}
-	if calls != 2 {
-		t.Errorf("--all should have followed the cursor: %d requests", calls)
+	if got := calls.Load(); got != 2 {
+		t.Errorf("--all should have followed the cursor: %d requests", got)
 	}
 	for _, want := range []string{"01AAA", "01BBB"} {
 		if !strings.Contains(stdout, want) {
 			t.Errorf("--all should return both pages, %q missing from:\n%s", want, stdout)
 		}
 	}
-	if s.lastQuery.Get("page[after]") != "CURSOR1" {
-		t.Errorf("the second request should carry the cursor, got %q", s.lastQuery.Get("page[after]"))
+	if s.query().Get("page[after]") != "CURSOR1" {
+		t.Errorf("the second request should carry the cursor, got %q", s.query().Get("page[after]"))
 	}
 }
 
@@ -182,16 +236,16 @@ func TestCLI_Items_Update_SendsOnlyChangedAttributes(t *testing.T) {
 	if exit != 0 {
 		t.Fatalf("exit=%d stderr=%q", exit, stderr)
 	}
-	if s.lastMethod != http.MethodPatch {
-		t.Errorf("update must PATCH, got %s", s.lastMethod)
+	if s.method() != http.MethodPatch {
+		t.Errorf("update must PATCH, got %s", s.method())
 	}
 	var sent struct {
 		Data struct {
 			Attributes map[string]any `json:"attributes"`
 		} `json:"data"`
 	}
-	if err := json.Unmarshal([]byte(s.lastBody), &sent); err != nil {
-		t.Fatalf("request body is not JSON: %v\n%s", err, s.lastBody)
+	if err := json.Unmarshal([]byte(s.body()), &sent); err != nil {
+		t.Fatalf("request body is not JSON: %v\n%s", err, s.body())
 	}
 	if len(sent.Data.Attributes) != 1 {
 		t.Errorf("only the changed attribute should be sent, got %v", sent.Data.Attributes)
@@ -256,7 +310,7 @@ func TestCLI_Items_Update_ToTeamIsSeparateFromRequestScope(t *testing.T) {
 			Attributes map[string]any `json:"attributes"`
 		} `json:"data"`
 	}
-	_ = json.Unmarshal([]byte(s.lastBody), &sent)
+	_ = json.Unmarshal([]byte(s.body()), &sent)
 	if sent.Data.Attributes["team_id"] != "dest-team" {
 		t.Errorf("--to-team should set the destination, got %v", sent.Data.Attributes)
 	}

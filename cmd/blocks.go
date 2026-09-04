@@ -50,7 +50,10 @@ var blocksListCmd = &cobra.Command{
 		if err != nil {
 			return err
 		}
-		limit, _ := cmd.Flags().GetInt("limit")
+		limit, err := pageLimit(cmd, 25)
+		if err != nil {
+			return err
+		}
 		list, err := blocks.List(cmd.Context(), cfg, limit)
 		if err != nil {
 			return blocksRenderError(cmd, err)
@@ -251,7 +254,7 @@ func truncateHash(h string) string {
 }
 
 func init() {
-	blocksListCmd.Flags().Int("limit", 25, fmt.Sprintf("How many blocks to show (1..%d)", blocks.MaxLimit))
+	blocksListCmd.Flags().Int("limit", 25, "How many blocks to show; the server caps it and says so if you ask for more")
 	for _, c := range []*cobra.Command{blocksListCmd, blocksGetCmd, blocksLatestCmd, blocksGenesisCmd} {
 		addRecordOutputFlags(c)
 		blocksCmd.AddCommand(c)

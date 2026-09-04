@@ -70,13 +70,20 @@ func Walk(root *cobra.Command, enums EnumValues, includeHidden bool) Command {
 
 func walk(c *cobra.Command, path string, enums EnumValues, includeHidden bool) Command {
 	out := Command{
-		Path:       path,
-		Use:        c.Use,
-		Short:      c.Short,
-		Long:       c.Long,
-		Example:    c.Example,
-		Runnable:   c.Runnable(),
-		Group:      !c.Runnable() && c.HasSubCommands(),
+		Path:     path,
+		Use:      c.Use,
+		Short:    c.Short,
+		Long:     c.Long,
+		Example:  c.Example,
+		Runnable: c.Runnable(),
+		// A command with sub-commands is a namespace, full stop. This used
+		// to also require !Runnable(), which silently stopped being true:
+		// every group in this CLI carries a RunE so that a bare group can
+		// print its help and an unknown sub-command can be an error rather
+		// than help-with-exit-0. That made `group` false for `auth`,
+		// `items`, `proofs` and every other namespace -- the exact opposite
+		// of what the field exists to tell a reader.
+		Group:      c.HasSubCommands(),
 		Hidden:     c.Hidden,
 		Deprecated: c.Deprecated,
 		Aliases:    c.Aliases,

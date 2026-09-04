@@ -17,7 +17,7 @@ var itemsListCmd = &cobra.Command{
 	Short: "List items in the current team",
 	Long: `List items, newest first.
 
-Paging is by keyset cursor: --limit sets the page size (1..100) and
+Paging is by keyset cursor: --limit sets the page size and
 --after continues from a previous page. --all follows the cursors to the
 end, which on a large team is a lot of requests — prefer --limit with
 --after when you only need a window.
@@ -38,7 +38,10 @@ evidence, and the authoritative answer is:
 		if err := requireItemsAuth(cmd); err != nil {
 			return err
 		}
-		limit, _ := cmd.Flags().GetInt("limit")
+		limit, err := pageLimit(cmd, items.DefaultLimit)
+		if err != nil {
+			return err
+		}
 		after, _ := cmd.Flags().GetString("after")
 		committed, _ := cmd.Flags().GetBool("committed")
 		pending, _ := cmd.Flags().GetBool("pending")
@@ -256,7 +259,7 @@ func itemListLine(it items.Item) string {
 func init() {
 	lf := itemsListCmd.Flags()
 	lf.Int("limit", items.DefaultLimit,
-		fmt.Sprintf("Items per page (1..%d)", items.MaxLimit))
+		"Items per page; the server caps it and says so if you ask for more")
 	lf.String("after", "", "Continue from a previous page's cursor")
 	lf.Bool("committed", false, "Only items that have been committed (a proof can be generated)")
 	lf.Bool("pending", false, "Only items not yet committed")

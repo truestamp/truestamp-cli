@@ -42,8 +42,13 @@ Exit code 0 when the bundle parses, 1 when it is rejected.`,
 	SilenceUsage:  true,
 	SilenceErrors: true,
 	RunE: func(cmd *cobra.Command, args []string) error {
-		jsonOut, _ := cmd.Flags().GetBool("json")
-		silent, _ := cmd.Flags().GetBool("silent")
+		// Read the RESOLVED settings, not the raw flags. inspect renders a
+		// record, like verify beside it in the same help group, so it obeys
+		// the CLI-wide `json` / `silent` contract: config.toml and
+		// TRUESTAMP_JSON / TRUESTAMP_SILENT reach it, and an explicit flag
+		// still wins. Reading the flags directly made inspect the one
+		// record-rendering command that ignored both.
+		jsonOut, silent := outputMode(cmd)
 		if jsonOut && silent {
 			return fmt.Errorf("--silent and --json are mutually exclusive")
 		}

@@ -223,3 +223,33 @@ func TestFind_MissAndNestedHit(t *testing.T) {
 		t.Errorf("Find missed a nested command: %v %q", ok, got.Path)
 	}
 }
+
+// TestWalk_RunnableGroupIsStillAGroup pins the shape this CLI actually has.
+// Every namespace here carries a RunE -- that is how a bare `truestamp
+// items` prints help and how `truestamp items bogus` becomes an error
+// instead of help with exit 0 -- so a group is emphatically not "the
+// command that has no Run". Deriving Group from !Runnable() reported
+// `"group": false` for all ten namespaces, and the fixture below is the
+// case the original test did not have: subcommands AND a Run.
+func TestWalk_RunnableGroupIsStillAGroup(t *testing.T) {
+	root := &cobra.Command{Use: "tool"}
+	group := &cobra.Command{
+		Use: "items",
+		Run: func(cmd *cobra.Command, args []string) { _ = cmd.Help() },
+	}
+	group.AddCommand(&cobra.Command{Use: "list", Run: func(*cobra.Command, []string) {}})
+	root.AddCommand(group)
+
+	tree := Walk(root, nil, false)
+	got := tree.Subcommands[0]
+	if !got.Group {
+		t.Error("a command with sub-commands is a group even when it is runnable")
+	}
+	if !got.Runnable {
+		t.Error("the group has a Run and must be reported as runnable")
+	}
+	leaf := got.Subcommands[0]
+	if leaf.Group {
+		t.Error("a leaf with no sub-commands is not a group")
+	}
+}

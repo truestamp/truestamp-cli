@@ -258,6 +258,32 @@ func GenerateCtx(ctx context.Context, apiURL, team, id, subjectType, format stri
 	return pretty.Bytes(), nil
 }
 
+// Codes the server sends in `meta.code` on POST /proof/generate.
+//
+// These are deliberately NOT in the Appendix E.23 block in errors.go: that
+// vocabulary is the hard-rejection taxonomy every independent verifier must
+// agree on when refusing a bundle, and these describe why the server could
+// not build one. Mixing them would put a server-side condition into a
+// normative verifier registry.
+const (
+	// GenerateCodeSubjectNotRecomputable means the subject's stored data no
+	// longer reproduces the hash committed at submission, so no verifiable
+	// proof can be generated for it. Terminal: retrying cannot help, and
+	// the caller should be told that rather than left to poll.
+	GenerateCodeSubjectNotRecomputable = "subject_not_recomputable"
+	// GenerateCodeGenerationFailed means the server generated a bundle and
+	// its own self-verification rejected it. Carries `meta.failed_steps`.
+	GenerateCodeGenerationFailed = "generation_failed"
+	// GenerateCodeNoExternalCommitments means the subject has no
+	// public-chain commitment yet. Transient: it clears on its own.
+	GenerateCodeNoExternalCommitments = "no_external_commitments"
+	// GenerateCodeSubjectNotReady means the subject is not yet in a state a
+	// proof can be built from. Transient, and the second half of the
+	// server's closed retryable set; every other generate code is terminal
+	// by omission.
+	GenerateCodeSubjectNotReady = "subject_not_ready"
+)
+
 // GenerateAPIError is a structured error from /proof/generate carrying the
 // server's `meta.code` when one was sent (for example
 // `no_external_commitments` for a subject not yet committed to a public
@@ -266,6 +292,15 @@ type GenerateAPIError struct {
 	StatusCode int
 	Code       string
 	Detail     string
+	// FailedSteps carries `meta.failed_steps`: the step messages from the
+	// server's own self-verification of the bundle it just generated.
+	// Without it a `generation_failed` says only that some check failed,
+	// which is a day of bisection for whoever holds the subject.
+	FailedSteps string
+	// Drifted carries `meta.drifted`: which half of the composite subject
+	// fingerprint no longer reproduces from stored data. One of "claims",
+	// "metadata", or "claims and metadata".
+	Drifted string
 }
 
 func (e *GenerateAPIError) Error() string {
@@ -283,7 +318,9 @@ func parseGenerateError(statusCode int, body []byte) error {
 			Detail string `json:"detail"`
 			Title  string `json:"title"`
 			Meta   struct {
-				Code string `json:"code"`
+				Code        string `json:"code"`
+				FailedSteps string `json:"failed_steps"`
+				Drifted     string `json:"drifted"`
 			} `json:"meta"`
 		} `json:"errors"`
 	}
@@ -294,7 +331,13 @@ func parseGenerateError(statusCode int, body []byte) error {
 			detail = first.Title
 		}
 		if detail != "" {
-			return &GenerateAPIError{StatusCode: statusCode, Code: first.Meta.Code, Detail: detail}
+			return &GenerateAPIError{
+				StatusCode:  statusCode,
+				Code:        first.Meta.Code,
+				Detail:      detail,
+				FailedSteps: first.Meta.FailedSteps,
+				Drifted:     first.Meta.Drifted,
+			}
 		}
 	}
 

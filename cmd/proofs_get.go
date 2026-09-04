@@ -192,8 +192,8 @@ output file).`,
 		if err != nil {
 			appLogger.Error("download_failed", "id", id, "type", typeFlag, "err", err.Error())
 			var apiErr *proof.GenerateAPIError
-			if errors.As(err, &apiErr) && apiErr.Code == "no_external_commitments" {
-				return fmt.Errorf("%s (a proof exists only after the subject's first public-chain commitment; items commit to a Truestamp block within about a minute and to Stellar within about five)", apiErr.Detail)
+			if errors.As(err, &apiErr) {
+				return explainGenerateError(apiErr)
 			}
 			return err
 		}
@@ -336,4 +336,75 @@ func init() {
 			strings.Join(downloadTypeValues, " | ")))
 	f.String("witnesses", "all", "Witness details to carry: all, none, or a comma-separated list of "+strings.Join(proof.WitnessNames, ","))
 	proofsCmd.AddCommand(proofsGetCmd)
+}
+
+// retryableGenerateCodes mirrors the server's own closed retryable set.
+// Terminality is a property of the CODE, never of the wording of `detail`:
+// detail is human-readable text the server may reword at any time, and it
+// has been reworded once already. A code this CLI does not recognise
+// appears in neither map and gets no verdict at all, so a code added
+// server-side before the CLI learns about it renders plainly rather than
+// inheriting a guess about whether waiting helps.
+var retryableGenerateCodes = map[string]bool{
+	proof.GenerateCodeNoExternalCommitments: true,
+	proof.GenerateCodeSubjectNotReady:       true,
+}
+
+var terminalGenerateCodes = map[string]bool{
+	proof.GenerateCodeSubjectNotRecomputable: true,
+	proof.GenerateCodeGenerationFailed:       true,
+}
+
+// explainGenerateError turns a /proof/generate refusal into something the
+// holder of the subject can act on.
+//
+// The server says accurately what went wrong; what it cannot say is what
+// the caller should do next, and the single most useful part of that is
+// whether waiting will help. `no_external_commitments` clears on its own
+// in minutes; `subject_not_recomputable` never clears. Reporting both as
+// "API error" left a holder polling forever against a permanent condition.
+func explainGenerateError(e *proof.GenerateAPIError) error {
+	var b strings.Builder
+	// e.Error() carries the HTTP status and the server's meta.code, both of
+	// which are worth keeping: the status separates "refused" from
+	// "unreachable", and the code is the string to quote in a bug report.
+	b.WriteString(e.Error())
+
+	// A labelled verdict rather than a sentence, so it cannot read as a
+	// clumsy echo of whatever the server's own prose already says.
+	switch {
+	case retryableGenerateCodes[e.Code]:
+		b.WriteString("\n\nRetry: yes, this is transient.")
+	case terminalGenerateCodes[e.Code]:
+		b.WriteString("\n\nRetry: no, this condition is permanent.")
+	}
+
+	switch e.Code {
+	case proof.GenerateCodeNoExternalCommitments:
+		b.WriteString(" A proof exists only after the subject's first")
+		b.WriteString("\npublic-chain commitment; items commit to a Truestamp block within about")
+		b.WriteString("\na minute and to Stellar within about five. Try again shortly.")
+
+	case proof.GenerateCodeSubjectNotReady:
+		b.WriteString(" The subject is not yet in a state a proof can be")
+		b.WriteString("\nbuilt from. Try again shortly.")
+
+	case proof.GenerateCodeSubjectNotRecomputable:
+		if e.Drifted != "" {
+			fmt.Fprintf(&b, "\n\nWhat drifted: %s.", e.Drifted)
+		}
+		b.WriteString("\n\nThe subject's commitment on the public chain is unaffected; what")
+		b.WriteString("\nchanged is that its stored data no longer reproduces the hash that")
+		b.WriteString("\nwas committed. Report the subject id to Truestamp.")
+
+	case proof.GenerateCodeGenerationFailed:
+		// Comparing two values the server sent, not sniffing its prose for
+		// a keyword: the steps are already inside `detail` today, and
+		// printing the identical list twice reads as two failures.
+		if e.FailedSteps != "" && !strings.Contains(e.Detail, e.FailedSteps) {
+			fmt.Fprintf(&b, "\n\nFailed checks: %s", e.FailedSteps)
+		}
+	}
+
+	return errors.New(b.String())
 }

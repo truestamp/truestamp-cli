@@ -6,6 +6,7 @@ package cmd
 import (
 	"encoding/base64"
 	"encoding/json"
+	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -316,8 +317,16 @@ func TestCLI_Download_NotCommittedError(t *testing.T) {
 	_ = withTempCWD(t)
 
 	_, stderr, exit := runCLI(t, "--base-url", srv.URL, "--api-key", "test-key", "proofs", "get", "--type", "block", "019db702-b08c-73dc-a7cd-2c5e011f1dad")
-	if exit == 0 || !strings.Contains(stderr, "not yet been committed") || !strings.Contains(stderr, "first public-chain commitment") {
-		t.Errorf("exit=%d stderr=%q", exit, stderr)
+	if exit == 0 {
+		t.Fatalf("a refused generate must exit non-zero; stderr=%q", stderr)
+	}
+	// Assert on intent, not on a phrase that a line break can split: the
+	// server's own detail, the machine-readable code, and the one thing
+	// the server cannot say -- that waiting will fix this.
+	for _, want := range []string{"not yet been committed", "no_external_commitments", "transient"} {
+		if !strings.Contains(stderr, want) {
+			t.Errorf("stderr missing %q\ngot: %s", want, stderr)
+		}
 	}
 }
 
@@ -334,9 +343,19 @@ func TestCLI_Download_InvalidWitnessFromServer(t *testing.T) {
 	}
 }
 
+// TestCLI_Download_SubjectTypeMismatchError.
+//
+// 400, not 422. Every refusal on /proof/generate funnels through one
+// constructor that builds an Ash.Error.Changes.InvalidChanges, whose class
+// :invalid maps to 400 -- invalid_type, invalid_format, invalid_witness,
+// id_format_mismatch, subject_type_mismatch, subject_not_ready,
+// no_external_commitments, subject_not_recomputable and generation_failed
+// alike. The only other outcomes on this route are 201 for a generated
+// bundle and 404 for a subject that does not exist, both confirmed against
+// the live API. No fixture here should model any other status.
 func TestCLI_Download_SubjectTypeMismatchError(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		w.WriteHeader(http.StatusUnprocessableEntity)
+		w.WriteHeader(http.StatusBadRequest)
 		_, _ = w.Write([]byte(`{"errors":[{"code":"subject_type_mismatch","detail":"Requested type entropy_nist but subject 019db702-b08c-73dc-a7cd-2c5e011f1dad has source entropy_stellar","meta":{"code":"subject_type_mismatch"}}]}`))
 	}))
 	defer srv.Close()
@@ -569,5 +588,129 @@ func TestCLI_ProofsGet_UnresolvableIdSaysSo(t *testing.T) {
 	}
 	if !strings.Contains(stderr, "--type") {
 		t.Errorf("the error should name the escape hatch, got %q", stderr)
+	}
+}
+
+// TestCLI_ProofsGet_ExplainsGenerateCodes.
+//
+// The status here is 400, not 422. These refusals are
+// Ash.Error.Changes.InvalidChanges, whose class :invalid maps to 400, and
+// the JSON:API `code` member is the generic "invalid" for all of them --
+// the Truestamp code is always in `meta.code`, which is what the parser
+// reads. The renderer does not branch on the status at all, so these
+// fixtures exist to model the wire shape truthfully rather than to drive
+// behaviour.
+//
+// The server can say what went wrong; it cannot say whether waiting will
+// help. That distinction is the whole difference between a caller polling
+// for five minutes and a caller polling forever, and it is what
+// `subject_not_recomputable` exists to make possible -- the condition it
+// names is permanent, where `no_external_commitments` clears on its own.
+func TestCLI_ProofsGet_ExplainsGenerateCodes(t *testing.T) {
+	for _, tc := range []struct {
+		name     string
+		status   int
+		meta     string
+		detail   string
+		wantAll  []string
+		wantNone []string
+	}{
+		{
+			name:   "subject_not_recomputable names what drifted and says it is permanent",
+			status: 400,
+			meta:   `"code":"subject_not_recomputable","drifted":"metadata"`,
+			detail: "The item's stored metadata no longer reproduces the hash committed at submission.",
+			wantAll: []string{
+				"subject_not_recomputable", "What drifted: metadata.",
+				"Retry: no, this condition is permanent.",
+			},
+		},
+		{
+			// The verdict comes from meta.code, so it is unchanged when the
+			// server rewords `detail` -- which it has done once already.
+			// This case carries no permanence wording of its own.
+			name:   "the retry verdict survives a reworded detail",
+			status: 400,
+			meta:   `"code":"subject_not_recomputable","drifted":"claims and metadata"`,
+			detail: "Stored data no longer reproduces its committed hash.",
+			wantAll: []string{
+				"What drifted: claims and metadata.",
+				"Retry: no, this condition is permanent.",
+			},
+		},
+		{
+			name:   "generation_failed surfaces the failing steps",
+			status: 400,
+			meta:   `"code":"generation_failed","failed_steps":"Inclusion proof INVALID (derived root does not match block merkle_root)"`,
+			detail: "Generated proof failed internal verification",
+			wantAll: []string{
+				"generation_failed",
+				"Failed checks: Inclusion proof INVALID (derived root does not match block merkle_root)",
+			},
+		},
+		{
+			// The server embeds the steps in detail as well; printing both
+			// reads as two separate failures.
+			name:    "generation_failed does not repeat steps already in the detail",
+			status:  400,
+			meta:    `"code":"generation_failed","failed_steps":"Inclusion proof INVALID"`,
+			detail:  "Generated proof failed internal verification: Inclusion proof INVALID",
+			wantAll: []string{"Inclusion proof INVALID"},
+			// "Failed checks:" would mean it was appended a second time.
+			wantNone: []string{"Failed checks:"},
+		},
+		{
+			// The server's retryable set is closed and has two members;
+			// this is the other one. Everything else is terminal by
+			// omission, so a code with no case must not claim retryability.
+			name:    "subject_not_ready is reported as transient",
+			status:  400,
+			meta:    `"code":"subject_not_ready"`,
+			detail:  "Subject is not yet ready for proof generation.",
+			wantAll: []string{"subject_not_ready", "Retry: yes, this is transient.", "Try again shortly"},
+		},
+		{
+			// A code the CLI has no case for must render plainly: no
+			// invented retry advice, no invented permanence.
+			name:     "an unknown code gets no invented advice",
+			status:   400,
+			meta:     `"code":"some_future_code"`,
+			detail:   "Something the CLI has never seen.",
+			wantAll:  []string{"some_future_code", "Something the CLI has never seen."},
+			wantNone: []string{"Retry:", "transient", "permanent", "Try again"},
+		},
+		{
+			name:    "no_external_commitments is reported as transient",
+			status:  400,
+			meta:    `"code":"no_external_commitments"`,
+			detail:  "Subject has not yet been committed to a public blockchain.",
+			wantAll: []string{"Retry: yes, this is transient.", "Try again shortly"},
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				w.Header().Set("Content-Type", "application/vnd.api+json")
+				w.WriteHeader(tc.status)
+				fmt.Fprintf(w, `{"errors":[{"code":"invalid","status":"%d","detail":%q,"meta":{%s}}]}`,
+					tc.status, tc.detail, tc.meta)
+			}))
+			defer srv.Close()
+
+			_, stderr, exit := runCLI(t, "--base-url", srv.URL, "--api-key", "k",
+				"proofs", "get", "--type", "item", "01KNN33GX5E470CB9TRWAYF9DD")
+			if exit == 0 {
+				t.Fatal("a refused generate must exit non-zero")
+			}
+			for _, want := range tc.wantAll {
+				if !strings.Contains(stderr, want) {
+					t.Errorf("stderr missing %q\ngot: %s", want, stderr)
+				}
+			}
+			for _, none := range tc.wantNone {
+				if strings.Contains(stderr, none) {
+					t.Errorf("stderr should not contain %q\ngot: %s", none, stderr)
+				}
+			}
+		})
 	}
 }

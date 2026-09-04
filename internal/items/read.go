@@ -53,10 +53,6 @@ type Page struct {
 // DefaultLimit matches the server's own default for the paginated read.
 const DefaultLimit = 25
 
-// MaxLimit is the server's cap. Asking for more is rejected there; this
-// client rejects it first so the error names the flag.
-const MaxLimit = 100
-
 // requestFields asks for the attributes the CLI renders. inserted_at,
 // updated_at and expires_at are absent from the resource's
 // json_api default_fields, so omitting this leaves them empty with no
@@ -80,13 +76,24 @@ func List(ctx context.Context, apiURL, team string, opts ListOptions) (*Page, er
 	if limit <= 0 {
 		limit = DefaultLimit
 	}
-	if limit > MaxLimit {
-		return nil, fmt.Errorf("--limit must be between 1 and %d, got %d", MaxLimit, limit)
-	}
+	// No client-side ceiling. The server's OpenAPI document declares
+	// page.limit with "minimum": 1 and no maximum at all, so a constant
+	// here would be an unbacked second source of truth; the server refuses
+	// an over-large page and names its own cap. See cmd/limits.go.
 
 	q := url.Values{}
 	q.Set("page[limit]", strconv.Itoa(limit))
 	q.Set("fields[item]", requestFields)
+	// Newest first, which is what this command's help promises and what
+	// `blocks list` and `beacons list` already do. Without it the server
+	// applies its default ascending order and `items list` was the one
+	// list verb in the tree that answered oldest-first.
+	//
+	// Sent on every page, not just the first. The server does echo `sort`
+	// back in the `next` link, but this client never follows that link: it
+	// rebuilds the query itself and lifts only the cursor out, so the sort
+	// has to be re-supplied here or page two would silently revert.
+	q.Set("sort", "-id")
 	if opts.After != "" {
 		q.Set("page[after]", opts.After)
 	}

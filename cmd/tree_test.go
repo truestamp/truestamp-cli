@@ -110,13 +110,22 @@ func TestTree_NoAliasesAnywhere(t *testing.T) {
 
 // TestTree_NoBannedVerbs pins the closed verb vocabulary. `show`, `view`
 // and the rest are banned as synonyms of `get`; `status` means credential
-// liveness only, so `auth status` is the sole legitimate use.
+// liveness only, so `auth status` is the sole legitimate use. `edit` is a
+// sanctioned write verb, not a synonym: see the note in `banned` below.
 func TestTree_NoBannedVerbs(t *testing.T) {
 	banned := map[string]string{
 		"show": "use `get` (R9)", "view": "use `get` (R9)", "describe": "use `get` (R9)",
 		"info": "use `get` (R9)", "fetch": "use `get` (R9)", "download": "use `get` (R9)",
 		"retrieve": "use `get` (R9)", "new": "use `create` (R3)", "add": "use `create` (R3)",
-		"edit": "use `update` (R3)", "by-hash": "fold into `get` by id shape",
+		"by-hash": "fold into `get` by id shape",
+		// `edit` was banned here as a synonym of `update`, and is now a
+		// write verb in its own right. It is not a synonym: `update` sets
+		// named fields non-interactively (`items update --tags q3`), while
+		// `edit` hands a whole document to the user's editor and reads
+		// back whatever they saved. Collapsing the two would have made
+		// `update` mean two different things, which R13 forbids. It stays
+		// restricted to a file the CLI owns -- see the R3 note in
+		// kb/command-tree.md.
 	}
 	var walk func(c *cobra.Command, path string)
 	walk = func(c *cobra.Command, path string) {

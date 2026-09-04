@@ -158,15 +158,15 @@ truestamp items create --file=document.pdf                     # External hash: 
 truestamp items create --file                                  # External hash: interactive picker
 truestamp items create -c=claims.json                          # Either mode: claims from JSON file
 cat claims.json | truestamp items create -C                    # Either mode: claims from stdin
-truestamp items create -n "Q1 Report" --hash <64-hex> \        # External hash: build from flags
+truestamp items create -n "Q1 Report" --data-hash <64-hex> \        # External hash: build from flags
   -v public -t finance,reports
 truestamp items create -n "Title" --metadata '{"k":"v"}'       # Claims-only: metadata satisfies the rule
 ```
 
-`--hash` and `--hash-type` travel together in the submitted claims:
+`--data-hash` and `--hash-type` travel together in the submitted claims:
 both present selects external-hash mode, both absent selects
 claims-as-source-of-truth mode. `--hash-type` on its own is rejected
-(`claims hash is required when hash_type is supplied`). `--hash` on
+(`claims hash is required when hash_type is supplied`). `--data-hash` on
 its own is accepted: the CLI fills in `hash_type = "sha256"` for you,
 which is also the flag's default, and then validates that the hash is
 hex of the right length for that algorithm.
@@ -296,7 +296,7 @@ Local tools:
 
 Setup:
   truestamp auth login|logout|status    Manage authentication (browser OAuth; --api-key for CI)
-  truestamp config path|show|init       Inspect and create the config file
+  truestamp config path|show|init|edit  Inspect, create and edit the config file
 
 Other:
   truestamp console                     Interactive TUI over an authenticated WebSocket
@@ -346,9 +346,9 @@ truestamp convert id 01KNN33GX5E470CB9TRWAYF9DD
 truestamp convert id 019cf813-99b8-730a-84f1-5a711a9c355e --to-zone Local
 ```
 
-`--json` (structured output for scripting) and `-s` / `--silent` (exit code only) are **CLI-wide, mutually exclusive settings**. Every command that renders a *record* carries them, including `auth status`, `config show` and `version`. They can be set once via `config.toml`, `TRUESTAMP_JSON` or `TRUESTAMP_SILENT`.
+`--json` (structured output for scripting) and `-s` / `--silent` (exit code only) are **CLI-wide, mutually exclusive settings**. Every command that renders a *record* carries them, including `auth status`, `config show`, `config path` and `version`. They can be set once via `config.toml`, `TRUESTAMP_JSON` or `TRUESTAMP_SILENT`.
 
-The exemptions are deliberate: the pipeline primitives (`encode`, `decode`, `jcs`, `convert time|id|keyid|merkle`) print one bare value or raw bytes, and `truestamp hash` defaults to GNU `sha256sum`-compatible output with `--style bsd` for BSD `shasum --tag` format — wrapping either would break every pipe built on them. `proofs get` emits a payload rather than a record and follows the stdout / `-o` / `--to-file` triad instead. Run `truestamp help formatting` for the full contract.
+The exemptions are deliberate: the pipeline primitives (`encode`, `decode`, `jcs`, `convert time|id|keyid|merkle`) print one bare value or raw bytes, and `truestamp hash` defaults to GNU `sha256sum`-compatible output with `--style bsd` for BSD `shasum --tag` format — wrapping either would break every pipe built on them. `proofs get` emits a payload rather than a record and follows the stdout / `-o` / `--to-file` triad instead.
 
 **More examples:** [EXAMPLES.md](./EXAMPLES.md) covers every sub-command with copy-pastable recipes, scripting patterns, CI conventions, and offline usage.
 
@@ -381,7 +381,7 @@ truestamp upgrade --yes              # skip the interactive confirmation prompt 
 truestamp upgrade --version vX.Y.Z   # pin to a specific release tag (also the opt-in path for pre-releases)
 ```
 
-`--check` exit codes: `0` up-to-date, `1` upgrade available, `2` network error, `3` the latest release is a pre-release (will not auto-install; pass `--version <tag>` to install one explicitly).
+`--check` always exits `0`, whatever it finds, so a check in a script never fails the script. Add `--exit-code` to encode the answer instead: `0` up-to-date, `1` upgrade available, `2` network error, `3` the latest release is a pre-release (it will not auto-install; pass `--version <tag>` to install one explicitly).
 
 ### Passive upgrade notices
 
@@ -437,7 +437,7 @@ Settings are resolved in this order (later overrides earlier):
 | ---- | ------- | ------- |
 | `--file [path]` |   |   |
 | `--url [url]` |   |   |
-| `--expected-hash` (alias `--hash`) |   |   |
+| `--expected-hash` |   |   |
 | `--keyring` | `TRUESTAMP_VERIFY_KEYRING` | none |
 | `--type` |   |   |
 | `--remote` | `TRUESTAMP_VERIFY_REMOTE` | `false` |

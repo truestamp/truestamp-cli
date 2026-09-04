@@ -263,6 +263,7 @@ func Execute() (err error) {
 	// cmd/verify.go had registered its command, so half the tree would
 	// silently get no completions.
 	registerEnumCompletions(rootCmd)
+	registerHelpCommand(rootCmd)
 
 	defer func() {
 		r := recover()

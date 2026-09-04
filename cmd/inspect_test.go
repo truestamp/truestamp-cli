@@ -5,6 +5,7 @@ package cmd
 
 import (
 	"encoding/json"
+	"os"
 	"os/exec"
 	"strings"
 	"testing"
@@ -54,4 +55,71 @@ func TestCLI_Inspect_ReportsOnlyWhatTheBundleCarries(t *testing.T) {
 	if !strings.Contains(string(text), "Derived key id") {
 		t.Error("the derived key id should still be shown, and labelled as derived")
 	}
+}
+
+// TestCLI_Inspect_HonorsCLIWideOutputSettings.
+//
+// `--json` and `--silent` are CLI-wide settings, resolvable from
+// config.toml and from TRUESTAMP_JSON / TRUESTAMP_SILENT, not just from a
+// flag typed on the line. inspect renders a record -- it sits in the same
+// help group as verify, which honors them -- but it read the raw cobra
+// flags instead of the resolved config, so it was the one
+// record-rendering command that silently ignored both. It now goes
+// through outputMode, like everything else that prints a record.
+func TestCLI_Inspect_HonorsCLIWideOutputSettings(t *testing.T) {
+	bundle := testfixtures.Path(testfixtures.ProdDir, testfixtures.ProdComplete)
+
+	t.Run("TRUESTAMP_JSON", func(t *testing.T) {
+		cmd := exec.Command(binaryPath, "inspect", bundle)
+		cmd.Env = append(os.Environ(), "TRUESTAMP_JSON=true")
+		out, err := cmd.Output()
+		if err != nil {
+			t.Fatalf("inspect with TRUESTAMP_JSON: %v", err)
+		}
+		var got map[string]any
+		if err := json.Unmarshal(out, &got); err != nil {
+			t.Fatalf("TRUESTAMP_JSON=true did not produce JSON: %v\ngot: %s",
+				err, firstLine(string(out)))
+		}
+		if got["source"] == nil {
+			t.Error("JSON summary has no source field")
+		}
+	})
+
+	t.Run("TRUESTAMP_SILENT", func(t *testing.T) {
+		cmd := exec.Command(binaryPath, "inspect", bundle)
+		cmd.Env = append(os.Environ(), "TRUESTAMP_SILENT=true")
+		out, err := cmd.Output()
+		if err != nil {
+			t.Fatalf("inspect with TRUESTAMP_SILENT: %v", err)
+		}
+		if len(out) != 0 {
+			t.Errorf("TRUESTAMP_SILENT=true still printed %d bytes:\n%s",
+				len(out), firstLine(string(out)))
+		}
+	})
+
+	// Asking for both is incoherent whatever the two settings came from,
+	// and config.Load rejects the pair centrally rather than each RunE
+	// checking. What matters here is that inspect answers exactly the way
+	// verify and the resource commands do, so this asserts the two side by
+	// side rather than asserting inspect alone.
+	t.Run("json plus silent is rejected, the same way verify rejects it", func(t *testing.T) {
+		for _, args := range [][]string{
+			{"inspect", bundle, "--json"},
+			{"verify", bundle, "--offline", "--json"},
+		} {
+			cmd := exec.Command(binaryPath, args...)
+			cmd.Env = append(os.Environ(), "TRUESTAMP_SILENT=true")
+			out, err := cmd.CombinedOutput()
+			if err == nil {
+				t.Errorf("%v with TRUESTAMP_SILENT: expected an error, got none", args)
+				continue
+			}
+			if !strings.Contains(string(out), "mutually exclusive") {
+				t.Errorf("%v with TRUESTAMP_SILENT: got %q, want a mutual-exclusion error",
+					args, firstLine(string(out)))
+			}
+		}
+	})
 }

@@ -19,7 +19,7 @@ const beaconListDefaultLimit = 25
 var beaconsListCmd = &cobra.Command{
 	Use:   "list",
 	Short: "Show the most recent beacons (newest first)",
-	Long: `List recent beacons, newest first. The server caps --limit at 100.
+	Long: `List recent beacons, newest first. The server caps --limit and says so if you ask for more.
 
 Examples:
   truestamp beacons list
@@ -37,9 +37,9 @@ func runBeaconList(cmd *cobra.Command, _ []string) error {
 		return err
 	}
 
-	limit, _ := cmd.Flags().GetInt("limit")
-	if limit == 0 {
-		limit = beaconListDefaultLimit
+	limit, err := pageLimit(cmd, beaconListDefaultLimit)
+	if err != nil {
+		return err
 	}
 
 	cfg, err := beaconConfig(cmd)
@@ -103,7 +103,7 @@ func renderBeaconList(w io.Writer, items []beacons.Beacon) {
 
 func init() {
 	f := beaconsListCmd.Flags()
-	f.Int("limit", beaconListDefaultLimit, "How many beacons to fetch (1..100)")
+	f.Int("limit", beaconListDefaultLimit, "How many beacons to fetch; the server caps it and says so if you ask for more")
 	addRecordOutputFlags(beaconsListCmd)
 
 	beaconsCmd.AddCommand(beaconsListCmd)

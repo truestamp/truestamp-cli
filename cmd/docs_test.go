@@ -6,11 +6,12 @@ package cmd
 import (
 	"bufio"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"regexp"
 	"strings"
 	"testing"
+
+	"github.com/truestamp/truestamp-cli/internal/introspect"
 )
 
 // Documentation is part of the interface. A renamed command or a retired
@@ -77,6 +78,12 @@ var (
 	// A documented invocation: a line whose first word is `truestamp`,
 	// optionally indented, optionally preceded by a `$ ` prompt.
 	invocationRe = regexp.MustCompile(`^\s*\$?\s*truestamp\s+(.*)$`)
+	// The same thing written inline in prose, inside backticks. These are
+	// read and copied as often as the fenced blocks are, and until this
+	// existed they were checked by nothing: `truestamp help formatting`
+	// survived in two files pointing at a help topic that had been deleted,
+	// because it never appeared at the start of a line.
+	inlineInvocationRe = regexp.MustCompile("`truestamp\\s+([^`]*)`")
 	// Command substitutions. A nested `$(truestamp hash --style bare f)`
 	// inside a `truestamp verify ...` line belongs to the inner command,
 	// not the outer one; without this the outer command appears to accept
@@ -104,38 +111,45 @@ func collectInvocations(t *testing.T) []docInvocation {
 		for sc.Scan() {
 			lineNo++
 			line := sc.Text()
-			m := invocationRe.FindStringSubmatch(line)
-			if m == nil {
+			var candidates []string
+			if m := invocationRe.FindStringSubmatch(line); m != nil {
+				candidates = append(candidates, m[1])
+			}
+			for _, im := range inlineInvocationRe.FindAllStringSubmatch(line, -1) {
+				candidates = append(candidates, im[1])
+			}
+			if len(candidates) == 0 {
 				continue
 			}
-			rest := m[1]
-			// Lift nested command substitutions out first, and record any
-			// truestamp invocation inside them as an invocation in its own
-			// right, so those flags are checked against the right command.
-			for _, sub := range substitutionRe.FindAllString(rest, -1) {
-				inner := strings.TrimSuffix(strings.TrimPrefix(sub, "$("), ")")
-				if inner2, ok := strings.CutPrefix(strings.TrimSpace(inner), "truestamp "); ok {
-					if a := strings.Fields(inner2); len(a) > 0 {
-						found = append(found, docInvocation{
-							file: f, line: lineNo, raw: strings.TrimSpace(inner), args: a,
-						})
+			for _, rest := range candidates {
+				// Lift nested command substitutions out first, and record any
+				// truestamp invocation inside them as an invocation in its own
+				// right, so those flags are checked against the right command.
+				for _, sub := range substitutionRe.FindAllString(rest, -1) {
+					inner := strings.TrimSuffix(strings.TrimPrefix(sub, "$("), ")")
+					if inner2, ok := strings.CutPrefix(strings.TrimSpace(inner), "truestamp "); ok {
+						if a := strings.Fields(inner2); len(a) > 0 {
+							found = append(found, docInvocation{
+								file: f, line: lineNo, raw: strings.TrimSpace(inner), args: a,
+							})
+						}
 					}
 				}
-			}
-			rest = substitutionRe.ReplaceAllString(rest, "SUBST")
-			// Cut at a shell metacharacter or a trailing comment.
-			for _, cut := range []string{" | ", " > ", " >> ", " && ", " || ", ";", " #", "\t#"} {
-				if i := strings.Index(rest, cut); i >= 0 {
-					rest = rest[:i]
+				rest = substitutionRe.ReplaceAllString(rest, "SUBST")
+				// Cut at a shell metacharacter or a trailing comment.
+				for _, cut := range []string{" | ", " > ", " >> ", " && ", " || ", ";", " #", "\t#"} {
+					if i := strings.Index(rest, cut); i >= 0 {
+						rest = rest[:i]
+					}
 				}
+				args := strings.Fields(rest)
+				if len(args) == 0 {
+					continue
+				}
+				found = append(found, docInvocation{
+					file: f, line: lineNo, raw: strings.TrimSpace(line), args: args,
+				})
 			}
-			args := strings.Fields(rest)
-			if len(args) == 0 {
-				continue
-			}
-			found = append(found, docInvocation{
-				file: f, line: lineNo, raw: strings.TrimSpace(line), args: args,
-			})
 		}
 		_ = fh.Close()
 		if err := sc.Err(); err != nil {
@@ -145,23 +159,108 @@ func collectInvocations(t *testing.T) []docInvocation {
 	return found
 }
 
-// commandPath returns the leading non-flag words, which name the command,
-// and stops at the first argument that looks like a flag, a path, a URL,
-// or a placeholder. Cobra resolves `truestamp convert time` to the `time`
-// subcommand; anything after that is an argument, not a command.
-func commandPath(args []string) []string {
+// commandWords returns the leading words that could name a command: it
+// stops at the first argument that looks like a flag, a path, a URL, or a
+// placeholder. `|` is in the stop set because prose writes alternations
+// like `truestamp convert time|id|keyid`, which name several commands
+// rather than one.
+func commandWords(args []string) []string {
 	var path []string
 	for _, a := range args {
 		if strings.HasPrefix(a, "-") {
 			break
 		}
 		// Placeholders and operands, not command names.
-		if strings.ContainsAny(a, "/.<>[]{}$\"'=:") || a == "-" {
+		if strings.ContainsAny(a, "/.<>[]{}$\"'=:|") || a == "-" {
 			break
 		}
 		path = append(path, a)
 	}
 	return path
+}
+
+// commandPath resolves the longest leading run of words that names a real
+// command, the way cobra's own Find does, and reports whether the words it
+// could not consume leave an unresolved command behind. A bare operand
+// (`truestamp schema get commands`, `truestamp keys get 96b1cd2f`) ends the
+// path; a first word that names nothing (`truestamp team list`) is an
+// unknown command, not an empty path.
+func commandPath(args []string, known map[string]map[string]bool) (path []string, unknown string) {
+	words := commandWords(args)
+	for _, w := range words {
+		next := strings.Join(append(append([]string{}, path...), w), " ")
+		if _, ok := known[next]; !ok {
+			if len(path) == 0 {
+				return nil, w
+			}
+			break
+		}
+		path = append(path, w)
+	}
+	return path, ""
+}
+
+// docTree renders the live cobra tree as data once, mapping every command
+// path to the long flags it accepts.
+//
+// Resolving a documented path against this is exact. The previous version
+// of these tests shelled out to `<path> --help` and read the exit code,
+// which cannot detect a retired SUBCOMMAND at all: cobra answers --help
+// before it validates the argument, so `truestamp convert proof --help`
+// and `truestamp proofs download --help` both exit 0 long after those
+// paths stopped existing. Only an unknown *top-level* word was ever
+// caught.
+func docTree(t *testing.T) map[string]map[string]bool {
+	known, _ := docTreeAndGroups(t)
+	return known
+}
+
+// docTreeAndGroups also reports which paths are groups. A group has no RunE,
+// so any leftover plain word after one names a subcommand that does not
+// exist: `truestamp convert proof` is not "convert with an operand", it is
+// the retired spelling of `proofs convert`, and cobra rejects it at runtime.
+// After a runnable leaf the same word is a legitimate operand
+// (`truestamp verify proof.json`), which is why this distinction is needed
+// rather than a blanket "no leftover words" rule.
+func docTreeAndGroups(t *testing.T) (map[string]map[string]bool, map[string]bool) {
+	t.Helper()
+	known := map[string]map[string]bool{}
+	groups := map[string]bool{}
+	var walk func(c introspect.Command)
+	walk = func(c introspect.Command) {
+		path := strings.TrimPrefix(c.Path, "truestamp")
+		path = strings.TrimSpace(path)
+		flags := map[string]bool{
+			// Cobra creates these itself during Execute, so they are not in
+			// the walked tree, but every command really does accept them.
+			"help": true, "version": true,
+		}
+		for _, f := range c.Flags {
+			flags[f.Name] = true
+		}
+		known[path] = flags
+		if c.Group {
+			groups[path] = true
+		}
+		for _, sub := range c.Subcommands {
+			walk(sub)
+		}
+	}
+	walk(introspect.Walk(rootCmd, cliEnums(), false))
+	// introspect deliberately omits cobra's own help and completion
+	// scaffolding: `schema get commands` describes the Truestamp interface,
+	// not the framework's. Both are nonetheless real, invocable and
+	// documented, so this test has to know them.
+	known["help"] = map[string]bool{"help": true, "version": true}
+	known["completion"] = map[string]bool{"help": true, "version": true}
+	groups["completion"] = true
+	for _, sh := range []string{"bash", "zsh", "fish", "powershell"} {
+		known["completion "+sh] = map[string]bool{"help": true, "version": true, "no-descriptions": true}
+	}
+	if len(known) < 20 {
+		t.Fatalf("only %d command paths in the tree; introspection is broken", len(known))
+	}
+	return known, groups
 }
 
 func TestDocs_InvocationsAreExtractable(t *testing.T) {
@@ -177,67 +276,90 @@ func TestDocs_InvocationsAreExtractable(t *testing.T) {
 // TestDocs_CommandsExist asserts every documented command path resolves
 // in the live cobra tree. This is the test that catches a rename landing
 // without a docs sweep.
+// recordsRetiredNames reports whether a file is allowed to name paths and
+// flags that no longer exist. kb/command-tree.md documents the
+// reorganization itself -- including, as worked examples, the retired
+// spellings and the shrink-a-prefix failure mode this very test exists to
+// avoid -- so resolving its prose against the live tree is a category
+// error. It was already exempt from the retired-name sweep below; the
+// exemption belongs to every check that reads it as an invocation.
+func recordsRetiredNames(file string) bool {
+	return strings.HasSuffix(file, "command-tree.md")
+}
+
 func TestDocs_CommandsExist(t *testing.T) {
-	seen := map[string][]docInvocation{}
-	for _, in := range collectInvocations(t) {
-		p := commandPath(in.args)
+	known, groups := docTreeAndGroups(t)
+	inv := collectInvocations(t)
+	resolved := 0
+	for _, in := range inv {
+		if recordsRetiredNames(in.file) {
+			continue
+		}
+		p, unknown := commandPath(in.args, known)
+		if unknown != "" {
+			t.Errorf("%s:%d documents `truestamp %s ...`, which is not a command\n  %s",
+				in.file, in.line, unknown, in.raw)
+			continue
+		}
 		if len(p) == 0 {
 			continue
 		}
+		resolved++
 		key := strings.Join(p, " ")
-		seen[key] = append(seen[key], in)
+		if !groups[key] {
+			continue
+		}
+		if rest := commandWords(in.args[len(p):]); len(rest) > 0 {
+			t.Errorf("%s:%d documents `truestamp %s %s`, but %q is a group with no %q sub-command\n  %s",
+				in.file, in.line, key, rest[0], key, rest[0], in.raw)
+		}
 	}
-	if len(seen) == 0 {
-		t.Fatal("no command paths extracted")
+	// A resolver that silently matched nothing would make this pass while
+	// checking nothing at all.
+	if resolved < 50 {
+		t.Fatalf("only resolved %d command paths out of %d invocations", resolved, len(inv))
 	}
-	for key, uses := range seen {
-		t.Run(key, func(t *testing.T) {
-			args := append(strings.Fields(key), "--help")
-			out, err := exec.Command(binaryPath, args...).CombinedOutput()
-			if err != nil {
-				t.Errorf("documented command %q does not exist (%v)\nfirst use: %s:%d\n  %s\nCLI said: %s",
-					key, err, uses[0].file, uses[0].line, uses[0].raw, firstLine(string(out)))
-			}
-		})
-	}
+	t.Logf("resolved %d command paths across %d documented invocations", resolved, len(inv))
 }
 
 // TestDocs_FlagsExist asserts every long flag in a documented invocation
 // is accepted by the command it is used with. Inherited persistent flags
 // count, because `--help` lists them under Global Flags.
 func TestDocs_FlagsExist(t *testing.T) {
-	helpCache := map[string]string{}
+	known := docTree(t)
+	checked := 0
 	for _, in := range collectInvocations(t) {
-		p := commandPath(in.args)
-		if len(p) == 0 {
+		if recordsRetiredNames(in.file) {
+			continue
+		}
+		p, unknown := commandPath(in.args, known)
+		if unknown != "" || len(p) == 0 {
+			// Unresolvable path is reported by TestDocs_CommandsExist.
 			continue
 		}
 		key := strings.Join(p, " ")
-		help, ok := helpCache[key]
-		if !ok {
-			out, err := exec.Command(binaryPath, append(strings.Fields(key), "--help")...).CombinedOutput()
-			if err != nil {
-				// Reported by TestDocs_CommandsExist; don't double-report.
-				helpCache[key] = ""
-				continue
-			}
-			help = string(out)
-			helpCache[key] = help
-		}
-		if help == "" {
-			continue
-		}
-		for _, a := range in.args {
+		accepts := known[key]
+		for _, a := range in.args[len(p):] {
 			flag := longFlagRe.FindString(a)
 			if flag == "" {
 				continue
 			}
-			if !strings.Contains(help, flag) {
+			checked++
+			// Exact membership, NOT strings.Contains against the help text.
+			// A substring match passes any flag that is a prefix of a real
+			// one: `--hash` rode into the docs on `--hash-type`'s back and
+			// survived a full docs sweep, because the help output contains
+			// those eight characters.
+			if !accepts[strings.TrimPrefix(flag, "--")] {
 				t.Errorf("%s:%d documents %s for %q, but the command does not accept it\n  %s",
 					in.file, in.line, flag, key, in.raw)
 			}
 		}
 	}
+	if checked < 50 {
+		t.Fatalf("only checked %d documented flags; the extractor is probably broken", checked)
+	}
+	t.Logf("checked %d documented flag uses", checked)
 }
 
 // TestDocs_NoRetiredNames is the belt to TestDocs_CommandsExist's braces.
@@ -255,6 +377,33 @@ func TestDocs_NoRetiredNames(t *testing.T) {
 		// and must keep its name.
 		"verify.skip_external": "the config key is verify.offline",
 		"--skip-external":      "removed; the flag is --offline",
+		// The binary carries no reference documentation: the three help
+		// topics that briefly existed were each a third copy of something
+		// owned elsewhere. `truestamp help <topic>` prints "Unknown help
+		// topic" for all of them.
+		// Retired command PATHS, written without the `truestamp` prefix.
+		// Prose says "`beacon list` accepts 1..100" as often as it writes
+		// the whole invocation, and the needles above only catch the
+		// prefixed form.
+		"beacon list":               "renamed to `beacons list`",
+		"beacon get":                "renamed to `beacons get`",
+		"beacon by-hash":            "folded into `beacons get`",
+		"team show":                 "split into `teams get` and `teams current`",
+		"team set":                  "renamed to `teams use`",
+		"team unset":                "renamed to `teams use --clear`",
+		"team list":                 "renamed to `teams list`",
+		"team create":               "renamed to `teams create`",
+		"convert proof":             "renamed to `proofs convert`",
+		"truestamp help formatting": "removed; there are no help topics",
+		"truestamp help glossary":   "removed; there are no help topics",
+		"truestamp help exit-codes": "removed; there are no help topics",
+	}
+	// Match on a trailing word boundary, not a bare substring. "beacon
+	// list" is a retired command; "the beacon listing card" is ordinary
+	// prose, and a Contains check cannot tell them apart.
+	pat := map[string]*regexp.Regexp{}
+	for needle := range retired {
+		pat[needle] = regexp.MustCompile(regexp.QuoteMeta(needle) + `\b`)
 	}
 	for _, f := range docFiles(t) {
 		body, err := os.ReadFile(f)
@@ -263,16 +412,14 @@ func TestDocs_NoRetiredNames(t *testing.T) {
 		}
 		text := string(body)
 		for needle, why := range retired {
-			if !strings.Contains(text, needle) {
+			if !pat[needle].MatchString(text) {
 				continue
 			}
-			// kb/command-tree.md records the reorganization itself and is
-			// allowed to name what was retired.
-			if strings.HasSuffix(f, "command-tree.md") {
+			if recordsRetiredNames(f) {
 				continue
 			}
 			for i, line := range strings.Split(text, "\n") {
-				if strings.Contains(line, needle) {
+				if pat[needle].MatchString(line) {
 					t.Errorf("%s:%d still mentions %q (%s)\n  %s",
 						f, i+1, needle, why, strings.TrimSpace(line))
 				}
