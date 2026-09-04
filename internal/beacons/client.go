@@ -83,9 +83,14 @@ func Latest(ctx context.Context, cfg Config) (*Beacon, error) {
 	return unmarshalBeacon(body)
 }
 
-// List fetches up to `limit` most-recent beacons, newest first. The server
-// accepts 1..100; callers should pre-clamp if they want a friendly error,
-// but the server's own 400 detail surfaces cleanly through APIError too.
+// List fetches up to `limit` most-recent beacons, newest first.
+//
+// The ceiling is the server's to enforce and to name: it refuses an
+// over-large page with "must be less than or equal to 100", which surfaces
+// cleanly through APIError. Do not pre-clamp here -- the server's OpenAPI
+// document states no maximum, so any number written into this client is
+// unbacked and drifts silently. cmd/limits.go owns the floor, which the
+// contract does state.
 func List(ctx context.Context, cfg Config, limit int) ([]Beacon, error) {
 	path := "/beacons"
 	if limit > 0 {

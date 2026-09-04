@@ -59,9 +59,24 @@ would make them diverge. `current` is correct now and stays correct then.
 `teams current` pairs with `teams use [id]`. `keys current` has no setter because Truestamp chooses
 it. The presence or absence of `use` *is* the documentation.
 
-### R3 — Write verbs are a closed set of two
+### R3 — Write verbs are a closed set of three
 
-`create` and `update <id>`. Banned as synonyms: `new`, `add`, `edit`, `set`.
+`create`, `update <id>`, and `edit`. Banned as synonyms: `new`, `add`, `set`.
+
+`edit` was originally banned as a synonym of `update`, and it is not one. The two answer
+different questions and cannot be collapsed without breaking R13:
+
+| | `update` | `edit` |
+| --- | --- | --- |
+| What it changes | named fields, given on the command line | a whole document, in the user's editor |
+| Interactive | no, scriptable | yes, requires a terminal |
+| Input | flags (`items update <id> --tags q3`) | `$VISUAL` / `$EDITOR` on a file |
+
+Spelling the editor capability `config update` would give `update` a second, different meaning
+binary-wide, which R13 forbids; spelling it as a flag (`config path --edit`) would hide a write
+behind a read verb. `edit` is therefore restricted to **a file this CLI owns**: there is no
+`items edit`, and there never will be, because an item's signed fields are immutable and its
+mutable ones are exactly what `items update` already sets.
 
 One creation word across the whole binary. Every surveyed CLI that creates a **remote** resource
 uses `create` — gh, op, docker, flyctl, wrangler, kubectl, gcloud, az, stripe; none use `new`, and

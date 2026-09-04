@@ -39,8 +39,27 @@ var configPathCmd = &cobra.Command{
 when one was supplied, otherwise the platform default, and whether
 that file currently exists.`,
 	Args: cobra.NoArgs,
-	Run: func(cmd *cobra.Command, args []string) {
+	RunE: func(cmd *cobra.Command, args []string) error {
 		path := config.ActivePath()
+		_, statErr := os.Stat(path)
+
+		// `path` renders a record, so it carries the CLI-wide output
+		// contract like every other record command. It is also the one
+		// place where --json earns its keep twice over: the styled form
+		// puts a label on stdout, so the `$(truestamp config path)` idiom
+		// captures "Config Path  /path", not the path. `--json | jq -r
+		// .path` captures the path and nothing else.
+		jsonOut, silent := outputMode(cmd)
+		switch {
+		case silent:
+			return nil
+		case jsonOut:
+			return emitRecord(cmd.OutOrStdout(), map[string]any{
+				"path":   path,
+				"exists": statErr == nil,
+			})
+		}
+
 		label := lipgloss.NewStyle().Foreground(ui.Label).Render("Config Path")
 		value := lipgloss.NewStyle().Foreground(ui.Value).Render(path)
 		lipgloss.Println(label + "  " + value)
@@ -48,6 +67,7 @@ that file currently exists.`,
 		// command is routinely captured with `$(truestamp config path)`,
 		// and a second stdout line would land inside the captured value.
 		ui.Fprintln(cmd.ErrOrStderr(), ui.FaintStyle().Render(configPathStatusIndent+configPathStatus(path)))
+		return nil
 	},
 }
 
@@ -321,6 +341,7 @@ func teamNameWithPersonal(t *teams.Team) string {
 
 func init() {
 	addRecordOutputFlags(configShowCmd)
+	addRecordOutputFlags(configPathCmd)
 	configCmd.AddCommand(configPathCmd)
 	configCmd.AddCommand(configInitCmd)
 	configCmd.AddCommand(configShowCmd)

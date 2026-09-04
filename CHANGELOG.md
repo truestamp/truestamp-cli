@@ -9,6 +9,35 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **`proofs get` explains why a proof could not be generated.** The server
+  gained two things the CLI now surfaces: `subject_not_recomputable`, which is
+  terminal — the subject's stored data no longer reproduces the hash committed
+  at submission, so retrying cannot help — reported with `meta.drifted`
+  (`claims`, `metadata`, or `claims and metadata`); and `meta.failed_steps` on
+  `generation_failed`, the failing verifier step messages, printed so the cause
+  is named instead of bisected. `no_external_commitments` and
+  `subject_not_ready` are labelled transient — the server's retryable set is
+  closed at those two, and a code the CLI does not recognise gets no invented
+  advice in either direction. The distinction that matters is whether waiting
+  helps, and nothing in the wire format said so before. The Truestamp code is
+  read from `meta.code`; the JSON:API `code` member is the generic `"invalid"`
+  on every one of these, and the retry verdict is derived from the code alone
+  so that rewording the server's human-readable `detail` cannot change it.
+
+- **`truestamp config edit`** opens the config file in effect in `$VISUAL`,
+  else `$EDITOR`, else a platform default. The value may carry arguments, so
+  `EDITOR="code -w"` works. The file must already exist — `config init`
+  remains the one command that writes the documented defaults — and the
+  command refuses without a terminal rather than launching `vi` against a
+  pipe and blocking forever. This makes `edit` a third write verb: it is not
+  a synonym of `update`, which sets named fields from flags, and it is
+  confined to files the CLI owns. See R3 in `kb/command-tree.md`.
+
+- **`config path` carries `--json` and `--silent`** like every other
+  record-rendering command. The styled form puts a label on stdout, so
+  `$(truestamp config path)` captured `"Config Path  /path"` rather than the
+  path; `--json | jq -r .path` captures the value alone.
+
 - **`proofs get --type` is now optional.** A ULID is unambiguously an item, but
   blocks, beacons and entropy observations all use UUIDv7, so nothing
   client-side can tell them apart — the one place id-shape dispatch cannot work.
@@ -53,6 +82,40 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   registry, so they cannot disagree about what a flag accepts.
 
 ### Changed
+
+- **`items list` returns newest first**, which is what its help, its doc
+  comment and `README.md` all promised. It sent no `sort` parameter at all,
+  so the server applied its default ascending order; `blocks list` and
+  `beacons list` were already correct. Pagination stays consistent across
+  pages because `List` re-sends `sort` on every request: it rebuilds the query
+  itself rather than following the server's `next` link, lifting only the
+  cursor out of it.
+
+- **`--limit` is bounded on one side only.** The CLI refuses `--limit 0`
+  locally, the one bound the server's OpenAPI document states
+  (`page.limit`, `"minimum": 1`), and forwards everything else. The
+  `MaxLimit = 100` constant in `internal/items` and `internal/blocks` was
+  removed: the string `"maximum"` does not appear anywhere in that document,
+  so the number was unbacked — and it was also wrong, since the JSON:API
+  resources serve far more than 100 (`blocks list --limit 250` returns 250).
+  Only `beacons` caps at 100, and it names its own cap when it refuses.
+
+- **`truestamp inspect` honors the CLI-wide `json` / `silent` settings.** It
+  read the raw cobra flags instead of the resolved config, so `TRUESTAMP_JSON`
+  and a `json = true` in `config.toml` reached every record-rendering command
+  except this one.
+
+- **`truestamp help <unknown-topic>` exits 1.** Cobra's built-in help prints
+  "Unknown help topic", dumps the root help and exits 0, which tells a script
+  the topic was found. A leftover word after a group is reported too, so
+  `truestamp help convert proof` names what is wrong instead of printing
+  `convert`'s help.
+
+- **`schema get commands` reports `"group": true` for the ten namespaces.**
+  `internal/introspect` derived it from `!Runnable()`, which stopped being
+  true when every group gained a `RunE` so a bare group could print help and
+  an unknown sub-command could be an error. The field said the opposite of
+  what it exists to say.
 
 - **`inspect` no longer reports `type_code`.** The bundle does not carry it: it
   carries the type *name*, in both JSON and CBOR, and the server never returns

@@ -130,17 +130,12 @@ func ValidateUUIDv7(id string) error {
 // hazard: always send one.
 const defaultLimit = 25
 
-// MaxLimit is the largest page this client will ask for.
-const MaxLimit = 100
-
 // List fetches up to limit blocks, newest first.
 func List(ctx context.Context, cfg Config, limit int) ([]Block, error) {
 	if limit <= 0 {
 		limit = defaultLimit
 	}
-	if limit > MaxLimit {
-		return nil, fmt.Errorf("--limit must be between 1 and %d, got %d", MaxLimit, limit)
-	}
+	// No client-side ceiling; the server owns it. See cmd/limits.go.
 	q := url.Values{}
 	q.Set("sort", "-id")
 	q.Set("page[limit]", strconv.Itoa(limit))

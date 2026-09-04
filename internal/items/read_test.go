@@ -88,11 +88,20 @@ func TestGet_SendsFields(t *testing.T) {
 	}
 }
 
-func TestList_RejectsOversizeLimit(t *testing.T) {
-	apiURL, _ := serveItems(t, `{"data":[]}`)
-	_, err := List(context.Background(), apiURL, "", ListOptions{Limit: MaxLimit + 1})
-	if err == nil || !strings.Contains(err.Error(), "--limit") {
-		t.Errorf("an oversize limit should be rejected by name, got %v", err)
+// TestList_ForwardsAnOversizeLimitToTheServer pins the decision that the
+// ceiling belongs to the server. This client used to reject anything over a
+// local MaxLimit = 100, but the server's OpenAPI document declares
+// page.limit with "minimum": 1 and no maximum anywhere, so that constant was
+// an unbacked second source of truth -- copied into three packages -- that
+// would go stale silently the day the cap moved. The server refuses an
+// over-large page and names its own cap.
+func TestList_ForwardsAnOversizeLimitToTheServer(t *testing.T) {
+	apiURL, rec := serveItems(t, `{"data":[]}`)
+	if _, err := List(context.Background(), apiURL, "", ListOptions{Limit: 5000}); err != nil {
+		t.Fatalf("List must forward the limit rather than judging it: %v", err)
+	}
+	if got := rec.query.Get("page[limit]"); got != "5000" {
+		t.Errorf("page[limit] = %q, want the caller's value forwarded verbatim", got)
 	}
 }
 
@@ -262,5 +271,42 @@ func TestTenantHeaderSentOnlyWhenScoped(t *testing.T) {
 	_, _ = List(context.Background(), srv.URL, "team-1", ListOptions{})
 	if tenant != "team-1" {
 		t.Errorf("tenant header: got %q", tenant)
+	}
+}
+
+// TestList_SortsNewestFirst.
+//
+// `items list --help` promises "List items, newest first", and its two
+// sibling list verbs deliver it: internal/blocks sends sort=-id. items
+// sent no sort at all, so the server applied its default ascending order
+// and this was the one list command in the tree that answered
+// oldest-first while documenting the opposite in three places.
+func TestList_SortsNewestFirst(t *testing.T) {
+	apiURL, rec := serveItems(t, `{"data":[]}`)
+	if _, err := List(context.Background(), apiURL, "", ListOptions{}); err != nil {
+		t.Fatalf("List: %v", err)
+	}
+	if got := rec.query.Get("sort"); got != "-id" {
+		t.Errorf("sort = %q, want %q so the newest item comes back first", got, "-id")
+	}
+}
+
+// TestList_KeepsSortingWhenFollowingACursor.
+//
+// List does not follow the server's `next` link; it rebuilds the query
+// and lifts only the cursor out. That makes re-supplying `sort` this
+// client's job on every page, and this pins it: drop the parameter from
+// the cursor path and page two silently reverts to ascending order.
+func TestList_KeepsSortingWhenFollowingACursor(t *testing.T) {
+	apiURL, rec := serveItems(t, `{"data":[]}`)
+	_, err := List(context.Background(), apiURL, "", ListOptions{After: "cursor-from-page-one"})
+	if err != nil {
+		t.Fatalf("List: %v", err)
+	}
+	if got := rec.query.Get("sort"); got != "-id" {
+		t.Errorf("sort = %q on a cursor page, want %q", got, "-id")
+	}
+	if got := rec.query.Get("page[after]"); got != "cursor-from-page-one" {
+		t.Errorf("page[after] = %q, want the cursor to still be sent", got)
 	}
 }

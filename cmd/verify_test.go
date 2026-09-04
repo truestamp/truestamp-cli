@@ -760,3 +760,79 @@ func d4Violations(steps []cliStep) []string {
 	sort.Strings(out)
 	return out
 }
+
+// TestCLI_Verify_LegacyMetadataWithoutWitnesses.
+//
+// A bundle whose `subject.metadata` commits to no witness at all -- the
+// shape an item committed before the format was redefined around witnesses
+// would have, carrying `previous_block_id` / `previous_block_hash` and no
+// `witnesses` key.
+//
+// The service does not currently emit this: such an item is refused at
+// generation with `subject_not_recomputable`. The test is not speculative
+// for that reason. A verifier's job is to grade the bytes it is handed, not
+// only the bytes one service happens to produce today, and the classifying
+// behaviour here was already correct long before anything upstream moved.
+// What it lacked was a test, so it could have regressed silently.
+//
+// The absence must read as a check this run could not make, never as a
+// check that failed: the subject genuinely commits to no witness, so the
+// submitted-after edge is simply not established from the file. Reporting
+// it as a failure would condemn a sound proof, and E.25 allows extra skip
+// and info rows precisely so an absence can be said out loud without
+// changing the verdict.
+func TestCLI_Verify_LegacyMetadataWithoutWitnesses(t *testing.T) {
+	var bundle map[string]any
+	raw, err := os.ReadFile(testfixtures.Path(testfixtures.ProdDir, testfixtures.ProdComplete))
+	if err != nil {
+		t.Fatalf("reading fixture: %v", err)
+	}
+	if err := json.Unmarshal(raw, &bundle); err != nil {
+		t.Fatalf("fixture is not JSON: %v", err)
+	}
+	subject, ok := bundle["subject"].(map[string]any)
+	if !ok {
+		t.Fatal("fixture has no subject object")
+	}
+	subject["metadata"] = map[string]any{
+		"previous_block_id":   "019db702-b08c-73dc-a7cd-2c5e011f1dad",
+		"previous_block_hash": "51d69ce8ee25bbf0cdba8b98ab5ee5805469a87d587a5b2800cd1384d7a86ab4",
+	}
+	delete(subject, "witnesses")
+
+	out, err := json.Marshal(bundle)
+	if err != nil {
+		t.Fatalf("re-encoding: %v", err)
+	}
+	path := filepath.Join(t.TempDir(), "legacy-metadata.json")
+	if err := os.WriteFile(path, out, 0o600); err != nil {
+		t.Fatalf("writing bundle: %v", err)
+	}
+
+	// Rewriting a signed field necessarily breaks the derived hashes, so
+	// this bundle does not and should not pass. What is asserted is only
+	// how the witness absence is CLASSIFIED, and that nothing panics.
+	report, _ := runCLIText(t, "verify", path, "--offline")
+
+	for _, want := range []string{
+		"[SKIP]  Witnesses",
+		"[INFO]  Submitted After",
+	} {
+		if !strings.Contains(report, want) {
+			t.Errorf("missing %q in report:\n%s", want, report)
+		}
+	}
+	for _, forbidden := range []string{
+		"[FAIL]  Witnesses",
+		"[WARN]  Witnesses",
+		"[FAIL]  Submitted After",
+	} {
+		if strings.Contains(report, forbidden) {
+			t.Errorf("a subject that commits to no witness must not produce %q:\n%s",
+				forbidden, report)
+		}
+	}
+	if strings.Contains(report, "panic:") {
+		t.Errorf("verifier panicked on a metadata map with no witnesses key:\n%s", report)
+	}
+}

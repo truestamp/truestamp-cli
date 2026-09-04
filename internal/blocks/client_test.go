@@ -126,14 +126,17 @@ func TestList_AlwaysSendsALimit(t *testing.T) {
 	}
 }
 
-func TestList_RejectsOversizeLimit(t *testing.T) {
-	cfg, _ := serve(t, `[]`)
-	_, err := List(context.Background(), cfg, MaxLimit+1)
-	if err == nil {
-		t.Fatal("a limit above the cap should be rejected")
+// TestList_ForwardsAnOversizeLimitToTheServer pins the decision that the
+// ceiling belongs to the server. A local MaxLimit here was an unbacked
+// constant: the server's OpenAPI document declares page.limit with
+// "minimum": 1 and no maximum anywhere, so the number could only drift.
+func TestList_ForwardsAnOversizeLimitToTheServer(t *testing.T) {
+	cfg, rec := serve(t, `[]`)
+	if _, err := List(context.Background(), cfg, 5000); err != nil {
+		t.Fatalf("List must forward the limit rather than judging it: %v", err)
 	}
-	if !strings.Contains(err.Error(), "--limit") {
-		t.Errorf("the error should name the flag, got %q", err)
+	if got := rec.Query().Get("page[limit]"); got != "5000" {
+		t.Errorf("page[limit] = %q, want the caller's value forwarded verbatim", got)
 	}
 }
 

@@ -19,7 +19,7 @@ These files are **not** published to <https://get.truestamp.com/>, that site is 
 | [authentication.md](authentication.md) | OAuth 2.1 loopback + PKCE, token storage and rotation, credential precedence, the reactive 401-retry transport | Touching `internal/auth` or any authenticated call site |
 | [jcs-canonicalization.md](jcs-canonicalization.md) | RFC 8785 canonicalization, the deliberate oversized-integer deviation, the two safe-integer thresholds and why they differ by one | Touching `internal/jcs` or anything that hashes claims |
 | [external-apis.md](external-apis.md) | Every third-party service this binary talks to, and when | Adding or changing egress |
-| [team-management.md](team-management.md) | `truestamp team`, the console Teams pane, team creation, ownership models | Touching `internal/teams` or team surfaces |
+| [team-management.md](team-management.md) | `truestamp teams`, the console Teams pane, team creation, ownership models | Touching `internal/teams` or team surfaces |
 | [console/](console/) | `truestamp console`, split by package: [panes](console/panes.md) (`internal/console`), [websocket](console/websocket.md) (`internal/wschannel`), [logging](console/logging.md) (`internal/logging`), [limits](console/limits.md), [testing](console/testing.md) | Touching any console subsystem, start at [console/README.md](console/README.md) |
 
 ## Normative sources
