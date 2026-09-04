@@ -21,21 +21,28 @@ import (
 // primitives and benefit from shorter verbs.
 var convertCmd = &cobra.Command{
 	Use:   "convert",
-	Short: "Convert Truestamp-domain values (time, proof format, IDs, keyid, Merkle proofs)",
+	Short: "Convert Truestamp-domain values (time, IDs, keyid, Merkle proofs)",
 	Long: `Convert between formats for Truestamp-domain values:
 
   convert time   , parse and re-format timestamps across zones and Unix formats
-  convert proof  , switch a proof bundle between JSON and CBOR wire formats
   convert id     , extract the embedded timestamp from a ULID or UUIDv7
   convert keyid  , derive the 4-byte Truestamp kid fingerprint from an Ed25519 key
   convert merkle , decode a compact base64url Merkle proof into its structure
 
 For generic byte-encoding conversion use 'truestamp encode' / 'truestamp decode'.
 For JSON canonicalization (RFC 8785) use 'truestamp jcs'.`,
+
+	// A group takes no positional arguments, so an unknown
+	// subcommand is an error rather than a silent fall-through to this
+	// command's own help with exit 0. `truestamp convert proof` printing
+	// help and exiting 0 after `proof` moved to `proofs convert` would
+	// leave a reader following an old doc with no signal at all.
+	Args: cobra.NoArgs,
 }
 
 func init() {
-	rootCmd.AddCommand(convertCmd)
+	convertCmd.GroupID = groupTools
+	rootCmd.AddCommand(asGroup(convertCmd))
 }
 
 // addConvertCommonFlags registers the --json and --silent flags shared

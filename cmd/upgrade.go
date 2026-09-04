@@ -33,6 +33,7 @@ const (
 
 var (
 	upgradeFlagCheck    bool
+	upgradeFlagExitCode bool
 	upgradeFlagYes      bool
 	upgradeFlagVersion  string
 	upgradeFlagNoVerify bool
@@ -65,12 +66,14 @@ Examples:
 }
 
 func init() {
-	upgradeCmd.Flags().BoolVar(&upgradeFlagCheck, "check", false, "Only check for a newer version; do not install (exit 0=up-to-date, 1=upgrade available, 2=network error, 3=pre-release)")
+	upgradeCmd.Flags().BoolVar(&upgradeFlagCheck, "check", false, "Only check for a newer version; do not install")
+	upgradeCmd.Flags().BoolVar(&upgradeFlagExitCode, "exit-code", false, "With --check, encode the result in the exit status (1=upgrade available, 2=network error, 3=pre-release) instead of always exiting 0")
 	upgradeCmd.Flags().BoolVarP(&upgradeFlagYes, "yes", "y", false, "Skip the interactive confirmation prompt")
 	upgradeCmd.Flags().StringVar(&upgradeFlagVersion, "version", "", "Pin to a specific release tag (e.g. v0.4.0). Bypasses the pre-release filter.")
 	upgradeCmd.Flags().BoolVar(&upgradeFlagNoVerify, "no-verify", false, "Skip cosign signature verification (SHA-256 is still enforced)")
 	_ = upgradeCmd.Flags().MarkHidden("no-verify")
 
+	upgradeCmd.GroupID = groupOther
 	rootCmd.AddCommand(upgradeCmd)
 }
 
@@ -99,7 +102,7 @@ func runUpgrade(cmd *cobra.Command, _ []string) error {
 		SkipCosign:     upgradeFlagNoVerify,
 		CosignPath:     appConfig.CosignPath,
 		Logger: func(msg string) {
-			fmt.Fprintf(cmd.ErrOrStderr(), "  %s\n", msg)
+			ui.Fprintf(cmd.ErrOrStderr(), "  %s\n", msg)
 		},
 	}
 
@@ -143,12 +146,25 @@ func printUpgradeInstruction(out io.Writer, method install.Method, command strin
 	valueStyle := lipgloss.NewStyle().Foreground(ui.Value).Bold(true)
 	accent := lipgloss.NewStyle().Foreground(ui.Accent)
 
-	fmt.Fprintln(out)
-	fmt.Fprintf(out, "  %s  %s\n", labelStyle.Render("detected install"), accent.Render(method.String()))
-	fmt.Fprintln(out)
-	fmt.Fprintln(out, "  To upgrade, run:")
-	fmt.Fprintf(out, "    %s\n", valueStyle.Render(command))
-	fmt.Fprintln(out)
+	ui.Fprintln(out)
+	ui.Fprintf(out, "  %s  %s\n", labelStyle.Render("detected install"), accent.Render(method.String()))
+	ui.Fprintln(out)
+	ui.Fprintln(out, "  To upgrade, run:")
+	ui.Fprintf(out, "    %s\n", valueStyle.Render(command))
+	ui.Fprintln(out)
+}
+
+// checkResult maps a --check outcome to its exit status. Without
+// --exit-code every outcome exits 0 and the answer is the printed line:
+// exit 1 conventionally means "the command failed", and a successful
+// check that found an upgrade is not a failure. The old behavior, where
+// exit 1 meant success-with-news, is still reachable for `grep -q`-style
+// scripts, but it has to be asked for.
+func checkResult(code int) error {
+	if !upgradeFlagExitCode {
+		return nil
+	}
+	return exitWith(code)
 }
 
 func runCheck(ctx context.Context, out io.Writer, opts selfupgrade.Options) error {
@@ -157,21 +173,21 @@ func runCheck(ctx context.Context, out io.Writer, opts selfupgrade.Options) erro
 	if errors.Is(err, selfupgrade.ErrPreRelease) {
 		latest := selfupgrade.Display(result.LatestVersion)
 		appLogger.Warn("upgrade_check_prerelease", "latest", result.LatestVersion)
-		fmt.Fprintf(out, "note: latest release %s is a pre-release; pass --version %s to install it explicitly, or wait for the next stable release.\n", latest, result.LatestVersion)
-		return exitWith(checkExitPreRelease)
+		ui.Fprintf(out, "note: latest release %s is a pre-release; pass --version %s to install it explicitly, or wait for the next stable release.\n", latest, result.LatestVersion)
+		return checkResult(checkExitPreRelease)
 	}
 	if err != nil {
 		appLogger.Error("upgrade_check_failed", "err", err.Error())
-		fmt.Fprintf(out, "upgrade check failed: %v\n", err)
-		return exitWith(checkExitNetworkErr)
+		ui.Fprintf(out, "upgrade check failed: %v\n", err)
+		return checkResult(checkExitNetworkErr)
 	}
 	if result.UpgradeAvail {
 		appLogger.Info("upgrade_check_result", "available", true, "latest", result.LatestVersion, "current", result.CurrentVersion)
-		fmt.Fprintf(out, "truestamp %s is available (current: %s)\n", selfupgrade.Display(result.LatestVersion), selfupgrade.Display(result.CurrentVersion))
-		return exitWith(checkExitUpgradeAvail)
+		ui.Fprintf(out, "truestamp %s is available (current: %s)\n", selfupgrade.Display(result.LatestVersion), selfupgrade.Display(result.CurrentVersion))
+		return checkResult(checkExitUpgradeAvail)
 	}
 	appLogger.Info("upgrade_check_result", "available", false, "current", result.CurrentVersion)
-	fmt.Fprintf(out, "truestamp is up to date (%s)\n", selfupgrade.Display(result.CurrentVersion))
+	ui.Fprintf(out, "truestamp is up to date (%s)\n", selfupgrade.Display(result.CurrentVersion))
 	return nil
 }
 
@@ -181,14 +197,14 @@ func runInPlaceUpgrade(ctx context.Context, cmd *cobra.Command, opts selfupgrade
 
 	result, err := selfupgrade.Check(ctx, opts)
 	if errors.Is(err, selfupgrade.ErrPreRelease) {
-		fmt.Fprintf(errOut, "note: latest release %s is a pre-release; pass --version %s to install it explicitly, or wait for the next stable release.\n", selfupgrade.Display(result.LatestVersion), result.LatestVersion)
+		ui.Fprintf(errOut, "note: latest release %s is a pre-release; pass --version %s to install it explicitly, or wait for the next stable release.\n", selfupgrade.Display(result.LatestVersion), result.LatestVersion)
 		return nil
 	}
 	if err != nil {
 		return fmt.Errorf("resolve latest: %w", err)
 	}
 	if !result.UpgradeAvail && opts.TargetVersion == "" {
-		fmt.Fprintf(out, "truestamp is up to date (%s)\n", selfupgrade.Display(result.CurrentVersion))
+		ui.Fprintf(out, "truestamp is up to date (%s)\n", selfupgrade.Display(result.CurrentVersion))
 		return nil
 	}
 
@@ -198,9 +214,9 @@ func runInPlaceUpgrade(ctx context.Context, cmd *cobra.Command, opts selfupgrade
 	}
 
 	if !upgradeFlagYes && stdinIsTerminal() {
-		fmt.Fprintf(out, "Upgrade truestamp %s → %s? [Y/n] ", selfupgrade.Display(result.CurrentVersion), selfupgrade.Display(target))
+		ui.Fprintf(out, "Upgrade truestamp %s → %s? [Y/n] ", selfupgrade.Display(result.CurrentVersion), selfupgrade.Display(target))
 		if !readYes(cmd.InOrStdin()) {
-			fmt.Fprintln(out, "aborted")
+			ui.Fprintln(out, "aborted")
 			return nil
 		}
 	}
@@ -209,7 +225,7 @@ func runInPlaceUpgrade(ctx context.Context, cmd *cobra.Command, opts selfupgrade
 	installed, backup, err := selfupgrade.Upgrade(ctx, opts)
 	if errors.Is(err, selfupgrade.ErrAlreadyCurrent) {
 		appLogger.Info("upgrade_skipped_already_current", "version", installed)
-		fmt.Fprintf(out, "truestamp is already at %s\n", selfupgrade.Display(installed))
+		ui.Fprintf(out, "truestamp is already at %s\n", selfupgrade.Display(installed))
 		return nil
 	}
 	if err != nil {
@@ -219,10 +235,10 @@ func runInPlaceUpgrade(ctx context.Context, cmd *cobra.Command, opts selfupgrade
 
 	appLogger.Info("upgrade_completed", "from", result.CurrentVersion, "to", installed, "backup", backup)
 	successStyle := lipgloss.NewStyle().Foreground(ui.Green).Bold(true)
-	fmt.Fprintf(out, "%s upgraded %s → %s\n", successStyle.Render("✓"), selfupgrade.Display(result.CurrentVersion), selfupgrade.Display(installed))
+	ui.Fprintf(out, "%s upgraded %s → %s\n", successStyle.Render("✓"), selfupgrade.Display(result.CurrentVersion), selfupgrade.Display(installed))
 	if backup != "" {
 		dim := lipgloss.NewStyle().Foreground(ui.Dim)
-		fmt.Fprintf(out, "%s\n", dim.Render("  previous binary: "+backup))
+		ui.Fprintf(out, "%s\n", dim.Render("  previous binary: "+backup))
 	}
 	return nil
 }

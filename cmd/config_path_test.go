@@ -161,31 +161,34 @@ func TestCLI_ConfigShow_ReportsActiveFile(t *testing.T) {
 	}
 }
 
-// TestCLI_TeamUnset_WritesToConfigFlag is the CLI-level write-path
-// regression. `team unset` is the one writer reachable without a live
+// TestCLI_TeamsUseClear_WritesToConfigFlag is the CLI-level write-path
+// regression. `teams use --clear` is the one writer reachable without a live
 // server: it short-circuits on appConfig.Team and calls config.SetTeam("")
 // with no network access at all.
 //
 // Before the fix this test failed twice over, the custom file kept
 // `team = "..."` and the platform default was created and written.
-func TestCLI_TeamUnset_WritesToConfigFlag(t *testing.T) {
+func TestCLI_TeamsUseClear_WritesToConfigFlag(t *testing.T) {
 	dir := t.TempDir()
 	custom := filepath.Join(dir, "custom.toml")
+	// An unrelated setting that must survive the rewrite. Deliberately NOT
+	// `silent`: since Phase 0 that key is CLI-wide, so setting it here
+	// would silence the very command under test.
 	original := `base_url = "https://example.invalid"
 team = "019dbd00-0000-7000-8000-000000000000"
 
-[verify]
-silent = true
+[hash]
+algorithm = "sha512"
 `
 	if err := os.WriteFile(custom, []byte(original), 0600); err != nil {
 		t.Fatal(err)
 	}
 
-	cmd := exec.Command(binaryPath, "team", "unset", "--config", custom)
+	cmd := exec.Command(binaryPath, "teams", "use", "--clear", "--config", custom)
 	cmd.Env = isolatedEnv(dir)
 	out, err := cmd.CombinedOutput()
 	if err != nil {
-		t.Fatalf("team unset failed: %s\n%s", err, out)
+		t.Fatalf("teams use --clear failed: %s\n%s", err, out)
 	}
 
 	data, rerr := os.ReadFile(custom)
@@ -193,26 +196,26 @@ silent = true
 		t.Fatalf("read custom config: %v", rerr)
 	}
 	if !strings.Contains(string(data), `team = ""`) {
-		t.Errorf("team unset --config did not clear the team in %q, got:\n%s", custom, data)
+		t.Errorf("teams use --clear --config did not clear the team in %q, got:\n%s", custom, data)
 	}
 	// Unrelated settings must survive the rewrite.
-	if !strings.Contains(string(data), "silent = true") {
-		t.Errorf("team unset clobbered unrelated settings in %q, got:\n%s", custom, data)
+	if !strings.Contains(string(data), `algorithm = "sha512"`) {
+		t.Errorf("teams use --clear clobbered unrelated settings in %q, got:\n%s", custom, data)
 	}
 	// The platform default must be untouched, not even created.
 	if _, serr := os.Stat(platformDefault(dir)); !os.IsNotExist(serr) {
-		t.Errorf("team unset --config must not write the platform default %q (stat err = %v)",
+		t.Errorf("teams use --clear --config must not write the platform default %q (stat err = %v)",
 			platformDefault(dir), serr)
 	}
 
 	// The write is visible on the next read through the same --config.
-	cmd = exec.Command(binaryPath, "team", "unset", "--config", custom)
+	cmd = exec.Command(binaryPath, "teams", "use", "--clear", "--config", custom)
 	cmd.Env = isolatedEnv(dir)
 	out, err = cmd.CombinedOutput()
 	if err != nil {
-		t.Fatalf("second team unset failed: %s\n%s", err, out)
+		t.Fatalf("second teams use --clear failed: %s\n%s", err, out)
 	}
-	if !strings.Contains(string(out), "No active team") {
+	if !strings.Contains(string(out), "No team is configured") {
 		t.Errorf("the cleared team should be visible on re-read, got:\n%s", out)
 	}
 }

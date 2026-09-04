@@ -13,24 +13,28 @@ Run `truestamp <command> --help` at any time for exhaustive flag documentation.
 
 - [External tools used in these examples](#external-tools-used-in-these-examples)
 - [Conventions](#conventions)
-- [`truestamp auth`](#truestamp-auth) - **start here: prerequisite for `create` / `download` / `beacon` / `team` / `console` / `verify --remote`**
+- [`truestamp auth`](#truestamp-auth) - **start here: prerequisite for `items` / `proofs` / `blocks` / `beacons` / `teams` / `console` / `verify --remote`**
 - [`truestamp config`](#truestamp-config)
 - [Lifecycle: the three-step flow](#lifecycle-the-three-step-flow)
-- [`truestamp create`](#truestamp-create)
-- [`truestamp download`](#truestamp-download)
+- [`truestamp items create`](#truestamp-items-create)
+- [`truestamp proofs get`](#truestamp-proofs-get)
 - [`truestamp verify`](#truestamp-verify)
 - [`truestamp inspect`](#truestamp-inspect)
-- [`truestamp team`](#truestamp-team)
+- [`truestamp teams`](#truestamp-teams)
 - [`truestamp console`](#truestamp-console)
 - [`truestamp hash`](#truestamp-hash)
 - [`truestamp encode` / `truestamp decode`](#truestamp-encode--truestamp-decode)
 - [`truestamp jcs`](#truestamp-jcs)
 - [`truestamp convert time`](#truestamp-convert-time)
-- [`truestamp convert proof`](#truestamp-convert-proof)
+- [`truestamp proofs convert`](#truestamp-proofs-convert)
 - [`truestamp convert id`](#truestamp-convert-id)
 - [`truestamp convert keyid`](#truestamp-convert-keyid)
 - [`truestamp convert merkle`](#truestamp-convert-merkle)
-- [`truestamp beacon`](#truestamp-beacon)
+- [`truestamp beacons`](#truestamp-beacons)
+- [`truestamp items` (list, get, update)](#truestamp-items-list-get-update)
+- [`truestamp blocks`](#truestamp-blocks)
+- [`truestamp keys`](#truestamp-keys)
+- [`truestamp schema`](#truestamp-schema)
 - [`truestamp upgrade`](#truestamp-upgrade)
 - [`truestamp version`](#truestamp-version)
 - [Pipeline recipes](#pipeline-recipes)
@@ -87,7 +91,7 @@ open the interactive picker. That has a consequence worth internalizing: a
 space-separated value is parsed as a **positional argument**, not as the flag's
 value.
 
-`verify`, `hash`, `encode`, `decode`, `jcs` and `convert proof` all fall back to
+`verify`, `hash`, `encode`, `decode`, `jcs` and `proofs convert` all fall back to
 the positional argument when `--file` / `--url` were given with no value, so
 both spellings work there:
 
@@ -96,16 +100,16 @@ truestamp verify --file proof.json     # works (falls back to the positional)
 truestamp verify --file=proof.json     # works (unambiguous)
 ```
 
-**`truestamp create` has no such fallback.** Its `--claims` / `-c` and
+**`truestamp items create` has no such fallback.** Its `--claims` / `-c` and
 `--file` / `-f` flags *must* use the `=` form, or the CLI rejects the
 invocation up front, naming the `=` form as the fix (a space-separated path
 would otherwise be read as a file to hash, not as claims):
 
 ```sh
-truestamp create --claims=claims.json  # correct
-truestamp create -c=claims.json        # correct
-truestamp create --claims claims.json  # ERROR - use --claims=claims.json
-truestamp create -c claims.json        # ERROR - use -c=claims.json
+truestamp items create --claims=claims.json  # correct
+truestamp items create -c=claims.json        # correct
+truestamp items create --claims claims.json  # ERROR - use --claims=claims.json
+truestamp items create -c claims.json        # ERROR - use -c=claims.json
 ```
 
 Truly global (persistent) flags, available on every sub-command:
@@ -124,8 +128,8 @@ origin and let the CLI compose `/api/json`, `/.well-known/keyring.json`,
 
 Widely-available (per-command where meaningful) flags you'll see repeatedly:
 
-- `--json` for machine-readable output; supported by `verify`, `hash`, `encode`, `decode`, `jcs`, every `convert` sub-command, `create`, `beacon`, and `team` / `team list` / `team show` / `team create` (not `team set` or `team unset`)
-- `-s` / `--silent` for exit code only, no output; supported by `verify`, `hash`, `encode`, `decode`, `jcs`, every `convert` sub-command, `beacon` and `team`
+- `--json` and `-s` / `--silent` for machine-readable output and exit-code-only runs. They are CLI-wide settings, mutually exclusive, and can be set once via `config.toml`, `TRUESTAMP_JSON` or `TRUESTAMP_SILENT`. Every command that renders a *record* carries them; the pipeline primitives (`encode`, `decode`, `jcs`, `convert time|id|keyid|merkle`) and `hash --style` are deliberately exempt because wrapping their output would break every pipe. See `truestamp help formatting`.
+- `-s` / `--silent` for exit code only, no output. CLI-wide, and mutually exclusive with `--json`.
 
 `config show` renders a styled table only; it has no `--json` mode.
 
@@ -137,13 +141,13 @@ Configuration resolution order (highest wins):
 4. CLI flags
 
 Exit code convention: **`0` = success, `1` = failure**. Specialized commands add
-codes (`upgrade --check` uses 0 through 3; see its help).
+codes (`upgrade --check --exit-code` uses 0 through 3; see its help).
 
 ---
 
 ## `truestamp auth`
 
-**Start here.** `create`, `download`, `beacon`, `team`, `console` and
+**Start here.** `items`, `proofs`, `blocks`, `beacons`, `teams`, `console` and
 `verify --remote` all require credentials. Everything else in this document,
 `hash`, `encode`, `decode`, `jcs`, `verify` (local) and every `convert`
 subcommand, works without authentication and without a network. If you only
@@ -241,12 +245,12 @@ else in the CLI supports, inspects, or extends this flow.
 
 ```sh
 # 1. Create an item (hashes the file locally, submits claims to the API)
-truestamp create contract.pdf
+truestamp items create contract.pdf
 # prints an "Item Created" card: ID, Name, Hash, Visibility, and the
 # public Details / Verify links
 
 # 2. Later, after the item is committed to a block, download its proof
-truestamp download 01KNN33GX5E470CB9TRWAYF9DD -o contract.proof.json
+truestamp proofs get 01KNN33GX5E470CB9TRWAYF9DD -o contract.proof.json
 
 # 3. Verify the proof end-to-end
 truestamp verify contract.proof.json
@@ -257,7 +261,7 @@ truestamp verify contract.proof.json
 
 ---
 
-## `truestamp create`
+## `truestamp items create`
 
 Submit a new timestamp item. Requires authentication: run
 `truestamp auth login`, or set `TRUESTAMP_API_KEY` / `--api-key` for
@@ -289,31 +293,31 @@ Remember that `--claims` and `--file` need the `=` form here; see
 ```sh
 # Hash a file and submit in one step (filename becomes the item name,
 # SHA-256 becomes the hash)
-truestamp create contract.pdf
+truestamp items create contract.pdf
 
 # Same, machine-readable output
-truestamp create contract.pdf --json
+truestamp items create contract.pdf --json
 
 # Pick a file interactively
-truestamp create --file
+truestamp items create --file
 
 # Provide the content via stdin (name required separately)
-curl -fsSL https://example.com/data.bin | truestamp create -F -n "data.bin"
+curl -fsSL https://example.com/data.bin | truestamp items create -F -n "data.bin"
 
 # Submit a precomputed claims JSON (see truestamp-v2/kb/items/submit-an-item.md for the shape)
-truestamp create --claims=claims.json
+truestamp items create --claims=claims.json
 
 # Claims via stdin
-jq -c '.' claims.json | truestamp create -C
+jq -c '.' claims.json | truestamp items create -C
 
 # Flag-only: provide the hash and name directly. The hash must be valid
 # hex of the length --hash-type implies (64 chars for sha256).
-truestamp create -n "Q1 report" \
+truestamp items create -n "Q1 report" \
   --hash ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad \
   --hash-type sha256
 
 # Rich metadata
-truestamp create contract.pdf \
+truestamp items create contract.pdf \
   --name "Contract v2" \
   --description "Final signed version" \
   --url https://example.com/contract.pdf \
@@ -341,23 +345,23 @@ The CLI enforces this locally before any network round-trip.
 
 ```sh
 # Simplest claims-only submission: name plus a description
-truestamp create -n "Invention" \
+truestamp items create -n "Invention" \
   -d "On this day I claim the following novel approach as my own original work."
 
 # Same, machine-readable. hash / hash_type keys are omitted from the
 # JSON output entirely (use jq 'has("hash")' to branch on the mode).
-truestamp create -n "Invention" \
+truestamp items create -n "Invention" \
   -d "On this day I claim the following novel approach as my own original work." \
   --json
 
 # Metadata escape hatch: no long description needed if metadata
 # carries the content
-truestamp create -n "Release v1.2" \
+truestamp items create -n "Release v1.2" \
   --metadata '{"version":"1.2.0","sha":"deadbeef","notes":"..."}'
 
 # Claims JSON file with no hash/hash_type: the server treats both as
 # absent and the proof commits to the claims bytes directly
-truestamp create --claims=claim-only.json
+truestamp items create --claims=claim-only.json
 ```
 
 A claims-only `claim-only.json` looks like:
@@ -392,7 +396,7 @@ the CLI can't predict the team owner's plan locally.
 
 ---
 
-## `truestamp download`
+## `truestamp proofs get`
 
 Fetch a proof bundle for an already-committed subject. `--type` declares
 which kind of proof you want; there is no auto-detection at the server,
@@ -436,33 +440,33 @@ the submitted-after edge on its own.
 
 ```sh
 # ULID id, defaults to --type item, produces truestamp-item-<ulid>.json
-truestamp download 01KNN33GX5E470CB9TRWAYF9DD
+truestamp proofs get 01KNN33GX5E470CB9TRWAYF9DD --to-file
 
 # Same, with an explicit type (identical behaviour)
-truestamp download --type item 01KNN33GX5E470CB9TRWAYF9DD
+truestamp proofs get --type item --to-file 01KNN33GX5E470CB9TRWAYF9DD
 
 # The compact and a partial variant
-truestamp download --witnesses none 01KNN33GX5E470CB9TRWAYF9DD
-truestamp download --witnesses block,entropy_nist 01KNN33GX5E470CB9TRWAYF9DD
+truestamp proofs get --witnesses none --to-file 01KNN33GX5E470CB9TRWAYF9DD
+truestamp proofs get --witnesses block,entropy_nist --to-file 01KNN33GX5E470CB9TRWAYF9DD
 
 # Override the auto-generated filename
-truestamp download 01KNN33GX5E470CB9TRWAYF9DD -o contract.proof.json
+truestamp proofs get 01KNN33GX5E470CB9TRWAYF9DD -o contract.proof.json
 
 # CBOR: smaller, deterministic, ideal for embedding in another file
-truestamp download 01KNN33GX5E470CB9TRWAYF9DD -f cbor -o contract.proof.cbor
+truestamp proofs get 01KNN33GX5E470CB9TRWAYF9DD -f cbor -o contract.proof.cbor
 
 # Entropy proof: UUIDv7 ids require an explicit --type (three subtypes)
-truestamp download --type entropy_stellar 019cf813-99b8-730a-84f1-5a711a9c355e
-truestamp download --type entropy_nist    019cf813-99b8-730a-84f1-5a711a9c355e
-truestamp download --type entropy_bitcoin 019cf813-99b8-730a-84f1-5a711a9c355e
+truestamp proofs get --type entropy_stellar 019cf813-99b8-730a-84f1-5a711a9c355e
+truestamp proofs get --type entropy_nist    019cf813-99b8-730a-84f1-5a711a9c355e
+truestamp proofs get --type entropy_bitcoin 019cf813-99b8-730a-84f1-5a711a9c355e
 
 # Block proof for a committed block
-truestamp download --type block 019db7cd-efc0-7196-b763-682a84d71919
+truestamp proofs get --type block 019db7cd-efc0-7196-b763-682a84d71919
 
 # Beacon proof for the same block: structurally identical to a block
 # proof but carries a distinct type code in the signed payload, and so a
 # different signature. The bundle's own `type` says which one you got.
-truestamp download --type beacon 019db7cd-efc0-7196-b763-682a84d71919
+truestamp proofs get --type beacon 019db7cd-efc0-7196-b763-682a84d71919
 
 # Resulting files (default naming: truestamp-<stem>-<id><variant>.<ext>):
 #   truestamp-item-01KNN33GX5E470CB9TRWAYF9DD.json
@@ -476,12 +480,14 @@ The id shape is validated before the network call. `--type item` requires a
 ULID; every other type requires a UUIDv7. Mismatches fail fast:
 
 ```sh
-truestamp download --type item 019db7cd-efc0-7196-b763-682a84d71919
+truestamp proofs get --type item 019db7cd-efc0-7196-b763-682a84d71919
 # --type item requires a ULID id (e.g. 01KNN33GX5E470CB9TRWAYF9DD); got a UUIDv7
 
-truestamp download 019db7cd-efc0-7196-b763-682a84d71919
-# --type is required for UUIDv7 ids (entropy, block, and beacon all use UUIDv7).
-# One of: entropy_nist | entropy_stellar | entropy_bitcoin | block | beacon
+# A bare UUIDv7 is resolved server-side, at the cost of one extra round
+# trip. Pass --type to skip it, or when the id is verifiable as more than
+# one subject type (a block is also verifiable as a beacon), which is
+# refused rather than guessed.
+truestamp proofs get 019db7cd-efc0-7196-b763-682a84d71919
 ```
 
 A proof exists only after the subject's first public-chain commitment.
@@ -492,7 +498,7 @@ epoch commit.
 
 UUIDv7 ids are ambiguous, because entropy observations, blocks, and beacons
 all use UUIDv7, so the CLI cannot infer what you want. Use
-`truestamp beacon by-hash <hash>` first if you only have a hash and need the id.
+`truestamp beacons get <hash>` first if you only have a hash and need the id.
 
 ---
 
@@ -659,39 +665,39 @@ truestamp inspect proof.json --json | jq 'has("signing_key_event")'
 
 ---
 
-## `truestamp team`
+## `truestamp teams`
 
 Discover, switch between, and persist the active team the CLI sends as the
 multitenancy context. The id is stored under the top-level `team` key in
 `config.toml`, so it applies across invocations. Requires authentication.
 
 ```sh
-# List every team you're a member of (no subcommand is an alias for `list`)
-truestamp team
-truestamp team list
+# List every team you're a member of. A bare `truestamp teams` prints
+# help: a group is a namespace, never a command.
+truestamp teams list
 
-# Detail card for the active team, or a specific one by id
-truestamp team show
-truestamp team show 019de4e3-3150-7e29-aa6c-20d93f50e24e
+# Detail card for the team the CLI is pointed at, or a specific one by id
+truestamp teams current
+truestamp teams get 019de4e3-3150-7e29-aa6c-20d93f50e24e
 
 # Create a team. With no name on a TTY, an interactive prompt opens.
-truestamp team create "Acme Legal"
-truestamp team create "Acme Legal" --ownership-model team_retains --set
-truestamp team create -n "Acme Legal" --json
+truestamp teams create "Acme Legal"
+truestamp teams create "Acme Legal" --ownership-model team_retains --set
+truestamp teams create -n "Acme Legal" --json
 
 # Set the active team. The id is read back from the API before it is
 # persisted, so a typo or a revoked membership refuses to write.
-truestamp team set 019de4e3-3150-7e29-aa6c-20d93f50e24e
+truestamp teams use 019de4e3-3150-7e29-aa6c-20d93f50e24e
 
 # No id on a TTY opens an interactive picker; Esc cancels without writing
-truestamp team set
+truestamp teams use
 
 # Clear the active team (the server falls back to your personal team)
-truestamp team unset
+truestamp teams use --clear
 ```
 
 `team list` renders a four-column table (`active marker`, `NAME`, `ROLE`,
-`TEAM ID`) with a star on the active row. `team show` adds Personal,
+`TEAM ID`) with a star on the active row. `teams get` adds Personal,
 Ownership, Created and a public Details link.
 
 `--ownership-model` accepts `creator_retains` (the default) or
@@ -722,7 +728,7 @@ Truestamp server. Four panes share one long-lived connection:
   characters) that creates a timestamped item over the same socket and
   shows its live state transitions (`item.created`, `item.updated`,
   `item.committed`) below the card as they arrive.
-- **Teams**, the same membership table `truestamp team list` renders,
+- **Teams**, the same membership table `truestamp teams list` renders,
   with `enter` to switch the active team over the live socket and `c` to
   open a create-team modal.
 - **Connection** with a scope summary, push counts by event, reconnect
@@ -1097,7 +1103,7 @@ and `unix-ns`. `--format` accepts the same Unix variants plus `rfc3339`
 
 ---
 
-## `truestamp convert proof`
+## `truestamp proofs convert`
 
 Convert a proof bundle between JSON and CBOR. The conversion applies
 Appendix E.3's field-type correspondence: `public_key` and `signature` are
@@ -1113,19 +1119,19 @@ preserves the input's key order.
 
 ```sh
 # JSON to CBOR
-truestamp convert proof --to cbor proof.json > proof.cbor
+truestamp proofs convert --to cbor proof.json > proof.cbor
 
 # CBOR to JSON (auto-detected input format)
-truestamp convert proof --to json proof.cbor | jq .
+truestamp proofs convert --to json proof.cbor | jq .
 
 # Force the input format (error out if the bytes don't match)
-truestamp convert proof --from json --to cbor < proof.json
+truestamp proofs convert --from json --to cbor < proof.json
 
 # Compact JSON (minified; the default is a 2-space indent)
-truestamp convert proof --to json --compact proof.cbor
+truestamp proofs convert --to json --compact proof.cbor
 
 # Round-trip verification (the CBOR output must verify end-to-end)
-truestamp convert proof --to cbor proof.json | truestamp verify --offline
+truestamp proofs convert --to cbor proof.json | truestamp verify --offline
 ```
 
 `--to` is required. `--from` accepts `auto` (default), `json` or `cbor`.
@@ -1215,7 +1221,7 @@ its `left` / `right` position and hex hash. The `--json` form carries
 
 ---
 
-## `truestamp beacon`
+## `truestamp beacons`
 
 Inspect Truestamp block beacons via the read-only JSON:API at
 `/api/json/beacons/*`. A **beacon** is a compact projection of a
@@ -1225,23 +1231,23 @@ entropy observation finalized inside that minute window is covered by
 the beacon's hash.
 
 Full verifiable proof bundles for a beacon are a separate artefact
-fetched via `truestamp download --type beacon <id>` (see above).
+fetched via `truestamp proofs get --type beacon <id>` (see above).
 
 ```sh
-# Current head beacon (no subcommand is an alias for `latest`)
-truestamp beacon
-truestamp beacon latest
+# Most recent finalized beacon. A bare `truestamp beacons` prints help:
+# a group is a namespace, never a command.
+truestamp beacons latest
 
 # Most-recent N beacons, newest first (default 25, server caps at 100)
-truestamp beacon list
-truestamp beacon list --limit 3
+truestamp beacons list
+truestamp beacons list --limit 3
 
 # Look up by UUIDv7 id
-truestamp beacon get 019db8b5-90a1-7015-a62c-48e5038f2306
+truestamp beacons get 019db8b5-90a1-7015-a62c-48e5038f2306
 
 # Look up by 64-hex-char hash, useful when all you have is a hash
 # (e.g. printed on a receipt or read from photo metadata)
-truestamp beacon by-hash 9f0be4446c4bfb8faa9a13766e3635b2c27913f35cec4eafcc20cd10af663feb
+truestamp beacons get 9f0be4446c4bfb8faa9a13766e3635b2c27913f35cec4eafcc20cd10af663feb
 ```
 
 Shared flags (all four subcommands): `--json` (raw JSON, pipeline
@@ -1257,27 +1263,27 @@ Previous, and two shareable public-web links (Details and Verify).
 
 ```sh
 # Capture the current chain head as a moment-in-time commitment
-MOMENT=$(truestamp beacon --hash-only)
+MOMENT=$(truestamp beacons --hash-only)
 echo "beacon hash: $MOMENT"
 # beacon hash: 9f0be4446c4bfb8faa9a13766e3635b2c27913f35cec4eafcc20cd10af663feb
 
 # Pipeline-friendly JSON (a top-level array for `list`, an object otherwise)
-truestamp beacon list --limit 10 --json | jq -r '.[].hash'
+truestamp beacons list --limit 10 --json | jq -r '.[].hash'
 
 # Round-trip: id to hash to id (demonstrates by-hash lookup)
-ID=$(truestamp beacon latest --json | jq -r .id)
-HASH=$(truestamp beacon get "$ID" --hash-only)
-truestamp beacon by-hash "$HASH" --json | jq .id
+ID=$(truestamp beacons latest --json | jq -r .id)
+HASH=$(truestamp beacons get "$ID" --hash-only)
+truestamp beacons get "$HASH" --json | jq .id
 ```
 
 Client-side validation catches obvious typos without hitting the
 network:
 
 ```sh
-truestamp beacon get not-a-uuid
+truestamp beacons get not-a-uuid
 # invalid UUID: uuid: incorrect UUID length 10 in string "not-a-uuid"
 
-truestamp beacon by-hash ABCDEF
+truestamp beacons get ABCDEF
 # hash must be 64 lowercase hex characters, got "ABCDEF"
 ```
 
@@ -1287,6 +1293,120 @@ credential the command prints a "Not authenticated" banner to stderr and
 exits `1`.
 
 ---
+
+## `truestamp items` (list, get, update)
+
+Beyond `items create`, the group reads and updates items. Commitment state
+is the question most often asked, so it is a column and a filter rather
+than a separate command.
+
+```sh
+# Most recent items in the team the CLI is pointed at
+truestamp items list
+
+# Only the ones a proof can be generated for
+truestamp items list --committed
+
+# Page explicitly, or follow every cursor
+truestamp items list --limit 100
+truestamp items list --after g2wAAAABbQAAABo...
+truestamp items list --all --json
+
+# One item, including whether a proof is available yet
+truestamp items get 01KNN33GX5E470CB9TRWAYF9DD
+```
+
+Only three attributes are mutable — visibility, tags, and the owning team.
+Claims are immutable because `claims_hash` is signed, and there is no flag
+on `update` that can reach them.
+
+```sh
+truestamp items update 01KNN33GX5E470CB9TRWAYF9DD --visibility public
+truestamp items update 01KNN33GX5E470CB9TRWAYF9DD --tags q3,contracts
+
+# Move it to another team. --to-team, not the root --team: that one says
+# which tenant scopes the request.
+truestamp items update 01KNN33GX5E470CB9TRWAYF9DD --to-team 019dbd00-0000-7000-8000-000000000000
+```
+
+A server-reported state is a claim. The authoritative answer is a proof
+you check yourself:
+
+```sh
+truestamp proofs get 01KNN33GX5E470CB9TRWAYF9DD | truestamp verify
+```
+
+## `truestamp blocks`
+
+Read-only access to Truestamp's block chain. A block is the full signed
+record — Merkle root, state, signature, key id, chain links — where a
+beacon is its four-field public projection.
+
+```sh
+truestamp blocks latest       # the head block, whatever its state
+truestamp blocks genesis      # the first block, where every chain walk ends
+truestamp blocks list --limit 10
+truestamp blocks get 019db702-b08c-73dc-a7cd-2c5e011f1dad
+truestamp blocks get 653b13ae01ad4258bcd9d43065de524523a52d0c2efa4c7467499c1e7fac929c --json
+```
+
+`blocks latest` and `beacons latest` answer different questions. Only
+finalized blocks project as beacons, and the chain advances about once a
+minute, so the head block is routinely not yet finalized — the two return
+different rows most of the time.
+
+A block has a proof of its own:
+
+```sh
+truestamp proofs get $(truestamp blocks latest --json | jq -r .id) | truestamp verify --offline
+```
+
+## `truestamp keys`
+
+Read-only access to the published signing keyring. This is the only group
+that needs no credential: the keyring is served unauthenticated, and it is
+the same document `verify` consults for the key binding step.
+
+```sh
+truestamp keys list
+truestamp keys current                 # the key signing right now
+truestamp keys get 3c19f776            # by its 8-hex key id
+truestamp keys current --json | jq -r .public_key
+```
+
+`current`, not `latest`: the keyring is populated by chain replay
+including prerotation events, so a published-but-not-yet-active key would
+make the two diverge.
+
+The keyring answers the one question a proof bundle cannot answer about
+itself — *is this key Truestamp's* — because a forged bundle is
+self-consistent by construction and carries its forger's own public key.
+It does not tell you a key was uncompromised, valid at signing time, or
+authorized; it carries no revocation flag, no validity interval and no
+timestamps.
+
+```sh
+# Derive a key id from a public key you already hold, and look it up
+truestamp keys get $(truestamp convert keyid CTwMqDZnPd/QTLSq8aTeSD3a+j2DQxKcGfhhIYJQ65Y=)
+```
+
+## `truestamp schema`
+
+Machine-readable descriptions of the CLI's own interface, generated by
+walking the live command tree, so they cannot drift from the binary that
+prints them.
+
+```sh
+truestamp schema list
+truestamp schema get commands | jq '.subcommands[].path'
+truestamp schema get algorithms | jq -r '.algorithms[].name'
+truestamp schema get subject-types
+truestamp schema get exit-codes
+```
+
+`schema get commands` is the one call that answers "what can this CLI do,
+and with which flags" without parsing help text. It carries each flag's
+type, default, shorthand, closed value set, and whether it is inherited.
 
 ## `truestamp upgrade`
 
@@ -1368,7 +1488,7 @@ intermediate. Compare the file's plain SHA-256 against
 ### Convert a JSON proof to CBOR and verify
 
 ```sh
-truestamp convert proof --to cbor proof.json \
+truestamp proofs convert --to cbor proof.json \
   | truestamp verify --offline
 ```
 
@@ -1450,8 +1570,8 @@ done
 # JSON to CBOR to JSON, then compare against the original (modulo
 # canonical key order)
 orig="$(truestamp jcs < proof.json)"
-round="$(truestamp convert proof --to cbor proof.json \
-        | truestamp convert proof --from cbor --to json \
+round="$(truestamp proofs convert --to cbor proof.json \
+        | truestamp proofs convert --from cbor --to json \
         | truestamp jcs)"
 [ "$orig" = "$round" ] && echo "round-trip stable" || echo "DRIFT"
 ```
@@ -1565,8 +1685,8 @@ Environment variables for CI:
 | `TRUESTAMP_COSIGN_PATH` | Absolute path to the `cosign` binary used by `truestamp upgrade` (empty = `$PATH` lookup) |
 | `TRUESTAMP_LOGGING_LEVEL` / `TRUESTAMP_LOGGING_FILE` | Log level and log file path (named after the `[logging]` config section, not the flag) |
 | `TRUESTAMP_LOGGING_MAX_SIZE_MB` / `TRUESTAMP_LOGGING_MAX_BACKUPS` / `TRUESTAMP_LOGGING_MAX_AGE_DAYS` | Log rotation budget |
-| `TRUESTAMP_VERIFY_SILENT` / `TRUESTAMP_VERIFY_JSON` | Defaults for `verify --silent` / `--json` |
-| `TRUESTAMP_VERIFY_SKIP_EXTERNAL` / `TRUESTAMP_VERIFY_SKIP_SIGNATURES` / `TRUESTAMP_VERIFY_REMOTE` | Defaults for the corresponding `verify` flags |
+| `TRUESTAMP_SILENT` / `TRUESTAMP_JSON` | CLI-wide defaults for `--silent` / `--json` |
+| `TRUESTAMP_VERIFY_OFFLINE` / `TRUESTAMP_VERIFY_SKIP_SIGNATURES` / `TRUESTAMP_VERIFY_REMOTE` | Defaults for the corresponding `verify` flags |
 | `TRUESTAMP_HASH_ALGORITHM` | Default algorithm for `truestamp hash` |
 | `TRUESTAMP_HASH_ENCODING` | Default digest encoding (`hex` / `base64` / `base64url`) |
 | `TRUESTAMP_HASH_STYLE` | Default output style (`gnu` / `bsd` / `bare`) |
@@ -1585,8 +1705,8 @@ upgrade notice there: `CI`, `GITHUB_ACTIONS`, `GITLAB_CI`, `CIRCLECI`,
 Everything except the commands that explicitly talk to the Truestamp API
 (`create`, `download`, `auth`, `beacon`, `team`, `console`, `verify --remote`)
 works without network. One command reaches a *different* network service:
-`truestamp upgrade --check` always queries the GitHub Releases API (exit code
-2 on network error), as does the in-place upgrade path; on a Homebrew or `go
+`truestamp upgrade --check` always queries the GitHub Releases API (with
+`--exit-code`, exit 2 on network error), as does the in-place upgrade path; on a Homebrew or `go
 install` binary plain `truestamp upgrade` only prints instructions and stays
 offline.
 
@@ -1604,7 +1724,7 @@ truestamp verify proof.json --offline --keyring keyring.json
 truestamp hash -a sha256 file.bin
 truestamp jcs < claims.json
 truestamp convert id 01KNN33GX5E470CB9TRWAYF9DD
-truestamp convert proof --to cbor proof.json
+truestamp proofs convert --to cbor proof.json
 truestamp inspect proof.json
 ```
 

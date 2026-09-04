@@ -37,6 +37,13 @@ For CI and other headless environments, set a long-lived API key via the
 TRUESTAMP_API_KEY env var or the --api-key flag; an explicitly-provided API
 key takes precedence over an OAuth session. 'auth login --api-key' stores a
 key in your config file interactively.`,
+
+	// A group takes no positional arguments, so an unknown
+	// subcommand is an error rather than a silent fall-through to this
+	// command's own help with exit 0. `truestamp convert proof` printing
+	// help and exiting 0 after `proof` moved to `proofs convert` would
+	// leave a reader following an old doc with no signal at all.
+	Args: cobra.NoArgs,
 }
 
 var authLoginAPIKey bool
@@ -88,8 +95,10 @@ func init() {
 	authLogoutCmd.Flags().BoolVar(&authLogoutAPIKey, "api-key", false, "Remove the stored API key (in addition to clearing any OAuth session)")
 	authCmd.AddCommand(authLoginCmd)
 	authCmd.AddCommand(authLogoutCmd)
+	addRecordOutputFlags(authStatusCmd)
 	authCmd.AddCommand(authStatusCmd)
-	rootCmd.AddCommand(authCmd)
+	authCmd.GroupID = groupSetup
+	rootCmd.AddCommand(asGroup(authCmd))
 }
 
 // runAuthLogin dispatches to the browser OAuth flow (default) or the
@@ -112,12 +121,12 @@ func runOAuthLogin(cmd *cobra.Command) error {
 	// box can copy it. We do warn if an explicit API key will shadow the
 	// session for actual API calls.
 	if cfg.APIKeyExplicit {
-		fmt.Fprintln(cmd.ErrOrStderr(), ui.FaintStyle().Render(
+		ui.Fprintln(cmd.ErrOrStderr(), ui.FaintStyle().Render(
 			"note: TRUESTAMP_API_KEY/--api-key is set and takes precedence over an OAuth session for API calls."))
 	}
 
-	fmt.Fprintln(out, ui.HeaderBox("Truestamp Sign-In", "Authorizing via your browser"))
-	fmt.Fprintln(out)
+	ui.Fprintln(out, ui.HeaderBox("Truestamp Sign-In", "Authorizing via your browser"))
+	ui.Fprintln(out)
 
 	ctx, cancel := context.WithTimeout(cmd.Context(), 5*time.Minute)
 	defer cancel()
@@ -144,17 +153,17 @@ func runOAuthLogin(cmd *cobra.Command) error {
 
 	labelStyle := lipgloss.NewStyle().Foreground(ui.Label)
 	if identity != "" {
-		fmt.Fprintln(out, ui.SuccessBanner("Signed in as "+identity))
+		ui.Fprintln(out, ui.SuccessBanner("Signed in as "+identity))
 	} else {
-		fmt.Fprintln(out, ui.SuccessBanner("Signed in"))
+		ui.Fprintln(out, ui.SuccessBanner("Signed in"))
 	}
 	if sess.Scope != "" {
-		fmt.Fprintln(out, labelStyle.Render("    Scopes:  "+sess.Scope))
+		ui.Fprintln(out, labelStyle.Render("    Scopes:  "+sess.Scope))
 	}
 	if !sess.Expiry.IsZero() {
-		fmt.Fprintln(out, labelStyle.Render("    Expires: "+sess.Expiry.Local().Format(time.RFC1123)+" (auto-refreshed)"))
+		ui.Fprintln(out, labelStyle.Render("    Expires: "+sess.Expiry.Local().Format(time.RFC1123)+" (auto-refreshed)"))
 	}
-	fmt.Fprintln(out, labelStyle.Render("    Stored:  "+store.Location()))
+	ui.Fprintln(out, labelStyle.Render("    Stored:  "+store.Location()))
 	return nil
 }
 
@@ -174,13 +183,13 @@ func runAPIKeyLogin(cmd *cobra.Command) error {
 	accent := lipgloss.NewStyle().Foreground(ui.Accent)
 
 	out := cmd.OutOrStdout()
-	fmt.Fprintln(out)
-	fmt.Fprintln(out, "  "+accent.Render("Create and copy a new API key at:"))
-	fmt.Fprintln(out, "    "+valueStyle.Render(keysURL))
-	fmt.Fprintln(out, "  "+labelStyle.Render("    (existing keys cannot be copied, create a new one now)"))
-	fmt.Fprintln(out)
-	fmt.Fprintln(out, "  "+labelStyle.Render("Then paste the key below. Input is hidden."))
-	fmt.Fprintln(out)
+	ui.Fprintln(out)
+	ui.Fprintln(out, "  "+accent.Render("Create and copy a new API key at:"))
+	ui.Fprintln(out, "    "+valueStyle.Render(keysURL))
+	ui.Fprintln(out, "  "+labelStyle.Render("    (existing keys cannot be copied, create a new one now)"))
+	ui.Fprintln(out)
+	ui.Fprintln(out, "  "+labelStyle.Render("Then paste the key below. Input is hidden."))
+	ui.Fprintln(out)
 
 	var apiKey string
 	err = huh.NewForm(
@@ -212,7 +221,7 @@ func runAPIKeyLogin(cmd *cobra.Command) error {
 
 	// Log the action, never the key bytes.
 	appLogger.Info("auth_login_apikey", "config_path", config.ActivePath())
-	fmt.Fprintln(out, ui.SuccessBanner("API key saved to "+config.ActivePath()))
+	ui.Fprintln(out, ui.SuccessBanner("API key saved to "+config.ActivePath()))
 	return nil
 }
 
@@ -230,12 +239,12 @@ func runAuthLogout(cmd *cobra.Command, _ []string) error {
 
 	if !hasOAuth && !hasFileKey {
 		if cfg.APIKeyExplicit {
-			fmt.Fprintln(out, ui.FaintStyle().Render(
+			ui.Fprintln(out, ui.FaintStyle().Render(
 				"  Authenticated via TRUESTAMP_API_KEY/--api-key, nothing is stored to clear."))
-			fmt.Fprintln(out, ui.FaintStyle().Render(
+			ui.Fprintln(out, ui.FaintStyle().Render(
 				"  Unset it in your environment to sign out."))
 		} else {
-			fmt.Fprintln(out, ui.FaintStyle().Render("  Not logged in."))
+			ui.Fprintln(out, ui.FaintStyle().Render("  Not logged in."))
 		}
 		return nil
 	}
@@ -256,7 +265,7 @@ func runAuthLogout(cmd *cobra.Command, _ []string) error {
 			return fmt.Errorf("confirmation: %w", err)
 		}
 		if !confirmed {
-			fmt.Fprintln(out, ui.FaintStyle().Render("  Cancelled."))
+			ui.Fprintln(out, ui.FaintStyle().Render("  Cancelled."))
 			return nil
 		}
 	}
@@ -271,9 +280,9 @@ func runAuthLogout(cmd *cobra.Command, _ []string) error {
 		}
 		appLogger.Info("auth_logout_oauth", "revoked", revoked)
 		if revoked {
-			fmt.Fprintln(out, ui.SuccessBanner("Signed out, OAuth session revoked and cleared"))
+			ui.Fprintln(out, ui.SuccessBanner("Signed out, OAuth session revoked and cleared"))
 		} else {
-			fmt.Fprintln(out, ui.SuccessBanner("Signed out, OAuth session cleared (server revocation best-effort)"))
+			ui.Fprintln(out, ui.SuccessBanner("Signed out, OAuth session cleared (server revocation best-effort)"))
 		}
 	}
 
@@ -282,9 +291,9 @@ func runAuthLogout(cmd *cobra.Command, _ []string) error {
 			return err
 		}
 		appLogger.Info("auth_logout_apikey", "config_path", config.ActivePath())
-		fmt.Fprintln(out, ui.SuccessBanner("Stored API key removed from "+config.ActivePath()))
+		ui.Fprintln(out, ui.SuccessBanner("Stored API key removed from "+config.ActivePath()))
 	} else if hasOAuth && cfg.APIKey != "" {
-		fmt.Fprintln(out, ui.FaintStyle().Render(
+		ui.Fprintln(out, ui.FaintStyle().Render(
 			"  Note: a config-file API key is still set; run 'truestamp auth logout --api-key' to remove it."))
 	}
 
@@ -304,6 +313,52 @@ func logoutDescription(hasOAuth, clearsKey bool) string {
 	}
 }
 
+// authStatusRecord is the --json shape of `auth status`. `ok` is the same
+// answer as the exit code, so a caller can branch on either. `reason` is a
+// stable identifier, never a sentence: an agent branches on it and a human
+// reads `message`.
+type authStatusRecord struct {
+	OK          bool   `json:"ok"`
+	Reason      string `json:"reason,omitempty"`
+	Message     string `json:"message,omitempty"`
+	ConfigFile  string `json:"config_file"`
+	APIURL      string `json:"api_url"`
+	AuthMode    string `json:"auth_mode"`
+	Scopes      string `json:"scopes,omitempty"`
+	TokenExpiry string `json:"token_expiry,omitempty"`
+	APIKey      string `json:"api_key,omitempty"`
+	UserID      string `json:"user_id,omitempty"`
+	Email       string `json:"email,omitempty"`
+	FullName    string `json:"full_name,omitempty"`
+	TeamID      string `json:"team_id,omitempty"`
+	TeamName    string `json:"team_name,omitempty"`
+	TeamRole    string `json:"team_role,omitempty"`
+	HTTPStatus  int    `json:"http_status,omitempty"`
+}
+
+// finishAuthStatus is the single exit point for the JSON and silent
+// renderings. Keeping it separate from the text path means the two cannot
+// drift on which outcomes count as failures: both derive from rec.OK.
+func finishAuthStatus(cmd *cobra.Command, rec authStatusRecord) (handled bool, err error) {
+	jsonOut, silent := outputMode(cmd)
+	switch {
+	case silent:
+		if !rec.OK {
+			return true, errSilentFail
+		}
+		return true, nil
+	case jsonOut:
+		if werr := emitRecord(cmd.OutOrStdout(), rec); werr != nil {
+			return true, werr
+		}
+		if !rec.OK {
+			return true, errSilentFail
+		}
+		return true, nil
+	}
+	return false, nil
+}
+
 func runAuthStatus(cmd *cobra.Command, _ []string) error {
 	out := cmd.OutOrStdout()
 
@@ -313,6 +368,15 @@ func runAuthStatus(cmd *cobra.Command, _ []string) error {
 	azr := auth.Default()
 
 	labelStyle := lipgloss.NewStyle().Foreground(ui.Label)
+
+	// The record is built alongside the table so the two renderings can
+	// never disagree about what was found. Every early return below fills
+	// in a reason and goes through finishAuthStatus first.
+	rec := authStatusRecord{
+		ConfigFile: config.ActivePath(),
+		APIURL:     apiURL,
+		AuthMode:   authModeDisplay(),
+	}
 
 	t := ui.CompactTable().
 		StyleFunc(configStyleFunc).
@@ -329,22 +393,37 @@ func runAuthStatus(cmd *cobra.Command, _ []string) error {
 		if sess, serr := store.Load(); serr == nil {
 			if sess.Scope != "" {
 				t = t.Row("Scopes", sess.Scope)
+				rec.Scopes = sess.Scope
 			}
 			t = t.Row("Token Expiry", formatTokenExpiry(sess.Expiry))
+			rec.TokenExpiry = formatTokenExpiry(sess.Expiry)
 		}
 	}
 	if cfg.APIKey != "" {
 		t = t.Row("API Key", maskAPIKey(cfg.APIKey))
+		rec.APIKey = maskAPIKey(cfg.APIKey)
 	}
 	t = t.Row("Team In Scope", teamInScope(cfg.Team))
+	rec.TeamID = cfg.Team
 
-	fmt.Fprintln(out, ui.HeaderBox("Truestamp Auth Status", "Validating with the API"))
-	fmt.Fprintln(out)
-	fmt.Fprintln(out, t.String())
+	// textHeader prints the card that precedes every text-mode outcome.
+	// Deferred until after the first finishAuthStatus call so --json and
+	// --silent emit nothing before their own output.
+	textHeader := func() {
+		ui.Fprintln(out, ui.HeaderBox("Truestamp Auth Status", "Validating with the API"))
+		ui.Fprintln(out)
+		ui.Fprintln(out, t.String())
+	}
 
 	if azr.Mode() == auth.ModeNone {
-		fmt.Fprintln(out, ui.FailureBanner("Not authenticated"))
-		fmt.Fprintln(out, labelStyle.Render("    Run 'truestamp auth login' to sign in (or set TRUESTAMP_API_KEY)."))
+		rec.Reason = "not_authenticated"
+		rec.Message = "Run 'truestamp auth login' to sign in (or set TRUESTAMP_API_KEY)."
+		if handled, err := finishAuthStatus(cmd, rec); handled {
+			return err
+		}
+		textHeader()
+		ui.Fprintln(out, ui.FailureBanner("Not authenticated"))
+		ui.Fprintln(out, labelStyle.Render("    "+rec.Message))
 		return errSilentFail
 	}
 
@@ -352,55 +431,101 @@ func runAuthStatus(cmd *cobra.Command, _ []string) error {
 
 	userResult, err := checkAuth(ctx, azr, apiURL, cfg.Team)
 	if err != nil {
-		fmt.Fprintln(out, ui.FailureBanner("Could not reach the API"))
-		fmt.Fprintln(out, labelStyle.Render("    "+err.Error()))
+		rec.Reason = "api_unreachable"
+		rec.Message = err.Error()
+		if handled, ferr := finishAuthStatus(cmd, rec); handled {
+			return ferr
+		}
+		textHeader()
+		ui.Fprintln(out, ui.FailureBanner("Could not reach the API"))
+		ui.Fprintln(out, labelStyle.Render("    "+err.Error()))
 		return errSilentFail
 	}
 
 	switch {
 	case userResult.unauthorized:
-		fmt.Fprintln(out, ui.FailureBanner("Credential rejected by the server"))
-		if userResult.message != "" {
-			fmt.Fprintln(out, labelStyle.Render("    "+userResult.message))
-		} else {
-			fmt.Fprintf(out, "    %s\n", labelStyle.Render(fmt.Sprintf("HTTP %d, run 'truestamp auth login' to re-authenticate.", userResult.httpStatus)))
+		rec.Reason = "credential_rejected"
+		rec.HTTPStatus = userResult.httpStatus
+		rec.Message = userResult.message
+		if rec.Message == "" {
+			rec.Message = fmt.Sprintf("HTTP %d, run 'truestamp auth login' to re-authenticate.", userResult.httpStatus)
 		}
+		if handled, ferr := finishAuthStatus(cmd, rec); handled {
+			return ferr
+		}
+		textHeader()
+		ui.Fprintln(out, ui.FailureBanner("Credential rejected by the server"))
+		ui.Fprintln(out, labelStyle.Render("    "+rec.Message))
 		return errSilentFail
 
 	case !userResult.ok:
-		fmt.Fprintln(out, ui.FailureBanner(fmt.Sprintf("Unexpected API response (HTTP %d)", userResult.httpStatus)))
+		rec.Reason = "unexpected_api_response"
+		rec.HTTPStatus = userResult.httpStatus
+		rec.Message = userResult.message
+		if handled, ferr := finishAuthStatus(cmd, rec); handled {
+			return ferr
+		}
+		textHeader()
+		ui.Fprintln(out, ui.FailureBanner(fmt.Sprintf("Unexpected API response (HTTP %d)", userResult.httpStatus)))
 		if userResult.message != "" {
-			fmt.Fprintln(out, labelStyle.Render("    "+userResult.message))
+			ui.Fprintln(out, labelStyle.Render("    "+userResult.message))
 		}
 		return errSilentFail
 	}
+
+	rec.UserID = userResult.userID
+	rec.Email = userResult.email
+	rec.FullName = userResult.fullName
 
 	// Authenticated. Resolve the team when one is configured.
 	var teamResult *teamCheckResult
 	if cfg.Team != "" {
 		teamResult, err = fetchTeam(ctx, azr, apiURL, cfg.Team)
 		if err != nil {
-			fmt.Fprintln(out, ui.FailureBanner("Could not look up team"))
-			fmt.Fprintln(out, labelStyle.Render("    "+err.Error()))
+			rec.Reason = "team_lookup_failed"
+			rec.Message = err.Error()
+			if handled, ferr := finishAuthStatus(cmd, rec); handled {
+				return ferr
+			}
+			textHeader()
+			ui.Fprintln(out, ui.FailureBanner("Could not look up team"))
+			ui.Fprintln(out, labelStyle.Render("    "+err.Error()))
 			return errSilentFail
 		}
 		if !teamResult.found {
-			fmt.Fprintln(out, ui.FailureBanner("Team "+cfg.Team+" is not accessible"))
-			if teamResult.message != "" {
-				fmt.Fprintln(out, labelStyle.Render("    "+teamResult.message))
+			rec.Reason = "team_not_accessible"
+			rec.HTTPStatus = teamResult.httpStatus
+			rec.Message = teamResult.message
+			if rec.Message == "" {
+				rec.Message = fmt.Sprintf("HTTP %d, the team id may be wrong, or this user is not a member.", teamResult.httpStatus)
 			}
-			fmt.Fprintln(out, labelStyle.Render(fmt.Sprintf("    HTTP %d, the team id may be wrong, or this user is not a member.", teamResult.httpStatus)))
+			if handled, ferr := finishAuthStatus(cmd, rec); handled {
+				return ferr
+			}
+			textHeader()
+			ui.Fprintln(out, ui.FailureBanner("Team "+cfg.Team+" is not accessible"))
+			if teamResult.message != "" {
+				ui.Fprintln(out, labelStyle.Render("    "+teamResult.message))
+			}
+			ui.Fprintln(out, labelStyle.Render(fmt.Sprintf("    HTTP %d, the team id may be wrong, or this user is not a member.", teamResult.httpStatus)))
 			return errSilentFail
 		}
 		role, _ := teams.GetMyRoleOnTeam(ctx, teams.Config{
 			APIURL: apiURL, Team: cfg.Team,
 		}, cfg.Team)
 		teamResult.role = role
+		rec.TeamName = teamResult.name
+		rec.TeamRole = role
 	}
 
-	fmt.Fprintln(out, ui.SuccessBanner("Authenticated as "+formatUserIdentity(userResult)))
+	rec.OK = true
+	if handled, ferr := finishAuthStatus(cmd, rec); handled {
+		return ferr
+	}
+	textHeader()
+	ui.Fprintln(out, ui.SuccessBanner("Authenticated as "+formatUserIdentity(userResult)))
 	for _, line := range formatTeamLines(cfg.Team, teamResult) {
-		fmt.Fprintln(out, labelStyle.Render("    "+line))
+		ui.Fprintln(out, labelStyle.Render("    "+line))
 	}
 	return nil
 }

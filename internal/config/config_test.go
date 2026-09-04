@@ -42,7 +42,7 @@ func TestLoad_DefaultsOnly(t *testing.T) {
 		"TRUESTAMP_HTTP_TIMEOUT",
 		"TRUESTAMP_HASH_ALGORITHM", "TRUESTAMP_HASH_ENCODING",
 		"TRUESTAMP_HASH_STYLE", "TRUESTAMP_CONVERT_TIME_ZONE",
-		"TRUESTAMP_VERIFY_SILENT", "TRUESTAMP_VERIFY_JSON",
+		"TRUESTAMP_SILENT", "TRUESTAMP_JSON",
 	} {
 		t.Setenv(v, "sentinel") // mark as set so Setenv records it
 		_ = os.Unsetenv(v)      // now actually remove for the test body
@@ -380,7 +380,9 @@ func TestToTOML_IncludesAllSections(t *testing.T) {
 		APIKey:      "abcdef1234567890",
 		Team:        "t",
 		HTTPTimeout: "15s",
-		Verify:      VerifyConfig{Silent: true, JSON: true, SkipExternal: true},
+		Silent:      true,
+		JSON:        true,
+		Verify:      VerifyConfig{Offline: true},
 		Hash:        HashConfig{Algorithm: "sha256", Encoding: "hex", Style: "gnu"},
 		Convert:     ConvertConfig{TimeZone: "UTC"},
 	}

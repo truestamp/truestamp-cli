@@ -129,7 +129,7 @@ func TestCLI_Convert_Proof_RoundTrip(t *testing.T) {
 
 	// Convert JSON → CBOR.
 	cborPath := filepath.Join(t.TempDir(), "proof.cbor")
-	cbor, err := exec.Command(binaryPath, "convert", "proof", "--to", "cbor", src).Output()
+	cbor, err := exec.Command(binaryPath, "proofs", "convert", "--to", "cbor", src).Output()
 	if err != nil {
 		t.Fatalf("json→cbor: %v", err)
 	}
@@ -138,14 +138,14 @@ func TestCLI_Convert_Proof_RoundTrip(t *testing.T) {
 	}
 
 	// Convert CBOR → JSON.
-	cmd := exec.Command(binaryPath, "convert", "proof", "--to", "json", cborPath)
+	cmd := exec.Command(binaryPath, "proofs", "convert", "--to", "json", cborPath)
 	if _, err := cmd.Output(); err != nil {
 		t.Fatalf("cbor→json: %v", err)
 	}
 
 	// The ultimate test: verify accepts the CBOR form end-to-end (skip
 	// external for speed and offline friendliness).
-	vrf := exec.Command(binaryPath, "verify", cborPath, "--skip-external")
+	vrf := exec.Command(binaryPath, "verify", cborPath, "--offline")
 	if err := vrf.Run(); err != nil {
 		t.Errorf("verify on round-tripped CBOR failed: %v", err)
 	}
@@ -171,7 +171,7 @@ func bigIntegerBundlePath(t *testing.T) string {
 // altering the very bytes a claims hash is computed over.
 func TestCLI_Convert_Proof_PrettyPreservesNumbers(t *testing.T) {
 	src := bigIntegerBundlePath(t)
-	out, err := exec.Command(binaryPath, "convert", "proof", "--to", "json", src).Output()
+	out, err := exec.Command(binaryPath, "proofs", "convert", "--to", "json", src).Output()
 	if err != nil {
 		t.Fatalf("convert proof --to json: %v", err)
 	}
@@ -185,7 +185,7 @@ func TestCLI_Convert_Proof_PrettyPreservesNumbers(t *testing.T) {
 			t.Errorf("pretty output rounded a number to %s:\n%s", rounded, out)
 		}
 	}
-	compact, err := exec.Command(binaryPath, "convert", "proof", "--to", "json", "--compact", src).Output()
+	compact, err := exec.Command(binaryPath, "proofs", "convert", "--to", "json", "--compact", src).Output()
 	if err != nil {
 		t.Fatalf("convert proof --compact: %v", err)
 	}
@@ -208,7 +208,7 @@ func TestCLI_Convert_Proof_PrettyPreservesNumbers(t *testing.T) {
 // would not.
 func TestCLI_Convert_Proof_CBORRoundTripPreservesNumbers(t *testing.T) {
 	src := bigIntegerBundlePath(t)
-	cborBytes, err := exec.Command(binaryPath, "convert", "proof", "--to", "cbor", src).Output()
+	cborBytes, err := exec.Command(binaryPath, "proofs", "convert", "--to", "cbor", src).Output()
 	if err != nil {
 		t.Fatalf("json to cbor: %v", err)
 	}
@@ -216,7 +216,7 @@ func TestCLI_Convert_Proof_CBORRoundTripPreservesNumbers(t *testing.T) {
 	if err := os.WriteFile(cborPath, cborBytes, 0644); err != nil {
 		t.Fatal(err)
 	}
-	back, err := exec.Command(binaryPath, "convert", "proof", "--to", "json", cborPath).Output()
+	back, err := exec.Command(binaryPath, "proofs", "convert", "--to", "json", cborPath).Output()
 	if err != nil {
 		t.Fatalf("cbor to json: %v", err)
 	}
@@ -241,7 +241,7 @@ func TestCLI_Convert_Proof_CBORRoundTripPreservesNumbers(t *testing.T) {
 // bare CBOR map by content, and verify must accept it directly.
 func TestCLI_Convert_Proof_AutoDetectsBareCBORMap(t *testing.T) {
 	src := testfixtures.Path(testfixtures.ProdDir, testfixtures.ProdComplete)
-	tagged, err := exec.Command(binaryPath, "convert", "proof", "--to", "cbor", src).Output()
+	tagged, err := exec.Command(binaryPath, "proofs", "convert", "--to", "cbor", src).Output()
 	if err != nil {
 		t.Fatalf("json to cbor: %v", err)
 	}
@@ -252,7 +252,7 @@ func TestCLI_Convert_Proof_AutoDetectsBareCBORMap(t *testing.T) {
 	if err := os.WriteFile(barePath, tagged[3:], 0644); err != nil {
 		t.Fatal(err)
 	}
-	back, err := exec.Command(binaryPath, "convert", "proof", "--from", "auto", "--to", "json", barePath).Output()
+	back, err := exec.Command(binaryPath, "proofs", "convert", "--from", "auto", "--to", "json", barePath).Output()
 	if err != nil {
 		t.Fatalf("bare cbor to json with --from auto: %v", err)
 	}

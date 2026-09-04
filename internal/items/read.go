@@ -1,0 +1,291 @@
+// Copyright (c) 2019-2026 Truestamp, Inc.
+// SPDX-License-Identifier: MIT
+
+package items
+
+import (
+	"bytes"
+	"context"
+	"encoding/json"
+	"fmt"
+	"io"
+	"net/http"
+	"net/url"
+	"strconv"
+
+	"github.com/truestamp/truestamp-cli/internal/auth"
+	"github.com/truestamp/truestamp-cli/internal/httpclient"
+)
+
+// Item is the subset of an item's attributes the CLI reads back.
+//
+// Three of these fields — InsertedAt, UpdatedAt, ExpiresAt — are NOT in
+// the resource's json_api default_fields, so every request that wants
+// them must ask for them explicitly via fields[item]. See requestFields.
+type Item struct {
+	ID          string         `json:"id"`
+	State       string         `json:"state"`
+	Claims      map[string]any `json:"claims,omitempty"`
+	ClaimsHash  string         `json:"claims_hash,omitempty"`
+	ItemHash    string         `json:"item_hash,omitempty"`
+	Visibility  string         `json:"visibility,omitempty"`
+	Tags        []string       `json:"tags,omitempty"`
+	TeamID      string         `json:"team_id,omitempty"`
+	DisplayName string         `json:"display_name,omitempty"`
+	InsertedAt  string         `json:"inserted_at,omitempty"`
+	UpdatedAt   string         `json:"updated_at,omitempty"`
+	ExpiresAt   string         `json:"expires_at,omitempty"`
+}
+
+// Committed reports whether a proof can be generated for this item.
+// Proof generation hard-requires the committed state server-side, so this
+// is the difference between `proofs get <id>` working and returning
+// item_not_committed.
+func (i Item) Committed() bool { return i.State == "committed" }
+
+// Page is one page of a list response plus the cursor for the next.
+type Page struct {
+	Items []Item
+	// NextCursor is empty when there are no more pages.
+	NextCursor string
+}
+
+// DefaultLimit matches the server's own default for the paginated read.
+const DefaultLimit = 25
+
+// MaxLimit is the server's cap. Asking for more is rejected there; this
+// client rejects it first so the error names the flag.
+const MaxLimit = 100
+
+// requestFields asks for the attributes the CLI renders. inserted_at,
+// updated_at and expires_at are absent from the resource's
+// json_api default_fields, so omitting this leaves them empty with no
+// error — a silent hole rather than a failure.
+const requestFields = "claims,claims_hash,item_hash,visibility,state,tags,team_id,display_name,inserted_at,updated_at,expires_at"
+
+// ListOptions configures a list request.
+type ListOptions struct {
+	Limit int
+	// After is a keyset cursor from a previous Page.NextCursor.
+	After string
+	// Committed and Pending filter on commitment state. Both false means
+	// no filter; both true is rejected by the caller.
+	Committed bool
+	Pending   bool
+}
+
+// List fetches one page of items, newest first.
+func List(ctx context.Context, apiURL, team string, opts ListOptions) (*Page, error) {
+	limit := opts.Limit
+	if limit <= 0 {
+		limit = DefaultLimit
+	}
+	if limit > MaxLimit {
+		return nil, fmt.Errorf("--limit must be between 1 and %d, got %d", MaxLimit, limit)
+	}
+
+	q := url.Values{}
+	q.Set("page[limit]", strconv.Itoa(limit))
+	q.Set("fields[item]", requestFields)
+	if opts.After != "" {
+		q.Set("page[after]", opts.After)
+	}
+	switch {
+	case opts.Committed && opts.Pending:
+		return nil, fmt.Errorf("--committed and --pending are mutually exclusive")
+	case opts.Committed:
+		q.Set("filter[state]", "committed")
+	case opts.Pending:
+		// "Pending" is every state that is not yet committed. The server
+		// has no such filter, so this is a client-side exclusion after the
+		// fetch rather than a query the server can index.
+	}
+
+	body, err := doJSON(ctx, http.MethodGet, apiURL+"/items?"+q.Encode(), team, nil)
+	if err != nil {
+		return nil, err
+	}
+	page, err := parseList(body)
+	if err != nil {
+		return nil, err
+	}
+	if opts.Pending {
+		kept := page.Items[:0]
+		for _, it := range page.Items {
+			if !it.Committed() {
+				kept = append(kept, it)
+			}
+		}
+		page.Items = kept
+	}
+	return page, nil
+}
+
+// Get fetches one item by ULID.
+func Get(ctx context.Context, apiURL, team, id string) (*Item, error) {
+	q := url.Values{}
+	q.Set("fields[item]", requestFields)
+	body, err := doJSON(ctx, http.MethodGet, apiURL+"/items/"+url.PathEscape(id)+"?"+q.Encode(), team, nil)
+	if err != nil {
+		return nil, err
+	}
+	return parseOne(body)
+}
+
+// UpdateOptions carries the mutable attributes.
+//
+// The server's :update action is `accept [:team_id, :visibility, :tags]`,
+// described there as "considered mutable and not included in the item's
+// hash". name and description live inside claims and are immutable, so
+// there is deliberately no way to reach a signed field from here.
+type UpdateOptions struct {
+	Visibility *string
+	Tags       *[]string
+	TeamID     *string
+}
+
+// Empty reports whether the caller asked for no change at all.
+func (o UpdateOptions) Empty() bool {
+	return o.Visibility == nil && o.Tags == nil && o.TeamID == nil
+}
+
+// Update patches an item's mutable attributes.
+func Update(ctx context.Context, apiURL, team, id string, opts UpdateOptions) (*Item, error) {
+	if opts.Empty() {
+		return nil, fmt.Errorf("nothing to update: pass --visibility, --tags or --to-team")
+	}
+	attrs := map[string]any{}
+	if opts.Visibility != nil {
+		attrs["visibility"] = *opts.Visibility
+	}
+	if opts.Tags != nil {
+		attrs["tags"] = *opts.Tags
+	}
+	if opts.TeamID != nil {
+		attrs["team_id"] = *opts.TeamID
+	}
+	payload := map[string]any{
+		"data": map[string]any{
+			"type":       "item",
+			"id":         id,
+			"attributes": attrs,
+		},
+	}
+	raw, err := json.Marshal(payload)
+	if err != nil {
+		return nil, fmt.Errorf("encoding request: %w", err)
+	}
+	body, err := doJSON(ctx, http.MethodPatch, apiURL+"/items/"+url.PathEscape(id), team, raw)
+	if err != nil {
+		return nil, err
+	}
+	return parseOne(body)
+}
+
+func doJSON(ctx context.Context, method, reqURL, team string, body []byte) ([]byte, error) {
+	var rdr io.Reader
+	if body != nil {
+		rdr = bytes.NewReader(body)
+	}
+	req, err := http.NewRequestWithContext(ctx, method, reqURL, rdr)
+	if err != nil {
+		return nil, fmt.Errorf("creating request: %w", err)
+	}
+	req.Header.Set("Accept", "application/vnd.api+json")
+	if body != nil {
+		req.Header.Set("Content-Type", "application/vnd.api+json")
+	}
+	if err := auth.AuthorizeRequest(ctx, req); err != nil {
+		return nil, err
+	}
+	if team != "" {
+		req.Header.Set("tenant", team)
+	}
+
+	resp, err := httpclient.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("API request failed: %w", err)
+	}
+	defer resp.Body.Close()
+
+	respBody, err := io.ReadAll(io.LimitReader(resp.Body, httpclient.MaxResponseSize))
+	if err != nil {
+		return nil, fmt.Errorf("reading response: %w", err)
+	}
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		return nil, parseError(resp.StatusCode, respBody)
+	}
+	return respBody, nil
+}
+
+// resourceObject is the JSON:API shape both the single and list responses
+// use: identity at the top, everything else under attributes.
+type resourceObject struct {
+	ID         string          `json:"id"`
+	Attributes json.RawMessage `json:"attributes"`
+}
+
+func itemFromResource(r resourceObject) (Item, error) {
+	var it Item
+	if len(r.Attributes) > 0 {
+		if err := json.Unmarshal(r.Attributes, &it); err != nil {
+			return Item{}, fmt.Errorf("parsing item attributes: %w", err)
+		}
+	}
+	it.ID = r.ID
+	return it, nil
+}
+
+func parseOne(body []byte) (*Item, error) {
+	var env struct {
+		Data resourceObject `json:"data"`
+	}
+	if err := json.Unmarshal(body, &env); err != nil {
+		return nil, fmt.Errorf("parsing item: %w", err)
+	}
+	if env.Data.ID == "" {
+		return nil, fmt.Errorf("API response is not an item")
+	}
+	it, err := itemFromResource(env.Data)
+	if err != nil {
+		return nil, err
+	}
+	return &it, nil
+}
+
+func parseList(body []byte) (*Page, error) {
+	var env struct {
+		Data  []resourceObject `json:"data"`
+		Links struct {
+			Next string `json:"next"`
+		} `json:"links"`
+	}
+	if err := json.Unmarshal(body, &env); err != nil {
+		return nil, fmt.Errorf("parsing item list: %w", err)
+	}
+	page := &Page{Items: make([]Item, 0, len(env.Data))}
+	for _, r := range env.Data {
+		it, err := itemFromResource(r)
+		if err != nil {
+			return nil, err
+		}
+		page.Items = append(page.Items, it)
+	}
+	page.NextCursor = cursorFromLink(env.Links.Next)
+	return page, nil
+}
+
+// cursorFromLink pulls page[after] out of the server's `next` link so the
+// caller can page without parsing URLs itself. An unparseable or absent
+// link means "no more pages", which is the safe reading: a bad cursor
+// would otherwise loop.
+func cursorFromLink(next string) string {
+	if next == "" {
+		return ""
+	}
+	u, err := url.Parse(next)
+	if err != nil {
+		return ""
+	}
+	return u.Query().Get("page[after]")
+}

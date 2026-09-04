@@ -23,6 +23,13 @@ var configCmd = &cobra.Command{
 	Use:   "config",
 	Short: "Manage CLI configuration",
 	Long:  "View and manage the Truestamp CLI configuration file and resolved settings.",
+
+	// A group takes no positional arguments, so an unknown
+	// subcommand is an error rather than a silent fall-through to this
+	// command's own help with exit 0. `truestamp convert proof` printing
+	// help and exiting 0 after `proof` moved to `proofs convert` would
+	// leave a reader following an old doc with no signal at all.
+	Args: cobra.NoArgs,
 }
 
 var configPathCmd = &cobra.Command{
@@ -40,7 +47,7 @@ that file currently exists.`,
 		// Existence goes to stderr so stdout stays a single line: this
 		// command is routinely captured with `$(truestamp config path)`,
 		// and a second stdout line would land inside the captured value.
-		fmt.Fprintln(cmd.ErrOrStderr(), ui.FaintStyle().Render(configPathStatusIndent+configPathStatus(path)))
+		ui.Fprintln(cmd.ErrOrStderr(), ui.FaintStyle().Render(configPathStatusIndent+configPathStatus(path)))
 	},
 }
 
@@ -92,9 +99,58 @@ var configShowCmd = &cobra.Command{
 		if appConfig == nil {
 			return fmt.Errorf("configuration not loaded")
 		}
+		jsonOut, silent := outputMode(cmd)
+		if silent {
+			return nil
+		}
+		if jsonOut {
+			// The API key is masked here exactly as it is in the text
+			// rendering. `config show --json` is the form a script or an
+			// agent reaches for, which is the last place a secret should
+			// become easy to exfiltrate.
+			return emitRecord(cmd.OutOrStdout(), configRecord(appConfig))
+		}
 		presentConfig(appConfig)
 		return nil
 	},
+}
+
+// configRecord is the --json shape of `config show`. It mirrors the
+// resolved config rather than the file on disk, which is the whole point
+// of the command: it answers "what is actually in effect", including
+// values that came from environment variables or flags.
+func configRecord(cfg *config.Config) map[string]any {
+	return map[string]any{
+		"config_file":  config.ActivePath(),
+		"base_url":     cfg.BaseURL,
+		"api_url":      cfg.APIURL,
+		"keyring_url":  cfg.KeyringURL,
+		"auth_mode":    authModeDisplay(),
+		"api_key":      maskAPIKey(cfg.APIKey),
+		"team":         cfg.Team,
+		"http_timeout": cfg.HTTPTimeout,
+		"cosign_path":  cfg.CosignPath,
+		"silent":       cfg.Silent,
+		"json":         cfg.JSON,
+		"verify": map[string]any{
+			"offline":         cfg.Verify.Offline,
+			"skip_signatures": cfg.Verify.SkipSignatures,
+			"remote":          cfg.Verify.Remote,
+			"keyring":         cfg.Verify.Keyring,
+		},
+		"hash": map[string]any{
+			"algorithm": cfg.Hash.Algorithm,
+			"encoding":  cfg.Hash.Encoding,
+			"style":     cfg.Hash.Style,
+		},
+		"convert": map[string]any{
+			"time_zone": cfg.Convert.TimeZone,
+		},
+		"logging": map[string]any{
+			"file":  cfg.Logging.File,
+			"level": cfg.Logging.Level,
+		},
+	}
 }
 
 func presentConfig(cfg *config.Config) {
@@ -124,13 +180,13 @@ func presentConfig(cfg *config.Config) {
 	general = general.
 		Row("Keyring URL", cfg.KeyringURL).
 		Row("HTTP Timeout", cfg.HTTPTimeout).
-		Row("Cosign Path", cosignPathDisplay(cfg.CosignPath))
+		Row("Cosign Path", cosignPathDisplay(cfg.CosignPath)).
+		Row("Silent", fmt.Sprintf("%v", cfg.Silent)).
+		Row("JSON", fmt.Sprintf("%v", cfg.JSON))
 
 	verify := ui.CompactTable().
 		StyleFunc(configStyleFunc).
-		Row("Silent", fmt.Sprintf("%v", cfg.Verify.Silent)).
-		Row("JSON", fmt.Sprintf("%v", cfg.Verify.JSON)).
-		Row("Skip External", fmt.Sprintf("%v", cfg.Verify.SkipExternal)).
+		Row("Offline", fmt.Sprintf("%v", cfg.Verify.Offline)).
 		Row("Skip Signatures", fmt.Sprintf("%v", cfg.Verify.SkipSignatures)).
 		Row("Remote", fmt.Sprintf("%v", cfg.Verify.Remote))
 
@@ -264,8 +320,10 @@ func teamNameWithPersonal(t *teams.Team) string {
 }
 
 func init() {
+	addRecordOutputFlags(configShowCmd)
 	configCmd.AddCommand(configPathCmd)
 	configCmd.AddCommand(configInitCmd)
 	configCmd.AddCommand(configShowCmd)
-	rootCmd.AddCommand(configCmd)
+	configCmd.GroupID = groupSetup
+	rootCmd.AddCommand(asGroup(configCmd))
 }

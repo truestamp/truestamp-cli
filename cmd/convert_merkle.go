@@ -13,19 +13,21 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/truestamp/truestamp-cli/internal/inputsrc"
 	"github.com/truestamp/truestamp-cli/internal/tscrypto"
+	"github.com/truestamp/truestamp-cli/internal/ui"
 )
 
 var convertMerkleCmd = &cobra.Command{
 	Use:   "merkle [compact-base64url-proof]",
 	Short: "Decode a compact base64url Merkle proof into its structure",
-	Long: `Decode the compact base64url Merkle proof that appears as the 'ip'
-(inclusion proof) or 'ep' (epoch proof) field in a Truestamp proof
-bundle. The decoded structure lists each sibling hash with its
-position ('left' or 'right') from leaf to root.
+	Long: `Decode the compact base64url Merkle proof that appears as the top-level
+'inclusion_proof' field, or as a commitment's 'epoch_proof' field, in a
+Truestamp proof bundle. The decoded structure lists each sibling hash
+with its position ('left' or 'right') from leaf to root.
 
 Examples:
   truestamp convert merkle "AQEA..."
-  jq -r .ip proof.json | truestamp convert merkle`,
+  jq -r .inclusion_proof proof.json | truestamp convert merkle
+  jq -r '.commitments[0].epoch_proof' proof.json | truestamp convert merkle`,
 	SilenceUsage:  true,
 	SilenceErrors: true,
 	RunE:          runConvertMerkle,
@@ -82,9 +84,9 @@ func runConvertMerkle(cmd *cobra.Command, args []string) error {
 	}
 
 	out := cmd.OutOrStdout()
-	fmt.Fprintf(out, "depth: %d\n", len(siblings))
+	ui.Fprintf(out, "depth: %d\n", len(siblings))
 	for i, s := range siblings {
-		fmt.Fprintf(out, "  %2d  %-5s  %s\n", i, s.Position, s.HashHex)
+		ui.Fprintf(out, "  %2d  %-5s  %s\n", i, s.Position, s.HashHex)
 	}
 	return nil
 }

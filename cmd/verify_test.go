@@ -442,10 +442,17 @@ func TestCLI_Verify_ExpectedHash(t *testing.T) {
 		t.Errorf("D.4 counts = %d/%d/%d/%d", out.PassCount, out.WarnCount, out.SkipCount, out.InfoCount)
 	}
 
-	// The older spelling still works.
-	out, code = runVerifyJSON(t, binaryPath, path, "--offline", "--hash", appendixDClaimsHash)
-	if code != 0 || !out.HashMatched {
-		t.Errorf("--hash alias: exit %d matched %v", code, out.HashMatched)
+	// The retired --hash alias is gone (kb/command-tree.md R13: one word,
+	// one meaning, no flag aliases). It must be an unknown-flag error, not
+	// silently accepted and not silently ignored. Run it raw rather than
+	// through runVerifyJSON, which requires parseable JSON on stdout.
+	raw, rawErr := exec.Command(binaryPath, "verify", path,
+		"--offline", "--data-hash", appendixDClaimsHash).CombinedOutput()
+	if rawErr == nil {
+		t.Error("--hash was removed as an alias of --expected-hash but still succeeds")
+	}
+	if !strings.Contains(string(raw), "unknown flag") {
+		t.Errorf("--hash should be an unknown flag, got: %s", raw)
 	}
 
 	// A wrong hash fails only the Hash Comparison row and exits 1.
@@ -595,7 +602,7 @@ func TestCLI_Inspect(t *testing.T) {
 		t.Fatalf("exit %d\n%s", code, out)
 	}
 	for _, want := range []string{
-		"item (code 20)", "01M1M0V3SE3C5P32TRAJSNX6QF", "Derived key id         3c19f776",
+		"Type                   item", "01M1M0V3SE3C5P32TRAJSNX6QF", "Derived key id         3c19f776",
 		"block, entropy_bitcoin, entropy_nist, entropy_stellar", "stellar public", "Carried                yes",
 		"type genesis, sequence 0", "Inclusion proof        5 steps",
 	} {

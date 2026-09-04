@@ -18,48 +18,51 @@ import (
 	"github.com/truestamp/truestamp-cli/internal/ui"
 )
 
-// beaconCmd is the parent for the `truestamp beacon ...` subtree. Invoking
-// it without a subcommand behaves like `beacon latest`.
-var beaconCmd = &cobra.Command{
-	Use:   "beacon",
-	Short: "Inspect Truestamp block beacons",
+// beaconsCmd is the parent for the `truestamp beacons ...` subtree. Like
+// every group it has no RunE: a bare `truestamp beacons` prints help.
+// It used to run `latest`, which made the group name mean two things and
+// hid the word `latest` from the people who most needed to learn it.
+var beaconsCmd = &cobra.Command{
+	Use:   "beacons",
+	Short: "Read-only: public randomness over finalized blocks",
 	Long: `Query the Truestamp Beacons JSON:API surface.
 
-A Beacon is a compact projection of a finalized Truestamp block:
+A beacon is the four-field public view of a finalized block:
 {id, hash, timestamp, previous_hash}. It commits to every item and
-entropy observation finalized inside a minute window and makes a great
+entropy observation finalized inside a minute window and makes a good
 "proof of life" commitment.
 
-Sub-commands:
-  latest     Show the current head beacon
-  list       Show the most recent N beacons (default 25, max 100)
-  get        Show a beacon by UUIDv7 id
-  by-hash    Show a beacon by 64-hex-char hash
+Only finalized or committed blocks project as beacons, so
+'beacons latest' and 'blocks latest' answer different questions: the head
+block is routinely not yet finalized. For a block's internals — Merkle
+root, state, signature, key id, chain links — use 'truestamp blocks get'.
 
-Invoking 'truestamp beacon' with no subcommand is an alias for 'beacon latest'.
+Sub-commands:
+  latest     Show the most recent finalized beacon
+  list       Show the most recent N beacons (default 25, max 100)
+  get        Show a beacon by UUIDv7 id or by 64-hex-char hash
 
 Shared flags:
   --json         Print the raw JSON response, pretty-printed
-  --hash-only    Print only the hash field + newline (for shell substitution)
   -s, --silent   No output, exit code only
 
+On 'latest' and 'get' only:
+  --hash-only    Print only the hash field + newline (for shell substitution)
+
 Requires authentication, run 'truestamp auth login', or set TRUESTAMP_API_KEY / --api-key for headless/CI use.`,
-	Args:          cobra.NoArgs,
-	SilenceUsage:  true,
-	SilenceErrors: true,
-	RunE:          runBeaconLatest, // default = latest
+	Args: cobra.NoArgs,
 }
 
-var beaconLatestCmd = &cobra.Command{
+var beaconsLatestCmd = &cobra.Command{
 	Use:           "latest",
-	Short:         "Show the current head beacon",
+	Short:         "Show the most recent finalized beacon",
 	Args:          cobra.NoArgs,
 	SilenceUsage:  true,
 	SilenceErrors: true,
-	RunE:          runBeaconLatest,
+	RunE:          runBeaconsLatest,
 }
 
-func runBeaconLatest(cmd *cobra.Command, _ []string) error {
+func runBeaconsLatest(cmd *cobra.Command, _ []string) error {
 	jsonOut, hashOnly, silent, err := beaconSharedFlags(cmd)
 	if err != nil {
 		return err
@@ -82,13 +85,14 @@ func runBeaconLatest(cmd *cobra.Command, _ []string) error {
 // beaconSharedFlags reads --json / --hash-only / --silent and enforces the
 // mutual-exclusion rules that apply across all beacon subcommands.
 func beaconSharedFlags(cmd *cobra.Command) (jsonOut, hashOnly, silent bool, err error) {
-	jsonOut, _ = cmd.Flags().GetBool("json")
+	// --json and --silent are resolved from the merged config so a
+	// config-file or environment default applies here too; their mutual
+	// exclusion is enforced once in config.Load.
+	jsonOut, silent = outputMode(cmd)
+	// --hash-only is not registered on `list`, where a single hash makes
+	// no sense; GetBool returns false there, which is what we want.
 	hashOnly, _ = cmd.Flags().GetBool("hash-only")
-	silent, _ = cmd.Flags().GetBool("silent")
 
-	if silent && jsonOut {
-		return false, false, false, fmt.Errorf("--silent and --json are mutually exclusive")
-	}
 	if silent && hashOnly {
 		return false, false, false, fmt.Errorf("--silent and --hash-only are mutually exclusive")
 	}
@@ -105,10 +109,10 @@ func beaconSharedFlags(cmd *cobra.Command) (jsonOut, hashOnly, silent bool, err 
 func beaconConfig(cmd *cobra.Command) (beacons.Config, error) {
 	cfg := appConfig
 	if !authConfigured() {
-		silent, _ := cmd.Flags().GetBool("silent")
+		_, silent := outputMode(cmd)
 		if !silent {
-			fmt.Fprintln(cmd.ErrOrStderr(), ui.FailureBanner("Not authenticated"))
-			fmt.Fprintln(cmd.ErrOrStderr(), ui.FaintStyle().Render(
+			ui.Fprintln(cmd.ErrOrStderr(), ui.FailureBanner("Not authenticated"))
+			ui.Fprintln(cmd.ErrOrStderr(), ui.FaintStyle().Render(
 				"    Run 'truestamp auth login' to sign in (or set TRUESTAMP_API_KEY)."))
 		}
 		return beacons.Config{}, errSilentFail
@@ -126,8 +130,8 @@ func beaconConfig(cmd *cobra.Command) (beacons.Config, error) {
 func beaconRenderError(cmd *cobra.Command, err error, silent bool) error {
 	if errors.Is(err, beacons.ErrUnauthorized) {
 		if !silent {
-			fmt.Fprintln(cmd.ErrOrStderr(), ui.FailureBanner("Not authenticated"))
-			fmt.Fprintln(cmd.ErrOrStderr(), ui.FaintStyle().Render(
+			ui.Fprintln(cmd.ErrOrStderr(), ui.FailureBanner("Not authenticated"))
+			ui.Fprintln(cmd.ErrOrStderr(), ui.FaintStyle().Render(
 				"    Run 'truestamp auth login' to sign in (or set TRUESTAMP_API_KEY)."))
 		}
 		return errSilentFail
@@ -156,7 +160,7 @@ func renderBeacon(cmd *cobra.Command, b *beacons.Beacon, jsonOut, hashOnly, sile
 		return nil
 	}
 	if hashOnly {
-		fmt.Fprintln(cmd.OutOrStdout(), b.Hash)
+		ui.Fprintln(cmd.OutOrStdout(), b.Hash)
 		return nil
 	}
 	if jsonOut {
@@ -198,7 +202,7 @@ func renderBeaconCard(w io.Writer, apiURL string, b *beacons.Beacon) {
 	// Present(). lipgloss.JoinVertical pads every line to match the
 	// widest line, which can blow up vertical spacing when a long line
 	// forces terminal wrap on every row.
-	fmt.Fprintln(w, strings.Join([]string{header, "", tbl.String()}, "\n"))
+	ui.Fprintln(w, strings.Join([]string{header, "", tbl.String()}, "\n"))
 }
 
 // timestampWithRelative appends a coarse "N minutes ago" hint to an ISO
@@ -246,7 +250,7 @@ func emitJSONMarshal(w io.Writer, v any) error {
 	if err != nil {
 		return err
 	}
-	_, err = fmt.Fprintln(w, string(data))
+	_, err = ui.Fprintln(w, string(data))
 	return err
 }
 
@@ -255,15 +259,11 @@ var _ = emitJSONMarshal
 var _ = context.Background
 
 func init() {
-	// Shared flags on the parent (inherited through cobra's local flag
-	// lookup in each RunE) and on each subcommand for --help clarity.
-	for _, c := range []*cobra.Command{beaconCmd, beaconLatestCmd} {
-		f := c.Flags()
-		f.Bool("json", false, "Print the raw JSON response, pretty-printed")
-		f.Bool("hash-only", false, "Print only the beacon hash + newline (for shell substitution)")
-		f.BoolP("silent", "s", false, "No output, exit code only")
-	}
+	f := beaconsLatestCmd.Flags()
+	f.Bool("hash-only", false, "Print only the beacon hash + newline")
+	addRecordOutputFlags(beaconsLatestCmd)
 
-	beaconCmd.AddCommand(beaconLatestCmd)
-	rootCmd.AddCommand(beaconCmd)
+	beaconsCmd.AddCommand(beaconsLatestCmd)
+	beaconsCmd.GroupID = groupResources
+	rootCmd.AddCommand(asGroup(beaconsCmd))
 }

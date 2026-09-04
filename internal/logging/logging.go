@@ -12,7 +12,7 @@
 //
 //	macOS:   ~/Library/Caches/truestamp/truestamp.log
 //	Linux:   ~/.cache/truestamp/truestamp.log
-//	Windows: %LOCALAPPDATA%\truestamp\Cache\truestamp.log
+//	Windows: %LOCALAPPDATA%\truestamp\truestamp.log
 //
 // Files are rotated by size (10 MB default) with up to 5 compressed
 // backups retained for 14 days. Output is one JSON object per line,

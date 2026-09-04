@@ -14,6 +14,7 @@ import (
 	"github.com/truestamp/truestamp-cli/internal/encoding"
 	"github.com/truestamp/truestamp-cli/internal/inputsrc"
 	"github.com/truestamp/truestamp-cli/internal/jcs"
+	"github.com/truestamp/truestamp-cli/internal/ui"
 )
 
 // codecJSON is the --json shape for encode / decode.
@@ -58,7 +59,7 @@ func writeOutput(cmd *cobra.Command, silent bool, enc encoding.Encoding, out []b
 		return
 	}
 	if enc == encoding.Binary && stdoutIsTerminal() {
-		fmt.Fprintln(cmd.ErrOrStderr(),
+		ui.Fprintln(cmd.ErrOrStderr(),
 			"warning: writing binary bytes to a terminal; redirect to a file or pipe")
 	}
 	_, _ = cmd.OutOrStdout().Write(out)
@@ -205,7 +206,7 @@ func runCodec(cmd *cobra.Command, args []string, spec codecSpec) error {
 	// Add a trailing newline for textual outputs (mirrors `base64`, `xxd -p`).
 	// Binary output is passed through untouched.
 	if !silent && to != encoding.Binary && (len(out) == 0 || out[len(out)-1] != '\n') {
-		fmt.Fprintln(cmd.OutOrStdout())
+		ui.Fprintln(cmd.OutOrStdout())
 	}
 	return nil
 }
@@ -215,7 +216,7 @@ func emitJSON(w io.Writer, v any) error {
 	if err != nil {
 		return fmt.Errorf("marshaling JSON: %w", err)
 	}
-	fmt.Fprintln(w, string(data))
+	ui.Fprintln(w, string(data))
 	return nil
 }
 
@@ -320,7 +321,7 @@ func warnOversizedIntegers(cmd *cobra.Command, label string, oversized []string,
 	if len(oversized) > 1 {
 		suffix = fmt.Sprintf(" (and %d more)", len(oversized)-1)
 	}
-	fmt.Fprintf(cmd.ErrOrStderr(),
+	ui.Fprintf(cmd.ErrOrStderr(),
 		"warning: %spreserved %d integer literal(s) larger than 2^53, e.g. %s%s; "+
 			"this JSON is not portably verifiable by a strict RFC 8785 implementation\n",
 		prefix, len(oversized), oversized[0], suffix)
@@ -347,7 +348,10 @@ func init() {
 	// jcs-specific
 	jcsCmd.Flags().Bool("newline", false, "Append a trailing newline to the output")
 
+	encodeCmd.GroupID = groupTools
 	rootCmd.AddCommand(encodeCmd)
+	decodeCmd.GroupID = groupTools
 	rootCmd.AddCommand(decodeCmd)
+	jcsCmd.GroupID = groupTools
 	rootCmd.AddCommand(jcsCmd)
 }

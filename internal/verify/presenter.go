@@ -55,7 +55,7 @@ func Render(r *Report, color bool) string {
 	}
 
 	if r.Passed() {
-		fmt.Fprintf(&b, "\n  VERDICT: %s\n", verdictStyle(true, color).Render("PASSED"))
+		ui.Fprintf(&b, "\n  VERDICT: %s\n", verdictStyle(true, color).Render("PASSED"))
 		b.WriteString("\n  The proof is internally sound: every value in it reproduces, and the\n" +
 			"  signature over those values is valid. Any `skip` above is a check this\n" +
 			"  run did not perform, not a check that failed.\n")
@@ -64,7 +64,7 @@ func Render(r *Report, color bool) string {
 				"  establishes who signed this proof.\n")
 		}
 	} else {
-		fmt.Fprintf(&b, "\n  VERDICT: %s\n", verdictStyle(false, color).Render("FAILED"))
+		ui.Fprintf(&b, "\n  VERDICT: %s\n", verdictStyle(false, color).Render("FAILED"))
 		b.WriteString("\n  At least one step failed. This proof should not be relied on.\n")
 	}
 	b.WriteString("\n" + rule + "\n")
@@ -168,7 +168,7 @@ func PresentRejection(w io.Writer, err error) {
 	if re, ok := err.(*proof.RejectionError); ok {
 		detail = re.Detail
 	}
-	fmt.Fprintf(w, "\n  REJECTED: %s\n  %s\n%s\n", code, detail, indent(proof.RejectionAdvice(code)))
+	ui.Fprintf(w, "\n  REJECTED: %s\n  %s\n%s\n", code, detail, indent(proof.RejectionAdvice(code)))
 }
 
 func indent(s string) string {
@@ -181,7 +181,7 @@ func indent(s string) string {
 
 // PresentTo is Present writing to w without color.
 func PresentTo(w io.Writer, r *Report) {
-	fmt.Fprint(w, Render(r, false))
+	ui.Fprint(w, Render(r, false))
 }
 
 var _ = os.Stdout

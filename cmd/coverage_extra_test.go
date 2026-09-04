@@ -128,7 +128,7 @@ func TestCLI_Create_WithMockAPI(t *testing.T) {
 	_ = os.WriteFile(path, []byte("hello"), 0644)
 
 	// Text output (presentCreate)
-	cmd := exec.Command(binaryPath, "create", path,
+	cmd := exec.Command(binaryPath, "items", "create", path,
 		"--base-url", srv.URL, "--api-key", "key")
 	out, err := cmd.CombinedOutput()
 	if err != nil {
@@ -139,7 +139,7 @@ func TestCLI_Create_WithMockAPI(t *testing.T) {
 	}
 
 	// JSON output (printCreateJSON)
-	cmd = exec.Command(binaryPath, "create", path, "--json",
+	cmd = exec.Command(binaryPath, "items", "create", path, "--json",
 		"--base-url", srv.URL, "--api-key", "key")
 	out, err = cmd.CombinedOutput()
 	if err != nil {
@@ -169,7 +169,7 @@ func TestCLI_Download_BasicProof(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	cmd := exec.Command(binaryPath, "download",
+	cmd := exec.Command(binaryPath, "proofs", "get",
 		"01HJHB01T8FYZ7YTR9P5N62K5B",
 		"-o", filepath.Join(t.TempDir(), "out.json"),
 		"--base-url", srv.URL, "--api-key", "key")
@@ -403,7 +403,7 @@ func TestCLI_ConvertProof_CBORtoJSON_JSONEnvelope(t *testing.T) {
 	if _, err := os.Stat(src); err != nil {
 		t.Skipf("no fixture: %v", err)
 	}
-	cmd := exec.Command(binaryPath, "convert", "proof", "--to", "json", "--json", src)
+	cmd := exec.Command(binaryPath, "proofs", "convert", "--to", "json", "--json", src)
 	out, err := cmd.Output()
 	if err != nil {
 		t.Fatal(err)
@@ -422,7 +422,7 @@ func TestCLI_ConvertProof_JSONtoCBOR_JSONEnvelope(t *testing.T) {
 	if _, err := os.Stat(src); err != nil {
 		t.Skipf("no fixture: %v", err)
 	}
-	cmd := exec.Command(binaryPath, "convert", "proof", "--to", "cbor", "--json", src)
+	cmd := exec.Command(binaryPath, "proofs", "convert", "--to", "cbor", "--json", src)
 	out, err := cmd.Output()
 	if err != nil {
 		t.Fatal(err)
@@ -444,7 +444,7 @@ func TestCLI_ConvertProof_ExplicitFromJSON(t *testing.T) {
 	if _, err := os.Stat(src); err != nil {
 		t.Skipf("no fixture: %v", err)
 	}
-	cmd := exec.Command(binaryPath, "convert", "proof", "--from", "json", "--to", "json", "--compact", src)
+	cmd := exec.Command(binaryPath, "proofs", "convert", "--from", "json", "--to", "json", "--compact", src)
 	if err := cmd.Run(); err != nil {
 		t.Error(err)
 	}
@@ -455,7 +455,7 @@ func TestCLI_ConvertProof_ExplicitFromCBOR(t *testing.T) {
 	if _, err := os.Stat(src); err != nil {
 		t.Skipf("no fixture: %v", err)
 	}
-	cmd := exec.Command(binaryPath, "convert", "proof", "--from", "cbor", "--to", "json", src)
+	cmd := exec.Command(binaryPath, "proofs", "convert", "--from", "cbor", "--to", "json", src)
 	if err := cmd.Run(); err != nil {
 		t.Error(err)
 	}
@@ -467,7 +467,7 @@ func TestCLI_ConvertProof_InvalidFrom(t *testing.T) {
 		t.Skipf("no fixture: %v", err)
 	}
 	// Give it CBOR content but claim JSON, should error.
-	cmd := exec.Command(binaryPath, "convert", "proof", "--from", "json", "--to", "cbor")
+	cmd := exec.Command(binaryPath, "proofs", "convert", "--from", "json", "--to", "cbor")
 	cborSrc := testfixtures.Path(testfixtures.ProdDir, testfixtures.ProdCBOR)
 	data, _ := os.ReadFile(cborSrc)
 	cmd.Stdin = strings.NewReader(string(data))
@@ -477,7 +477,7 @@ func TestCLI_ConvertProof_InvalidFrom(t *testing.T) {
 }
 
 func TestCLI_ConvertProof_BadFromFlag(t *testing.T) {
-	cmd := exec.Command(binaryPath, "convert", "proof", "--from", "yaml", "--to", "json")
+	cmd := exec.Command(binaryPath, "proofs", "convert", "--from", "yaml", "--to", "json")
 	cmd.Stdin = strings.NewReader("{}")
 	if err := cmd.Run(); err == nil {
 		t.Error("expected error for unknown --from")
@@ -485,7 +485,7 @@ func TestCLI_ConvertProof_BadFromFlag(t *testing.T) {
 }
 
 func TestCLI_ConvertProof_MissingTo(t *testing.T) {
-	cmd := exec.Command(binaryPath, "convert", "proof")
+	cmd := exec.Command(binaryPath, "proofs", "convert")
 	cmd.Stdin = strings.NewReader("{}")
 	if err := cmd.Run(); err == nil {
 		t.Error("expected error when --to omitted")

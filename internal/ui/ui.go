@@ -13,7 +13,9 @@
 package ui
 
 import (
+	"fmt"
 	"image/color"
+	"io"
 	"os"
 	"strings"
 	"sync"
@@ -41,6 +43,45 @@ var (
 
 var initOnce sync.Once
 
+// noColorForced records the --no-color flag so [Fprintln] and [Fprintf]
+// can honor it. lipgloss offers no global "never emit ANSI" switch:
+// Style.Render always embeds escape sequences and they are stripped at
+// write time by a colorprofile.Writer. lipgloss.Writer is one such
+// writer, which is why lipgloss.Println respects the flag, but a
+// fmt.Fprintln(w, style.Render(...)) writes straight to w and keeps the
+// escapes. lipgloss.Fprintln builds its writer from os.Environ(), so it
+// honors NO_COLOR but cannot see our flag either. Hence this.
+var noColorForced bool
+
+// Fprintln writes to w through a colour profile writer, so styled text
+// is downsampled or stripped to match what the destination can actually
+// render, and --no-color / NO_COLOR are honored. Use it instead of
+// fmt.Fprintln anywhere the arguments may contain Style.Render output.
+func Fprintln(w io.Writer, a ...any) (int, error) {
+	return fmt.Fprintln(ProfileWriter(w), a...)
+}
+
+// Fprint is Fprintln without the trailing newline. Same contract.
+func Fprint(w io.Writer, a ...any) (int, error) {
+	return fmt.Fprint(ProfileWriter(w), a...)
+}
+
+// Fprintf is Fprintln's formatting counterpart. Same contract.
+func Fprintf(w io.Writer, format string, a ...any) (int, error) {
+	return fmt.Fprintf(ProfileWriter(w), format, a...)
+}
+
+// ProfileWriter wraps w so ANSI is stripped or downsampled to suit the
+// destination. Exported for the few call sites that need the writer
+// itself (a table renderer, a sub-writer handed to another package)
+// rather than a one-shot print.
+func ProfileWriter(w io.Writer) io.Writer {
+	if noColorForced {
+		return &colorprofile.Writer{Forward: w, Profile: colorprofile.NoTTY}
+	}
+	return colorprofile.NewWriter(w, os.Environ())
+}
+
 // Init configures the global color profile and detects the terminal's
 // background color. Call once from root command before any output.
 // If noColor is true, all ANSI sequences are stripped.
@@ -48,6 +89,7 @@ var initOnce sync.Once
 func Init(noColor bool) {
 	initOnce.Do(func() {
 		if noColor {
+			noColorForced = true
 			lipgloss.Writer.Profile = colorprofile.NoTTY
 			return
 		}

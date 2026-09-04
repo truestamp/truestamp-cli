@@ -96,7 +96,7 @@ Presence tiers are graded by consequence. A missing *required* field is the hard
 
 Payloads travel exactly as captured and are never reshaped (reshaping changes the JCS encoding and therefore the `0x21` hash). Entropy payloads may carry uppercase hex (the NIST `outputValue`) and large integers; both are canonicalized verbatim. The registry is in [`internal/proof/witnesses.go`](../internal/proof/witnesses.go). Extensibility is normative: an unknown name in `metadata.witnesses` or `subject.witnesses` is reported as a `skip` and never fails; names are never renamed or removed.
 
-Witness details are selectable at generation time (`truestamp download --witnesses all|none|<list>`): absent means all (the **complete** bundle), `[]` means none (the **compact** bundle), a list selects a subset (a **partial** bundle). All three are ordinary version 1 bundles; the only difference a verifier sees is how many rows the Witnesses and Submitted After steps can report. Artifact filenames append `-compact` or `-partial`.
+Witness details are selectable at generation time (`truestamp proofs get --witnesses all|none|<list>`): absent means all (the **complete** bundle), `[]` means none (the **compact** bundle), a list selects a subset (a **partial** bundle). All three are ordinary version 1 bundles; the only difference a verifier sees is how many rows the Witnesses and Submitted After steps can report. Artifact filenames append `-compact` or `-partial`.
 
 ## Type registry (frozen; never renumbered)
 
@@ -144,7 +144,7 @@ A CBOR bundle is accepted wrapped in the self-describing tag 55799 (`d9 d9 f7`) 
 - `inclusion_proof`, `epoch_proof`, `txoutproof` and `raw_transaction` are text on the wire (the server never emits them as byte strings). A byte string in one of those slots is not the field and renders as null, so the required two are refused by the E.6 gates the reference verifier applies (`missing_inclusion_proof`, `invalid_commitment_entry`) and the optional two read as absent, which the Bitcoin step reports as a skip;
 - everything else keeps its JSON type. Outside a hashed map a byte string renders as hex and a tag is unwrapped, so an unknown optional field is carried rather than refused. Duplicate map keys anywhere are `not_a_json_object` (RFC 8949 section 5.6).
 
-Encoding ([`JSONToCBOR`](../internal/proof/cbor_encode.go)) is the exact inverse: hex slots become byte strings (uppercase hex is refused rather than laundered into a byte string the verifier would accept), base64 slots become byte strings, every number is preserved exactly (an integer beyond 64 bits is an error naming the key), and the output is RFC 8949 core-deterministic with the tag prepended. `truestamp convert proof` round-trips either way; `internal/proof/parse_test.go` pins that JSON to CBOR to JSON is value-identical and that `proof-complete.cbor` decodes to the same values as `proof-complete.json`.
+Encoding ([`JSONToCBOR`](../internal/proof/cbor_encode.go)) is the exact inverse: hex slots become byte strings (uppercase hex is refused rather than laundered into a byte string the verifier would accept), base64 slots become byte strings, every number is preserved exactly (an integer beyond 64 bits is an error naming the key), and the output is RFC 8949 core-deterministic with the tag prepended. `truestamp proofs convert` round-trips either way; `internal/proof/parse_test.go` pins that JSON to CBOR to JSON is value-identical and that `proof-complete.cbor` decodes to the same values as `proof-complete.json`.
 
 ## Hex encoding (E.4)
 

@@ -46,6 +46,7 @@ honors the --log-file / --log-level persistent flags.`,
 func init() {
 	f := consoleCmd.Flags()
 	f.String("ws-url", "", "WebSocket URL override (default derived from --base-url)")
+	consoleCmd.GroupID = groupOther
 	rootCmd.AddCommand(consoleCmd)
 }
 
@@ -122,14 +123,14 @@ func promptForFirstRunTeam(ctx context.Context) (string, error) {
 		// configuring a team, the server falls back to the personal
 		// team. Surface a faint warning so they know why the picker
 		// didn't appear.
-		fmt.Fprintln(os.Stderr,
+		ui.Fprintln(os.Stderr,
 			ui.FaintStyle().Render(
 				"  Could not list teams: "+err.Error()+
 					", proceeding with personal-team fallback."))
 		return "", nil
 	}
 	if len(memberships) == 0 {
-		fmt.Fprintln(os.Stderr,
+		ui.Fprintln(os.Stderr,
 			ui.FaintStyle().Render(
 				"  No teams found for this API key, proceeding with personal-team fallback."))
 		return "", nil

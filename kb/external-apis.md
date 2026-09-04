@@ -1,6 +1,6 @@
 # External API Calls
 
-Enabled by default, skipped with `--offline` (alias `--skip-external`):
+Enabled by default, skipped with `--offline`:
 
 This table is the answer to "what does this binary talk to?"; keep it exhaustive. Every entry except the keyring is a package-level `var` in `internal/external` (the keyring URL is derived from `base_url` in `config.Load` and fetched by `external.FetchKeyring` unless `--keyring <file>` pins a local copy). A Truestamp deployment's verifier keyring is never pointed anywhere else: see the hard rule in `CLAUDE.md`.
 

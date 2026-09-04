@@ -7,8 +7,147 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **`proofs get --type` is now optional.** A ULID is unambiguously an item, but
+  blocks, beacons and entropy observations all use UUIDv7, so nothing
+  client-side can tell them apart — the one place id-shape dispatch cannot work.
+  A bare UUIDv7 is now resolved against `POST /utilities/resolve-id` at the cost
+  of one round trip. Passing `--type` skips that call, and is required when an
+  id is verifiable as more than one subject type (a block is also verifiable as
+  a beacon), which is refused rather than guessed: a block signature does not
+  verify as a beacon signature. The resolution only decides which proof to
+  *request*; the bundle is still verified against its own signed type.
+- **`items list`, `items get` and `items update`.** `internal/items` held only
+  `CreateItem`; the reads are new. `list` pages by keyset cursor (`--limit`,
+  `--after`, `--all`) and filters on commitment state (`--committed`,
+  `--pending`), because "can I get a proof for this yet" is the question most
+  often asked of the list. Every request names `inserted_at`, `updated_at` and
+  `expires_at` in `fields[item]` explicitly: they are absent from the resource's
+  JSON:API default fields, so omitting them returns empty values with no error.
+- **`truestamp blocks`**, a read-only group over Truestamp's block chain:
+  `list`, `get <uuid|hash>`, `latest` (the head block) and `genesis`. A block is
+  the full signed record — Merkle root, state, signature, key id, chain links —
+  where a beacon is its four-field public projection. `blocks latest` and
+  `beacons latest` answer different questions: only finalized blocks project as
+  beacons, and the head is routinely not yet finalized.
+- **`truestamp keys`**, a read-only group over the published signing keyring:
+  `list`, `get <kid>` and `current`. The only group that needs no credential.
+- **`truestamp schema`**, a read-only introspection namespace.
+  `schema get commands` walks the live cobra tree and emits every path, flag,
+  type, default, shorthand, inherited marker and closed value set as JSON — the
+  one call that answers "what can this CLI do, and with which flags" without
+  parsing help text. Also `algorithms`, `subject-types`, `witnesses` and
+  `exit-codes`. Generated from the tree and the in-code registries, never from a
+  hand-maintained copy, so it cannot drift from the binary printing it.
+- **`schema get` renders text by default and JSON with `--json`**, like every
+  other command; `--json` stays universal rather than this being an exception to
+  remember. Both renderings come from one registry and neither contains
+  hand-written prose: the exit-code meanings were previously written out twice
+  and had already drifted, and are now one slice whose codes are the constants
+  that produce them.
+- **Shell completion for closed flag values.** `truestamp verify --type <TAB>`
+  previously returned nothing; it now offers the six subject types, and the same
+  applies to `--algorithm`, `--encoding`, `--style`, `--format`, `--to`,
+  `--witnesses` and `--log-level`. Completion and `schema get commands` read one
+  registry, so they cannot disagree about what a flag accepts.
+
 ### Changed
 
+- **`inspect` no longer reports `type_code`.** The bundle does not carry it: it
+  carries the type *name*, in both JSON and CBOR, and the server never returns
+  the number. The code exists only inside the signature preimage and is reachable
+  only through the frozen registry, so reporting it was `inspect` asserting
+  something the bundle does not say. `schema get subject-types` has the mapping.
+  The derived key id stays, labelled as derived: it is a pure function of a value
+  the bundle carries, so any holder can recompute it.
+- **`--silent` and `--json` are now CLI-wide settings, not verify's.** They move
+  out of the `[verify]` config section to the top level of `config.toml`, and
+  their environment variables change from `TRUESTAMP_VERIFY_SILENT` /
+  `TRUESTAMP_VERIFY_JSON` to **`TRUESTAMP_SILENT` / `TRUESTAMP_JSON`**. This is a
+  **breaking configuration change with no shim**: an existing `[verify] silent`
+  or `[verify] json` key, and the old environment variables, are now ignored
+  silently, because koanf does not error on unrecognized keys. Update your
+  `config.toml` and any CI environment that set them.
+
+  The reason is structural rather than cosmetic. `internal/config` resolves a
+  flag name to a config key *globally*, so a flag called `json` mapped to
+  `verify.json` for every command that registered one. That was inert only
+  because nothing else read the value; registering `--json` as a root persistent
+  flag, which the command-tree reorganization does, would have made
+  `truestamp hash --json` write into `verify.json`. See
+  [`kb/command-tree.md`](kb/command-tree.md) R10.
+
+- **`items update --to-team` moves an item between teams**, deliberately not the
+  root `--team`. That flag says which tenant scopes the request, and letting one
+  word mean both made `items update <id> --team ""` — an ordinary way to scope a
+  request against staging — silently mean "move this item to team ''". One word,
+  one meaning (R13).
+- **The command tree is reorganized around plural resource nouns, as a clean
+  break with no aliases.** `beacon` → `beacons`, `team` → `teams`,
+  `create` → `items create`, `download` → `proofs get`,
+  `convert proof` → `proofs convert`, `beacon by-hash` folded into
+  `beacons get` (the id shapes are disjoint), `team show` split into
+  `teams get <id>` and `teams current`, and `team set` / `team unset` into
+  `teams use [id]` / `teams use --clear`. **Nothing aliases the old names.**
+- **A bare group prints help instead of running something.** `truestamp beacon`
+  used to run `latest` while `truestamp team` ran `list`: two nouns, two
+  defaults, two kinds of answer, and no rule for the next noun. A group is now a
+  namespace, and — because `list` needs a credential — asking "what can I do
+  here?" works on a machine that has never signed in. An unknown subcommand is
+  now an error rather than a silent fall-through to the group's own help with
+  exit 0.
+- **Root help is grouped** under Verify a proof / Truestamp resources / Local
+  tools / Setup / Other, instead of one alphabetical wall of 18 commands.
+- **`items create --hash` is renamed `--data-hash`.** `--hash` meant the hash of
+  *your* data here and the hash you *expect* on `verify`: one word, two roles.
+  The server-side claims field is still `hash` and is unchanged.
+- **`beacons list --hash-only` is removed.** It existed only to be rejected with
+  an error message; a flag that exists to fail is a trap.
+- **`download` writes the bundle to stdout by default.** It always wrote a
+  conventionally-named file into the working directory, which made
+  `truestamp download <id> | truestamp verify --offline` impossible without a
+  temp file, in a CLI whose documentation is built on pipelines. The R10 payload
+  triad now applies: no flag → stdout, `-o/--out <path>` → that path,
+  `--to-file` → the conventional auto-name. `-o/--out` and `--to-file` are
+  mutually exclusive, the receipt card moves to **stderr** so stdout stays
+  pipeable, and writing CBOR to a terminal is refused rather than garbling the
+  session. **This changes the default behavior**: scripts relying on the file
+  appearing in the cwd must add `--to-file`.
+- **`-o/--output` on `download` is renamed `-o/--out`.** A local `--output`
+  would shadow any inherited output flag, so `--output json` could silently
+  write a file literally named `json`.
+- **`version`, `config show` and `auth status` gained `--json` and `--silent`.**
+  `auth status --json` reports a stable `reason` identifier
+  (`not_authenticated`, `credential_rejected`, `team_not_accessible`, …) rather
+  than an English sentence, and its `ok` field agrees with the exit code.
+- **Redirected output no longer contains ANSI escape sequences.**
+  `truestamp auth status > file` wrote 32 chunks of raw terminal escapes into
+  that file, and `--no-color` made no difference to it. lipgloss has no global
+  "never emit ANSI" switch: `Style.Render` always embeds escapes and they are
+  stripped at write time by a colour-profile writer. `lipgloss.Println` is one,
+  which is why some output was already clean, but `fmt.Fprintln(w,
+  style.Render(...))` writes straight to the destination and kept them.
+  `internal/ui` now provides `Fprint` / `Fprintln` / `Fprintf`, and every write
+  to a final output destination goes through them.
+- **`upgrade --check` no longer overloads the exit status by default.** It exits
+  `0` whatever it finds; the answer is the line it prints. Exit 1 conventionally
+  means "the command failed", and a check that successfully found an upgrade has
+  not failed. Pass the new **`--exit-code`** to restore the encoded form
+  (1 upgrade available, 2 network error, 3 pre-release) for `grep -q`-style
+  scripts.
+- **The two `verify` flag aliases are removed.** `--hash` (of `--expected-hash`)
+  and `--skip-external` (of `--offline`) no longer exist; passing either is now
+  an `unknown flag` error. The reorganization is a clean break for commands, and
+  flags do not get an exemption from it: one word, one meaning, binary-wide
+  ([`kb/command-tree.md`](kb/command-tree.md) R13).
+- **The `verify.skip_external` config key is renamed `verify.offline`**, so the
+  key matches the only flag that sets it. Its environment variable changes from
+  `TRUESTAMP_VERIFY_SKIP_EXTERNAL` to **`TRUESTAMP_VERIFY_OFFLINE`**. As above,
+  the retired key is ignored silently rather than warned about.
+- **`--silent` and `--json` are mutually exclusive on every command**, enforced
+  once in `config.Load` rather than per-command. `verify` checked this already;
+  no other command did, and a command added later cannot now forget to.
 - **Go module dependencies refreshed across the board.** Direct bumps:
   `bubbles` v2.1.1 → v2.2.1, `bubbletea` v2.0.8 → v2.0.9, `lipgloss`
   v2.0.5 → v2.0.6, `fxamacker/cbor` v2.9.2 → v2.9.3, `gofrs/uuid`

@@ -33,18 +33,21 @@ http_timeout = "10s"
 # Env: TRUESTAMP_COSIGN_PATH
 cosign_path = ""
 
-[verify]
-# No output, exit code only
-# Env: TRUESTAMP_VERIFY_SILENT
+# No output, exit code only. CLI-wide, not verify-specific.
+# Mutually exclusive with json.
+# Env: TRUESTAMP_SILENT
 silent = false
 
-# Output results as JSON
-# Env: TRUESTAMP_VERIFY_JSON
+# Output results as JSON. CLI-wide, not verify-specific.
+# Mutually exclusive with silent.
+# Env: TRUESTAMP_JSON
 json = false
 
-# Skip all external API verification (keyring, Stellar, Bitcoin)
-# Env: TRUESTAMP_VERIFY_SKIP_EXTERNAL
-skip_external = false
+[verify]
+# Run with no network access: chain, source and keyring lookups are
+# reported as skipped rather than failed
+# Env: TRUESTAMP_VERIFY_OFFLINE
+offline = false
 
 # Skip signing key and signature verification
 # Env: TRUESTAMP_VERIFY_SKIP_SIGNATURES
@@ -84,7 +87,7 @@ time_zone = "UTC"
 # JSON log file path. Empty = platform default:
 #   macOS:   ~/Library/Caches/truestamp/truestamp.log
 #   Linux:   ~/.cache/truestamp/truestamp.log
-#   Windows: %LOCALAPPDATA%\truestamp\Cache\truestamp.log
+#   Windows: %LOCALAPPDATA%\truestamp\truestamp.log
 # Env: TRUESTAMP_LOGGING_FILE
 file = ""
 

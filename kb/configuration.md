@@ -34,7 +34,7 @@ MD5 and SHA-1 emit a one-line stderr warning when selected, suppressed under `--
 
 ## Download subcommand
 
-Flags: `truestamp download --help`. `--type` is sent verbatim to the server's `/proof/generate` `type` field; with `--output` unset the filename is `truestamp-<stem>-<id>.<ext>`.
+Flags: `truestamp proofs get --help`. `--type` is sent verbatim to the server's `/proof/generate` `type` field. The bundle goes to stdout unless `-o/--out <path>` names a file or `--to-file` picks the conventional `truestamp-<stem>-<id>.<ext>` name; the two are mutually exclusive and the receipt card goes to stderr (kb/command-tree.md R10).
 
 When `--type` is omitted the CLI applies a **client-side smart default** based on the id shape: ULID ids default to `--type item` (the only unambiguous case); UUIDv7 ids fail fast with a helpful error listing the five valid types (`entropy_nist | entropy_stellar | entropy_bitcoin | block | beacon`). There is no `"auto"`: the server's strict-type cutover rejects it, and the CLI follows the same contract.
 

@@ -122,7 +122,7 @@ var rootCmd = &cobra.Command{
 			Component:  cmd.Name(),
 		})
 		if lerr != nil {
-			fmt.Fprintf(cmd.ErrOrStderr(), "warning: log file disabled: %v\n", lerr)
+			ui.Fprintf(cmd.ErrOrStderr(), "warning: log file disabled: %v\n", lerr)
 		}
 		appLogger = logger
 		appLogPath = logPath
@@ -146,8 +146,33 @@ var rootCmd = &cobra.Command{
 	},
 }
 
+// Root help groups. Cobra renders commands under these headings instead
+// of one alphabetical wall. The headings state what a reader most needs
+// before choosing — is this local, does it touch a Truestamp resource, is
+// it setup — and deliberately do NOT claim "offline" or "no credential":
+// encode, decode, jcs and proofs convert all accept a --url, and
+// verify --remote needs a credential. A heading that asserts a
+// security-relevant property and is wrong about it is worse than no
+// heading at all. The accurate per-command facts live in `schema get
+// commands`, where they cannot drift.
+const (
+	groupVerification = "verification"
+	groupResources    = "resources"
+	groupTools        = "tools"
+	groupSetup        = "setup"
+	groupOther        = "other"
+)
+
 func init() {
 	rootCmd.SetVersionTemplate(version.Full() + "\n")
+
+	rootCmd.AddGroup(
+		&cobra.Group{ID: groupVerification, Title: "Verify a proof:"},
+		&cobra.Group{ID: groupResources, Title: "Truestamp resources:"},
+		&cobra.Group{ID: groupTools, Title: "Local tools (stdin \u2192 stdout primitives):"},
+		&cobra.Group{ID: groupSetup, Title: "Setup:"},
+		&cobra.Group{ID: groupOther, Title: "Other:"},
+	)
 
 	rootCmd.PersistentFlags().StringVar(&configFile, "config", "", "Path to config file (default: "+config.ConfigFilePath()+")")
 	rootCmd.PersistentFlags().String("base-url", "", "Origin of the Truestamp service (scheme + host, e.g. https://www.truestamp.com)")
@@ -233,6 +258,12 @@ func maybeEmitUpgradeNotice(cmd *cobra.Command) {
 // without our wrapper, and the process exits with code 2 (matching the
 // Go runtime's default panic exit code).
 func Execute() (err error) {
+	// Wired here, not in an init(), because Go runs a package's init
+	// functions in filename order: cmd/schema.go's init would fire before
+	// cmd/verify.go had registered its command, so half the tree would
+	// silently get no completions.
+	registerEnumCompletions(rootCmd)
+
 	defer func() {
 		r := recover()
 		if r == nil {
@@ -252,7 +283,7 @@ func Execute() (err error) {
 			"panic", fmt.Sprint(r),
 			"stack", string(stack),
 		)
-		fmt.Fprintf(os.Stderr, "panic: %v\n\n%s", r, stack)
+		ui.Fprintf(os.Stderr, "panic: %v\n\n%s", r, stack)
 		os.Exit(panicExitCode)
 	}()
 
@@ -288,7 +319,7 @@ func Execute() (err error) {
 		return err
 	}
 	if !errors.Is(err, errSilentFail) {
-		fmt.Fprintln(os.Stderr, err)
+		ui.Fprintln(os.Stderr, err)
 	}
 	return err
 }

@@ -91,7 +91,7 @@ func lookupHashType(value string) *hashTypeOption {
 }
 
 // Submission-mode wire values for the form. Must match the mode
-// semantics in cmd/create.go: external-hash mode sends claims.hash +
+// semantics in cmd/items_create.go: external-hash mode sends claims.hash +
 // claims.hash_type; claims-only mode omits both and timestamps the
 // claims content itself.
 const (
@@ -103,7 +103,7 @@ const (
 // non-whitespace characters after trimming) for claims-only submissions.
 // Mirrors the server-side threshold enforced in
 // lib/truestamp/items/validations/validate_claims_only_content.ex and the
-// matching CLI constant in cmd/create.go.
+// matching CLI constant in cmd/items_create.go.
 const claimsOnlyMinDescription = 32
 
 // newItemModel implements the form pane. The form fields are owned by
