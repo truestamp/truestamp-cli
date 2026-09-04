@@ -17,7 +17,6 @@ import (
 	"strings"
 	"time"
 
-	lipgloss "charm.land/lipgloss/v2"
 	"github.com/spf13/cobra"
 	"github.com/truestamp/truestamp-cli/internal/inputsrc"
 	"github.com/truestamp/truestamp-cli/internal/items"
@@ -63,16 +62,14 @@ Input methods (resolved in priority order):
   truestamp items create -c=claims.json            Either mode: load claims from JSON file
   truestamp items create --claims                  Interactive claims JSON file picker
   cat claims.json | truestamp items create -C      Read claims JSON from stdin
-  truestamp items create -n "Doc" --data-hash abc...    External hash: build claims from flags
+  truestamp items create -n Doc --data-hash <hex>  External hash: build claims from flags
   truestamp items create -n "Doc" -d "long desc"   Claims-only: timestamp the claims content
 
 Flags override values from file/auto-hash, enabling combinations like:
   truestamp items create report.pdf -n "Q1 Report" -v public -t finance
 
 Requires authentication, run 'truestamp auth login', or set TRUESTAMP_API_KEY / --api-key for headless/CI use.`,
-	Args:          cobra.MaximumNArgs(1),
-	SilenceUsage:  true,
-	SilenceErrors: true,
+	Args: cobra.MaximumNArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		// Resolve claims from input sources first so `truestamp items create`
 		// with no args shows help without requiring an API key.
@@ -86,8 +83,8 @@ Requires authentication, run 'truestamp auth login', or set TRUESTAMP_API_KEY / 
 		}
 
 		cfg := appConfig
-		if !authConfigured() {
-			return fmt.Errorf("not authenticated, run `truestamp auth login`, or set TRUESTAMP_API_KEY / --api-key for headless use")
+		if err := requireAuth(cmd); err != nil {
+			return err
 		}
 
 		jsonOutput, _ := outputMode(cmd)
@@ -112,25 +109,11 @@ Requires authentication, run 'truestamp auth login', or set TRUESTAMP_API_KEY / 
 
 		// Resolve visibility and tags
 		visibility, _ := cmd.Flags().GetString("visibility")
-		tagsStr, _ := cmd.Flags().GetString("tags")
-		var tags []string
-		if tagsStr != "" {
-			for _, t := range strings.Split(tagsStr, ",") {
-				t = strings.TrimSpace(t)
-				if t != "" {
-					tags = append(tags, t)
-				}
-			}
+		if err := items.ValidateVisibility(visibility); err != nil {
+			return err
 		}
-
-		// Validate visibility
-		if visibility != "" {
-			switch visibility {
-			case "private", "team", "public":
-			default:
-				return fmt.Errorf("--visibility must be private, team, or public, got %q", visibility)
-			}
-		}
+		rawTags, _ := cmd.Flags().GetStringSlice("tags")
+		tags := items.NormalizeTags(rawTags)
 
 		// Create the item
 		appLogger.Info("create_request",
@@ -147,9 +130,9 @@ Requires authentication, run 'truestamp auth login', or set TRUESTAMP_API_KEY / 
 
 		// Output
 		if jsonOutput {
-			return printCreateJSON(resp)
+			return printCreateJSON(cmd.OutOrStdout(), resp)
 		}
-		presentCreate(resp)
+		presentCreate(cmd.OutOrStdout(), resp)
 		return nil
 	},
 }
@@ -186,7 +169,7 @@ func resolveCreateInput(cmd *cobra.Command, args []string) (map[string]any, erro
 	switch {
 	// --claims: load claims JSON from file (picker if no path)
 	case claimsFlag == inputsrc.FilePickSentinel:
-		path, err := pickClaimsFile()
+		path, err := pickFile("Select claims JSON file", ".json")
 		if err != nil {
 			return nil, err
 		}
@@ -201,7 +184,7 @@ func resolveCreateInput(cmd *cobra.Command, args []string) (map[string]any, erro
 
 	// --file: auto-hash a file (picker if no path)
 	case fileFlag == inputsrc.FilePickSentinel:
-		path, err := pickAnyFile()
+		path, err := pickFile("Select file to hash")
 		if err != nil {
 			return nil, err
 		}
@@ -218,7 +201,7 @@ func resolveCreateInput(cmd *cobra.Command, args []string) (map[string]any, erro
 	case len(args) > 0:
 		return autoHashFileChecked(args[0])
 
-	// Flag-only mode: build claims from --name + --hash
+	// Flag-only mode: build claims from --name + --data-hash
 	default:
 		name, _ := cmd.Flags().GetString("name")
 		hash, _ := cmd.Flags().GetString("data-hash")
@@ -365,23 +348,14 @@ func readClaimsStdin() (map[string]any, error) {
 var errNoTerminalForPicker = errors.New(
 	"interactive file picker requires a terminal: pass --file=<path> or --claims=<path>")
 
-// pickAnyFile launches an interactive file picker for any file type.
-func pickAnyFile() (string, error) {
+// pickFile launches an interactive file picker, refusing first when stdin
+// is not a terminal (see errNoTerminalForPicker). exts restricts the
+// picker to those extensions; none means any file.
+func pickFile(title string, exts ...string) (string, error) {
 	if !inputsrc.IsStdinTerminal() {
 		return "", errNoTerminalForPicker
 	}
-	return ui.PickFile(ui.PickFileOptions{Title: "Select file to hash"})
-}
-
-// pickClaimsFile launches an interactive file picker for claims JSON.
-func pickClaimsFile() (string, error) {
-	if !inputsrc.IsStdinTerminal() {
-		return "", errNoTerminalForPicker
-	}
-	return ui.PickFile(ui.PickFileOptions{
-		Title:        "Select claims JSON file",
-		AllowedTypes: []string{".json"},
-	})
+	return ui.PickFile(ui.PickFileOptions{Title: title, AllowedTypes: exts})
 }
 
 // normalizeTimestamp accepts the ISO 8601 forms documented on the
@@ -694,7 +668,7 @@ func hasMeaningfulClaimsContent(claims map[string]any) bool {
 // hash and hash_type are omitted when the response carries no external
 // hash (claims-as-source-of-truth mode), matching the verify JSON output
 // convention and the styled table presenter.
-func printCreateJSON(resp *items.CreateItemResponse) error {
+func printCreateJSON(w io.Writer, resp *items.CreateItemResponse) error {
 	out := map[string]any{
 		"id":         resp.ID,
 		"name":       resp.Name,
@@ -710,16 +684,11 @@ func printCreateJSON(resp *items.CreateItemResponse) error {
 	if len(resp.Tags) > 0 {
 		out["tags"] = resp.Tags
 	}
-	data, err := json.MarshalIndent(out, "", "  ")
-	if err != nil {
-		return fmt.Errorf("marshaling JSON: %w", err)
-	}
-	fmt.Println(string(data))
-	return nil
+	return emitJSON(w, out)
 }
 
 // presentCreate renders a styled success display.
-func presentCreate(resp *items.CreateItemResponse) {
+func presentCreate(w io.Writer, resp *items.CreateItemResponse) {
 	header := ui.AccentBoldStyle().Render("  Item Created")
 
 	tbl := ui.CompactTable().
@@ -759,7 +728,7 @@ func presentCreate(resp *items.CreateItemResponse) {
 	// Plain newline-join, see note in internal/verify/presenter.go
 	// Present(). lipgloss.JoinVertical pad-to-widest can cause phantom
 	// blank lines after every table row on narrow terminals.
-	lipgloss.Println(strings.Join([]string{header, tbl.String()}, "\n"))
+	ui.Fprintln(w, strings.Join([]string{header, tbl.String()}, "\n"))
 }
 
 func init() {
@@ -787,7 +756,7 @@ func init() {
 
 	// Item attributes
 	f.StringP("visibility", "v", "private", `Item visibility: "private", "team", or "public"`)
-	f.StringP("tags", "t", "", "Comma-separated tags")
+	f.StringSlice("tags", nil, "Tags to attach (comma-separated or repeated)")
 
 	// Output
 	addRecordOutputFlags(itemsCreateCmd)

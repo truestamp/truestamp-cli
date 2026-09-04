@@ -6,7 +6,6 @@ package cmd
 import (
 	"bytes"
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -57,9 +56,7 @@ Truestamp-domain extras:
       Print supported algorithms.
 
 Exit code 0 on success, 1 if any input failed.`,
-	SilenceUsage:  true,
-	SilenceErrors: true,
-	RunE:          runHash,
+	RunE: runHash,
 }
 
 func runHash(cmd *cobra.Command, args []string) error {
@@ -102,10 +99,6 @@ func runHash(cmd *cobra.Command, args []string) error {
 	noFilename, _ := cmd.Flags().GetBool("no-filename")
 	prefixFlag, _ := cmd.Flags().GetString("prefix")
 	useJCS, _ := cmd.Flags().GetBool("jcs")
-
-	if silent && jsonOut {
-		return fmt.Errorf("--silent and --json are mutually exclusive")
-	}
 
 	// Parse --prefix as a single byte if set.
 	var prefixByte byte
@@ -342,6 +335,9 @@ func runHashOne(ctx context.Context, opts inputsrc.Options, alg hashing.Algorith
 //	       omitted unconditionally, even for multiple inputs, because the
 //	       entire point of `bare` is "just the digest, nothing else".
 func emitHashText(w io.Writer, alg hashing.Algorithm, enc encoding.Encoding, style string, binaryMode, noFilename bool, results []hashResult) {
+	// One profile writer for the whole listing rather than one per line:
+	// ui.Fprint* re-detects the destination on every call.
+	w = ui.ProfileWriter(w)
 	for _, r := range results {
 		digestEnc, _ := encoding.Encode(enc, r.Digest)
 		name := r.Source.DisplayName()
@@ -352,19 +348,19 @@ func emitHashText(w io.Writer, alg hashing.Algorithm, enc encoding.Encoding, sty
 		case "bare":
 			// bare is always just the digest, filename column is
 			// never rendered, making it the correct choice for
-			// scripting and piping into another tool's --hash.
-			ui.Fprintf(w, "%s\n", string(digestEnc))
+			// scripting and shell substitution.
+			fmt.Fprintf(w, "%s\n", string(digestEnc))
 		case "bsd":
 			if noFilename {
-				ui.Fprintf(w, "%s = %s\n", alg.BSDName, string(digestEnc))
+				fmt.Fprintf(w, "%s = %s\n", alg.BSDName, string(digestEnc))
 			} else {
-				ui.Fprint(w, hashing.FormatBSD(alg.BSDName, string(digestEnc), name))
+				fmt.Fprint(w, hashing.FormatBSD(alg.BSDName, string(digestEnc), name))
 			}
 		default: // gnu
 			if noFilename {
-				ui.Fprintf(w, "%s\n", string(digestEnc))
+				fmt.Fprintf(w, "%s\n", string(digestEnc))
 			} else {
-				ui.Fprint(w, hashing.FormatGNU(string(digestEnc), name, binaryMode))
+				fmt.Fprint(w, hashing.FormatGNU(string(digestEnc), name, binaryMode))
 			}
 		}
 	}
@@ -437,12 +433,7 @@ func emitHashJSON(w io.Writer, alg hashing.Algorithm, enc encoding.Encoding, pre
 		out = []hashJSON{}
 	}
 
-	data, err := json.MarshalIndent(out, "", "  ")
-	if err != nil {
-		return fmt.Errorf("marshaling JSON: %w", err)
-	}
-	ui.Fprintln(w, string(data))
-	return nil
+	return emitJSON(w, out)
 }
 
 // parsePrefixByte accepts the user-friendly forms "0x11", "0X11", "11",
@@ -500,8 +491,7 @@ func init() {
 	f.Lookup("url").NoOptDefVal = inputsrc.URLPromptSentinel
 	f.String("prefix", "", "Prepend single domain-separation byte before hashing (e.g. 0x11)")
 	f.Bool("jcs", false, "Apply RFC 8785 JCS canonicalization before hashing (input must be JSON)")
-	f.Bool("json", false, "Output as JSON")
-	f.BoolP("silent", "s", false, "No output, exit code only")
+	addRecordOutputFlags(hashCmd)
 	f.Bool("no-filename", false, "Omit the filename from text output")
 	hashCmd.GroupID = groupTools
 	rootCmd.AddCommand(hashCmd)

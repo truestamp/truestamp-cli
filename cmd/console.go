@@ -6,6 +6,7 @@ package cmd
 import (
 	"context"
 	"fmt"
+	"github.com/truestamp/truestamp-cli/internal/inputsrc"
 	"os"
 	"time"
 
@@ -37,10 +38,8 @@ Transport diagnostics (read EOFs, dial-attempt failures during reconnect,
 frame decode errors) are written to the same JSON log file every other
 truestamp subcommand uses. The path is shown on the Connection pane and
 honors the --log-file / --log-level persistent flags.`,
-	Args:          cobra.NoArgs,
-	SilenceUsage:  true,
-	SilenceErrors: true,
-	RunE:          runConsole,
+	Args: cobra.NoArgs,
+	RunE: runConsole,
 }
 
 func init() {
@@ -71,7 +70,7 @@ func runConsole(cmd *cobra.Command, _ []string) error {
 	// server's personal-team auto-fallback: hitting Esc dismisses
 	// the picker without persisting.
 	activeTeamID := appConfig.Team
-	if activeTeamID == "" && stdinIsTerminal() {
+	if activeTeamID == "" && inputsrc.IsStdinTerminal() {
 		picked, err := promptForFirstRunTeam(cmd.Context())
 		if err != nil {
 			return err

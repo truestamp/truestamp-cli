@@ -38,9 +38,7 @@ Examples:
   truestamp proofs convert --to cbor proof.json > proof.cbor
   truestamp proofs convert --to json < proof.cbor | jq .
   truestamp proofs convert --from cbor --to json proof.cbor`,
-	SilenceUsage:  true,
-	SilenceErrors: true,
-	RunE:          runConvertProof,
+	RunE: runConvertProof,
 }
 
 func runConvertProof(cmd *cobra.Command, args []string) error {
@@ -48,10 +46,6 @@ func runConvertProof(cmd *cobra.Command, args []string) error {
 	fromName, _ := cmd.Flags().GetString("from")
 	compact, _ := cmd.Flags().GetBool("compact")
 	jsonOut, silent := outputMode(cmd)
-
-	if silent && jsonOut {
-		return fmt.Errorf("--silent and --json are mutually exclusive")
-	}
 
 	to := strings.ToLower(strings.TrimSpace(toName))
 	if to == "" {
@@ -209,10 +203,9 @@ func init() {
 	f.String("from", "auto", "Input format: auto, json, or cbor")
 	f.String("to", "", "Output format: json or cbor (required)")
 	f.Bool("compact", false, "JSON output: emit minified form (default: 2-space indent)")
-	// convert proof's --json means "JSON envelope"; the help text above
-	// stays specific to that, so we register it explicitly instead of
-	// going through addConvertCommonFlags. --silent shares the family
-	// default.
+	// proofs convert's --json means "JSON envelope"; the help text above
+	// stays specific to that, so it is registered here rather than
+	// through addRecordOutputFlags. --silent keeps the shared wording.
 	f.Bool("json", false, "Emit a JSON envelope with input/output metadata instead of raw output")
 	f.BoolP("silent", "s", false, "No output, exit code only")
 	proofsCmd.AddCommand(proofsConvertCmd)

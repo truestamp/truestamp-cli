@@ -6,7 +6,7 @@ package ui
 import "strings"
 
 // This file centralizes the construction of public-web URLs that the
-// CLI surfaces in its post-action "card" output (after beacon get,
+// CLI surfaces in its post-action "card" output (after beacons get,
 // download, create, etc.). Two flavours per subject:
 //
 //   - Details URL, the subject's own detail page (item / block /
@@ -52,7 +52,7 @@ var subjectDetailPath = map[string]string{
 }
 
 // SubjectDetailURL returns the subject detail page URL for a download
-// or create card. `typeName` must be one of the six canonical wire
+// or items create card. `typeName` must be one of the six canonical wire
 // values; `id` is the ULID (item) or UUIDv7 (every other type). Returns
 // "" for an unknown type or an empty apiURL. Dev hosts are NOT filtered:
 // see the package comment above for why that filter was removed.
@@ -81,7 +81,7 @@ func SubjectVerifyURL(apiURL, typeName, id string) string {
 }
 
 // BeaconDetailURL is the hash-keyed variant used only by the beacon
-// listing card (`truestamp beacon {latest,list,get,by-hash}`), where
+// listing card (`truestamp beacons {latest,list,get}`), where
 // the hash is already in hand from the API response. Distinct from
 // SubjectDetailURL's beacon row (which points at the underlying
 // block's page when only the id is available).
@@ -111,7 +111,7 @@ func TeamDetailURL(apiURL, teamID string) string {
 }
 
 // TeamCreateURL returns the public-web teams URL. The CLI now creates teams
-// itself (truestamp team create), so this is used as the "manage teams &
+// itself (truestamp teams create), so this is used as the "manage teams &
 // plans" pointer in the plan-limit-reached hint rather than as the only
 // creation path.
 func TeamCreateURL(apiURL string) string {

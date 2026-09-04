@@ -4,6 +4,7 @@
 package cmd
 
 import (
+	"errors"
 	"runtime"
 	"strings"
 	"testing"
@@ -113,13 +114,7 @@ func TestExitCode(t *testing.T) {
 		t.Error("ExitCode of zero-code exitCodeErr should be 0")
 	}
 	// Generic errors fall back to 1.
-	if ExitCode(errForTest("boom")) != 1 {
+	if ExitCode(errors.New("boom")) != 1 {
 		t.Error("ExitCode for generic error should be 1")
 	}
 }
-
-// errForTest is a tiny local error type to avoid importing errors for a
-// one-line stdErr stand-in.
-type errForTest string
-
-func (e errForTest) Error() string { return string(e) }

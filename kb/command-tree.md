@@ -22,7 +22,9 @@ against the live tree.
 
 ### R0 — Resource groups are plural, and are namespaces, never commands
 
-`truestamp <noun>` prints help and nothing else. A group command has no `RunE`.
+`truestamp <noun>` prints help and nothing else. Every group is configured by `asGroup` (`cmd/group.go`): its
+`RunE` prints help, or errors when handed an argument that names no sub-command, so a retired spelling
+fails loudly instead of printing help and exiting 0. That `RunE` is the help behaviour, not a default action.
 
 Singular names are namespaces that own no server records: `auth`, `config`, `convert`, `schema`. A
 namespace may still use `list` / `get` when it owns an enumerable registry, which is what lets
@@ -138,6 +140,11 @@ is a flag. This kills `items status`, `items show`, and `blocks head` before the
 Never used as synonyms of `get`: `show`, `view`, `describe`, `info`, `fetch`, `download`,
 `retrieve`.
 
+`config show` is the one recorded exception. It predates the reorganization, reads no server record
+(it prints the resolved local configuration), and no `config get` could sit beside it without meaning
+the same thing. It is kept deliberately; `TestTree_NoBannedVerbs` exempts exactly that path and points
+here.
+
 `status` is already double-booked in this binary: `auth status` is a liveness probe, and `status` is
 *also* the normative Appendix E.22 per-step vocabulary (`pass|fail|skip|warn|info`) inside verify
 output. A third sense would collide with a conformance term.
@@ -158,10 +165,15 @@ on the `items get` card and a column in `items list`; the authoritative answer s
 - A managed local directory is always `--store <dir>`, never `-o`. Do not mix the two idioms.
 - **Exempt, explicitly:** pipeline primitives that print one bare value or raw bytes —
   `convert time|id|keyid|merkle`, `encode`, `decode`, `jcs`. `hash --style gnu|bsd|bare` stays a
-  byte-identical `sha256sum` drop-in. `config path` keeps its deliberate stdout/stderr split so
-  `$(truestamp config path)` captures only the path.
+  byte-identical `sha256sum` drop-in. The primitives still carry the two flags, so an explicit
+  `--json` or `--silent` works; what they ignore is the ambient config-file / environment setting, so a
+  `silent = true` in `config.toml` cannot silence a pipe built on them.
+- `config path` is **not** exempt: it renders a record and carries the pair. Its text form keeps the
+  existence note on stderr so stdout stays one line, and `config path --json | jq -r .path` is the
+  capture idiom.
 
-Each exemption is declared in `schema`, not left to memory.
+The exemptions are recorded here and in `README.md` §Composable pipelines; `schema get commands`
+shows which commands carry the pair.
 
 `-o` with an optional value (pflag's `NoOptDefVal`) was rejected: `-o file` then parses as `-o` plus
 a positional.
@@ -324,40 +336,47 @@ A dash carries its reason. Cells marked **deferred** are designed but not built;
 
 ## The tree
 
-ALL-CAPS lines are cobra `AddGroup` headings in root help, not commands.
+The headings are the cobra `AddGroup` headings root help prints (`cmd/root.go`), not commands. Each
+flag list is the command's own; the root persistent flags (`--base-url`, `--api-key`, `--team`,
+`--config`, `--http-timeout`, `--log-file`, `--log-level`, `--no-color`, `--no-upgrade-check`) apply
+everywhere and are not repeated. `truestamp schema get commands --json` is the generated,
+authoritative form of this picture; this one is the reader's overview.
 
 ```
 truestamp
-├── VERIFICATION
-│   ├── verify [file|url|-]      --offline --remote --keyring <path> --type <t>
+├── Verify a proof
+│   ├── verify [file|url|-]      --file --url --offline --remote --keyring <path> --type <t>
 │   │                            --expected-hash --skip-signatures --json --silent
-│   └── inspect [file|url|-]     --json --silent
+│   └── inspect [file|url|-]     --file --url --json --silent
 │
-├── RESOURCES
-│   ├── items
-│   │   ├── list                 --limit --after --committed --pending --team --json --silent
+├── Truestamp resources
+│   ├── items                    "Create, list, and update timestamped items"
+│   │   ├── list                 --limit --after --all --committed --pending --json --silent
 │   │   ├── get <ulid>           --json --silent
-│   │   ├── create [file]        --file --claims --name --data-hash --hash-type
-│   │   │                        --description --url --timestamp --metadata --location
-│   │   │                        --visibility --tags --team --json --silent
-│   │   └── update <ulid>        --team --visibility --tags --json --silent
+│   │   ├── create [file]        -f/--file -F/--file-stdin -c/--claims -C/--claims-stdin
+│   │   │                        -n/--name --data-hash --hash-type -d/--description --url
+│   │   │                        --timestamp --metadata --location -v/--visibility --tags
+│   │   │                        --json --silent
+│   │   └── update <ulid>        --to-team --visibility --tags --json --silent
 │   │
-│   ├── proofs                   "Proof bundles, generated on demand. `get` emits bytes."
+│   ├── proofs                   "Get and convert proof bundles"
 │   │   ├── get <id>             --type item|block|beacon|entropy_nist|entropy_stellar|
 │   │   │                               entropy_bitcoin        (optional; a UUIDv7 is
 │   │   │                                                       resolved server-side)
-│   │   │                        --format json|cbor --witnesses all|none|<list>
+│   │   │                        -f/--format json|cbor --witnesses all|none|<list>
 │   │   │                        -o/--out <path> --to-file
-│   │   └── convert [file|-]     --to json|cbor
+│   │   └── convert [file|url|-] --file --url --from auto|json|cbor --to json|cbor --compact
+│   │                            --json --silent
 │   │
 │   ├── blocks                   "Read-only: Truestamp's block chain"
-│   │   ├── list                 --limit --after --json --silent
-│   │   ├── get <uuid|hash>      --commitments --entropy --neighbors --json --silent
-│   │   ├── latest               --json --silent          Short: "Show the head block"
+│   │   ├── list                 --limit --json --silent
+│   │   ├── get <uuid|hash>      --json --silent      (--commitments --entropy --neighbors are
+│   │   │                                              deferred designs, see the notes below)
+│   │   ├── latest               --json --silent      Short: "Show the head block"
 │   │   └── genesis              --json --silent
 │   │
 │   ├── beacons                  "Read-only: public randomness over finalized blocks"
-│   │   ├── list                 --limit --after --json --silent
+│   │   ├── list                 --limit --json --silent
 │   │   ├── get <uuid|hash>      --hash-only --json --silent
 │   │   └── latest               --hash-only --json --silent
 │   │
@@ -367,31 +386,31 @@ truestamp
 │   │   ├── get <kid>            --json --silent
 │   │   └── current              --json --silent
 │   │
-│   └── teams
+│   └── teams                    "List, create, and switch teams"
 │       ├── list                 --json --silent
 │       ├── get <id>             --json --silent
 │       ├── current              --json --silent
-│       ├── use [id]             --clear
-│       └── create [name]        --name --ownership --json --silent
+│       ├── use [id]             --clear --json --silent
+│       └── create [name]        -n/--name --ownership-model --set --json --silent
 │
-├── DATA TOOLS
-│   ├── hash [path ...]          -a/--algorithm --encoding --style --prefix --jcs --no-filename
-│   ├── encode [file|url|-]
-│   ├── decode [file|url|-]
-│   ├── jcs [file|url|-]
-│   └── convert                  time · id · keyid · merkle
+├── Local tools (stdin → stdout primitives)
+│   ├── hash [path ...]          -a/--algorithm -e/--encoding --style --prefix --jcs --binary
+│   │                            --no-filename --list --file --url --json --silent
+│   ├── encode [file|url|-]      --file --url --from --to --json --silent
+│   ├── decode [file|url|-]      --file --url --from --to --json --silent
+│   ├── jcs [file|url|-]         --file --url --newline --json --silent
+│   └── convert                  time · id · keyid · merkle      (each: --json --silent)
 │
-├── REFERENCE
-│   └── schema                   list · get <name>
+├── Setup
+│   ├── auth                     login · logout · status
+│   └── config                   path · init · show · edit
 │
-└── CLI
-    ├── auth                     login · logout · status
-    ├── config                   path · init · show
-    ├── console
-    ├── upgrade                  --check [--exit-code]
-    ├── version
+└── Other
+    ├── console                  --ws-url
+    ├── schema                   list · get <name>
+    ├── upgrade                  --check [--exit-code] --version <tag> -y/--yes
+    ├── version                  --json --silent
     └── completion
-
 ```
 
 ### Clean break
@@ -428,7 +447,7 @@ resolves it in one extra round trip. This is the one place the id-shape dispatch
 `beacons get` cannot work, because blocks, beacons, and entropy observations all share the UUIDv7
 shape.
 
-`download`'s id-shape smart default is a *different* mechanism from reading a bundle's signed
+`proofs get`'s id-shape default is a *different* mechanism from reading a bundle's signed
 `type`, and the two must never be conflated — see `CLAUDE.md`.
 
 ### `blocks` and `beacons` are two groups over one row
@@ -465,15 +484,15 @@ withheld from the wire. A block is addressed by UUIDv7, which is also the orderi
 
 The `commitments` relationship in the block's JSON:API includes is subject Merkle inclusion — the
 items and entropy in *this* block's tree. The public-chain commitment is `external_commitments`,
-which is **not** includable and costs extra round trips. Hence `blocks get --commitments` is a flag,
-not a default.
+which is **not** includable and costs extra round trips. Hence `--commitments` is designed as a flag
+on `blocks get`, not a default. It is deferred: the flag is not registered yet.
 
 ### Entropy needs a discovery path
 
 `proofs get --type entropy_nist|entropy_stellar|entropy_bitcoin` takes UUIDv7s that nothing else in
-the tree surfaces. `entropy_observations` *is* in the block's includes list, so `blocks get
---entropy` is that path. Without it, three of the six frozen ptype subject types name resources with
-no route into the tree.
+the tree surfaces. `entropy_observations` *is* in the block's includes list, so a deferred `blocks get
+--entropy` is that path. Until it lands, three of the six frozen ptype subject types name resources
+with no route into the tree.
 
 ### `keys` complements `verify --keyring`; neither subsumes the other
 
@@ -510,8 +529,8 @@ Each phase leaves `task build && go test ./...` green and is its own release.
 | **0** | The R10 output contract, the R13 flag cleanup, uniform exit codes, the config-key rename, and the interactivity fixes. No tree change. The most breaking phase: a rename fails loudly, a changed JSON shape fails at the consumer. Carries the documentation budget for the pipeline recipes it changes. |
 | **1** | `schema list` / `schema get <name>`, generated by walking the live cobra tree so it cannot drift. Wires flag completion for the closed enums that return nothing on tab today. |
 | **2** | The tree reorg, plus the `blocks` and `keys` read surfaces — both are pure client work over routes that already exist, so there is no reason to sequence them later. |
-| **3** | `items list` / `get` / `create` / `update`. Every route exists; `internal/items` holds only `CreateItem` today, so the reads are new Go. |
-| **4** | Help topics, root group headings, `Read-only:` prefixes, and cross-references. **Landed**, except console parity for the New Item pane, which is still open — see below. |
+| **3** | `items list` / `get` / `create` / `update`. Every route existed; `internal/items` held only `CreateItem`, so the reads were new Go. |
+| **4** | Root group headings, `Read-only:` prefixes, and cross-references. **Landed**, except console parity for the New Item pane, which is still open — see below. The help topics this phase first added were removed again; see R12a. |
 | **5** | Deferred work, after the design discussions below. **Not started, by design.** |
 
 Phases 0 to 4 are done. Two things from phase 4 remain open and are tracked here rather than

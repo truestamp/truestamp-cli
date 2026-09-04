@@ -23,7 +23,7 @@ var convertKeyIDCmd = &cobra.Command{
 	Short: "Derive the 4-byte Truestamp kid fingerprint from an Ed25519 public key",
 	Long: `The Truestamp kid ("key ID") is computed as
 truncate4(SHA256(0x51 || pubkey)), the first 4 bytes of the SHA-256
-digest of the key with domain prefix 0x51. Each proof's "kid" field is
+digest of the key with domain prefix 0x51. Each proof's "signing_key_id" field is
 this value rendered as 8 hex characters; deriving it locally lets you
 cross-check the signing key your proof was issued against.
 
@@ -31,19 +31,13 @@ Examples:
   truestamp convert keyid 38fa3a80ba5....base64...=
   truestamp convert keyid --from hex 09a3c7ee...deadbeef...
   cat pubkey.b64 | truestamp convert keyid`,
-	SilenceUsage:  true,
-	SilenceErrors: true,
-	RunE:          runConvertKeyID,
+	RunE: runConvertKeyID,
 }
 
 func runConvertKeyID(cmd *cobra.Command, args []string) error {
 	fromName, _ := cmd.Flags().GetString("from")
 	jsonOut, _ := cmd.Flags().GetBool("json")
 	silent, _ := cmd.Flags().GetBool("silent")
-
-	if silent && jsonOut {
-		return fmt.Errorf("--silent and --json are mutually exclusive")
-	}
 
 	raw, err := gatherKeyInput(cmd, args)
 	if err != nil {
@@ -145,6 +139,6 @@ func encodeHex(data []byte) string {
 func init() {
 	f := convertKeyIDCmd.Flags()
 	f.String("from", "auto", "Public key encoding: auto, hex, base64, base64url")
-	addConvertCommonFlags(convertKeyIDCmd)
+	addRecordOutputFlags(convertKeyIDCmd)
 	convertCmd.AddCommand(convertKeyIDCmd)
 }

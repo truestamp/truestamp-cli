@@ -68,11 +68,11 @@ type Config struct {
 
 	// Silent and JSON are CLI-wide output settings, not verify's private
 	// property. They live at the top level because `flagKeyMap` resolves a
-	// flag name to a koanf key GLOBALLY: scoping them under `verify.` while
-	// registering `--json` / `--silent` as root persistent flags would make
-	// `truestamp hash --json` write into `verify.json`. See kb/command-tree.md
-	// R10, and the note there about the same hazard recurring the first time
-	// two commands want the same flag name with different meanings.
+	// flag name to a koanf key GLOBALLY, whichever command registered the
+	// flag: scoping them under `verify.` would make `truestamp hash --json`
+	// write into `verify.json`. See kb/command-tree.md R10, and the note
+	// there about the same hazard recurring the first time two commands
+	// want the same flag name with different meanings.
 	//
 	// Mutually exclusive; Load rejects both being set.
 	Silent bool `koanf:"silent"`

@@ -9,9 +9,9 @@ import (
 	"sort"
 	"strings"
 
-	lipgloss "charm.land/lipgloss/v2"
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
+	"github.com/truestamp/truestamp-cli/internal/encoding"
 	"github.com/truestamp/truestamp-cli/internal/hashing"
 	"github.com/truestamp/truestamp-cli/internal/introspect"
 	"github.com/truestamp/truestamp-cli/internal/proof"
@@ -41,15 +41,12 @@ in-code registries, so it always describes the binary you are running.
 
 'schema get commands --json' is the one call that answers "what can this
 CLI do, and with which flags" without parsing help text.`,
-	Args: cobra.NoArgs,
 }
 
 var schemaListCmd = &cobra.Command{
-	Use:           "list",
-	Short:         "List the available schema documents",
-	Args:          cobra.NoArgs,
-	SilenceUsage:  true,
-	SilenceErrors: true,
+	Use:   "list",
+	Short: "List the available schema documents",
+	Args:  cobra.NoArgs,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		jsonOut, silent := outputMode(cmd)
 		if silent {
@@ -61,7 +58,7 @@ var schemaListCmd = &cobra.Command{
 			for _, n := range names {
 				docs = append(docs, map[string]string{"name": n, "description": schemaDocs[n].description})
 			}
-			return emitRecord(cmd.OutOrStdout(), map[string]any{"schemas": docs})
+			return emitJSON(cmd.OutOrStdout(), map[string]any{"schemas": docs})
 		}
 		out := cmd.OutOrStdout()
 		ui.Fprintln(out, ui.AccentBoldStyle().Render("  Schema documents"))
@@ -85,9 +82,7 @@ command. Both come from the same in-code registry, so the two renderings
 cannot disagree, and neither can drift from the binary printing them.
 
 Run 'truestamp schema list' for the available names.`,
-	Args:          cobra.ExactArgs(1),
-	SilenceUsage:  true,
-	SilenceErrors: true,
+	Args: cobra.ExactArgs(1),
 	ValidArgsFunction: func(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
 		return schemaNames(), cobra.ShellCompDirectiveNoFileComp
 	},
@@ -102,7 +97,7 @@ Run 'truestamp schema list' for the available names.`,
 			return nil
 		}
 		if jsonOut {
-			return emitRecord(cmd.OutOrStdout(), withNote(doc.build(), doc.note))
+			return emitJSON(cmd.OutOrStdout(), withNote(doc.build(), doc.note))
 		}
 		doc.render(cmd.OutOrStdout())
 		if doc.note != "" {
@@ -201,8 +196,8 @@ var schemaDocs = map[string]schemaDoc{
 			"t(2) field of the signature preimage, so this mapping is needed only when " +
 			"reconstructing that payload by hand.",
 		build: func() any {
-			out := make([]map[string]any, 0, len(downloadTypeValues))
-			for _, name := range downloadTypeValues {
+			out := make([]map[string]any, 0, len(proofTypeValues))
+			for _, name := range proofTypeValues {
 				entry := map[string]any{"name": name}
 				if code, ok := ptype.FromName(name); ok {
 					entry["code"] = uint16(code)
@@ -213,7 +208,7 @@ var schemaDocs = map[string]schemaDoc{
 		},
 		render: func(w io.Writer) {
 			rows := [][]string{{"SUBJECT TYPE", "WIRE CODE"}}
-			for _, name := range downloadTypeValues {
+			for _, name := range proofTypeValues {
 				code := ""
 				if c, ok := ptype.FromName(name); ok {
 					code = fmt.Sprintf("%d", uint16(c))
@@ -265,17 +260,8 @@ var schemaDocs = map[string]schemaDoc{
 			}
 		},
 		render: func(w io.Writer) {
-			rows := [][]string{{"CODE", "MEANING"}}
-			for _, e := range exitCodes {
-				rows = append(rows, []string{fmt.Sprintf("%d", e.Code), e.Meaning})
-			}
-			renderSchemaTable(w, "Exit codes", rows)
-
-			rows = [][]string{{"CODE", "MEANING"}}
-			for _, e := range upgradeCheckExitCodes {
-				rows = append(rows, []string{fmt.Sprintf("%d", e.Code), e.Meaning})
-			}
-			renderSchemaTable(w, "upgrade --check --exit-code", rows)
+			renderSchemaTable(w, "Exit codes", exitCodeRows(exitCodes))
+			renderSchemaTable(w, "upgrade --check --exit-code", exitCodeRows(upgradeCheckExitCodes))
 		},
 	},
 }
@@ -327,17 +313,20 @@ var upgradeCheckExitCodes = []exitCode{
 	{checkExitPreRelease, "the latest release is a pre-release and will not auto-install"},
 }
 
+// exitCodeRows renders one exit-code table's rows, header first.
+func exitCodeRows(list []exitCode) [][]string {
+	rows := [][]string{{"CODE", "MEANING"}}
+	for _, e := range list {
+		rows = append(rows, []string{fmt.Sprintf("%d", e.Code), e.Meaning})
+	}
+	return rows
+}
+
 // renderSchemaTable prints a header plus a bordered table whose first row
 // is treated as column labels.
 func renderSchemaTable(w io.Writer, title string, rows [][]string) {
 	tbl := ui.CompactTable().
-		StyleFunc(func(row, col int) lipgloss.Style {
-			base := lipgloss.NewStyle().PaddingLeft(2).PaddingRight(1)
-			if row == 0 {
-				return base.Foreground(ui.Label).Bold(true)
-			}
-			return base.Foreground(ui.Value)
-		}).
+		StyleFunc(ui.HeaderRowStyleFunc()).
 		Rows(rows...)
 	ui.Fprintln(w, ui.AccentBoldStyle().Render("  "+title))
 	ui.Fprintln(w)
@@ -363,7 +352,7 @@ func cliEnums() introspect.EnumValues {
 	for _, a := range hashing.Algorithms() {
 		algNames = append(algNames, a.Name)
 	}
-	byteEncodings := []string{"hex", "base64", "base64url", "binary"}
+	byteEncodings := encoding.AllNames()
 
 	// A bare flag name applies to EVERY command that has a flag by that
 	// name. That is only safe when exactly one does, or when they all mean
@@ -384,8 +373,8 @@ func cliEnums() introspect.EnumValues {
 		"log-level": {"debug", "info", "warn", "error"},
 
 		// --type: a proof subject type on two commands, an id shape on a third.
-		"truestamp verify|type":     downloadTypeValues,
-		"truestamp proofs get|type": downloadTypeValues,
+		"truestamp verify|type":     proofTypeValues,
+		"truestamp proofs get|type": proofTypeValues,
 		"truestamp convert id|type": {"auto", "ulid", "uuid7"},
 
 		// --format: a wire format on one, a timestamp format on the other.
@@ -409,14 +398,10 @@ func registerEnumCompletions(root *cobra.Command) {
 	var walk func(c *cobra.Command, path string)
 	walk = func(c *cobra.Command, path string) {
 		c.LocalFlags().VisitAll(func(f *pflag.Flag) {
-			values, ok := enums[path+"|"+f.Name]
-			if !ok {
-				values, ok = enums[f.Name]
-			}
-			if !ok {
+			vals := introspect.LookupEnum(enums, path, f.Name)
+			if vals == nil {
 				return
 			}
-			vals := append([]string(nil), values...)
 			_ = c.RegisterFlagCompletionFunc(f.Name,
 				func(*cobra.Command, []string, string) ([]string, cobra.ShellCompDirective) {
 					return vals, cobra.ShellCompDirectiveNoFileComp

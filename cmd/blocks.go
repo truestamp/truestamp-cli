@@ -29,28 +29,19 @@ head block is routinely not yet finalized: 'blocks latest' and
 'beacons latest' return different rows most of the time. They are two
 questions, not two spellings of one.
 
-Sub-commands:
-  list      Show the most recent blocks (newest first)
-  get       Show one block by UUIDv7 id or by 64-hex block hash
-  latest    Show the head block
-  genesis   Show the first block, the root every chain walk terminates at
-
 Requires authentication, run 'truestamp auth login', or set TRUESTAMP_API_KEY / --api-key for headless/CI use.`,
-	Args: cobra.NoArgs,
 }
 
 var blocksListCmd = &cobra.Command{
-	Use:           "list",
-	Short:         "Show the most recent blocks (newest first)",
-	Args:          cobra.NoArgs,
-	SilenceUsage:  true,
-	SilenceErrors: true,
+	Use:   "list",
+	Short: "Show the most recent blocks (newest first)",
+	Args:  cobra.NoArgs,
 	RunE: func(cmd *cobra.Command, _ []string) error {
 		cfg, err := blocksConfig(cmd)
 		if err != nil {
 			return err
 		}
-		limit, err := pageLimit(cmd, 25)
+		limit, err := pageLimit(cmd)
 		if err != nil {
 			return err
 		}
@@ -64,7 +55,7 @@ var blocksListCmd = &cobra.Command{
 
 var blocksGetCmd = &cobra.Command{
 	Use:   "get <id-or-hash>",
-	Short: "Show one block by UUIDv7 id or by 64-hex block hash",
+	Short: "Show one block by UUIDv7 id or by 64-hex-char block hash",
 	Long: `Fetch one block, addressed either way.
 
 The two shapes are disjoint — a UUIDv7 has hyphens, a block hash is
@@ -79,9 +70,7 @@ as an error, never resolved by picking one.
 Examples:
   truestamp blocks get 019db702-b08c-73dc-a7cd-2c5e011f1dad
   truestamp blocks get ffe86dc05a0c7b42279f7fa6afb016cd6928980d24673051fc58731492ce2a1b --json`,
-	Args:          cobra.ExactArgs(1),
-	SilenceUsage:  true,
-	SilenceErrors: true,
+	Args: cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		cfg, err := blocksConfig(cmd)
 		if err != nil {
@@ -91,7 +80,7 @@ Examples:
 
 		var b *blocks.Block
 		switch {
-		case !strings.Contains(arg, "-") && len(arg) == 64:
+		case looksLikeHash(arg):
 			b, err = blocks.ByHash(cmd.Context(), cfg, arg)
 		case strings.Contains(arg, "-"):
 			b, err = blocks.Get(cmd.Context(), cfg, arg)
@@ -112,9 +101,7 @@ var blocksLatestCmd = &cobra.Command{
 
 This is not the same as 'truestamp beacons latest', which shows the most
 recent *finalized* block. The head is routinely not yet finalized.`,
-	Args:          cobra.NoArgs,
-	SilenceUsage:  true,
-	SilenceErrors: true,
+	Args: cobra.NoArgs,
 	RunE: func(cmd *cobra.Command, _ []string) error {
 		cfg, err := blocksConfig(cmd)
 		if err != nil {
@@ -136,9 +123,7 @@ its own previous_block_id.
 
 It is a distinguished object rather than merely the oldest row: it is the
 root every chain walk terminates at.`,
-	Args:          cobra.NoArgs,
-	SilenceUsage:  true,
-	SilenceErrors: true,
+	Args: cobra.NoArgs,
 	RunE: func(cmd *cobra.Command, _ []string) error {
 		cfg, err := blocksConfig(cmd)
 		if err != nil {
@@ -152,31 +137,20 @@ root every chain walk terminates at.`,
 	},
 }
 
-// blocksConfig mirrors beaconConfig: it refuses early, with a banner,
-// when no credential is configured.
+// blocksConfig pulls the values the blocks client needs from the resolved
+// application config, after the shared credential gate.
 func blocksConfig(cmd *cobra.Command) (blocks.Config, error) {
-	if !authConfigured() {
-		_, silent := outputMode(cmd)
-		if !silent {
-			ui.Fprintln(cmd.ErrOrStderr(), ui.FailureBanner("Not authenticated"))
-			ui.Fprintln(cmd.ErrOrStderr(), ui.FaintStyle().Render(
-				"    Run 'truestamp auth login' to sign in (or set TRUESTAMP_API_KEY)."))
-		}
-		return blocks.Config{}, errSilentFail
+	if err := requireAuth(cmd); err != nil {
+		return blocks.Config{}, err
 	}
 	return blocks.Config{APIURL: appConfig.APIURL, Team: appConfig.Team}, nil
 }
 
 func blocksRenderError(cmd *cobra.Command, err error) error {
-	_, silent := outputMode(cmd)
 	if errors.Is(err, blocks.ErrUnauthorized) {
-		if !silent {
-			ui.Fprintln(cmd.ErrOrStderr(), ui.FailureBanner("Not authenticated"))
-			ui.Fprintln(cmd.ErrOrStderr(), ui.FaintStyle().Render(
-				"    Run 'truestamp auth login' to sign in (or set TRUESTAMP_API_KEY)."))
-		}
-		return errSilentFail
+		return failNotAuthenticated(cmd)
 	}
+	_, silent := outputMode(cmd)
 	if silent {
 		return errSilentFail
 	}
@@ -254,7 +228,7 @@ func truncateHash(h string) string {
 }
 
 func init() {
-	blocksListCmd.Flags().Int("limit", 25, "How many blocks to show; the server caps it and says so if you ask for more")
+	addLimitFlag(blocksListCmd, "blocks")
 	for _, c := range []*cobra.Command{blocksListCmd, blocksGetCmd, blocksLatestCmd, blocksGenesisCmd} {
 		addRecordOutputFlags(c)
 		blocksCmd.AddCommand(c)

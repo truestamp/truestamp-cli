@@ -62,7 +62,7 @@ type EnumValues map[string][]string
 
 // Walk renders root and everything under it. Hidden commands are included
 // only when includeHidden is set: they are part of the tree, but they are
-// not part of the interface, and `schema commands` describes the
+// not part of the interface, and `schema get commands` describes the
 // interface by default.
 func Walk(root *cobra.Command, enums EnumValues, includeHidden bool) Command {
 	return walk(root, root.Name(), enums, includeHidden)
@@ -118,7 +118,7 @@ func collectFlags(c *cobra.Command, path string, enums EnumValues) []Flag {
 			Usage:       f.Usage,
 			Type:        f.Value.Type(),
 			Default:     f.DefValue,
-			Values:      lookupEnum(enums, path, f.Name),
+			Values:      LookupEnum(enums, path, f.Name),
 			Inherited:   inherited,
 			Hidden:      f.Hidden,
 			NoOptDefVal: f.NoOptDefVal,
@@ -139,7 +139,10 @@ func collectFlags(c *cobra.Command, path string, enums EnumValues) []Flag {
 
 // lookupEnum prefers a command-scoped entry over a global one, so a flag
 // whose valid values differ between two commands can say so.
-func lookupEnum(enums EnumValues, path, flag string) []string {
+// LookupEnum resolves a flag's closed value set: the path-scoped key first,
+// then the bare flag name. Exported so shell completion and `schema get
+// commands` resolve a flag the same way.
+func LookupEnum(enums EnumValues, path, flag string) []string {
 	if enums == nil {
 		return nil
 	}
@@ -156,19 +159,6 @@ func Paths(c Command) []string {
 	out := []string{c.Path}
 	for _, sub := range c.Subcommands {
 		out = append(out, Paths(sub)...)
-	}
-	return out
-}
-
-// Leaves returns only the runnable command paths, i.e. the ones a caller
-// can actually invoke to do something rather than to print help.
-func Leaves(c Command) []string {
-	var out []string
-	if c.Runnable {
-		out = append(out, c.Path)
-	}
-	for _, sub := range c.Subcommands {
-		out = append(out, Leaves(sub)...)
 	}
 	return out
 }

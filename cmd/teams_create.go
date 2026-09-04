@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/truestamp/truestamp-cli/internal/inputsrc"
 	"strings"
 
 	"charm.land/huh/v2"
@@ -42,10 +43,8 @@ Examples:
   truestamp teams create "Acme Engineering"
   truestamp teams create --name "Acme" --ownership-model team_retains --set
   truestamp teams create                       # interactive prompt`,
-	Args:          cobra.MaximumNArgs(1),
-	SilenceUsage:  true,
-	SilenceErrors: true,
-	RunE:          runTeamCreate,
+	Args: cobra.MaximumNArgs(1),
+	RunE: runTeamCreate,
 }
 
 // createTeamCtx is a seam letting the test suite stub the network without
@@ -79,7 +78,7 @@ func runTeamCreate(cmd *cobra.Command, args []string) error {
 	// so scripted callers get a clear failure instead of a hang. The server
 	// is the authority on plan entitlement, there is no pre-flight check.
 	if name == "" {
-		if jsonOut || silent || !stdinIsTerminal() {
+		if jsonOut || silent || !inputsrc.IsStdinTerminal() {
 			return fmt.Errorf("team name is required (pass a name argument or --name)")
 		}
 		picked, pickedOwnership, perr := promptTeamCreate(name, ownership)

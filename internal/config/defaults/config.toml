@@ -49,7 +49,7 @@ json = false
 # Env: TRUESTAMP_VERIFY_OFFLINE
 offline = false
 
-# Skip signing key and signature verification
+# Skip the Ed25519 proof signature check; the key binding is skipped too unless --keyring pins one (disclosed in the report)
 # Env: TRUESTAMP_VERIFY_SKIP_SIGNATURES
 skip_signatures = false
 

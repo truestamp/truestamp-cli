@@ -190,33 +190,12 @@ func GenerateCtx(ctx context.Context, apiURL, team, id, subjectType, format stri
 		return nil, fmt.Errorf("encoding request body: %w", err)
 	}
 
-	reqURL := apiURL + "/proof/generate"
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, reqURL, bytes.NewReader(bodyBytes))
+	status, respBody, err := postJSONAPI(ctx, apiURL+"/proof/generate", team, bodyBytes)
 	if err != nil {
-		return nil, fmt.Errorf("creating request: %w", err)
-	}
-	req.Header.Set("Content-Type", "application/vnd.api+json")
-	req.Header.Set("Accept", "application/vnd.api+json")
-	if err := auth.AuthorizeRequest(ctx, req); err != nil {
 		return nil, err
 	}
-	if team != "" {
-		req.Header.Set("tenant", team)
-	}
-
-	resp, err := httpclient.Do(req)
-	if err != nil {
-		return nil, fmt.Errorf("API request failed: %w", err)
-	}
-	defer resp.Body.Close()
-
-	respBody, err := io.ReadAll(io.LimitReader(resp.Body, httpclient.MaxResponseSize))
-	if err != nil {
-		return nil, fmt.Errorf("reading API response: %w", err)
-	}
-
-	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return nil, parseGenerateError(resp.StatusCode, respBody)
+	if status < 200 || status >= 300 {
+		return nil, parseGenerateError(status, respBody)
 	}
 
 	// Parse the response envelope {"result": ...}
@@ -346,4 +325,34 @@ func parseGenerateError(statusCode int, body []byte) error {
 		return fmt.Errorf("API error (HTTP %d): server returned HTML error page", statusCode)
 	}
 	return fmt.Errorf("API error (HTTP %d): %s", statusCode, httpclient.Truncate(bodyStr, 200))
+}
+
+// postJSONAPI issues an authenticated JSON:API POST carrying the tenant
+// header and returns the status and the size-capped body. GenerateCtx and
+// ResolveSubjectType share it so the request shape is declared once.
+func postJSONAPI(ctx context.Context, url, team string, body []byte) (int, []byte, error) {
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewReader(body))
+	if err != nil {
+		return 0, nil, fmt.Errorf("creating request: %w", err)
+	}
+	req.Header.Set("Content-Type", "application/vnd.api+json")
+	req.Header.Set("Accept", "application/vnd.api+json")
+	if err := auth.AuthorizeRequest(ctx, req); err != nil {
+		return 0, nil, err
+	}
+	if team != "" {
+		req.Header.Set("tenant", team)
+	}
+
+	resp, err := httpclient.Do(req)
+	if err != nil {
+		return 0, nil, fmt.Errorf("API request failed: %w", err)
+	}
+	defer resp.Body.Close()
+
+	respBody, err := io.ReadAll(io.LimitReader(resp.Body, httpclient.MaxResponseSize))
+	if err != nil {
+		return 0, nil, fmt.Errorf("reading API response: %w", err)
+	}
+	return resp.StatusCode, respBody, nil
 }

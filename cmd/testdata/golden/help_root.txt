@@ -13,9 +13,9 @@ Verify a proof:
 Truestamp resources:
   beacons     Read-only: public randomness over finalized blocks
   blocks      Read-only: Truestamp's block chain
-  items       Create and inspect timestamped items
+  items       Create, list, and update timestamped items
   keys        Read-only: Truestamp's published signing keys
-  proofs      Fetch and convert proof bundles
+  proofs      Get and convert proof bundles
   teams       List, create, and switch teams
 
 Local tools (stdin → stdout primitives):

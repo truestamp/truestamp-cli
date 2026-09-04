@@ -4,8 +4,6 @@
 package cmd
 
 import (
-	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -19,9 +17,10 @@ import (
 )
 
 // beaconsCmd is the parent for the `truestamp beacons ...` subtree. Like
-// every group it has no RunE: a bare `truestamp beacons` prints help.
-// It used to run `latest`, which made the group name mean two things and
-// hid the word `latest` from the people who most needed to learn it.
+// every group it is a namespace (asGroup): a bare `truestamp beacons`
+// prints help. It used to run `latest`, which made the group name mean
+// two things and hid the word `latest` from the people who most needed
+// to learn it.
 var beaconsCmd = &cobra.Command{
 	Use:   "beacons",
 	Short: "Read-only: public randomness over finalized blocks",
@@ -37,29 +36,14 @@ Only finalized or committed blocks project as beacons, so
 block is routinely not yet finalized. For a block's internals — Merkle
 root, state, signature, key id, chain links — use 'truestamp blocks get'.
 
-Sub-commands:
-  latest     Show the most recent finalized beacon
-  list       Show the most recent N beacons (default 25, max 100)
-  get        Show a beacon by UUIDv7 id or by 64-hex-char hash
-
-Shared flags:
-  --json         Print the raw JSON response, pretty-printed
-  -s, --silent   No output, exit code only
-
-On 'latest' and 'get' only:
-  --hash-only    Print only the hash field + newline (for shell substitution)
-
 Requires authentication, run 'truestamp auth login', or set TRUESTAMP_API_KEY / --api-key for headless/CI use.`,
-	Args: cobra.NoArgs,
 }
 
 var beaconsLatestCmd = &cobra.Command{
-	Use:           "latest",
-	Short:         "Show the most recent finalized beacon",
-	Args:          cobra.NoArgs,
-	SilenceUsage:  true,
-	SilenceErrors: true,
-	RunE:          runBeaconsLatest,
+	Use:   "latest",
+	Short: "Show the most recent finalized beacon",
+	Args:  cobra.NoArgs,
+	RunE:  runBeaconsLatest,
 }
 
 func runBeaconsLatest(cmd *cobra.Command, _ []string) error {
@@ -103,24 +87,12 @@ func beaconSharedFlags(cmd *cobra.Command) (jsonOut, hashOnly, silent bool, err 
 }
 
 // beaconConfig pulls the values the beacons client needs from the resolved
-// application config. Returns errSilentFail when no credential is
-// configured (neither an OAuth session nor an API key), after first
-// printing a "not authenticated" banner to stderr (unless silent).
+// application config, after the shared credential gate.
 func beaconConfig(cmd *cobra.Command) (beacons.Config, error) {
-	cfg := appConfig
-	if !authConfigured() {
-		_, silent := outputMode(cmd)
-		if !silent {
-			ui.Fprintln(cmd.ErrOrStderr(), ui.FailureBanner("Not authenticated"))
-			ui.Fprintln(cmd.ErrOrStderr(), ui.FaintStyle().Render(
-				"    Run 'truestamp auth login' to sign in (or set TRUESTAMP_API_KEY)."))
-		}
-		return beacons.Config{}, errSilentFail
+	if err := requireAuth(cmd); err != nil {
+		return beacons.Config{}, err
 	}
-	return beacons.Config{
-		APIURL: cfg.APIURL,
-		Team:   cfg.Team,
-	}, nil
+	return beacons.Config{APIURL: appConfig.APIURL, Team: appConfig.Team}, nil
 }
 
 // beaconRenderError converts a client error into a user-facing message and
@@ -129,12 +101,7 @@ func beaconConfig(cmd *cobra.Command) (beacons.Config, error) {
 // statuses → a plain error so the root Execute() prints it to stderr.
 func beaconRenderError(cmd *cobra.Command, err error, silent bool) error {
 	if errors.Is(err, beacons.ErrUnauthorized) {
-		if !silent {
-			ui.Fprintln(cmd.ErrOrStderr(), ui.FailureBanner("Not authenticated"))
-			ui.Fprintln(cmd.ErrOrStderr(), ui.FaintStyle().Render(
-				"    Run 'truestamp auth login' to sign in (or set TRUESTAMP_API_KEY)."))
-		}
-		return errSilentFail
+		return failNotAuthenticated(cmd)
 	}
 	if silent {
 		return errSilentFail
@@ -239,24 +206,9 @@ func humanizeAge(d time.Duration) string {
 
 // URL helpers (publicWebBase, SubjectDetailURL, SubjectVerifyURL,
 // BeaconDetailURL, BeaconVerifyURL, TeamDetailURL, TeamCreateURL) all
-// live in internal/ui/weburls.go, they're shared across the beacon
-// card, download card, create card, and team card, so centralization
-// avoids drift.
-
-// emitJSONMarshal is a small shim so subcommands can render either a
-// single beacon or a list via emitJSON() (shared with codec subcommands).
-func emitJSONMarshal(w io.Writer, v any) error {
-	data, err := json.MarshalIndent(v, "", "  ")
-	if err != nil {
-		return err
-	}
-	_, err = ui.Fprintln(w, string(data))
-	return err
-}
-
-// Ensure helpers don't go unused when a later edit simplifies callers.
-var _ = emitJSONMarshal
-var _ = context.Background
+// live in internal/ui/weburls.go: they are shared across the beacon,
+// proofs get, items create and team cards, so centralization avoids
+// drift.
 
 func init() {
 	f := beaconsLatestCmd.Flags()

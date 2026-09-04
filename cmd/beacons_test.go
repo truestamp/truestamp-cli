@@ -282,7 +282,7 @@ func TestCLI_Beacons_Get_HashOnly(t *testing.T) {
 	}
 }
 
-func TestCLI_Beacons_ByHash_HashOnly(t *testing.T) {
+func TestCLI_Beacons_GetByHash_HashOnly(t *testing.T) {
 	url, stop := startBeaconServer(t)
 	defer stop()
 
@@ -319,7 +319,7 @@ func TestCLI_Beacons_Get_BadUUIDClientSide(t *testing.T) {
 	}
 }
 
-func TestCLI_Beacons_ByHash_BadHashClientSide(t *testing.T) {
+func TestCLI_Beacons_GetByHash_BadHashClientSide(t *testing.T) {
 	called := false
 	srv := httptest.NewServer(http.HandlerFunc(func(_ http.ResponseWriter, _ *http.Request) {
 		called = true

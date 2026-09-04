@@ -72,9 +72,9 @@ func Fprintf(w io.Writer, format string, a ...any) (int, error) {
 }
 
 // ProfileWriter wraps w so ANSI is stripped or downsampled to suit the
-// destination. Exported for the few call sites that need the writer
-// itself (a table renderer, a sub-writer handed to another package)
-// rather than a one-shot print.
+// destination. Detection runs on every call, so a caller writing many
+// lines to one destination (the hash listing) takes the writer once
+// rather than paying for it per line.
 func ProfileWriter(w io.Writer) io.Writer {
 	if noColorForced {
 		return &colorprofile.Writer{Forward: w, Profile: colorprofile.NoTTY}

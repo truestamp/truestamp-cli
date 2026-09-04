@@ -192,24 +192,6 @@ func TestEnums_NilRegistryIsSafe(t *testing.T) {
 	}
 }
 
-// TestPathsAndLeaves_Differ is the distinction `schema get commands`
-// depends on: every node versus the ones that actually do something.
-func TestPathsAndLeaves_Differ(t *testing.T) {
-	tree := Walk(fixture(), nil, false)
-	paths := Paths(tree)
-	leaves := Leaves(tree)
-
-	if !slices.Contains(paths, "tool items") {
-		t.Error("Paths should include groups")
-	}
-	if slices.Contains(leaves, "tool items") {
-		t.Error("Leaves must not include a group that only prints help")
-	}
-	if !slices.Contains(leaves, "tool items get") {
-		t.Error("Leaves should include the runnable leaf")
-	}
-}
-
 func TestFind_MissAndNestedHit(t *testing.T) {
 	tree := Walk(fixture(), nil, false)
 	if _, ok := Find(tree, "tool nope"); ok {

@@ -33,9 +33,7 @@ The CLI does not re-read the file after the editor exits; the next
 invocation picks up whatever was saved. A file that no longer parses is
 reported by the next command that loads it, so 'truestamp config show' is
 a good thing to run afterwards.`,
-	Args:          cobra.NoArgs,
-	SilenceUsage:  true,
-	SilenceErrors: true,
+	Args: cobra.NoArgs,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		path := config.ActivePath()
 		if _, err := os.Stat(path); err != nil {

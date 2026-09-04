@@ -31,14 +31,12 @@ command. A server-reported state is a claim; a verified proof is
 evidence, and the authoritative answer is:
 
   truestamp proofs get <id> | truestamp verify`,
-	Args:          cobra.NoArgs,
-	SilenceUsage:  true,
-	SilenceErrors: true,
+	Args: cobra.NoArgs,
 	RunE: func(cmd *cobra.Command, _ []string) error {
-		if err := requireItemsAuth(cmd); err != nil {
+		if err := requireAuth(cmd); err != nil {
 			return err
 		}
-		limit, err := pageLimit(cmd, items.DefaultLimit)
+		limit, err := pageLimit(cmd)
 		if err != nil {
 			return err
 		}
@@ -51,22 +49,19 @@ evidence, and the authoritative answer is:
 			Limit: limit, After: after, Committed: committed, Pending: pending,
 		}
 
+		// With --all the loop only exits on an empty cursor, so the
+		// cursor handed to the renderer is right in both modes.
 		var collected []items.Item
-		cursor := after
 		for {
-			opts.After = cursor
 			page, err := items.List(cmd.Context(), appConfig.APIURL, appConfig.Team, opts)
 			if err != nil {
 				return err
 			}
 			collected = append(collected, page.Items...)
 			if !all || page.NextCursor == "" {
-				if !all {
-					return renderItemList(cmd, collected, page.NextCursor)
-				}
-				return renderItemList(cmd, collected, "")
+				return renderItemList(cmd, collected, page.NextCursor)
 			}
-			cursor = page.NextCursor
+			opts.After = page.NextCursor
 		}
 	},
 }
@@ -80,11 +75,9 @@ The card includes commitment state. For the authoritative answer, fetch
 the proof and check it yourself:
 
   truestamp proofs get <id> | truestamp verify`,
-	Args:          cobra.ExactArgs(1),
-	SilenceUsage:  true,
-	SilenceErrors: true,
+	Args: cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
-		if err := requireItemsAuth(cmd); err != nil {
+		if err := requireAuth(cmd); err != nil {
 			return err
 		}
 		it, err := items.Get(cmd.Context(), appConfig.APIURL, appConfig.Team, strings.TrimSpace(args[0]))
@@ -111,26 +104,28 @@ deliberately NOT the root --team flag: that one says which tenant scopes
 the request, and letting one word mean both would make
 'items update <id> --team ""' — a perfectly ordinary way to scope a
 request — silently mean "move this item to team ''". One word, one
-meaning (kb/command-tree.md R13).
+meaning.
 
 Examples:
   truestamp items update 01KNN33GX5E470CB9TRWAYF9DD --visibility public
   truestamp items update 01KNN33GX5E470CB9TRWAYF9DD --tags q3,contracts
   truestamp items update 01KNN33GX5E470CB9TRWAYF9DD --to-team 019dbd00-0000-7000-8000-000000000000`,
-	Args:          cobra.ExactArgs(1),
-	SilenceUsage:  true,
-	SilenceErrors: true,
+	Args: cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
-		if err := requireItemsAuth(cmd); err != nil {
+		if err := requireAuth(cmd); err != nil {
 			return err
 		}
 		var opts items.UpdateOptions
 		if cmd.Flags().Changed("visibility") {
 			v, _ := cmd.Flags().GetString("visibility")
+			if err := items.ValidateVisibility(v); err != nil {
+				return err
+			}
 			opts.Visibility = &v
 		}
 		if cmd.Flags().Changed("tags") {
-			t, _ := cmd.Flags().GetStringSlice("tags")
+			raw, _ := cmd.Flags().GetStringSlice("tags")
+			t := items.NormalizeTags(raw)
 			opts.Tags = &t
 		}
 		if cmd.Flags().Changed("to-team") {
@@ -144,19 +139,6 @@ Examples:
 		}
 		return renderItem(cmd, it)
 	},
-}
-
-func requireItemsAuth(cmd *cobra.Command) error {
-	if authConfigured() {
-		return nil
-	}
-	_, silent := outputMode(cmd)
-	if !silent {
-		ui.Fprintln(cmd.ErrOrStderr(), ui.FailureBanner("Not authenticated"))
-		ui.Fprintln(cmd.ErrOrStderr(), ui.FaintStyle().Render(
-			"    Run 'truestamp auth login' to sign in (or set TRUESTAMP_API_KEY)."))
-	}
-	return errSilentFail
 }
 
 func renderItem(cmd *cobra.Command, it *items.Item) error {
@@ -258,16 +240,15 @@ func itemListLine(it items.Item) string {
 
 func init() {
 	lf := itemsListCmd.Flags()
-	lf.Int("limit", items.DefaultLimit,
-		"Items per page; the server caps it and says so if you ask for more")
+	addLimitFlag(itemsListCmd, "items")
 	lf.String("after", "", "Continue from a previous page's cursor")
 	lf.Bool("committed", false, "Only items that have been committed (a proof can be generated)")
 	lf.Bool("pending", false, "Only items not yet committed")
 	lf.Bool("all", false, "Follow cursors to the end (many requests on a large team)")
 
 	uf := itemsUpdateCmd.Flags()
-	uf.String("visibility", "", "Item visibility")
-	uf.StringSlice("tags", nil, "Replace the item's tags")
+	uf.String("visibility", "", `Item visibility: "private", "team", or "public"`)
+	uf.StringSlice("tags", nil, "Replace the item's tags (comma-separated or repeated)")
 	uf.String("to-team", "", "Move the item to this team (not the same as the root --team, which scopes the request)")
 
 	for _, c := range []*cobra.Command{itemsListCmd, itemsGetCmd, itemsUpdateCmd} {

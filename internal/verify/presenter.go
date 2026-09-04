@@ -55,7 +55,7 @@ func Render(r *Report, color bool) string {
 	}
 
 	if r.Passed() {
-		ui.Fprintf(&b, "\n  VERDICT: %s\n", verdictStyle(true, color).Render("PASSED"))
+		fmt.Fprintf(&b, "\n  VERDICT: %s\n", verdictStyle(true, color).Render("PASSED"))
 		b.WriteString("\n  The proof is internally sound: every value in it reproduces, and the\n" +
 			"  signature over those values is valid. Any `skip` above is a check this\n" +
 			"  run did not perform, not a check that failed.\n")
@@ -64,7 +64,7 @@ func Render(r *Report, color bool) string {
 				"  establishes who signed this proof.\n")
 		}
 	} else {
-		ui.Fprintf(&b, "\n  VERDICT: %s\n", verdictStyle(false, color).Render("FAILED"))
+		fmt.Fprintf(&b, "\n  VERDICT: %s\n", verdictStyle(false, color).Render("FAILED"))
 		b.WriteString("\n  At least one step failed. This proof should not be relied on.\n")
 	}
 	b.WriteString("\n" + rule + "\n")

@@ -28,18 +28,12 @@ Examples:
   truestamp convert merkle "AQEA..."
   jq -r .inclusion_proof proof.json | truestamp convert merkle
   jq -r '.commitments[0].epoch_proof' proof.json | truestamp convert merkle`,
-	SilenceUsage:  true,
-	SilenceErrors: true,
-	RunE:          runConvertMerkle,
+	RunE: runConvertMerkle,
 }
 
 func runConvertMerkle(cmd *cobra.Command, args []string) error {
 	jsonOut, _ := cmd.Flags().GetBool("json")
 	silent, _ := cmd.Flags().GetBool("silent")
-
-	if silent && jsonOut {
-		return fmt.Errorf("--silent and --json are mutually exclusive")
-	}
 
 	raw, err := gatherMerkleInput(cmd, args)
 	if err != nil {
@@ -113,6 +107,6 @@ func gatherMerkleInput(cmd *cobra.Command, args []string) (string, error) {
 var errConvertNoMerkleInput = errors.New("no Merkle proof input provided")
 
 func init() {
-	addConvertCommonFlags(convertMerkleCmd)
+	addRecordOutputFlags(convertMerkleCmd)
 	convertCmd.AddCommand(convertMerkleCmd)
 }

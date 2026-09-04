@@ -42,21 +42,13 @@ flag, no validity interval and no timestamps.
 
 The stronger artifact is the bundle-carried signing key event, which ties
 a key to a block whose hash sits under a root committed to a public
-blockchain, and stays checkable long after Truestamp is gone.
-
-Sub-commands:
-  list      Show every published key
-  get       Show one key by its 8-hex key id
-  current   Show the key signing right now`,
-	Args: cobra.NoArgs,
+blockchain, and stays checkable long after Truestamp is gone.`,
 }
 
 var keysListCmd = &cobra.Command{
-	Use:           "list",
-	Short:         "Show every published signing key",
-	Args:          cobra.NoArgs,
-	SilenceUsage:  true,
-	SilenceErrors: true,
+	Use:   "list",
+	Short: "Show every published signing key",
+	Args:  cobra.NoArgs,
 	RunE: func(cmd *cobra.Command, _ []string) error {
 		kr, err := external.FetchKeyring(appConfig.KeyringURL)
 		if err != nil {
@@ -82,21 +74,18 @@ var keysGetCmd = &cobra.Command{
 The key id is the 4-byte fingerprint rendered as 8 lowercase hex
 characters. To derive it from a public key you already hold, use
 'truestamp convert keyid'.`,
-	Args:          cobra.ExactArgs(1),
-	SilenceUsage:  true,
-	SilenceErrors: true,
+	Args: cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
-		want := strings.ToLower(strings.TrimSpace(args[0]))
+		want := strings.TrimSpace(args[0])
 		kr, err := external.FetchKeyring(appConfig.KeyringURL)
 		if err != nil {
 			return err
 		}
-		for _, k := range kr.Keys {
-			if strings.EqualFold(k.KeyID, want) {
-				return renderOneKey(cmd, k)
-			}
+		k, ok := kr.FindByID(want)
+		if !ok {
+			return fmt.Errorf("no published key with id %q", want)
 		}
-		return fmt.Errorf("no published key with id %q", want)
+		return renderOneKey(cmd, k)
 	},
 }
 
@@ -109,20 +98,17 @@ var keysCurrentCmd = &cobra.Command{
 now", not "the most recent row". Today they coincide, but the keyring is
 populated by chain replay including prerotation events, so a
 published-but-not-yet-active key would make them diverge.`,
-	Args:          cobra.NoArgs,
-	SilenceUsage:  true,
-	SilenceErrors: true,
+	Args: cobra.NoArgs,
 	RunE: func(cmd *cobra.Command, _ []string) error {
 		kr, err := external.FetchKeyring(appConfig.KeyringURL)
 		if err != nil {
 			return err
 		}
-		for _, k := range kr.Keys {
-			if k.Active {
-				return renderOneKey(cmd, k)
-			}
+		k, ok := kr.Active()
+		if !ok {
+			return fmt.Errorf("the published keyring contains no active key")
 		}
-		return fmt.Errorf("the published keyring contains no active key")
+		return renderOneKey(cmd, k)
 	},
 }
 

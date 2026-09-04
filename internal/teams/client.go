@@ -446,7 +446,7 @@ func OwnershipDescription(model string) string {
 }
 
 // OwnershipModels returns the ownership models a client may offer, in display
-// order. Both surfaces (the `team create` subcommand and the console modal)
+// order. Both surfaces (the `teams create` subcommand and the console modal)
 // build their pickers from this single source so a future model is added once.
 func OwnershipModels() []string {
 	return []string{OwnershipCreatorRetains, OwnershipTeamRetains}

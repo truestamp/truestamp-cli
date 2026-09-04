@@ -5,16 +5,14 @@ package cmd
 
 import (
 	"fmt"
+	"github.com/truestamp/truestamp-cli/internal/inputsrc"
 	"io"
 	"strings"
 
-	lipgloss "charm.land/lipgloss/v2"
 	"github.com/spf13/cobra"
 	"github.com/truestamp/truestamp-cli/internal/beacons"
 	"github.com/truestamp/truestamp-cli/internal/ui"
 )
-
-const beaconListDefaultLimit = 25
 
 var beaconsListCmd = &cobra.Command{
 	Use:   "list",
@@ -25,19 +23,17 @@ Examples:
   truestamp beacons list
   truestamp beacons list --limit 3
   truestamp beacons list --limit 10 --json | jq '.[].hash'`,
-	Args:          cobra.NoArgs,
-	SilenceUsage:  true,
-	SilenceErrors: true,
-	RunE:          runBeaconList,
+	Args: cobra.NoArgs,
+	RunE: runBeaconsList,
 }
 
-func runBeaconList(cmd *cobra.Command, _ []string) error {
+func runBeaconsList(cmd *cobra.Command, _ []string) error {
 	jsonOut, _, silent, err := beaconSharedFlags(cmd)
 	if err != nil {
 		return err
 	}
 
-	limit, err := pageLimit(cmd, beaconListDefaultLimit)
+	limit, err := pageLimit(cmd)
 	if err != nil {
 		return err
 	}
@@ -61,7 +57,7 @@ func runBeaconList(cmd *cobra.Command, _ []string) error {
 	renderBeaconList(cmd.OutOrStdout(), items)
 	// One-line hint on interactive runs pointing at `proofs get --type beacon`.
 	// Suppressed when stdout is piped so shell pipelines stay clean.
-	if stdoutIsTerminal() {
+	if inputsrc.IsStdoutTerminal() {
 		ui.Fprintln(cmd.ErrOrStderr(), ui.FaintStyle().Render(
 			"  Hint: 'truestamp proofs get --type beacon <id>' fetches a verifiable proof bundle."))
 	}
@@ -70,7 +66,7 @@ func runBeaconList(cmd *cobra.Command, _ []string) error {
 
 // renderBeaconList prints a compact three-column table. Hashes are
 // always shown full-width, truncation would silently drop the bytes a
-// user came here to capture (the whole point of `beacon list` is to
+// user came here to capture (the whole point of `beacons list` is to
 // surface the hash for copy-paste or shell substitution).
 func renderBeaconList(w io.Writer, items []beacons.Beacon) {
 	heading := fmt.Sprintf("  Beacons (latest %d)", len(items))
@@ -86,12 +82,7 @@ func renderBeaconList(w io.Writer, items []beacons.Beacon) {
 	}
 
 	tbl := ui.CompactTable().
-		StyleFunc(func(row, col int) lipgloss.Style {
-			if row == 0 {
-				return lipgloss.NewStyle().Foreground(ui.Label).PaddingLeft(2).PaddingRight(1).Bold(true)
-			}
-			return lipgloss.NewStyle().Foreground(ui.Value).PaddingLeft(2).PaddingRight(1)
-		}).
+		StyleFunc(ui.HeaderRowStyleFunc()).
 		Rows(rows...)
 
 	// Plain newline-join, see note in internal/verify/presenter.go
@@ -102,8 +93,7 @@ func renderBeaconList(w io.Writer, items []beacons.Beacon) {
 }
 
 func init() {
-	f := beaconsListCmd.Flags()
-	f.Int("limit", beaconListDefaultLimit, "How many beacons to fetch; the server caps it and says so if you ask for more")
+	addLimitFlag(beaconsListCmd, "beacons")
 	addRecordOutputFlags(beaconsListCmd)
 
 	beaconsCmd.AddCommand(beaconsListCmd)

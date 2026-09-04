@@ -54,6 +54,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   often asked of the list. Every request names `inserted_at`, `updated_at` and
   `expires_at` in `fields[item]` explicitly: they are absent from the resource's
   JSON:API default fields, so omitting them returns empty values with no error.
+  Lists are newest first, and `List` re-sends `sort` with every page so
+  pagination stays consistent.
 - **`truestamp blocks`**, a read-only group over Truestamp's block chain:
   `list`, `get <uuid|hash>`, `latest` (the head block) and `genesis`. A block is
   the full signed record — Merkle root, state, signature, key id, chain links —
@@ -83,14 +85,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
-- **`items list` returns newest first**, which is what its help, its doc
-  comment and `README.md` all promised. It sent no `sort` parameter at all,
-  so the server applied its default ascending order; `blocks list` and
-  `beacons list` were already correct. Pagination stays consistent across
-  pages because `List` re-sends `sort` on every request: it rebuilds the query
-  itself rather than following the server's `next` link, lifting only the
-  cursor out of it.
-
 - **`--limit` is bounded on one side only.** The CLI refuses `--limit 0`
   locally, the one bound the server's OpenAPI document states
   (`page.limit`, `"minimum": 1`), and forwards everything else. The
@@ -100,22 +94,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   resources serve far more than 100 (`blocks list --limit 250` returns 250).
   Only `beacons` caps at 100, and it names its own cap when it refuses.
 
-- **`truestamp inspect` honors the CLI-wide `json` / `silent` settings.** It
-  read the raw cobra flags instead of the resolved config, so `TRUESTAMP_JSON`
-  and a `json = true` in `config.toml` reached every record-rendering command
-  except this one.
-
 - **`truestamp help <unknown-topic>` exits 1.** Cobra's built-in help prints
   "Unknown help topic", dumps the root help and exits 0, which tells a script
   the topic was found. A leftover word after a group is reported too, so
   `truestamp help convert proof` names what is wrong instead of printing
   `convert`'s help.
-
-- **`schema get commands` reports `"group": true` for the ten namespaces.**
-  `internal/introspect` derived it from `!Runnable()`, which stopped being
-  true when every group gained a `RunE` so a bare group could print help and
-  an unknown sub-command could be an error. The field said the opposite of
-  what it exists to say.
 
 - **`inspect` no longer reports `type_code`.** The bundle does not carry it: it
   carries the type *name*, in both JSON and CBOR, and the server never returns
@@ -167,17 +150,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   The server-side claims field is still `hash` and is unchanged.
 - **`beacons list --hash-only` is removed.** It existed only to be rejected with
   an error message; a flag that exists to fail is a trap.
-- **`download` writes the bundle to stdout by default.** It always wrote a
-  conventionally-named file into the working directory, which made
-  `truestamp download <id> | truestamp verify --offline` impossible without a
-  temp file, in a CLI whose documentation is built on pipelines. The R10 payload
+- **`proofs get` (then still `download`) writes the bundle to stdout by
+  default.** It always wrote a conventionally-named file into the working
+  directory, which made `truestamp proofs get <id> | truestamp verify --offline`
+  impossible without a temp file, in a CLI whose documentation is built on
+  pipelines. The R10 payload
   triad now applies: no flag → stdout, `-o/--out <path>` → that path,
   `--to-file` → the conventional auto-name. `-o/--out` and `--to-file` are
   mutually exclusive, the receipt card moves to **stderr** so stdout stays
   pipeable, and writing CBOR to a terminal is refused rather than garbling the
   session. **This changes the default behavior**: scripts relying on the file
   appearing in the cwd must add `--to-file`.
-- **`-o/--output` on `download` is renamed `-o/--out`.** A local `--output`
+- **`-o/--output` on `proofs get` is renamed `-o/--out`.** A local `--output`
   would shadow any inherited output flag, so `--output json` could silently
   write a file literally named `json`.
 - **`version`, `config show` and `auth status` gained `--json` and `--silent`.**

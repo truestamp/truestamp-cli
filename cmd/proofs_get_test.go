@@ -60,9 +60,7 @@ func startProofServer(t *testing.T, responseBody string) (string, *string, func(
 	var lastBody string
 	mux := http.NewServeMux()
 	mux.HandleFunc("/api/json/proof/generate", func(w http.ResponseWriter, r *http.Request) {
-		if !strings.HasPrefix(r.Header.Get("Authorization"), "Bearer ") {
-			t.Errorf("missing Bearer header")
-		}
+		requireBearer(t, r)
 		b, _ := io.ReadAll(r.Body)
 		lastBody = string(b)
 		w.WriteHeader(http.StatusCreated)
@@ -105,7 +103,7 @@ func assertWireType(t *testing.T, body, want string) {
 	}
 }
 
-func TestCLI_Download_SmartDefaultULIDItem(t *testing.T) {
+func TestCLI_ProofsGet_SmartDefaultULIDItem(t *testing.T) {
 	url, lastBody, stop := startProofServer(t, testItemProofJSON)
 	defer stop()
 	dir := withTempCWD(t)
@@ -124,7 +122,7 @@ func TestCLI_Download_SmartDefaultULIDItem(t *testing.T) {
 	}
 }
 
-func TestCLI_Download_Witnesses(t *testing.T) {
+func TestCLI_ProofsGet_Witnesses(t *testing.T) {
 	cases := []struct {
 		flag     string
 		wantList any
@@ -193,7 +191,7 @@ func TestCLI_ProofsGet_NoTypeUUIDv7ResolvesThenFails(t *testing.T) {
 	}
 }
 
-func TestCLI_Download_Types(t *testing.T) {
+func TestCLI_ProofsGet_Types(t *testing.T) {
 	cases := []struct {
 		typeFlag, id, body, format, wantFile string
 	}{
@@ -219,7 +217,7 @@ func TestCLI_Download_Types(t *testing.T) {
 	}
 }
 
-func TestCLI_Download_CBOR(t *testing.T) {
+func TestCLI_ProofsGet_CBOR(t *testing.T) {
 	// The server answers CBOR as base64 of the bytes; the file must carry
 	// the decoded bytes, tag and all.
 	cborBytes, _ := os.ReadFile(testfixtures.Path(testfixtures.ProdDir, testfixtures.ProdCBOR))
@@ -240,9 +238,9 @@ func TestCLI_Download_CBOR(t *testing.T) {
 	}
 }
 
-// TestCLI_Download_PreservesNumbers pins that the pretty-printed JSON keeps
+// TestCLI_ProofsGet_PreservesNumbers pins that the pretty-printed JSON keeps
 // every number literal as the server wrote it.
-func TestCLI_Download_PreservesNumbers(t *testing.T) {
+func TestCLI_ProofsGet_PreservesNumbers(t *testing.T) {
 	body := strings.Replace(testItemProofJSON, `"claims":{"name":"x"}`, `"claims":{"name":"x","big":9007199254740993}`, 1)
 	url, _, stop := startProofServer(t, body)
 	defer stop()
@@ -256,7 +254,7 @@ func TestCLI_Download_PreservesNumbers(t *testing.T) {
 	}
 }
 
-func TestCLI_Download_OutputFlagWins(t *testing.T) {
+func TestCLI_ProofsGet_OutputFlagWins(t *testing.T) {
 	url, _, stop := startProofServer(t, testBeaconProofJSON)
 	defer stop()
 	dir := withTempCWD(t)
@@ -274,7 +272,7 @@ func TestCLI_Download_OutputFlagWins(t *testing.T) {
 	}
 }
 
-func TestCLI_Download_InvalidType(t *testing.T) {
+func TestCLI_ProofsGet_InvalidType(t *testing.T) {
 	_, stderr, exit := runCLI(t, "--api-key", "test-key", "proofs", "get", "--type", "bogus", "019db702-b08c-73dc-a7cd-2c5e011f1dad")
 	if exit == 0 || !strings.Contains(stderr, "--type must be one of") {
 		t.Fatalf("exit=%d stderr=%q", exit, stderr)
@@ -290,7 +288,7 @@ func TestCLI_Download_InvalidType(t *testing.T) {
 	}
 }
 
-func TestCLI_Download_ShapeVsType(t *testing.T) {
+func TestCLI_ProofsGet_ShapeVsType(t *testing.T) {
 	called := false
 	srv := httptest.NewServer(http.HandlerFunc(func(_ http.ResponseWriter, _ *http.Request) { called = true }))
 	defer srv.Close()
@@ -306,9 +304,9 @@ func TestCLI_Download_ShapeVsType(t *testing.T) {
 	}
 }
 
-// TestCLI_Download_NotCommittedError surfaces the server's
+// TestCLI_ProofsGet_NotCommittedError surfaces the server's
 // no_external_commitments answer with the wait-for-the-epoch advice.
-func TestCLI_Download_NotCommittedError(t *testing.T) {
+func TestCLI_ProofsGet_NotCommittedError(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusBadRequest)
 		_, _ = w.Write([]byte(`{"errors":[{"detail":"Subject has not yet been committed to a public blockchain. Try again after the next epoch commit.","meta":{"code":"no_external_commitments"}}]}`))
@@ -330,7 +328,7 @@ func TestCLI_Download_NotCommittedError(t *testing.T) {
 	}
 }
 
-func TestCLI_Download_InvalidWitnessFromServer(t *testing.T) {
+func TestCLI_ProofsGet_InvalidWitnessFromServer(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusBadRequest)
 		_, _ = w.Write([]byte(`{"errors":[{"detail":"invalid witness: valid names are block, entropy_stellar, entropy_nist, entropy_bitcoin, signing_key_event","meta":{"code":"invalid_witness"}}]}`))
@@ -343,7 +341,7 @@ func TestCLI_Download_InvalidWitnessFromServer(t *testing.T) {
 	}
 }
 
-// TestCLI_Download_SubjectTypeMismatchError.
+// TestCLI_ProofsGet_SubjectTypeMismatchError.
 //
 // 400, not 422. Every refusal on /proof/generate funnels through one
 // constructor that builds an Ash.Error.Changes.InvalidChanges, whose class
@@ -353,7 +351,7 @@ func TestCLI_Download_InvalidWitnessFromServer(t *testing.T) {
 // alike. The only other outcomes on this route are 201 for a generated
 // bundle and 404 for a subject that does not exist, both confirmed against
 // the live API. No fixture here should model any other status.
-func TestCLI_Download_SubjectTypeMismatchError(t *testing.T) {
+func TestCLI_ProofsGet_SubjectTypeMismatchError(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusBadRequest)
 		_, _ = w.Write([]byte(`{"errors":[{"code":"subject_type_mismatch","detail":"Requested type entropy_nist but subject 019db702-b08c-73dc-a7cd-2c5e011f1dad has source entropy_stellar","meta":{"code":"subject_type_mismatch"}}]}`))
@@ -374,13 +372,13 @@ func base64Std(b []byte) string { return base64.StdEncoding.EncodeToString(b) }
 //
 // The default changed from "always write a conventionally-named file into
 // the cwd" to "write the bundle to stdout". That is what makes
-// `truestamp download <id> | truestamp verify --offline` possible without
+// `truestamp proofs get <id> | truestamp verify --offline` possible without
 // a temp file, in a CLI whose docs are built on pipelines. These tests pin
 // all three destinations and the two refusals.
 
-// TestCLI_Download_DefaultsToStdout is the behavior change itself: bytes on
+// TestCLI_ProofsGet_DefaultsToStdout is the behavior change itself: bytes on
 // stdout, and nothing written into the working directory.
-func TestCLI_Download_DefaultsToStdout(t *testing.T) {
+func TestCLI_ProofsGet_DefaultsToStdout(t *testing.T) {
 	url, _, stop := startProofServer(t, testItemProofJSON)
 	defer stop()
 	dir := withTempCWD(t)
@@ -391,7 +389,7 @@ func TestCLI_Download_DefaultsToStdout(t *testing.T) {
 		t.Fatalf("exit=%d, stderr=%q", exit, stderr)
 	}
 	if !strings.Contains(stdout, `"signature"`) {
-		t.Errorf("bundle did not reach stdout, got %d bytes: %q", len(stdout), truncateForLog(stdout))
+		t.Errorf("bundle did not reach stdout, got %d bytes: %q", len(stdout), truncate(stdout, 200))
 	}
 	entries, err := os.ReadDir(dir)
 	if err != nil {
@@ -406,10 +404,10 @@ func TestCLI_Download_DefaultsToStdout(t *testing.T) {
 	}
 }
 
-// TestCLI_Download_StdoutIsPipeable proves the point of the change: the
+// TestCLI_ProofsGet_StdoutIsPipeable proves the point of the change: the
 // bytes on stdout are a bundle `verify` accepts. A test that only checked
 // for a substring would not.
-func TestCLI_Download_StdoutIsPipeable(t *testing.T) {
+func TestCLI_ProofsGet_StdoutIsPipeable(t *testing.T) {
 	// A JSON-format download returns the proof object itself, so the
 	// fixture is the response body verbatim.
 	bundle, err := os.ReadFile(testfixtures.Path(testfixtures.ProdDir, testfixtures.ProdComplete))
@@ -436,10 +434,10 @@ func TestCLI_Download_StdoutIsPipeable(t *testing.T) {
 	}
 }
 
-// TestCLI_Download_OutAndToFileConflict: the two file destinations are
+// TestCLI_ProofsGet_OutAndToFileConflict: the two file destinations are
 // mutually exclusive, and the error must name both rather than silently
 // letting one win.
-func TestCLI_Download_OutAndToFileConflict(t *testing.T) {
+func TestCLI_ProofsGet_OutAndToFileConflict(t *testing.T) {
 	url, _, stop := startProofServer(t, testItemProofJSON)
 	defer stop()
 	dir := withTempCWD(t)
@@ -456,9 +454,9 @@ func TestCLI_Download_OutAndToFileConflict(t *testing.T) {
 	}
 }
 
-// TestCLI_Download_ReceiptGoesToStderr keeps stdout usable when a file was
+// TestCLI_ProofsGet_ReceiptGoesToStderr keeps stdout usable when a file was
 // written: the card is a receipt for a human, not part of any pipeline.
-func TestCLI_Download_ReceiptGoesToStderr(t *testing.T) {
+func TestCLI_ProofsGet_ReceiptGoesToStderr(t *testing.T) {
 	url, _, stop := startProofServer(t, testItemProofJSON)
 	defer stop()
 	withTempCWD(t)
@@ -474,13 +472,6 @@ func TestCLI_Download_ReceiptGoesToStderr(t *testing.T) {
 	if strings.Contains(stdout, "Proof Downloaded") {
 		t.Errorf("receipt card leaked into stdout: %q", stdout)
 	}
-}
-
-func truncateForLog(s string) string {
-	if len(s) > 200 {
-		return s[:200] + "..."
-	}
-	return s
 }
 
 // --- --type resolution -------------------------------------------------

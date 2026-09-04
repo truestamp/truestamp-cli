@@ -4,16 +4,10 @@
 package proof
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
-	"io"
-	"net/http"
 	"strings"
-
-	"github.com/truestamp/truestamp-cli/internal/auth"
-	"github.com/truestamp/truestamp-cli/internal/httpclient"
 )
 
 // ResolveSubjectType asks the server what a bare id refers to, so
@@ -42,33 +36,12 @@ func ResolveSubjectType(ctx context.Context, apiURL, team, id string) (string, e
 	if err != nil {
 		return "", fmt.Errorf("encoding request: %w", err)
 	}
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost,
-		apiURL+"/utilities/resolve-id", bytes.NewReader(payload))
-	if err != nil {
-		return "", fmt.Errorf("creating request: %w", err)
-	}
-	req.Header.Set("Content-Type", "application/vnd.api+json")
-	req.Header.Set("Accept", "application/vnd.api+json")
-	if err := auth.AuthorizeRequest(ctx, req); err != nil {
-		return "", err
-	}
-	if team != "" {
-		req.Header.Set("tenant", team)
-	}
-
-	resp, err := httpclient.Do(req)
+	status, body, err := postJSONAPI(ctx, apiURL+"/utilities/resolve-id", team, payload)
 	if err != nil {
 		return "", fmt.Errorf("resolving id: %w", err)
 	}
-	defer resp.Body.Close()
-
-	body, err := io.ReadAll(io.LimitReader(resp.Body, httpclient.MaxResponseSize))
-	if err != nil {
-		return "", fmt.Errorf("reading response: %w", err)
-	}
-	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return "", fmt.Errorf("could not resolve %s (HTTP %d): pass --type explicitly",
-			id, resp.StatusCode)
+	if status < 200 || status >= 300 {
+		return "", fmt.Errorf("could not resolve %s (HTTP %d): pass --type explicitly", id, status)
 	}
 
 	var env struct {

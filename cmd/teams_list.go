@@ -5,6 +5,7 @@ package cmd
 
 import (
 	"fmt"
+	"github.com/truestamp/truestamp-cli/internal/inputsrc"
 	"io"
 	"sort"
 	"strings"
@@ -24,17 +25,12 @@ team (the one stored under 'team' in config.toml) is marked with a star.
 Examples:
   truestamp teams list
   truestamp teams list --json | jq '.[].id'`,
-	Args:          cobra.NoArgs,
-	SilenceUsage:  true,
-	SilenceErrors: true,
-	RunE:          runTeamList,
+	Args: cobra.NoArgs,
+	RunE: runTeamList,
 }
 
 func runTeamList(cmd *cobra.Command, _ []string) error {
 	jsonOut, silent := outputMode(cmd)
-	if silent && jsonOut {
-		return fmt.Errorf("--silent and --json are mutually exclusive")
-	}
 
 	cfg, err := teamConfig(cmd)
 	if err != nil {
@@ -82,7 +78,7 @@ func runTeamList(cmd *cobra.Command, _ []string) error {
 
 	renderTeamList(cmd.OutOrStdout(), memberships, appConfig.Team)
 
-	if stdoutIsTerminal() {
+	if inputsrc.IsStdoutTerminal() {
 		hint := "  Hint: 'truestamp teams use <id>' switches the active team."
 		if appConfig.Team == "" {
 			hint += "  No active team is currently set."

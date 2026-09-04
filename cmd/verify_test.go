@@ -447,7 +447,7 @@ func TestCLI_Verify_ExpectedHash(t *testing.T) {
 	// silently accepted and not silently ignored. Run it raw rather than
 	// through runVerifyJSON, which requires parseable JSON on stdout.
 	raw, rawErr := exec.Command(binaryPath, "verify", path,
-		"--offline", "--data-hash", appendixDClaimsHash).CombinedOutput()
+		"--offline", "--hash", appendixDClaimsHash).CombinedOutput()
 	if rawErr == nil {
 		t.Error("--hash was removed as an alias of --expected-hash but still succeeds")
 	}
@@ -595,54 +595,6 @@ func TestCLI_Verify_Remote(t *testing.T) {
 }
 
 // --- inspect ---
-
-func TestCLI_Inspect(t *testing.T) {
-	out, code := runCLIText(t, "inspect", prodPath(testfixtures.ProdComplete))
-	if code != 0 {
-		t.Fatalf("exit %d\n%s", code, out)
-	}
-	for _, want := range []string{
-		"Type                   item", "01M1M0V3SE3C5P32TRAJSNX6QF", "Derived key id         3c19f776",
-		"block, entropy_bitcoin, entropy_nist, entropy_stellar", "stellar public", "Carried                yes",
-		"type genesis, sequence 0", "Inclusion proof        5 steps",
-	} {
-		if !strings.Contains(out, want) {
-			t.Errorf("inspect output lacks %q\n%s", want, out)
-		}
-	}
-	if strings.Contains(out, "VERDICT") {
-		t.Error("inspect must not verify")
-	}
-
-	cmd := exec.Command(binaryPath, "inspect", prodPath(testfixtures.ProdCBOR), "--json")
-	cmd.Env = cleanEnv()
-	raw, err := cmd.Output()
-	if err != nil {
-		t.Fatalf("inspect --json: %v\n%s", err, raw)
-	}
-	var m map[string]any
-	if err := json.Unmarshal(raw, &m); err != nil {
-		t.Fatal(err)
-	}
-	if m["format"] != "cbor" || m["type"] != "item" || m["key_id"] != "3c19f776" {
-		t.Errorf("inspect json = %v", m)
-	}
-	subject := m["subject"].(map[string]any)
-	if len(subject["carried_witnesses"].([]any)) != 4 || subject["signing_key_id"] != "3c19f776" {
-		t.Errorf("subject = %v", subject)
-	}
-
-	out, code = runCLIText(t, "inspect", tamperPath("old-layout.json"))
-	if code != 1 || !strings.Contains(out, "REJECTED: unsupported_layout") {
-		t.Errorf("inspect rejection: exit %d\n%s", code, out)
-	}
-	out, code = runCLIText(t, "inspect", prodPath(testfixtures.ProdCompact))
-	if code != 0 || !strings.Contains(out, "Carried witnesses      (none)") || !strings.Contains(out, "Carried                no") {
-		t.Errorf("compact inspect: exit %d\n%s", code, out)
-	}
-}
-
-// --- config and completion ---
 
 func TestCLI_ConfigPath(t *testing.T) {
 	out, code := runCLIText(t, "config", "path")

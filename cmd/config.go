@@ -23,13 +23,6 @@ var configCmd = &cobra.Command{
 	Use:   "config",
 	Short: "Manage CLI configuration",
 	Long:  "View and manage the Truestamp CLI configuration file and resolved settings.",
-
-	// A group takes no positional arguments, so an unknown
-	// subcommand is an error rather than a silent fall-through to this
-	// command's own help with exit 0. `truestamp convert proof` printing
-	// help and exiting 0 after `proof` moved to `proofs convert` would
-	// leave a reader following an old doc with no signal at all.
-	Args: cobra.NoArgs,
 }
 
 var configPathCmd = &cobra.Command{
@@ -42,6 +35,7 @@ that file currently exists.`,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		path := config.ActivePath()
 		_, statErr := os.Stat(path)
+		exists := statErr == nil
 
 		// `path` renders a record, so it carries the CLI-wide output
 		// contract like every other record command. It is also the one
@@ -54,9 +48,9 @@ that file currently exists.`,
 		case silent:
 			return nil
 		case jsonOut:
-			return emitRecord(cmd.OutOrStdout(), map[string]any{
+			return emitJSON(cmd.OutOrStdout(), map[string]any{
 				"path":   path,
-				"exists": statErr == nil,
+				"exists": exists,
 			})
 		}
 
@@ -66,7 +60,7 @@ that file currently exists.`,
 		// Existence goes to stderr so stdout stays a single line: this
 		// command is routinely captured with `$(truestamp config path)`,
 		// and a second stdout line would land inside the captured value.
-		ui.Fprintln(cmd.ErrOrStderr(), ui.FaintStyle().Render(configPathStatusIndent+configPathStatus(path)))
+		ui.Fprintln(cmd.ErrOrStderr(), ui.FaintStyle().Render(configPathStatusIndent+configPathStatus(exists)))
 		return nil
 	},
 }
@@ -78,8 +72,8 @@ const configPathStatusIndent = "             "
 // configPathStatus reports whether the config file in effect exists.
 // A missing file is not an error, the CLI runs on compiled defaults,
 // so the message points at the command that would create it.
-func configPathStatus(path string) string {
-	if _, err := os.Stat(path); err == nil {
+func configPathStatus(exists bool) string {
+	if exists {
 		return "exists"
 	}
 	return "does not exist, run 'truestamp config init' to create it"
@@ -128,7 +122,7 @@ var configShowCmd = &cobra.Command{
 			// rendering. `config show --json` is the form a script or an
 			// agent reaches for, which is the last place a secret should
 			// become easy to exfiltrate.
-			return emitRecord(cmd.OutOrStdout(), configRecord(appConfig))
+			return emitJSON(cmd.OutOrStdout(), configRecord(appConfig))
 		}
 		presentConfig(appConfig)
 		return nil

@@ -17,44 +17,44 @@ import (
 	"github.com/truestamp/truestamp-cli/internal/ui"
 )
 
-// Subject-type flag values for `truestamp proofs get --type`. These map 1:1
-// to the server's /proof/generate `type` string enum. There is no "auto"
-// and no bare "entropy", both were removed in the server's strict-type
-// cutover. Callers that don't pass --type get a client-side smart default:
-// a ULID id defaults to --type item; a UUIDv7 id errors asking for an
-// explicit --type.
+// Subject-type flag values for `truestamp proofs get --type` and
+// `truestamp verify --type`. These map 1:1 to the server's /proof/generate
+// `type` string enum. There is no "auto" and no bare "entropy", both were
+// removed in the server's strict-type cutover. Callers that don't pass
+// --type get a default: a ULID id is an item, and a UUIDv7 id is resolved
+// against the server in one extra round trip.
 //
 // Wire values preserve the underscore form (entropy_nist) to match the
 // server enum exactly; filename stems translate underscores to hyphens
 // for friendlier filenames (truestamp-entropy-nist-<id>.json).
 const (
-	downloadTypeItem           = "item"
-	downloadTypeEntropyNIST    = "entropy_nist"
-	downloadTypeEntropyStellar = "entropy_stellar"
-	downloadTypeEntropyBitcoin = "entropy_bitcoin"
-	downloadTypeBlock          = "block"
-	downloadTypeBeacon         = "beacon"
+	proofTypeItem           = "item"
+	proofTypeEntropyNIST    = "entropy_nist"
+	proofTypeEntropyStellar = "entropy_stellar"
+	proofTypeEntropyBitcoin = "entropy_bitcoin"
+	proofTypeBlock          = "block"
+	proofTypeBeacon         = "beacon"
 )
 
-// downloadTypeValues lists every accepted --type value in the order they
+// proofTypeValues lists every accepted --type value in the order they
 // appear in user-facing help text.
-var downloadTypeValues = []string{
-	downloadTypeItem,
-	downloadTypeEntropyNIST,
-	downloadTypeEntropyStellar,
-	downloadTypeEntropyBitcoin,
-	downloadTypeBlock,
-	downloadTypeBeacon,
+var proofTypeValues = []string{
+	proofTypeItem,
+	proofTypeEntropyNIST,
+	proofTypeEntropyStellar,
+	proofTypeEntropyBitcoin,
+	proofTypeBlock,
+	proofTypeBeacon,
 }
 
-// downloadTypesForUUIDv7 lists the --type values that may be used with a
+// proofTypesForUUIDv7 lists the --type values that may be used with a
 // UUIDv7 id (everything except "item").
-var downloadTypesForUUIDv7 = []string{
-	downloadTypeEntropyNIST,
-	downloadTypeEntropyStellar,
-	downloadTypeEntropyBitcoin,
-	downloadTypeBlock,
-	downloadTypeBeacon,
+var proofTypesForUUIDv7 = []string{
+	proofTypeEntropyNIST,
+	proofTypeEntropyStellar,
+	proofTypeEntropyBitcoin,
+	proofTypeBlock,
+	proofTypeBeacon,
 }
 
 var proofsGetCmd = &cobra.Command{
@@ -109,9 +109,7 @@ Requires authentication, run 'truestamp auth login', or set TRUESTAMP_API_KEY / 
 Exit code 0 on success, 1 on any error (validation failure, network
 error, missing API key, server rejection, or failure to write the
 output file).`,
-	Args:          cobra.MaximumNArgs(1),
-	SilenceUsage:  true,
-	SilenceErrors: true,
+	Args: cobra.MaximumNArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		if len(args) == 0 {
 			return cmd.Help()
@@ -120,14 +118,33 @@ output file).`,
 		cfg := appConfig
 		id := args[0]
 
-		if !authConfigured() {
-			return fmt.Errorf("not authenticated, run `truestamp auth login`, or set TRUESTAMP_API_KEY / --api-key for headless use")
+		if err := requireAuth(cmd); err != nil {
+			return err
 		}
 
 		format, _ := cmd.Flags().GetString("format")
 		format = strings.ToLower(strings.TrimSpace(format))
 		if format != "json" && format != "cbor" {
 			return fmt.Errorf("--format must be \"json\" or \"cbor\", got %q", format)
+		}
+
+		// Everything that can be refused locally is refused before the
+		// first round trip: a bad --witnesses or a conflicting output
+		// choice must not cost a resolve-id request.
+		witnessFlag, _ := cmd.Flags().GetString("witnesses")
+		witnesses, err := proof.ParseWitnessSelection(witnessFlag)
+		if err != nil {
+			return fmt.Errorf("--witnesses: %w", err)
+		}
+		outPath, _ := cmd.Flags().GetString("out")
+		toFile, _ := cmd.Flags().GetBool("to-file")
+		if outPath != "" && toFile {
+			return fmt.Errorf("--out and --to-file are mutually exclusive: --out names a path, --to-file picks the conventional name")
+		}
+		if outPath == "" && !toFile && format == "cbor" && inputsrc.IsStdoutTerminal() {
+			// Refuse to spray CBOR at a terminal. The message names both
+			// ways out rather than just failing.
+			return fmt.Errorf("refusing to write CBOR to a terminal: redirect it, or pass -o <path> or --to-file")
 		}
 
 		typeFlag, _ := cmd.Flags().GetString("type")
@@ -155,12 +172,12 @@ output file).`,
 		if typeFlag == "" {
 			switch shape {
 			case proof.IDTypeULID:
-				typeFlag = downloadTypeItem
+				typeFlag = proofTypeItem
 			case proof.IDTypeUUIDv7:
 				resolved, rErr := proof.ResolveSubjectType(cmd.Context(), cfg.APIURL, cfg.Team, id)
 				if rErr != nil {
 					return fmt.Errorf("%w\n(or pass --type explicitly: %s)",
-						rErr, strings.Join(downloadTypesForUUIDv7, " | "))
+						rErr, strings.Join(proofTypesForUUIDv7, " | "))
 				}
 				typeFlag = resolved
 				appLogger.Info("proof_type_resolved", "id", id, "type", typeFlag)
@@ -170,21 +187,15 @@ output file).`,
 			}
 		}
 
-		if !validDownloadType(typeFlag) {
+		if !validProofType(typeFlag) {
 			return fmt.Errorf("--type must be one of %s, got %q",
-				strings.Join(downloadTypeValues, " | "), typeFlag)
+				strings.Join(proofTypeValues, " | "), typeFlag)
 		}
 
 		// Shape vs type cross-check, surfaces obvious mismatches locally
-		// before the server's 422 id_format_mismatch fires.
+		// before the server refuses them with id_format_mismatch.
 		if err := validateTypeVsShape(typeFlag, shape); err != nil {
 			return err
-		}
-
-		witnessFlag, _ := cmd.Flags().GetString("witnesses")
-		witnesses, err := proof.ParseWitnessSelection(witnessFlag)
-		if err != nil {
-			return fmt.Errorf("--witnesses: %w", err)
 		}
 
 		appLogger.Info("download_request", "id", id, "type", typeFlag, "format", format, "witnesses", witnesses.String())
@@ -198,7 +209,7 @@ output file).`,
 			return err
 		}
 
-		stem := downloadStem(typeFlag)
+		stem := proofFileStem(typeFlag)
 
 		// R10's payload triad: no flag writes the bundle to stdout so it
 		// can be piped, -o/--out names a path, --to-file uses the
@@ -206,21 +217,11 @@ output file).`,
 		// file into the cwd, which made
 		// `truestamp proofs get <id> | truestamp verify` impossible without
 		// a temp file in a CLI that advertises pipeline recipes.
-		outPath, _ := cmd.Flags().GetString("out")
-		toFile, _ := cmd.Flags().GetBool("to-file")
-		if outPath != "" && toFile {
-			return fmt.Errorf("--out and --to-file are mutually exclusive: --out names a path, --to-file picks the conventional name")
-		}
 		if toFile {
 			outPath = fmt.Sprintf("truestamp-%s-%s%s.%s", stem, id, witnesses.FilenameSuffix(), format)
 		}
 
 		if outPath == "" {
-			// Refuse to spray CBOR at a terminal. The message names both
-			// ways out rather than just failing.
-			if format == "cbor" && inputsrc.IsStdoutTerminal() {
-				return fmt.Errorf("refusing to write CBOR to a terminal: redirect it, or pass -o <path> or --to-file")
-			}
 			if _, werr := cmd.OutOrStdout().Write(data); werr != nil {
 				return fmt.Errorf("writing to stdout: %w", werr)
 			}
@@ -254,14 +255,14 @@ output file).`,
 // downloadStem converts a resolved --type value to a filename stem. Wire
 // values use underscores (entropy_nist) to match the server enum;
 // filename stems use hyphens (entropy-nist) for friendlier filenames.
-func downloadStem(typeFlag string) string {
+func proofFileStem(typeFlag string) string {
 	return strings.ReplaceAll(typeFlag, "_", "-")
 }
 
-// validDownloadType reports whether v is one of the six canonical --type
+// validProofType reports whether v is one of the six canonical --type
 // values.
-func validDownloadType(v string) bool {
-	return slices.Contains(downloadTypeValues, v)
+func validProofType(v string) bool {
+	return slices.Contains(proofTypeValues, v)
 }
 
 // validateTypeVsShape ensures --type matches the syntactic shape of the
@@ -270,7 +271,7 @@ func validDownloadType(v string) bool {
 // error rather than a generic server 422.
 func validateTypeVsShape(typeFlag string, shape proof.IDType) error {
 	switch typeFlag {
-	case downloadTypeItem:
+	case proofTypeItem:
 		if shape != proof.IDTypeULID {
 			return fmt.Errorf("--type %s requires a ULID id (e.g. 01KNN33GX5E470CB9TRWAYF9DD); got a UUIDv7", typeFlag)
 		}
@@ -333,7 +334,7 @@ func init() {
 	f.Bool("to-file", false, "Write the bundle to a conventionally-named file in the current directory")
 	f.String("type", "",
 		fmt.Sprintf(`Subject type. Optional: a ULID is an item, and a UUIDv7 is resolved against the server in one extra round trip. One of: %s`,
-			strings.Join(downloadTypeValues, " | ")))
+			strings.Join(proofTypeValues, " | ")))
 	f.String("witnesses", "all", "Witness details to carry: all, none, or a comma-separated list of "+strings.Join(proof.WitnessNames, ","))
 	proofsCmd.AddCommand(proofsGetCmd)
 }

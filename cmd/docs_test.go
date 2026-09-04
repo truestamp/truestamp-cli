@@ -52,18 +52,11 @@ func docFiles(t *testing.T) []string {
 // module root, so the test does not depend on how it was invoked.
 func repoRoot(t *testing.T) string {
 	t.Helper()
-	dir, err := os.Getwd()
+	dir, err := findModuleRoot()
 	if err != nil {
-		t.Fatalf("getwd: %v", err)
+		t.Fatalf("could not locate repo root: %v", err)
 	}
-	for range 5 {
-		if _, err := os.Stat(filepath.Join(dir, "go.mod")); err == nil {
-			return dir
-		}
-		dir = filepath.Dir(dir)
-	}
-	t.Fatal("could not locate repo root (no go.mod found walking up)")
-	return ""
+	return dir
 }
 
 // docInvocation is one `truestamp ...` line lifted from the docs.
@@ -210,13 +203,8 @@ func commandPath(args []string, known map[string]map[string]bool) (path []string
 // and `truestamp proofs download --help` both exit 0 long after those
 // paths stopped existing. Only an unknown *top-level* word was ever
 // caught.
-func docTree(t *testing.T) map[string]map[string]bool {
-	known, _ := docTreeAndGroups(t)
-	return known
-}
-
-// docTreeAndGroups also reports which paths are groups. A group has no RunE,
-// so any leftover plain word after one names a subcommand that does not
+// docTreeAndGroups also reports which paths are groups. A group is a
+// namespace, so any leftover plain word after one names a subcommand that does not
 // exist: `truestamp convert proof` is not "convert with an operand", it is
 // the retired spelling of `proofs convert`, and cobra rejects it at runtime.
 // After a runnable leaf the same word is a legitimate operand
@@ -273,9 +261,6 @@ func TestDocs_InvocationsAreExtractable(t *testing.T) {
 	t.Logf("checking %d documented invocations", len(inv))
 }
 
-// TestDocs_CommandsExist asserts every documented command path resolves
-// in the live cobra tree. This is the test that catches a rename landing
-// without a docs sweep.
 // recordsRetiredNames reports whether a file is allowed to name paths and
 // flags that no longer exist. kb/command-tree.md documents the
 // reorganization itself -- including, as worked examples, the retired
@@ -287,6 +272,9 @@ func recordsRetiredNames(file string) bool {
 	return strings.HasSuffix(file, "command-tree.md")
 }
 
+// TestDocs_CommandsExist asserts every documented command path resolves
+// in the live cobra tree. This is the test that catches a rename landing
+// without a docs sweep.
 func TestDocs_CommandsExist(t *testing.T) {
 	known, groups := docTreeAndGroups(t)
 	inv := collectInvocations(t)
@@ -326,7 +314,7 @@ func TestDocs_CommandsExist(t *testing.T) {
 // is accepted by the command it is used with. Inherited persistent flags
 // count, because `--help` lists them under Global Flags.
 func TestDocs_FlagsExist(t *testing.T) {
-	known := docTree(t)
+	known, _ := docTreeAndGroups(t)
 	checked := 0
 	for _, in := range collectInvocations(t) {
 		if recordsRetiredNames(in.file) {
@@ -377,23 +365,22 @@ func TestDocs_NoRetiredNames(t *testing.T) {
 		// and must keep its name.
 		"verify.skip_external": "the config key is verify.offline",
 		"--skip-external":      "removed; the flag is --offline",
-		// The binary carries no reference documentation: the three help
-		// topics that briefly existed were each a third copy of something
-		// owned elsewhere. `truestamp help <topic>` prints "Unknown help
-		// topic" for all of them.
 		// Retired command PATHS, written without the `truestamp` prefix.
 		// Prose says "`beacon list` accepts 1..100" as often as it writes
-		// the whole invocation, and the needles above only catch the
-		// prefixed form.
-		"beacon list":               "renamed to `beacons list`",
-		"beacon get":                "renamed to `beacons get`",
-		"beacon by-hash":            "folded into `beacons get`",
-		"team show":                 "split into `teams get` and `teams current`",
-		"team set":                  "renamed to `teams use`",
-		"team unset":                "renamed to `teams use --clear`",
-		"team list":                 "renamed to `teams list`",
-		"team create":               "renamed to `teams create`",
-		"convert proof":             "renamed to `proofs convert`",
+		// the whole invocation.
+		"beacon list":    "renamed to `beacons list`",
+		"beacon get":     "renamed to `beacons get`",
+		"beacon by-hash": "folded into `beacons get`",
+		"team show":      "split into `teams get` and `teams current`",
+		"team set":       "renamed to `teams use`",
+		"team unset":     "renamed to `teams use --clear`",
+		"team list":      "renamed to `teams list`",
+		"team create":    "renamed to `teams create`",
+		"convert proof":  "renamed to `proofs convert`",
+		// The binary carries no reference documentation: the three help
+		// topics that briefly existed were each a third copy of something
+		// owned elsewhere. `truestamp help <topic>` is an error for all of
+		// them.
 		"truestamp help formatting": "removed; there are no help topics",
 		"truestamp help glossary":   "removed; there are no help topics",
 		"truestamp help exit-codes": "removed; there are no help topics",
