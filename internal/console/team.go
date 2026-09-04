@@ -154,7 +154,7 @@ func (m *teamModel) fetchMembershipsCmd() tea.Cmd {
 		}
 		// Personal team first (exactly one per user), then privilege
 		// rank Owner → Admin → Member → Viewer, then alphabetical
-		// within each rank. Matches the order in `truestamp team
+		// within each rank. Matches the order in `truestamp teams
 		// list` so the user sees a uniform layout across the CLI
 		// and console.
 		sort.SliceStable(rows, func(i, j int) bool {

@@ -9,6 +9,18 @@ import (
 	"github.com/spf13/cobra"
 )
 
+// defaultPageLimit is the page size the list commands ask for when --limit
+// is not given. It matches the server's own default for every paginated
+// read, and it is declared once so the three list commands cannot drift.
+const defaultPageLimit = 25
+
+// addLimitFlag registers --limit with one wording and one default across
+// the list commands, so a reader learns the flag once.
+func addLimitFlag(cmd *cobra.Command, noun string) {
+	cmd.Flags().Int("limit", defaultPageLimit,
+		"How many "+noun+" per page; the server caps it and says so if you ask for more")
+}
+
 // pageLimit reads --limit and enforces only the bound the server's published
 // contract actually guarantees.
 //
@@ -22,13 +34,10 @@ import (
 // ("must be less than or equal to 100"); this owns the floor, which the
 // contract does state.
 //
-// An unset flag keeps its default rather than being validated, so a caller
-// that never passes --limit is unaffected, and `--limit 0` is now the error
-// it always should have been instead of silently meaning "the default".
-func pageLimit(cmd *cobra.Command, def int) (int, error) {
-	if !cmd.Flags().Changed("limit") {
-		return def, nil
-	}
+// An unset flag yields the default registered by addLimitFlag, which is
+// always above the floor, so `--limit 0` is the error it always should
+// have been instead of silently meaning "the default".
+func pageLimit(cmd *cobra.Command) (int, error) {
 	limit, err := cmd.Flags().GetInt("limit")
 	if err != nil {
 		return 0, err

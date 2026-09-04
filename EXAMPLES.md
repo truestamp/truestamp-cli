@@ -435,7 +435,7 @@ it in the file `config init` writes. See the full env-var reference in
 
 ## Lifecycle: the three-step flow
 
-The canonical Truestamp workflow is **create, download, verify**. Everything
+The canonical Truestamp workflow is **`items create`, `proofs get`, `verify`**. Everything
 else in the CLI supports, inspects, or extends this flow.
 
 ```sh
@@ -2148,9 +2148,12 @@ truestamp blocks get 019db702-b08c-73dc-a7cd-2c5e011f1dad
 # block not found      (exit 1)
 ```
 
-`blocks` and `beacons` address the same rows — `blocks latest` and
-`beacons latest` return the same id, and the two `list` outputs agree
-id-for-id. They differ in shape, not in membership. A block carries the
+`blocks` and `beacons` address the same rows, but not the same set of
+them: only finalized or committed blocks project as beacons, so
+`blocks latest` (the head block, routinely not yet finalized) and
+`beacons latest` (the newest finalized block) usually return different
+rows, and `blocks list` includes rows `beacons list` does not. They
+differ in shape too. A block carries the
 whole signed record (`id`, `state`, `block_hash`, `merkle_root`,
 `previous_block_id`, `previous_block_hash`, `signing_key_id`,
 `signature`, `inserted_at`); a beacon is the four-field projection

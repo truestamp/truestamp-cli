@@ -50,8 +50,6 @@ beyond the commands themselves.`,
 			}
 			return out, cobra.ShellCompDirectiveNoFileComp
 		},
-		SilenceUsage:  true,
-		SilenceErrors: true,
 		RunE: func(c *cobra.Command, args []string) error {
 			target, rest, err := c.Root().Find(args)
 			if target == nil || err != nil {

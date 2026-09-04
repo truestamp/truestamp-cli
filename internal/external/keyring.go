@@ -226,3 +226,25 @@ func (k *KeyringResponse) Find(keyID, publicKeyB64 string) (KeyringKey, bool) {
 	}
 	return KeyringKey{}, false
 }
+
+// FindByID returns the entry with the given key id. The id is hex, so the
+// comparison is case-insensitive. This is a lookup, not a binding: it
+// answers "which entry has this id", never "is this key Truestamp's".
+func (k *KeyringResponse) FindByID(keyID string) (KeyringKey, bool) {
+	for _, entry := range k.Keys {
+		if strings.EqualFold(entry.KeyID, keyID) {
+			return entry, true
+		}
+	}
+	return KeyringKey{}, false
+}
+
+// Active returns the entry the keyring marks as signing right now.
+func (k *KeyringResponse) Active() (KeyringKey, bool) {
+	for _, entry := range k.Keys {
+		if entry.Active {
+			return entry, true
+		}
+	}
+	return KeyringKey{}, false
+}

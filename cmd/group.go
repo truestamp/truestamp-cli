@@ -36,7 +36,5 @@ func groupRunE(cmd *cobra.Command, args []string) error {
 func asGroup(c *cobra.Command) *cobra.Command {
 	c.Args = cobra.ArbitraryArgs
 	c.RunE = groupRunE
-	c.SilenceUsage = true
-	c.SilenceErrors = true
 	return c
 }

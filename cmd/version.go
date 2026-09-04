@@ -15,12 +15,10 @@ import (
 )
 
 var versionCmd = &cobra.Command{
-	Use:           "version",
-	Short:         "Print detailed version, build, and runtime information",
-	Long:          "Print detailed version info including module path, config path, Go toolchain, platform, commit, and build date.",
-	Args:          cobra.NoArgs,
-	SilenceUsage:  true,
-	SilenceErrors: true,
+	Use:   "version",
+	Short: "Print detailed version, build, and runtime information",
+	Long:  "Print detailed version info including module path, config path, install method, Go toolchain, platform, commit, and build date.",
+	Args:  cobra.NoArgs,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		// The file in effect, not the platform default: `truestamp
 		// version --config X` must report X.
@@ -30,26 +28,29 @@ var versionCmd = &cobra.Command{
 		if silent {
 			return nil
 		}
+		// One record feeds both renderings, so the text and --json forms
+		// cannot disagree about a value.
+		rec := versionRecord{
+			Version:    version.Version,
+			Path:       version.Path,
+			ConfigPath: configPath,
+			Install:    install.Detect().String(),
+			Go:         version.GoFor(),
+			Commit:     version.GitCommit,
+			Built:      version.BuildDate,
+		}
 		if jsonOut {
-			return emitRecord(cmd.OutOrStdout(), versionRecord{
-				Version:    version.Version,
-				Path:       version.Path,
-				ConfigPath: configPath,
-				Install:    install.Detect().String(),
-				Go:         version.GoFor(),
-				Commit:     version.GitCommit,
-				Built:      version.BuildDate,
-			})
+			return emitJSON(cmd.OutOrStdout(), rec)
 		}
 
 		lines := []struct{ label, value string }{
-			{"version", version.Version},
-			{"path", version.Path},
-			{"config path", configPath},
-			{"install", install.Detect().String()},
-			{"go", version.GoFor()},
-			{"commit", version.GitCommit},
-			{"built", version.BuildDate},
+			{"version", rec.Version},
+			{"path", rec.Path},
+			{"config path", rec.ConfigPath},
+			{"install", rec.Install},
+			{"go", rec.Go},
+			{"commit", rec.Commit},
+			{"built", rec.Built},
 		}
 
 		labelStyle := lipgloss.NewStyle().Foreground(ui.Label).Width(11)

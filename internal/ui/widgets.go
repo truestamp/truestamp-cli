@@ -98,11 +98,24 @@ func LabelValueStyleFunc() func(row, col int) lipgloss.Style {
 	}
 }
 
+// HeaderRowStyleFunc styles a table whose first row is column labels:
+// bold label colour on row 0, value colour below, the same padding on
+// every cell. Shared by every listing that prints a header row.
+func HeaderRowStyleFunc() func(row, col int) lipgloss.Style {
+	return func(row, col int) lipgloss.Style {
+		base := lipgloss.NewStyle().PaddingLeft(2).PaddingRight(1)
+		if row == 0 {
+			return base.Foreground(Label).Bold(true)
+		}
+		return base.Foreground(Value)
+	}
+}
+
 // TruncateToSecond parses an RFC 3339 / ISO 8601 timestamp and re-emits
 // it at second precision (drops fractional seconds). Returns the input
 // string unchanged if it cannot be parsed, so it is safe to chain with
 // already-truncated values. Used by every display site that shows a
-// timestamp to a human, beacon list rows, beacon cards, the verify
+// timestamp to a human, beacons list rows, beacon cards, the verify
 // report's Timeline / Subject / Commitments sections. The `convert`
 // subcommands deliberately bypass this helper because they exist
 // precisely to extract high-precision timestamps from IDs.

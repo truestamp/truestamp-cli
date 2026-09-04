@@ -36,7 +36,7 @@ const (
 	testTeamOtherSingleBody    = `{"data":{"type":"team","id":"` + testTeamOtherID + `","attributes":{"name":"Engineering","personal":false,"ownership_model":"creator_retains","inserted_at":"2026-04-30T01:02:03Z"}}}`
 )
 
-// startTeamServer mirrors startBeaconServer (cmd/beacon_test.go) for the
+// startTeamServer mirrors startBeaconServer (cmd/beacons_test.go) for the
 // team JSON:API surface. Routes match the production layout under
 // <base_url>/api/json/... so tests pass --base-url <srv.URL>. The
 // production CLI flow makes two parallel requests, `/teams` and
@@ -117,7 +117,7 @@ func TestCLI_Teams_BareGroupPrintsHelp(t *testing.T) {
 	}
 }
 
-func TestCLI_Teams_Show_ByID_JSON(t *testing.T) {
+func TestCLI_Teams_Get_ByID_JSON(t *testing.T) {
 	url, stop := startTeamServer(t)
 	defer stop()
 
@@ -170,7 +170,7 @@ func TestCLI_Teams_Current_NoTeamConfigured(t *testing.T) {
 	}
 }
 
-func TestCLI_Teams_Show_NotFound(t *testing.T) {
+func TestCLI_Teams_Get_NotFound(t *testing.T) {
 	url, stop := startTeamServer(t)
 	defer stop()
 

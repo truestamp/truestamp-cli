@@ -4,6 +4,7 @@
 package cmd
 
 import (
+	"bytes"
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
@@ -33,7 +34,7 @@ const longDesc = "Lorem ipsum dolor sit amet, consectetur adipiscing elit."
 
 // --- No-args / help ---
 
-func TestCLI_Create_NoArgs_ShowsHelp(t *testing.T) {
+func TestCLI_ItemsCreate_NoArgs_ShowsHelp(t *testing.T) {
 	cmd := exec.Command(binaryPath, "items", "create")
 	out, err := cmd.CombinedOutput()
 	if err != nil {
@@ -45,7 +46,7 @@ func TestCLI_Create_NoArgs_ShowsHelp(t *testing.T) {
 	}
 }
 
-func TestCLI_Create_Help_ShowsAllFlags(t *testing.T) {
+func TestCLI_ItemsCreate_Help_ShowsAllFlags(t *testing.T) {
 	cmd := exec.Command(binaryPath, "items", "create", "--help")
 	out, err := cmd.CombinedOutput()
 	if err != nil {
@@ -61,33 +62,33 @@ func TestCLI_Create_Help_ShowsAllFlags(t *testing.T) {
 
 // --- Validation errors (no API needed) ---
 
-func TestCLI_Create_NoAPIKey_Error(t *testing.T) {
+func TestCLI_ItemsCreate_NoAPIKey_Error(t *testing.T) {
 	cmd := exec.Command(binaryPath, "items", "create", "-n", "Test", "--data-hash", validSHA256Hex)
 	// Empty API key + a loopback base_url with no stored OAuth session ⇒
 	// no credential ⇒ the "not authenticated" guard fires.
 	cmd.Env = append(os.Environ(), "TRUESTAMP_API_KEY=", "TRUESTAMP_BASE_URL=http://127.0.0.1:0")
 	out, _ := cmd.CombinedOutput()
-	if !containsString(string(out), "not authenticated") {
+	if !containsString(string(out), "Not authenticated") {
 		t.Errorf("expected not-authenticated error, got: %s", out)
 	}
 }
 
-func TestCLI_Create_MissingName_Error(t *testing.T) {
+func TestCLI_ItemsCreate_MissingName_Error(t *testing.T) {
 	cmd := exec.Command(binaryPath, "items", "create", "--data-hash", validSHA256Hex, "--api-key", "fake")
-	cmd.Env = append(os.Environ(), "TRUESTAMP_API_URL=http://localhost:0")
+	cmd.Env = append(os.Environ(), "TRUESTAMP_BASE_URL=http://localhost:0")
 	out, _ := cmd.CombinedOutput()
 	if !containsString(string(out), "name is required") {
 		t.Errorf("expected name required error, got: %s", out)
 	}
 }
 
-// TestCLI_Create_NoHash_NoDescription_TriggersClaimsOnlyError covers the case
+// TestCLI_ItemsCreate_NoHash_NoDescription_TriggersClaimsOnlyError covers the case
 // where the user supplies only --name (no hash, no description, no metadata).
 // Under claims-as-source-of-truth mode this fails the local meaningful-content
 // rule with a message naming the 32-char threshold.
-func TestCLI_Create_NoHash_NoDescription_TriggersClaimsOnlyError(t *testing.T) {
+func TestCLI_ItemsCreate_NoHash_NoDescription_TriggersClaimsOnlyError(t *testing.T) {
 	cmd := exec.Command(binaryPath, "items", "create", "-n", "Test", "--api-key", "fake")
-	cmd.Env = append(os.Environ(), "TRUESTAMP_API_URL=http://localhost:0")
+	cmd.Env = append(os.Environ(), "TRUESTAMP_BASE_URL=http://localhost:0")
 	out, _ := cmd.CombinedOutput()
 	output := string(out)
 	if !containsString(output, "claims content is required") {
@@ -98,9 +99,9 @@ func TestCLI_Create_NoHash_NoDescription_TriggersClaimsOnlyError(t *testing.T) {
 	}
 }
 
-func TestCLI_Create_InvalidHex_Error(t *testing.T) {
+func TestCLI_ItemsCreate_InvalidHex_Error(t *testing.T) {
 	cmd := exec.Command(binaryPath, "items", "create", "-n", "Test", "--data-hash", "xyz", "--api-key", "fake")
-	cmd.Env = append(os.Environ(), "TRUESTAMP_API_URL=http://localhost:0")
+	cmd.Env = append(os.Environ(), "TRUESTAMP_BASE_URL=http://localhost:0")
 	out, _ := cmd.CombinedOutput()
 	output := string(out)
 	if !containsString(output, "hex") {
@@ -108,63 +109,63 @@ func TestCLI_Create_InvalidHex_Error(t *testing.T) {
 	}
 }
 
-func TestCLI_Create_OddLengthHex_Error(t *testing.T) {
+func TestCLI_ItemsCreate_OddLengthHex_Error(t *testing.T) {
 	cmd := exec.Command(binaryPath, "items", "create", "-n", "Test", "--data-hash", "abc", "--api-key", "fake")
-	cmd.Env = append(os.Environ(), "TRUESTAMP_API_URL=http://localhost:0")
+	cmd.Env = append(os.Environ(), "TRUESTAMP_BASE_URL=http://localhost:0")
 	out, _ := cmd.CombinedOutput()
 	if !containsString(string(out), "even-length") {
 		t.Errorf("expected even-length error, got: %s", out)
 	}
 }
 
-func TestCLI_Create_InvalidVisibility_Error(t *testing.T) {
+func TestCLI_ItemsCreate_InvalidVisibility_Error(t *testing.T) {
 	cmd := exec.Command(binaryPath, "items", "create", "-n", "Test", "--data-hash", validSHA256Hex, "-v", "secret", "--api-key", "fake")
-	cmd.Env = append(os.Environ(), "TRUESTAMP_API_URL=http://localhost:0")
+	cmd.Env = append(os.Environ(), "TRUESTAMP_BASE_URL=http://localhost:0")
 	out, _ := cmd.CombinedOutput()
 	if !containsString(string(out), "private, team, or public") {
 		t.Errorf("expected visibility error, got: %s", out)
 	}
 }
 
-func TestCLI_Create_InvalidURL_Error(t *testing.T) {
+func TestCLI_ItemsCreate_InvalidURL_Error(t *testing.T) {
 	cmd := exec.Command(binaryPath, "items", "create", "-n", "Test", "--data-hash", validSHA256Hex, "--url", "http://not-https.com", "--api-key", "fake")
-	cmd.Env = append(os.Environ(), "TRUESTAMP_API_URL=http://localhost:0")
+	cmd.Env = append(os.Environ(), "TRUESTAMP_BASE_URL=http://localhost:0")
 	out, _ := cmd.CombinedOutput()
 	if !containsString(string(out), "https://") {
 		t.Errorf("expected https error, got: %s", out)
 	}
 }
 
-func TestCLI_Create_InvalidLocation_Error(t *testing.T) {
+func TestCLI_ItemsCreate_InvalidLocation_Error(t *testing.T) {
 	cmd := exec.Command(binaryPath, "items", "create", "-n", "Test", "--data-hash", validSHA256Hex, "--location", "abc", "--api-key", "fake")
-	cmd.Env = append(os.Environ(), "TRUESTAMP_API_URL=http://localhost:0")
+	cmd.Env = append(os.Environ(), "TRUESTAMP_BASE_URL=http://localhost:0")
 	out, _ := cmd.CombinedOutput()
 	if !containsString(string(out), "lat,lon") {
 		t.Errorf("expected location error, got: %s", out)
 	}
 }
 
-func TestCLI_Create_InvalidMetadata_Error(t *testing.T) {
+func TestCLI_ItemsCreate_InvalidMetadata_Error(t *testing.T) {
 	cmd := exec.Command(binaryPath, "items", "create", "-n", "Test", "--data-hash", validSHA256Hex, "--metadata", "not json", "--api-key", "fake")
-	cmd.Env = append(os.Environ(), "TRUESTAMP_API_URL=http://localhost:0")
+	cmd.Env = append(os.Environ(), "TRUESTAMP_BASE_URL=http://localhost:0")
 	out, _ := cmd.CombinedOutput()
 	if !containsString(string(out), "valid JSON") {
 		t.Errorf("expected JSON error, got: %s", out)
 	}
 }
 
-func TestCLI_Create_NonexistentFile_Error(t *testing.T) {
+func TestCLI_ItemsCreate_NonexistentFile_Error(t *testing.T) {
 	cmd := exec.Command(binaryPath, "items", "create", "/nonexistent/file.pdf", "--api-key", "fake")
-	cmd.Env = append(os.Environ(), "TRUESTAMP_API_URL=http://localhost:0")
+	cmd.Env = append(os.Environ(), "TRUESTAMP_BASE_URL=http://localhost:0")
 	out, _ := cmd.CombinedOutput()
 	if !containsString(string(out), "cannot access") {
 		t.Errorf("expected file access error, got: %s", out)
 	}
 }
 
-func TestCLI_Create_Directory_Error(t *testing.T) {
+func TestCLI_ItemsCreate_Directory_Error(t *testing.T) {
 	cmd := exec.Command(binaryPath, "items", "create", os.TempDir(), "--api-key", "fake")
-	cmd.Env = append(os.Environ(), "TRUESTAMP_API_URL=http://localhost:0")
+	cmd.Env = append(os.Environ(), "TRUESTAMP_BASE_URL=http://localhost:0")
 	out, _ := cmd.CombinedOutput()
 	if !containsString(string(out), "directory") {
 		t.Errorf("expected directory error, got: %s", out)
@@ -173,7 +174,7 @@ func TestCLI_Create_Directory_Error(t *testing.T) {
 
 // --- Auto-hash correctness ---
 
-func TestCLI_Create_AutoHash_MatchesSHA256(t *testing.T) {
+func TestCLI_ItemsCreate_AutoHash_MatchesSHA256(t *testing.T) {
 	// Create a temp file with known content
 	content := []byte("test content for hash verification\n")
 	path := filepath.Join(t.TempDir(), "hashtest.txt")
@@ -207,7 +208,7 @@ func TestCLI_Create_AutoHash_MatchesSHA256(t *testing.T) {
 
 // --- Claims file input ---
 
-func TestCLI_Create_ClaimsFile_ParsesJSON(t *testing.T) {
+func TestCLI_ItemsCreate_ClaimsFile_ParsesJSON(t *testing.T) {
 	claims := `{"hash":"` + validSHA256Hex + `","hash_type":"sha256","name":"From File"}`
 	path := filepath.Join(t.TempDir(), "claims.json")
 	if err := os.WriteFile(path, []byte(claims), 0644); err != nil {
@@ -224,7 +225,7 @@ func TestCLI_Create_ClaimsFile_ParsesJSON(t *testing.T) {
 	}
 }
 
-func TestCLI_Create_ClaimsFile_InvalidJSON_Error(t *testing.T) {
+func TestCLI_ItemsCreate_ClaimsFile_InvalidJSON_Error(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "bad.json")
 	if err := os.WriteFile(path, []byte("not json"), 0644); err != nil {
 		t.Fatal(err)
@@ -239,7 +240,7 @@ func TestCLI_Create_ClaimsFile_InvalidJSON_Error(t *testing.T) {
 
 // --- Claims stdin input ---
 
-func TestCLI_Create_ClaimsStdin_ParsesJSON(t *testing.T) {
+func TestCLI_ItemsCreate_ClaimsStdin_ParsesJSON(t *testing.T) {
 	claims := `{"hash":"` + validSHA256Hex + `","hash_type":"sha256","name":"From Stdin"}`
 
 	cmd := exec.Command(binaryPath, "items", "create", "-C", "--api-key", "fake", "--base-url", "http://localhost:1")
@@ -252,7 +253,7 @@ func TestCLI_Create_ClaimsStdin_ParsesJSON(t *testing.T) {
 	}
 }
 
-func TestCLI_Create_ClaimsStdin_InvalidJSON_Error(t *testing.T) {
+func TestCLI_ItemsCreate_ClaimsStdin_InvalidJSON_Error(t *testing.T) {
 	cmd := exec.Command(binaryPath, "items", "create", "-C", "--api-key", "fake")
 	cmd.Stdin = strings.NewReader("not json")
 	out, _ := cmd.CombinedOutput()
@@ -263,7 +264,7 @@ func TestCLI_Create_ClaimsStdin_InvalidJSON_Error(t *testing.T) {
 
 // --- File stdin input ---
 
-func TestCLI_Create_FileStdin_RequiresName(t *testing.T) {
+func TestCLI_ItemsCreate_FileStdin_RequiresName(t *testing.T) {
 	cmd := exec.Command(binaryPath, "items", "create", "-F", "--api-key", "fake", "--base-url", "http://localhost:1")
 	cmd.Stdin = strings.NewReader("raw file content")
 	out, _ := cmd.CombinedOutput()
@@ -272,7 +273,7 @@ func TestCLI_Create_FileStdin_RequiresName(t *testing.T) {
 	}
 }
 
-func TestCLI_Create_FileStdin_WithName_HashesContent(t *testing.T) {
+func TestCLI_ItemsCreate_FileStdin_WithName_HashesContent(t *testing.T) {
 	content := "raw file content for hashing"
 
 	cmd := exec.Command(binaryPath, "items", "create", "-F", "-n", "Stdin File", "--api-key", "fake", "--base-url", "http://localhost:1")
@@ -288,7 +289,7 @@ func TestCLI_Create_FileStdin_WithName_HashesContent(t *testing.T) {
 
 // --- Flag overrides ---
 
-func TestCLI_Create_FlagOverridesAutoHash(t *testing.T) {
+func TestCLI_ItemsCreate_FlagOverridesAutoHash(t *testing.T) {
 	content := []byte("override test")
 	path := filepath.Join(t.TempDir(), "original-name.txt")
 	if err := os.WriteFile(path, content, 0644); err != nil {
@@ -306,7 +307,7 @@ func TestCLI_Create_FlagOverridesAutoHash(t *testing.T) {
 	}
 }
 
-func TestCLI_Create_FlagOverridesClaimsFile(t *testing.T) {
+func TestCLI_ItemsCreate_FlagOverridesClaimsFile(t *testing.T) {
 	claims := `{"hash":"` + validSHA256Hex + `","hash_type":"sha256","name":"Original"}`
 	path := filepath.Join(t.TempDir(), "claims.json")
 	if err := os.WriteFile(path, []byte(claims), 0644); err != nil {
@@ -325,7 +326,7 @@ func TestCLI_Create_FlagOverridesClaimsFile(t *testing.T) {
 
 // --- File flag ---
 
-func TestCLI_Create_FileFlag_HashesFile(t *testing.T) {
+func TestCLI_ItemsCreate_FileFlag_HashesFile(t *testing.T) {
 	content := []byte("file flag test content")
 	path := filepath.Join(t.TempDir(), "fileflag.txt")
 	if err := os.WriteFile(path, content, 0644); err != nil {
@@ -341,7 +342,7 @@ func TestCLI_Create_FileFlag_HashesFile(t *testing.T) {
 	}
 }
 
-func TestCLI_Create_FileFlag_NonexistentFile_Error(t *testing.T) {
+func TestCLI_ItemsCreate_FileFlag_NonexistentFile_Error(t *testing.T) {
 	cmd := exec.Command(binaryPath, "items", "create", "--file=/nonexistent/file.txt", "--api-key", "fake")
 	out, _ := cmd.CombinedOutput()
 	if !containsString(string(out), "cannot access") {
@@ -351,7 +352,7 @@ func TestCLI_Create_FileFlag_NonexistentFile_Error(t *testing.T) {
 
 // --- JSON output structure ---
 
-func TestCLI_Create_JSONOutput_Structure(t *testing.T) {
+func TestCLI_ItemsCreate_JSONOutput_Structure(t *testing.T) {
 	// This test verifies JSON output has the expected keys.
 	// Uses a fake API URL so it fails at the network level, but we can test
 	// that --json flag is accepted without error alongside other flags.
@@ -367,7 +368,7 @@ func TestCLI_Create_JSONOutput_Structure(t *testing.T) {
 
 // --- Tags parsing ---
 
-func TestCLI_Create_TagsParsing(t *testing.T) {
+func TestCLI_ItemsCreate_TagsParsing(t *testing.T) {
 	// Verify tags are split and trimmed. We can only test indirectly
 	// since the API call will fail, but we verify no validation error.
 	content := []byte("tags test")
@@ -388,7 +389,7 @@ func TestCLI_Create_TagsParsing(t *testing.T) {
 
 // --- Hash normalization ---
 
-func TestCLI_Create_HashNormalizedToLowercase(t *testing.T) {
+func TestCLI_ItemsCreate_HashNormalizedToLowercase(t *testing.T) {
 	// Uppercase hex should be normalized to lowercase. Use a mixed-case
 	// 64-char hash so the case-folding is actually exercised (the all-zeros
 	// fixture is case-invariant).
@@ -405,8 +406,8 @@ func TestCLI_Create_HashNormalizedToLowercase(t *testing.T) {
 
 // --- Default hash type ---
 
-func TestCLI_Create_DefaultHashType(t *testing.T) {
-	// When --hash is provided without --hash-type, default to sha256
+func TestCLI_ItemsCreate_DefaultHashType(t *testing.T) {
+	// When --data-hash is provided without --hash-type, default to sha256
 	cmd := exec.Command(binaryPath, "items", "create", "-n", "Test", "--data-hash", validSHA256Hex, "--api-key", "fake", "--base-url", "http://localhost:1")
 	out, _ := cmd.CombinedOutput()
 	output := string(out)
@@ -418,11 +419,11 @@ func TestCLI_Create_DefaultHashType(t *testing.T) {
 
 // --- Claims-as-source-of-truth mode ---
 
-// TestCLI_Create_ClaimsOnly_NameAndDescription_PassesValidation confirms that
+// TestCLI_ItemsCreate_ClaimsOnly_NameAndDescription_PassesValidation confirms that
 // claims-only mode with a sufficient description gets past local validation.
 // The API call still fails (no real server), but the error must not be a
 // validation failure.
-func TestCLI_Create_ClaimsOnly_NameAndDescription_PassesValidation(t *testing.T) {
+func TestCLI_ItemsCreate_ClaimsOnly_NameAndDescription_PassesValidation(t *testing.T) {
 	cmd := exec.Command(binaryPath, "items", "create",
 		"-n", "Invention",
 		"-d", longDesc,
@@ -438,14 +439,14 @@ func TestCLI_Create_ClaimsOnly_NameAndDescription_PassesValidation(t *testing.T)
 	}
 }
 
-// TestCLI_Create_ClaimsOnly_ShortDescription_Fails fails locally with the
+// TestCLI_ItemsCreate_ClaimsOnly_ShortDescription_Fails fails locally with the
 // meaningful-content error when description is below the 32-char threshold.
-func TestCLI_Create_ClaimsOnly_ShortDescription_Fails(t *testing.T) {
+func TestCLI_ItemsCreate_ClaimsOnly_ShortDescription_Fails(t *testing.T) {
 	cmd := exec.Command(binaryPath, "items", "create",
 		"-n", "Doc",
 		"-d", "short",
 		"--api-key", "fake")
-	cmd.Env = append(os.Environ(), "TRUESTAMP_API_URL=http://localhost:0")
+	cmd.Env = append(os.Environ(), "TRUESTAMP_BASE_URL=http://localhost:0")
 	out, _ := cmd.CombinedOutput()
 	output := string(out)
 	if !containsString(output, "claims content is required") {
@@ -453,10 +454,10 @@ func TestCLI_Create_ClaimsOnly_ShortDescription_Fails(t *testing.T) {
 	}
 }
 
-// TestCLI_Create_ClaimsOnly_NonEmptyMetadata_PassesValidation confirms the
+// TestCLI_ItemsCreate_ClaimsOnly_NonEmptyMetadata_PassesValidation confirms the
 // metadata escape hatch: a non-empty metadata object satisfies the
 // meaningful-content rule even without a long description.
-func TestCLI_Create_ClaimsOnly_NonEmptyMetadata_PassesValidation(t *testing.T) {
+func TestCLI_ItemsCreate_ClaimsOnly_NonEmptyMetadata_PassesValidation(t *testing.T) {
 	cmd := exec.Command(binaryPath, "items", "create",
 		"-n", "Doc",
 		"--metadata", `{"k":"v"}`,
@@ -469,16 +470,16 @@ func TestCLI_Create_ClaimsOnly_NonEmptyMetadata_PassesValidation(t *testing.T) {
 	}
 }
 
-// TestCLI_Create_HashTypeAlone_Rejected covers the co-required pair:
-// supplying --hash-type without --hash is a partial pair and must be
+// TestCLI_ItemsCreate_HashTypeAlone_Rejected covers the co-required pair:
+// supplying --hash-type without --data-hash is a partial pair and must be
 // rejected with a clear error before any network round-trip. Confirms the
 // --hash-type flag default does not leak through into the claims map.
-func TestCLI_Create_HashTypeAlone_Rejected(t *testing.T) {
+func TestCLI_ItemsCreate_HashTypeAlone_Rejected(t *testing.T) {
 	cmd := exec.Command(binaryPath, "items", "create",
 		"-n", "Doc",
 		"--hash-type", "sha256",
 		"--api-key", "fake")
-	cmd.Env = append(os.Environ(), "TRUESTAMP_API_URL=http://localhost:0")
+	cmd.Env = append(os.Environ(), "TRUESTAMP_BASE_URL=http://localhost:0")
 	out, _ := cmd.CombinedOutput()
 	output := string(out)
 	if !containsString(output, "hash is required when hash_type is supplied") {
@@ -486,19 +487,19 @@ func TestCLI_Create_HashTypeAlone_Rejected(t *testing.T) {
 	}
 }
 
-// TestCLI_Create_HashWithoutHashType_FromClaimsFile_Rejected covers the
+// TestCLI_ItemsCreate_HashWithoutHashType_FromClaimsFile_Rejected covers the
 // reverse partial pair: a claims file with hash but explicit empty
 // hash_type is rejected with a clear error. (The overlayFlags default rule
 // fills in sha256 when hash_type is missing from claims; this test forces
 // an empty-string hash_type to bypass that fallback.)
-func TestCLI_Create_HashWithoutHashType_FromClaimsFile_Rejected(t *testing.T) {
+func TestCLI_ItemsCreate_HashWithoutHashType_FromClaimsFile_Rejected(t *testing.T) {
 	claims := `{"hash":"` + validSHA256Hex + `","hash_type":"","name":"Doc"}`
 	path := filepath.Join(t.TempDir(), "partial.json")
 	if err := os.WriteFile(path, []byte(claims), 0644); err != nil {
 		t.Fatal(err)
 	}
 	cmd := exec.Command(binaryPath, "items", "create", "--claims="+path, "--api-key", "fake")
-	cmd.Env = append(os.Environ(), "TRUESTAMP_API_URL=http://localhost:0")
+	cmd.Env = append(os.Environ(), "TRUESTAMP_BASE_URL=http://localhost:0")
 	out, _ := cmd.CombinedOutput()
 	output := string(out)
 	if !containsString(output, "hash_type is required when hash is supplied") {
@@ -508,7 +509,7 @@ func TestCLI_Create_HashWithoutHashType_FromClaimsFile_Rejected(t *testing.T) {
 
 // --- Mutual exclusivity isn't enforced (flags overlay) ---
 
-func TestCLI_Create_ClaimsAndFlags_Merge(t *testing.T) {
+func TestCLI_ItemsCreate_ClaimsAndFlags_Merge(t *testing.T) {
 	// Claims from file + flag overrides should merge (not conflict)
 	claims := `{"hash":"` + validSHA256Hex + `","hash_type":"sha256","name":"Base"}`
 	path := filepath.Join(t.TempDir(), "merge.json")
@@ -527,7 +528,7 @@ func TestCLI_Create_ClaimsAndFlags_Merge(t *testing.T) {
 
 // --- JSON output key validation (with mock response) ---
 
-func TestCLI_Create_JSONOutput_HasExpectedKeys(t *testing.T) {
+func TestCLI_ItemsCreate_JSONOutput_HasExpectedKeys(t *testing.T) {
 	// We validate the JSON marshaling logic by checking that the output
 	// function produces valid JSON with the right keys. This uses a
 	// dummy response to avoid needing a real API.
@@ -546,21 +547,16 @@ func TestCLI_Create_JSONOutput_HasExpectedKeys(t *testing.T) {
 	}
 }
 
-// TestCLI_Create_JSONOutput_ClaimsOnly_OmitsHashKeys exercises printCreateJSON
+// TestCLI_ItemsCreate_JSONOutput_ClaimsOnly_OmitsHashKeys exercises printCreateJSON
 // directly against a claims-only CreateItemResponse (Hash and HashType empty)
 // and asserts the marshaled object does not carry "hash" or "hash_type" keys.
 // External-hash responses still include both keys.
-func TestCLI_Create_JSONOutput_ClaimsOnly_OmitsHashKeys(t *testing.T) {
+func TestCLI_ItemsCreate_JSONOutput_ClaimsOnly_OmitsHashKeys(t *testing.T) {
 	// Capture stdout from printCreateJSON.
 	capture := func(resp *items.CreateItemResponse) string {
-		r, w, _ := os.Pipe()
-		stdout := os.Stdout
-		os.Stdout = w
-		_ = printCreateJSON(resp)
-		_ = w.Close()
-		os.Stdout = stdout
-		buf, _ := io.ReadAll(r)
-		return string(buf)
+		var buf bytes.Buffer
+		_ = printCreateJSON(&buf, resp)
+		return buf.String()
 	}
 
 	// Claims-only: no hash or hash_type.
@@ -641,7 +637,7 @@ func startCreateEchoServer(t *testing.T) (url string, body func() []byte) {
 	}
 }
 
-// TestCLI_Create_PreservesLiteralsOnTheWire is the end-to-end regression for
+// TestCLI_ItemsCreate_PreservesLiteralsOnTheWire is the end-to-end regression for
 // the claims-corruption bug, asserted against the actual request body.
 //
 // Before the UseNumber fix, cmd/create decoded claims into map[string]any with
@@ -653,7 +649,7 @@ func startCreateEchoServer(t *testing.T) (url string, body func() []byte) {
 // Integers travel verbatim. The largest portable integer, 2^53 - 1, and its
 // negation are carried through, every integer a double would actually mangle
 // is now refused by the portability guard before it can reach the wire
-// (TestCLI_Create_UnsafeIntegerBoundary), so the byte-identical wire proof for
+// (TestCLI_ItemsCreate_UnsafeIntegerBoundary), so the byte-identical wire proof for
 // a value like 18446744073709551615 lives one layer down, in
 // items.TestCreateItemCtx_PreservesIntegerLiteralOnTheWire.
 //
@@ -662,7 +658,7 @@ func startCreateEchoServer(t *testing.T) (url string, body func() []byte) {
 // so it reaches the wire either way. 1e21 came back out as 1e+21 and
 // 9007199254740993.0 as 9.007199254740992e+15, different bytes, therefore a
 // different JCS canonicalization and a different claims_hash.
-func TestCLI_Create_PreservesLiteralsOnTheWire(t *testing.T) {
+func TestCLI_ItemsCreate_PreservesLiteralsOnTheWire(t *testing.T) {
 	url, body := startCreateEchoServer(t)
 
 	claims := `{"name":"Big","description":"` + longDesc + `","metadata":{` +
@@ -705,11 +701,11 @@ func TestCLI_Create_PreservesLiteralsOnTheWire(t *testing.T) {
 	}
 }
 
-// TestCLI_Create_UnsafeIntegerRejectedBeforeNetwork is the other half of the
+// TestCLI_ItemsCreate_UnsafeIntegerRejectedBeforeNetwork is the other half of the
 // contract: a value the producer must not emit never reaches the server at
 // all. The echo server records nothing, which is what "before the network
 // call" means operationally.
-func TestCLI_Create_UnsafeIntegerRejectedBeforeNetwork(t *testing.T) {
+func TestCLI_ItemsCreate_UnsafeIntegerRejectedBeforeNetwork(t *testing.T) {
 	url, body := startCreateEchoServer(t)
 
 	claims := `{"name":"Big","description":"` + longDesc + `","metadata":{"rows":[{"id":18446744073709551615}]}}`
@@ -743,11 +739,11 @@ func TestCLI_Create_UnsafeIntegerRejectedBeforeNetwork(t *testing.T) {
 	}
 }
 
-// TestCLI_Create_UnsafeIntegerBoundary walks the producer threshold through
+// TestCLI_ItemsCreate_UnsafeIntegerBoundary walks the producer threshold through
 // the real CLI, in both directions and both signs. 2^53 is the row that pins
 // the producer/verifier split: the verifier tolerates that value, `create`
 // must not.
-func TestCLI_Create_UnsafeIntegerBoundary(t *testing.T) {
+func TestCLI_ItemsCreate_UnsafeIntegerBoundary(t *testing.T) {
 	for _, tc := range []struct {
 		name   string
 		lit    string
@@ -792,11 +788,11 @@ func TestCLI_Create_UnsafeIntegerBoundary(t *testing.T) {
 	}
 }
 
-// TestCLI_Create_UnsafeIntegerFromMetadataFlag covers the flag input path:
+// TestCLI_ItemsCreate_UnsafeIntegerFromMetadataFlag covers the flag input path:
 // --metadata is parsed after the claims file is loaded, so a value injected
 // there has to be checked too. Placing the guard before overlayFlags would
 // pass this file and miss this flag.
-func TestCLI_Create_UnsafeIntegerFromMetadataFlag(t *testing.T) {
+func TestCLI_ItemsCreate_UnsafeIntegerFromMetadataFlag(t *testing.T) {
 	url, body := startCreateEchoServer(t)
 
 	cmd := exec.Command(binaryPath, "items", "create",
@@ -819,9 +815,9 @@ func TestCLI_Create_UnsafeIntegerFromMetadataFlag(t *testing.T) {
 	}
 }
 
-// TestCLI_Create_UnsafeIntegerExternalHashMode confirms the guard covers both
+// TestCLI_ItemsCreate_UnsafeIntegerExternalHashMode confirms the guard covers both
 // submission modes, not just claims-as-source-of-truth.
-func TestCLI_Create_UnsafeIntegerExternalHashMode(t *testing.T) {
+func TestCLI_ItemsCreate_UnsafeIntegerExternalHashMode(t *testing.T) {
 	url, body := startCreateEchoServer(t)
 
 	cmd := exec.Command(binaryPath, "items", "create",
@@ -840,9 +836,9 @@ func TestCLI_Create_UnsafeIntegerExternalHashMode(t *testing.T) {
 	}
 }
 
-// TestCLI_Create_UnsafeIntegerFromClaimsStdin covers the --claims-stdin input
+// TestCLI_ItemsCreate_UnsafeIntegerFromClaimsStdin covers the --claims-stdin input
 // path, which parses through the same decoder.
-func TestCLI_Create_UnsafeIntegerFromClaimsStdin(t *testing.T) {
+func TestCLI_ItemsCreate_UnsafeIntegerFromClaimsStdin(t *testing.T) {
 	url, body := startCreateEchoServer(t)
 
 	cmd := exec.Command(binaryPath, "items", "create", "-C",
@@ -861,10 +857,10 @@ func TestCLI_Create_UnsafeIntegerFromClaimsStdin(t *testing.T) {
 	}
 }
 
-// TestCLI_Create_UnsafeIntegerMultipleViolations asserts every offender is
+// TestCLI_ItemsCreate_UnsafeIntegerMultipleViolations asserts every offender is
 // listed, in the deterministic order the walker produces, so a user with
 // several bad values fixes them in one pass instead of one 422 at a time.
-func TestCLI_Create_UnsafeIntegerMultipleViolations(t *testing.T) {
+func TestCLI_ItemsCreate_UnsafeIntegerMultipleViolations(t *testing.T) {
 	url, _ := startCreateEchoServer(t)
 
 	claims := `{"name":"Multi","description":"` + longDesc + `",` +
@@ -903,11 +899,11 @@ func TestCLI_Create_UnsafeIntegerMultipleViolations(t *testing.T) {
 	}
 }
 
-// TestCLI_Create_UnsafeIntegerJSONOutput covers --json: the rejection is
+// TestCLI_ItemsCreate_UnsafeIntegerJSONOutput covers --json: the rejection is
 // structured data, not an English sentence on stderr, and the offending value
 // is a JSON STRING so a consumer parsing with doubles does not re-round the
 // very number being complained about.
-func TestCLI_Create_UnsafeIntegerJSONOutput(t *testing.T) {
+func TestCLI_ItemsCreate_UnsafeIntegerJSONOutput(t *testing.T) {
 	url, body := startCreateEchoServer(t)
 
 	claims := `{"name":"J","description":"` + longDesc + `","metadata":{"id":18446744073709551615}}`
@@ -961,10 +957,10 @@ func TestCLI_Create_UnsafeIntegerJSONOutput(t *testing.T) {
 	}
 }
 
-// TestCLI_Create_FloatsAreNotFlagged confirms the producer rule is about
+// TestCLI_ItemsCreate_FloatsAreNotFlagged confirms the producer rule is about
 // integer literals only. A geolocation or a scientific measurement with a huge
 // magnitude is legal and must reach the wire unchanged.
-func TestCLI_Create_FloatsAreNotFlagged(t *testing.T) {
+func TestCLI_ItemsCreate_FloatsAreNotFlagged(t *testing.T) {
 	url, body := startCreateEchoServer(t)
 
 	claims := `{"name":"F","description":"` + longDesc + `",` +
@@ -989,10 +985,10 @@ func TestCLI_Create_FloatsAreNotFlagged(t *testing.T) {
 	}
 }
 
-// TestCLI_Create_TrailingDataRejected pins the strictness json.Unmarshal gave
+// TestCLI_ItemsCreate_TrailingDataRejected pins the strictness json.Unmarshal gave
 // for free and json.Decoder does not: a truncated or concatenated claims file
 // must be an error, never a silently accepted prefix.
-func TestCLI_Create_TrailingDataRejected(t *testing.T) {
+func TestCLI_ItemsCreate_TrailingDataRejected(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "trailing.json")
 	if err := os.WriteFile(path, []byte(`{"name":"A"} {"name":"B"}`), 0644); err != nil {
 		t.Fatal(err)
@@ -1013,7 +1009,7 @@ func TestCLI_Create_TrailingDataRejected(t *testing.T) {
 // which hangs a script and misleads a human. These pin the targeted error
 // instead, and pin that the legitimate spellings still work.
 
-func TestCLI_Create_SpaceSeparatedPathIsRejected(t *testing.T) {
+func TestCLI_ItemsCreate_SpaceSeparatedPathIsRejected(t *testing.T) {
 	dir := t.TempDir()
 	claims := filepath.Join(dir, "claims.json")
 	if err := os.WriteFile(claims, []byte(`{"name":"T","description":"a description that is definitely longer than thirty two chars"}`), 0600); err != nil {
@@ -1054,7 +1050,7 @@ func TestCLI_Create_SpaceSeparatedPathIsRejected(t *testing.T) {
 	}
 }
 
-func TestCLI_Create_EqualsFormAndPositionalStillWork(t *testing.T) {
+func TestCLI_ItemsCreate_EqualsFormAndPositionalStillWork(t *testing.T) {
 	dir := t.TempDir()
 	claims := filepath.Join(dir, "claims.json")
 	if err := os.WriteFile(claims, []byte(`{"name":"T","description":"a description that is definitely longer than thirty two chars"}`), 0600); err != nil {

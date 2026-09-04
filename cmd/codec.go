@@ -4,11 +4,8 @@
 package cmd
 
 import (
-	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
-	"os"
 
 	"github.com/spf13/cobra"
 	"github.com/truestamp/truestamp-cli/internal/encoding"
@@ -58,19 +55,11 @@ func writeOutput(cmd *cobra.Command, silent bool, enc encoding.Encoding, out []b
 	if silent {
 		return
 	}
-	if enc == encoding.Binary && stdoutIsTerminal() {
+	if enc == encoding.Binary && inputsrc.IsStdoutTerminal() {
 		ui.Fprintln(cmd.ErrOrStderr(),
 			"warning: writing binary bytes to a terminal; redirect to a file or pipe")
 	}
 	_, _ = cmd.OutOrStdout().Write(out)
-}
-
-func stdoutIsTerminal() bool {
-	stat, err := os.Stdout.Stat()
-	if err != nil {
-		return false
-	}
-	return (stat.Mode() & os.ModeCharDevice) != 0
 }
 
 // ---------------- encode ----------------
@@ -87,9 +76,7 @@ Examples:
   cat image.png | truestamp encode --to base64
   truestamp encode --from hex --to base64 <<< 68656c6c6f
   truestamp encode --file doc.pdf --to base64url`,
-	SilenceUsage:  true,
-	SilenceErrors: true,
-	RunE:          runEncode,
+	RunE: runEncode,
 }
 
 func runEncode(cmd *cobra.Command, args []string) error {
@@ -114,9 +101,7 @@ Examples:
   echo Zm9vYmFy | truestamp decode --from base64 > fooBar.bin
   truestamp decode --from hex --to base64 <<< 68656c6c6f
   truestamp decode --from base64url --file token.txt > token.bin`,
-	SilenceUsage:  true,
-	SilenceErrors: true,
-	RunE:          runDecode,
+	RunE: runDecode,
 }
 
 func runDecode(cmd *cobra.Command, args []string) error {
@@ -139,10 +124,6 @@ func runCodec(cmd *cobra.Command, args []string, spec codecSpec) error {
 	toName, _ := cmd.Flags().GetString("to")
 	jsonOut, _ := cmd.Flags().GetBool("json")
 	silent, _ := cmd.Flags().GetBool("silent")
-
-	if silent && jsonOut {
-		return fmt.Errorf("--silent and --json are mutually exclusive")
-	}
 
 	from := spec.DefaultFrom
 	if fromName != "" {
@@ -211,15 +192,6 @@ func runCodec(cmd *cobra.Command, args []string, spec codecSpec) error {
 	return nil
 }
 
-func emitJSON(w io.Writer, v any) error {
-	data, err := json.MarshalIndent(v, "", "  ")
-	if err != nil {
-		return fmt.Errorf("marshaling JSON: %w", err)
-	}
-	ui.Fprintln(w, string(data))
-	return nil
-}
-
 // ---------------- jcs ----------------
 
 var jcsCmd = &cobra.Command{
@@ -239,19 +211,13 @@ implementation.
 Examples:
   truestamp jcs < claims.json | truestamp hash -a sha256
   truestamp hash --prefix 0x11 --jcs < claims.json   # equivalent one-liner`,
-	SilenceUsage:  true,
-	SilenceErrors: true,
-	RunE:          runJCS,
+	RunE: runJCS,
 }
 
 func runJCS(cmd *cobra.Command, args []string) error {
 	jsonOut, _ := cmd.Flags().GetBool("json")
 	silent, _ := cmd.Flags().GetBool("silent")
 	newline, _ := cmd.Flags().GetBool("newline")
-
-	if silent && jsonOut {
-		return fmt.Errorf("--silent and --json are mutually exclusive")
-	}
 
 	data, src, err := resolveCodecInput(cmd, args, "Select JSON file")
 	if err != nil {

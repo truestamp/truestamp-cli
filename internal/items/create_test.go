@@ -260,7 +260,7 @@ func TestCreateItem_TagsEchoedInRequest(t *testing.T) {
 // happily agree with itself.
 //
 // The values here are deliberately outside the producer's portable range, so
-// `truestamp create` refuses them at the CLI layer (see
+// `truestamp items create` refuses them at the CLI layer (see
 // TestCLI_Create_UnsafeIntegerRejectedBeforeNetwork). That guard is only
 // correct because of the preservation proved here: it can name the offending
 // value in its error message only if the literal was never rounded on the way

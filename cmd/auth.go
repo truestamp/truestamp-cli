@@ -7,6 +7,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"github.com/truestamp/truestamp-cli/internal/inputsrc"
 	"io"
 	"net/http"
 	"net/url"
@@ -37,13 +38,6 @@ For CI and other headless environments, set a long-lived API key via the
 TRUESTAMP_API_KEY env var or the --api-key flag; an explicitly-provided API
 key takes precedence over an OAuth session. 'auth login --api-key' stores a
 key in your config file interactively.`,
-
-	// A group takes no positional arguments, so an unknown
-	// subcommand is an error rather than a silent fall-through to this
-	// command's own help with exit 0. `truestamp convert proof` printing
-	// help and exiting 0 after `proof` moved to `proofs convert` would
-	// leave a reader following an old doc with no signal at all.
-	Args: cobra.NoArgs,
 }
 
 var authLoginAPIKey bool
@@ -59,10 +53,8 @@ fallback) and refreshed automatically.
 
 --api-key: instead prompts for a long-lived API key and stores it in the
 config file with 0600 permissions (the headless/CI path).`,
-	Args:          cobra.NoArgs,
-	SilenceUsage:  true,
-	SilenceErrors: true,
-	RunE:          runAuthLogin,
+	Args: cobra.NoArgs,
+	RunE: runAuthLogin,
 }
 
 var authLogoutAPIKey bool
@@ -83,11 +75,14 @@ operation; no offline mode is offered.
 
 Exit codes:
   0  valid (a credential is active and accepted by the API)
-  1  no credential, invalid credential, or network error`,
-	Args:          cobra.NoArgs,
-	SilenceUsage:  true,
-	SilenceErrors: true,
-	RunE:          runAuthStatus,
+  1  no credential, invalid credential, or network error
+
+--json emits one record: "ok", and on failure a "reason" identifier
+(not_authenticated, api_unreachable, credential_rejected,
+unexpected_api_response, team_lookup_failed, team_not_accessible) that a
+script can branch on.`,
+	Args: cobra.NoArgs,
+	RunE: runAuthStatus,
 }
 
 func init() {
@@ -169,7 +164,7 @@ func runOAuthLogin(cmd *cobra.Command) error {
 
 // runAPIKeyLogin is the legacy interactive paste-a-key path (--api-key).
 func runAPIKeyLogin(cmd *cobra.Command) error {
-	if !stdinIsTerminal() {
+	if !inputsrc.IsStdinTerminal() {
 		return fmt.Errorf("auth login --api-key requires an interactive terminal (set TRUESTAMP_API_KEY directly in CI)")
 	}
 
@@ -249,7 +244,7 @@ func runAuthLogout(cmd *cobra.Command, _ []string) error {
 		return nil
 	}
 
-	if stdinIsTerminal() {
+	if inputsrc.IsStdinTerminal() {
 		var confirmed bool
 		desc := logoutDescription(hasOAuth, hasFileKey || authLogoutAPIKey)
 		if err := huh.NewForm(
@@ -348,7 +343,7 @@ func finishAuthStatus(cmd *cobra.Command, rec authStatusRecord) (handled bool, e
 		}
 		return true, nil
 	case jsonOut:
-		if werr := emitRecord(cmd.OutOrStdout(), rec); werr != nil {
+		if werr := emitJSON(cmd.OutOrStdout(), rec); werr != nil {
 			return true, werr
 		}
 		if !rec.OK {
@@ -395,13 +390,13 @@ func runAuthStatus(cmd *cobra.Command, _ []string) error {
 				t = t.Row("Scopes", sess.Scope)
 				rec.Scopes = sess.Scope
 			}
-			t = t.Row("Token Expiry", formatTokenExpiry(sess.Expiry))
 			rec.TokenExpiry = formatTokenExpiry(sess.Expiry)
+			t = t.Row("Token Expiry", rec.TokenExpiry)
 		}
 	}
 	if cfg.APIKey != "" {
-		t = t.Row("API Key", maskAPIKey(cfg.APIKey))
 		rec.APIKey = maskAPIKey(cfg.APIKey)
+		t = t.Row("API Key", rec.APIKey)
 	}
 	t = t.Row("Team In Scope", teamInScope(cfg.Team))
 	rec.TeamID = cfg.Team
@@ -415,16 +410,28 @@ func runAuthStatus(cmd *cobra.Command, _ []string) error {
 		ui.Fprintln(out, t.String())
 	}
 
-	if azr.Mode() == auth.ModeNone {
-		rec.Reason = "not_authenticated"
-		rec.Message = "Run 'truestamp auth login' to sign in (or set TRUESTAMP_API_KEY)."
+	// fail is the single failure epilogue. The JSON and silent renderings
+	// go first, because they derive from rec and print nothing else; the
+	// text rendering is the card, a banner and the detail lines. Every
+	// failure path ends with errSilentFail so Execute prints nothing more.
+	fail := func(banner string, details ...string) error {
 		if handled, err := finishAuthStatus(cmd, rec); handled {
 			return err
 		}
 		textHeader()
-		ui.Fprintln(out, ui.FailureBanner("Not authenticated"))
-		ui.Fprintln(out, labelStyle.Render("    "+rec.Message))
+		ui.Fprintln(out, ui.FailureBanner(banner))
+		for _, d := range details {
+			if d != "" {
+				ui.Fprintln(out, labelStyle.Render("    "+d))
+			}
+		}
 		return errSilentFail
+	}
+
+	if azr.Mode() == auth.ModeNone {
+		rec.Reason = "not_authenticated"
+		rec.Message = "Run 'truestamp auth login' to sign in (or set TRUESTAMP_API_KEY)."
+		return fail("Not authenticated", rec.Message)
 	}
 
 	ctx := cmd.Context()
@@ -433,13 +440,7 @@ func runAuthStatus(cmd *cobra.Command, _ []string) error {
 	if err != nil {
 		rec.Reason = "api_unreachable"
 		rec.Message = err.Error()
-		if handled, ferr := finishAuthStatus(cmd, rec); handled {
-			return ferr
-		}
-		textHeader()
-		ui.Fprintln(out, ui.FailureBanner("Could not reach the API"))
-		ui.Fprintln(out, labelStyle.Render("    "+err.Error()))
-		return errSilentFail
+		return fail("Could not reach the API", err.Error())
 	}
 
 	switch {
@@ -450,27 +451,13 @@ func runAuthStatus(cmd *cobra.Command, _ []string) error {
 		if rec.Message == "" {
 			rec.Message = fmt.Sprintf("HTTP %d, run 'truestamp auth login' to re-authenticate.", userResult.httpStatus)
 		}
-		if handled, ferr := finishAuthStatus(cmd, rec); handled {
-			return ferr
-		}
-		textHeader()
-		ui.Fprintln(out, ui.FailureBanner("Credential rejected by the server"))
-		ui.Fprintln(out, labelStyle.Render("    "+rec.Message))
-		return errSilentFail
+		return fail("Credential rejected by the server", rec.Message)
 
 	case !userResult.ok:
 		rec.Reason = "unexpected_api_response"
 		rec.HTTPStatus = userResult.httpStatus
 		rec.Message = userResult.message
-		if handled, ferr := finishAuthStatus(cmd, rec); handled {
-			return ferr
-		}
-		textHeader()
-		ui.Fprintln(out, ui.FailureBanner(fmt.Sprintf("Unexpected API response (HTTP %d)", userResult.httpStatus)))
-		if userResult.message != "" {
-			ui.Fprintln(out, labelStyle.Render("    "+userResult.message))
-		}
-		return errSilentFail
+		return fail(fmt.Sprintf("Unexpected API response (HTTP %d)", userResult.httpStatus), userResult.message)
 	}
 
 	rec.UserID = userResult.userID
@@ -484,13 +471,7 @@ func runAuthStatus(cmd *cobra.Command, _ []string) error {
 		if err != nil {
 			rec.Reason = "team_lookup_failed"
 			rec.Message = err.Error()
-			if handled, ferr := finishAuthStatus(cmd, rec); handled {
-				return ferr
-			}
-			textHeader()
-			ui.Fprintln(out, ui.FailureBanner("Could not look up team"))
-			ui.Fprintln(out, labelStyle.Render("    "+err.Error()))
-			return errSilentFail
+			return fail("Could not look up team", err.Error())
 		}
 		if !teamResult.found {
 			rec.Reason = "team_not_accessible"
@@ -499,16 +480,8 @@ func runAuthStatus(cmd *cobra.Command, _ []string) error {
 			if rec.Message == "" {
 				rec.Message = fmt.Sprintf("HTTP %d, the team id may be wrong, or this user is not a member.", teamResult.httpStatus)
 			}
-			if handled, ferr := finishAuthStatus(cmd, rec); handled {
-				return ferr
-			}
-			textHeader()
-			ui.Fprintln(out, ui.FailureBanner("Team "+cfg.Team+" is not accessible"))
-			if teamResult.message != "" {
-				ui.Fprintln(out, labelStyle.Render("    "+teamResult.message))
-			}
-			ui.Fprintln(out, labelStyle.Render(fmt.Sprintf("    HTTP %d, the team id may be wrong, or this user is not a member.", teamResult.httpStatus)))
-			return errSilentFail
+			return fail("Team "+cfg.Team+" is not accessible", teamResult.message,
+				fmt.Sprintf("HTTP %d, the team id may be wrong, or this user is not a member.", teamResult.httpStatus))
 		}
 		role, _ := teams.GetMyRoleOnTeam(ctx, teams.Config{
 			APIURL: apiURL, Team: cfg.Team,
@@ -547,7 +520,7 @@ func formatUserIdentity(r *authCheckResult) string {
 
 // Removed: formatTeam, the one-line "Name  [id]" renderer. formatTeamLines
 // replaced it when `auth status` grew the separate Team Id / Team Name /
-// Team Role rows that `config show` and `team list` also render, and
+// Team Role rows that `config show` and `teams list` also render, and
 // nothing had called the single-line form since. Its only remaining caller
 // was its own test, which meant a change to the team display could not
 // break it.

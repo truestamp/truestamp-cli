@@ -13,7 +13,7 @@ import "github.com/spf13/cobra"
 // there is no collection to enumerate yet. See kb/command-tree.md R7.
 var proofsCmd = &cobra.Command{
 	Use:   "proofs",
-	Short: "Fetch and convert proof bundles",
+	Short: "Get and convert proof bundles",
 	Long: `Proof bundles, generated on demand. 'get' emits bundle bytes.
 
 A proof is derived from a subject — an item, block, beacon, or entropy
@@ -26,7 +26,6 @@ without checking it, 'truestamp inspect'. Neither needs a credential or
 this group.
 
   truestamp proofs get <id> | truestamp verify --offline`,
-	Args: cobra.NoArgs,
 }
 
 func init() {

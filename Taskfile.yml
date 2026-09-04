@@ -78,7 +78,7 @@ tasks:
   # =============================================================================
 
   run:
-    desc: "Run verify without building (usage: task run -- proof.json [--skip-external] [--skip-signatures] [--json])"
+    desc: "Run verify without building (usage: task run -- proof.json [--offline] [--skip-signatures] [--json])"
     cmds:
       - go run ./cmd/truestamp verify {{.CLI_ARGS}}
 
@@ -90,8 +90,8 @@ tasks:
         LDFLAGS="-X {{.MODULE}}/internal/version.Version=${OLD_VERSION}"
         mkdir -p build
         go build -ldflags "$LDFLAGS" -o build/truestamp-upgrade-test ./cmd/truestamp
-        ./build/truestamp-upgrade-test upgrade --check || EXIT=$?
-        echo "upgrade --check exit code: ${EXIT:-0}"
+        ./build/truestamp-upgrade-test upgrade --check --exit-code || EXIT=$?
+        echo "upgrade --check --exit-code exit code: ${EXIT:-0}"
         if [ "${EXIT:-0}" != "1" ] && [ "${EXIT:-0}" != "0" ] && [ "${EXIT:-0}" != "3" ]; then
           echo "unexpected exit code"
           exit 1

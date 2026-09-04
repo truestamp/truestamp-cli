@@ -96,7 +96,7 @@ body:
       label: Steps to reproduce
       description: Minimal steps for someone else to trigger the same bug. Include any input files or URLs if safe to share.
       placeholder: |
-        1. Run `truestamp download --type item 01K…`
+        1. Run `truestamp proofs get 01K…`
         2. Pipe to `truestamp verify`
         3. Observe exit code 1 with message "…"
 

@@ -101,7 +101,7 @@ func FuzzResolveZone(f *testing.F) {
 	})
 }
 
-// FuzzPrettyJSON: `convert proof --to json` re-indents the marshaled
+// FuzzPrettyJSON: `proofs convert --to json` re-indents the marshaled
 // bundle without re-encoding it, so json.Indent is handed bytes derived
 // from an attacker-supplied proof. It must never panic, and, the whole
 // reason it replaced a round-trip through `any`, must never alter a

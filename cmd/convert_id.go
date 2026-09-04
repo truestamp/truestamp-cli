@@ -33,9 +33,7 @@ Examples:
   truestamp convert id 019cf813-99b8-730a-84f1-5a711a9c355e --to-zone Local
   truestamp convert id 019cf813-99b8-730a-84f1-5a711a9c355e --extract raw
   echo 01KNN33GX5E470CB9TRWAYF9DD | truestamp convert id --json`,
-	SilenceUsage:  true,
-	SilenceErrors: true,
-	RunE:          runConvertID,
+	RunE: runConvertID,
 }
 
 func runConvertID(cmd *cobra.Command, args []string) error {
@@ -47,10 +45,6 @@ func runConvertID(cmd *cobra.Command, args []string) error {
 	}
 	jsonOut, _ := cmd.Flags().GetBool("json")
 	silent, _ := cmd.Flags().GetBool("silent")
-
-	if silent && jsonOut {
-		return fmt.Errorf("--silent and --json are mutually exclusive")
-	}
 
 	raw, err := gatherIDInput(cmd, args)
 	if err != nil {
@@ -246,6 +240,6 @@ func init() {
 	f.String("type", "auto", "ID type: auto, ulid, uuid7")
 	f.String("extract", "time", "What to extract: time, raw")
 	f.String("to-zone", "UTC", "Target IANA zone for time output (default UTC)")
-	addConvertCommonFlags(convertIDCmd)
+	addRecordOutputFlags(convertIDCmd)
 	convertCmd.AddCommand(convertIDCmd)
 }

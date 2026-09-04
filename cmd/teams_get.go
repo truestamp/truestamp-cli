@@ -30,10 +30,8 @@ different machines, which is a footgun in a script.
 Examples:
   truestamp teams get 019dbd00-0000-7000-8000-000000000000
   truestamp teams get 019dbd00-0000-7000-8000-000000000000 --json`,
-	Args:          cobra.ExactArgs(1),
-	SilenceUsage:  true,
-	SilenceErrors: true,
-	RunE:          runTeamsShow,
+	Args: cobra.ExactArgs(1),
+	RunE: runTeamsGet,
 }
 
 var teamsCurrentCmd = &cobra.Command{
@@ -49,13 +47,11 @@ team is configured.
 Examples:
   truestamp teams current
   truestamp teams current --json`,
-	Args:          cobra.NoArgs,
-	SilenceUsage:  true,
-	SilenceErrors: true,
-	RunE:          runTeamsShow,
+	Args: cobra.NoArgs,
+	RunE: runTeamsGet,
 }
 
-func runTeamsShow(cmd *cobra.Command, args []string) error {
+func runTeamsGet(cmd *cobra.Command, args []string) error {
 	jsonOut, silent := outputMode(cmd)
 
 	cfg, err := teamConfig(cmd)

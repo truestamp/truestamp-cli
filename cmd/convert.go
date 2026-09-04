@@ -10,7 +10,6 @@ import (
 // convertCmd is the parent of the domain-specific conversion sub-commands:
 //
 //	convert time   , ISO 8601 ↔ Unix ↔ timezone
-//	convert proof  , JSON ↔ CBOR proof bundles
 //	convert id     , ULID / UUIDv7 → embedded timestamp
 //	convert keyid  , Ed25519 public key → Truestamp 4-byte kid fingerprint
 //	convert merkle , compact base64url Merkle proof → structured form
@@ -31,25 +30,9 @@ var convertCmd = &cobra.Command{
 
 For generic byte-encoding conversion use 'truestamp encode' / 'truestamp decode'.
 For JSON canonicalization (RFC 8785) use 'truestamp jcs'.`,
-
-	// A group takes no positional arguments, so an unknown
-	// subcommand is an error rather than a silent fall-through to this
-	// command's own help with exit 0. `truestamp convert proof` printing
-	// help and exiting 0 after `proof` moved to `proofs convert` would
-	// leave a reader following an old doc with no signal at all.
-	Args: cobra.NoArgs,
 }
 
 func init() {
 	convertCmd.GroupID = groupTools
 	rootCmd.AddCommand(asGroup(convertCmd))
-}
-
-// addConvertCommonFlags registers the --json and --silent flags shared
-// by every convert sub-command. Kept central so the flag name, default,
-// help text, and -s short alias stay in sync across the family.
-func addConvertCommonFlags(cmd *cobra.Command) {
-	f := cmd.Flags()
-	f.Bool("json", false, "Output as JSON")
-	f.BoolP("silent", "s", false, "No output, exit code only")
 }

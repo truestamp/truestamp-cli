@@ -6,6 +6,7 @@ package cmd
 import (
 	"context"
 	"fmt"
+	"github.com/truestamp/truestamp-cli/internal/inputsrc"
 	"sort"
 	"strings"
 
@@ -32,14 +33,12 @@ relying on the server's personal-team auto-fallback.
 Examples:
   truestamp teams use
   truestamp teams use 019dbd00-0000-7000-8000-000000000000`,
-	Args:          cobra.MaximumNArgs(1),
-	SilenceUsage:  true,
-	SilenceErrors: true,
-	RunE:          runTeamsUse,
+	Args: cobra.MaximumNArgs(1),
+	RunE: runTeamsUse,
 }
 
 func runTeamsUse(cmd *cobra.Command, args []string) error {
-	_, silent := outputMode(cmd)
+	jsonOut, silent := outputMode(cmd)
 
 	// --clear is the former `team unset`. It lives here rather than as its
 	// own leaf because a `teams clear` would read as "delete all my teams",
@@ -50,7 +49,7 @@ func runTeamsUse(cmd *cobra.Command, args []string) error {
 		if len(args) > 0 {
 			return fmt.Errorf("--clear takes no team id: it points the CLI at no team")
 		}
-		return clearActiveTeam(cmd, silent)
+		return clearActiveTeam(cmd, jsonOut, silent)
 	}
 
 	cfg, err := teamConfig(cmd)
@@ -66,7 +65,7 @@ func runTeamsUse(cmd *cobra.Command, args []string) error {
 	if targetID == "" {
 		// Interactive picker. Refuse early when stdin isn't a TTY so
 		// scripted callers get a clear error instead of a hang.
-		if !stdinIsTerminal() {
+		if !inputsrc.IsStdinTerminal() {
 			return fmt.Errorf("interactive picker requires a TTY; pass an explicit id (truestamp teams use <id>)")
 		}
 		picked, err := pickTeamInteractive(cmd.Context(), cfg)
@@ -107,11 +106,20 @@ func runTeamsUse(cmd *cobra.Command, args []string) error {
 	postSwitchCfg := teams.Config{APIURL: cfg.APIURL, Team: targetID}
 	team, err := teams.GetTeam(cmd.Context(), postSwitchCfg, targetID)
 	if err != nil {
+		if jsonOut {
+			return emitJSON(cmd.OutOrStdout(), map[string]any{"id": targetID})
+		}
 		ui.Fprintln(cmd.OutOrStdout(),
 			ui.SuccessBanner("Active team set to "+targetID))
 		return nil
 	}
 	role, _ := teams.GetMyRoleOnTeam(cmd.Context(), postSwitchCfg, targetID)
+	if jsonOut {
+		return emitJSON(cmd.OutOrStdout(), struct {
+			*teams.Team
+			Role string `json:"role"`
+		}{team, role})
+	}
 
 	ui.Fprintln(cmd.OutOrStdout(),
 		ui.SuccessBanner("Active team updated"))
@@ -138,7 +146,7 @@ func pickTeamInteractive(ctx context.Context, cfg teams.Config) (string, error) 
 		return "", nil
 	}
 
-	// Same sort as `team list` so the picker matches the table the
+	// Same sort as `teams list` so the picker matches the table the
 	// user just saw: Personal first (one per user), then Owner →
 	// Admin → Member → Viewer, alphabetical within each rank.
 	sort.SliceStable(memberships, func(i, j int) bool {
@@ -185,29 +193,26 @@ func pickTeamInteractive(ctx context.Context, cfg teams.Config) (string, error) 
 }
 
 func init() {
-	f := teamsUseCmd.Flags()
-	f.Bool("clear", false, "Point the CLI at no team; the server falls back to your personal team")
+	teamsUseCmd.Flags().Bool("clear", false, "Point the CLI at no team; the server falls back to your personal team")
 	addRecordOutputFlags(teamsUseCmd)
-	_ = f
-
 	teamsCmd.AddCommand(teamsUseCmd)
 }
 
 // clearActiveTeam implements `teams use --clear`, formerly `team unset`.
-func clearActiveTeam(cmd *cobra.Command, silent bool) error {
-	if appConfig.Team == "" {
-		if !silent {
-			ui.Fprintln(cmd.OutOrStdout(), ui.FaintStyle().Render(
-				"  No team is configured."))
+func clearActiveTeam(cmd *cobra.Command, jsonOut, silent bool) error {
+	if appConfig.Team != "" {
+		if err := config.SetTeam(""); err != nil {
+			return fmt.Errorf("writing config: %w", err)
 		}
+	}
+	switch {
+	case silent:
 		return nil
-	}
-
-	if err := config.SetTeam(""); err != nil {
-		return fmt.Errorf("writing config: %w", err)
-	}
-
-	if silent {
+	case jsonOut:
+		return emitJSON(cmd.OutOrStdout(), map[string]any{"id": ""})
+	case appConfig.Team == "":
+		ui.Fprintln(cmd.OutOrStdout(), ui.FaintStyle().Render(
+			"  No team is configured."))
 		return nil
 	}
 

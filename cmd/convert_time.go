@@ -39,9 +39,7 @@ Examples:
   truestamp convert time "2026-04-21T12:00:00Z" --to-zone America/New_York
   truestamp convert time 1700000000 --format unix-ms
   date -u +%Y-%m-%dT%H:%M:%SZ | truestamp convert time --to-zone Asia/Kolkata`,
-	SilenceUsage:  true,
-	SilenceErrors: true,
-	RunE:          runConvertTime,
+	RunE: runConvertTime,
 }
 
 func runConvertTime(cmd *cobra.Command, args []string) error {
@@ -53,10 +51,6 @@ func runConvertTime(cmd *cobra.Command, args []string) error {
 	format, _ := cmd.Flags().GetString("format")
 	jsonOut, _ := cmd.Flags().GetBool("json")
 	silent, _ := cmd.Flags().GetBool("silent")
-
-	if silent && jsonOut {
-		return fmt.Errorf("--silent and --json are mutually exclusive")
-	}
 
 	raw, err := gatherTimeInput(cmd, args)
 	if err != nil {
@@ -250,6 +244,6 @@ func init() {
 	f.String("from", "auto", "Input format: auto, rfc3339, unix-s, unix-ms, unix-us, unix-ns")
 	f.String("to-zone", "UTC", "Target IANA time zone (e.g. UTC, America/New_York, Local)")
 	f.String("format", "rfc3339", "Output format: rfc3339, unix-s, unix-ms, unix-us, unix-ns, or a Go time layout")
-	addConvertCommonFlags(convertTimeCmd)
+	addRecordOutputFlags(convertTimeCmd)
 	convertCmd.AddCommand(convertTimeCmd)
 }

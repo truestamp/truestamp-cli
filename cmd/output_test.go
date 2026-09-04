@@ -110,7 +110,8 @@ func snippet(s string, i int) string {
 //
 // `schema get` shipped that way — its documents are JSON by nature, so
 // --json had nothing to switch, yet it was offered on every invocation.
-// The fix was to stop advertising it, not to keep it as a courtesy.
+// The fix was to give `schema get` a text rendering so --json switches
+// something, not to keep an inert flag as a courtesy.
 //
 // This checks the property rather than the instance: for every offline
 // command that offers --json, passing it must change the output.

@@ -14,6 +14,7 @@ import (
 	"log/slog"
 	"os"
 	"runtime/debug"
+	"strings"
 	"time"
 
 	"github.com/spf13/cobra"
@@ -65,6 +66,12 @@ var rootCmd = &cobra.Command{
 	Short:   "Truestamp CLI, tools for cryptographic timestamping",
 	Long:    "Truestamp CLI, tools for cryptographic timestamping\n\n" + version.Copyright(),
 	Version: version.Short(),
+	// Cobra consults the root's Silence* fields for every command under
+	// it, so this is the one place the "no usage dump, no duplicate error
+	// line" policy is declared: Execute is the single place errors reach
+	// stderr.
+	SilenceUsage:  true,
+	SilenceErrors: true,
 	PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
 		// Skip initialization for completion/help (no config/HTTP/log
 		// needed). Check os.Args directly: cobra's __complete command
@@ -242,8 +249,9 @@ func maybeEmitUpgradeNotice(cmd *cobra.Command) {
 	upgradecheck.MaybeNotify(cmd.ErrOrStderr(), flagDisabled, version.Version)
 }
 
-// Execute runs the root command. Commands set SilenceErrors so cobra does
-// not print their errors; Execute is the single place errors reach stderr.
+// Execute runs the root command. rootCmd sets SilenceErrors, which cobra
+// honours for every command under it, so Execute is the single place
+// errors reach stderr.
 // A command that needs silent-on-error UX (e.g. `verify --silent`) returns
 // errSilentFail instead of the real error to opt out of printing. The
 // upgrade --check flow uses exitCodeErr to return a specific exit code
@@ -262,7 +270,11 @@ func Execute() (err error) {
 	// functions in filename order: cmd/schema.go's init would fire before
 	// cmd/verify.go had registered its command, so half the tree would
 	// silently get no completions.
-	registerEnumCompletions(rootCmd)
+	// Shell completion is the only consumer of the enum registry, so the
+	// walk that wires it into every flag is skipped for ordinary runs.
+	if len(os.Args) > 1 && strings.HasPrefix(os.Args[1], "__complete") {
+		registerEnumCompletions(rootCmd)
+	}
 	registerHelpCommand(rootCmd)
 
 	defer func() {

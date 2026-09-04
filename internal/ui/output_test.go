@@ -40,9 +40,7 @@ func TestStyledFixtureActuallyCarriesANSI(t *testing.T) {
 }
 
 func TestProfileWriter_NoColorForced_StripsANSI(t *testing.T) {
-	prev := noColorForced
-	t.Cleanup(func() { noColorForced = prev })
-	noColorForced = true
+	forceNoColor(t)
 
 	var buf bytes.Buffer
 	if _, err := Fprintln(&buf, styled()); err != nil {
@@ -58,9 +56,7 @@ func TestProfileWriter_NoColorForced_StripsANSI(t *testing.T) {
 }
 
 func TestFprintf_NoColorForced_StripsANSI(t *testing.T) {
-	prev := noColorForced
-	t.Cleanup(func() { noColorForced = prev })
-	noColorForced = true
+	forceNoColor(t)
 
 	var buf bytes.Buffer
 	if _, err := Fprintf(&buf, "  %s\n", styled()); err != nil {
@@ -72,9 +68,7 @@ func TestFprintf_NoColorForced_StripsANSI(t *testing.T) {
 }
 
 func TestFprint_NoColorForced_StripsANSI(t *testing.T) {
-	prev := noColorForced
-	t.Cleanup(func() { noColorForced = prev })
-	noColorForced = true
+	forceNoColor(t)
 
 	var buf bytes.Buffer
 	if _, err := Fprint(&buf, styled()); err != nil {
@@ -107,9 +101,7 @@ func TestProfileWriter_NonTerminal_StripsANSI(t *testing.T) {
 // same value through the ui helper must not. If someone reverts the
 // helpers to thin fmt wrappers, this fails.
 func TestProfileWriter_IsNotFmtFprintln(t *testing.T) {
-	prev := noColorForced
-	t.Cleanup(func() { noColorForced = prev })
-	noColorForced = true
+	forceNoColor(t)
 
 	s := styled()
 
@@ -128,4 +120,12 @@ func TestProfileWriter_IsNotFmtFprintln(t *testing.T) {
 	if strings.Contains(viaUI.String(), esc) {
 		t.Error("ui.Fprintln behaved like fmt.Fprintln: escapes survived")
 	}
+}
+
+// forceNoColor flips noColorForced for one test and restores it after.
+func forceNoColor(t *testing.T) {
+	t.Helper()
+	prev := noColorForced
+	t.Cleanup(func() { noColorForced = prev })
+	noColorForced = true
 }

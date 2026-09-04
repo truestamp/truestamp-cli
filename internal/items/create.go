@@ -5,14 +5,11 @@
 package items
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
-	"io"
 	"net/http"
 
-	"github.com/truestamp/truestamp-cli/internal/auth"
 	"github.com/truestamp/truestamp-cli/internal/httpclient"
 )
 
@@ -63,34 +60,10 @@ func CreateItemCtx(ctx context.Context, apiURL, team string, claims map[string]a
 		return nil, fmt.Errorf("encoding request: %w", err)
 	}
 
-	reqURL := apiURL + "/items"
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, reqURL, bytes.NewReader(bodyBytes))
+	respBody, err := doJSON(ctx, http.MethodPost, apiURL+"/items", team, bodyBytes)
 	if err != nil {
-		return nil, fmt.Errorf("creating request: %w", err)
-	}
-	req.Header.Set("Content-Type", "application/vnd.api+json")
-	if err := auth.AuthorizeRequest(ctx, req); err != nil {
 		return nil, err
 	}
-	if team != "" {
-		req.Header.Set("tenant", team)
-	}
-
-	resp, err := httpclient.Do(req)
-	if err != nil {
-		return nil, fmt.Errorf("API request failed: %w", err)
-	}
-	defer resp.Body.Close()
-
-	respBody, err := io.ReadAll(io.LimitReader(resp.Body, httpclient.MaxResponseSize))
-	if err != nil {
-		return nil, fmt.Errorf("reading response: %w", err)
-	}
-
-	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return nil, parseError(resp.StatusCode, respBody)
-	}
-
 	return parseResponse(respBody)
 }
 

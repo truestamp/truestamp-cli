@@ -8,6 +8,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/truestamp/truestamp-cli/internal/inputsrc"
 	"io"
 	"os"
 	"runtime"
@@ -19,7 +20,6 @@ import (
 	"github.com/truestamp/truestamp-cli/internal/selfupgrade"
 	"github.com/truestamp/truestamp-cli/internal/ui"
 	"github.com/truestamp/truestamp-cli/internal/version"
-	"golang.org/x/term"
 )
 
 // Exit codes for --check. The user-facing contract lives in cmd so
@@ -57,12 +57,11 @@ Run 'truestamp version' to see the detected install method.
 Examples:
   truestamp upgrade                       # upgrade to the latest release
   truestamp upgrade --check               # only print whether an upgrade is available
+  truestamp upgrade --check --exit-code   # same, encoded in the exit status ('schema get exit-codes')
   truestamp upgrade --yes                 # upgrade without interactive confirmation
   truestamp upgrade --version v0.4.0      # pin to a specific release tag`,
-	Args:          cobra.NoArgs,
-	SilenceUsage:  true,
-	SilenceErrors: true,
-	RunE:          runUpgrade,
+	Args: cobra.NoArgs,
+	RunE: runUpgrade,
 }
 
 func init() {
@@ -213,7 +212,7 @@ func runInPlaceUpgrade(ctx context.Context, cmd *cobra.Command, opts selfupgrade
 		target = opts.TargetVersion
 	}
 
-	if !upgradeFlagYes && stdinIsTerminal() {
+	if !upgradeFlagYes && inputsrc.IsStdinTerminal() {
 		ui.Fprintf(out, "Upgrade truestamp %s → %s? [Y/n] ", selfupgrade.Display(result.CurrentVersion), selfupgrade.Display(target))
 		if !readYes(cmd.InOrStdin()) {
 			ui.Fprintln(out, "aborted")
@@ -255,20 +254,9 @@ func readYes(r io.Reader) bool {
 	return resp == "" || resp == "y" || resp == "yes"
 }
 
-// stdinIsTerminal reports whether the program's stdin is attached to
-// a real interactive terminal. The earlier `(info.Mode() & os.ModeCharDevice) != 0`
-// check was too lax, `/dev/null` is also a character device, so any
-// `cmd < /dev/null` invocation incorrectly looked like a TTY and the
-// CLI would happily try to spawn an interactive picker that then read
-// EOF immediately. golang.org/x/term.IsTerminal goes through tcgetattr,
-// which is the right contract for "can I prompt the user?".
-func stdinIsTerminal() bool {
-	return term.IsTerminal(int(os.Stdin.Fd()))
-}
-
 // exitCodeErr carries a specific exit code out through Execute(), which
 // returns it unprinted; main() maps it to a process exit status via
-// ExitCode(). Commands set SilenceErrors so cobra does not also print an
+// ExitCode(). rootCmd sets SilenceErrors so cobra does not also print an
 // error line.
 type exitCodeErr struct{ code int }
 

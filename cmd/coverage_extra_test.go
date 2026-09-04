@@ -6,6 +6,8 @@ package cmd
 import (
 	"encoding/base64"
 	"encoding/json"
+	"errors"
+	"github.com/truestamp/truestamp-cli/internal/inputsrc"
 	"github.com/truestamp/truestamp-cli/internal/testfixtures"
 	"net/http"
 	"net/http/httptest"
@@ -18,7 +20,7 @@ import (
 
 // These tests plug the gaps the regular suite leaves uncovered, mostly
 // subprocess exercises of `convert merkle`, `upgrade --check`, `auth
-// status/login/logout`, `download`, and various convert-helper branches
+// status/login/logout`, `proofs get`, and various convert-helper branches
 // that only fire on specific inputs (raw extract, zone fallback, etc.).
 
 // --- convert merkle ---
@@ -113,7 +115,7 @@ func TestCLI_Auth_Logout_NoAPIKey(t *testing.T) {
 
 // --- create: presentCreate + printCreateJSON ---
 
-func TestCLI_Create_WithMockAPI(t *testing.T) {
+func TestCLI_ItemsCreate_WithMockAPI(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(201)
 		_, _ = w.Write([]byte(`{"data":{"id":"01NEW","attributes":{
@@ -159,7 +161,7 @@ func TestCLI_Create_WithMockAPI(t *testing.T) {
 
 // --- download ---
 
-func TestCLI_Download_BasicProof(t *testing.T) {
+func TestCLI_ProofsGet_BasicProof(t *testing.T) {
 	proofJSON := `{"v":1,"pk":"a","sig":"b","ts":"2026-01-01T00:00:00Z",
 		"s":{"src":"item","id":"01X","d":{},"mh":"cc","kid":"dd"},
 		"b":{"id":"x","ph":"p","mr":"m","mh":"mh","kid":"k"},"ip":"AA"}`
@@ -396,9 +398,9 @@ func TestCLI_ConvertKeyID_ExplicitFrom(t *testing.T) {
 	}
 }
 
-// --- convert proof: all branches ---
+// --- proofs convert: all branches ---
 
-func TestCLI_ConvertProof_CBORtoJSON_JSONEnvelope(t *testing.T) {
+func TestCLI_ProofsConvert_CBORtoJSON_JSONEnvelope(t *testing.T) {
 	src := testfixtures.Path(testfixtures.ProdDir, testfixtures.ProdCBOR)
 	if _, err := os.Stat(src); err != nil {
 		t.Skipf("no fixture: %v", err)
@@ -417,7 +419,7 @@ func TestCLI_ConvertProof_CBORtoJSON_JSONEnvelope(t *testing.T) {
 	}
 }
 
-func TestCLI_ConvertProof_JSONtoCBOR_JSONEnvelope(t *testing.T) {
+func TestCLI_ProofsConvert_JSONtoCBOR_JSONEnvelope(t *testing.T) {
 	src := testfixtures.Path(testfixtures.ProdDir, testfixtures.ProdComplete)
 	if _, err := os.Stat(src); err != nil {
 		t.Skipf("no fixture: %v", err)
@@ -439,7 +441,7 @@ func TestCLI_ConvertProof_JSONtoCBOR_JSONEnvelope(t *testing.T) {
 	}
 }
 
-func TestCLI_ConvertProof_ExplicitFromJSON(t *testing.T) {
+func TestCLI_ProofsConvert_ExplicitFromJSON(t *testing.T) {
 	src := testfixtures.Path(testfixtures.ProdDir, testfixtures.ProdComplete)
 	if _, err := os.Stat(src); err != nil {
 		t.Skipf("no fixture: %v", err)
@@ -450,7 +452,7 @@ func TestCLI_ConvertProof_ExplicitFromJSON(t *testing.T) {
 	}
 }
 
-func TestCLI_ConvertProof_ExplicitFromCBOR(t *testing.T) {
+func TestCLI_ProofsConvert_ExplicitFromCBOR(t *testing.T) {
 	src := testfixtures.Path(testfixtures.ProdDir, testfixtures.ProdCBOR)
 	if _, err := os.Stat(src); err != nil {
 		t.Skipf("no fixture: %v", err)
@@ -461,7 +463,7 @@ func TestCLI_ConvertProof_ExplicitFromCBOR(t *testing.T) {
 	}
 }
 
-func TestCLI_ConvertProof_InvalidFrom(t *testing.T) {
+func TestCLI_ProofsConvert_InvalidFrom(t *testing.T) {
 	src := testfixtures.Path(testfixtures.ProdDir, testfixtures.ProdComplete)
 	if _, err := os.Stat(src); err != nil {
 		t.Skipf("no fixture: %v", err)
@@ -476,7 +478,7 @@ func TestCLI_ConvertProof_InvalidFrom(t *testing.T) {
 	}
 }
 
-func TestCLI_ConvertProof_BadFromFlag(t *testing.T) {
+func TestCLI_ProofsConvert_BadFromFlag(t *testing.T) {
 	cmd := exec.Command(binaryPath, "proofs", "convert", "--from", "yaml", "--to", "json")
 	cmd.Stdin = strings.NewReader("{}")
 	if err := cmd.Run(); err == nil {
@@ -484,7 +486,7 @@ func TestCLI_ConvertProof_BadFromFlag(t *testing.T) {
 	}
 }
 
-func TestCLI_ConvertProof_MissingTo(t *testing.T) {
+func TestCLI_ProofsConvert_MissingTo(t *testing.T) {
 	cmd := exec.Command(binaryPath, "proofs", "convert")
 	cmd.Stdin = strings.NewReader("{}")
 	if err := cmd.Run(); err == nil {
@@ -696,24 +698,16 @@ func TestExitCode_NilError(t *testing.T) {
 }
 
 func TestExitCode_GenericError(t *testing.T) {
-	err := errorsNewString("boom")
+	err := errors.New("boom")
 	if got := ExitCode(err); got != 1 {
 		t.Errorf("ExitCode(generic): got %d, want 1", got)
 	}
 }
 
-// errorsNewString is a tiny wrapper that avoids importing errors in
-// this particular test file (it already has enough imports).
-func errorsNewString(s string) error { return stringError(s) }
-
-type stringError string
-
-func (e stringError) Error() string { return string(e) }
-
 func TestStdinIsTerminal_DoesNotPanic(t *testing.T) {
 	// The actual return value depends on the test env; we just exercise
 	// the function to make sure it doesn't panic.
-	_ = stdinIsTerminal()
+	_ = inputsrc.IsStdinTerminal()
 }
 
 func TestPrintAlgorithmList(t *testing.T) {

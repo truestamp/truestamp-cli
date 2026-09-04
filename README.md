@@ -118,7 +118,7 @@ The `install.sh` installer and the Homebrew cask both verify the SHA-256 automat
 
 ## Quick start
 
-The three main commands (`items create`, `proofs get`, `verify`) form the full lifecycle of a Truestamp item. Commands that talk to the Truestamp API (`items`, `proofs`, `blocks`, `beacons`, `teams`, `console`, `verify --remote`) need credentials: run `truestamp auth login` for the browser OAuth flow, or set `TRUESTAMP_API_KEY` / `--api-key` for headless and CI use. Without a credential they exit non-zero with a "Not authenticated" hint. Plain `verify` computes locally and needs no credentials at all.
+The three main commands (`items create`, `proofs get`, `verify`) form the full lifecycle of a Truestamp item. Commands that talk to the Truestamp API (`items`, `proofs get`, `blocks`, `beacons`, `teams`, `console`, `verify --remote`) need credentials: run `truestamp auth login` for the browser OAuth flow, or set `TRUESTAMP_API_KEY` / `--api-key` for headless and CI use. Without a credential they exit non-zero with a "Not authenticated" hint. Plain `verify` computes locally and needs no credentials at all.
 
 ### Create an item
 
@@ -316,7 +316,7 @@ Run `truestamp <command> --help` for per-command flags.
 
 ### Composable pipelines
 
-Every command reads stdin and prints to stdout, and the file-oriented ones (`verify`, `hash`, `encode`, `decode`, `jcs`, `proofs convert`) also take `--file` / `--url` with an optional path. So the commands compose as Unix pipes and replace a pile of external tools (`sha256sum`, `shasum`, `xxd`, `base64`, `jq`, `date`):
+Every command reads stdin and prints to stdout, and the file-oriented ones (`verify`, `inspect`, `hash`, `encode`, `decode`, `jcs`, `proofs convert`) also take `--file` / `--url` with an optional path. So the commands compose as Unix pipes and replace a pile of external tools (`sha256sum`, `shasum`, `xxd`, `base64`, `jq`, `date`):
 
 ```sh
 # SHA-256 a file, byte-identical to sha256sum / shasum output
@@ -348,7 +348,7 @@ truestamp convert id 019cf813-99b8-730a-84f1-5a711a9c355e --to-zone Local
 
 `--json` (structured output for scripting) and `-s` / `--silent` (exit code only) are **CLI-wide, mutually exclusive settings**. Every command that renders a *record* carries them, including `auth status`, `config show`, `config path` and `version`. They can be set once via `config.toml`, `TRUESTAMP_JSON` or `TRUESTAMP_SILENT`.
 
-The exemptions are deliberate: the pipeline primitives (`encode`, `decode`, `jcs`, `convert time|id|keyid|merkle`) print one bare value or raw bytes, and `truestamp hash` defaults to GNU `sha256sum`-compatible output with `--style bsd` for BSD `shasum --tag` format — wrapping either would break every pipe built on them. `proofs get` emits a payload rather than a record and follows the stdout / `-o` / `--to-file` triad instead.
+The exemptions are deliberate: the pipeline primitives (`encode`, `decode`, `jcs`, `convert time|id|keyid|merkle`, `hash`) still carry `--json` and `--silent` as explicit flags, but ignore the ambient config-file and environment setting. They print one bare value or raw bytes, and `truestamp hash` defaults to GNU `sha256sum`-compatible output with `--style bsd` for BSD `shasum --tag` format, so a `silent = true` in `config.toml` must not be able to silence a pipe built on them. `proofs get` emits a payload rather than a record and follows the stdout / `-o` / `--to-file` triad instead.
 
 **More examples:** [EXAMPLES.md](./EXAMPLES.md) covers every sub-command with copy-pastable recipes, scripting patterns, CI conventions, and offline usage.
 
@@ -423,9 +423,9 @@ Settings are resolved in this order (later overrides earlier):
 | `--log-file` | `TRUESTAMP_LOGGING_FILE` | `<user cache dir>/truestamp/truestamp.log` |
 | `--no-color` | `NO_COLOR` | `false` |
 | `--no-upgrade-check` | `TRUESTAMP_NO_UPGRADE_CHECK` | `false` |
-| `--silent` / `-s` | `TRUESTAMP_SILENT` | `false` |
-| `--json` | `TRUESTAMP_JSON` | `false` |
 | (config file / env only: `cosign_path`) | `TRUESTAMP_COSIGN_PATH` |   |
+
+`--json` and `-s` / `--silent` are not root flags: every record-rendering command registers the pair itself, so they go after the command name. `TRUESTAMP_JSON` / `TRUESTAMP_SILENT` (default `false`) and the top-level `json` / `silent` config keys set them CLI-wide.
 
 `--base-url` takes an **origin only**: scheme plus host, no path (for example `https://www.truestamp.com`). The API (`/api/json`), keyring (`/.well-known/keyring.json`), console WebSocket (`/console/websocket`) and health (`/health`) URLs are all derived from it, so there is **no `--api-url` and no `--keyring-url`**; passing either is an `unknown flag` error, and the retired `api_url` / `keyring_url` config keys produce a one-time "no longer recognized" warning on stderr.
 

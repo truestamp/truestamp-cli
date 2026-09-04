@@ -39,8 +39,8 @@ type Item struct {
 
 // Committed reports whether a proof can be generated for this item.
 // Proof generation hard-requires the committed state server-side, so this
-// is the difference between `proofs get <id>` working and returning
-// item_not_committed.
+// is the difference between `proofs get <id>` working and being refused
+// with no_external_commitments.
 func (i Item) Committed() bool { return i.State == "committed" }
 
 // Page is one page of a list response plus the cursor for the next.

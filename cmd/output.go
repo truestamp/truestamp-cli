@@ -9,6 +9,7 @@ import (
 	"io"
 
 	"github.com/spf13/cobra"
+	"github.com/truestamp/truestamp-cli/internal/ui"
 )
 
 // The R10 output contract, in one place so a new command cannot invent a
@@ -21,22 +22,27 @@ import (
 // appears on every command, including `auth login`, `console` and
 // `completion`, which render no record and would then advertise an output
 // mode they do not have. They are registered per command instead, from
-// here, so the set of commands that honor the contract is exactly the set
-// that says it does.
+// here, so the set of commands that carry the pair is exactly the set
+// that says it does. `proofs convert` is the one command that registers
+// its own --json, because there the flag means "a JSON envelope" and
+// needs its own help text.
 
-// addRecordOutputFlags registers --json and --silent on a command that
-// renders a record. config.Load enforces their mutual exclusion once, for
-// every command, so callers do not repeat that check.
+// addRecordOutputFlags registers --json and --silent on a command.
+// config.Load enforces their mutual exclusion once, for every command, so
+// callers do not repeat that check. Whether a command honors the ambient
+// config-file / environment setting for the pair is decided where it
+// reads them: record commands go through outputMode, the pipeline
+// primitives read the raw flags (R10's exemptions).
 func addRecordOutputFlags(cmd *cobra.Command) {
 	f := cmd.Flags()
 	f.Bool("json", false, "Output as JSON")
 	f.BoolP("silent", "s", false, "No output, exit code only")
 }
 
-// emitRecord writes v as indented JSON. It is the single JSON writer for
-// record-rendering commands, so the shape of `--json` output is decided in
-// one place rather than by whichever encoder each command reached for.
-func emitRecord(w io.Writer, v any) error {
+// emitJSON writes v as indented JSON. It is the single JSON writer for
+// every --json rendering, so the shape of that output is decided in one
+// place rather than by whichever encoder each command reached for.
+func emitJSON(w io.Writer, v any) error {
 	out, err := json.MarshalIndent(v, "", "  ")
 	if err != nil {
 		return fmt.Errorf("marshaling JSON: %w", err)
@@ -58,9 +64,6 @@ func outputMode(cmd *cobra.Command) (jsonOut, silent bool) {
 	if appConfig != nil {
 		jsonOut, silent = appConfig.JSON, appConfig.Silent
 	}
-	if cmd == nil {
-		return jsonOut, silent
-	}
 	if f := cmd.Flags().Lookup("json"); f != nil && f.Changed {
 		jsonOut, _ = cmd.Flags().GetBool("json")
 	}
@@ -68,4 +71,35 @@ func outputMode(cmd *cobra.Command) (jsonOut, silent bool) {
 		silent, _ = cmd.Flags().GetBool("silent")
 	}
 	return jsonOut, silent
+}
+
+// printNotAuthenticated is the one rendering of the "Not authenticated"
+// banner and its remediation hint, so the wording, the stream and the
+// silent gating cannot drift between the resource groups. It prints
+// nothing under --silent.
+func printNotAuthenticated(cmd *cobra.Command) {
+	if _, silent := outputMode(cmd); silent {
+		return
+	}
+	ui.Fprintln(cmd.ErrOrStderr(), ui.FailureBanner("Not authenticated"))
+	ui.Fprintln(cmd.ErrOrStderr(), ui.FaintStyle().Render(
+		"    Run 'truestamp auth login' to sign in (or set TRUESTAMP_API_KEY)."))
+}
+
+// failNotAuthenticated prints the banner and returns errSilentFail. It is
+// the right response both when no credential is configured and when the
+// server rejects the one that is (a 401 on a request that did carry one).
+func failNotAuthenticated(cmd *cobra.Command) error {
+	printNotAuthenticated(cmd)
+	return errSilentFail
+}
+
+// requireAuth is the pre-flight gate every command that needs a credential
+// runs before its first request: it refuses early, with the banner, when
+// neither an OAuth session nor an API key is configured.
+func requireAuth(cmd *cobra.Command) error {
+	if authConfigured() {
+		return nil
+	}
+	return failNotAuthenticated(cmd)
 }

@@ -296,8 +296,6 @@ func resolvePath(opts Options) (string, Source, error) {
 // character device, so `truestamp verify --file </dev/null` looked like a
 // TTY, fell through to the interactive file picker, and blocked forever
 // under any pty-allocating harness (CI, `docker -t`, an agent's shell).
-// cmd/upgrade.go's stdinIsTerminal already documented this trap; this is
-// the same fix at the other call site.
 func IsStdinTerminal() bool {
 	return term.IsTerminal(int(os.Stdin.Fd()))
 }

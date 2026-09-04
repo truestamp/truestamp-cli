@@ -4,7 +4,6 @@
 package cmd
 
 import (
-	"os/exec"
 	"strings"
 	"testing"
 )
@@ -31,29 +30,13 @@ func TestCLI_Help_UnknownTopicExitsNonZero(t *testing.T) {
 		{"real group", []string{"help", "proofs"}, 0},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			out, err := exec.Command(binaryPath, tc.args...).CombinedOutput()
-			got := 0
-			var ee *exec.ExitError
-			if err != nil {
-				if !asExitError(err, &ee) {
-					t.Fatalf("running %v: %v", tc.args, err)
-				}
-				got = ee.ExitCode()
-			}
+			out, got := runCLIText(t, tc.args...)
 			if got != tc.want {
-				t.Errorf("%v exited %d, want %d\n%s", tc.args, got, tc.want, firstLine(string(out)))
+				t.Errorf("%v exited %d, want %d\n%s", tc.args, got, tc.want, firstLine(out))
 			}
 			if tc.want == 1 && !strings.Contains(string(out), "unknown help topic") {
 				t.Errorf("%v should say what was not found, got %q", tc.args, firstLine(string(out)))
 			}
 		})
 	}
-}
-
-func asExitError(err error, target **exec.ExitError) bool {
-	ee, ok := err.(*exec.ExitError)
-	if ok {
-		*target = ee
-	}
-	return ok
 }

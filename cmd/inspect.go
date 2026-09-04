@@ -15,7 +15,6 @@ import (
 	"github.com/truestamp/truestamp-cli/internal/proof"
 	"github.com/truestamp/truestamp-cli/internal/tscrypto"
 	"github.com/truestamp/truestamp-cli/internal/ui"
-	"github.com/truestamp/truestamp-cli/internal/verify"
 )
 
 var inspectCmd = &cobra.Command{
@@ -38,20 +37,11 @@ Examples:
   cat proof.json | truestamp inspect
 
 Exit code 0 when the bundle parses, 1 when it is rejected.`,
-	Args:          cobra.MaximumNArgs(1),
-	SilenceUsage:  true,
-	SilenceErrors: true,
+	Args: cobra.MaximumNArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
-		// Read the RESOLVED settings, not the raw flags. inspect renders a
-		// record, like verify beside it in the same help group, so it obeys
-		// the CLI-wide `json` / `silent` contract: config.toml and
-		// TRUESTAMP_JSON / TRUESTAMP_SILENT reach it, and an explicit flag
-		// still wins. Reading the flags directly made inspect the one
-		// record-rendering command that ignored both.
+		// inspect renders a record, like verify beside it, so it reads the
+		// resolved CLI-wide json / silent settings rather than the raw flags.
 		jsonOut, silent := outputMode(cmd)
-		if jsonOut && silent {
-			return fmt.Errorf("--silent and --json are mutually exclusive")
-		}
 
 		positional := ""
 		if len(args) > 0 {
@@ -87,14 +77,7 @@ Exit code 0 when the bundle parses, 1 when it is rejected.`,
 				return errSilentFail
 			}
 			if proof.RejectionCode(err) != "" {
-				if jsonOut {
-					if jErr := emitJSON(cmd.OutOrStdout(), verify.BuildJSONRejection(err)); jErr != nil {
-						return jErr
-					}
-				} else {
-					verify.PresentRejection(cmd.OutOrStdout(), err)
-				}
-				return errSilentFail
+				return presentRejection(cmd, err, jsonOut)
 			}
 			return err
 		}
@@ -431,8 +414,7 @@ func init() {
 	f.String("url", "", "URL to download proof from (interactive prompt if no URL given)")
 	f.Lookup("file").NoOptDefVal = inputsrc.FilePickSentinel
 	f.Lookup("url").NoOptDefVal = inputsrc.URLPromptSentinel
-	f.Bool("json", false, "Output the summary as JSON")
-	f.BoolP("silent", "s", false, "No output, exit code only")
+	addRecordOutputFlags(inspectCmd)
 	inspectCmd.GroupID = groupVerification
 	rootCmd.AddCommand(inspectCmd)
 }

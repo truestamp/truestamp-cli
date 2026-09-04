@@ -26,12 +26,12 @@ import (
 // isolatedEnv returns an env slice with the platform config dir pointed
 // at dir, plus the noise-suppressing flags every subprocess wants.
 func isolatedEnv(dir string) []string {
-	return append(os.Environ(),
+	// cleanEnv already strips the developer's TRUESTAMP_* variables; the
+	// later entries win over its placeholder HOME / XDG values.
+	return append(cleanEnv(),
 		"XDG_CONFIG_HOME="+dir,
 		"HOME="+dir,
 		"APPDATA="+dir, // windows configDir()
-		"NO_COLOR=1",
-		"TRUESTAMP_NO_UPGRADE_CHECK=1",
 	)
 }
 

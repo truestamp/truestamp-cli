@@ -5,7 +5,6 @@ package cmd
 
 import (
 	"encoding/hex"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"strings"
@@ -14,7 +13,6 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/truestamp/truestamp-cli/internal/inputsrc"
 	"github.com/truestamp/truestamp-cli/internal/proof"
-	"github.com/truestamp/truestamp-cli/internal/ui"
 	"github.com/truestamp/truestamp-cli/internal/verify"
 )
 
@@ -72,9 +70,7 @@ CLI's own verifier never depends on it. Requires authentication: run
 'truestamp auth login', or set TRUESTAMP_API_KEY / --api-key.
 
 Exit code 0 when the proof passes, 1 when it fails or is rejected.`,
-	Args:          cobra.MaximumNArgs(1),
-	SilenceUsage:  true,
-	SilenceErrors: true,
+	Args: cobra.MaximumNArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		cfg := appConfig
 
@@ -114,9 +110,9 @@ Exit code 0 when the proof passes, 1 when it fails or is rejected.`,
 
 		typeFlag, _ := cmd.Flags().GetString("type")
 		typeFlag = strings.ToLower(strings.TrimSpace(typeFlag))
-		if typeFlag != "" && !validDownloadType(typeFlag) {
+		if typeFlag != "" && !validProofType(typeFlag) {
 			return fmt.Errorf("--type must be one of %s, got %q",
-				strings.Join(downloadTypeValues, " | "), typeFlag)
+				strings.Join(proofTypeValues, " | "), typeFlag)
 		}
 
 		keyringFile := cfg.Verify.Keyring
@@ -176,14 +172,7 @@ Exit code 0 when the proof passes, 1 when it fails or is rejected.`,
 			// runs, so there is no report to render: only the E.23
 			// identifier and one line of advice.
 			if rejectionCode != "" {
-				if cfg.JSON {
-					if jErr := emitJSON(cmd.OutOrStdout(), verify.BuildJSONRejection(err)); jErr != nil {
-						return jErr
-					}
-				} else {
-					verify.PresentRejection(cmd.OutOrStdout(), err)
-				}
-				return errSilentFail
+				return presentRejection(cmd, err, cfg.JSON)
 			}
 			return err
 		}
@@ -199,11 +188,9 @@ Exit code 0 when the proof passes, 1 when it fails or is rejected.`,
 
 		switch {
 		case cfg.JSON:
-			out, jErr := json.MarshalIndent(verify.BuildJSONReport(report), "", "  ")
-			if jErr != nil {
-				return fmt.Errorf("marshaling JSON: %w", jErr)
+			if jErr := emitJSON(cmd.OutOrStdout(), verify.BuildJSONReport(report)); jErr != nil {
+				return jErr
 			}
-			ui.Fprintln(cmd.OutOrStdout(), string(out))
 		case !cfg.Silent:
 			lipgloss.Print(verify.Render(report, true))
 		}
@@ -245,7 +232,7 @@ func init() {
 	f.String("keyring", "", "Path of a pinned copy of /.well-known/keyring.json for the key binding check")
 	f.String("type", "",
 		fmt.Sprintf("Assert the expected subject type; a mismatch is rejected. One of: %s",
-			strings.Join(downloadTypeValues, " | ")))
+			strings.Join(proofTypeValues, " | ")))
 	f.BoolP("silent", "s", false, "No output, exit code only")
 	f.Bool("json", false, "Output the report as JSON, in the same field names the Truestamp API uses")
 	f.Bool("offline", false, "Run with no network access: chain, source and keyring lookups are reported as skipped")
@@ -259,4 +246,18 @@ func init() {
 	f.Bool("remote", false, "Also ask the Truestamp server to verify the bundle (requires authentication)")
 	verifyCmd.GroupID = groupVerification
 	rootCmd.AddCommand(verifyCmd)
+}
+
+// presentRejection renders an Appendix E.6 hard rejection, the E.23
+// identifier and one line of advice, as JSON or as text, and returns
+// errSilentFail. verify and inspect share it so the two cannot drift.
+func presentRejection(cmd *cobra.Command, err error, jsonOut bool) error {
+	if jsonOut {
+		if jErr := emitJSON(cmd.OutOrStdout(), verify.BuildJSONRejection(err)); jErr != nil {
+			return jErr
+		}
+	} else {
+		verify.PresentRejection(cmd.OutOrStdout(), err)
+	}
+	return errSilentFail
 }

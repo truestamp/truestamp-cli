@@ -190,13 +190,13 @@ func ByHash(ctx context.Context, cfg Config, hash string) (*Block, error) {
 // is NOT the same as the most recent beacon, which is the newest
 // *finalized* block.
 func Latest(ctx context.Context, cfg Config) (*Block, error) {
-	return firstOf(ctx, cfg, "-id", ErrNotFound)
+	return firstOf(ctx, cfg, "-id")
 }
 
 // Genesis fetches the first block, the trust root every chain walk
 // terminates at. It is identifiable by id == previous_block_id.
 func Genesis(ctx context.Context, cfg Config) (*Block, error) {
-	b, err := firstOf(ctx, cfg, "id", ErrNotFound)
+	b, err := firstOf(ctx, cfg, "id")
 	if err != nil {
 		return nil, err
 	}
@@ -208,7 +208,7 @@ func Genesis(ctx context.Context, cfg Config) (*Block, error) {
 	return b, nil
 }
 
-func firstOf(ctx context.Context, cfg Config, sort string, notFound error) (*Block, error) {
+func firstOf(ctx context.Context, cfg Config, sort string) (*Block, error) {
 	q := url.Values{}
 	q.Set("sort", sort)
 	q.Set("page[limit]", "1")
@@ -221,7 +221,7 @@ func firstOf(ctx context.Context, cfg Config, sort string, notFound error) (*Blo
 		return nil, err
 	}
 	if len(list) == 0 {
-		return nil, &APIError{Status: 404, Detail: "no blocks", sentinel: notFound}
+		return nil, &APIError{Status: 404, Detail: "no blocks", sentinel: ErrNotFound}
 	}
 	return &list[0], nil
 }

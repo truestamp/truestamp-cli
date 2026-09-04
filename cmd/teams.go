@@ -14,7 +14,7 @@ import (
 )
 
 // teamsCmd is the parent for the `truestamp teams ...` subtree. Like every
-// group it has no RunE: a bare `truestamp teams` prints help.
+// group it is a namespace (asGroup): a bare `truestamp teams` prints help.
 var teamsCmd = &cobra.Command{
 	Use:   "teams",
 	Short: "List, create, and switch teams",
@@ -24,40 +24,19 @@ stored under the top-level 'team' key in the user's config.toml so it
 applies across CLI invocations. That key stays singular: it names
 exactly one team, and only the command group is plural.
 
-Sub-commands:
-  list     Show all teams you are a member of
-  get      Show one team by id
-  current  Show the team the CLI is currently pointed at
-  create   Create a new team (interactive prompt if no name given)
-  use      Point the CLI at a team (interactive picker if no id given;
-           --clear to point at none)
-
 'current' and 'use' are a pair: 'current' reads the ambient team, 'use'
 sets it. That is why there is no bare 'get' that silently falls back to
 the configured team — the same command line would mean different things
 on different machines.`,
-	Args: cobra.NoArgs,
 }
 
 // teamConfig pulls the values the teams client needs from the resolved
-// application config. Returns errSilentFail when no credential is
-// configured (neither an OAuth session nor an API key), after first
-// printing a "not authenticated" banner to stderr (unless silent).
+// application config, after the shared credential gate.
 func teamConfig(cmd *cobra.Command) (teams.Config, error) {
-	cfg := appConfig
-	if !authConfigured() {
-		_, silent := outputMode(cmd)
-		if !silent {
-			ui.Fprintln(cmd.ErrOrStderr(), ui.FailureBanner("Not authenticated"))
-			ui.Fprintln(cmd.ErrOrStderr(), ui.FaintStyle().Render(
-				"    Run 'truestamp auth login' to sign in (or set TRUESTAMP_API_KEY)."))
-		}
-		return teams.Config{}, errSilentFail
+	if err := requireAuth(cmd); err != nil {
+		return teams.Config{}, err
 	}
-	return teams.Config{
-		APIURL: cfg.APIURL,
-		Team:   cfg.Team,
-	}, nil
+	return teams.Config{APIURL: appConfig.APIURL, Team: appConfig.Team}, nil
 }
 
 // teamRenderError converts a client error into a user-facing message

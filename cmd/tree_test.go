@@ -36,8 +36,15 @@ var resourceGroups = []string{"items", "proofs", "blocks", "beacons", "keys", "t
 // It also asserts help works with NO credential. `items list` needs one,
 // so a group that ran its list would answer "what can I do here?" with an
 // auth error on a fresh machine.
+// allGroups is every namespace in the tree: the resource groups plus the
+// four that own no server records. A fresh slice each call, so appending
+// to it can never alias resourceGroups.
+func allGroups() []string {
+	return append(append([]string(nil), resourceGroups...), "auth", "config", "convert", "schema")
+}
+
 func TestTree_BareGroupPrintsHelp(t *testing.T) {
-	for _, g := range append(resourceGroups, "auth", "config", "convert", "schema") {
+	for _, g := range allGroups() {
 		t.Run(g, func(t *testing.T) {
 			out, err := exec.Command(binaryPath, g).CombinedOutput()
 			if err != nil {
@@ -57,7 +64,7 @@ func TestTree_BareGroupPrintsHelp(t *testing.T) {
 // `proofs convert`, `truestamp convert proof` printed help and exited 0,
 // giving a reader following an old document no signal whatsoever.
 func TestTree_GroupRejectsUnknownSubcommand(t *testing.T) {
-	for _, g := range append(resourceGroups, "auth", "config", "convert", "schema") {
+	for _, g := range allGroups() {
 		t.Run(g, func(t *testing.T) {
 			out, err := exec.Command(binaryPath, g, "definitely-not-a-subcommand").CombinedOutput()
 			if err == nil {
@@ -117,6 +124,7 @@ func TestTree_NoBannedVerbs(t *testing.T) {
 		"show": "use `get` (R9)", "view": "use `get` (R9)", "describe": "use `get` (R9)",
 		"info": "use `get` (R9)", "fetch": "use `get` (R9)", "download": "use `get` (R9)",
 		"retrieve": "use `get` (R9)", "new": "use `create` (R3)", "add": "use `create` (R3)",
+		"set":     "use `create` or `update` (R3)",
 		"by-hash": "fold into `get` by id shape",
 		// `edit` was banned here as a synonym of `update`, and is now a
 		// write verb in its own right. It is not a synonym: `update` sets
@@ -490,6 +498,13 @@ func TestTree_NoHelpTopics(t *testing.T) {
 // create`'s success card closed by telling the user to run one, and the
 // console's Teams pane named two at once.
 func TestTree_EveryCommandNamedInHelpTextExists(t *testing.T) {
+	// `help` is installed by Execute, not by an init, so the in-process
+	// tree only carries it if an earlier test happened to call Execute.
+	// Install it here so the walk sees the tree a user sees, whatever ran
+	// before.
+	registerHelpCommand(rootCmd)
+	rootCmd.InitDefaultHelpCmd()
+
 	// An INVOCATION, not prose. Two shapes count: quoted, as a hint does
 	// ("'truestamp teams use <id>'"), or INDENTED at the start of a line,
 	// as an example block does ("  truestamp convert merkle ...").
