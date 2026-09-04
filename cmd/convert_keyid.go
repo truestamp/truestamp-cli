@@ -15,6 +15,7 @@ import (
 	"github.com/truestamp/truestamp-cli/internal/encoding"
 	"github.com/truestamp/truestamp-cli/internal/inputsrc"
 	"github.com/truestamp/truestamp-cli/internal/tscrypto"
+	"github.com/truestamp/truestamp-cli/internal/ui"
 )
 
 var convertKeyIDCmd = &cobra.Command{
@@ -78,7 +79,7 @@ func runConvertKeyID(cmd *cobra.Command, args []string) error {
 	if silent {
 		return nil
 	}
-	fmt.Fprintln(cmd.OutOrStdout(), kid)
+	ui.Fprintln(cmd.OutOrStdout(), kid)
 	return nil
 }
 

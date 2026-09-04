@@ -18,7 +18,7 @@ import (
 	"github.com/truestamp/truestamp-cli/internal/ui"
 )
 
-var teamCreateCmd = &cobra.Command{
+var teamsCreateCmd = &cobra.Command{
 	Use:   "create [name]",
 	Short: "Create a new team",
 	Long: `Create a new team owned by you. You become the team owner, and the
@@ -39,9 +39,9 @@ chosen ownership model isn't in your plan) the server explains the limit
 and the CLI surfaces it with a clear, actionable message.
 
 Examples:
-  truestamp team create "Acme Engineering"
-  truestamp team create --name "Acme" --ownership-model team_retains --set
-  truestamp team create                       # interactive prompt`,
+  truestamp teams create "Acme Engineering"
+  truestamp teams create --name "Acme" --ownership-model team_retains --set
+  truestamp teams create                       # interactive prompt`,
 	Args:          cobra.MaximumNArgs(1),
 	SilenceUsage:  true,
 	SilenceErrors: true,
@@ -55,8 +55,7 @@ var createTeamCtx = func(ctx context.Context, cfg teams.Config, name, ownership 
 }
 
 func runTeamCreate(cmd *cobra.Command, args []string) error {
-	silent, _ := cmd.Flags().GetBool("silent")
-	jsonOut, _ := cmd.Flags().GetBool("json")
+	jsonOut, silent := outputMode(cmd)
 	setActive, _ := cmd.Flags().GetBool("set")
 	nameFlag, _ := cmd.Flags().GetString("name")
 	ownershipFlag, _ := cmd.Flags().GetString("ownership-model")
@@ -88,7 +87,7 @@ func runTeamCreate(cmd *cobra.Command, args []string) error {
 			return perr
 		}
 		if picked == "" {
-			fmt.Fprintln(cmd.ErrOrStderr(), ui.FaintStyle().Render("  Cancelled."))
+			ui.Fprintln(cmd.ErrOrStderr(), ui.FaintStyle().Render("  Cancelled."))
 			return nil
 		}
 		name, ownership = picked, pickedOwnership
@@ -188,18 +187,18 @@ func renderCreateError(cmd *cobra.Command, apiURL string, err error, ownership s
 	detail := apiErrorDetail(err)
 	switch {
 	case errors.Is(err, teams.ErrTeamLimitReached):
-		fmt.Fprintln(cmd.ErrOrStderr(), ui.FailureBanner("Team limit reached"))
-		fmt.Fprintln(cmd.ErrOrStderr(), ui.FaintStyle().Render(
+		ui.Fprintln(cmd.ErrOrStderr(), ui.FailureBanner("Team limit reached"))
+		ui.Fprintln(cmd.ErrOrStderr(), ui.FaintStyle().Render(
 			"    "+orDefault(detail, "Your plan does not allow creating additional teams.")))
 		if url := ui.TeamCreateURL(apiURL); url != "" {
-			fmt.Fprintln(cmd.ErrOrStderr(), ui.FaintStyle().Render("    Manage teams & plans: "+url))
+			ui.Fprintln(cmd.ErrOrStderr(), ui.FaintStyle().Render("    Manage teams & plans: "+url))
 		}
 		return errSilentFail
 	case errors.Is(err, teams.ErrOwnershipNotEntitled):
-		fmt.Fprintln(cmd.ErrOrStderr(), ui.FailureBanner("Ownership model not available"))
-		fmt.Fprintln(cmd.ErrOrStderr(), ui.FaintStyle().Render("    "+orDefault(detail, fmt.Sprintf(
+		ui.Fprintln(cmd.ErrOrStderr(), ui.FailureBanner("Ownership model not available"))
+		ui.Fprintln(cmd.ErrOrStderr(), ui.FaintStyle().Render("    "+orDefault(detail, fmt.Sprintf(
 			"The %q ownership model isn't included in your plan.", teams.OwnershipLabel(ownership)))))
-		fmt.Fprintln(cmd.ErrOrStderr(), ui.FaintStyle().Render(
+		ui.Fprintln(cmd.ErrOrStderr(), ui.FaintStyle().Render(
 			"    Use --ownership-model creator_retains, or upgrade your plan."))
 		return errSilentFail
 	}
@@ -226,16 +225,16 @@ func orDefault(s, def string) string {
 
 func renderTeamCreateCard(cmd *cobra.Command, apiURL string, team *teams.Team, setActive bool) {
 	w := cmd.OutOrStdout()
-	fmt.Fprintln(w, ui.SuccessBanner("Team created"))
+	ui.Fprintln(w, ui.SuccessBanner("Team created"))
 	// A freshly created team makes you its owner.
 	renderTeamCard(w, apiURL, team, "team_owner", setActive)
-	fmt.Fprintln(w)
+	ui.Fprintln(w)
 	if setActive {
-		fmt.Fprintln(w, ui.FaintStyle().Render(
+		ui.Fprintln(w, ui.FaintStyle().Render(
 			"  Set as your active team in "+config.ActivePath()+"."))
 	} else {
-		fmt.Fprintln(w, ui.FaintStyle().Render(
-			"  Run 'truestamp team set "+team.ID+"' to make it your active team."))
+		ui.Fprintln(w, ui.FaintStyle().Render(
+			"  Run 'truestamp teams use "+team.ID+"' to make it your active team."))
 	}
 }
 
@@ -279,12 +278,11 @@ func printTeamCreateErrorJSON(cmd *cobra.Command, err error) error {
 }
 
 func init() {
-	f := teamCreateCmd.Flags()
+	f := teamsCreateCmd.Flags()
 	f.StringP("name", "n", "", "Team name (also accepted as the positional argument)")
 	f.String("ownership-model", "", "Ownership model: creator_retains (default) or team_retains")
 	f.Bool("set", false, "Set the new team as the active team after creating it")
-	f.Bool("json", false, "Output the created team as JSON")
-	f.BoolP("silent", "s", false, "No output, exit code only")
+	addRecordOutputFlags(teamsCreateCmd)
 
-	teamCmd.AddCommand(teamCreateCmd)
+	teamsCmd.AddCommand(teamsCreateCmd)
 }

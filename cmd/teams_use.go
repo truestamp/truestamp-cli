@@ -16,9 +16,9 @@ import (
 	"github.com/truestamp/truestamp-cli/internal/ui"
 )
 
-var teamSetCmd = &cobra.Command{
-	Use:   "set [id]",
-	Short: "Set the active team (interactive picker if no id given)",
+var teamsUseCmd = &cobra.Command{
+	Use:   "use [id]",
+	Short: "Point the CLI at a team (interactive picker if no id given)",
 	Long: `Set the active team that the CLI sends with API requests, and persist
 it under the top-level 'team' key in config.toml.
 
@@ -30,16 +30,28 @@ explicitly so subsequent requests carry the tenant header instead of
 relying on the server's personal-team auto-fallback.
 
 Examples:
-  truestamp team set
-  truestamp team set 019dbd00-0000-7000-8000-000000000000`,
+  truestamp teams use
+  truestamp teams use 019dbd00-0000-7000-8000-000000000000`,
 	Args:          cobra.MaximumNArgs(1),
 	SilenceUsage:  true,
 	SilenceErrors: true,
-	RunE:          runTeamSet,
+	RunE:          runTeamsUse,
 }
 
-func runTeamSet(cmd *cobra.Command, args []string) error {
-	silent, _ := cmd.Flags().GetBool("silent")
+func runTeamsUse(cmd *cobra.Command, args []string) error {
+	_, silent := outputMode(cmd)
+
+	// --clear is the former `team unset`. It lives here rather than as its
+	// own leaf because a `teams clear` would read as "delete all my teams",
+	// a far worse failure in a group whose other verbs touch server
+	// records. The wart is that `use --clear` reads as "use nothing".
+	clear, _ := cmd.Flags().GetBool("clear")
+	if clear {
+		if len(args) > 0 {
+			return fmt.Errorf("--clear takes no team id: it points the CLI at no team")
+		}
+		return clearActiveTeam(cmd, silent)
+	}
 
 	cfg, err := teamConfig(cmd)
 	if err != nil {
@@ -55,7 +67,7 @@ func runTeamSet(cmd *cobra.Command, args []string) error {
 		// Interactive picker. Refuse early when stdin isn't a TTY so
 		// scripted callers get a clear error instead of a hang.
 		if !stdinIsTerminal() {
-			return fmt.Errorf("interactive picker requires a TTY; pass an explicit id (truestamp team set <id>)")
+			return fmt.Errorf("interactive picker requires a TTY; pass an explicit id (truestamp teams use <id>)")
 		}
 		picked, err := pickTeamInteractive(cmd.Context(), cfg)
 		if err != nil {
@@ -64,7 +76,7 @@ func runTeamSet(cmd *cobra.Command, args []string) error {
 		if picked == "" {
 			// User cancelled the picker (Esc). Treat as a no-op silent
 			// success, exit 0 so chained commands don't see a failure.
-			fmt.Fprintln(cmd.ErrOrStderr(), ui.FaintStyle().Render("  Cancelled."))
+			ui.Fprintln(cmd.ErrOrStderr(), ui.FaintStyle().Render("  Cancelled."))
 			return nil
 		}
 		targetID = picked
@@ -95,17 +107,17 @@ func runTeamSet(cmd *cobra.Command, args []string) error {
 	postSwitchCfg := teams.Config{APIURL: cfg.APIURL, Team: targetID}
 	team, err := teams.GetTeam(cmd.Context(), postSwitchCfg, targetID)
 	if err != nil {
-		fmt.Fprintln(cmd.OutOrStdout(),
+		ui.Fprintln(cmd.OutOrStdout(),
 			ui.SuccessBanner("Active team set to "+targetID))
 		return nil
 	}
 	role, _ := teams.GetMyRoleOnTeam(cmd.Context(), postSwitchCfg, targetID)
 
-	fmt.Fprintln(cmd.OutOrStdout(),
+	ui.Fprintln(cmd.OutOrStdout(),
 		ui.SuccessBanner("Active team updated"))
 	renderTeamCard(cmd.OutOrStdout(), appConfig.APIURL, team, role, true)
-	fmt.Fprintln(cmd.OutOrStdout())
-	fmt.Fprintln(cmd.OutOrStdout(), ui.FaintStyle().Render(
+	ui.Fprintln(cmd.OutOrStdout())
+	ui.Fprintln(cmd.OutOrStdout(), ui.FaintStyle().Render(
 		"  Stored under 'team' in "+config.ActivePath()+"."))
 	return nil
 }
@@ -173,8 +185,35 @@ func pickTeamInteractive(ctx context.Context, cfg teams.Config) (string, error) 
 }
 
 func init() {
-	f := teamSetCmd.Flags()
-	f.BoolP("silent", "s", false, "No output, exit code only")
+	f := teamsUseCmd.Flags()
+	f.Bool("clear", false, "Point the CLI at no team; the server falls back to your personal team")
+	addRecordOutputFlags(teamsUseCmd)
+	_ = f
 
-	teamCmd.AddCommand(teamSetCmd)
+	teamsCmd.AddCommand(teamsUseCmd)
+}
+
+// clearActiveTeam implements `teams use --clear`, formerly `team unset`.
+func clearActiveTeam(cmd *cobra.Command, silent bool) error {
+	if appConfig.Team == "" {
+		if !silent {
+			ui.Fprintln(cmd.OutOrStdout(), ui.FaintStyle().Render(
+				"  No team is configured."))
+		}
+		return nil
+	}
+
+	if err := config.SetTeam(""); err != nil {
+		return fmt.Errorf("writing config: %w", err)
+	}
+
+	if silent {
+		return nil
+	}
+
+	ui.Fprintln(cmd.OutOrStdout(),
+		ui.SuccessBanner("Team cleared"))
+	ui.Fprintln(cmd.OutOrStdout(), ui.FaintStyle().Render(
+		"    Subsequent API requests will fall back to the personal team."))
+	return nil
 }

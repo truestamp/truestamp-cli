@@ -17,6 +17,7 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/truestamp/truestamp-cli/internal/inputsrc"
 	"github.com/truestamp/truestamp-cli/internal/tscrypto"
+	"github.com/truestamp/truestamp-cli/internal/ui"
 )
 
 var convertIDCmd = &cobra.Command{
@@ -134,7 +135,7 @@ func emitULIDInfo(cmd *cobra.Command, raw, extract, toZone string, jsonOut, sile
 			})
 		}
 		if !silent {
-			fmt.Fprintln(cmd.OutOrStdout(), hex.EncodeToString(parsed[:]))
+			ui.Fprintln(cmd.OutOrStdout(), hex.EncodeToString(parsed[:]))
 		}
 		return nil
 	}
@@ -157,7 +158,7 @@ func emitULIDInfo(cmd *cobra.Command, raw, extract, toZone string, jsonOut, sile
 		})
 	}
 	if !silent {
-		fmt.Fprintln(cmd.OutOrStdout(), localized.Format(time.RFC3339Nano))
+		ui.Fprintln(cmd.OutOrStdout(), localized.Format(time.RFC3339Nano))
 	}
 	return nil
 }
@@ -189,7 +190,7 @@ func emitUUIDv7Info(cmd *cobra.Command, raw, extract, toZone string, jsonOut, si
 			})
 		}
 		if !silent {
-			fmt.Fprintln(cmd.OutOrStdout(), hex.EncodeToString(parsed[:]))
+			ui.Fprintln(cmd.OutOrStdout(), hex.EncodeToString(parsed[:]))
 		}
 		return nil
 	}
@@ -212,7 +213,7 @@ func emitUUIDv7Info(cmd *cobra.Command, raw, extract, toZone string, jsonOut, si
 		})
 	}
 	if !silent {
-		fmt.Fprintln(cmd.OutOrStdout(), localized.Format(time.RFC3339Nano))
+		ui.Fprintln(cmd.OutOrStdout(), localized.Format(time.RFC3339Nano))
 	}
 	return nil
 }

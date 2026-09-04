@@ -15,15 +15,15 @@ import (
 	"github.com/truestamp/truestamp-cli/internal/ui"
 )
 
-var teamListCmd = &cobra.Command{
+var teamsListCmd = &cobra.Command{
 	Use:   "list",
 	Short: "Show all teams you're a member of",
 	Long: `List the teams you're a member of, with your role in each. The active
 team (the one stored under 'team' in config.toml) is marked with a star.
 
 Examples:
-  truestamp team list
-  truestamp team list --json | jq '.[].id'`,
+  truestamp teams list
+  truestamp teams list --json | jq '.[].id'`,
 	Args:          cobra.NoArgs,
 	SilenceUsage:  true,
 	SilenceErrors: true,
@@ -31,8 +31,7 @@ Examples:
 }
 
 func runTeamList(cmd *cobra.Command, _ []string) error {
-	jsonOut, _ := cmd.Flags().GetBool("json")
-	silent, _ := cmd.Flags().GetBool("silent")
+	jsonOut, silent := outputMode(cmd)
 	if silent && jsonOut {
 		return fmt.Errorf("--silent and --json are mutually exclusive")
 	}
@@ -84,13 +83,13 @@ func runTeamList(cmd *cobra.Command, _ []string) error {
 	renderTeamList(cmd.OutOrStdout(), memberships, appConfig.Team)
 
 	if stdoutIsTerminal() {
-		hint := "  Hint: 'truestamp team set <id>' switches the active team."
+		hint := "  Hint: 'truestamp teams use <id>' switches the active team."
 		if appConfig.Team == "" {
 			hint += "  No active team is currently set."
 		} else {
 			hint += "  ★ marks the current selection."
 		}
-		fmt.Fprintln(cmd.ErrOrStderr(), ui.FaintStyle().Render(hint))
+		ui.Fprintln(cmd.ErrOrStderr(), ui.FaintStyle().Render(hint))
 	}
 	return nil
 }
@@ -117,13 +116,13 @@ func renderEmptyTeamList(w io.Writer, apiURL string) {
 			"  "+ui.FaintStyle().Render("Visit "+url+" in your browser to create one."),
 		)
 	}
-	fmt.Fprintln(w, strings.Join(body, "\n"))
+	ui.Fprintln(w, strings.Join(body, "\n"))
 }
 
 // renderTeamList prints a four-column table: active marker, Name,
 // Role, Team ID. Name + Role lead because they're the fields users
 // actually scan; the id is the precise selector you copy-paste into
-// `truestamp team set <id>` and lives at the right where it doesn't
+// `truestamp teams use <id>` and lives at the right where it doesn't
 // crowd the readable columns.
 func renderTeamList(w io.Writer, memberships []teams.Membership, activeTeamID string) {
 	heading := fmt.Sprintf("  Teams (%d)", len(memberships))
@@ -158,14 +157,10 @@ func renderTeamList(w io.Writer, memberships []teams.Membership, activeTeamID st
 		}).
 		Rows(rows...)
 
-	fmt.Fprintln(w, strings.Join([]string{header, "", tbl.String()}, "\n"))
+	ui.Fprintln(w, strings.Join([]string{header, "", tbl.String()}, "\n"))
 }
 
 func init() {
-	for _, c := range []*cobra.Command{teamCmd, teamListCmd} {
-		f := c.Flags()
-		f.Bool("json", false, "Print the raw JSON response, pretty-printed")
-		f.BoolP("silent", "s", false, "No output, exit code only")
-	}
-	teamCmd.AddCommand(teamListCmd)
+	addRecordOutputFlags(teamsListCmd)
+	teamsCmd.AddCommand(teamsListCmd)
 }

@@ -19,8 +19,8 @@ Proof input can be provided as:
   truestamp verify --url                Interactive URL prompt
   cat proof.json | truestamp verify     Pipe from stdin
 
-Offline verification is first class: --offline (or --skip-external) runs
-every cryptographic step with no network access and reports each check
+Offline verification is first class: --offline runs every
+cryptographic step with no network access and reports each check
 that needs a source as skipped, never failed. A skipped check is a check
 this run did not perform, not a check that failed.
 
@@ -57,8 +57,7 @@ Flags:
       --offline                   Run with no network access: chain, source and keyring lookups are reported as skipped
       --remote                    Also ask the Truestamp server to verify the bundle (requires authentication)
   -s, --silent                    No output, exit code only
-      --skip-external             Alias of --offline
-      --skip-signatures           Skip the Ed25519 proof signature and key binding checks (disclosed in the report)
+      --skip-signatures           Skip the Ed25519 proof signature check; the key binding is skipped too unless --keyring pins one (disclosed in the report)
       --type string               Assert the expected subject type; a mismatch is rejected. One of: item | entropy_nist | entropy_stellar | entropy_bitcoin | block | beacon
       --url string[="(prompt)"]   URL to download proof from (interactive prompt if no URL given)
 

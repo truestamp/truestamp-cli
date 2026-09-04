@@ -458,7 +458,7 @@ func (m *teamModel) renderActiveSection() string {
 	title := teamSectionTitle.Render("Active team")
 	if m.scope.TeamID == "" {
 		body := teamFaintStyle.Render(
-			"  No team is configured. Pick one below with `enter`, or run\n  `truestamp team set` outside the console.")
+			"  No team is configured. Pick one below with `enter`, or run\n  `truestamp teams use` outside the console.")
 		return title + "\n" + body
 	}
 
@@ -494,7 +494,7 @@ func (m *teamModel) renderAccessLoss() string {
 		"You no longer have access to team " + m.scope.TeamID + "."))
 	body.WriteString("\n  ")
 	body.WriteString(teamFaintStyle.Render(
-		"Press `enter` on a team below to switch, or quit and run `truestamp team unset`."))
+		"Press `enter` on a team below to switch, or quit and run `truestamp teams use --clear`."))
 	return body.String()
 }
 

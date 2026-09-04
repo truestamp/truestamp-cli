@@ -26,7 +26,7 @@ already built, tagged with `component=console`.
 
 Before the TUI starts, when no team is configured **and** stdin is a
 TTY, `cmd/console.go` runs the same `huh` team picker
-`truestamp team set` uses and persists the choice to `config.toml`.
+`truestamp teams use` uses and persists the choice to `config.toml`.
 Cancelling (Esc) leaves the server's personal-team fallback in place.
 
 ## Four panes

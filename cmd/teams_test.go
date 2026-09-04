@@ -79,13 +79,13 @@ func startTeamServer(t *testing.T) (string, func()) {
 	return srv.URL, srv.Close
 }
 
-func TestCLI_Team_List_JSON(t *testing.T) {
+func TestCLI_Teams_List_JSON(t *testing.T) {
 	url, stop := startTeamServer(t)
 	defer stop()
 
 	stdout, _, exit := runCLI(t,
 		"--base-url", url, "--api-key", "test-key",
-		"team", "list", "--json")
+		"teams", "list", "--json")
 	if exit != 0 {
 		t.Fatalf("exit=%d, stdout=%q", exit, stdout)
 	}
@@ -98,29 +98,32 @@ func TestCLI_Team_List_JSON(t *testing.T) {
 	}
 }
 
-func TestCLI_Team_List_DefaultsToList(t *testing.T) {
-	// `truestamp team` with no subcommand should behave as `team list`.
-	url, stop := startTeamServer(t)
-	defer stop()
-
-	stdout, _, exit := runCLI(t,
-		"--base-url", url, "--api-key", "test-key",
-		"team", "--json")
+// TestCLI_Teams_BareGroupPrintsHelp pins R0. `truestamp team` used to run
+// `list` while `truestamp beacon` ran `latest`: two nouns, two defaults,
+// two kinds of answer, and no rule for the seventh noun.
+func TestCLI_Teams_BareGroupPrintsHelp(t *testing.T) {
+	// Deliberately no credential: help must work without one.
+	stdout, _, exit := runCLI(t, "teams")
 	if exit != 0 {
-		t.Fatalf("exit=%d, stdout=%q", exit, stdout)
+		t.Fatalf("a bare group must exit 0, got %d", exit)
 	}
-	if !strings.Contains(stdout, testTeamPersonalID) {
-		t.Errorf("want personal team id in output, got %q", stdout)
+	for _, want := range []string{"list", "get", "current", "create", "use"} {
+		if !strings.Contains(stdout, want) {
+			t.Errorf("bare group help should list %q, got:\n%s", want, stdout)
+		}
+	}
+	if strings.Contains(stdout, testTeamPersonalID) {
+		t.Error("a bare group must not run list")
 	}
 }
 
-func TestCLI_Team_Show_ByID_JSON(t *testing.T) {
+func TestCLI_Teams_Show_ByID_JSON(t *testing.T) {
 	url, stop := startTeamServer(t)
 	defer stop()
 
 	stdout, _, exit := runCLI(t,
 		"--base-url", url, "--api-key", "test-key",
-		"team", "show", testTeamOtherID, "--json")
+		"teams", "get", testTeamOtherID, "--json")
 	if exit != 0 {
 		t.Fatalf("exit=%d, stdout=%q", exit, stdout)
 	}
@@ -147,16 +150,18 @@ func TestCLI_Team_Show_ByID_JSON(t *testing.T) {
 	}
 }
 
-func TestCLI_Team_Show_NoTeamConfigured(t *testing.T) {
-	// Without --team and no config file, `team show` should fail with
+func TestCLI_Teams_Current_NoTeamConfigured(t *testing.T) {
+	// Without --team and no config file, `teams current` should fail with
 	// the no-team-configured banner. The cleanEnv() helper ensures no
-	// TRUESTAMP_TEAM env var leaks in.
+	// TRUESTAMP_TEAM env var leaks in. `teams get` cannot stand in here:
+	// it now requires an explicit id, which is the whole point of the
+	// split.
 	url, stop := startTeamServer(t)
 	defer stop()
 
 	_, stderr, exit := runCLI(t,
 		"--base-url", url, "--api-key", "test-key",
-		"team", "show")
+		"teams", "current")
 	if exit == 0 {
 		t.Fatal("expected non-zero exit")
 	}
@@ -165,14 +170,14 @@ func TestCLI_Team_Show_NoTeamConfigured(t *testing.T) {
 	}
 }
 
-func TestCLI_Team_Show_NotFound(t *testing.T) {
+func TestCLI_Teams_Show_NotFound(t *testing.T) {
 	url, stop := startTeamServer(t)
 	defer stop()
 
 	bogus := "ffffffff-ffff-7fff-8fff-ffffffffffff"
 	_, stderr, exit := runCLI(t,
 		"--base-url", url, "--api-key", "test-key",
-		"team", "show", bogus)
+		"teams", "get", bogus)
 	if exit == 0 {
 		t.Fatal("expected non-zero exit for unknown team id")
 	}

@@ -100,8 +100,8 @@ func BeaconVerifyURL(apiURL, id string) string {
 }
 
 // TeamDetailURL returns the public-web team detail page URL,
-// `{host}/teams/<id>`. Used by `truestamp team show`. (The empty-state
-// hint of `truestamp team list` uses TeamCreateURL instead.)
+// `{host}/teams/<id>`. Used by `truestamp teams get`. (The empty-state
+// hint of `truestamp teams list` uses TeamCreateURL instead.)
 func TeamDetailURL(apiURL, teamID string) string {
 	base := publicWebBase(apiURL)
 	if base == "" || teamID == "" {

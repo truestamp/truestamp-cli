@@ -14,6 +14,7 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/truestamp/truestamp-cli/internal/inputsrc"
 	"github.com/truestamp/truestamp-cli/internal/proof"
+	"github.com/truestamp/truestamp-cli/internal/ui"
 	"github.com/truestamp/truestamp-cli/internal/verify"
 )
 
@@ -46,8 +47,8 @@ Proof input can be provided as:
   truestamp verify --url                Interactive URL prompt
   cat proof.json | truestamp verify     Pipe from stdin
 
-Offline verification is first class: --offline (or --skip-external) runs
-every cryptographic step with no network access and reports each check
+Offline verification is first class: --offline runs every
+cryptographic step with no network access and reports each check
 that needs a source as skipped, never failed. A skipped check is a check
 this run did not perform, not a check that failed.
 
@@ -77,10 +78,6 @@ Exit code 0 when the proof passes, 1 when it fails or is rejected.`,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		cfg := appConfig
 
-		if cfg.Verify.Silent && cfg.Verify.JSON {
-			return fmt.Errorf("--silent and --json are mutually exclusive")
-		}
-
 		positional := ""
 		if len(args) > 0 {
 			positional = args[0]
@@ -104,7 +101,7 @@ Exit code 0 when the proof passes, 1 when it fails or is rejected.`,
 				_ = cmd.Help()
 				return nil
 			}
-			if cfg.Verify.Silent {
+			if cfg.Silent {
 				return errSilentFail
 			}
 			return err
@@ -144,14 +141,14 @@ Exit code 0 when the proof passes, 1 when it fails or is rejected.`,
 				APIURL:              cfg.APIURL,
 				Team:                cfg.Team,
 				ExpectedHash:        expectedHash,
-				SkipExternal:        cfg.Verify.SkipExternal,
+				SkipExternal:        cfg.Verify.Offline,
 				ExpectedSubjectType: typeFlag,
 			})
 		} else {
 			report, err = verify.RunFromBytes(data, displayName, verify.Options{
 				ExpectedHash:        expectedHash,
 				ExpectedSubjectType: typeFlag,
-				SkipExternal:        cfg.Verify.SkipExternal,
+				SkipExternal:        cfg.Verify.Offline,
 				SkipSignatures:      cfg.Verify.SkipSignatures,
 				KeyringFile:         keyringFile,
 				KeyringURL:          cfg.KeyringURL,
@@ -172,14 +169,14 @@ Exit code 0 when the proof passes, 1 when it fails or is rejected.`,
 				"rejection_code", rejectionCode,
 				"err", err.Error(),
 			)
-			if cfg.Verify.Silent {
+			if cfg.Silent {
 				return errSilentFail
 			}
 			// A hard rejection (Appendix E.6) aborts before any step
 			// runs, so there is no report to render: only the E.23
 			// identifier and one line of advice.
 			if rejectionCode != "" {
-				if cfg.Verify.JSON {
+				if cfg.JSON {
 					if jErr := emitJSON(cmd.OutOrStdout(), verify.BuildJSONRejection(err)); jErr != nil {
 						return jErr
 					}
@@ -201,18 +198,18 @@ Exit code 0 when the proof passes, 1 when it fails or is rejected.`,
 		)
 
 		switch {
-		case cfg.Verify.JSON:
+		case cfg.JSON:
 			out, jErr := json.MarshalIndent(verify.BuildJSONReport(report), "", "  ")
 			if jErr != nil {
 				return fmt.Errorf("marshaling JSON: %w", jErr)
 			}
-			fmt.Fprintln(cmd.OutOrStdout(), string(out))
-		case !cfg.Verify.Silent:
+			ui.Fprintln(cmd.OutOrStdout(), string(out))
+		case !cfg.Silent:
 			lipgloss.Print(verify.Render(report, true))
 		}
 
 		if !report.Passed() {
-			if cfg.Verify.Silent {
+			if cfg.Silent {
 				return errSilentFail
 			}
 			return errVerificationFailed
@@ -221,13 +218,10 @@ Exit code 0 when the proof passes, 1 when it fails or is rejected.`,
 	},
 }
 
-// expectedHashFlag reads --expected-hash (or its older spelling --hash),
-// normalizing it the way Appendix E.7 requires: trimmed and lowercased.
+// expectedHashFlag reads --expected-hash, normalizing it the way Appendix
+// E.7 requires: trimmed and lowercased.
 func expectedHashFlag(cmd *cobra.Command) (string, error) {
 	value, _ := cmd.Flags().GetString("expected-hash")
-	if value == "" {
-		value, _ = cmd.Flags().GetString("hash")
-	}
 	value = strings.ToLower(strings.TrimSpace(value))
 	if value == "" {
 		return "", nil
@@ -248,8 +242,6 @@ func init() {
 	f.Lookup("file").NoOptDefVal = inputsrc.FilePickSentinel
 	f.Lookup("url").NoOptDefVal = inputsrc.URLPromptSentinel
 	f.String("expected-hash", "", "Hash (hex) of the file you hold, compared against the item's claims.hash")
-	f.String("hash", "", "Alias of --expected-hash")
-	_ = f.MarkHidden("hash")
 	f.String("keyring", "", "Path of a pinned copy of /.well-known/keyring.json for the key binding check")
 	f.String("type", "",
 		fmt.Sprintf("Assert the expected subject type; a mismatch is rejected. One of: %s",
@@ -257,8 +249,14 @@ func init() {
 	f.BoolP("silent", "s", false, "No output, exit code only")
 	f.Bool("json", false, "Output the report as JSON, in the same field names the Truestamp API uses")
 	f.Bool("offline", false, "Run with no network access: chain, source and keyring lookups are reported as skipped")
-	f.Bool("skip-external", false, "Alias of --offline")
-	f.Bool("skip-signatures", false, "Skip the Ed25519 proof signature and key binding checks (disclosed in the report)")
+	// Narrower than it used to read. The key binding check is NOT skipped
+	// when --keyring pins a keyring: that check asks whether the key id is
+	// in the published document, which is a separate question from whether
+	// the signature verified, and discarding a check the user explicitly
+	// asked for would report less than the run actually established.
+	f.Bool("skip-signatures", false,
+		"Skip the Ed25519 proof signature check; the key binding is skipped too unless --keyring pins one (disclosed in the report)")
 	f.Bool("remote", false, "Also ask the Truestamp server to verify the bundle (requires authentication)")
+	verifyCmd.GroupID = groupVerification
 	rootCmd.AddCommand(verifyCmd)
 }

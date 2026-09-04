@@ -33,48 +33,48 @@ import (
 // drift from this value without coordinating with the backend.
 const claimsOnlyMinDescription = 32
 
-var createCmd = &cobra.Command{
+var itemsCreateCmd = &cobra.Command{
 	Use:   "create [file]",
-	Short: "Create a new Truestamp item",
+	Short: "Create a new timestamped item",
 	Long: `Create a new cryptographic timestamp item.
 
 Truestamp supports two submission modes:
 
   External-hash mode (default for files):
-    truestamp create document.pdf
+    truestamp items create document.pdf
   Computes SHA-256 of the file locally and submits the hash. The file
   itself never leaves your device. Use this for any file you can keep.
 
   Claims-as-source-of-truth mode:
-    truestamp create -n "Invention" -d "On this day I claim ..."
+    truestamp items create -n "Invention" -d "On this day I claim ..."
   No external file. The claims content itself is timestamped. Requires
   at least a 32-character description (or non-empty --metadata) so the
   proof commits to meaningful content.
 
---hash-type requires --hash. A bare --hash is accepted and hash_type
+--hash-type requires --data-hash. A bare --data-hash is accepted and hash_type
 defaults to "sha256". Omitting both selects claims-as-source-of-truth
 mode.
 
 Input methods (resolved in priority order):
-  truestamp create document.pdf              External hash: hash file, filename as name
-  truestamp create --file=document.pdf       External hash: explicit file path
-  truestamp create --file                    External hash: interactive file picker
-  cat doc.pdf | truestamp create -F -n Doc   External hash: hash file content from stdin
-  truestamp create -c=claims.json            Either mode: load claims from JSON file
-  truestamp create --claims                  Interactive claims JSON file picker
-  cat claims.json | truestamp create -C      Read claims JSON from stdin
-  truestamp create -n "Doc" --hash abc...    External hash: build claims from flags
-  truestamp create -n "Doc" -d "long desc"   Claims-only: timestamp the claims content
+  truestamp items create document.pdf              External hash: hash file, filename as name
+  truestamp items create --file=document.pdf       External hash: explicit file path
+  truestamp items create --file                    External hash: interactive file picker
+  cat doc.pdf | truestamp items create -F -n Doc   External hash: hash file content from stdin
+  truestamp items create -c=claims.json            Either mode: load claims from JSON file
+  truestamp items create --claims                  Interactive claims JSON file picker
+  cat claims.json | truestamp items create -C      Read claims JSON from stdin
+  truestamp items create -n "Doc" --data-hash abc...    External hash: build claims from flags
+  truestamp items create -n "Doc" -d "long desc"   Claims-only: timestamp the claims content
 
 Flags override values from file/auto-hash, enabling combinations like:
-  truestamp create report.pdf -n "Q1 Report" -v public -t finance
+  truestamp items create report.pdf -n "Q1 Report" -v public -t finance
 
 Requires authentication, run 'truestamp auth login', or set TRUESTAMP_API_KEY / --api-key for headless/CI use.`,
 	Args:          cobra.MaximumNArgs(1),
 	SilenceUsage:  true,
 	SilenceErrors: true,
 	RunE: func(cmd *cobra.Command, args []string) error {
-		// Resolve claims from input sources first so `truestamp create`
+		// Resolve claims from input sources first so `truestamp items create`
 		// with no args shows help without requiring an API key.
 		claims, err := resolveCreateInput(cmd, args)
 		if err != nil {
@@ -90,7 +90,7 @@ Requires authentication, run 'truestamp auth login', or set TRUESTAMP_API_KEY / 
 			return fmt.Errorf("not authenticated, run `truestamp auth login`, or set TRUESTAMP_API_KEY / --api-key for headless use")
 		}
 
-		jsonOutput, _ := cmd.Flags().GetBool("json")
+		jsonOutput, _ := outputMode(cmd)
 
 		// Overlay flag values onto claims
 		if err := overlayFlags(cmd, claims); err != nil {
@@ -179,7 +179,7 @@ func resolveCreateInput(cmd *cobra.Command, args []string) (map[string]any, erro
 			return nil, fmt.Errorf("--claims takes its path with an equals sign: did you mean --claims=%s ? (a space-separated path is read as a file to hash, not as claims)", args[0])
 		}
 		if fileFlag == inputsrc.FilePickSentinel {
-			return nil, fmt.Errorf("--file takes its path with an equals sign: did you mean --file=%s ? (or drop the flag: `truestamp create %s` hashes it directly)", args[0], args[0])
+			return nil, fmt.Errorf("--file takes its path with an equals sign: did you mean --file=%s ? (or drop the flag: `truestamp items create %s` hashes it directly)", args[0], args[0])
 		}
 	}
 
@@ -221,7 +221,7 @@ func resolveCreateInput(cmd *cobra.Command, args []string) (map[string]any, erro
 	// Flag-only mode: build claims from --name + --hash
 	default:
 		name, _ := cmd.Flags().GetString("name")
-		hash, _ := cmd.Flags().GetString("hash")
+		hash, _ := cmd.Flags().GetString("data-hash")
 		if name != "" || hash != "" {
 			return make(map[string]any), nil
 		}
@@ -357,13 +357,27 @@ func readClaimsStdin() (map[string]any, error) {
 	return claims, nil
 }
 
+// errNoTerminalForPicker is returned instead of opening a file picker when
+// stdin is not a terminal. Without this guard the bubbletea picker starts,
+// finds nothing to read, and blocks forever under any pty-allocating harness
+// (CI, `docker -t`, an agent's shell). inputsrc guards its own prompts the
+// same way; cmd/upgrade.go documents the underlying trap.
+var errNoTerminalForPicker = errors.New(
+	"interactive file picker requires a terminal: pass --file=<path> or --claims=<path>")
+
 // pickAnyFile launches an interactive file picker for any file type.
 func pickAnyFile() (string, error) {
+	if !inputsrc.IsStdinTerminal() {
+		return "", errNoTerminalForPicker
+	}
 	return ui.PickFile(ui.PickFileOptions{Title: "Select file to hash"})
 }
 
 // pickClaimsFile launches an interactive file picker for claims JSON.
 func pickClaimsFile() (string, error) {
+	if !inputsrc.IsStdinTerminal() {
+		return "", errNoTerminalForPicker
+	}
 	return ui.PickFile(ui.PickFileOptions{
 		Title:        "Select claims JSON file",
 		AllowedTypes: []string{".json"},
@@ -402,7 +416,7 @@ func overlayFlags(cmd *cobra.Command, claims map[string]any) error {
 	}
 
 	setIfChanged("name", "name")
-	setIfChanged("hash", "hash")
+	setIfChanged("data-hash", "hash")
 	setIfChanged("hash-type", "hash_type")
 	setIfChanged("description", "description")
 	setIfChanged("url", "url")
@@ -472,7 +486,7 @@ func overlayFlags(cmd *cobra.Command, claims map[string]any) error {
 //     claims.metadata must be a non-empty object.
 //
 // Submitting exactly one of hash / hash_type is rejected here, but a bare
-// --hash never reaches that arm: overlayFlags runs first and supplies
+// --data-hash never reaches that arm: overlayFlags runs first and supplies
 // hash_type = "sha256" when the hash_type KEY is absent. A claims document
 // carrying a present-but-blank hash_type skips that default and still trips
 // the hash-without-hash_type arm. Whitespace-only strings are treated as
@@ -531,7 +545,7 @@ func validateClaims(claims map[string]any) error {
 		if !hasMeaningfulClaimsContent(claims) {
 			return fmt.Errorf(
 				"claims content is required: provide --description of at least %d characters or non-empty --metadata "+
-					"(or pass --hash + --hash-type to use external-hash mode)",
+					"(or pass --data-hash + --hash-type to use external-hash mode)",
 				claimsOnlyMinDescription)
 		}
 	}
@@ -749,7 +763,7 @@ func presentCreate(resp *items.CreateItemResponse) {
 }
 
 func init() {
-	f := createCmd.Flags()
+	f := itemsCreateCmd.Flags()
 
 	// Input source: file to hash
 	f.StringP("file", "f", "", "Path to file to hash (interactive picker if no path given)")
@@ -763,7 +777,7 @@ func init() {
 
 	// Claims fields
 	f.StringP("name", "n", "", "Item name")
-	f.String("hash", "", "Hex hash of the data")
+	f.String("data-hash", "", "Hex hash of the data")
 	f.String("hash-type", "sha256", "Hash algorithm (sha256, sha512, md5, etc.)")
 	f.StringP("description", "d", "", "Item description")
 	f.String("url", "", "HTTPS URL associated with the item")
@@ -776,7 +790,7 @@ func init() {
 	f.StringP("tags", "t", "", "Comma-separated tags")
 
 	// Output
-	f.Bool("json", false, "Output result as JSON")
+	addRecordOutputFlags(itemsCreateCmd)
 
-	rootCmd.AddCommand(createCmd)
+	itemsCmd.AddCommand(itemsCreateCmd)
 }

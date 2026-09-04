@@ -34,7 +34,7 @@ const longDesc = "Lorem ipsum dolor sit amet, consectetur adipiscing elit."
 // --- No-args / help ---
 
 func TestCLI_Create_NoArgs_ShowsHelp(t *testing.T) {
-	cmd := exec.Command(binaryPath, "create")
+	cmd := exec.Command(binaryPath, "items", "create")
 	out, err := cmd.CombinedOutput()
 	if err != nil {
 		t.Fatalf("create with no args should exit 0, got: %s", err)
@@ -46,13 +46,13 @@ func TestCLI_Create_NoArgs_ShowsHelp(t *testing.T) {
 }
 
 func TestCLI_Create_Help_ShowsAllFlags(t *testing.T) {
-	cmd := exec.Command(binaryPath, "create", "--help")
+	cmd := exec.Command(binaryPath, "items", "create", "--help")
 	out, err := cmd.CombinedOutput()
 	if err != nil {
 		t.Fatalf("create --help failed: %s", err)
 	}
 	output := string(out)
-	for _, flag := range []string{"--file", "--file-stdin", "--claims", "--claims-stdin", "--name", "--hash", "--hash-type", "--description", "--url", "--timestamp", "--metadata", "--location", "--visibility", "--tags", "--json"} {
+	for _, flag := range []string{"--file", "--file-stdin", "--claims", "--claims-stdin", "--name", "--data-hash", "--hash-type", "--description", "--url", "--timestamp", "--metadata", "--location", "--visibility", "--tags", "--json"} {
 		if !containsString(output, flag) {
 			t.Errorf("help output missing flag %s", flag)
 		}
@@ -62,7 +62,7 @@ func TestCLI_Create_Help_ShowsAllFlags(t *testing.T) {
 // --- Validation errors (no API needed) ---
 
 func TestCLI_Create_NoAPIKey_Error(t *testing.T) {
-	cmd := exec.Command(binaryPath, "create", "-n", "Test", "--hash", validSHA256Hex)
+	cmd := exec.Command(binaryPath, "items", "create", "-n", "Test", "--data-hash", validSHA256Hex)
 	// Empty API key + a loopback base_url with no stored OAuth session ⇒
 	// no credential ⇒ the "not authenticated" guard fires.
 	cmd.Env = append(os.Environ(), "TRUESTAMP_API_KEY=", "TRUESTAMP_BASE_URL=http://127.0.0.1:0")
@@ -73,7 +73,7 @@ func TestCLI_Create_NoAPIKey_Error(t *testing.T) {
 }
 
 func TestCLI_Create_MissingName_Error(t *testing.T) {
-	cmd := exec.Command(binaryPath, "create", "--hash", validSHA256Hex, "--api-key", "fake")
+	cmd := exec.Command(binaryPath, "items", "create", "--data-hash", validSHA256Hex, "--api-key", "fake")
 	cmd.Env = append(os.Environ(), "TRUESTAMP_API_URL=http://localhost:0")
 	out, _ := cmd.CombinedOutput()
 	if !containsString(string(out), "name is required") {
@@ -86,7 +86,7 @@ func TestCLI_Create_MissingName_Error(t *testing.T) {
 // Under claims-as-source-of-truth mode this fails the local meaningful-content
 // rule with a message naming the 32-char threshold.
 func TestCLI_Create_NoHash_NoDescription_TriggersClaimsOnlyError(t *testing.T) {
-	cmd := exec.Command(binaryPath, "create", "-n", "Test", "--api-key", "fake")
+	cmd := exec.Command(binaryPath, "items", "create", "-n", "Test", "--api-key", "fake")
 	cmd.Env = append(os.Environ(), "TRUESTAMP_API_URL=http://localhost:0")
 	out, _ := cmd.CombinedOutput()
 	output := string(out)
@@ -99,7 +99,7 @@ func TestCLI_Create_NoHash_NoDescription_TriggersClaimsOnlyError(t *testing.T) {
 }
 
 func TestCLI_Create_InvalidHex_Error(t *testing.T) {
-	cmd := exec.Command(binaryPath, "create", "-n", "Test", "--hash", "xyz", "--api-key", "fake")
+	cmd := exec.Command(binaryPath, "items", "create", "-n", "Test", "--data-hash", "xyz", "--api-key", "fake")
 	cmd.Env = append(os.Environ(), "TRUESTAMP_API_URL=http://localhost:0")
 	out, _ := cmd.CombinedOutput()
 	output := string(out)
@@ -109,7 +109,7 @@ func TestCLI_Create_InvalidHex_Error(t *testing.T) {
 }
 
 func TestCLI_Create_OddLengthHex_Error(t *testing.T) {
-	cmd := exec.Command(binaryPath, "create", "-n", "Test", "--hash", "abc", "--api-key", "fake")
+	cmd := exec.Command(binaryPath, "items", "create", "-n", "Test", "--data-hash", "abc", "--api-key", "fake")
 	cmd.Env = append(os.Environ(), "TRUESTAMP_API_URL=http://localhost:0")
 	out, _ := cmd.CombinedOutput()
 	if !containsString(string(out), "even-length") {
@@ -118,7 +118,7 @@ func TestCLI_Create_OddLengthHex_Error(t *testing.T) {
 }
 
 func TestCLI_Create_InvalidVisibility_Error(t *testing.T) {
-	cmd := exec.Command(binaryPath, "create", "-n", "Test", "--hash", validSHA256Hex, "-v", "secret", "--api-key", "fake")
+	cmd := exec.Command(binaryPath, "items", "create", "-n", "Test", "--data-hash", validSHA256Hex, "-v", "secret", "--api-key", "fake")
 	cmd.Env = append(os.Environ(), "TRUESTAMP_API_URL=http://localhost:0")
 	out, _ := cmd.CombinedOutput()
 	if !containsString(string(out), "private, team, or public") {
@@ -127,7 +127,7 @@ func TestCLI_Create_InvalidVisibility_Error(t *testing.T) {
 }
 
 func TestCLI_Create_InvalidURL_Error(t *testing.T) {
-	cmd := exec.Command(binaryPath, "create", "-n", "Test", "--hash", validSHA256Hex, "--url", "http://not-https.com", "--api-key", "fake")
+	cmd := exec.Command(binaryPath, "items", "create", "-n", "Test", "--data-hash", validSHA256Hex, "--url", "http://not-https.com", "--api-key", "fake")
 	cmd.Env = append(os.Environ(), "TRUESTAMP_API_URL=http://localhost:0")
 	out, _ := cmd.CombinedOutput()
 	if !containsString(string(out), "https://") {
@@ -136,7 +136,7 @@ func TestCLI_Create_InvalidURL_Error(t *testing.T) {
 }
 
 func TestCLI_Create_InvalidLocation_Error(t *testing.T) {
-	cmd := exec.Command(binaryPath, "create", "-n", "Test", "--hash", validSHA256Hex, "--location", "abc", "--api-key", "fake")
+	cmd := exec.Command(binaryPath, "items", "create", "-n", "Test", "--data-hash", validSHA256Hex, "--location", "abc", "--api-key", "fake")
 	cmd.Env = append(os.Environ(), "TRUESTAMP_API_URL=http://localhost:0")
 	out, _ := cmd.CombinedOutput()
 	if !containsString(string(out), "lat,lon") {
@@ -145,7 +145,7 @@ func TestCLI_Create_InvalidLocation_Error(t *testing.T) {
 }
 
 func TestCLI_Create_InvalidMetadata_Error(t *testing.T) {
-	cmd := exec.Command(binaryPath, "create", "-n", "Test", "--hash", validSHA256Hex, "--metadata", "not json", "--api-key", "fake")
+	cmd := exec.Command(binaryPath, "items", "create", "-n", "Test", "--data-hash", validSHA256Hex, "--metadata", "not json", "--api-key", "fake")
 	cmd.Env = append(os.Environ(), "TRUESTAMP_API_URL=http://localhost:0")
 	out, _ := cmd.CombinedOutput()
 	if !containsString(string(out), "valid JSON") {
@@ -154,7 +154,7 @@ func TestCLI_Create_InvalidMetadata_Error(t *testing.T) {
 }
 
 func TestCLI_Create_NonexistentFile_Error(t *testing.T) {
-	cmd := exec.Command(binaryPath, "create", "/nonexistent/file.pdf", "--api-key", "fake")
+	cmd := exec.Command(binaryPath, "items", "create", "/nonexistent/file.pdf", "--api-key", "fake")
 	cmd.Env = append(os.Environ(), "TRUESTAMP_API_URL=http://localhost:0")
 	out, _ := cmd.CombinedOutput()
 	if !containsString(string(out), "cannot access") {
@@ -163,7 +163,7 @@ func TestCLI_Create_NonexistentFile_Error(t *testing.T) {
 }
 
 func TestCLI_Create_Directory_Error(t *testing.T) {
-	cmd := exec.Command(binaryPath, "create", os.TempDir(), "--api-key", "fake")
+	cmd := exec.Command(binaryPath, "items", "create", os.TempDir(), "--api-key", "fake")
 	cmd.Env = append(os.Environ(), "TRUESTAMP_API_URL=http://localhost:0")
 	out, _ := cmd.CombinedOutput()
 	if !containsString(string(out), "directory") {
@@ -188,7 +188,7 @@ func TestCLI_Create_AutoHash_MatchesSHA256(t *testing.T) {
 	// Run create with a fake API (will fail at API call, but we can check
 	// the hash via --json mode's error output). Instead, test the validation
 	// passes by checking the error is an API error (not a validation error).
-	cmd := exec.Command(binaryPath, "create", path, "--json", "--api-key", "fake", "--base-url", "http://localhost:1")
+	cmd := exec.Command(binaryPath, "items", "create", path, "--json", "--api-key", "fake", "--base-url", "http://localhost:1")
 	out, _ := cmd.CombinedOutput()
 	output := string(out)
 
@@ -214,7 +214,7 @@ func TestCLI_Create_ClaimsFile_ParsesJSON(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	cmd := exec.Command(binaryPath, "create", "--claims="+path, "--api-key", "fake", "--base-url", "http://localhost:1")
+	cmd := exec.Command(binaryPath, "items", "create", "--claims="+path, "--api-key", "fake", "--base-url", "http://localhost:1")
 	out, _ := cmd.CombinedOutput()
 	output := string(out)
 
@@ -230,7 +230,7 @@ func TestCLI_Create_ClaimsFile_InvalidJSON_Error(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	cmd := exec.Command(binaryPath, "create", "--claims="+path, "--api-key", "fake")
+	cmd := exec.Command(binaryPath, "items", "create", "--claims="+path, "--api-key", "fake")
 	out, _ := cmd.CombinedOutput()
 	if !containsString(string(out), "parsing claims JSON") {
 		t.Errorf("expected JSON parse error, got: %s", out)
@@ -242,7 +242,7 @@ func TestCLI_Create_ClaimsFile_InvalidJSON_Error(t *testing.T) {
 func TestCLI_Create_ClaimsStdin_ParsesJSON(t *testing.T) {
 	claims := `{"hash":"` + validSHA256Hex + `","hash_type":"sha256","name":"From Stdin"}`
 
-	cmd := exec.Command(binaryPath, "create", "-C", "--api-key", "fake", "--base-url", "http://localhost:1")
+	cmd := exec.Command(binaryPath, "items", "create", "-C", "--api-key", "fake", "--base-url", "http://localhost:1")
 	cmd.Stdin = strings.NewReader(claims)
 	out, _ := cmd.CombinedOutput()
 	output := string(out)
@@ -253,7 +253,7 @@ func TestCLI_Create_ClaimsStdin_ParsesJSON(t *testing.T) {
 }
 
 func TestCLI_Create_ClaimsStdin_InvalidJSON_Error(t *testing.T) {
-	cmd := exec.Command(binaryPath, "create", "-C", "--api-key", "fake")
+	cmd := exec.Command(binaryPath, "items", "create", "-C", "--api-key", "fake")
 	cmd.Stdin = strings.NewReader("not json")
 	out, _ := cmd.CombinedOutput()
 	if !containsString(string(out), "parsing claims JSON") {
@@ -264,7 +264,7 @@ func TestCLI_Create_ClaimsStdin_InvalidJSON_Error(t *testing.T) {
 // --- File stdin input ---
 
 func TestCLI_Create_FileStdin_RequiresName(t *testing.T) {
-	cmd := exec.Command(binaryPath, "create", "-F", "--api-key", "fake", "--base-url", "http://localhost:1")
+	cmd := exec.Command(binaryPath, "items", "create", "-F", "--api-key", "fake", "--base-url", "http://localhost:1")
 	cmd.Stdin = strings.NewReader("raw file content")
 	out, _ := cmd.CombinedOutput()
 	if !containsString(string(out), "name is required") {
@@ -275,7 +275,7 @@ func TestCLI_Create_FileStdin_RequiresName(t *testing.T) {
 func TestCLI_Create_FileStdin_WithName_HashesContent(t *testing.T) {
 	content := "raw file content for hashing"
 
-	cmd := exec.Command(binaryPath, "create", "-F", "-n", "Stdin File", "--api-key", "fake", "--base-url", "http://localhost:1")
+	cmd := exec.Command(binaryPath, "items", "create", "-F", "-n", "Stdin File", "--api-key", "fake", "--base-url", "http://localhost:1")
 	cmd.Stdin = strings.NewReader(content)
 	out, _ := cmd.CombinedOutput()
 	output := string(out)
@@ -296,7 +296,7 @@ func TestCLI_Create_FlagOverridesAutoHash(t *testing.T) {
 	}
 
 	// Override name from auto-hash
-	cmd := exec.Command(binaryPath, "create", path, "-n", "Custom Name", "--api-key", "fake", "--base-url", "http://localhost:1")
+	cmd := exec.Command(binaryPath, "items", "create", path, "-n", "Custom Name", "--api-key", "fake", "--base-url", "http://localhost:1")
 	out, _ := cmd.CombinedOutput()
 	output := string(out)
 
@@ -314,7 +314,7 @@ func TestCLI_Create_FlagOverridesClaimsFile(t *testing.T) {
 	}
 
 	// Override visibility from claims file
-	cmd := exec.Command(binaryPath, "create", "--claims="+path, "-v", "public", "--api-key", "fake", "--base-url", "http://localhost:1")
+	cmd := exec.Command(binaryPath, "items", "create", "--claims="+path, "-v", "public", "--api-key", "fake", "--base-url", "http://localhost:1")
 	out, _ := cmd.CombinedOutput()
 	output := string(out)
 
@@ -332,7 +332,7 @@ func TestCLI_Create_FileFlag_HashesFile(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	cmd := exec.Command(binaryPath, "create", "--file="+path, "--api-key", "fake", "--base-url", "http://localhost:1")
+	cmd := exec.Command(binaryPath, "items", "create", "--file="+path, "--api-key", "fake", "--base-url", "http://localhost:1")
 	out, _ := cmd.CombinedOutput()
 	output := string(out)
 
@@ -342,7 +342,7 @@ func TestCLI_Create_FileFlag_HashesFile(t *testing.T) {
 }
 
 func TestCLI_Create_FileFlag_NonexistentFile_Error(t *testing.T) {
-	cmd := exec.Command(binaryPath, "create", "--file=/nonexistent/file.txt", "--api-key", "fake")
+	cmd := exec.Command(binaryPath, "items", "create", "--file=/nonexistent/file.txt", "--api-key", "fake")
 	out, _ := cmd.CombinedOutput()
 	if !containsString(string(out), "cannot access") {
 		t.Errorf("expected file access error, got: %s", out)
@@ -355,7 +355,7 @@ func TestCLI_Create_JSONOutput_Structure(t *testing.T) {
 	// This test verifies JSON output has the expected keys.
 	// Uses a fake API URL so it fails at the network level, but we can test
 	// that --json flag is accepted without error alongside other flags.
-	cmd := exec.Command(binaryPath, "create", "--help")
+	cmd := exec.Command(binaryPath, "items", "create", "--help")
 	out, err := cmd.CombinedOutput()
 	if err != nil {
 		t.Fatalf("help failed: %s", err)
@@ -376,7 +376,7 @@ func TestCLI_Create_TagsParsing(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	cmd := exec.Command(binaryPath, "create", path, "-t", " a , b , c ", "--api-key", "fake", "--base-url", "http://localhost:1")
+	cmd := exec.Command(binaryPath, "items", "create", path, "-t", " a , b , c ", "--api-key", "fake", "--base-url", "http://localhost:1")
 	out, _ := cmd.CombinedOutput()
 	output := string(out)
 
@@ -393,7 +393,7 @@ func TestCLI_Create_HashNormalizedToLowercase(t *testing.T) {
 	// 64-char hash so the case-folding is actually exercised (the all-zeros
 	// fixture is case-invariant).
 	upper := "ABCDEF" + strings.Repeat("0", 64-6)
-	cmd := exec.Command(binaryPath, "create", "-n", "Test", "--hash", upper, "--api-key", "fake", "--base-url", "http://localhost:1")
+	cmd := exec.Command(binaryPath, "items", "create", "-n", "Test", "--data-hash", upper, "--api-key", "fake", "--base-url", "http://localhost:1")
 	out, _ := cmd.CombinedOutput()
 	output := string(out)
 
@@ -407,7 +407,7 @@ func TestCLI_Create_HashNormalizedToLowercase(t *testing.T) {
 
 func TestCLI_Create_DefaultHashType(t *testing.T) {
 	// When --hash is provided without --hash-type, default to sha256
-	cmd := exec.Command(binaryPath, "create", "-n", "Test", "--hash", validSHA256Hex, "--api-key", "fake", "--base-url", "http://localhost:1")
+	cmd := exec.Command(binaryPath, "items", "create", "-n", "Test", "--data-hash", validSHA256Hex, "--api-key", "fake", "--base-url", "http://localhost:1")
 	out, _ := cmd.CombinedOutput()
 	output := string(out)
 
@@ -423,7 +423,7 @@ func TestCLI_Create_DefaultHashType(t *testing.T) {
 // The API call still fails (no real server), but the error must not be a
 // validation failure.
 func TestCLI_Create_ClaimsOnly_NameAndDescription_PassesValidation(t *testing.T) {
-	cmd := exec.Command(binaryPath, "create",
+	cmd := exec.Command(binaryPath, "items", "create",
 		"-n", "Invention",
 		"-d", longDesc,
 		"--api-key", "fake", "--base-url", "http://localhost:1")
@@ -441,7 +441,7 @@ func TestCLI_Create_ClaimsOnly_NameAndDescription_PassesValidation(t *testing.T)
 // TestCLI_Create_ClaimsOnly_ShortDescription_Fails fails locally with the
 // meaningful-content error when description is below the 32-char threshold.
 func TestCLI_Create_ClaimsOnly_ShortDescription_Fails(t *testing.T) {
-	cmd := exec.Command(binaryPath, "create",
+	cmd := exec.Command(binaryPath, "items", "create",
 		"-n", "Doc",
 		"-d", "short",
 		"--api-key", "fake")
@@ -457,7 +457,7 @@ func TestCLI_Create_ClaimsOnly_ShortDescription_Fails(t *testing.T) {
 // metadata escape hatch: a non-empty metadata object satisfies the
 // meaningful-content rule even without a long description.
 func TestCLI_Create_ClaimsOnly_NonEmptyMetadata_PassesValidation(t *testing.T) {
-	cmd := exec.Command(binaryPath, "create",
+	cmd := exec.Command(binaryPath, "items", "create",
 		"-n", "Doc",
 		"--metadata", `{"k":"v"}`,
 		"--api-key", "fake", "--base-url", "http://localhost:1")
@@ -474,7 +474,7 @@ func TestCLI_Create_ClaimsOnly_NonEmptyMetadata_PassesValidation(t *testing.T) {
 // rejected with a clear error before any network round-trip. Confirms the
 // --hash-type flag default does not leak through into the claims map.
 func TestCLI_Create_HashTypeAlone_Rejected(t *testing.T) {
-	cmd := exec.Command(binaryPath, "create",
+	cmd := exec.Command(binaryPath, "items", "create",
 		"-n", "Doc",
 		"--hash-type", "sha256",
 		"--api-key", "fake")
@@ -497,7 +497,7 @@ func TestCLI_Create_HashWithoutHashType_FromClaimsFile_Rejected(t *testing.T) {
 	if err := os.WriteFile(path, []byte(claims), 0644); err != nil {
 		t.Fatal(err)
 	}
-	cmd := exec.Command(binaryPath, "create", "--claims="+path, "--api-key", "fake")
+	cmd := exec.Command(binaryPath, "items", "create", "--claims="+path, "--api-key", "fake")
 	cmd.Env = append(os.Environ(), "TRUESTAMP_API_URL=http://localhost:0")
 	out, _ := cmd.CombinedOutput()
 	output := string(out)
@@ -516,7 +516,7 @@ func TestCLI_Create_ClaimsAndFlags_Merge(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	cmd := exec.Command(binaryPath, "create", "--claims="+path, "-d", "Added desc", "--api-key", "fake", "--base-url", "http://localhost:1")
+	cmd := exec.Command(binaryPath, "items", "create", "--claims="+path, "-d", "Added desc", "--api-key", "fake", "--base-url", "http://localhost:1")
 	out, _ := cmd.CombinedOutput()
 	output := string(out)
 
@@ -676,7 +676,7 @@ func TestCLI_Create_PreservesLiteralsOnTheWire(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	cmd := exec.Command(binaryPath, "create", "--claims="+path,
+	cmd := exec.Command(binaryPath, "items", "create", "--claims="+path,
 		"--api-key", "fake", "--base-url", url)
 	out, err := cmd.CombinedOutput()
 	if err != nil {
@@ -718,7 +718,7 @@ func TestCLI_Create_UnsafeIntegerRejectedBeforeNetwork(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	cmd := exec.Command(binaryPath, "create", "--claims="+path,
+	cmd := exec.Command(binaryPath, "items", "create", "--claims="+path,
 		"--api-key", "fake", "--base-url", url)
 	out, err := cmd.CombinedOutput()
 	if err == nil {
@@ -768,7 +768,7 @@ func TestCLI_Create_UnsafeIntegerBoundary(t *testing.T) {
 				t.Fatal(err)
 			}
 
-			cmd := exec.Command(binaryPath, "create", "--claims="+path,
+			cmd := exec.Command(binaryPath, "items", "create", "--claims="+path,
 				"--api-key", "fake", "--base-url", url)
 			out, err := cmd.CombinedOutput()
 
@@ -799,7 +799,7 @@ func TestCLI_Create_UnsafeIntegerBoundary(t *testing.T) {
 func TestCLI_Create_UnsafeIntegerFromMetadataFlag(t *testing.T) {
 	url, body := startCreateEchoServer(t)
 
-	cmd := exec.Command(binaryPath, "create",
+	cmd := exec.Command(binaryPath, "items", "create",
 		"-n", "Doc", "-d", longDesc,
 		"--metadata", `{"ledger":9007199254740993}`,
 		"--api-key", "fake", "--base-url", url)
@@ -824,8 +824,8 @@ func TestCLI_Create_UnsafeIntegerFromMetadataFlag(t *testing.T) {
 func TestCLI_Create_UnsafeIntegerExternalHashMode(t *testing.T) {
 	url, body := startCreateEchoServer(t)
 
-	cmd := exec.Command(binaryPath, "create",
-		"-n", "Doc", "--hash", validSHA256Hex, "--hash-type", "sha256",
+	cmd := exec.Command(binaryPath, "items", "create",
+		"-n", "Doc", "--data-hash", validSHA256Hex, "--hash-type", "sha256",
 		"--metadata", `{"serial":18446744073709551615}`,
 		"--api-key", "fake", "--base-url", url)
 	out, err := cmd.CombinedOutput()
@@ -845,7 +845,7 @@ func TestCLI_Create_UnsafeIntegerExternalHashMode(t *testing.T) {
 func TestCLI_Create_UnsafeIntegerFromClaimsStdin(t *testing.T) {
 	url, body := startCreateEchoServer(t)
 
-	cmd := exec.Command(binaryPath, "create", "-C",
+	cmd := exec.Command(binaryPath, "items", "create", "-C",
 		"--api-key", "fake", "--base-url", url)
 	cmd.Stdin = strings.NewReader(
 		`{"name":"Doc","description":"` + longDesc + `","big":9007199254740993}`)
@@ -875,7 +875,7 @@ func TestCLI_Create_UnsafeIntegerMultipleViolations(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	cmd := exec.Command(binaryPath, "create", "--claims="+path,
+	cmd := exec.Command(binaryPath, "items", "create", "--claims="+path,
 		"--api-key", "fake", "--base-url", url)
 	out, _ := cmd.CombinedOutput()
 	output := string(out)
@@ -916,7 +916,7 @@ func TestCLI_Create_UnsafeIntegerJSONOutput(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	cmd := exec.Command(binaryPath, "create", "--claims="+path, "--json",
+	cmd := exec.Command(binaryPath, "items", "create", "--claims="+path, "--json",
 		"--api-key", "fake", "--base-url", url)
 	stdout, err := cmd.Output()
 	if err == nil {
@@ -974,7 +974,7 @@ func TestCLI_Create_FloatsAreNotFlagged(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	cmd := exec.Command(binaryPath, "create", "--claims="+path,
+	cmd := exec.Command(binaryPath, "items", "create", "--claims="+path,
 		"--api-key", "fake", "--base-url", url)
 	out, err := cmd.CombinedOutput()
 	if err != nil {
@@ -997,7 +997,7 @@ func TestCLI_Create_TrailingDataRejected(t *testing.T) {
 	if err := os.WriteFile(path, []byte(`{"name":"A"} {"name":"B"}`), 0644); err != nil {
 		t.Fatal(err)
 	}
-	cmd := exec.Command(binaryPath, "create", "--claims="+path, "--api-key", "fake")
+	cmd := exec.Command(binaryPath, "items", "create", "--claims="+path, "--api-key", "fake")
 	out, _ := cmd.CombinedOutput()
 	if !containsString(string(out), "parsing claims JSON") {
 		t.Errorf("expected a parse error for trailing data, got: %s", out)
@@ -1029,10 +1029,10 @@ func TestCLI_Create_SpaceSeparatedPathIsRejected(t *testing.T) {
 		args []string
 		want string
 	}{
-		{"long claims", []string{"create", "--claims", claims}, "--claims=" + claims},
-		{"short claims", []string{"create", "-c", claims}, "--claims=" + claims},
-		{"long file", []string{"create", "--file", doc}, "--file=" + doc},
-		{"short file", []string{"create", "-f", doc}, "--file=" + doc},
+		{"long claims", []string{"items", "create", "--claims", claims}, "--claims=" + claims},
+		{"short claims", []string{"items", "create", "-c", claims}, "--claims=" + claims},
+		{"long file", []string{"items", "create", "--file", doc}, "--file=" + doc},
+		{"short file", []string{"items", "create", "-f", doc}, "--file=" + doc},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -1068,14 +1068,14 @@ func TestCLI_Create_EqualsFormAndPositionalStillWork(t *testing.T) {
 	// Each of these must get past input resolution and fail at the network
 	// instead, proving the guard did not swallow a legitimate spelling.
 	cases := [][]string{
-		{"create", doc},
-		{"create", doc, "-n", "Q1", "-v", "public"},
-		{"create", "--file=" + doc},
-		{"create", "--claims=" + claims},
-		{"create", "-c=" + claims},
+		{"items", "create", doc},
+		{"items", "create", doc, "-n", "Q1", "-v", "public"},
+		{"items", "create", "--file=" + doc},
+		{"items", "create", "--claims=" + claims},
+		{"items", "create", "-c=" + claims},
 	}
 	for _, args := range cases {
-		t.Run(args[1], func(t *testing.T) {
+		t.Run(strings.Join(args[2:], " "), func(t *testing.T) {
 			cmd := exec.Command(binaryPath, append(args, "--api-key", "fake", "--base-url", "http://127.0.0.1:9")...)
 			out, _ := cmd.CombinedOutput()
 			if !containsString(string(out), "API request failed") {

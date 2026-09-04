@@ -16,8 +16,8 @@ import (
 	"github.com/truestamp/truestamp-cli/internal/proof"
 )
 
-var convertProofCmd = &cobra.Command{
-	Use:   "proof [flags] [file]",
+var proofsConvertCmd = &cobra.Command{
+	Use:   "convert [flags] [file]",
 	Short: "Convert a Truestamp proof bundle between JSON and CBOR wire formats",
 	Long: `Read a proof bundle in one wire format and emit it in the other.
 
@@ -35,9 +35,9 @@ prefixed with the self-describing CBOR tag 55799 so 'truestamp verify'
 auto-detects the format. JSON output preserves the input's key order.
 
 Examples:
-  truestamp convert proof --to cbor proof.json > proof.cbor
-  truestamp convert proof --to json < proof.cbor | jq .
-  truestamp convert proof --from cbor --to json proof.cbor`,
+  truestamp proofs convert --to cbor proof.json > proof.cbor
+  truestamp proofs convert --to json < proof.cbor | jq .
+  truestamp proofs convert --from cbor --to json proof.cbor`,
 	SilenceUsage:  true,
 	SilenceErrors: true,
 	RunE:          runConvertProof,
@@ -47,8 +47,7 @@ func runConvertProof(cmd *cobra.Command, args []string) error {
 	toName, _ := cmd.Flags().GetString("to")
 	fromName, _ := cmd.Flags().GetString("from")
 	compact, _ := cmd.Flags().GetBool("compact")
-	jsonOut, _ := cmd.Flags().GetBool("json")
-	silent, _ := cmd.Flags().GetBool("silent")
+	jsonOut, silent := outputMode(cmd)
 
 	if silent && jsonOut {
 		return fmt.Errorf("--silent and --json are mutually exclusive")
@@ -181,7 +180,7 @@ func looksLikeJSON(data []byte) bool {
 // literal the bundle carried. The previous implementation round-tripped
 // through `any`, which decodes every number into a float64 and silently
 // rounded any integer above 2^53, and pretty output is the default for
-// --to json, so `truestamp convert proof` could quietly change the bytes
+// --to json, so `truestamp proofs convert` could quietly change the bytes
 // a claims_hash is computed over. Not re-encoding also preserves the
 // bundle's own key order instead of re-sorting it alphabetically, so the
 // output stays a faithful rendering of the wire form.
@@ -202,7 +201,7 @@ func base64URLEncode(data []byte) string {
 }
 
 func init() {
-	f := convertProofCmd.Flags()
+	f := proofsConvertCmd.Flags()
 	f.String("file", "", "Path to proof file (interactive picker if no path given)")
 	f.String("url", "", "URL to download proof from (interactive prompt if no URL given)")
 	f.Lookup("file").NoOptDefVal = inputsrc.FilePickSentinel
@@ -216,5 +215,5 @@ func init() {
 	// default.
 	f.Bool("json", false, "Emit a JSON envelope with input/output metadata instead of raw output")
 	f.BoolP("silent", "s", false, "No output, exit code only")
-	convertCmd.AddCommand(convertProofCmd)
+	proofsCmd.AddCommand(proofsConvertCmd)
 }

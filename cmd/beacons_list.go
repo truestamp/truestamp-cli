@@ -16,15 +16,15 @@ import (
 
 const beaconListDefaultLimit = 25
 
-var beaconListCmd = &cobra.Command{
+var beaconsListCmd = &cobra.Command{
 	Use:   "list",
 	Short: "Show the most recent beacons (newest first)",
 	Long: `List recent beacons, newest first. The server caps --limit at 100.
 
 Examples:
-  truestamp beacon list
-  truestamp beacon list --limit 3
-  truestamp beacon list --limit 10 --json | jq '.[].hash'`,
+  truestamp beacons list
+  truestamp beacons list --limit 3
+  truestamp beacons list --limit 10 --json | jq '.[].hash'`,
 	Args:          cobra.NoArgs,
 	SilenceUsage:  true,
 	SilenceErrors: true,
@@ -32,12 +32,9 @@ Examples:
 }
 
 func runBeaconList(cmd *cobra.Command, _ []string) error {
-	jsonOut, hashOnly, silent, err := beaconSharedFlags(cmd)
+	jsonOut, _, silent, err := beaconSharedFlags(cmd)
 	if err != nil {
 		return err
-	}
-	if hashOnly {
-		return fmt.Errorf("--hash-only is not valid on 'beacon list' (use --json and pipe to jq)")
 	}
 
 	limit, _ := cmd.Flags().GetInt("limit")
@@ -62,11 +59,11 @@ func runBeaconList(cmd *cobra.Command, _ []string) error {
 		return emitJSON(cmd.OutOrStdout(), items)
 	}
 	renderBeaconList(cmd.OutOrStdout(), items)
-	// One-line hint on interactive runs pointing at `download --type beacon`.
+	// One-line hint on interactive runs pointing at `proofs get --type beacon`.
 	// Suppressed when stdout is piped so shell pipelines stay clean.
 	if stdoutIsTerminal() {
-		fmt.Fprintln(cmd.ErrOrStderr(), ui.FaintStyle().Render(
-			"  Hint: 'truestamp download --type beacon <id>' fetches a verifiable proof bundle."))
+		ui.Fprintln(cmd.ErrOrStderr(), ui.FaintStyle().Render(
+			"  Hint: 'truestamp proofs get --type beacon <id>' fetches a verifiable proof bundle."))
 	}
 	return nil
 }
@@ -101,15 +98,13 @@ func renderBeaconList(w io.Writer, items []beacons.Beacon) {
 	// Present(). Avoids lipgloss.JoinVertical's pad-to-widest behaviour,
 	// which would make long hash rows blow up vertical spacing on
 	// narrow terminals.
-	fmt.Fprintln(w, strings.Join([]string{header, "", tbl.String()}, "\n"))
+	ui.Fprintln(w, strings.Join([]string{header, "", tbl.String()}, "\n"))
 }
 
 func init() {
-	f := beaconListCmd.Flags()
+	f := beaconsListCmd.Flags()
 	f.Int("limit", beaconListDefaultLimit, "How many beacons to fetch (1..100)")
-	f.Bool("json", false, "Print the raw JSON response, pretty-printed")
-	f.Bool("hash-only", false, "(invalid on 'list', use --json + jq)")
-	f.BoolP("silent", "s", false, "No output, exit code only")
+	addRecordOutputFlags(beaconsListCmd)
 
-	beaconCmd.AddCommand(beaconListCmd)
+	beaconsCmd.AddCommand(beaconsListCmd)
 }

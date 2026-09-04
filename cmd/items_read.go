@@ -1,0 +1,274 @@
+// Copyright (c) 2019-2026 Truestamp, Inc.
+// SPDX-License-Identifier: MIT
+
+package cmd
+
+import (
+	"fmt"
+	"strings"
+
+	"github.com/spf13/cobra"
+	"github.com/truestamp/truestamp-cli/internal/items"
+	"github.com/truestamp/truestamp-cli/internal/ui"
+)
+
+var itemsListCmd = &cobra.Command{
+	Use:   "list",
+	Short: "List items in the current team",
+	Long: `List items, newest first.
+
+Paging is by keyset cursor: --limit sets the page size (1..100) and
+--after continues from a previous page. --all follows the cursors to the
+end, which on a large team is a lot of requests — prefer --limit with
+--after when you only need a window.
+
+--committed and --pending filter on commitment state, which is the
+question most often asked of this list: a proof can only be generated for
+a committed item.
+
+Commitment state is a column here rather than a separate 'status'
+command. A server-reported state is a claim; a verified proof is
+evidence, and the authoritative answer is:
+
+  truestamp proofs get <id> | truestamp verify`,
+	Args:          cobra.NoArgs,
+	SilenceUsage:  true,
+	SilenceErrors: true,
+	RunE: func(cmd *cobra.Command, _ []string) error {
+		if err := requireItemsAuth(cmd); err != nil {
+			return err
+		}
+		limit, _ := cmd.Flags().GetInt("limit")
+		after, _ := cmd.Flags().GetString("after")
+		committed, _ := cmd.Flags().GetBool("committed")
+		pending, _ := cmd.Flags().GetBool("pending")
+		all, _ := cmd.Flags().GetBool("all")
+
+		opts := items.ListOptions{
+			Limit: limit, After: after, Committed: committed, Pending: pending,
+		}
+
+		var collected []items.Item
+		cursor := after
+		for {
+			opts.After = cursor
+			page, err := items.List(cmd.Context(), appConfig.APIURL, appConfig.Team, opts)
+			if err != nil {
+				return err
+			}
+			collected = append(collected, page.Items...)
+			if !all || page.NextCursor == "" {
+				if !all {
+					return renderItemList(cmd, collected, page.NextCursor)
+				}
+				return renderItemList(cmd, collected, "")
+			}
+			cursor = page.NextCursor
+		}
+	},
+}
+
+var itemsGetCmd = &cobra.Command{
+	Use:   "get <id>",
+	Short: "Show one item by id",
+	Long: `Show one item by its ULID.
+
+The card includes commitment state. For the authoritative answer, fetch
+the proof and check it yourself:
+
+  truestamp proofs get <id> | truestamp verify`,
+	Args:          cobra.ExactArgs(1),
+	SilenceUsage:  true,
+	SilenceErrors: true,
+	RunE: func(cmd *cobra.Command, args []string) error {
+		if err := requireItemsAuth(cmd); err != nil {
+			return err
+		}
+		it, err := items.Get(cmd.Context(), appConfig.APIURL, appConfig.Team, strings.TrimSpace(args[0]))
+		if err != nil {
+			return err
+		}
+		return renderItem(cmd, it)
+	},
+}
+
+var itemsUpdateCmd = &cobra.Command{
+	Use:   "update <id>",
+	Short: "Update an item's mutable attributes",
+	Long: `Update the attributes of an item that are not covered by its hash.
+
+Only three attributes are mutable, and the server enforces this:
+visibility, tags, and the owning team. An item's claims — including its
+name and description, which live inside claims — are immutable, because
+claims_hash is signed. There is no flag here that can reach a signed
+field.
+
+--to-team moves the item to a different team you are a member of. It is
+deliberately NOT the root --team flag: that one says which tenant scopes
+the request, and letting one word mean both would make
+'items update <id> --team ""' — a perfectly ordinary way to scope a
+request — silently mean "move this item to team ''". One word, one
+meaning (kb/command-tree.md R13).
+
+Examples:
+  truestamp items update 01KNN33GX5E470CB9TRWAYF9DD --visibility public
+  truestamp items update 01KNN33GX5E470CB9TRWAYF9DD --tags q3,contracts
+  truestamp items update 01KNN33GX5E470CB9TRWAYF9DD --to-team 019dbd00-0000-7000-8000-000000000000`,
+	Args:          cobra.ExactArgs(1),
+	SilenceUsage:  true,
+	SilenceErrors: true,
+	RunE: func(cmd *cobra.Command, args []string) error {
+		if err := requireItemsAuth(cmd); err != nil {
+			return err
+		}
+		var opts items.UpdateOptions
+		if cmd.Flags().Changed("visibility") {
+			v, _ := cmd.Flags().GetString("visibility")
+			opts.Visibility = &v
+		}
+		if cmd.Flags().Changed("tags") {
+			t, _ := cmd.Flags().GetStringSlice("tags")
+			opts.Tags = &t
+		}
+		if cmd.Flags().Changed("to-team") {
+			v, _ := cmd.Flags().GetString("to-team")
+			opts.TeamID = &v
+		}
+		it, err := items.Update(cmd.Context(), appConfig.APIURL, appConfig.Team,
+			strings.TrimSpace(args[0]), opts)
+		if err != nil {
+			return err
+		}
+		return renderItem(cmd, it)
+	},
+}
+
+func requireItemsAuth(cmd *cobra.Command) error {
+	if authConfigured() {
+		return nil
+	}
+	_, silent := outputMode(cmd)
+	if !silent {
+		ui.Fprintln(cmd.ErrOrStderr(), ui.FailureBanner("Not authenticated"))
+		ui.Fprintln(cmd.ErrOrStderr(), ui.FaintStyle().Render(
+			"    Run 'truestamp auth login' to sign in (or set TRUESTAMP_API_KEY)."))
+	}
+	return errSilentFail
+}
+
+func renderItem(cmd *cobra.Command, it *items.Item) error {
+	jsonOut, silent := outputMode(cmd)
+	if silent {
+		return nil
+	}
+	if jsonOut {
+		return emitJSON(cmd.OutOrStdout(), it)
+	}
+	w := cmd.OutOrStdout()
+	header := ui.AccentBoldStyle().Render("  Item")
+	tbl := ui.CompactTable().
+		StyleFunc(ui.LabelValueStyleFunc()).
+		Row("ID", it.ID).
+		Row("State", commitmentLabel(it)).
+		Row("Visibility", it.Visibility)
+	if it.DisplayName != "" {
+		tbl = tbl.Row("Name", it.DisplayName)
+	}
+	if len(it.Tags) > 0 {
+		tbl = tbl.Row("Tags", strings.Join(it.Tags, ", "))
+	}
+	if it.ClaimsHash != "" {
+		tbl = tbl.Row("Claims Hash", it.ClaimsHash)
+	}
+	if it.ItemHash != "" {
+		tbl = tbl.Row("Item Hash", it.ItemHash)
+	}
+	if it.TeamID != "" {
+		tbl = tbl.Row("Team", it.TeamID)
+	}
+	if it.InsertedAt != "" {
+		tbl = tbl.Row("Created", timestampWithRelative(it.InsertedAt))
+	}
+	if it.ExpiresAt != "" {
+		tbl = tbl.Row("Expires", timestampWithRelative(it.ExpiresAt))
+	}
+	if detail := ui.SubjectDetailURL(appConfig.APIURL, "item", it.ID); detail != "" {
+		tbl = tbl.Row("Details", detail)
+	}
+	ui.Fprintln(w, strings.Join([]string{header, "", tbl.String()}, "\n"))
+	if !it.Committed() {
+		ui.Fprintln(w, ui.FaintStyle().Render(
+			"    Not yet committed: a proof cannot be generated until it is."))
+	}
+	return nil
+}
+
+// commitmentLabel states plainly whether a proof is available, because
+// that is the only thing most callers want from the state field.
+func commitmentLabel(it *items.Item) string {
+	if it.Committed() {
+		return it.State + "  (a proof can be generated)"
+	}
+	return it.State
+}
+
+func renderItemList(cmd *cobra.Command, list []items.Item, nextCursor string) error {
+	jsonOut, silent := outputMode(cmd)
+	if silent {
+		return nil
+	}
+	if jsonOut {
+		return emitJSON(cmd.OutOrStdout(), map[string]any{
+			"items":       list,
+			"next_cursor": nextCursor,
+		})
+	}
+	w := cmd.OutOrStdout()
+	if len(list) == 0 {
+		ui.Fprintln(w, ui.FaintStyle().Render("  No items."))
+		return nil
+	}
+	header := ui.AccentBoldStyle().Render(fmt.Sprintf("  Items (%d)", len(list)))
+	tbl := ui.CompactTable().StyleFunc(ui.LabelValueStyleFunc())
+	for _, it := range list {
+		tbl = tbl.Row(it.ID, itemListLine(it))
+	}
+	ui.Fprintln(w, strings.Join([]string{header, "", tbl.String()}, "\n"))
+	if nextCursor != "" {
+		ui.Fprintln(w, ui.FaintStyle().Render(
+			"    More items: --after "+nextCursor))
+	}
+	return nil
+}
+
+func itemListLine(it items.Item) string {
+	mark := " "
+	if it.Committed() {
+		mark = "✓"
+	}
+	name := it.DisplayName
+	if name == "" {
+		name = "(no name)"
+	}
+	return fmt.Sprintf("%s %-10s %s", mark, it.State, name)
+}
+
+func init() {
+	lf := itemsListCmd.Flags()
+	lf.Int("limit", items.DefaultLimit,
+		fmt.Sprintf("Items per page (1..%d)", items.MaxLimit))
+	lf.String("after", "", "Continue from a previous page's cursor")
+	lf.Bool("committed", false, "Only items that have been committed (a proof can be generated)")
+	lf.Bool("pending", false, "Only items not yet committed")
+	lf.Bool("all", false, "Follow cursors to the end (many requests on a large team)")
+
+	uf := itemsUpdateCmd.Flags()
+	uf.String("visibility", "", "Item visibility")
+	uf.StringSlice("tags", nil, "Replace the item's tags")
+	uf.String("to-team", "", "Move the item to this team (not the same as the root --team, which scopes the request)")
+
+	for _, c := range []*cobra.Command{itemsListCmd, itemsGetCmd, itemsUpdateCmd} {
+		addRecordOutputFlags(c)
+		itemsCmd.AddCommand(c)
+	}
+}

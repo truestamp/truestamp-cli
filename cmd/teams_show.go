@@ -5,7 +5,6 @@ package cmd
 
 import (
 	"errors"
-	"fmt"
 	"io"
 	"strings"
 
@@ -14,32 +13,50 @@ import (
 	"github.com/truestamp/truestamp-cli/internal/ui"
 )
 
-var teamShowCmd = &cobra.Command{
-	Use:   "show [id]",
-	Short: "Show the active team in detail (or a specific team by id)",
-	Long: `Show the active team, the one currently configured under 'team' in
-config.toml, with its name, role, personal flag, ownership model, and
-public-web links. With no argument, defaults to the active team.
+var teamsGetCmd = &cobra.Command{
+	Use:   "get <id>",
+	Short: "Show one team by id",
+	Long: `Show a team by id, with its name, role, personal flag, ownership
+model, and public-web links.
 
-Pass an explicit team id to inspect a different team. The id must be
-one the API key has membership in (the server enforces this; an
-attempt to read a team you don't belong to surfaces a 403 banner).
+The id must be one you have membership in; the server enforces this and
+an attempt to read a team you do not belong to surfaces a 403 banner.
+
+For the team the CLI is currently pointed at, use 'truestamp teams
+current'. They are separate commands on purpose: a 'get' that silently
+read config.toml when given no argument would mean different things on
+different machines, which is a footgun in a script.
 
 Examples:
-  truestamp team show
-  truestamp team show 019dbd00-0000-7000-8000-000000000000`,
-	Args:          cobra.MaximumNArgs(1),
+  truestamp teams get 019dbd00-0000-7000-8000-000000000000
+  truestamp teams get 019dbd00-0000-7000-8000-000000000000 --json`,
+	Args:          cobra.ExactArgs(1),
 	SilenceUsage:  true,
 	SilenceErrors: true,
-	RunE:          runTeamShow,
+	RunE:          runTeamsShow,
 }
 
-func runTeamShow(cmd *cobra.Command, args []string) error {
-	jsonOut, _ := cmd.Flags().GetBool("json")
-	silent, _ := cmd.Flags().GetBool("silent")
-	if silent && jsonOut {
-		return fmt.Errorf("--silent and --json are mutually exclusive")
-	}
+var teamsCurrentCmd = &cobra.Command{
+	Use:   "current",
+	Short: "Show the team the CLI is currently pointed at",
+	Long: `Show the active team, the one configured under 'team' in config.toml
+or supplied by --team / TRUESTAMP_TEAM, with its name, role, personal
+flag, ownership model, and public-web links.
+
+Pairs with 'truestamp teams use', which sets it. Exits non-zero when no
+team is configured.
+
+Examples:
+  truestamp teams current
+  truestamp teams current --json`,
+	Args:          cobra.NoArgs,
+	SilenceUsage:  true,
+	SilenceErrors: true,
+	RunE:          runTeamsShow,
+}
+
+func runTeamsShow(cmd *cobra.Command, args []string) error {
+	jsonOut, silent := outputMode(cmd)
 
 	cfg, err := teamConfig(cmd)
 	if err != nil {
@@ -52,10 +69,10 @@ func runTeamShow(cmd *cobra.Command, args []string) error {
 	}
 	if teamID == "" {
 		if !silent {
-			fmt.Fprintln(cmd.ErrOrStderr(), ui.FailureBanner("No team configured"))
-			fmt.Fprintln(cmd.ErrOrStderr(), ui.FaintStyle().Render(
-				"    Run 'truestamp team set' to pick one interactively, or "+
-					"'truestamp team list' to see all available teams."))
+			ui.Fprintln(cmd.ErrOrStderr(), ui.FailureBanner("No team configured"))
+			ui.Fprintln(cmd.ErrOrStderr(), ui.FaintStyle().Render(
+				"    Run 'truestamp teams use' to pick one interactively, or "+
+					"'truestamp teams list' to see all available teams."))
 		}
 		return errSilentFail
 	}
@@ -77,7 +94,7 @@ func runTeamShow(cmd *cobra.Command, args []string) error {
 		// info; missing role degrades to "(unknown)" rather than
 		// erroring the whole subcommand.
 		if !silent && !errors.Is(err, teams.ErrUnauthorized) {
-			fmt.Fprintln(cmd.ErrOrStderr(), ui.FaintStyle().Render(
+			ui.Fprintln(cmd.ErrOrStderr(), ui.FaintStyle().Render(
 				"  warning: could not resolve role: "+err.Error()))
 		}
 	}
@@ -130,13 +147,13 @@ func renderTeamCard(w io.Writer, apiURL string, team *teams.Team, role string, i
 		tbl = tbl.Row("Details", detail)
 	}
 
-	fmt.Fprintln(w, strings.Join([]string{header, "", tbl.String()}, "\n"))
+	ui.Fprintln(w, strings.Join([]string{header, "", tbl.String()}, "\n"))
 }
 
 func init() {
-	f := teamShowCmd.Flags()
-	f.Bool("json", false, "Print the raw JSON response, pretty-printed")
-	f.BoolP("silent", "s", false, "No output, exit code only")
+	addRecordOutputFlags(teamsGetCmd)
+	addRecordOutputFlags(teamsCurrentCmd)
 
-	teamCmd.AddCommand(teamShowCmd)
+	teamsCmd.AddCommand(teamsGetCmd)
+	teamsCmd.AddCommand(teamsCurrentCmd)
 }

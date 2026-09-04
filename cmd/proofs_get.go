@@ -6,17 +6,18 @@ package cmd
 import (
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"slices"
 	"strings"
 
-	lipgloss "charm.land/lipgloss/v2"
 	"github.com/spf13/cobra"
+	"github.com/truestamp/truestamp-cli/internal/inputsrc"
 	"github.com/truestamp/truestamp-cli/internal/proof"
 	"github.com/truestamp/truestamp-cli/internal/ui"
 )
 
-// Subject-type flag values for `truestamp download --type`. These map 1:1
+// Subject-type flag values for `truestamp proofs get --type`. These map 1:1
 // to the server's /proof/generate `type` string enum. There is no "auto"
 // and no bare "entropy", both were removed in the server's strict-type
 // cutover. Callers that don't pass --type get a client-side smart default:
@@ -56,20 +57,16 @@ var downloadTypesForUUIDv7 = []string{
 	downloadTypeBeacon,
 }
 
-var downloadCmd = &cobra.Command{
-	Use:   "download <id>",
-	Short: "Download a Truestamp proof bundle",
+var proofsGetCmd = &cobra.Command{
+	Use:   "get <id>",
+	Short: "Fetch the proof bundle for a subject",
 	Long: `Download a cryptographic proof bundle for a Truestamp subject.
 
-The server requires an explicit --type. For zero-flag convenience, if
---type is omitted the CLI falls back to the following rules based on
-the ID format:
-
-  ULID    (e.g. 01KNN33GX5E470CB9TRWAYF9DD)     -> --type item
-  UUIDv7  (e.g. 019d6a32-13e6-72b0-97e5-...)    -> must specify --type
-
-UUIDv7 ids are ambiguous (entropy observations, blocks, and beacons all
-use UUIDv7), so an explicit --type is required for them.
+--type is optional. A ULID is unambiguously an item. A UUIDv7 could be an
+entropy observation, a block or a beacon, so it is resolved against the
+server in one extra round trip; pass --type to skip that call, or when an
+id is verifiable as more than one subject type, which is refused rather
+than guessed.
 
 --witnesses selects which witness details an item bundle carries:
 'all' (the default, the complete bundle), 'none' (the compact bundle:
@@ -79,9 +76,12 @@ entropy_nist, entropy_bitcoin, signing_key_event (a partial bundle).
 All three are ordinary version 1 bundles; the only difference a verifier
 sees is how many witness rows it can report.
 
-Output filename (when -o is not set): truestamp-<stem>-<id><variant>.<ext>
-where <stem> is the --type value with underscores translated to hyphens
-and <variant> is empty, -compact, or -partial:
+With no output flag the bundle is written to stdout, so it can be piped.
+-o/--out writes it to the path you name. --to-file writes it to a
+conventionally-named file in the current directory:
+truestamp-<stem>-<id><variant>.<ext>, where <stem> is the resolved type
+with underscores translated to hyphens and <variant> is empty, -compact,
+or -partial:
 
   --type item                      -> truestamp-item-<ulid>.<ext>
   --type item --witnesses none     -> truestamp-item-<ulid>-compact.<ext>
@@ -96,13 +96,13 @@ type codes in the signed payload, so a block and a beacon proof for the
 same block have different signatures.
 
 Examples:
-  truestamp download 01KNN33GX5E470CB9TRWAYF9DD
-  truestamp download --witnesses none 01KNN33GX5E470CB9TRWAYF9DD
-  truestamp download --witnesses block,entropy_nist 01KNN33GX5E470CB9TRWAYF9DD
-  truestamp download --type block   019d6a32-13e6-72b0-97e5-3779231ea97b
-  truestamp download --type beacon -f cbor 019d6a32-13e6-72b0-97e5-3779231ea97b
-  truestamp download --type entropy_stellar 019cf813-99b8-730a-84f1-5a711a9c355e
-  truestamp download -o proof.json 01KNN33GX5E470CB9TRWAYF9DD
+  truestamp proofs get 01KNN33GX5E470CB9TRWAYF9DD
+  truestamp proofs get --witnesses none 01KNN33GX5E470CB9TRWAYF9DD
+  truestamp proofs get --witnesses block,entropy_nist 01KNN33GX5E470CB9TRWAYF9DD
+  truestamp proofs get --type block   019d6a32-13e6-72b0-97e5-3779231ea97b
+  truestamp proofs get --type beacon -f cbor 019d6a32-13e6-72b0-97e5-3779231ea97b
+  truestamp proofs get --type entropy_stellar 019cf813-99b8-730a-84f1-5a711a9c355e
+  truestamp proofs get -o proof.json 01KNN33GX5E470CB9TRWAYF9DD
 
 Requires authentication, run 'truestamp auth login', or set TRUESTAMP_API_KEY / --api-key for headless/CI use.
 
@@ -142,14 +142,28 @@ output file).`,
 		}
 
 		// Resolve --type when not specified.
+		//
+		// A ULID is unambiguously an item, so that case needs no help. A
+		// UUIDv7 could be a block, a beacon or an entropy observation, and
+		// nothing client-side can tell them apart — this is the one place
+		// id-shape dispatch cannot work. Rather than requiring --type, ask
+		// the server what the id refers to, at the cost of one round trip.
+		//
+		// The classification only decides which proof to REQUEST. The
+		// bundle that comes back is still verified against its own signed
+		// type, so a wrong answer here cannot change a verdict.
 		if typeFlag == "" {
 			switch shape {
 			case proof.IDTypeULID:
 				typeFlag = downloadTypeItem
 			case proof.IDTypeUUIDv7:
-				return fmt.Errorf(
-					"--type is required for UUIDv7 ids (entropy, block, and beacon all use UUIDv7). One of: %s",
-					strings.Join(downloadTypesForUUIDv7, " | "))
+				resolved, rErr := proof.ResolveSubjectType(cmd.Context(), cfg.APIURL, cfg.Team, id)
+				if rErr != nil {
+					return fmt.Errorf("%w\n(or pass --type explicitly: %s)",
+						rErr, strings.Join(downloadTypesForUUIDv7, " | "))
+				}
+				typeFlag = resolved
+				appLogger.Info("proof_type_resolved", "id", id, "type", typeFlag)
 			default:
 				// DetectIDType should have errored already; belt-and-suspenders.
 				return fmt.Errorf("unrecognised id shape %q", shape)
@@ -186,12 +200,38 @@ output file).`,
 
 		stem := downloadStem(typeFlag)
 
-		output, _ := cmd.Flags().GetString("output")
-		if output == "" {
-			output = fmt.Sprintf("truestamp-%s-%s%s.%s", stem, id, witnesses.FilenameSuffix(), format)
+		// R10's payload triad: no flag writes the bundle to stdout so it
+		// can be piped, -o/--out names a path, --to-file uses the
+		// conventional auto-name. Previously this command always wrote a
+		// file into the cwd, which made
+		// `truestamp proofs get <id> | truestamp verify` impossible without
+		// a temp file in a CLI that advertises pipeline recipes.
+		outPath, _ := cmd.Flags().GetString("out")
+		toFile, _ := cmd.Flags().GetBool("to-file")
+		if outPath != "" && toFile {
+			return fmt.Errorf("--out and --to-file are mutually exclusive: --out names a path, --to-file picks the conventional name")
+		}
+		if toFile {
+			outPath = fmt.Sprintf("truestamp-%s-%s%s.%s", stem, id, witnesses.FilenameSuffix(), format)
 		}
 
-		if err := os.WriteFile(output, data, 0644); err != nil {
+		if outPath == "" {
+			// Refuse to spray CBOR at a terminal. The message names both
+			// ways out rather than just failing.
+			if format == "cbor" && inputsrc.IsStdoutTerminal() {
+				return fmt.Errorf("refusing to write CBOR to a terminal: redirect it, or pass -o <path> or --to-file")
+			}
+			if _, werr := cmd.OutOrStdout().Write(data); werr != nil {
+				return fmt.Errorf("writing to stdout: %w", werr)
+			}
+			appLogger.Info("download_completed",
+				"id", id, "type", typeFlag, "format", format,
+				"size_bytes", len(data), "output", "(stdout)",
+			)
+			return nil
+		}
+
+		if err := os.WriteFile(outPath, data, 0644); err != nil {
 			appLogger.Error("download_failed", "id", id, "type", typeFlag, "stage", "write", "err", err.Error())
 			return fmt.Errorf("writing file: %w", err)
 		}
@@ -201,10 +241,12 @@ output file).`,
 			"type", typeFlag,
 			"format", format,
 			"size_bytes", len(data),
-			"output", output,
+			"output", outPath,
 		)
 
-		presentDownload(output, format, id, typeFlag, witnesses.String(), len(data))
+		// The receipt card goes to stderr, so stdout stays usable even
+		// when a file was written.
+		presentDownload(cmd.ErrOrStderr(), outPath, format, id, typeFlag, witnesses.String(), len(data))
 		return nil
 	},
 }
@@ -241,7 +283,7 @@ func validateTypeVsShape(typeFlag string, shape proof.IDType) error {
 	return nil
 }
 
-func presentDownload(filename, format, id, typeFlag, witnesses string, size int) {
+func presentDownload(w io.Writer, filename, format, id, typeFlag, witnesses string, size int) {
 	header := ui.AccentBoldStyle().Render("  Proof Downloaded")
 
 	formatDisplay := strings.ToUpper(format)
@@ -270,7 +312,7 @@ func presentDownload(filename, format, id, typeFlag, witnesses string, size int)
 	// Plain newline-join, see note in internal/verify/presenter.go
 	// Present(). Long filenames (e.g. truestamp-entropy-bitcoin-<uuidv7>.cbor)
 	// won't inflate every other table row on narrow terminals.
-	lipgloss.Println(strings.Join([]string{header, "", tbl.String()}, "\n"))
+	ui.Fprintln(w, strings.Join([]string{header, "", tbl.String()}, "\n"))
 }
 
 func formatSize(size int) string {
@@ -285,12 +327,13 @@ func formatSize(size int) string {
 }
 
 func init() {
-	f := downloadCmd.Flags()
+	f := proofsGetCmd.Flags()
 	f.StringP("format", "f", "json", `Output format: "json" or "cbor"`)
-	f.StringP("output", "o", "", "Output file path (default: auto-generated from ID)")
+	f.StringP("out", "o", "", "Write the bundle to this path (default: stdout)")
+	f.Bool("to-file", false, "Write the bundle to a conventionally-named file in the current directory")
 	f.String("type", "",
-		fmt.Sprintf(`Subject type (required for UUIDv7 ids; auto-defaults to "item" for ULID). One of: %s`,
+		fmt.Sprintf(`Subject type. Optional: a ULID is an item, and a UUIDv7 is resolved against the server in one extra round trip. One of: %s`,
 			strings.Join(downloadTypeValues, " | ")))
 	f.String("witnesses", "all", "Witness details to carry: all, none, or a comma-separated list of "+strings.Join(proof.WitnessNames, ","))
-	rootCmd.AddCommand(downloadCmd)
+	proofsCmd.AddCommand(proofsGetCmd)
 }

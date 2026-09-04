@@ -10,6 +10,7 @@ These files are **not** published to <https://get.truestamp.com/>, that site is 
 
 | Document | Covers | Read it when |
 | -------- | ------ | ------------ |
+| [command-tree.md](command-tree.md) | The noun-first tree and the closed verb vocabulary (R0 to R13) that decides where a command goes and what it is called, the verb matrix across all six resource groups, the clean-break inventory, phases, and the deferred designs with their research | **Before adding, renaming, or moving any command, group, or flag** |
 | [proof-bundle-format.md](proof-bundle-format.md) | The published version 1 wire format: every key, the block map, commitment entries, the witness registry, the frozen type registry, the E.6 hard rejections in order, the CBOR value-space conversion, the E.4 hex-encoding rule and its exclusions | Touching `internal/proof`, parsing, or CBOR |
 | [verification-steps.md](verification-steps.md) | The ordered E.7 to E.21 steps as the reference verifier runs them, E.22 group names and categories, the submission window's two edges, what may be skipped, E.25 containment, remote mode | Touching `internal/verify` or `cmd/verify.go` |
 | [architecture.md](architecture.md) | Appendix E conformance machinery, code organization, CLI behavior, data handling, testing, grouped under those five headings. Post-action cards and web-URL construction (`internal/ui/weburls.go`) are under "CLI behavior"; the `internal/ui` styling foundation and the logic/presentation split are under "Code organization" | Any structural change, or touching `internal/ui` |

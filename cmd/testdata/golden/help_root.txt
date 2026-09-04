@@ -6,25 +6,38 @@ Copyright (c) 2019-2026 Truestamp, Inc. All rights reserved.
 Usage:
   truestamp [command]
 
-Available Commands:
-  auth        Manage Truestamp authentication
-  beacon      Inspect Truestamp block beacons
-  completion  Generate the autocompletion script for the specified shell
-  config      Manage CLI configuration
-  console     Open the interactive Truestamp console (TUI)
-  convert     Convert Truestamp-domain values (time, proof format, IDs, keyid, Merkle proofs)
-  create      Create a new Truestamp item
+Verify a proof:
+  inspect     Print a proof bundle's key fields without verifying it
+  verify      Verify a Truestamp proof bundle
+
+Truestamp resources:
+  beacons     Read-only: public randomness over finalized blocks
+  blocks      Read-only: Truestamp's block chain
+  items       Create and inspect timestamped items
+  keys        Read-only: Truestamp's published signing keys
+  proofs      Fetch and convert proof bundles
+  teams       List, create, and switch teams
+
+Local tools (stdin → stdout primitives):
+  convert     Convert Truestamp-domain values (time, IDs, keyid, Merkle proofs)
   decode      Decode hex / base64 / base64url into raw bytes
-  download    Download a Truestamp proof bundle
   encode      Encode raw bytes into hex, base64, or base64url
   hash        Compute cryptographic digests (SHA-2 / SHA-3 / BLAKE2 / MD5 / SHA-1)
-  help        Help about any command
-  inspect     Print a proof bundle's key fields without verifying it
   jcs         Canonicalize JSON per RFC 8785 (JSON Canonicalization Scheme)
-  team        Manage the active Truestamp team context
+
+Setup:
+  auth        Manage Truestamp authentication
+  config      Manage CLI configuration
+
+Other:
+  console     Open the interactive Truestamp console (TUI)
+  schema      Read-only: the command tree and registries
   upgrade     Upgrade the truestamp CLI to the latest release
-  verify      Verify a Truestamp proof bundle
   version     Print detailed version, build, and runtime information
+
+Additional Commands:
+  completion  Generate the autocompletion script for the specified shell
+  help        Help about any command
 
 Flags:
       --api-key string        API key for authenticating with the Truestamp API

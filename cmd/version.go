@@ -15,14 +15,32 @@ import (
 )
 
 var versionCmd = &cobra.Command{
-	Use:   "version",
-	Short: "Print detailed version, build, and runtime information",
-	Long:  "Print detailed version info including module path, config path, Go toolchain, platform, commit, and build date.",
-	Args:  cobra.NoArgs,
-	Run: func(cmd *cobra.Command, args []string) {
+	Use:           "version",
+	Short:         "Print detailed version, build, and runtime information",
+	Long:          "Print detailed version info including module path, config path, Go toolchain, platform, commit, and build date.",
+	Args:          cobra.NoArgs,
+	SilenceUsage:  true,
+	SilenceErrors: true,
+	RunE: func(cmd *cobra.Command, args []string) error {
 		// The file in effect, not the platform default: `truestamp
 		// version --config X` must report X.
 		configPath := config.ActivePath()
+
+		jsonOut, silent := outputMode(cmd)
+		if silent {
+			return nil
+		}
+		if jsonOut {
+			return emitRecord(cmd.OutOrStdout(), versionRecord{
+				Version:    version.Version,
+				Path:       version.Path,
+				ConfigPath: configPath,
+				Install:    install.Detect().String(),
+				Go:         version.GoFor(),
+				Commit:     version.GitCommit,
+				Built:      version.BuildDate,
+			})
+		}
 
 		lines := []struct{ label, value string }{
 			{"version", version.Version},
@@ -44,9 +62,24 @@ var versionCmd = &cobra.Command{
 				valueStyle.Render(ln.value),
 			))
 		}
+		return nil
 	},
 }
 
+// versionRecord is the --json shape of `truestamp version`. Field names
+// match the text labels so the two renderings are diffable by eye.
+type versionRecord struct {
+	Version    string `json:"version"`
+	Path       string `json:"path"`
+	ConfigPath string `json:"config_path"`
+	Install    string `json:"install"`
+	Go         string `json:"go"`
+	Commit     string `json:"commit"`
+	Built      string `json:"built"`
+}
+
 func init() {
+	addRecordOutputFlags(versionCmd)
+	versionCmd.GroupID = groupOther
 	rootCmd.AddCommand(versionCmd)
 }

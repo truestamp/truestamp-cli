@@ -113,7 +113,6 @@ type InspectSummary struct {
 	Bytes           int              `json:"bytes"`
 	Version         json.RawMessage  `json:"version"`
 	Type            string           `json:"type"`
-	TypeCode        int              `json:"type_code"`
 	GeneratedAt     string           `json:"generated_at"`
 	PublicKey       string           `json:"public_key"`
 	KeyID           string           `json:"key_id,omitempty"`
@@ -187,7 +186,6 @@ func inspectSummary(b *proof.Bundle, source string, size int) InspectSummary {
 		Bytes:       size,
 		Version:     version,
 		Type:        b.Type,
-		TypeCode:    int(b.Code),
 		GeneratedAt: b.GeneratedAt,
 		PublicKey:   b.PublicKey,
 		Block:       inspectBlock(b.Block),
@@ -296,7 +294,12 @@ func renderInspect(s InspectSummary) string {
 	}
 	row("Source", fmt.Sprintf("%s (%s, %d bytes)", s.Source, s.Format, s.Bytes))
 	row("Version", string(s.Version))
-	row("Type", fmt.Sprintf("%s (code %d)", s.Type, s.TypeCode))
+	// The type NAME, not the numeric code. The bundle carries the name; the
+	// code exists only inside the signature preimage and is reachable only
+	// through the frozen registry, so reporting it here would be inspect
+	// asserting something the bundle does not say. `truestamp schema get
+	// subject-types` has the mapping for anyone rebuilding that payload.
+	row("Type", s.Type)
 	row("Generated at", orDash(s.GeneratedAt))
 	row("Public key", orDash(s.PublicKey))
 	row("Derived key id", orDash(s.KeyID))
@@ -425,5 +428,6 @@ func init() {
 	f.Lookup("url").NoOptDefVal = inputsrc.URLPromptSentinel
 	f.Bool("json", false, "Output the summary as JSON")
 	f.BoolP("silent", "s", false, "No output, exit code only")
+	inspectCmd.GroupID = groupVerification
 	rootCmd.AddCommand(inspectCmd)
 }

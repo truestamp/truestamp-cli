@@ -15,6 +15,7 @@ import (
 
 	"github.com/spf13/cobra"
 	"github.com/truestamp/truestamp-cli/internal/inputsrc"
+	"github.com/truestamp/truestamp-cli/internal/ui"
 )
 
 var convertTimeCmd = &cobra.Command{
@@ -37,7 +38,7 @@ Examples:
   truestamp convert time now --to-zone UTC
   truestamp convert time "2026-04-21T12:00:00Z" --to-zone America/New_York
   truestamp convert time 1700000000 --format unix-ms
-  date | truestamp convert time --from rfc3339 --to-zone Asia/Kolkata`,
+  date -u +%Y-%m-%dT%H:%M:%SZ | truestamp convert time --to-zone Asia/Kolkata`,
 	SilenceUsage:  true,
 	SilenceErrors: true,
 	RunE:          runConvertTime,
@@ -115,7 +116,7 @@ func runConvertTime(cmd *cobra.Command, args []string) error {
 	if silent {
 		return nil
 	}
-	fmt.Fprintln(cmd.OutOrStdout(), out)
+	ui.Fprintln(cmd.OutOrStdout(), out)
 	return nil
 }
 

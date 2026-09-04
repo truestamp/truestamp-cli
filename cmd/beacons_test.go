@@ -167,13 +167,13 @@ func cleanEnv() []string {
 
 // --- beacon ---------------------------------------------------------------
 
-func TestCLI_Beacon_Latest_HashOnly(t *testing.T) {
+func TestCLI_Beacons_Latest_HashOnly(t *testing.T) {
 	url, stop := startBeaconServer(t)
 	defer stop()
 
 	stdout, _, exit := runCLI(t,
 		"--base-url", url, "--api-key", "test-key",
-		"beacon", "latest", "--hash-only")
+		"beacons", "latest", "--hash-only")
 	if exit != 0 {
 		t.Fatalf("exit=%d, stdout=%q", exit, stdout)
 	}
@@ -183,29 +183,35 @@ func TestCLI_Beacon_Latest_HashOnly(t *testing.T) {
 	}
 }
 
-func TestCLI_Beacon_Default_IsLatest(t *testing.T) {
-	// `truestamp beacon` (no subcommand) should behave as `beacon latest`.
-	url, stop := startBeaconServer(t)
-	defer stop()
-
-	stdout, _, exit := runCLI(t,
-		"--base-url", url, "--api-key", "test-key",
-		"beacon", "--hash-only")
+// TestCLI_Beacons_BareGroupPrintsHelp pins R0: a bare group is a
+// namespace, never a command. `truestamp beacon` used to run `latest`,
+// which made the group name mean two things and hid the word `latest`
+// from the people who most needed to learn it. It also required a
+// credential, so on a fresh machine the answer to "what can I do here?"
+// was an auth error.
+func TestCLI_Beacons_BareGroupPrintsHelp(t *testing.T) {
+	// Deliberately no --api-key: help must work with no credential.
+	stdout, _, exit := runCLI(t, "beacons")
 	if exit != 0 {
-		t.Fatalf("exit=%d", exit)
+		t.Fatalf("a bare group must exit 0, got %d", exit)
 	}
-	if strings.TrimRight(stdout, "\n") != testBeaconHash {
-		t.Errorf("want hash, got %q", stdout)
+	for _, want := range []string{"latest", "list", "get"} {
+		if !strings.Contains(stdout, want) {
+			t.Errorf("bare group help should list %q, got:\n%s", want, stdout)
+		}
+	}
+	if strings.Contains(stdout, testBeaconHash) {
+		t.Error("a bare group must not run latest")
 	}
 }
 
-func TestCLI_Beacon_Latest_JSON(t *testing.T) {
+func TestCLI_Beacons_Latest_JSON(t *testing.T) {
 	url, stop := startBeaconServer(t)
 	defer stop()
 
 	stdout, _, exit := runCLI(t,
 		"--base-url", url, "--api-key", "test-key",
-		"beacon", "latest", "--json")
+		"beacons", "latest", "--json")
 	if exit != 0 {
 		t.Fatalf("exit=%d", exit)
 	}
@@ -228,13 +234,13 @@ func TestCLI_Beacon_Latest_JSON(t *testing.T) {
 	_ = got
 }
 
-func TestCLI_Beacon_List_JSON(t *testing.T) {
+func TestCLI_Beacons_List_JSON(t *testing.T) {
 	url, stop := startBeaconServer(t)
 	defer stop()
 
 	stdout, _, exit := runCLI(t,
 		"--base-url", url, "--api-key", "test-key",
-		"beacon", "list", "--limit", "2", "--json")
+		"beacons", "list", "--limit", "2", "--json")
 	if exit != 0 {
 		t.Fatalf("exit=%d, stdout=%q", exit, stdout)
 	}
@@ -247,28 +253,27 @@ func TestCLI_Beacon_List_JSON(t *testing.T) {
 	}
 }
 
-func TestCLI_Beacon_List_HashOnly_Rejected(t *testing.T) {
-	url, stop := startBeaconServer(t)
-	defer stop()
-
-	_, stderr, exit := runCLI(t,
-		"--base-url", url, "--api-key", "test-key",
-		"beacon", "list", "--hash-only")
+// TestCLI_Beacons_List_HasNoHashOnly: --hash-only was registered on
+// `list` purely to reject it with a message. A flag that exists only to
+// fail is a trap; it is now simply not registered there, so the shell
+// completes it only where it works and cobra reports an unknown flag.
+func TestCLI_Beacons_List_HasNoHashOnly(t *testing.T) {
+	_, stderr, exit := runCLI(t, "beacons", "list", "--hash-only")
 	if exit == 0 {
 		t.Fatal("expected non-zero exit")
 	}
-	if !strings.Contains(stderr, "not valid") {
-		t.Errorf("want 'not valid' message, stderr=%q", stderr)
+	if !strings.Contains(stderr, "unknown flag") {
+		t.Errorf("want an unknown-flag error, stderr=%q", stderr)
 	}
 }
 
-func TestCLI_Beacon_Get_HashOnly(t *testing.T) {
+func TestCLI_Beacons_Get_HashOnly(t *testing.T) {
 	url, stop := startBeaconServer(t)
 	defer stop()
 
 	stdout, _, exit := runCLI(t,
 		"--base-url", url, "--api-key", "test-key",
-		"beacon", "get", testBeaconID, "--hash-only")
+		"beacons", "get", testBeaconID, "--hash-only")
 	if exit != 0 {
 		t.Fatalf("exit=%d", exit)
 	}
@@ -277,13 +282,13 @@ func TestCLI_Beacon_Get_HashOnly(t *testing.T) {
 	}
 }
 
-func TestCLI_Beacon_ByHash_HashOnly(t *testing.T) {
+func TestCLI_Beacons_ByHash_HashOnly(t *testing.T) {
 	url, stop := startBeaconServer(t)
 	defer stop()
 
 	stdout, _, exit := runCLI(t,
 		"--base-url", url, "--api-key", "test-key",
-		"beacon", "by-hash", testBeaconHash, "--hash-only")
+		"beacons", "get", testBeaconHash, "--hash-only")
 	if exit != 0 {
 		t.Fatalf("exit=%d", exit)
 	}
@@ -292,7 +297,7 @@ func TestCLI_Beacon_ByHash_HashOnly(t *testing.T) {
 	}
 }
 
-func TestCLI_Beacon_Get_BadUUIDClientSide(t *testing.T) {
+func TestCLI_Beacons_Get_BadUUIDClientSide(t *testing.T) {
 	// Server should never be hit, client-side validation rejects first.
 	called := false
 	srv := httptest.NewServer(http.HandlerFunc(func(_ http.ResponseWriter, _ *http.Request) {
@@ -302,7 +307,7 @@ func TestCLI_Beacon_Get_BadUUIDClientSide(t *testing.T) {
 
 	_, stderr, exit := runCLI(t,
 		"--base-url", srv.URL, "--api-key", "test-key",
-		"beacon", "get", "not-a-uuid")
+		"beacons", "get", "not-a-uuid")
 	if exit == 0 {
 		t.Fatal("expected non-zero exit")
 	}
@@ -314,7 +319,7 @@ func TestCLI_Beacon_Get_BadUUIDClientSide(t *testing.T) {
 	}
 }
 
-func TestCLI_Beacon_ByHash_BadHashClientSide(t *testing.T) {
+func TestCLI_Beacons_ByHash_BadHashClientSide(t *testing.T) {
 	called := false
 	srv := httptest.NewServer(http.HandlerFunc(func(_ http.ResponseWriter, _ *http.Request) {
 		called = true
@@ -323,7 +328,7 @@ func TestCLI_Beacon_ByHash_BadHashClientSide(t *testing.T) {
 
 	_, stderr, exit := runCLI(t,
 		"--base-url", srv.URL, "--api-key", "test-key",
-		"beacon", "by-hash", "ABCDEF")
+		"beacons", "get", "ABCDEF")
 	if exit == 0 {
 		t.Fatal("expected non-zero exit")
 	}
@@ -335,7 +340,7 @@ func TestCLI_Beacon_ByHash_BadHashClientSide(t *testing.T) {
 	}
 }
 
-func TestCLI_Beacon_MissingAPIKey_NotAuthenticated(t *testing.T) {
+func TestCLI_Beacons_MissingAPIKey_NotAuthenticated(t *testing.T) {
 	// Even if we give a URL, without an API key the client should fail
 	// fast with a non-silent "Not authenticated" banner on stderr.
 	called := false
@@ -346,7 +351,7 @@ func TestCLI_Beacon_MissingAPIKey_NotAuthenticated(t *testing.T) {
 
 	_, stderr, exit := runCLI(t,
 		"--base-url", srv.URL,
-		"beacon", "latest")
+		"beacons", "latest")
 	if exit == 0 {
 		t.Fatal("expected non-zero exit")
 	}
@@ -358,10 +363,10 @@ func TestCLI_Beacon_MissingAPIKey_NotAuthenticated(t *testing.T) {
 	}
 }
 
-func TestCLI_Beacon_MutualExclusion_SilentJSON(t *testing.T) {
+func TestCLI_Beacons_MutualExclusion_SilentJSON(t *testing.T) {
 	_, stderr, exit := runCLI(t,
 		"--api-key", "test-key",
-		"beacon", "latest", "--silent", "--json")
+		"beacons", "latest", "--silent", "--json")
 	if exit == 0 {
 		t.Fatal("expected non-zero exit")
 	}

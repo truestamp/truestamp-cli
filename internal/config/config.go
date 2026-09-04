@@ -64,11 +64,24 @@ type Config struct {
 	// Must be an absolute path to an executable when set; empty means
 	// fall back to $PATH lookup. Settable in config.toml as
 	// `cosign_path = "..."` or via the TRUESTAMP_COSIGN_PATH env var.
-	CosignPath string        `koanf:"cosign_path"`
-	Verify     VerifyConfig  `koanf:"verify"`
-	Hash       HashConfig    `koanf:"hash"`
-	Convert    ConvertConfig `koanf:"convert"`
-	Logging    LoggingConfig `koanf:"logging"`
+	CosignPath string `koanf:"cosign_path"`
+
+	// Silent and JSON are CLI-wide output settings, not verify's private
+	// property. They live at the top level because `flagKeyMap` resolves a
+	// flag name to a koanf key GLOBALLY: scoping them under `verify.` while
+	// registering `--json` / `--silent` as root persistent flags would make
+	// `truestamp hash --json` write into `verify.json`. See kb/command-tree.md
+	// R10, and the note there about the same hazard recurring the first time
+	// two commands want the same flag name with different meanings.
+	//
+	// Mutually exclusive; Load rejects both being set.
+	Silent bool `koanf:"silent"`
+	JSON   bool `koanf:"json"`
+
+	Verify  VerifyConfig  `koanf:"verify"`
+	Hash    HashConfig    `koanf:"hash"`
+	Convert ConvertConfig `koanf:"convert"`
+	Logging LoggingConfig `koanf:"logging"`
 }
 
 // LoggingConfig holds CLI-wide logging settings. The logger is
@@ -79,7 +92,7 @@ type LoggingConfig struct {
 	// File overrides the platform-default log file path. Empty means
 	// fall back to logging.DefaultPath() (~/Library/Caches/truestamp/
 	// truestamp.log on macOS, ~/.cache/truestamp/truestamp.log on
-	// Linux, %LOCALAPPDATA%\truestamp\Cache\truestamp.log on Windows).
+	// Linux, %LOCALAPPDATA%\truestamp\truestamp.log on Windows).
 	File string `koanf:"file"`
 
 	// Level filters output: "debug" | "info" | "warn" | "error".
@@ -111,9 +124,7 @@ func (c Config) Timeout() time.Duration {
 
 // VerifyConfig holds verify-subcommand-specific configuration.
 type VerifyConfig struct {
-	Silent         bool `koanf:"silent"`
-	JSON           bool `koanf:"json"`
-	SkipExternal   bool `koanf:"skip_external"`
+	Offline        bool `koanf:"offline"`
 	SkipSignatures bool `koanf:"skip_signatures"`
 	Remote         bool `koanf:"remote"`
 
@@ -150,11 +161,10 @@ var flagKeyMap = map[string]string{
 	"http-timeout": "http_timeout",
 	"log-file":     "logging.file",
 	"log-level":    "logging.level",
+	"silent":       "silent",
+	"json":         "json",
 	// Verify subcommand flags
-	"silent":          "verify.silent",
-	"json":            "verify.json",
-	"skip-external":   "verify.skip_external",
-	"offline":         "verify.skip_external",
+	"offline":         "verify.offline",
 	"skip-signatures": "verify.skip_signatures",
 	"remote":          "verify.remote",
 	"keyring":         "verify.keyring",
@@ -180,9 +190,9 @@ func Load(configPath string, flags *pflag.FlagSet) (*Config, error) {
 		"team":                   "",
 		"http_timeout":           "10s",
 		"cosign_path":            "",
-		"verify.silent":          false,
-		"verify.json":            false,
-		"verify.skip_external":   false,
+		"silent":                 false,
+		"json":                   false,
+		"verify.offline":         false,
 		"verify.skip_signatures": false,
 		"verify.remote":          false,
 		"verify.keyring":         "",
@@ -261,6 +271,14 @@ func Load(configPath string, flags *pflag.FlagSet) (*Config, error) {
 	var cfg Config
 	if err := k.Unmarshal("", &cfg); err != nil {
 		return nil, fmt.Errorf("unmarshaling config: %w", err)
+	}
+
+	// --silent and --json are mutually exclusive everywhere, not just on
+	// verify. Enforcing it here rather than in each RunE means a command
+	// added later cannot forget to check: there is one output contract and
+	// one place that rejects an incoherent request for it.
+	if cfg.Silent && cfg.JSON {
+		return nil, fmt.Errorf("--silent and --json are mutually exclusive")
 	}
 
 	// Record whether the API key was supplied explicitly (env or flag) so
@@ -491,11 +509,11 @@ api_key = %q
 team = %q
 http_timeout = %q
 cosign_path = %q
-
-[verify]
 silent = %v
 json = %v
-skip_external = %v
+
+[verify]
+offline = %v
 skip_signatures = %v
 remote = %v
 keyring = %q
@@ -515,8 +533,8 @@ max_size_mb = %d
 max_backups = %d
 max_age_days = %d
 `, c.BaseURL, apiKey, c.Team, c.HTTPTimeout, c.CosignPath,
-		c.Verify.Silent, c.Verify.JSON,
-		c.Verify.SkipExternal, c.Verify.SkipSignatures, c.Verify.Remote, c.Verify.Keyring,
+		c.Silent, c.JSON,
+		c.Verify.Offline, c.Verify.SkipSignatures, c.Verify.Remote, c.Verify.Keyring,
 		c.Hash.Algorithm, c.Hash.Encoding, c.Hash.Style,
 		c.Convert.TimeZone,
 		c.Logging.File, c.Logging.Level,

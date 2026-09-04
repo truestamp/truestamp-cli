@@ -362,7 +362,7 @@ func (l *jsonAPILinks) UnmarshalJSON(data []byte) error {
 	return nil
 }
 
-// GetTeam fetches a single team by id. Useful for `truestamp team set
+// GetTeam fetches a single team by id. Useful for `truestamp teams use
 // <id>` validation: a 2xx confirms the user can read it (which by
 // policy means they have a membership), 4xx surfaces the JSON:API
 // detail string.

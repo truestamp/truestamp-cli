@@ -25,6 +25,7 @@ import (
 	"charm.land/huh/v2"
 	"github.com/truestamp/truestamp-cli/internal/httpclient"
 	"github.com/truestamp/truestamp-cli/internal/ui"
+	"golang.org/x/term"
 )
 
 // Sentinel flag values set via pflag's NoOptDefVal. The parenthesised
@@ -287,9 +288,40 @@ func resolvePath(opts Options) (string, Source, error) {
 	return "", Source{}, ErrNoInput
 }
 
-// IsStdinPipe returns true when stdin is connected to a pipe or file (not
-// a terminal). Exported so commands that need to branch on the presence
-// of piped input before calling Resolve can do so without importing os.
+// IsStdinTerminal reports whether stdin is attached to a real interactive
+// terminal, i.e. whether we may prompt the user.
+//
+// This goes through golang.org/x/term.IsTerminal (tcgetattr) rather than
+// the os.ModeCharDevice bit. The bit is too lax: /dev/null is also a
+// character device, so `truestamp verify --file </dev/null` looked like a
+// TTY, fell through to the interactive file picker, and blocked forever
+// under any pty-allocating harness (CI, `docker -t`, an agent's shell).
+// cmd/upgrade.go's stdinIsTerminal already documented this trap; this is
+// the same fix at the other call site.
+func IsStdinTerminal() bool {
+	return term.IsTerminal(int(os.Stdin.Fd()))
+}
+
+// IsStdoutTerminal reports whether stdout is attached to a terminal. Used
+// to refuse writing binary (CBOR) to a terminal, where it would garble the
+// session. Same term.IsTerminal contract as IsStdinTerminal, for the same
+// reason: the ModeCharDevice bit would also call /dev/null a terminal.
+func IsStdoutTerminal() bool {
+	return term.IsTerminal(int(os.Stdout.Fd()))
+}
+
+// IsStdinPipe returns true when stdin is a pipe or a regular file, i.e.
+// when there is plausibly data to read. Exported so commands that need to
+// branch on the presence of piped input before calling Resolve can do so
+// without importing os.
+//
+// This is NOT the inverse of IsStdinTerminal, and the two must not be
+// collapsed. They answer different questions, and /dev/null is the case
+// that separates them: it is a character device, so there is no data to
+// read (this returns false), and it is not a terminal, so we may not
+// prompt either (IsStdinTerminal also returns false). Both false is the
+// correct state for `truestamp hash </dev/null`, which should print help
+// rather than either hashing the empty string or opening a picker.
 func IsStdinPipe() bool {
 	stat, err := os.Stdin.Stat()
 	if err != nil {
@@ -297,10 +329,6 @@ func IsStdinPipe() bool {
 	}
 	return (stat.Mode() & os.ModeCharDevice) == 0
 }
-
-// IsStdinTerminal is the inverse of IsStdinPipe. Exported for clarity at
-// call sites that gate interactive prompts on a real TTY.
-func IsStdinTerminal() bool { return !IsStdinPipe() }
 
 // isHTTPURL returns true for well-formed http(s) URLs with a host. The
 // positional-arg path uses this to decide between a file and a URL.

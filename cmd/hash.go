@@ -19,6 +19,7 @@ import (
 	"github.com/truestamp/truestamp-cli/internal/hashing"
 	"github.com/truestamp/truestamp-cli/internal/inputsrc"
 	"github.com/truestamp/truestamp-cli/internal/jcs"
+	"github.com/truestamp/truestamp-cli/internal/ui"
 )
 
 // errHashFailed is returned when one or more inputs failed to hash, so
@@ -121,7 +122,7 @@ func runHash(cmd *cobra.Command, args []string) error {
 	// Legacy-algorithm warning: emit once before any output, but only
 	// when the user is seeing human output (not --json, not --silent).
 	if alg.Legacy && !jsonOut && !silent {
-		fmt.Fprintf(cmd.ErrOrStderr(),
+		ui.Fprintf(cmd.ErrOrStderr(),
 			"warning: %s is cryptographically broken and unsuitable for security uses\n",
 			alg.Name)
 	}
@@ -273,7 +274,7 @@ func runHashMany(cmd *cobra.Command, sources []inputsrc.Options, alg hashing.Alg
 		if errs[i] != nil {
 			hadError = true
 			if !silent {
-				fmt.Fprintf(cmd.ErrOrStderr(), "truestamp hash: %s\n", errs[i])
+				ui.Fprintf(cmd.ErrOrStderr(), "truestamp hash: %s\n", errs[i])
 			}
 			continue
 		}
@@ -352,18 +353,18 @@ func emitHashText(w io.Writer, alg hashing.Algorithm, enc encoding.Encoding, sty
 			// bare is always just the digest, filename column is
 			// never rendered, making it the correct choice for
 			// scripting and piping into another tool's --hash.
-			fmt.Fprintf(w, "%s\n", string(digestEnc))
+			ui.Fprintf(w, "%s\n", string(digestEnc))
 		case "bsd":
 			if noFilename {
-				fmt.Fprintf(w, "%s = %s\n", alg.BSDName, string(digestEnc))
+				ui.Fprintf(w, "%s = %s\n", alg.BSDName, string(digestEnc))
 			} else {
-				fmt.Fprint(w, hashing.FormatBSD(alg.BSDName, string(digestEnc), name))
+				ui.Fprint(w, hashing.FormatBSD(alg.BSDName, string(digestEnc), name))
 			}
 		default: // gnu
 			if noFilename {
-				fmt.Fprintf(w, "%s\n", string(digestEnc))
+				ui.Fprintf(w, "%s\n", string(digestEnc))
 			} else {
-				fmt.Fprint(w, hashing.FormatGNU(string(digestEnc), name, binaryMode))
+				ui.Fprint(w, hashing.FormatGNU(string(digestEnc), name, binaryMode))
 			}
 		}
 	}
@@ -440,7 +441,7 @@ func emitHashJSON(w io.Writer, alg hashing.Algorithm, enc encoding.Encoding, pre
 	if err != nil {
 		return fmt.Errorf("marshaling JSON: %w", err)
 	}
-	fmt.Fprintln(w, string(data))
+	ui.Fprintln(w, string(data))
 	return nil
 }
 
@@ -502,5 +503,6 @@ func init() {
 	f.Bool("json", false, "Output as JSON")
 	f.BoolP("silent", "s", false, "No output, exit code only")
 	f.Bool("no-filename", false, "Omit the filename from text output")
+	hashCmd.GroupID = groupTools
 	rootCmd.AddCommand(hashCmd)
 }

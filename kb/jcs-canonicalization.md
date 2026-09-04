@@ -26,14 +26,14 @@ The parser preserves `json.RawMessage` for every hashed map: `subject.claims`, `
 
 | Constant | Value | Side | Rule |
 | -------- | ----- | ---- | ---- |
-| `MaxSafeInteger` | `2^53 - 1` = 9007199254740991 | **producer** (`truestamp create`) | reject `\|n\| > 2^53 - 1` |
+| `MaxSafeInteger` | `2^53 - 1` = 9007199254740991 | **producer** (`truestamp items create`) | reject `\|n\| > 2^53 - 1` |
 | `MaxExactInteger` | `2^53` = 9007199254740992 | **verifier** (`truestamp verify`, `jcs`, `hash --jcs`) | warn at `\|n\| > 2^53` |
 
 The producer follows RFC 8785 Appendix B's SHOULD (JavaScript's `Number.MAX_SAFE_INTEGER`) and matches `Truestamp.SafeIntegers` server-side, so the CLI never emits a claim the server would 422. The verifier stops one value later because 2^53 itself round-trips through a double exactly; warning on it would raise a false alarm about a bundle every conforming implementation *can* check. **Be strict in what you emit, lenient in what you accept.** `internal/jcs.TestThresholdsDifferByOne` fails with an explanatory message if the gap ever closes.
 
-## Producer-side guard in `truestamp create`
+## Producer-side guard in `truestamp items create`
 
 `jcs.UnsafeIntegers(root, decoded)` walks a decoded claims map and returns **every** offending integer with its dotted key path (`claims.metadata.rows[0].id`), numbers compared via `math/big` because a 64-bit id or a 400-digit nonce overflows `int64`. Object keys are walked in sorted order so the list is deterministic despite Go's randomized map iteration. Floats are never reported: a large-magnitude value *spelled* as a float (`1e21`) is not an integer literal, exactly as on the verifier side.
 
-`cmd/create.go`'s `checkClaimsPortability` runs it **after `overlayFlags`** (so a value injected by `--metadata` is caught alongside one read from `--claims`) and **before the network call**, across both submission modes and every input path. `jcs.UnsafeIntegerMessage` is a byte-for-byte mirror of `Truestamp.SafeIntegers.message/2` in truestamp-v2 (path, value, allowed range, and the "send the value as a string" remedy) so a user who trips the local guard and one who trips the server's read the same sentence. Under `--json` the rejection is `{"error":"unsafe_integer","message":…,"violations":[{path,value,min,max}]}` with the numbers as **strings**, so a consumer parsing with doubles cannot re-round the very value being complained about.
+`cmd/items_create.go`'s `checkClaimsPortability` runs it **after `overlayFlags`** (so a value injected by `--metadata` is caught alongside one read from `--claims`) and **before the network call**, across both submission modes and every input path. `jcs.UnsafeIntegerMessage` is a byte-for-byte mirror of `Truestamp.SafeIntegers.message/2` in truestamp-v2 (path, value, allowed range, and the "send the value as a string" remedy) so a user who trips the local guard and one who trips the server's read the same sentence. Under `--json` the rejection is `{"error":"unsafe_integer","message":…,"violations":[{path,value,min,max}]}` with the numbers as **strings**, so a consumer parsing with doubles cannot re-round the very value being complained about.
 
