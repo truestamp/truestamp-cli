@@ -4,6 +4,7 @@
 package cmd
 
 import (
+	"bytes"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -69,6 +70,13 @@ Exit code 0 when the bundle parses, 1 when it is rejected.`,
 				return errSilentFail
 			}
 			return err
+		}
+
+		if len(bytes.TrimSpace(data)) == 0 {
+			if silent {
+				return errSilentFail
+			}
+			return errors.New("nothing to inspect: the input was empty (if it came through a pipe, the command before it produced nothing)")
 		}
 
 		bundle, err := proof.ParseBytes(data)

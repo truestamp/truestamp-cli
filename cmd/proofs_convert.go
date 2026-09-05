@@ -69,6 +69,12 @@ func runConvertProof(cmd *cobra.Command, args []string) error {
 	actualFrom := from
 	switch from {
 	case "", "auto":
+		if len(bytes.TrimSpace(data)) == 0 {
+			if silent {
+				return errSilentFail
+			}
+			return errors.New("no proof bundle to convert: the input was empty (if it came through a pipe, the command before it produced nothing)")
+		}
 		bundle, err = proof.ParseBytes(data)
 		if err != nil {
 			return fmt.Errorf("parsing proof: %w", err)

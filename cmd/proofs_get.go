@@ -204,7 +204,7 @@ output file).`,
 			appLogger.Error("download_failed", "id", id, "type", typeFlag, "err", err.Error())
 			var apiErr *proof.GenerateAPIError
 			if errors.As(err, &apiErr) {
-				return explainGenerateError(apiErr)
+				return explainGenerateError(cmd, apiErr)
 			}
 			return err
 		}
@@ -340,8 +340,8 @@ func init() {
 }
 
 // generateCodeAdvice is what a holder can do next for each /proof/generate
-// refusal code this CLI recognises: whether waiting helps, and the one
-// sentence of context worth adding to the server's own detail.
+// refusal code this CLI recognises: whether waiting helps, and the
+// context worth adding to the server's own detail.
 //
 // Terminality is a property of the CODE, never of the wording of `detail`:
 // detail is human-readable text the server may reword at any time, and it
@@ -351,61 +351,81 @@ func init() {
 // helps. The transient set mirrors the server's own closed retryable set.
 var generateCodeAdvice = map[string]struct {
 	transient bool
-	advice    string
+	advice    []string
 }{
-	proof.GenerateCodeNoExternalCommitments: {true, " A proof exists only after the subject's first\n" +
-		"public-chain commitment; items commit to a Truestamp block within about\n" +
-		"a minute and to Stellar within about five. Try again shortly."},
-	proof.GenerateCodeSubjectNotReady: {true, " The subject is not yet in a state a proof can be\n" +
-		"built from. Try again shortly."},
-	proof.GenerateCodeSubjectNotRecomputable: {false, ""},
-	proof.GenerateCodeGenerationFailed:       {false, ""},
+	proof.GenerateCodeNoExternalCommitments: {true, []string{
+		"A proof exists once the subject has its first public-chain commitment.",
+		"Items reach a Truestamp block within about a minute and Stellar within",
+		"about five.",
+	}},
+	proof.GenerateCodeSubjectNotReady: {true, []string{
+		"The subject is not yet in a state a proof can be built from.",
+	}},
+	proof.GenerateCodeSubjectNotRecomputable: {false, []string{
+		"The subject's commitment on the public chain is unaffected; what changed",
+		"is that its stored data no longer reproduces the hash that was",
+		"committed. Report the subject id to Truestamp.",
+	}},
+	proof.GenerateCodeGenerationFailed: {false, nil},
 }
 
-// explainGenerateError turns a /proof/generate refusal into something the
-// holder of the subject can act on.
+// explainGenerateError renders a /proof/generate refusal the way every
+// other refusal in the tree is rendered: a banner naming the outcome, the
+// server's own detail, what the holder can do next, and the code to quote
+// in a bug report. Nothing under --silent.
 //
 // The server says accurately what went wrong; what it cannot say is what
 // the caller should do next, and the single most useful part of that is
 // whether waiting will help. `no_external_commitments` clears on its own
 // in minutes; `subject_not_recomputable` never clears. Reporting both as
 // "API error" left a holder polling forever against a permanent condition.
-func explainGenerateError(e *proof.GenerateAPIError) error {
-	var b strings.Builder
-	// e.Error() carries the HTTP status and the server's meta.code, both of
-	// which are worth keeping: the status separates "refused" from
-	// "unreachable", and the code is the string to quote in a bug report.
-	b.WriteString(e.Error())
-
-	// A labelled verdict rather than a sentence, so it cannot read as a
-	// clumsy echo of whatever the server's own prose already says.
-	if a, known := generateCodeAdvice[e.Code]; known {
-		if a.transient {
-			b.WriteString("\n\nRetry: yes, this is transient.")
-		} else {
-			b.WriteString("\n\nRetry: no, this condition is permanent.")
-		}
-		b.WriteString(a.advice)
+func explainGenerateError(cmd *cobra.Command, e *proof.GenerateAPIError) error {
+	if _, silent := outputMode(cmd); silent {
+		return errSilentFail
+	}
+	a, known := generateCodeAdvice[e.Code]
+	banner := "Proof request refused"
+	switch {
+	case known && a.transient:
+		banner = "Proof not available yet"
+	case known:
+		banner = "Proof cannot be generated"
 	}
 
-	// Two codes carry fields whose rendering depends on the error itself.
+	var lines []string
+	if e.Detail != "" {
+		lines = append(lines, e.Detail)
+	}
 	switch e.Code {
 	case proof.GenerateCodeSubjectNotRecomputable:
 		if e.Drifted != "" {
-			fmt.Fprintf(&b, "\n\nWhat drifted: %s.", e.Drifted)
+			lines = append(lines, "What drifted: "+e.Drifted+".")
 		}
-		b.WriteString("\n\nThe subject's commitment on the public chain is unaffected; what")
-		b.WriteString("\nchanged is that its stored data no longer reproduces the hash that")
-		b.WriteString("\nwas committed. Report the subject id to Truestamp.")
-
 	case proof.GenerateCodeGenerationFailed:
 		// Comparing two values the server sent, not sniffing its prose for
 		// a keyword: the steps are already inside `detail` today, and
 		// printing the identical list twice reads as two failures.
 		if e.FailedSteps != "" && !strings.Contains(e.Detail, e.FailedSteps) {
-			fmt.Fprintf(&b, "\n\nFailed checks: %s", e.FailedSteps)
+			lines = append(lines, "Failed checks: "+e.FailedSteps)
 		}
 	}
+	lines = append(lines, a.advice...)
+	switch {
+	case known && a.transient:
+		lines = append(lines, "This clears on its own: try again shortly.")
+	case known:
+		lines = append(lines, "This will not clear on its own.")
+	}
+	code := e.Code
+	if code == "" {
+		code = "no error code"
+	}
+	lines = append(lines, fmt.Sprintf("The server said %s (HTTP %d).", code, e.StatusCode))
 
-	return errors.New(b.String())
+	w := cmd.ErrOrStderr()
+	ui.Fprintln(w, ui.FailureBanner(banner))
+	for _, l := range lines {
+		ui.Fprintln(w, ui.FaintStyle().Render("    "+l))
+	}
+	return errSilentFail
 }

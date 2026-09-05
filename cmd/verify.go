@@ -4,6 +4,7 @@
 package cmd
 
 import (
+	"bytes"
 	"encoding/hex"
 	"errors"
 	"fmt"
@@ -101,6 +102,15 @@ Exit code 0 when the proof passes, 1 when it fails or is rejected.`,
 				return errSilentFail
 			}
 			return err
+		}
+		if len(bytes.TrimSpace(data)) == 0 {
+			// The usual cause is a pipe whose left-hand command failed and
+			// printed nothing; say that rather than grading empty bytes as
+			// a malformed bundle.
+			if cfg.Silent {
+				return errSilentFail
+			}
+			return errors.New("no proof bundle to verify: the input was empty (if it came through a pipe, the command before it produced nothing)")
 		}
 
 		expectedHash, err := expectedHashFlag(cmd)
