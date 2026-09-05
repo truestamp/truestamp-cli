@@ -14,7 +14,7 @@ path, flag, type, default and enum - as machine-readable JSON.
 ## Table of contents
 
 - [External tools used in these examples](#external-tools-used-in-these-examples)
-- [Conventions](#conventions)
+- [Conventions](#conventions) (input modes, optional-value flags, [paging lists](#paging-lists))
 - [`truestamp auth`](#truestamp-auth) - **start here: prerequisite for `items` / `proofs get` / `blocks` / `beacons` / `entropy` / `teams` / `console` / `verify --remote`**
 - [`truestamp config`](#truestamp-config)
 - [Lifecycle: the three-step flow](#lifecycle-the-three-step-flow)
@@ -252,6 +252,39 @@ truestamp schema get exit-codes
 #   2       a network error prevented the check
 #   3       the latest release is a pre-release and will not auto-install
 ```
+
+### Paging lists
+
+`items list`, `blocks list` and `entropy list` page the same way, so learn it
+once:
+
+| Flag | What it does |
+| --- | --- |
+| `--limit N` | Page size (default 25; the server owns any ceiling and names it if you exceed it) |
+| `--after <cursor>` | Continue forward from the cursor a page printed |
+| `--before <cursor>` | Continue backward from the cursor a page printed |
+| `--oldest-first` | Start at the beginning (genesis, the first observation, the oldest item) instead of the newest row |
+| `--max N` | Follow cursors in the chosen direction until N rows have been fetched |
+| `--count` | Add the server's total to the heading (`(2 shown, 45,934 total)`) and `"total"` to `--json` |
+
+A text page that continues ends with `More: --after <cursor>` and, when it
+can go back, `Back: --before <cursor>`; `--json` is one envelope,
+`{"<noun>": [...], "next_cursor": "...", "prev_cursor": "..."}`. There is no
+`--all`: the tables behind these lists grow by the minute, so following pages
+costs a cap you wrote down, and `--max` sizes its last request to the rows
+still wanted so the cursor it hands back continues exactly.
+
+```sh
+truestamp blocks list --limit 2                  # newest two, plus a More: cursor
+truestamp blocks list --limit 2 --after <cursor> # the next two, plus More: and Back:
+truestamp blocks list --oldest-first --limit 2   # genesis first
+truestamp entropy list --max 500 --json | jq -r '.observations[].id'
+truestamp items list --count --limit 1           # Items (1 shown, 10 total)
+```
+
+`beacons list` is the one list without a cursor: its endpoint takes `?limit=`
+(at most 100) and nothing else, so it carries `--limit` alone and its `--json`
+is a bare array. The block history behind it is `blocks list`.
 
 ---
 
@@ -2149,14 +2182,20 @@ beacon is its four-field public projection.
 truestamp blocks latest       # the head block, whatever its state
 truestamp blocks genesis      # the first block, where every chain walk ends
 truestamp blocks list --limit 10
+truestamp blocks list --oldest-first --limit 3            # genesis first
+truestamp blocks list --limit 100 --max 1000 --count --json | jq -r '.blocks[].id'
 truestamp blocks get 01a06cfc-c5b6-77d5-a9c6-4ed42fef6429
 truestamp blocks get c001cf0c7eb2575b72cf3a56685f6a6218b0068b4ef79c7ce9f93bf1c578327f --json
 ```
 
 Either address form works: a UUIDv7 has hyphens, a block hash is exactly
-64 lowercase hex characters, so the two shapes are disjoint. `--limit`
-defaults to 25 and is forwarded as given; only `--limit 0` is refused
-locally. An id that does not resolve is an error, not an empty result:
+64 lowercase hex characters, so the two shapes are disjoint. `blocks list`
+pages like every other list (see [Paging lists](#paging-lists)): `--after`
+and `--before` continue from a printed cursor, `--oldest-first` starts at
+genesis, `--max` caps a multi-page walk, and `--count` reports the chain's
+length as the total. `--limit` defaults to 25 and is forwarded as given;
+only `--limit 0` is refused locally. An id that does not resolve is an
+error, not an empty result:
 
 ```sh
 truestamp blocks get 019db702-b08c-73dc-a7cd-2c5e011f1dad
