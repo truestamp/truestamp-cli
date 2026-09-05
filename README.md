@@ -274,7 +274,7 @@ Verify a proof:
 
 Truestamp resources:
   truestamp items create [file]         Create a timestamped item (claims, or a hash of a local file)
-  truestamp items list                  List items, newest first (--limit/--after, --committed/--pending, --all)
+  truestamp items list                  List items, newest first (--limit/--after/--max/--count, --committed/--pending)
   truestamp items get <id>              Show one item, including whether a proof can be generated
   truestamp items update <id>           Change visibility, tags, or the owning team (--to-team)
   truestamp proofs get <id>             Fetch a proof bundle to stdout (-o <path> or --to-file to write it)
@@ -346,6 +346,8 @@ truestamp convert time "2024-06-15T12:00:00Z" --to-zone Asia/Kolkata
 truestamp convert id 01KNN33GX5E470CB9TRWAYF9DD
 truestamp convert id 019cf813-99b8-730a-84f1-5a711a9c355e --to-zone Local
 ```
+
+Every list over a keyset-paged resource (`items list`, `blocks list`, `entropy list`) pages the same way: `--limit` is the page size, `--after <cursor>` continues from the cursor a previous page printed (`More: --after …`, or `next_cursor` in `--json`), `--max N` follows cursors until N rows have been fetched, and `--count` adds the server's total. There is no unbounded `--all`: the tables behind these lists grow by the minute, so following pages costs a cap you wrote down. Their `--json` is one envelope, `{"<noun>": [...], "next_cursor": "..."}`, plus `"total"` under `--count`. `beacons list` has no cursor (its endpoint takes `?limit=` up to 100) and takes `--limit` alone.
 
 `--json` (structured output for scripting) and `-s` / `--silent` (exit code only) are **CLI-wide, mutually exclusive settings**. Every command that renders a *record* carries them, including `auth status`, `config show`, `config path` and `version`. They can be set once via `config.toml`, `TRUESTAMP_JSON` or `TRUESTAMP_SILENT`.
 

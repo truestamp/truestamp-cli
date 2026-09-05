@@ -67,18 +67,18 @@ func TestGet_DecodesNumbersExactly(t *testing.T) {
 
 func TestList_QueryShape(t *testing.T) {
 	cfg, last := serve(t, `{"data":[`+observationJSON(validID, "entropy_nist")+`]}`)
-	list, err := List(context.Background(), cfg, "entropy_nist", 7)
+	page, err := List(context.Background(), cfg, ListOptions{Source: "entropy_nist", Limit: 7})
 	if err != nil {
 		t.Fatalf("List: %v", err)
 	}
-	if len(list) != 1 {
-		t.Fatalf("want 1 row, got %d", len(list))
+	if len(page.Observations) != 1 {
+		t.Fatalf("want 1 row, got %d", len(page.Observations))
 	}
 	q := last.Query()
 	if q.Get("sort") != "-id" || q.Get("page[limit]") != "7" || q.Get("filter[source]") != "entropy_nist" {
 		t.Errorf("query = %v", q)
 	}
-	if _, err := List(context.Background(), cfg, "nist", 1); err == nil {
+	if _, err := List(context.Background(), cfg, ListOptions{Source: "nist", Limit: 1}); err == nil {
 		t.Error("a bare source name must be refused; the wire names are the vocabulary")
 	}
 }

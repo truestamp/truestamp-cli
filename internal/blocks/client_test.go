@@ -115,7 +115,7 @@ func TestByHash_ValidatesBeforeSending(t *testing.T) {
 // rows a day, so an unbounded GET /blocks is a real hazard.
 func TestList_AlwaysSendsALimit(t *testing.T) {
 	cfg, last := serve(t, `[]`)
-	if _, err := List(context.Background(), cfg, 0); err != nil {
+	if _, err := List(context.Background(), cfg, ListOptions{}); err != nil {
 		t.Fatalf("List: %v", err)
 	}
 	if got := last.Query().Get("page[limit]"); got == "" {
@@ -132,7 +132,7 @@ func TestList_AlwaysSendsALimit(t *testing.T) {
 // "minimum": 1 and no maximum anywhere, so the number could only drift.
 func TestList_ForwardsAnOversizeLimitToTheServer(t *testing.T) {
 	cfg, rec := serve(t, `[]`)
-	if _, err := List(context.Background(), cfg, 5000); err != nil {
+	if _, err := List(context.Background(), cfg, ListOptions{Limit: 5000}); err != nil {
 		t.Fatalf("List must forward the limit rather than judging it: %v", err)
 	}
 	if got := rec.Query().Get("page[limit]"); got != "5000" {
@@ -228,10 +228,11 @@ func TestUnwrap_HandlesBothEnvelopes(t *testing.T) {
 func TestList_FlattensResourceObjects(t *testing.T) {
 	body := `{"data":[{"type":"block","id":"` + validID + `","attributes":{"state":"finalized","block_hash":"` + validHash + `"}}]}`
 	cfg, _ := serve(t, body)
-	list, err := List(context.Background(), cfg, 5)
+	page, err := List(context.Background(), cfg, ListOptions{Limit: 5})
 	if err != nil {
 		t.Fatalf("List: %v", err)
 	}
+	list := page.Blocks
 	if len(list) != 1 {
 		t.Fatalf("got %d blocks", len(list))
 	}

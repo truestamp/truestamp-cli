@@ -2064,17 +2064,23 @@ truestamp items list --limit 2
 #
 #   01M1PHJRN546DKV7QYAW7RAP2B  ✓ committed  contract.pdf
 #   01M1PHJR9R51VQ7JPTR9RNAMS3  ✓ committed  contract.pdf
-#     More items: --after g2wAAAABbQAAABowMU0xUEhKUjlSNTFWUTdKUFRSOVJOQU1TM2o=
+#     More: --after g2wAAAABbQAAABowMU0xUEhKUjlSNTFWUTdKUFRSOVJOQU1TM2o=
 
 truestamp items list --after g2wAAAABbQAAABowMU0xUEhKUjlSNTFWUTdKUFRSOVJOQU1TM2o=
 truestamp items list --limit 100
 
-# ...or follow every cursor to the end, which is a lot of requests on a
-# large team.
-truestamp items list --all --json | jq -r '.items[].id'
+# ...or follow cursors until a cap you choose. There is no unbounded walk:
+# the tables behind these lists grow by the minute, so --max is the price
+# of following pages. Each page is --limit rows; the last asks for only the
+# rows still wanted, so the cursor printed at the end continues exactly.
+truestamp items list --max 200 --json | jq -r '.items[].id'
 # 01M1PHJRN546DKV7QYAW7RAP2B
 # 01M1PHJR9R51VQ7JPTR9RNAMS3
 # ...
+
+# --count adds the server's total to the heading (and "total" to --json)
+truestamp items list --limit 2 --count
+#   Items (2 shown, 3 total)
 
 # One item, including whether a proof is available yet
 truestamp items get 01M1M74XBVCAMMWGY8SZJD7YPZ
@@ -2095,10 +2101,12 @@ truestamp items get 01M1M74XBVCAMMWGY8SZJD7YPZ
 The item card closes with the same kind of link the beacon card does: a
 Details URL at `/items/<id>`, on whichever origin `base_url` names.
 
-Unlike `beacons list --json`, which is a bare array, `items list --json`
-is an object: `{"items": [...], "next_cursor": "..."}`, with
-`next_cursor` an empty string once the last page has been read. Reach for
-`.items[]` in `jq`, not `.[]`. `--limit` is bounded on one side only: the
+`items list --json`, like every keyset-paged list (`blocks list`,
+`entropy list`), is an object: `{"items": [...], "next_cursor": "..."}`,
+plus `"total"` under `--count`, with `next_cursor` an empty string once the
+last page has been read. Reach for `.items[]` in `jq`, not `.[]`.
+`beacons list --json` is the exception, a bare array: its endpoint has no
+cursor. `--limit` is bounded on one side only: the
 CLI refuses `--limit 0` locally, because the API contract states a minimum
 of 1, and forwards everything else for the server to accept or refuse. The
 ceiling is the server's and it names its own when it declines.
@@ -2224,6 +2232,12 @@ truestamp entropy list --limit 4
 #   2026-09-05T20:36:37Z    entropy_stellar    created    01a07349-9b9e-7d40-90f2-493759b1865a    bdcb9659…8a4e8d40
 #   2026-09-05T20:36:00Z    entropy_nist       created    01a07349-8a08-7862-8064-48350f95c400    c4b3baf8…89bc82a7
 truestamp entropy list --source entropy_bitcoin --limit 2
+
+# Page like every other list: --after continues from a printed cursor,
+# --max follows cursors up to a cap, --count adds the total
+truestamp entropy list --source entropy_bitcoin --limit 50 --max 200 --json | jq -r '.observations[].entropy_hash'
+truestamp entropy list --count --limit 1
+#   Entropy Observations (1 shown, 593,419 total)
 
 # Look up by UUIDv7 id, or by the 64-hex entropy hash
 truestamp entropy get 01a07335-b8fe-7ef2-856c-c9b4eca99850
