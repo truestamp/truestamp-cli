@@ -4,7 +4,6 @@
 package cmd
 
 import (
-	"errors"
 	"fmt"
 	"io"
 	"math"
@@ -59,7 +58,7 @@ func runBeaconsLatest(cmd *cobra.Command, _ []string) error {
 
 	b, err := beacons.Latest(cmd.Context(), cfg)
 	if err != nil {
-		return beaconRenderError(cmd, err, silent)
+		return renderAPIError(cmd, err, "beacon")
 	}
 	return renderBeacon(cmd, b, jsonOut, hashOnly, silent)
 }
@@ -93,32 +92,6 @@ func beaconConfig(cmd *cobra.Command) (beacons.Config, error) {
 		return beacons.Config{}, err
 	}
 	return beacons.Config{APIURL: appConfig.APIURL, Team: appConfig.Team}, nil
-}
-
-// beaconRenderError converts a client error into a user-facing message and
-// an appropriate non-zero exit. Preserves `errors[].detail` verbatim.
-// 401 → errSilentFail after printing the Not-authenticated banner; other
-// statuses → a plain error so the root Execute() prints it to stderr.
-func beaconRenderError(cmd *cobra.Command, err error, silent bool) error {
-	if errors.Is(err, beacons.ErrUnauthorized) {
-		return failNotAuthenticated(cmd)
-	}
-	if silent {
-		return errSilentFail
-	}
-	// Surface the API detail via the stringer.
-	var apiErr *beacons.APIError
-	if errors.As(err, &apiErr) {
-		switch {
-		case errors.Is(err, beacons.ErrNotFound):
-			return fmt.Errorf("beacon not found")
-		case errors.Is(err, beacons.ErrRateLimited) && apiErr.RetryAfter != "":
-			return fmt.Errorf("rate limited (Retry-After: %s): %s", apiErr.RetryAfter, apiErr.Detail)
-		default:
-			return fmt.Errorf("%s", apiErr.Error())
-		}
-	}
-	return err
 }
 
 // renderBeacon emits the single-beacon card, --json, or --hash-only.

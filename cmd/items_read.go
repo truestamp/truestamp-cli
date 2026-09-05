@@ -55,7 +55,7 @@ evidence, and the authoritative answer is:
 		for {
 			page, err := items.List(cmd.Context(), appConfig.APIURL, appConfig.Team, opts)
 			if err != nil {
-				return err
+				return renderAPIError(cmd, err, "item")
 			}
 			collected = append(collected, page.Items...)
 			if !all || page.NextCursor == "" {
@@ -82,7 +82,7 @@ the proof and check it yourself:
 		}
 		it, err := items.Get(cmd.Context(), appConfig.APIURL, appConfig.Team, strings.TrimSpace(args[0]))
 		if err != nil {
-			return err
+			return renderAPIError(cmd, err, "item")
 		}
 		return renderItem(cmd, it)
 	},
@@ -135,7 +135,7 @@ Examples:
 		it, err := items.Update(cmd.Context(), appConfig.APIURL, appConfig.Team,
 			strings.TrimSpace(args[0]), opts)
 		if err != nil {
-			return err
+			return renderAPIError(cmd, err, "item")
 		}
 		return renderItem(cmd, it)
 	},

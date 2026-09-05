@@ -65,7 +65,7 @@ func runBeaconsGet(cmd *cobra.Command, args []string) error {
 			"%q is neither a UUIDv7 id nor a 64-hex-char beacon hash", arg)
 	}
 	if err != nil {
-		return beaconRenderError(cmd, err, silent)
+		return renderAPIError(cmd, err, "beacon")
 	}
 	return renderBeacon(cmd, b, jsonOut, hashOnly, silent)
 }

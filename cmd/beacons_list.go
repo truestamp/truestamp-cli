@@ -45,7 +45,7 @@ func runBeaconsList(cmd *cobra.Command, _ []string) error {
 
 	items, err := beacons.List(cmd.Context(), cfg, limit)
 	if err != nil {
-		return beaconRenderError(cmd, err, silent)
+		return renderAPIError(cmd, err, "beacon")
 	}
 
 	if silent {

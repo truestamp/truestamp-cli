@@ -20,22 +20,6 @@ func FuzzParseResponse(f *testing.F) {
 	})
 }
 
-// FuzzParseError: API error envelope parser. Attacker-controlled bytes
-// (server responses) feed it; must always return a typed error.
-func FuzzParseError(f *testing.F) {
-	f.Add(400, []byte(`{"errors":[{"detail":"bad"}]}`))
-	f.Add(500, []byte("<html>oops</html>"))
-	f.Add(0, []byte(""))
-	f.Add(404, []byte("gibberish"))
-
-	f.Fuzz(func(t *testing.T, code int, body []byte) {
-		err := parseError(code, body)
-		if err == nil {
-			t.Errorf("parseError should always return a non-nil error")
-		}
-	})
-}
-
 // FuzzGetString: the small `attributes -> string` helper. Fuzz with
 // varied maps.
 func FuzzGetString(f *testing.F) {

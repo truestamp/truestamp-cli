@@ -248,7 +248,7 @@ func TestAPIErrorsCarryDetailAndClass(t *testing.T) {
 		sentinel error
 	}{
 		{http.StatusUnauthorized, ErrUnauthorized},
-		{http.StatusForbidden, ErrUnauthorized},
+		{http.StatusForbidden, ErrForbidden},
 		{http.StatusNotFound, ErrNotFound},
 		{http.StatusTooManyRequests, ErrRateLimited},
 		{http.StatusBadRequest, ErrBadRequest},
