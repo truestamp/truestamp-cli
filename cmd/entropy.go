@@ -49,9 +49,11 @@ var entropyListCmd = &cobra.Command{
 	Long: `List entropy observations, newest first, across all three sources or,
 with --source, from one of them.
 
-Paging is by keyset cursor: --limit sets the page size, --after continues
-from the cursor a previous page printed, --max follows cursors until that
-many observations have been fetched, and --count adds the total.
+Paging is by keyset cursor: --limit sets the page size, --after and
+--before continue from a cursor a previous page printed (forward, or back
+toward the start), --oldest-first starts at the first observation ever
+captured, --max follows cursors until that many observations have been
+fetched, and --count adds the total.
 
 Examples:
   truestamp entropy list
@@ -71,17 +73,19 @@ Examples:
 		if err != nil {
 			return err
 		}
-		rows, next, total, err := walkPages(paging, func(after string, limit int) (*pageOf[entropy.Observation], error) {
-			pg, err := entropy.List(cmd.Context(), cfg, entropy.ListOptions{Source: source, Limit: limit, After: after, Count: paging.Count})
+		rows, pg, err := walkPages(paging, func(after, before string, limit int) (*pageOf[entropy.Observation], error) {
+			p, err := entropy.List(cmd.Context(), cfg, entropy.ListOptions{
+				Source: source, Limit: limit, After: after, Before: before, OldestFirst: paging.OldestFirst, Count: paging.Count,
+			})
 			if err != nil {
 				return nil, err
 			}
-			return &pageOf[entropy.Observation]{Rows: pg.Observations, NextCursor: pg.NextCursor, Total: pg.Total}, nil
+			return &pageOf[entropy.Observation]{Rows: p.Observations, NextCursor: p.NextCursor, PrevCursor: p.PrevCursor, Total: p.Total}, nil
 		})
 		if err != nil {
 			return renderAPIError(cmd, err, "entropy observation")
 		}
-		return renderObservationList(cmd, rows, listPage{Next: next, Total: total, Counted: paging.Count})
+		return renderObservationList(cmd, rows, pg)
 	},
 }
 

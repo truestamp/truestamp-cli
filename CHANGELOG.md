@@ -71,10 +71,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   beacons, blocks and entropy moved to one package, `internal/ids`.
 - **Every keyset-paged list pages the same way** (kb/command-tree.md R14).
   `items list`, `blocks list` and `entropy list` carry `--limit` (page size),
-  `--after <cursor>` (continue where a page stopped: the `More: --after …` hint,
-  or `next_cursor` in `--json`), `--max N` (follow cursors until N rows have been
-  fetched) and `--count` (the server's total). Their `--json` is one envelope,
-  `{"<noun>": [...], "next_cursor": "...", "total": N}`. There is deliberately
+  `--after <cursor>` and `--before <cursor>` (continue where a page stopped,
+  forward or back toward the start: the `More: --after …` and `Back: --before …`
+  hints, or `next_cursor` and `prev_cursor` in `--json`), `--oldest-first` (start
+  at the beginning instead of the newest row), `--max N` (follow cursors in the
+  chosen direction until N rows have been fetched) and `--count` (the server's
+  total). Their `--json` is one envelope,
+  `{"<noun>": [...], "next_cursor": "...", "prev_cursor": "...", "total": N}`. There is deliberately
   no `--all`: the tables behind these lists grow by the minute, so following
   pages costs a cap you wrote down. `beacons list` has no cursor to follow and
   keeps `--limit` alone.

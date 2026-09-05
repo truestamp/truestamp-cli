@@ -94,9 +94,11 @@ const defaultLimit = 25
 // ListOptions configures a list request; the paging fields are the ones
 // every keyset-paged list shares (jsonapi.SetPageQuery).
 type ListOptions struct {
-	Limit int
-	After string
-	Count bool
+	Limit       int
+	After       string // continue forward from a Page.NextCursor
+	Before      string // continue backward from a Page.PrevCursor
+	OldestFirst bool   // walk from the beginning instead of the newest row
+	Count       bool
 }
 
 // Page is one page of blocks plus the cursor for the next and, when asked
@@ -104,6 +106,7 @@ type ListOptions struct {
 type Page struct {
 	Blocks     []Block
 	NextCursor string
+	PrevCursor string
 	Total      int
 }
 
@@ -114,8 +117,8 @@ func List(ctx context.Context, cfg Config, opts ListOptions) (*Page, error) {
 	}
 	// No client-side ceiling; the server owns it. See cmd/limits.go.
 	q := url.Values{}
-	q.Set("sort", "-id")
-	jsonapi.SetPageQuery(q, opts.Limit, opts.After, opts.Count)
+	q.Set("sort", jsonapi.SortByID(opts.OldestFirst))
+	jsonapi.SetPageQuery(q, opts.Limit, opts.After, opts.Before, opts.Count)
 	body, err := jsonapi.Get(ctx, cfg, "/blocks?"+q.Encode())
 	if err != nil {
 		return nil, err
@@ -125,7 +128,7 @@ func List(ctx context.Context, cfg Config, opts ListOptions) (*Page, error) {
 		return nil, err
 	}
 	info := jsonapi.ParsePage(body)
-	return &Page{Blocks: list, NextCursor: info.NextCursor, Total: info.Total}, nil
+	return &Page{Blocks: list, NextCursor: info.NextCursor, PrevCursor: info.PrevCursor, Total: info.Total}, nil
 }
 
 // Get fetches one block by UUIDv7 id.

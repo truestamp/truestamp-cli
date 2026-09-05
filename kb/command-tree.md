@@ -296,23 +296,31 @@ The clean break was mandated for commands; flags do not get an exemption.
 - One word, one meaning, binary-wide. `--hash` meant the hash of *your* data on `create` and the
   hash you *expect* on `verify`; the former is now `--data-hash`.
 
-### R14 — Lists page the same way, and never without a cap
+### R14 — Lists page the same way, in both directions, and never without a cap
 
 Every list over a keyset-paged JSON:API resource (`items`, `blocks`, `entropy`) carries the same
-four flags, registered by one helper (`cmd/paging.go`): `--limit` is the page size, `--after <cursor>`
-continues from the cursor a previous page printed, `--max N` follows cursors until N rows have been
-fetched, and `--count` asks the server for the total (`page[count]=true`, read from
-`meta.page.total`). A text page that continues ends with `More: --after <cursor>`; the `--json`
-rendering is one envelope, `{"<noun>": [...], "next_cursor": "...", "total": N}`, `total` only under
-`--count` and `next_cursor` empty on the last page.
+flags, registered by one helper (`cmd/paging.go`): `--limit` is the page size; `--after <cursor>` and
+`--before <cursor>` continue from a cursor a previous page printed, forward along the listing or back
+toward its start (`page[after]` / `page[before]`, at most one per call); `--oldest-first` starts the
+walk at the beginning instead of the newest row (`sort=id` instead of `-id`); `--max N` follows
+cursors in the chosen direction until N rows have been fetched; and `--count` asks the server for the
+total (`page[count]=true`, read from `meta.page.total`). A text page ends with `More: --after
+<cursor>` and `Back: --before <cursor>`, each only when there is somewhere to go; the `--json`
+rendering is one envelope, `{"<noun>": [...], "next_cursor": "...", "prev_cursor": "...", "total": N}`,
+`total` only under `--count`, the cursors empty at the end and the start respectively. Rows are
+always in the listing's order whichever way the walk went: pages fetched backward are prepended.
 
 There is no `--all`. The tables behind these lists grow by the minute (staging alone holds over half
 a million entropy observations), so an unbounded walk is a footgun, and following pages costs a cap
 the caller wrote down. `--max` asks the last page for exactly the rows still wanted, so a page is
-never cut and the cursor handed back always continues from the last row shown.
+never cut and the cursors handed back always continue from the rows shown. There is no "last page"
+link on the server; the end of the listing is the first page of the opposite order, which is what
+`--oldest-first` is for.
 
 `beacons list` is the exception: its endpoint takes `?limit=` (at most 100) and returns no cursor, so
 it carries `--limit` alone and its `--json` stays a bare array. Chain history is `blocks list`.
+`teams list` and `keys list` fetch complete documents (your memberships, the published keyring) and
+carry no paging flags, although the teams routes do page server-side.
 
 ## Applying the rules to a new noun
 
@@ -369,7 +377,8 @@ truestamp
 │
 ├── Truestamp resources
 │   ├── items                    "Create, list, and update timestamped items"
-│   │   ├── list                 --limit --after --max --count --committed --pending --json --silent
+│   │   ├── list                 --limit --after --before --oldest-first --max --count
+│   │   │                        --committed --pending --json --silent
 │   │   ├── get <ulid>           --json --silent
 │   │   ├── create [file]        -f/--file -F/--file-stdin -c/--claims -C/--claims-stdin
 │   │   │                        -n/--name --data-hash --hash-type -d/--description --url
@@ -387,7 +396,7 @@ truestamp
 │   │                            --json --silent
 │   │
 │   ├── blocks                   "Read-only: Truestamp's block chain"
-│   │   ├── list                 --limit --after --max --count --json --silent
+│   │   ├── list                 --limit --after --before --oldest-first --max --count --json --silent
 │   │   ├── get <uuid|hash>      --json --silent      (--commitments --entropy --neighbors are
 │   │   │                                              deferred designs, see the notes below)
 │   │   ├── latest               --json --silent      Short: "Show the head block"
@@ -399,8 +408,8 @@ truestamp
 │   │   └── latest               --hash-only --json --silent
 │   │
 │   ├── entropy                  "Read-only: public entropy observations (NIST, Stellar, Bitcoin)"
-│   │   ├── list                 --source entropy_nist|entropy_stellar|entropy_bitcoin --limit --after --max --count
-│   │   │                        --json --silent
+│   │   ├── list                 --source entropy_nist|entropy_stellar|entropy_bitcoin --limit --after --before
+│   │   │                        --oldest-first --max --count --json --silent
 │   │   ├── get <uuid|hash>      --json --silent
 │   │   └── latest               --source --json --silent
 │   │

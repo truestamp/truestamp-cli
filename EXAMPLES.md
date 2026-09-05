@@ -2082,6 +2082,11 @@ truestamp items list --max 200 --json | jq -r '.items[].id'
 truestamp items list --limit 2 --count
 #   Items (2 shown, 3 total)
 
+# Walk from the beginning instead, and step back with the Back: cursor a
+# page prints (--before is the mirror of --after)
+truestamp items list --oldest-first --limit 2
+truestamp items list --before g2wAAAABbQAAABowMU0xUEhKUjlSNTFWUTdKUFRSOVJOQU1TM2o=
+
 # One item, including whether a proof is available yet
 truestamp items get 01M1M74XBVCAMMWGY8SZJD7YPZ
 #   Item
@@ -2102,9 +2107,10 @@ The item card closes with the same kind of link the beacon card does: a
 Details URL at `/items/<id>`, on whichever origin `base_url` names.
 
 `items list --json`, like every keyset-paged list (`blocks list`,
-`entropy list`), is an object: `{"items": [...], "next_cursor": "..."}`,
-plus `"total"` under `--count`, with `next_cursor` an empty string once the
-last page has been read. Reach for `.items[]` in `jq`, not `.[]`.
+`entropy list`), is an object: `{"items": [...], "next_cursor": "...",
+"prev_cursor": "..."}`, plus `"total"` under `--count`, with `next_cursor`
+empty once the last page has been read and `prev_cursor` empty on the
+first. Reach for `.items[]` in `jq`, not `.[]`.
 `beacons list --json` is the exception, a bare array: its endpoint has no
 cursor. `--limit` is bounded on one side only: the
 CLI refuses `--limit 0` locally, because the API contract states a minimum
@@ -2235,8 +2241,10 @@ truestamp entropy list --limit 4
 #   2026-09-05T20:36:00Z    nist       created    01a07349-8a08-7862-8064-48350f95c400    c4b3baf8…89bc82a7
 truestamp entropy list --source entropy_bitcoin --limit 2
 
-# Page like every other list: --after continues from a printed cursor,
-# --max follows cursors up to a cap, --count adds the total
+# Page like every other list: --after and --before continue from a printed
+# cursor in either direction, --oldest-first starts at the first observation
+# ever captured, --max follows cursors up to a cap, --count adds the total
+truestamp entropy list --oldest-first --limit 3
 truestamp entropy list --source entropy_bitcoin --limit 50 --max 200 --json | jq -r '.observations[].entropy_hash'
 truestamp entropy list --count --limit 1
 #   Entropy Observations (1 shown, 593,419 total)

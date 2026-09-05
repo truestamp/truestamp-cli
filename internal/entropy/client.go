@@ -110,10 +110,12 @@ const defaultLimit = 25
 // otherwise it must be one of Sources. The paging fields are the ones
 // every keyset-paged list shares (jsonapi.SetPageQuery).
 type ListOptions struct {
-	Source string
-	Limit  int
-	After  string
-	Count  bool
+	Source      string
+	Limit       int
+	After       string // continue forward from a Page.NextCursor
+	Before      string // continue backward from a Page.PrevCursor
+	OldestFirst bool   // walk from the beginning instead of the newest row
+	Count       bool
 }
 
 // Page is one page of observations plus the cursor for the next and, when
@@ -121,6 +123,7 @@ type ListOptions struct {
 type Page struct {
 	Observations []Observation
 	NextCursor   string
+	PrevCursor   string
 	Total        int
 }
 
@@ -136,8 +139,8 @@ func List(ctx context.Context, cfg Config, opts ListOptions) (*Page, error) {
 	}
 	// No client-side ceiling; the server owns it. See cmd/limits.go.
 	q := url.Values{}
-	q.Set("sort", "-id")
-	jsonapi.SetPageQuery(q, opts.Limit, opts.After, opts.Count)
+	q.Set("sort", jsonapi.SortByID(opts.OldestFirst))
+	jsonapi.SetPageQuery(q, opts.Limit, opts.After, opts.Before, opts.Count)
 	if opts.Source != "" {
 		q.Set("filter[source]", opts.Source)
 	}
@@ -150,7 +153,7 @@ func List(ctx context.Context, cfg Config, opts ListOptions) (*Page, error) {
 		return nil, err
 	}
 	info := jsonapi.ParsePage(body)
-	return &Page{Observations: list, NextCursor: info.NextCursor, Total: info.Total}, nil
+	return &Page{Observations: list, NextCursor: info.NextCursor, PrevCursor: info.PrevCursor, Total: info.Total}, nil
 }
 
 // Get fetches one observation by UUIDv7 id.

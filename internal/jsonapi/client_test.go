@@ -96,11 +96,13 @@ func FuzzParseError(f *testing.F) {
 
 func TestParsePage_LiftsCursorAndTotal(t *testing.T) {
 	for body, want := range map[string]PageInfo{
-		`{"data":[],"links":{"next":"https://x/items?page%5Bafter%5D=ABC&page%5Blimit%5D=25"}}`: {NextCursor: "ABC"},
-		`{"data":[],"links":{"next":"https://x/items?page[after]=ABC"}}`:                        {NextCursor: "ABC"},
-		`{"data":[],"links":{"next":"https://x/items?page%5Blimit%5D=25"}}`:                     {},
-		`{"data":[],"links":{"next":"://not a url"}}`:                                           {},
-		`{"data":[],"meta":{"page":{"total":593419,"limit":1}}}`:                                {Total: 593419},
+		`{"data":[],"links":{"next":"https://x/items?page%5Bafter%5D=ABC&page%5Blimit%5D=25"}}`:                          {NextCursor: "ABC"},
+		`{"data":[],"links":{"next":"https://x/items?page[after]=ABC"}}`:                                                 {NextCursor: "ABC"},
+		`{"data":[],"links":{"next":"https://x/items?page%5Blimit%5D=25"}}`:                                              {},
+		`{"data":[],"links":{"next":"://not a url"}}`:                                                                    {},
+		`{"data":[],"meta":{"page":{"total":593419,"limit":1}}}`:                                                         {Total: 593419},
+		`{"data":[],"links":{"prev":"https://x/items?page%5Bbefore%5D=P1","next":"https://x/items?page%5Bafter%5D=N1"}}`: {NextCursor: "N1", PrevCursor: "P1"},
+		`{"data":[],"links":{"prev":null,"next":null}}`:                                                                  {},
 		`{"data":[]}`: {},
 		`not json`:    {},
 	} {
