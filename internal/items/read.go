@@ -42,8 +42,10 @@ func (i Item) Committed() bool { return i.State == "committed" }
 // Page is one page of a list response plus the cursor for the next.
 type Page struct {
 	Items []Item
-	// NextCursor is empty when there are no more pages.
+	// NextCursor is empty when there are no more pages; PrevCursor is
+	// empty on the first.
 	NextCursor string
+	PrevCursor string
 	// Total is the server's count of matching items, only when asked for.
 	Total int
 }
@@ -60,8 +62,12 @@ const requestFields = "claims,claims_hash,item_hash,visibility,state,tags,team_i
 // ListOptions configures a list request.
 type ListOptions struct {
 	Limit int
-	// After is a keyset cursor from a previous Page.NextCursor.
-	After string
+	// After is a keyset cursor from a previous Page.NextCursor; Before is
+	// one from Page.PrevCursor. At most one is set.
+	After  string
+	Before string
+	// OldestFirst walks from the beginning instead of the newest item.
+	OldestFirst bool
 	// Count asks the server for the total, reported as Page.Total.
 	Count bool
 	// Committed and Pending filter on commitment state. Both false means
@@ -82,18 +88,19 @@ func List(ctx context.Context, apiURL, team string, opts ListOptions) (*Page, er
 	// an over-large page and names its own cap. See cmd/limits.go.
 
 	q := url.Values{}
-	jsonapi.SetPageQuery(q, limit, opts.After, opts.Count)
+	jsonapi.SetPageQuery(q, limit, opts.After, opts.Before, opts.Count)
 	q.Set("fields[item]", requestFields)
-	// Newest first, which is what this command's help promises and what
-	// `blocks list` and `beacons list` already do. Without it the server
-	// applies its default ascending order and `items list` was the one
-	// list verb in the tree that answered oldest-first.
+	// Newest first unless asked otherwise, which is what this command's
+	// help promises and what `blocks list` and `beacons list` already do.
+	// Without it the server applies its default ascending order and
+	// `items list` was the one list verb in the tree that answered
+	// oldest-first.
 	//
 	// Sent on every page, not just the first. The server does echo `sort`
 	// back in the `next` link, but this client never follows that link: it
 	// rebuilds the query itself and lifts only the cursor out, so the sort
 	// has to be re-supplied here or page two would silently revert.
-	q.Set("sort", "-id")
+	q.Set("sort", jsonapi.SortByID(opts.OldestFirst))
 	switch {
 	case opts.Committed && opts.Pending:
 		return nil, fmt.Errorf("--committed and --pending are mutually exclusive")
@@ -237,6 +244,6 @@ func parseList(body []byte) (*Page, error) {
 		page.Items = append(page.Items, it)
 	}
 	info := jsonapi.ParsePage(body)
-	page.NextCursor, page.Total = info.NextCursor, info.Total
+	page.NextCursor, page.PrevCursor, page.Total = info.NextCursor, info.PrevCursor, info.Total
 	return page, nil
 }

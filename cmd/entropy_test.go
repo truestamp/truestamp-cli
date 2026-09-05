@@ -83,6 +83,16 @@ func startEntropyServer(t *testing.T) *entropyServer {
 		case q.Get("filter[source]") == "entropy_stellar":
 			rows = []string{stellar}
 		case q.Get("page[after]") == "CURSOR1":
+			// Page two forward: it can go back.
+			_, _ = w.Write([]byte(`{"data":[` + nist + `],"links":{"prev":"http://` + r.Host +
+				`/api/json/entropy_observations?page%5Bbefore%5D=CURSORB&page%5Blimit%5D=2&sort=-id"}}`))
+			return
+		case q.Get("page[before]") == "CURSORB":
+			// Walking back from page two: page one, which can go back once more.
+			_, _ = w.Write([]byte(`{"data":[` + stellar + `],"links":{"prev":"http://` + r.Host +
+				`/api/json/entropy_observations?page%5Bbefore%5D=CURSORC&page%5Blimit%5D=2&sort=-id"}}`))
+			return
+		case q.Get("page[before]") == "CURSORC":
 			rows = []string{nist}
 		default:
 			rows = []string{stellar, nist}
@@ -308,5 +318,62 @@ func TestCLI_Entropy_MutualExclusion_SilentJSON(t *testing.T) {
 	_, stderr, exit := runCLI(t, "--api-key", "test-key", "entropy", "latest", "--silent", "--json")
 	if exit == 0 || !strings.Contains(stderr, "mutually exclusive") {
 		t.Errorf("exit=%d stderr=%q", exit, stderr)
+	}
+}
+
+// TestCLI_Entropy_List_Backward pins the other direction of R14: --before
+// continues from a prev cursor, --max follows prev cursors, rows come
+// back in the listing's order (pages fetched backward are prepended), and
+// the cursors handed back are the ones that continue from the rows shown.
+func TestCLI_Entropy_List_Backward(t *testing.T) {
+	srv := startEntropyServer(t)
+	stdout, stderr, exit := runCLI(t, "--base-url", srv.URL, "--api-key", "test-key",
+		"entropy", "list", "--before", "CURSORB", "--max", "5", "--json")
+	if exit != 0 {
+		t.Fatalf("exit=%d\n%s", exit, stderr)
+	}
+	var got struct {
+		Observations []struct {
+			ID string `json:"id"`
+		} `json:"observations"`
+		NextCursor string `json:"next_cursor"`
+		PrevCursor string `json:"prev_cursor"`
+	}
+	if err := json.Unmarshal([]byte(stdout), &got); err != nil {
+		t.Fatalf("not JSON: %v\n%s", err, stdout)
+	}
+	ids := []string{}
+	for _, o := range got.Observations {
+		ids = append(ids, o.ID)
+	}
+	if len(ids) != 2 || ids[0] != testEntropyNISTID || ids[1] != testEntropyStellarID {
+		t.Errorf("backward pages must be prepended so rows stay in listing order, got %v", ids)
+	}
+	if got.PrevCursor != "" {
+		t.Errorf("the walk reached the start, prev_cursor should be empty, got %q", got.PrevCursor)
+	}
+	if srv.requests() != 2 || srv.query().Get("page[before]") != "CURSORC" {
+		t.Errorf("want two requests, the second continuing from CURSORC; saw %d, last %v", srv.requests(), srv.query())
+	}
+	stdout, _, _ = runCLI(t, "--base-url", srv.URL, "--api-key", "test-key", "entropy", "list", "--after", "CURSOR1")
+	if !strings.Contains(stdout, "Back: --before CURSORB") {
+		t.Errorf("a page that can go back should say how, got:\n%s", stdout)
+	}
+	_, stderr, exit = runCLI(t, "--base-url", srv.URL, "entropy", "list", "--after", "A", "--before", "B")
+	if exit == 0 || !strings.Contains(stderr, "--after and --before are mutually exclusive") {
+		t.Errorf("both directions at once must be refused locally: exit=%d %q", exit, stderr)
+	}
+}
+
+// TestCLI_Entropy_List_OldestFirst pins the sort flip: the walk starts at
+// the beginning and the server is asked for ascending order.
+func TestCLI_Entropy_List_OldestFirst(t *testing.T) {
+	srv := startEntropyServer(t)
+	_, _, exit := runCLI(t, "--base-url", srv.URL, "--api-key", "test-key", "entropy", "list", "--oldest-first", "--json")
+	if exit != 0 {
+		t.Fatalf("exit=%d", exit)
+	}
+	if srv.query().Get("sort") != "id" {
+		t.Errorf("--oldest-first must ask for ascending order, asked %v", srv.query())
 	}
 }

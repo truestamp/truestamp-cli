@@ -45,17 +45,19 @@ var blocksListCmd = &cobra.Command{
 		if err != nil {
 			return err
 		}
-		rows, next, total, err := walkPages(paging, func(after string, limit int) (*pageOf[blocks.Block], error) {
-			pg, err := blocks.List(cmd.Context(), cfg, blocks.ListOptions{Limit: limit, After: after, Count: paging.Count})
+		rows, pg, err := walkPages(paging, func(after, before string, limit int) (*pageOf[blocks.Block], error) {
+			p, err := blocks.List(cmd.Context(), cfg, blocks.ListOptions{
+				Limit: limit, After: after, Before: before, OldestFirst: paging.OldestFirst, Count: paging.Count,
+			})
 			if err != nil {
 				return nil, err
 			}
-			return &pageOf[blocks.Block]{Rows: pg.Blocks, NextCursor: pg.NextCursor, Total: pg.Total}, nil
+			return &pageOf[blocks.Block]{Rows: p.Blocks, NextCursor: p.NextCursor, PrevCursor: p.PrevCursor, Total: p.Total}, nil
 		})
 		if err != nil {
 			return renderAPIError(cmd, err, "block")
 		}
-		return renderBlockList(cmd, rows, listPage{Next: next, Total: total, Counted: paging.Count})
+		return renderBlockList(cmd, rows, pg)
 	},
 }
 

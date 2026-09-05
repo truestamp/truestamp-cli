@@ -17,10 +17,12 @@ var itemsListCmd = &cobra.Command{
 	Short: "List items in the current team",
 	Long: `List items, newest first.
 
-Paging is by keyset cursor: --limit sets the page size, --after continues
-from the cursor a previous page printed, and --max follows cursors until
-that many items have been fetched. There is no unbounded walk: a cap you
-wrote down is the price of following pages. --count adds the total.
+Paging is by keyset cursor: --limit sets the page size, --after and
+--before continue from a cursor a previous page printed (forward, or back
+toward the start), --oldest-first starts at the beginning instead of the
+newest item, and --max follows cursors until that many items have been
+fetched. There is no unbounded walk: a cap you wrote down is the price of
+following pages. --count adds the total.
 
 --committed and --pending filter on commitment state, which is the
 question most often asked of this list: a proof can only be generated for
@@ -42,19 +44,20 @@ evidence, and the authoritative answer is:
 		if err := requireAuth(cmd); err != nil {
 			return err
 		}
-		rows, next, total, err := walkPages(paging, func(after string, limit int) (*pageOf[items.Item], error) {
-			pg, err := items.List(cmd.Context(), appConfig.APIURL, appConfig.Team, items.ListOptions{
-				Limit: limit, After: after, Count: paging.Count, Committed: committed, Pending: pending,
+		rows, pg, err := walkPages(paging, func(after, before string, limit int) (*pageOf[items.Item], error) {
+			p, err := items.List(cmd.Context(), appConfig.APIURL, appConfig.Team, items.ListOptions{
+				Limit: limit, After: after, Before: before, OldestFirst: paging.OldestFirst, Count: paging.Count,
+				Committed: committed, Pending: pending,
 			})
 			if err != nil {
 				return nil, err
 			}
-			return &pageOf[items.Item]{Rows: pg.Items, NextCursor: pg.NextCursor, Total: pg.Total}, nil
+			return &pageOf[items.Item]{Rows: p.Items, NextCursor: p.NextCursor, PrevCursor: p.PrevCursor, Total: p.Total}, nil
 		})
 		if err != nil {
 			return renderAPIError(cmd, err, "item")
 		}
-		return renderItemList(cmd, rows, listPage{Next: next, Total: total, Counted: paging.Count})
+		return renderItemList(cmd, rows, pg)
 	},
 }
 
