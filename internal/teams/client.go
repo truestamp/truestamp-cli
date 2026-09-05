@@ -14,20 +14,15 @@
 package teams
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
-	"net/http"
 	"net/url"
 	"sort"
 	"strings"
 
-	"github.com/truestamp/truestamp-cli/internal/auth"
-	"github.com/truestamp/truestamp-cli/internal/httpclient"
-	"github.com/truestamp/truestamp-cli/internal/redact"
+	"github.com/truestamp/truestamp-cli/internal/jsonapi"
 )
 
 // Team is the subset of a JSON:API team resource the CLI consumes.
@@ -61,14 +56,24 @@ type Membership struct {
 // the actor isn't a member of). Distinguishing the two matters because
 // the user-facing remediation is completely different: 401 → run `auth
 // login`; 403 → check the team id, ask for membership.
-var (
-	ErrUnauthorized = errors.New("not authenticated")
-	ErrForbidden    = errors.New("forbidden")
-	ErrNotFound     = errors.New("not found")
-	ErrBadRequest   = errors.New("bad request")
-	ErrRateLimited  = errors.New("rate limited")
-	ErrServer       = errors.New("server error")
+// The transport, the class sentinels and APIError live in
+// internal/jsonapi; these aliases keep this client's surface stable for
+// the commands that errors.Is its classes.
+type (
+	Config   = jsonapi.Config
+	APIError = jsonapi.APIError
+)
 
+var (
+	ErrUnauthorized = jsonapi.ErrUnauthorized
+	ErrForbidden    = jsonapi.ErrForbidden
+	ErrNotFound     = jsonapi.ErrNotFound
+	ErrBadRequest   = jsonapi.ErrBadRequest
+	ErrRateLimited  = jsonapi.ErrRateLimited
+	ErrServer       = jsonapi.ErrServer
+)
+
+var (
 	// ErrTeamLimitReached is returned by CreateTeam when the actor's plan
 	// team quota is exhausted (a distinct, user-actionable case: upgrade the
 	// plan). Identified structurally, not by error code: the server mints
@@ -80,36 +85,6 @@ var (
 	// actor lacks, distinct from the team-count limit.
 	ErrOwnershipNotEntitled = errors.New("ownership model not entitled")
 )
-
-// APIError carries HTTP status + preserved `errors[].detail` from the
-// JSON:API envelope for display to the user. Wraps one of the sentinel
-// errors above so callers can errors.Is() the class while still showing
-// the detail text.
-type APIError struct {
-	Status     int
-	Pointer    string // JSON:API errors[].source.pointer, when present
-	Detail     string // preferred; falls back to Title
-	RetryAfter string // verbatim Retry-After header on 429
-	sentinel   error
-}
-
-func (e *APIError) Error() string {
-	if e.Detail != "" {
-		return fmt.Sprintf("HTTP %d: %s", e.Status, e.Detail)
-	}
-	return fmt.Sprintf("HTTP %d", e.Status)
-}
-
-func (e *APIError) Unwrap() error { return e.sentinel }
-
-// Config carries the subset of runtime configuration needed for a request.
-// Kept small to avoid importing the top-level config package. The
-// credential is supplied out-of-band by the process-wide [auth.Authorizer]
-// (set in cmd/root); only the tenant scoping lives here.
-type Config struct {
-	APIURL string // e.g. https://www.truestamp.com/api/json
-	Team   string // optional tenant id; sent verbatim as the `tenant` header
-}
 
 // ListMyMemberships returns one Membership row per team the
 // authenticated actor has access to, with that actor's role on the team.
@@ -253,7 +228,7 @@ const maxPages = 50
 func walkPages(ctx context.Context, cfg Config, firstPath string, onPage func([]byte) (string, error)) error {
 	path := firstPath
 	for page := 0; page < maxPages; page++ {
-		body, err := doGet(ctx, cfg, path)
+		body, err := jsonapi.Get(ctx, cfg, path)
 		if err != nil {
 			return err
 		}
@@ -372,7 +347,7 @@ func GetTeam(ctx context.Context, cfg Config, id string) (*Team, error) {
 	}
 	path := "/teams/" + url.PathEscape(id) +
 		"?fields[team]=name,personal,ownership_model,inserted_at"
-	body, err := doGet(ctx, cfg, path)
+	body, err := jsonapi.Get(ctx, cfg, path)
 	if err != nil {
 		return nil, err
 	}
@@ -480,7 +455,7 @@ func CreateTeam(ctx context.Context, cfg Config, name, ownershipModel string) (*
 		},
 	}
 
-	body, err := doPost(ctx, cfg, createTeamPath, payload)
+	body, err := jsonapi.Post(ctx, cfg, createTeamPath, payload)
 	if err != nil {
 		return nil, mapCreateError(err)
 	}
@@ -499,9 +474,9 @@ func mapCreateError(err error) error {
 	}
 	switch {
 	case ae.Pointer == ownershipModelPointer:
-		ae.sentinel = ErrOwnershipNotEntitled
+		ae.Sentinel = ErrOwnershipNotEntitled
 	case ae.Status >= 400 && ae.Status < 500 && mentionsTeamLimit(ae.Detail):
-		ae.sentinel = ErrTeamLimitReached
+		ae.Sentinel = ErrTeamLimitReached
 	}
 	return ae
 }
@@ -511,138 +486,6 @@ func mapCreateError(err error) error {
 // plan-limit rejection.
 func mentionsTeamLimit(detail string) bool {
 	return strings.Contains(strings.ToLower(detail), "team limit")
-}
-
-// doRequest issues an authenticated request to the JSON:API, an optional
-// JSON body for writes, and returns the response body on 2xx, or an
-// *APIError wrapping a class sentinel on non-2xx (with errors[].source.pointer
-// captured for create-error discrimination, and Retry-After on 429). doGet and
-// doPost are thin wrappers so the auth gate, tenant header, body cap, and
-// error decoding live in exactly one place.
-func doRequest(ctx context.Context, cfg Config, method, path string, body []byte) ([]byte, error) {
-	if auth.Default().Mode() == auth.ModeNone {
-		return nil, &APIError{Status: 401, Detail: "not authenticated", sentinel: ErrUnauthorized}
-	}
-	var rdr io.Reader
-	if body != nil {
-		rdr = bytes.NewReader(body)
-	}
-	req, err := http.NewRequestWithContext(ctx, method, cfg.APIURL+path, rdr)
-	if err != nil {
-		return nil, fmt.Errorf("creating request: %w", err)
-	}
-	req.Header.Set("Accept", "application/vnd.api+json")
-	if body != nil {
-		req.Header.Set("Content-Type", "application/vnd.api+json")
-	}
-	if err := auth.AuthorizeRequest(ctx, req); err != nil {
-		return nil, &APIError{Status: 401, Detail: err.Error(), sentinel: ErrUnauthorized}
-	}
-	if cfg.Team != "" {
-		req.Header.Set("tenant", cfg.Team)
-	}
-
-	resp, err := httpclient.Do(req)
-	if err != nil {
-		return nil, fmt.Errorf("API request failed: %w", err)
-	}
-	defer resp.Body.Close()
-
-	respBody, err := io.ReadAll(io.LimitReader(resp.Body, httpclient.MaxResponseSize))
-	if err != nil {
-		return nil, fmt.Errorf("reading API response: %w", err)
-	}
-
-	if resp.StatusCode >= 200 && resp.StatusCode < 300 {
-		return respBody, nil
-	}
-
-	apiErr := parseAPIError(resp.StatusCode, respBody)
-	if resp.StatusCode == http.StatusTooManyRequests {
-		apiErr.RetryAfter = resp.Header.Get("Retry-After")
-	}
-	return nil, apiErr
-}
-
-// doPost marshals payload as a JSON:API write body and POSTs it. On non-2xx
-// the *APIError carries errors[].source.pointer, used by mapCreateError to
-// discriminate the create-specific policy rejections.
-func doPost(ctx context.Context, cfg Config, path string, payload any) ([]byte, error) {
-	body, err := json.Marshal(payload)
-	if err != nil {
-		return nil, fmt.Errorf("encoding request: %w", err)
-	}
-	return doRequest(ctx, cfg, http.MethodPost, path, body)
-}
-
-// doGet issues an authenticated GET and returns the response body on 2xx.
-// On non-2xx returns an *APIError wrapping one of the class sentinels.
-func doGet(ctx context.Context, cfg Config, path string) ([]byte, error) {
-	return doRequest(ctx, cfg, http.MethodGet, path, nil)
-}
-
-func parseAPIError(status int, body []byte) *APIError {
-	e := &APIError{Status: status, sentinel: sentinelFor(status)}
-	var envelope struct {
-		Errors []struct {
-			Detail string `json:"detail"`
-			Title  string `json:"title"`
-			Source struct {
-				Pointer string `json:"pointer"`
-			} `json:"source"`
-		} `json:"errors"`
-	}
-	if err := json.Unmarshal(body, &envelope); err == nil && len(envelope.Errors) > 0 {
-		// Prefer an error carrying a source.pointer, the structural
-		// discriminator. The server can return MULTIPLE errors at once (a
-		// free-plan user requesting team_retains trips both the plan-limit
-		// and the ownership-entitlement rejection), so we classify on the
-		// pointer-bearing error regardless of its position in the array.
-		chosen := envelope.Errors[0]
-		for i := range envelope.Errors {
-			if envelope.Errors[i].Source.Pointer != "" {
-				chosen = envelope.Errors[i]
-				break
-			}
-		}
-		e.Pointer = chosen.Source.Pointer
-		switch {
-		case chosen.Detail != "":
-			e.Detail = chosen.Detail
-		case chosen.Title != "":
-			e.Detail = chosen.Title
-		}
-	}
-	if e.Detail == "" {
-		// Defense in depth: a server-/attacker-controlled raw body (including
-		// a reflected request) is truncated AND run through the secret
-		// redactor before it can reach a log or the terminal.
-		trimmed := bytes.TrimSpace(body)
-		if len(trimmed) > 0 && trimmed[0] == '<' {
-			e.Detail = "server returned HTML error page"
-		} else {
-			e.Detail = redact.String(httpclient.Truncate(string(body), 200))
-		}
-	}
-	return e
-}
-
-func sentinelFor(status int) error {
-	switch {
-	case status == http.StatusUnauthorized:
-		return ErrUnauthorized
-	case status == http.StatusForbidden:
-		return ErrForbidden
-	case status == http.StatusNotFound:
-		return ErrNotFound
-	case status == http.StatusTooManyRequests:
-		return ErrRateLimited
-	case status >= 400 && status < 500:
-		return ErrBadRequest
-	case status >= 500:
-		return ErrServer
-	}
-	return errors.New("unexpected status")
 }
 
 type jsonAPISingle struct {

@@ -6,7 +6,6 @@ package cmd
 import (
 	"context"
 	"errors"
-	"fmt"
 
 	"github.com/spf13/cobra"
 	"github.com/truestamp/truestamp-cli/internal/teams"
@@ -41,8 +40,9 @@ func teamConfig(cmd *cobra.Command) (teams.Config, error) {
 
 // teamRenderError converts a client error into a user-facing message
 // and an appropriate non-zero exit. The 401/403/404 split is
-// load-bearing: each gets distinct remediation guidance because the
-// fixes are different.
+// load-bearing: each gets remediation guidance specific to teams (the
+// credential was rejected, list your teams, the id is wrong), which is
+// why these three cases are not left to the shared renderAPIError.
 func teamRenderError(cmd *cobra.Command, err error, silent bool) error {
 	if errors.Is(err, teams.ErrUnauthorized) {
 		if !silent {
@@ -70,19 +70,7 @@ func teamRenderError(cmd *cobra.Command, err error, silent bool) error {
 		}
 		return errSilentFail
 	}
-	if silent {
-		return errSilentFail
-	}
-	var apiErr *teams.APIError
-	if errors.As(err, &apiErr) {
-		switch {
-		case errors.Is(err, teams.ErrRateLimited) && apiErr.RetryAfter != "":
-			return fmt.Errorf("rate limited (Retry-After: %s): %s", apiErr.RetryAfter, apiErr.Detail)
-		default:
-			return fmt.Errorf("%s", apiErr.Error())
-		}
-	}
-	return err
+	return renderAPIError(cmd, err, "team")
 }
 
 // fetchMyMembershipsCtx is a thin wrapper that lets the test suite

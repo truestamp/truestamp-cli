@@ -7,6 +7,8 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"github.com/truestamp/truestamp-cli/internal/jsonapi"
+	"net/http"
 	"strings"
 )
 
@@ -36,12 +38,13 @@ func ResolveSubjectType(ctx context.Context, apiURL, team, id string) (string, e
 	if err != nil {
 		return "", fmt.Errorf("encoding request: %w", err)
 	}
-	status, body, err := postJSONAPI(ctx, apiURL+"/utilities/resolve-id", team, payload)
+	resp, body, err := jsonapi.DoRaw(ctx, jsonapi.Config{APIURL: apiURL, Team: team},
+		http.MethodPost, "/utilities/resolve-id", payload)
 	if err != nil {
 		return "", fmt.Errorf("resolving id: %w", err)
 	}
-	if status < 200 || status >= 300 {
-		return "", fmt.Errorf("could not resolve %s (HTTP %d): pass --type explicitly", id, status)
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		return "", fmt.Errorf("could not resolve %s (HTTP %d): pass --type explicitly", id, resp.StatusCode)
 	}
 
 	var env struct {

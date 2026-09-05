@@ -4,7 +4,6 @@
 package cmd
 
 import (
-	"errors"
 	"fmt"
 	"io"
 	"strings"
@@ -47,7 +46,7 @@ var blocksListCmd = &cobra.Command{
 		}
 		list, err := blocks.List(cmd.Context(), cfg, limit)
 		if err != nil {
-			return blocksRenderError(cmd, err)
+			return renderAPIError(cmd, err, "block")
 		}
 		return renderBlockList(cmd, list)
 	},
@@ -88,7 +87,7 @@ Examples:
 			return fmt.Errorf("%q is neither a UUIDv7 id nor a 64-hex-char block hash", arg)
 		}
 		if err != nil {
-			return blocksRenderError(cmd, err)
+			return renderAPIError(cmd, err, "block")
 		}
 		return renderBlock(cmd, b)
 	},
@@ -109,7 +108,7 @@ recent *finalized* block. The head is routinely not yet finalized.`,
 		}
 		b, err := blocks.Latest(cmd.Context(), cfg)
 		if err != nil {
-			return blocksRenderError(cmd, err)
+			return renderAPIError(cmd, err, "block")
 		}
 		return renderBlock(cmd, b)
 	},
@@ -131,7 +130,7 @@ root every chain walk terminates at.`,
 		}
 		b, err := blocks.Genesis(cmd.Context(), cfg)
 		if err != nil {
-			return blocksRenderError(cmd, err)
+			return renderAPIError(cmd, err, "block")
 		}
 		return renderBlock(cmd, b)
 	},
@@ -144,27 +143,6 @@ func blocksConfig(cmd *cobra.Command) (blocks.Config, error) {
 		return blocks.Config{}, err
 	}
 	return blocks.Config{APIURL: appConfig.APIURL, Team: appConfig.Team}, nil
-}
-
-func blocksRenderError(cmd *cobra.Command, err error) error {
-	if errors.Is(err, blocks.ErrUnauthorized) {
-		return failNotAuthenticated(cmd)
-	}
-	_, silent := outputMode(cmd)
-	if silent {
-		return errSilentFail
-	}
-	var apiErr *blocks.APIError
-	if errors.As(err, &apiErr) {
-		if errors.Is(err, blocks.ErrNotFound) {
-			return fmt.Errorf("block not found")
-		}
-		if errors.Is(err, blocks.ErrRateLimited) && apiErr.RetryAfter != "" {
-			return fmt.Errorf("rate limited (Retry-After: %s): %s", apiErr.RetryAfter, apiErr.Detail)
-		}
-		return fmt.Errorf("%s", apiErr.Error())
-	}
-	return err
 }
 
 func renderBlock(cmd *cobra.Command, b *blocks.Block) error {

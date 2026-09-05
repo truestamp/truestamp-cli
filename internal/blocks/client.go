@@ -30,15 +30,12 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
-	"net/http"
 	"net/url"
 	"regexp"
 	"strconv"
 
 	"github.com/gofrs/uuid/v5"
-	"github.com/truestamp/truestamp-cli/internal/auth"
-	"github.com/truestamp/truestamp-cli/internal/httpclient"
+	"github.com/truestamp/truestamp-cli/internal/jsonapi"
 )
 
 // Block is the subset of a block's public attributes the CLI renders.
@@ -61,43 +58,27 @@ type Block struct {
 	InsertedAt        string `json:"inserted_at"`
 }
 
-// Errors surfaced by the client, mirroring internal/beacons so CLI layers
-// can treat the two the same way.
-var (
-	ErrUnauthorized = errors.New("not authenticated")
-	ErrNotFound     = errors.New("block not found")
-	ErrBadRequest   = errors.New("bad request")
-	ErrRateLimited  = errors.New("rate limited")
-	ErrServer       = errors.New("server error")
-	// ErrAmbiguousHash is returned when a by-hash lookup matches more than
-	// one row. The server does not assume block-hash uniqueness, so this
-	// is reported rather than resolved by picking one.
-	ErrAmbiguousHash = errors.New("more than one block matches that hash")
+// The transport, the class sentinels and APIError live in
+// internal/jsonapi; these aliases keep this client's surface stable for
+// the commands that errors.Is its classes.
+type (
+	Config   = jsonapi.Config
+	APIError = jsonapi.APIError
 )
 
-// APIError carries HTTP status plus the preserved JSON:API `errors[].detail`.
-type APIError struct {
-	Status     int
-	Detail     string
-	RetryAfter string
-	sentinel   error
-}
+var (
+	ErrUnauthorized = jsonapi.ErrUnauthorized
+	ErrForbidden    = jsonapi.ErrForbidden
+	ErrNotFound     = jsonapi.ErrNotFound
+	ErrBadRequest   = jsonapi.ErrBadRequest
+	ErrRateLimited  = jsonapi.ErrRateLimited
+	ErrServer       = jsonapi.ErrServer
+)
 
-func (e *APIError) Error() string {
-	if e.Detail != "" {
-		return fmt.Sprintf("API error (HTTP %d): %s", e.Status, e.Detail)
-	}
-	return fmt.Sprintf("API error (HTTP %d)", e.Status)
-}
-
-func (e *APIError) Unwrap() error { return e.sentinel }
-
-// Config carries the subset of runtime configuration a request needs. The
-// credential is supplied out of band by the process-wide auth.Authorizer.
-type Config struct {
-	APIURL string
-	Team   string
-}
+// ErrAmbiguousHash is returned when a by-hash lookup matches more than
+// one row. The server does not assume block-hash uniqueness, so this is
+// reported rather than resolved by picking one.
+var ErrAmbiguousHash = errors.New("more than one block matches that hash")
 
 // hashRe is the client-side guard standing in for the server-side one the
 // blocks filter does not have.
@@ -139,7 +120,7 @@ func List(ctx context.Context, cfg Config, limit int) ([]Block, error) {
 	q := url.Values{}
 	q.Set("sort", "-id")
 	q.Set("page[limit]", strconv.Itoa(limit))
-	body, err := doGet(ctx, cfg, "/blocks?"+q.Encode())
+	body, err := jsonapi.Get(ctx, cfg, "/blocks?"+q.Encode())
 	if err != nil {
 		return nil, err
 	}
@@ -151,7 +132,7 @@ func Get(ctx context.Context, cfg Config, id string) (*Block, error) {
 	if err := ValidateUUIDv7(id); err != nil {
 		return nil, err
 	}
-	body, err := doGet(ctx, cfg, "/blocks/"+url.PathEscape(id))
+	body, err := jsonapi.Get(ctx, cfg, "/blocks/"+url.PathEscape(id))
 	if err != nil {
 		return nil, err
 	}
@@ -168,7 +149,7 @@ func ByHash(ctx context.Context, cfg Config, hash string) (*Block, error) {
 	q := url.Values{}
 	q.Set("filter[block_hash]", hash)
 	q.Set("page[limit]", "2") // 2, so "more than one" is detectable
-	body, err := doGet(ctx, cfg, "/blocks?"+q.Encode())
+	body, err := jsonapi.Get(ctx, cfg, "/blocks?"+q.Encode())
 	if err != nil {
 		return nil, err
 	}
@@ -178,7 +159,7 @@ func ByHash(ctx context.Context, cfg Config, hash string) (*Block, error) {
 	}
 	switch len(list) {
 	case 0:
-		return nil, &APIError{Status: 404, Detail: "no block with that hash", sentinel: ErrNotFound}
+		return nil, jsonapi.NotFound("no block with that hash")
 	case 1:
 		return &list[0], nil
 	default:
@@ -212,7 +193,7 @@ func firstOf(ctx context.Context, cfg Config, sort string) (*Block, error) {
 	q := url.Values{}
 	q.Set("sort", sort)
 	q.Set("page[limit]", "1")
-	body, err := doGet(ctx, cfg, "/blocks?"+q.Encode())
+	body, err := jsonapi.Get(ctx, cfg, "/blocks?"+q.Encode())
 	if err != nil {
 		return nil, err
 	}
@@ -221,77 +202,9 @@ func firstOf(ctx context.Context, cfg Config, sort string) (*Block, error) {
 		return nil, err
 	}
 	if len(list) == 0 {
-		return nil, &APIError{Status: 404, Detail: "no blocks", sentinel: ErrNotFound}
+		return nil, jsonapi.NotFound("no blocks")
 	}
 	return &list[0], nil
-}
-
-func doGet(ctx context.Context, cfg Config, path string) ([]byte, error) {
-	if auth.Default().Mode() == auth.ModeNone {
-		return nil, &APIError{Status: 401, Detail: "not authenticated", sentinel: ErrUnauthorized}
-	}
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, cfg.APIURL+path, nil)
-	if err != nil {
-		return nil, fmt.Errorf("creating request: %w", err)
-	}
-	req.Header.Set("Accept", "application/vnd.api+json")
-	if err := auth.AuthorizeRequest(ctx, req); err != nil {
-		return nil, &APIError{Status: 401, Detail: err.Error(), sentinel: ErrUnauthorized}
-	}
-	if cfg.Team != "" {
-		req.Header.Set("tenant", cfg.Team)
-	}
-
-	resp, err := httpclient.Do(req)
-	if err != nil {
-		return nil, fmt.Errorf("API request failed: %w", err)
-	}
-	defer resp.Body.Close()
-
-	body, err := io.ReadAll(io.LimitReader(resp.Body, httpclient.MaxResponseSize))
-	if err != nil {
-		return nil, fmt.Errorf("reading API response: %w", err)
-	}
-	if resp.StatusCode >= 200 && resp.StatusCode < 300 {
-		return body, nil
-	}
-	apiErr := parseAPIError(resp.StatusCode, body)
-	if resp.StatusCode == http.StatusTooManyRequests {
-		apiErr.RetryAfter = resp.Header.Get("Retry-After")
-	}
-	return nil, apiErr
-}
-
-func parseAPIError(status int, body []byte) *APIError {
-	e := &APIError{Status: status, sentinel: sentinelFor(status)}
-	var envelope struct {
-		Errors []struct {
-			Detail string `json:"detail"`
-			Title  string `json:"title"`
-		} `json:"errors"`
-	}
-	if err := json.Unmarshal(body, &envelope); err == nil && len(envelope.Errors) > 0 {
-		e.Detail = envelope.Errors[0].Detail
-		if e.Detail == "" {
-			e.Detail = envelope.Errors[0].Title
-		}
-	}
-	return e
-}
-
-func sentinelFor(status int) error {
-	switch {
-	case status == http.StatusUnauthorized, status == http.StatusForbidden:
-		return ErrUnauthorized
-	case status == http.StatusNotFound:
-		return ErrNotFound
-	case status == http.StatusTooManyRequests:
-		return ErrRateLimited
-	case status >= 400 && status < 500:
-		return ErrBadRequest
-	default:
-		return ErrServer
-	}
 }
 
 // unmarshalOne accepts both a bare object and a JSON:API `{"data": {...}}`

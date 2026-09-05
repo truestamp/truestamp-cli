@@ -12,17 +12,13 @@ package beacons
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
-	"io"
-	"net/http"
 	"net/url"
 	"regexp"
 	"strconv"
 
 	"github.com/gofrs/uuid/v5"
-	"github.com/truestamp/truestamp-cli/internal/auth"
-	"github.com/truestamp/truestamp-cli/internal/httpclient"
+	"github.com/truestamp/truestamp-cli/internal/jsonapi"
 )
 
 // Beacon is the JSON shape returned by every beacon endpoint. All four
@@ -35,48 +31,26 @@ type Beacon struct {
 	PreviousHash string `json:"previous_hash"` // 64 lowercase hex
 }
 
-// Errors surfaced by the client. CLI layers may errors.Is these to pick
-// an exit code and user-facing message.
-var (
-	ErrUnauthorized = errors.New("not authenticated")
-	ErrNotFound     = errors.New("beacon not found")
-	ErrBadRequest   = errors.New("bad request")
-	ErrRateLimited  = errors.New("rate limited")
-	ErrServer       = errors.New("server error")
+// The transport, the class sentinels and APIError live in
+// internal/jsonapi; these aliases keep this client's surface stable for
+// the commands that errors.Is its classes.
+type (
+	Config   = jsonapi.Config
+	APIError = jsonapi.APIError
 )
 
-// APIError carries HTTP status + preserved `errors[].detail` from the
-// JSON:API envelope for display to the user. Wraps one of the sentinel
-// errors above so callers can errors.Is() the class while still showing
-// the detail text.
-type APIError struct {
-	Status     int
-	Detail     string // preferred; falls back to Title
-	RetryAfter string // verbatim Retry-After header on 429
-	sentinel   error
-}
-
-func (e *APIError) Error() string {
-	if e.Detail != "" {
-		return fmt.Sprintf("HTTP %d: %s", e.Status, e.Detail)
-	}
-	return fmt.Sprintf("HTTP %d", e.Status)
-}
-
-func (e *APIError) Unwrap() error { return e.sentinel }
-
-// Config carries the subset of runtime configuration needed for a request.
-// Kept small to avoid importing the top-level config package. The
-// credential is supplied out-of-band by the process-wide [auth.Authorizer]
-// (set in cmd/root); only the tenant scoping lives here.
-type Config struct {
-	APIURL string // e.g. https://www.truestamp.com/api/json
-	Team   string // optional tenant id
-}
+var (
+	ErrUnauthorized = jsonapi.ErrUnauthorized
+	ErrForbidden    = jsonapi.ErrForbidden
+	ErrNotFound     = jsonapi.ErrNotFound
+	ErrBadRequest   = jsonapi.ErrBadRequest
+	ErrRateLimited  = jsonapi.ErrRateLimited
+	ErrServer       = jsonapi.ErrServer
+)
 
 // Latest fetches the most recent finalized/committed beacon.
 func Latest(ctx context.Context, cfg Config) (*Beacon, error) {
-	body, err := doGet(ctx, cfg, "/beacons/latest")
+	body, err := jsonapi.Get(ctx, cfg, "/beacons/latest")
 	if err != nil {
 		return nil, err
 	}
@@ -96,7 +70,7 @@ func List(ctx context.Context, cfg Config, limit int) ([]Beacon, error) {
 	if limit > 0 {
 		path = path + "?limit=" + strconv.Itoa(limit)
 	}
-	body, err := doGet(ctx, cfg, path)
+	body, err := jsonapi.Get(ctx, cfg, path)
 	if err != nil {
 		return nil, err
 	}
@@ -108,7 +82,7 @@ func Get(ctx context.Context, cfg Config, id string) (*Beacon, error) {
 	if err := ValidateUUIDv7(id); err != nil {
 		return nil, err
 	}
-	body, err := doGet(ctx, cfg, "/beacons/"+url.PathEscape(id))
+	body, err := jsonapi.Get(ctx, cfg, "/beacons/"+url.PathEscape(id))
 	if err != nil {
 		return nil, err
 	}
@@ -120,95 +94,11 @@ func ByHash(ctx context.Context, cfg Config, hash string) (*Beacon, error) {
 	if err := ValidateHash(hash); err != nil {
 		return nil, err
 	}
-	body, err := doGet(ctx, cfg, "/beacons/by-hash/"+url.PathEscape(hash))
+	body, err := jsonapi.Get(ctx, cfg, "/beacons/by-hash/"+url.PathEscape(hash))
 	if err != nil {
 		return nil, err
 	}
 	return unmarshalBeacon(body)
-}
-
-// doGet issues an authenticated GET and returns the response body on 2xx.
-// On non-2xx returns an *APIError wrapping one of the class sentinels.
-func doGet(ctx context.Context, cfg Config, path string) ([]byte, error) {
-	if auth.Default().Mode() == auth.ModeNone {
-		return nil, &APIError{Status: 401, Detail: "not authenticated", sentinel: ErrUnauthorized}
-	}
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, cfg.APIURL+path, nil)
-	if err != nil {
-		return nil, fmt.Errorf("creating request: %w", err)
-	}
-	req.Header.Set("Accept", "application/vnd.api+json")
-	if err := auth.AuthorizeRequest(ctx, req); err != nil {
-		return nil, &APIError{Status: 401, Detail: err.Error(), sentinel: ErrUnauthorized}
-	}
-	if cfg.Team != "" {
-		req.Header.Set("tenant", cfg.Team)
-	}
-
-	resp, err := httpclient.Do(req)
-	if err != nil {
-		return nil, fmt.Errorf("API request failed: %w", err)
-	}
-	defer resp.Body.Close()
-
-	body, err := io.ReadAll(io.LimitReader(resp.Body, httpclient.MaxResponseSize))
-	if err != nil {
-		return nil, fmt.Errorf("reading API response: %w", err)
-	}
-
-	if resp.StatusCode >= 200 && resp.StatusCode < 300 {
-		return body, nil
-	}
-
-	apiErr := parseAPIError(resp.StatusCode, body)
-	if resp.StatusCode == http.StatusTooManyRequests {
-		apiErr.RetryAfter = resp.Header.Get("Retry-After")
-	}
-	return nil, apiErr
-}
-
-// parseAPIError extracts `errors[].detail` (or `title`) from the JSON:API
-// error envelope and wraps the appropriate class sentinel.
-func parseAPIError(status int, body []byte) *APIError {
-	e := &APIError{Status: status, sentinel: sentinelFor(status)}
-	var envelope struct {
-		Errors []struct {
-			Detail string `json:"detail"`
-			Title  string `json:"title"`
-		} `json:"errors"`
-	}
-	if err := json.Unmarshal(body, &envelope); err == nil && len(envelope.Errors) > 0 {
-		first := envelope.Errors[0]
-		switch {
-		case first.Detail != "":
-			e.Detail = first.Detail
-		case first.Title != "":
-			e.Detail = first.Title
-		}
-	}
-	if e.Detail == "" && len(body) > 0 && body[0] == '<' {
-		e.Detail = "server returned HTML error page"
-	}
-	if e.Detail == "" {
-		e.Detail = httpclient.Truncate(string(body), 200)
-	}
-	return e
-}
-
-func sentinelFor(status int) error {
-	switch {
-	case status == http.StatusUnauthorized:
-		return ErrUnauthorized
-	case status == http.StatusNotFound:
-		return ErrNotFound
-	case status == http.StatusTooManyRequests:
-		return ErrRateLimited
-	case status >= 400 && status < 500:
-		return ErrBadRequest
-	case status >= 500:
-		return ErrServer
-	}
-	return errors.New("unexpected status")
 }
 
 // unmarshalBeacon handles both bare-object and {"result": …} envelopes.

@@ -10,7 +10,7 @@ import (
 	"fmt"
 	"net/http"
 
-	"github.com/truestamp/truestamp-cli/internal/httpclient"
+	"github.com/truestamp/truestamp-cli/internal/jsonapi"
 )
 
 // CreateItemResponse holds the parsed JSON:API response for a created item.
@@ -60,7 +60,7 @@ func CreateItemCtx(ctx context.Context, apiURL, team string, claims map[string]a
 		return nil, fmt.Errorf("encoding request: %w", err)
 	}
 
-	respBody, err := doJSON(ctx, http.MethodPost, apiURL+"/items", team, bodyBytes)
+	respBody, err := jsonapi.Do(ctx, jsonapi.Config{APIURL: apiURL, Team: team}, http.MethodPost, "/items", bodyBytes)
 	if err != nil {
 		return nil, err
 	}
@@ -119,30 +119,4 @@ func getString(m map[string]any, key string) string {
 	}
 	s, _ := v.(string)
 	return s
-}
-
-// parseError extracts a user-friendly message from a JSON:API error response.
-func parseError(statusCode int, body []byte) error {
-	var envelope struct {
-		Errors []struct {
-			Status string `json:"status"`
-			Detail string `json:"detail"`
-			Title  string `json:"title"`
-		} `json:"errors"`
-	}
-	if err := json.Unmarshal(body, &envelope); err == nil && len(envelope.Errors) > 0 {
-		first := envelope.Errors[0]
-		if first.Detail != "" {
-			return fmt.Errorf("API error (HTTP %d): %s", statusCode, first.Detail)
-		}
-		if first.Title != "" {
-			return fmt.Errorf("API error (HTTP %d): %s", statusCode, first.Title)
-		}
-	}
-
-	bodyStr := string(body)
-	if len(bodyStr) > 0 && bodyStr[0] == '<' {
-		return fmt.Errorf("API error (HTTP %d): server returned HTML error page", statusCode)
-	}
-	return fmt.Errorf("API error (HTTP %d): %s", statusCode, httpclient.Truncate(bodyStr, 200))
 }

@@ -5,10 +5,12 @@ package cmd
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 
 	"github.com/spf13/cobra"
+	"github.com/truestamp/truestamp-cli/internal/jsonapi"
 	"github.com/truestamp/truestamp-cli/internal/ui"
 )
 
@@ -102,4 +104,38 @@ func requireAuth(cmd *cobra.Command) error {
 		return nil
 	}
 	return failNotAuthenticated(cmd)
+}
+
+// renderAPIError turns a jsonapi client error into the message and exit
+// shape the resource groups share: a 401 is the shared banner, a 403 an
+// "Access denied" banner, a 404 one line naming the record, anything else
+// one line carrying the server's detail, and nothing at all under
+// --silent. noun names the record ("beacon", "block", "item", "team").
+func renderAPIError(cmd *cobra.Command, err error, noun string) error {
+	if errors.Is(err, jsonapi.ErrUnauthorized) {
+		return failNotAuthenticated(cmd)
+	}
+	_, silent := outputMode(cmd)
+	if errors.Is(err, jsonapi.ErrForbidden) {
+		if !silent {
+			ui.Fprintln(cmd.ErrOrStderr(), ui.FailureBanner("Access denied"))
+			ui.Fprintln(cmd.ErrOrStderr(), ui.FaintStyle().Render(
+				"    You're authenticated, but you do not have access to that "+noun+"."))
+		}
+		return errSilentFail
+	}
+	if silent {
+		return errSilentFail
+	}
+	var apiErr *jsonapi.APIError
+	if errors.As(err, &apiErr) {
+		switch {
+		case errors.Is(err, jsonapi.ErrNotFound):
+			return fmt.Errorf("%s not found", noun)
+		case errors.Is(err, jsonapi.ErrRateLimited) && apiErr.RetryAfter != "":
+			return fmt.Errorf("rate limited (Retry-After: %s): %s", apiErr.RetryAfter, apiErr.Detail)
+		}
+		return errors.New(apiErr.Error())
+	}
+	return err
 }

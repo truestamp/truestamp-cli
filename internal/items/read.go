@@ -4,17 +4,14 @@
 package items
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
-	"io"
 	"net/http"
 	"net/url"
 	"strconv"
 
-	"github.com/truestamp/truestamp-cli/internal/auth"
-	"github.com/truestamp/truestamp-cli/internal/httpclient"
+	"github.com/truestamp/truestamp-cli/internal/jsonapi"
 )
 
 // Item is the subset of an item's attributes the CLI reads back.
@@ -108,7 +105,7 @@ func List(ctx context.Context, apiURL, team string, opts ListOptions) (*Page, er
 		// fetch rather than a query the server can index.
 	}
 
-	body, err := doJSON(ctx, http.MethodGet, apiURL+"/items?"+q.Encode(), team, nil)
+	body, err := jsonapi.Do(ctx, jsonapi.Config{APIURL: apiURL, Team: team}, http.MethodGet, "/items?"+q.Encode(), nil)
 	if err != nil {
 		return nil, err
 	}
@@ -132,7 +129,7 @@ func List(ctx context.Context, apiURL, team string, opts ListOptions) (*Page, er
 func Get(ctx context.Context, apiURL, team, id string) (*Item, error) {
 	q := url.Values{}
 	q.Set("fields[item]", requestFields)
-	body, err := doJSON(ctx, http.MethodGet, apiURL+"/items/"+url.PathEscape(id)+"?"+q.Encode(), team, nil)
+	body, err := jsonapi.Do(ctx, jsonapi.Config{APIURL: apiURL, Team: team}, http.MethodGet, "/items/"+url.PathEscape(id)+"?"+q.Encode(), nil)
 	if err != nil {
 		return nil, err
 	}
@@ -182,47 +179,11 @@ func Update(ctx context.Context, apiURL, team, id string, opts UpdateOptions) (*
 	if err != nil {
 		return nil, fmt.Errorf("encoding request: %w", err)
 	}
-	body, err := doJSON(ctx, http.MethodPatch, apiURL+"/items/"+url.PathEscape(id), team, raw)
+	body, err := jsonapi.Do(ctx, jsonapi.Config{APIURL: apiURL, Team: team}, http.MethodPatch, "/items/"+url.PathEscape(id), raw)
 	if err != nil {
 		return nil, err
 	}
 	return parseOne(body)
-}
-
-func doJSON(ctx context.Context, method, reqURL, team string, body []byte) ([]byte, error) {
-	var rdr io.Reader
-	if body != nil {
-		rdr = bytes.NewReader(body)
-	}
-	req, err := http.NewRequestWithContext(ctx, method, reqURL, rdr)
-	if err != nil {
-		return nil, fmt.Errorf("creating request: %w", err)
-	}
-	req.Header.Set("Accept", "application/vnd.api+json")
-	if body != nil {
-		req.Header.Set("Content-Type", "application/vnd.api+json")
-	}
-	if err := auth.AuthorizeRequest(ctx, req); err != nil {
-		return nil, err
-	}
-	if team != "" {
-		req.Header.Set("tenant", team)
-	}
-
-	resp, err := httpclient.Do(req)
-	if err != nil {
-		return nil, fmt.Errorf("API request failed: %w", err)
-	}
-	defer resp.Body.Close()
-
-	respBody, err := io.ReadAll(io.LimitReader(resp.Body, httpclient.MaxResponseSize))
-	if err != nil {
-		return nil, fmt.Errorf("reading response: %w", err)
-	}
-	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return nil, parseError(resp.StatusCode, respBody)
-	}
-	return respBody, nil
 }
 
 // resourceObject is the JSON:API shape both the single and list responses

@@ -116,36 +116,6 @@ func TestGetString(t *testing.T) {
 	}
 }
 
-// --- parseError ------------------------------------------------------
-
-func TestParseError_WithDetail(t *testing.T) {
-	err := parseError(400, []byte(`{"errors":[{"detail":"bad claims"}]}`))
-	if err == nil || !strings.Contains(err.Error(), "bad claims") {
-		t.Errorf("expected detail in error: %v", err)
-	}
-}
-
-func TestParseError_TitleOnly(t *testing.T) {
-	err := parseError(404, []byte(`{"errors":[{"title":"Not Found"}]}`))
-	if err == nil || !strings.Contains(err.Error(), "Not Found") {
-		t.Errorf("expected title in error: %v", err)
-	}
-}
-
-func TestParseError_HTMLBody(t *testing.T) {
-	err := parseError(502, []byte("<html>oops</html>"))
-	if err == nil || !strings.Contains(err.Error(), "HTML") {
-		t.Errorf("expected HTML mention: %v", err)
-	}
-}
-
-func TestParseError_UnparseableBody(t *testing.T) {
-	err := parseError(500, []byte("server stack trace"))
-	if err == nil {
-		t.Fatal("expected error")
-	}
-}
-
 // --- CreateItem / CreateItemCtx (httptest) ---------------------------
 
 func TestCreateItem_Success(t *testing.T) {
