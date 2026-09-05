@@ -41,7 +41,7 @@ and the CLI surfaces it with a clear, actionable message.
 
 Examples:
   truestamp teams create "Acme Engineering"
-  truestamp teams create --name "Acme" --ownership-model team_retains --set
+  truestamp teams create --name "Acme" --ownership-model team_retains --use
   truestamp teams create                       # interactive prompt`,
 	Args: cobra.MaximumNArgs(1),
 	RunE: runTeamCreate,
@@ -55,7 +55,7 @@ var createTeamCtx = func(ctx context.Context, cfg teams.Config, name, ownership 
 
 func runTeamCreate(cmd *cobra.Command, args []string) error {
 	jsonOut, silent := outputMode(cmd)
-	setActive, _ := cmd.Flags().GetBool("set")
+	setActive, _ := cmd.Flags().GetBool("use")
 	nameFlag, _ := cmd.Flags().GetString("name")
 	ownershipFlag, _ := cmd.Flags().GetString("ownership-model")
 
@@ -280,7 +280,7 @@ func init() {
 	f := teamsCreateCmd.Flags()
 	f.StringP("name", "n", "", "Team name (also accepted as the positional argument)")
 	f.String("ownership-model", "", "Ownership model: creator_retains (default) or team_retains")
-	f.Bool("set", false, "Set the new team as the active team after creating it")
+	f.Bool("use", false, "Point the CLI at the new team once it exists, as 'teams use' would")
 	addRecordOutputFlags(teamsCreateCmd)
 
 	teamsCmd.AddCommand(teamsCreateCmd)

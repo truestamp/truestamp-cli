@@ -391,7 +391,7 @@ truestamp
 │       ├── get <id>             --json --silent
 │       ├── current              --json --silent
 │       ├── use [id]             --clear --json --silent
-│       └── create [name]        -n/--name --ownership-model --set --json --silent
+│       └── create [name]        -n/--name --ownership-model --use --json --silent
 │
 ├── Local tools (stdin → stdout primitives)
 │   ├── hash [path ...]          -a/--algorithm -e/--encoding --style --prefix --jcs --binary
