@@ -339,21 +339,27 @@ func init() {
 	proofsCmd.AddCommand(proofsGetCmd)
 }
 
-// retryableGenerateCodes mirrors the server's own closed retryable set.
+// generateCodeAdvice is what a holder can do next for each /proof/generate
+// refusal code this CLI recognises: whether waiting helps, and the one
+// sentence of context worth adding to the server's own detail.
+//
 // Terminality is a property of the CODE, never of the wording of `detail`:
 // detail is human-readable text the server may reword at any time, and it
-// has been reworded once already. A code this CLI does not recognise
-// appears in neither map and gets no verdict at all, so a code added
-// server-side before the CLI learns about it renders plainly rather than
-// inheriting a guess about whether waiting helps.
-var retryableGenerateCodes = map[string]bool{
-	proof.GenerateCodeNoExternalCommitments: true,
-	proof.GenerateCodeSubjectNotReady:       true,
-}
-
-var terminalGenerateCodes = map[string]bool{
-	proof.GenerateCodeSubjectNotRecomputable: true,
-	proof.GenerateCodeGenerationFailed:       true,
+// has been reworded once already. A code not in this table gets no verdict
+// at all, so a code added server-side before the CLI learns about it
+// renders plainly rather than inheriting a guess about whether waiting
+// helps. The transient set mirrors the server's own closed retryable set.
+var generateCodeAdvice = map[string]struct {
+	transient bool
+	advice    string
+}{
+	proof.GenerateCodeNoExternalCommitments: {true, " A proof exists only after the subject's first\n" +
+		"public-chain commitment; items commit to a Truestamp block within about\n" +
+		"a minute and to Stellar within about five. Try again shortly."},
+	proof.GenerateCodeSubjectNotReady: {true, " The subject is not yet in a state a proof can be\n" +
+		"built from. Try again shortly."},
+	proof.GenerateCodeSubjectNotRecomputable: {false, ""},
+	proof.GenerateCodeGenerationFailed:       {false, ""},
 }
 
 // explainGenerateError turns a /proof/generate refusal into something the
@@ -373,23 +379,17 @@ func explainGenerateError(e *proof.GenerateAPIError) error {
 
 	// A labelled verdict rather than a sentence, so it cannot read as a
 	// clumsy echo of whatever the server's own prose already says.
-	switch {
-	case retryableGenerateCodes[e.Code]:
-		b.WriteString("\n\nRetry: yes, this is transient.")
-	case terminalGenerateCodes[e.Code]:
-		b.WriteString("\n\nRetry: no, this condition is permanent.")
+	if a, known := generateCodeAdvice[e.Code]; known {
+		if a.transient {
+			b.WriteString("\n\nRetry: yes, this is transient.")
+		} else {
+			b.WriteString("\n\nRetry: no, this condition is permanent.")
+		}
+		b.WriteString(a.advice)
 	}
 
+	// Two codes carry fields whose rendering depends on the error itself.
 	switch e.Code {
-	case proof.GenerateCodeNoExternalCommitments:
-		b.WriteString(" A proof exists only after the subject's first")
-		b.WriteString("\npublic-chain commitment; items commit to a Truestamp block within about")
-		b.WriteString("\na minute and to Stellar within about five. Try again shortly.")
-
-	case proof.GenerateCodeSubjectNotReady:
-		b.WriteString(" The subject is not yet in a state a proof can be")
-		b.WriteString("\nbuilt from. Try again shortly.")
-
 	case proof.GenerateCodeSubjectNotRecomputable:
 		if e.Drifted != "" {
 			fmt.Fprintf(&b, "\n\nWhat drifted: %s.", e.Drifted)
