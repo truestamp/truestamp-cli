@@ -14,7 +14,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/url"
-	"strconv"
 
 	"github.com/truestamp/truestamp-cli/internal/ids"
 	"github.com/truestamp/truestamp-cli/internal/jsonapi"
@@ -56,24 +55,52 @@ func Latest(ctx context.Context, cfg Config) (*Beacon, error) {
 	return unmarshalBeacon(body)
 }
 
-// List fetches up to `limit` most-recent beacons, newest first.
+// ListOptions configures a list request; the paging fields are the ones
+// every keyset-paged list shares (jsonapi.SetPageQuery).
+type ListOptions struct {
+	Limit       int
+	After       string // continue forward from a Page.NextCursor
+	Before      string // continue backward from a Page.PrevCursor
+	OldestFirst bool   // walk from the genesis beacon instead of the newest
+	Count       bool
+}
+
+// Page is one page of beacons plus the cursors for its neighbours and,
+// when asked for, the server's total.
+type Page struct {
+	Beacons    []Beacon
+	NextCursor string
+	PrevCursor string
+	Total      int
+}
+
+// defaultLimit is sent when a caller asks for no particular page size.
+const defaultLimit = 25
+
+// List fetches one page of beacons, newest first unless asked otherwise.
 //
-// The ceiling is the server's to enforce and to name: it refuses an
-// over-large page with "must be less than or equal to 100", which surfaces
-// cleanly through APIError. Do not pre-clamp here -- the server's OpenAPI
-// document states no maximum, so any number written into this client is
-// unbacked and drifts silently. cmd/limits.go owns the floor, which the
-// contract does state.
-func List(ctx context.Context, cfg Config, limit int) ([]Beacon, error) {
-	path := "/beacons"
-	if limit > 0 {
-		path = path + "?limit=" + strconv.Itoa(limit)
+// GET /beacons is a JSON:API index over a keyset-paginated read, the same
+// contract as /blocks: page[limit], page[after], page[before],
+// page[count] and sort=id|-id, answered as a resource document with
+// links.next/prev and meta.page.total. The server clamps a page above 100
+// to 100 rather than refusing it; the floor is cmd/limits.go's.
+func List(ctx context.Context, cfg Config, opts ListOptions) (*Page, error) {
+	if opts.Limit <= 0 {
+		opts.Limit = defaultLimit
 	}
-	body, err := jsonapi.Get(ctx, cfg, path)
+	q := url.Values{}
+	q.Set("sort", jsonapi.SortByID(opts.OldestFirst))
+	jsonapi.SetPageQuery(q, opts.Limit, opts.After, opts.Before, opts.Count)
+	body, err := jsonapi.Get(ctx, cfg, "/beacons?"+q.Encode())
 	if err != nil {
 		return nil, err
 	}
-	return unmarshalBeaconList(body)
+	list, err := unmarshalBeaconDocument(body)
+	if err != nil {
+		return nil, err
+	}
+	info := jsonapi.ParsePage(body)
+	return &Page{Beacons: list, NextCursor: info.NextCursor, PrevCursor: info.PrevCursor, Total: info.Total}, nil
 }
 
 // Get fetches a single beacon by UUIDv7 id.
@@ -100,7 +127,8 @@ func ByHash(ctx context.Context, cfg Config, hash string) (*Beacon, error) {
 	return unmarshalBeacon(body)
 }
 
-// unmarshalBeacon handles both bare-object and {"result": …} envelopes.
+// unmarshalBeacon handles both bare-object and {"result": …} envelopes,
+// the shapes of /beacons/latest, /beacons/:id and /beacons/by-hash/:hash.
 func unmarshalBeacon(body []byte) (*Beacon, error) {
 	unwrapped := unwrap(body)
 	var b Beacon
@@ -113,17 +141,26 @@ func unmarshalBeacon(body []byte) (*Beacon, error) {
 	return &b, nil
 }
 
-// unmarshalBeaconList handles both bare-array and {"result": [...]} envelopes.
-func unmarshalBeaconList(body []byte) ([]Beacon, error) {
-	unwrapped := unwrap(body)
-	var list []Beacon
-	if err := json.Unmarshal(unwrapped, &list); err != nil {
+// unmarshalBeaconDocument decodes the JSON:API list document: identity on
+// the resource object, the four public fields under attributes.
+func unmarshalBeaconDocument(body []byte) ([]Beacon, error) {
+	var env struct {
+		Data []struct {
+			ID         string `json:"id"`
+			Attributes Beacon `json:"attributes"`
+		} `json:"data"`
+	}
+	if err := json.Unmarshal(body, &env); err != nil {
 		return nil, fmt.Errorf("parsing beacon list response: %w", err)
 	}
-	for i := range list {
-		if err := validateShape(&list[i]); err != nil {
+	list := make([]Beacon, 0, len(env.Data))
+	for i, r := range env.Data {
+		b := r.Attributes
+		b.ID = r.ID
+		if err := validateShape(&b); err != nil {
 			return nil, fmt.Errorf("entry %d: %w", i, err)
 		}
+		list = append(list, b)
 	}
 	return list, nil
 }

@@ -33,6 +33,9 @@ const (
 	validTS    = "2026-04-22T21:05:00.000000Z"
 	validBody  = `{"id":"` + validID + `","hash":"` + validHash + `","timestamp":"` + validTS + `","previous_hash":"` + validPrev + `"}`
 	wrappedOne = `{"result":` + validBody + `}`
+	// The list route is a JSON:API document: identity on the resource
+	// object, the public fields under attributes.
+	validResource = `{"type":"beacon","id":"` + validID + `","attributes":{"hash":"` + validHash + `","timestamp":"` + validTS + `","previous_hash":"` + validPrev + `"}}`
 )
 
 func newServer(t *testing.T, fn http.HandlerFunc) (Config, func()) {
@@ -79,34 +82,43 @@ func TestLatest_WrappedResult(t *testing.T) {
 	}
 }
 
-func TestList_Bare(t *testing.T) {
+func TestList_QueryAndDocument(t *testing.T) {
 	cfg, stop := newServer(t, func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.RawQuery != "limit=3" {
-			t.Errorf("expected limit=3 query, got %q", r.URL.RawQuery)
+		q := r.URL.Query()
+		if q.Get("page[limit]") != "3" || q.Get("sort") != "-id" {
+			t.Errorf("expected page[limit]=3 and sort=-id, got %q", r.URL.RawQuery)
 		}
-		_, _ = w.Write([]byte(`[` + validBody + `,` + validBody + `]`))
+		_, _ = w.Write([]byte(`{"data":[` + validResource + `,` + validResource + `],"links":{"next":null,"prev":null}}`))
 	})
 	defer stop()
-	got, err := List(context.Background(), cfg, 3)
+	got, err := List(context.Background(), cfg, ListOptions{Limit: 3})
 	if err != nil {
 		t.Fatalf("List: %v", err)
 	}
-	if len(got) != 2 {
-		t.Errorf("want 2 entries, got %d", len(got))
+	if len(got.Beacons) != 2 || got.Beacons[0].ID != validID || got.Beacons[0].Hash != validHash {
+		t.Errorf("want 2 decoded beacons with identity from the resource object, got %+v", got.Beacons)
+	}
+	if got.NextCursor != "" || got.PrevCursor != "" {
+		t.Errorf("explicit null links must read as no cursor, got %q %q", got.NextCursor, got.PrevCursor)
 	}
 }
 
-func TestList_WrappedArray(t *testing.T) {
-	cfg, stop := newServer(t, func(w http.ResponseWriter, _ *http.Request) {
-		_, _ = w.Write([]byte(`{"result":[` + validBody + `]}`))
+func TestList_CursorsAndTotal(t *testing.T) {
+	cfg, stop := newServer(t, func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Query().Get("page[count]") != "true" || r.URL.Query().Get("sort") != "id" {
+			t.Errorf("expected page[count]=true and sort=id, got %q", r.URL.RawQuery)
+		}
+		_, _ = w.Write([]byte(`{"data":[` + validResource + `],` +
+			`"links":{"next":"https://x/api/json/beacons?page%5Bafter%5D=C1","prev":"https://x/api/json/beacons?page%5Bbefore%5D=P1"},` +
+			`"meta":{"page":{"total":45934,"limit":1}}}`))
 	})
 	defer stop()
-	got, err := List(context.Background(), cfg, 0)
+	got, err := List(context.Background(), cfg, ListOptions{Limit: 1, OldestFirst: true, Count: true})
 	if err != nil {
 		t.Fatalf("List: %v", err)
 	}
-	if len(got) != 1 {
-		t.Errorf("want 1 entry, got %d", len(got))
+	if len(got.Beacons) != 1 || got.NextCursor != "C1" || got.PrevCursor != "P1" || got.Total != 45934 {
+		t.Errorf("cursors and total should be lifted from the document, got %+v", got)
 	}
 }
 
@@ -198,7 +210,7 @@ func TestError_400(t *testing.T) {
 		_, _ = w.Write([]byte(`{"errors":[{"detail":"limit must be 1..100"}]}`))
 	})
 	defer stop()
-	_, err := List(context.Background(), cfg, 500)
+	_, err := List(context.Background(), cfg, ListOptions{Limit: 500})
 	if !errors.Is(err, ErrBadRequest) {
 		t.Fatalf("expected ErrBadRequest, got %v", err)
 	}

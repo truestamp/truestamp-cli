@@ -22,6 +22,10 @@ const (
 	testBeaconTimestamp = "2026-04-22T21:05:00.000000Z"
 	testBeaconJSON      = `{"id":"` + testBeaconID + `","hash":"` + testBeaconHash +
 		`","timestamp":"` + testBeaconTimestamp + `","previous_hash":"` + testBeaconPrev + `"}`
+	// The list route answers a JSON:API document; the single routes keep
+	// the bare object above.
+	testBeaconResource = `{"type":"beacon","id":"` + testBeaconID + `","attributes":{"hash":"` + testBeaconHash +
+		`","timestamp":"` + testBeaconTimestamp + `","previous_hash":"` + testBeaconPrev + `"}}`
 )
 
 // startBeaconServer spins up an httptest server that serves static beacon
@@ -46,7 +50,11 @@ func startBeaconServer(t *testing.T) (string, func()) {
 	})
 	mux.HandleFunc("/api/json/beacons", func(w http.ResponseWriter, r *http.Request) {
 		requireBearer(t, r)
-		_, _ = w.Write([]byte(`[` + testBeaconJSON + `,` + testBeaconJSON + `]`))
+		if r.URL.Query().Get("page[limit]") == "" {
+			t.Errorf("the list must page with page[limit], got %q", r.URL.RawQuery)
+		}
+		_, _ = w.Write([]byte(`{"data":[` + testBeaconResource + `,` + testBeaconResource + `],` +
+			`"links":{"first":"","self":"","next":null,"prev":null},"meta":{"page":{"limit":2}}}`))
 	})
 	srv := httptest.NewServer(mux)
 	return srv.URL, srv.Close
@@ -244,12 +252,18 @@ func TestCLI_Beacons_List_JSON(t *testing.T) {
 	if exit != 0 {
 		t.Fatalf("exit=%d, stdout=%q", exit, stdout)
 	}
-	var items []map[string]any
-	if err := json.Unmarshal([]byte(stdout), &items); err != nil {
+	var got struct {
+		Beacons    []map[string]any `json:"beacons"`
+		NextCursor string           `json:"next_cursor"`
+	}
+	if err := json.Unmarshal([]byte(stdout), &got); err != nil {
 		t.Fatalf("invalid JSON: %v\n%s", err, stdout)
 	}
-	if len(items) != 2 {
-		t.Fatalf("want 2 entries, got %d", len(items))
+	if len(got.Beacons) != 2 || got.Beacons[0]["id"] != testBeaconID {
+		t.Fatalf("want 2 beacons under the noun with identity from the resource object, got %s", stdout)
+	}
+	if got.NextCursor != "" {
+		t.Errorf("an explicit null next link is no cursor, got %q", got.NextCursor)
 	}
 }
 

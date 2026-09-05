@@ -70,7 +70,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `entropy_` prefix for display. The three id validators shared by
   beacons, blocks and entropy moved to one package, `internal/ids`.
 - **Every keyset-paged list pages the same way** (kb/command-tree.md R14).
-  `items list`, `blocks list` and `entropy list` carry `--limit` (page size),
+  `items list`, `blocks list`, `beacons list` and `entropy list` carry `--limit` (page size),
   `--after <cursor>` and `--before <cursor>` (continue where a page stopped,
   forward or back toward the start: the `More: --after …` and `Back: --before …`
   hints, or `next_cursor` and `prev_cursor` in `--json`), `--oldest-first` (start
@@ -79,8 +79,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   total). Their `--json` is one envelope,
   `{"<noun>": [...], "next_cursor": "...", "prev_cursor": "...", "total": N}`. There is deliberately
   no `--all`: the tables behind these lists grow by the minute, so following
-  pages costs a cap you wrote down. `beacons list` has no cursor to follow and
-  keeps `--limit` alone.
+  pages costs a cap you wrote down. `beacons list` joined the others once the
+  server gave `/api/json/beacons` keyset paging; its `--json`, a bare array in
+  v0.13.0, is now the same envelope, and the endpoint clamps a page above 100 to
+  100 instead of refusing it.
 - **`proofs get` refusals read like the rest of the CLI.** A `/proof/generate`
   refusal is a banner (`Proof not available yet`, `Proof cannot be generated`),
   the server's detail, what to do next (`This clears on its own: try again
