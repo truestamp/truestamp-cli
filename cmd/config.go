@@ -118,53 +118,31 @@ var configShowCmd = &cobra.Command{
 			return nil
 		}
 		if jsonOut {
-			// The API key is masked here exactly as it is in the text
-			// rendering. `config show --json` is the form a script or an
-			// agent reaches for, which is the last place a secret should
-			// become easy to exfiltrate.
-			return emitJSON(cmd.OutOrStdout(), configRecord(appConfig))
+			return emitJSON(cmd.OutOrStdout(), newConfigRecord(appConfig))
 		}
 		presentConfig(appConfig)
 		return nil
 	},
 }
 
-// configRecord is the --json shape of `config show`. It mirrors the
-// resolved config rather than the file on disk, which is the whole point
-// of the command: it answers "what is actually in effect", including
-// values that came from environment variables or flags.
-func configRecord(cfg *config.Config) map[string]any {
-	return map[string]any{
-		"config_file":  config.ActivePath(),
-		"base_url":     cfg.BaseURL,
-		"api_url":      cfg.APIURL,
-		"keyring_url":  cfg.KeyringURL,
-		"auth_mode":    authModeDisplay(),
-		"api_key":      maskAPIKey(cfg.APIKey),
-		"team":         cfg.Team,
-		"http_timeout": cfg.HTTPTimeout,
-		"cosign_path":  cfg.CosignPath,
-		"silent":       cfg.Silent,
-		"json":         cfg.JSON,
-		"verify": map[string]any{
-			"offline":         cfg.Verify.Offline,
-			"skip_signatures": cfg.Verify.SkipSignatures,
-			"remote":          cfg.Verify.Remote,
-			"keyring":         cfg.Verify.Keyring,
-		},
-		"hash": map[string]any{
-			"algorithm": cfg.Hash.Algorithm,
-			"encoding":  cfg.Hash.Encoding,
-			"style":     cfg.Hash.Style,
-		},
-		"convert": map[string]any{
-			"time_zone": cfg.Convert.TimeZone,
-		},
-		"logging": map[string]any{
-			"file":  cfg.Logging.File,
-			"level": cfg.Logging.Level,
-		},
-	}
+// configRecord is the --json shape of `config show`: the resolved Config
+// itself, serialised under its config-file key names, plus the two facts
+// that are not config values (which file was in effect, which credential
+// mode won). It embeds the struct rather than listing its fields, so a
+// field added to Config appears here without anyone remembering to add
+// it. The API key is masked exactly as it is in the text rendering:
+// `config show --json` is the form a script or an agent reaches for,
+// which is the last place a secret should become easy to exfiltrate.
+type configRecord struct {
+	ConfigFile string `json:"config_file"`
+	AuthMode   string `json:"auth_mode"`
+	*config.Config
+}
+
+func newConfigRecord(cfg *config.Config) configRecord {
+	masked := *cfg
+	masked.APIKey = maskAPIKey(cfg.APIKey)
+	return configRecord{ConfigFile: config.ActivePath(), AuthMode: authModeDisplay(), Config: &masked}
 }
 
 func presentConfig(cfg *config.Config) {

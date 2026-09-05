@@ -37,34 +37,37 @@ var DefaultTOML string
 // that need a specific URL read the corresponding field directly
 // (cfg.APIURL, cfg.KeyringURL, etc.); they should not be re-derived
 // from BaseURL ad hoc, so the path layout stays in one place.
+// Config is the resolved configuration. The json tags mirror the koanf
+// (config-file) keys so `config show --json` can serialise the struct
+// itself rather than a hand-maintained copy of its field list.
 type Config struct {
 	// BaseURL is the user-configurable origin (scheme + host + port)
 	// for all Truestamp services. Default https://www.truestamp.com.
 	// Settable via base_url in config.toml, TRUESTAMP_BASE_URL env,
 	// or --base-url flag.
-	BaseURL string `koanf:"base_url"`
+	BaseURL string `koanf:"base_url" json:"base_url"`
 
 	// Computed from BaseURL during Load, not user-settable.
-	APIURL       string `koanf:"-"`
-	KeyringURL   string `koanf:"-"`
-	WebSocketURL string `koanf:"-"`
-	HealthURL    string `koanf:"-"`
+	APIURL       string `koanf:"-" json:"api_url"`
+	KeyringURL   string `koanf:"-" json:"keyring_url"`
+	WebSocketURL string `koanf:"-" json:"websocket_url"`
+	HealthURL    string `koanf:"-" json:"health_url"`
 
-	APIKey string `koanf:"api_key"`
+	APIKey string `koanf:"api_key" json:"api_key"`
 	// APIKeyExplicit is true when api_key came from an intentional
 	// override, the --api-key flag or the TRUESTAMP_API_KEY env var,
 	// rather than the config file. An explicit key wins over a stored
 	// OAuth session so CI/headless behavior stays deterministic. Computed
 	// during Load; not user-settable.
-	APIKeyExplicit bool `koanf:"-"`
+	APIKeyExplicit bool `koanf:"-" json:"-"`
 
-	Team        string `koanf:"team"`
-	HTTPTimeout string `koanf:"http_timeout"`
+	Team        string `koanf:"team" json:"team"`
+	HTTPTimeout string `koanf:"http_timeout" json:"http_timeout"`
 	// CosignPath pins the cosign binary used during `truestamp upgrade`.
 	// Must be an absolute path to an executable when set; empty means
 	// fall back to $PATH lookup. Settable in config.toml as
 	// `cosign_path = "..."` or via the TRUESTAMP_COSIGN_PATH env var.
-	CosignPath string `koanf:"cosign_path"`
+	CosignPath string `koanf:"cosign_path" json:"cosign_path"`
 
 	// Silent and JSON are CLI-wide output settings, not verify's private
 	// property. They live at the top level because `flagKeyMap` resolves a
@@ -75,13 +78,13 @@ type Config struct {
 	// want the same flag name with different meanings.
 	//
 	// Mutually exclusive; Load rejects both being set.
-	Silent bool `koanf:"silent"`
-	JSON   bool `koanf:"json"`
+	Silent bool `koanf:"silent" json:"silent"`
+	JSON   bool `koanf:"json" json:"json"`
 
-	Verify  VerifyConfig  `koanf:"verify"`
-	Hash    HashConfig    `koanf:"hash"`
-	Convert ConvertConfig `koanf:"convert"`
-	Logging LoggingConfig `koanf:"logging"`
+	Verify  VerifyConfig  `koanf:"verify" json:"verify"`
+	Hash    HashConfig    `koanf:"hash" json:"hash"`
+	Convert ConvertConfig `koanf:"convert" json:"convert"`
+	Logging LoggingConfig `koanf:"logging" json:"logging"`
 }
 
 // LoggingConfig holds CLI-wide logging settings. The logger is
@@ -93,21 +96,21 @@ type LoggingConfig struct {
 	// fall back to logging.DefaultPath() (~/Library/Caches/truestamp/
 	// truestamp.log on macOS, ~/.cache/truestamp/truestamp.log on
 	// Linux, %LOCALAPPDATA%\truestamp\truestamp.log on Windows).
-	File string `koanf:"file"`
+	File string `koanf:"file" json:"file"`
 
 	// Level filters output: "debug" | "info" | "warn" | "error".
 	// Empty defaults to "info".
-	Level string `koanf:"level"`
+	Level string `koanf:"level" json:"level"`
 
 	// MaxSizeMB is the lumberjack rotation threshold. 0 = library
 	// default (10 MB).
-	MaxSizeMB int `koanf:"max_size_mb"`
+	MaxSizeMB int `koanf:"max_size_mb" json:"max_size_mb"`
 
 	// MaxBackups is the count of rotated files retained. 0 = 5.
-	MaxBackups int `koanf:"max_backups"`
+	MaxBackups int `koanf:"max_backups" json:"max_backups"`
 
 	// MaxAgeDays is how long rotated files are kept. 0 = 14.
-	MaxAgeDays int `koanf:"max_age_days"`
+	MaxAgeDays int `koanf:"max_age_days" json:"max_age_days"`
 }
 
 // Timeout parses the HTTPTimeout string as a Go duration. A zero or
@@ -124,27 +127,27 @@ func (c Config) Timeout() time.Duration {
 
 // VerifyConfig holds verify-subcommand-specific configuration.
 type VerifyConfig struct {
-	Offline        bool `koanf:"offline"`
-	SkipSignatures bool `koanf:"skip_signatures"`
-	Remote         bool `koanf:"remote"`
+	Offline        bool `koanf:"offline" json:"offline"`
+	SkipSignatures bool `koanf:"skip_signatures" json:"skip_signatures"`
+	Remote         bool `koanf:"remote" json:"remote"`
 
 	// Keyring is the path of a pinned copy of /.well-known/keyring.json
 	// used for the Appendix E.17 key binding. Empty means an online run
 	// fetches the live keyring from BaseURL and an offline run reports the
 	// binding as not checked.
-	Keyring string `koanf:"keyring"`
+	Keyring string `koanf:"keyring" json:"keyring"`
 }
 
 // HashConfig holds hash-subcommand-specific configuration.
 type HashConfig struct {
-	Algorithm string `koanf:"algorithm"`
-	Encoding  string `koanf:"encoding"`
-	Style     string `koanf:"style"`
+	Algorithm string `koanf:"algorithm" json:"algorithm"`
+	Encoding  string `koanf:"encoding" json:"encoding"`
+	Style     string `koanf:"style" json:"style"`
 }
 
 // ConvertConfig holds convert-subcommand-specific configuration.
 type ConvertConfig struct {
-	TimeZone string `koanf:"time_zone"`
+	TimeZone string `koanf:"time_zone" json:"time_zone"`
 }
 
 // sectionPrefixes lists known TOML section names for env var mapping.
