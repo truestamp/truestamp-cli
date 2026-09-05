@@ -82,8 +82,8 @@ const defaultLimit = 25
 // GET /beacons is a JSON:API index over a keyset-paginated read, the same
 // contract as /blocks: page[limit], page[after], page[before],
 // page[count] and sort=id|-id, answered as a resource document with
-// links.next/prev and meta.page.total. The server clamps a page above 100
-// to 100 rather than refusing it; the floor is cmd/limits.go's.
+// links.next/prev and meta.page.total. Like /blocks it sets no page-size
+// ceiling; the floor is cmd/limits.go's.
 func List(ctx context.Context, cfg Config, opts ListOptions) (*Page, error) {
 	if opts.Limit <= 0 {
 		opts.Limit = defaultLimit

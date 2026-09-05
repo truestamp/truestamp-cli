@@ -319,8 +319,7 @@ link on the server; the end of the listing is the first page of the opposite ord
 
 `beacons list` pages the same way since 2026-09-05, when `/api/json/beacons` became a JSON:API index
 over a keyset-paginated read (the CLI side asked for it; the request is `paging.md` in the service
-repository). Its endpoint clamps a page above 100 to 100 rather than refusing it, which `--max`
-tolerates because the cursor still advances. `teams list` and `keys list` fetch complete documents (your memberships, the published keyring) and
+repository). Like `/blocks`, it sets no page-size ceiling. `teams list` and `keys list` fetch complete documents (your memberships, the published keyring) and
 carry no paging flags, although the teams routes do page server-side.
 
 ## Applying the rules to a new noun

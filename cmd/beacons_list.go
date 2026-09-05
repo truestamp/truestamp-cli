@@ -19,7 +19,7 @@ var beaconsListCmd = &cobra.Command{
 	Long: `List beacons, newest first.
 
 Paging is by keyset cursor, like every other list: --limit sets the page
-size (the server clamps a page above 100 to 100), --after and --before
+size (uncapped, as for blocks), --after and --before
 continue from a cursor a previous page printed, --oldest-first starts at
 the genesis beacon, --max follows cursors until that many beacons have
 been fetched, and --count adds the total.

@@ -282,8 +282,8 @@ truestamp entropy list --max 500 --json | jq -r '.observations[].id'
 truestamp items list --count --limit 1           # Items (1 shown, 10 total)
 ```
 
-`beacons list` pages the same way; its endpoint clamps a page above 100 to
-100 rather than refusing it, and `--max` still terminates on the cursor.
+`beacons list` pages the same way, with no page-size ceiling, as for
+`blocks list`.
 
 ---
 
@@ -1981,8 +1981,8 @@ truestamp beacons latest
 #    Previous  f30efc591419a999a40927298a75432a05feaa9fb5fc858c9c84cda6993669f0
 #   (two more rows follow, Details and Verify — see below)
 
-# Most-recent N beacons, newest first (default 25; the server clamps a
-# page above 100 to 100). Paging is the same as every other list, see
+# Most-recent N beacons, newest first (default 25, no ceiling). Paging is
+# the same as every other list, see
 # Conventions → Paging lists: --after / --before, --oldest-first (the
 # genesis beacon first), --max and --count.
 truestamp beacons list
