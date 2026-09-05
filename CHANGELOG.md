@@ -66,7 +66,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   lacked: `proofs get --type entropy_*` took ids nothing in the tree surfaced.
   `get` by hash traces the value under an item's `subject.metadata.witnesses`
   back to the observation it came from. The source vocabulary is the wire names,
-  the same words `proofs get --type` takes. The three id validators shared by
+  the same words `proofs get --type` takes; the card and the list drop the
+  `entropy_` prefix for display. The three id validators shared by
   beacons, blocks and entropy moved to one package, `internal/ids`.
 - **Every keyset-paged list pages the same way** (kb/command-tree.md R14).
   `items list`, `blocks list` and `entropy list` carry `--limit` (page size),
