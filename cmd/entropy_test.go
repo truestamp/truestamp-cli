@@ -82,8 +82,15 @@ func startEntropyServer(t *testing.T) *entropyServer {
 			rows = []string{nist}
 		case q.Get("filter[source]") == "entropy_stellar":
 			rows = []string{stellar}
+		case q.Get("page[after]") == "CURSOR1":
+			rows = []string{nist}
 		default:
 			rows = []string{stellar, nist}
+			// The first page of the unfiltered listing continues: a next
+			// link the CLI must lift the cursor out of.
+			_, _ = w.Write([]byte(`{"data":[` + strings.Join(rows, ",") + `],"links":{"next":"http://` + r.Host +
+				`/api/json/entropy_observations?page%5Bafter%5D=CURSOR1&page%5Blimit%5D=2&sort=-id"},"meta":{"page":{"total":593419}}}`))
+			return
 		}
 		_, _ = w.Write([]byte(`{"data":[` + strings.Join(rows, ",") + `]}`))
 	})
@@ -148,12 +155,71 @@ func TestCLI_Entropy_List_JSON(t *testing.T) {
 	if exit != 0 {
 		t.Fatalf("exit=%d", exit)
 	}
-	var list []map[string]any
-	if err := json.Unmarshal([]byte(stdout), &list); err != nil || len(list) != 2 {
-		t.Fatalf("want a two-element array, got %v\n%s", err, stdout)
+	var got struct {
+		Observations []map[string]any `json:"observations"`
+		NextCursor   string           `json:"next_cursor"`
+	}
+	if err := json.Unmarshal([]byte(stdout), &got); err != nil || len(got.Observations) != 2 {
+		t.Fatalf("want two observations under the noun, got %v\n%s", err, stdout)
+	}
+	if got.NextCursor != "CURSOR1" {
+		t.Errorf("next_cursor should be lifted from links.next, got %q", got.NextCursor)
 	}
 	if srv.query().Get("page[limit]") != "2" || srv.query().Get("sort") != "-id" {
 		t.Errorf("asked %v", srv.query())
+	}
+}
+
+// TestCLI_Entropy_List_MaxFollowsCursors pins R14: --max follows the
+// cursor until the cap or the end, asks each page for no more rows than
+// still wanted, and reports where it stopped.
+func TestCLI_Entropy_List_MaxFollowsCursors(t *testing.T) {
+	srv := startEntropyServer(t)
+	stdout, stderr, exit := runCLI(t, "--base-url", srv.URL, "--api-key", "test-key",
+		"entropy", "list", "--limit", "2", "--max", "3", "--json")
+	if exit != 0 {
+		t.Fatalf("exit=%d\n%s", exit, stderr)
+	}
+	var got struct {
+		Observations []map[string]any `json:"observations"`
+		NextCursor   string           `json:"next_cursor"`
+	}
+	if err := json.Unmarshal([]byte(stdout), &got); err != nil {
+		t.Fatalf("not JSON: %v\n%s", err, stdout)
+	}
+	if len(got.Observations) != 3 || got.NextCursor != "" {
+		t.Errorf("want 3 rows and no cursor left, got %d rows, cursor %q", len(got.Observations), got.NextCursor)
+	}
+	if srv.requests() != 2 {
+		t.Errorf("two pages should cost two requests, saw %d", srv.requests())
+	}
+	q := srv.query()
+	if q.Get("page[after]") != "CURSOR1" || q.Get("page[limit]") != "1" {
+		t.Errorf("the second request should continue from the cursor and ask for only the one row still wanted, asked %v", q)
+	}
+	_, stderr, exit = runCLI(t, "--base-url", srv.URL, "entropy", "list", "--max", "0")
+	if exit == 0 || !strings.Contains(stderr, "--max must be at least 1") {
+		t.Errorf("--max 0 must be refused locally: exit=%d %q", exit, stderr)
+	}
+}
+
+// TestCLI_Entropy_List_CountAndHint: --count carries the server's total
+// into both renderings, and a page that continues says how.
+func TestCLI_Entropy_List_CountAndHint(t *testing.T) {
+	srv := startEntropyServer(t)
+	stdout, _, exit := runCLI(t, "--base-url", srv.URL, "--api-key", "test-key", "entropy", "list", "--count")
+	if exit != 0 {
+		t.Fatalf("exit=%d", exit)
+	}
+	if !strings.Contains(stdout, "(2 shown, 593,419 total)") || !strings.Contains(stdout, "More: --after CURSOR1") {
+		t.Errorf("text listing should show the total and the continuation, got:\n%s", stdout)
+	}
+	if srv.query().Get("page[count]") != "true" {
+		t.Errorf("--count must ask the server for the total, asked %v", srv.query())
+	}
+	stdout, _, _ = runCLI(t, "--base-url", srv.URL, "--api-key", "test-key", "entropy", "list", "--count", "--json")
+	if !strings.Contains(stdout, `"total": 593419`) {
+		t.Errorf("--json should carry total under --count, got:\n%s", stdout)
 	}
 }
 

@@ -17,10 +17,10 @@ var itemsListCmd = &cobra.Command{
 	Short: "List items in the current team",
 	Long: `List items, newest first.
 
-Paging is by keyset cursor: --limit sets the page size and
---after continues from a previous page. --all follows the cursors to the
-end, which on a large team is a lot of requests — prefer --limit with
---after when you only need a window.
+Paging is by keyset cursor: --limit sets the page size, --after continues
+from the cursor a previous page printed, and --max follows cursors until
+that many items have been fetched. There is no unbounded walk: a cap you
+wrote down is the price of following pages. --count adds the total.
 
 --committed and --pending filter on commitment state, which is the
 question most often asked of this list: a proof can only be generated for
@@ -33,36 +33,28 @@ evidence, and the authoritative answer is:
   truestamp proofs get <id> | truestamp verify`,
 	Args: cobra.NoArgs,
 	RunE: func(cmd *cobra.Command, _ []string) error {
-		if err := requireAuth(cmd); err != nil {
-			return err
-		}
-		limit, err := pageLimit(cmd)
+		paging, err := readPagingOptions(cmd)
 		if err != nil {
 			return err
 		}
-		after, _ := cmd.Flags().GetString("after")
 		committed, _ := cmd.Flags().GetBool("committed")
 		pending, _ := cmd.Flags().GetBool("pending")
-		all, _ := cmd.Flags().GetBool("all")
-
-		opts := items.ListOptions{
-			Limit: limit, After: after, Committed: committed, Pending: pending,
+		if err := requireAuth(cmd); err != nil {
+			return err
 		}
-
-		// With --all the loop only exits on an empty cursor, so the
-		// cursor handed to the renderer is right in both modes.
-		var collected []items.Item
-		for {
-			page, err := items.List(cmd.Context(), appConfig.APIURL, appConfig.Team, opts)
+		rows, next, total, err := walkPages(paging, func(after string, limit int) (*pageOf[items.Item], error) {
+			pg, err := items.List(cmd.Context(), appConfig.APIURL, appConfig.Team, items.ListOptions{
+				Limit: limit, After: after, Count: paging.Count, Committed: committed, Pending: pending,
+			})
 			if err != nil {
-				return renderAPIError(cmd, err, "item")
+				return nil, err
 			}
-			collected = append(collected, page.Items...)
-			if !all || page.NextCursor == "" {
-				return renderItemList(cmd, collected, page.NextCursor)
-			}
-			opts.After = page.NextCursor
+			return &pageOf[items.Item]{Rows: pg.Items, NextCursor: pg.NextCursor, Total: pg.Total}, nil
+		})
+		if err != nil {
+			return renderAPIError(cmd, err, "item")
 		}
+		return renderItemList(cmd, rows, listPage{Next: next, Total: total, Counted: paging.Count})
 	},
 }
 
@@ -197,32 +189,26 @@ func commitmentLabel(it *items.Item) string {
 	return it.State
 }
 
-func renderItemList(cmd *cobra.Command, list []items.Item, nextCursor string) error {
+func renderItemList(cmd *cobra.Command, list []items.Item, pg listPage) error {
 	jsonOut, silent := outputMode(cmd)
 	if silent {
 		return nil
 	}
 	if jsonOut {
-		return emitJSON(cmd.OutOrStdout(), map[string]any{
-			"items":       list,
-			"next_cursor": nextCursor,
-		})
+		return emitJSON(cmd.OutOrStdout(), listEnvelope("items", list, pg))
 	}
 	w := cmd.OutOrStdout()
 	if len(list) == 0 {
 		ui.Fprintln(w, ui.FaintStyle().Render("  No items."))
 		return nil
 	}
-	header := ui.AccentBoldStyle().Render(fmt.Sprintf("  Items (%d)", len(list)))
+	header := ui.AccentBoldStyle().Render(listHeading("Items", len(list), pg))
 	tbl := ui.CompactTable().StyleFunc(ui.LabelValueStyleFunc())
 	for _, it := range list {
 		tbl = tbl.Row(it.ID, itemListLine(it))
 	}
 	ui.Fprintln(w, strings.Join([]string{header, "", tbl.String()}, "\n"))
-	if nextCursor != "" {
-		ui.Fprintln(w, ui.FaintStyle().Render(
-			"    More items: --after "+nextCursor))
-	}
+	renderMoreHint(w, pg)
 	return nil
 }
 
@@ -240,11 +226,9 @@ func itemListLine(it items.Item) string {
 
 func init() {
 	lf := itemsListCmd.Flags()
-	addLimitFlag(itemsListCmd, "items")
-	lf.String("after", "", "Continue from a previous page's cursor")
+	addPagingFlags(itemsListCmd, "items")
 	lf.Bool("committed", false, "Only items that have been committed (a proof can be generated)")
 	lf.Bool("pending", false, "Only items not yet committed")
-	lf.Bool("all", false, "Follow cursors to the end (many requests on a large team)")
 
 	uf := itemsUpdateCmd.Flags()
 	uf.String("visibility", "", `Item visibility: "private", "team", or "public"`)

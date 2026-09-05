@@ -49,17 +49,21 @@ var entropyListCmd = &cobra.Command{
 	Long: `List entropy observations, newest first, across all three sources or,
 with --source, from one of them.
 
+Paging is by keyset cursor: --limit sets the page size, --after continues
+from the cursor a previous page printed, --max follows cursors until that
+many observations have been fetched, and --count adds the total.
+
 Examples:
   truestamp entropy list
   truestamp entropy list --source entropy_nist --limit 5
-  truestamp entropy list --json | jq -r '.[].id'`,
+  truestamp entropy list --source entropy_bitcoin --max 200 --json | jq -r '.observations[].id'`,
 	Args: cobra.NoArgs,
 	RunE: func(cmd *cobra.Command, _ []string) error {
 		source, err := entropySourceFlag(cmd)
 		if err != nil {
 			return err
 		}
-		limit, err := pageLimit(cmd)
+		paging, err := readPagingOptions(cmd)
 		if err != nil {
 			return err
 		}
@@ -67,11 +71,17 @@ Examples:
 		if err != nil {
 			return err
 		}
-		list, err := entropy.List(cmd.Context(), cfg, source, limit)
+		rows, next, total, err := walkPages(paging, func(after string, limit int) (*pageOf[entropy.Observation], error) {
+			pg, err := entropy.List(cmd.Context(), cfg, entropy.ListOptions{Source: source, Limit: limit, After: after, Count: paging.Count})
+			if err != nil {
+				return nil, err
+			}
+			return &pageOf[entropy.Observation]{Rows: pg.Observations, NextCursor: pg.NextCursor, Total: pg.Total}, nil
+		})
 		if err != nil {
 			return renderAPIError(cmd, err, "entropy observation")
 		}
-		return renderObservationList(cmd, list)
+		return renderObservationList(cmd, rows, listPage{Next: next, Total: total, Counted: paging.Count})
 	},
 }
 
@@ -253,20 +263,20 @@ func entropyValue(v any) string {
 	}
 }
 
-func renderObservationList(cmd *cobra.Command, list []entropy.Observation) error {
+func renderObservationList(cmd *cobra.Command, list []entropy.Observation, pg listPage) error {
 	jsonOut, silent := outputMode(cmd)
 	if silent {
 		return nil
 	}
 	if jsonOut {
-		return emitJSON(cmd.OutOrStdout(), list)
+		return emitJSON(cmd.OutOrStdout(), listEnvelope("observations", list, pg))
 	}
 	w := cmd.OutOrStdout()
 	if len(list) == 0 {
 		ui.Fprintln(w, ui.FaintStyle().Render("  No entropy observations."))
 		return nil
 	}
-	header := ui.AccentBoldStyle().Render(fmt.Sprintf("  Entropy Observations (%d)", len(list)))
+	header := ui.AccentBoldStyle().Render(listHeading("Entropy Observations", len(list), pg))
 	// The hash is shortened for the column; the full value is on the card
 	// and in --json, and `entropy get` accepts it whole.
 	rows := [][]string{{"PUBLISHED", "SOURCE", "STATE", "ID", "HASH"}}
@@ -275,6 +285,7 @@ func renderObservationList(cmd *cobra.Command, list []entropy.Observation) error
 	}
 	tbl := ui.CompactTable().StyleFunc(ui.HeaderRowStyleFunc()).Rows(rows...)
 	ui.Fprintln(w, strings.Join([]string{header, "", tbl.String()}, "\n"))
+	renderMoreHint(w, pg)
 	if inputsrc.IsStdoutTerminal() {
 		ui.Fprintln(cmd.ErrOrStderr(), ui.FaintStyle().Render(
 			"  Hint: 'truestamp proofs get <id>' fetches a verifiable proof bundle for an observation."))
@@ -286,7 +297,7 @@ func init() {
 	for _, c := range []*cobra.Command{entropyListCmd, entropyLatestCmd} {
 		c.Flags().String("source", "", "Only this source: "+strings.Join(entropy.Sources, " | "))
 	}
-	addLimitFlag(entropyListCmd, "observations")
+	addPagingFlags(entropyListCmd, "observations")
 	for _, c := range []*cobra.Command{entropyListCmd, entropyGetCmd, entropyLatestCmd} {
 		addRecordOutputFlags(c)
 		entropyCmd.AddCommand(c)

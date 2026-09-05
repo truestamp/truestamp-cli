@@ -44,7 +44,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   *request*; the bundle is still verified against its own signed type.
 - **`items list`, `items get` and `items update`.** `internal/items` held only
   `CreateItem`; the reads are new. `list` pages by keyset cursor (`--limit`,
-  `--after`, `--all`) and filters on commitment state (`--committed`,
+  `--after`, `--max`, `--count`) and filters on commitment state (`--committed`,
   `--pending`), because "can I get a proof for this yet" is the question most
   often asked of the list. Every request names `inserted_at`, `updated_at` and
   `expires_at` in `fields[item]` explicitly: they are absent from the resource's
@@ -68,6 +68,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   back to the observation it came from. The source vocabulary is the wire names,
   the same words `proofs get --type` takes. The three id validators shared by
   beacons, blocks and entropy moved to one package, `internal/ids`.
+- **Every keyset-paged list pages the same way** (kb/command-tree.md R14).
+  `items list`, `blocks list` and `entropy list` carry `--limit` (page size),
+  `--after <cursor>` (continue where a page stopped: the `More: --after …` hint,
+  or `next_cursor` in `--json`), `--max N` (follow cursors until N rows have been
+  fetched) and `--count` (the server's total). Their `--json` is one envelope,
+  `{"<noun>": [...], "next_cursor": "...", "total": N}`. There is deliberately
+  no `--all`: the tables behind these lists grow by the minute, so following
+  pages costs a cap you wrote down. `beacons list` has no cursor to follow and
+  keeps `--limit` alone.
+- **`proofs get` refusals read like the rest of the CLI.** A `/proof/generate`
+  refusal is a banner (`Proof not available yet`, `Proof cannot be generated`),
+  the server's detail, what to do next (`This clears on its own: try again
+  shortly.` or `This will not clear on its own.`) and the code to quote, instead
+  of `API error (HTTP 400, …)` followed by a `Retry:` label.
+- **An empty input is reported as empty.** `verify`, `inspect` and
+  `proofs convert` fed zero bytes, the usual result of a pipe whose left-hand
+  command failed, say so instead of grading the empty input as a malformed
+  bundle (`REJECTED: not_a_json_object`).
 - **`truestamp keys`**, a read-only group over the published signing keyring:
   `list`, `get <kid>` and `current`. The only group that needs no credential.
 - **`truestamp schema`**, a read-only introspection namespace.

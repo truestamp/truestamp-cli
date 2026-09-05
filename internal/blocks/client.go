@@ -31,7 +31,6 @@ import (
 	"errors"
 	"fmt"
 	"net/url"
-	"strconv"
 
 	"github.com/truestamp/truestamp-cli/internal/ids"
 	"github.com/truestamp/truestamp-cli/internal/jsonapi"
@@ -92,20 +91,41 @@ func ValidateUUIDv7(id string) error { return ids.ValidateUUIDv7(id) }
 // hazard: always send one.
 const defaultLimit = 25
 
-// List fetches up to limit blocks, newest first.
-func List(ctx context.Context, cfg Config, limit int) ([]Block, error) {
-	if limit <= 0 {
-		limit = defaultLimit
+// ListOptions configures a list request; the paging fields are the ones
+// every keyset-paged list shares (jsonapi.SetPageQuery).
+type ListOptions struct {
+	Limit int
+	After string
+	Count bool
+}
+
+// Page is one page of blocks plus the cursor for the next and, when asked
+// for, the server's total.
+type Page struct {
+	Blocks     []Block
+	NextCursor string
+	Total      int
+}
+
+// List fetches one page of blocks, newest first.
+func List(ctx context.Context, cfg Config, opts ListOptions) (*Page, error) {
+	if opts.Limit <= 0 {
+		opts.Limit = defaultLimit
 	}
 	// No client-side ceiling; the server owns it. See cmd/limits.go.
 	q := url.Values{}
 	q.Set("sort", "-id")
-	q.Set("page[limit]", strconv.Itoa(limit))
+	jsonapi.SetPageQuery(q, opts.Limit, opts.After, opts.Count)
 	body, err := jsonapi.Get(ctx, cfg, "/blocks?"+q.Encode())
 	if err != nil {
 		return nil, err
 	}
-	return unmarshalList(body)
+	list, err := unmarshalList(body)
+	if err != nil {
+		return nil, err
+	}
+	info := jsonapi.ParsePage(body)
+	return &Page{Blocks: list, NextCursor: info.NextCursor, Total: info.Total}, nil
 }
 
 // Get fetches one block by UUIDv7 id.

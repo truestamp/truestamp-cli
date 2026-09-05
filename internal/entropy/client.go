@@ -30,7 +30,6 @@ import (
 	"errors"
 	"fmt"
 	"net/url"
-	"strconv"
 	"strings"
 
 	"github.com/truestamp/truestamp-cli/internal/ids"
@@ -107,29 +106,51 @@ func ValidateUUIDv7(id string) error { return ids.ValidateUUIDv7(id) }
 // an unbounded GET never reaches a table that grows by the minute.
 const defaultLimit = 25
 
-// List fetches up to limit observations, newest first. An empty source
-// means every source; otherwise it must be one of Sources.
-func List(ctx context.Context, cfg Config, source string, limit int) ([]Observation, error) {
-	if source != "" {
-		if err := ValidateSource(source); err != nil {
+// ListOptions configures a list request. Source empty means every source;
+// otherwise it must be one of Sources. The paging fields are the ones
+// every keyset-paged list shares (jsonapi.SetPageQuery).
+type ListOptions struct {
+	Source string
+	Limit  int
+	After  string
+	Count  bool
+}
+
+// Page is one page of observations plus the cursor for the next and, when
+// asked for, the server's total.
+type Page struct {
+	Observations []Observation
+	NextCursor   string
+	Total        int
+}
+
+// List fetches one page of observations, newest first.
+func List(ctx context.Context, cfg Config, opts ListOptions) (*Page, error) {
+	if opts.Source != "" {
+		if err := ValidateSource(opts.Source); err != nil {
 			return nil, err
 		}
 	}
-	if limit <= 0 {
-		limit = defaultLimit
+	if opts.Limit <= 0 {
+		opts.Limit = defaultLimit
 	}
 	// No client-side ceiling; the server owns it. See cmd/limits.go.
 	q := url.Values{}
 	q.Set("sort", "-id")
-	q.Set("page[limit]", strconv.Itoa(limit))
-	if source != "" {
-		q.Set("filter[source]", source)
+	jsonapi.SetPageQuery(q, opts.Limit, opts.After, opts.Count)
+	if opts.Source != "" {
+		q.Set("filter[source]", opts.Source)
 	}
 	body, err := jsonapi.Get(ctx, cfg, "/entropy_observations?"+q.Encode())
 	if err != nil {
 		return nil, err
 	}
-	return unmarshalList(body)
+	list, err := unmarshalList(body)
+	if err != nil {
+		return nil, err
+	}
+	info := jsonapi.ParsePage(body)
+	return &Page{Observations: list, NextCursor: info.NextCursor, Total: info.Total}, nil
 }
 
 // Get fetches one observation by UUIDv7 id.
@@ -174,14 +195,14 @@ func ByHash(ctx context.Context, cfg Config, hash string) (*Observation, error) 
 // Latest fetches the newest observation: the most recently captured from
 // any source, or from one source when source is set.
 func Latest(ctx context.Context, cfg Config, source string) (*Observation, error) {
-	list, err := List(ctx, cfg, source, 1)
+	page, err := List(ctx, cfg, ListOptions{Source: source, Limit: 1})
 	if err != nil {
 		return nil, err
 	}
-	if len(list) == 0 {
+	if len(page.Observations) == 0 {
 		return nil, jsonapi.NotFound("no entropy observations")
 	}
-	return &list[0], nil
+	return &page.Observations[0], nil
 }
 
 // resource is the JSON:API resource object: identity at the top,

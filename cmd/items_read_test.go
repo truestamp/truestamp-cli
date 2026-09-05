@@ -176,16 +176,16 @@ func TestCLI_Items_List_AllFollowsCursors(t *testing.T) {
 		_, _ = w.Write([]byte(`{"data":[{"type":"item","id":"01BBB","attributes":{` + itemAttrs + `}}]}`))
 	})
 	stdout, stderr, exit := runCLI(t, "--base-url", s.URL, "--api-key", "k",
-		"items", "list", "--all")
+		"items", "list", "--max", "10")
 	if exit != 0 {
 		t.Fatalf("exit=%d stderr=%q", exit, stderr)
 	}
 	if got := calls.Load(); got != 2 {
-		t.Errorf("--all should have followed the cursor: %d requests", got)
+		t.Errorf("--max should have followed the cursor: %d requests", got)
 	}
 	for _, want := range []string{"01AAA", "01BBB"} {
 		if !strings.Contains(stdout, want) {
-			t.Errorf("--all should return both pages, %q missing from:\n%s", want, stdout)
+			t.Errorf("--max should return both pages, %q missing from:\n%s", want, stdout)
 		}
 	}
 	if s.query().Get("page[after]") != "CURSOR1" {
@@ -193,9 +193,9 @@ func TestCLI_Items_List_AllFollowsCursors(t *testing.T) {
 	}
 }
 
-// TestCLI_Items_List_ExposesCursorWithoutAll: without --all the caller
+// TestCLI_Items_List_ExposesCursorWithoutMax: without --max the caller
 // must be told how to continue, or paging is undiscoverable.
-func TestCLI_Items_List_ExposesCursorWithoutAll(t *testing.T) {
+func TestCLI_Items_List_ExposesCursorWithoutMax(t *testing.T) {
 	s := startItemsServer(t, func(w http.ResponseWriter, r *http.Request) {
 		_, _ = w.Write([]byte(`{"data":[{"type":"item","id":"01AAA","attributes":{` + itemAttrs + `}}],
 		  "links":{"next":"http://x/items?page%5Bafter%5D=NEXTCUR"}}`))

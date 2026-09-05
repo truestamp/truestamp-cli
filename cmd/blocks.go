@@ -37,19 +37,25 @@ var blocksListCmd = &cobra.Command{
 	Short: "Show the most recent blocks (newest first)",
 	Args:  cobra.NoArgs,
 	RunE: func(cmd *cobra.Command, _ []string) error {
+		paging, err := readPagingOptions(cmd)
+		if err != nil {
+			return err
+		}
 		cfg, err := blocksConfig(cmd)
 		if err != nil {
 			return err
 		}
-		limit, err := pageLimit(cmd)
-		if err != nil {
-			return err
-		}
-		list, err := blocks.List(cmd.Context(), cfg, limit)
+		rows, next, total, err := walkPages(paging, func(after string, limit int) (*pageOf[blocks.Block], error) {
+			pg, err := blocks.List(cmd.Context(), cfg, blocks.ListOptions{Limit: limit, After: after, Count: paging.Count})
+			if err != nil {
+				return nil, err
+			}
+			return &pageOf[blocks.Block]{Rows: pg.Blocks, NextCursor: pg.NextCursor, Total: pg.Total}, nil
+		})
 		if err != nil {
 			return renderAPIError(cmd, err, "block")
 		}
-		return renderBlockList(cmd, list)
+		return renderBlockList(cmd, rows, listPage{Next: next, Total: total, Counted: paging.Count})
 	},
 }
 
@@ -174,25 +180,26 @@ func renderBlockCard(w io.Writer, b *blocks.Block) {
 	ui.Fprintln(w, strings.Join([]string{header, "", tbl.String()}, "\n"))
 }
 
-func renderBlockList(cmd *cobra.Command, list []blocks.Block) error {
+func renderBlockList(cmd *cobra.Command, list []blocks.Block, pg listPage) error {
 	jsonOut, silent := outputMode(cmd)
 	if silent {
 		return nil
 	}
 	if jsonOut {
-		return emitJSON(cmd.OutOrStdout(), list)
+		return emitJSON(cmd.OutOrStdout(), listEnvelope("blocks", list, pg))
 	}
 	w := cmd.OutOrStdout()
 	if len(list) == 0 {
 		ui.Fprintln(w, ui.FaintStyle().Render("  No blocks."))
 		return nil
 	}
-	header := ui.AccentBoldStyle().Render(fmt.Sprintf("  Blocks (%d)", len(list)))
+	header := ui.AccentBoldStyle().Render(listHeading("Blocks", len(list), pg))
 	tbl := ui.CompactTable().StyleFunc(ui.LabelValueStyleFunc())
 	for _, b := range list {
 		tbl = tbl.Row(b.ID, fmt.Sprintf("%-9s %s", b.State, truncateHash(b.BlockHash)))
 	}
 	ui.Fprintln(w, strings.Join([]string{header, "", tbl.String()}, "\n"))
+	renderMoreHint(w, pg)
 	return nil
 }
 
@@ -207,7 +214,7 @@ func truncateHash(h string) string {
 }
 
 func init() {
-	addLimitFlag(blocksListCmd, "blocks")
+	addPagingFlags(blocksListCmd, "blocks")
 	for _, c := range []*cobra.Command{blocksListCmd, blocksGetCmd, blocksLatestCmd, blocksGenesisCmd} {
 		addRecordOutputFlags(c)
 		blocksCmd.AddCommand(c)

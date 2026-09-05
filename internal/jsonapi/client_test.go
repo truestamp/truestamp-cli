@@ -93,3 +93,19 @@ func FuzzParseError(f *testing.F) {
 		}
 	})
 }
+
+func TestParsePage_LiftsCursorAndTotal(t *testing.T) {
+	for body, want := range map[string]PageInfo{
+		`{"data":[],"links":{"next":"https://x/items?page%5Bafter%5D=ABC&page%5Blimit%5D=25"}}`: {NextCursor: "ABC"},
+		`{"data":[],"links":{"next":"https://x/items?page[after]=ABC"}}`:                        {NextCursor: "ABC"},
+		`{"data":[],"links":{"next":"https://x/items?page%5Blimit%5D=25"}}`:                     {},
+		`{"data":[],"links":{"next":"://not a url"}}`:                                           {},
+		`{"data":[],"meta":{"page":{"total":593419,"limit":1}}}`:                                {Total: 593419},
+		`{"data":[]}`: {},
+		`not json`:    {},
+	} {
+		if got := ParsePage([]byte(body)); got != want {
+			t.Errorf("ParsePage(%s) = %+v, want %+v", body, got, want)
+		}
+	}
+}

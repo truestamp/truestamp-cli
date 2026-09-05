@@ -9,7 +9,6 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
-	"strconv"
 
 	"github.com/truestamp/truestamp-cli/internal/jsonapi"
 )
@@ -45,6 +44,8 @@ type Page struct {
 	Items []Item
 	// NextCursor is empty when there are no more pages.
 	NextCursor string
+	// Total is the server's count of matching items, only when asked for.
+	Total int
 }
 
 // DefaultLimit matches the server's own default for the paginated read.
@@ -61,6 +62,8 @@ type ListOptions struct {
 	Limit int
 	// After is a keyset cursor from a previous Page.NextCursor.
 	After string
+	// Count asks the server for the total, reported as Page.Total.
+	Count bool
 	// Committed and Pending filter on commitment state. Both false means
 	// no filter; both true is rejected by the caller.
 	Committed bool
@@ -79,7 +82,7 @@ func List(ctx context.Context, apiURL, team string, opts ListOptions) (*Page, er
 	// an over-large page and names its own cap. See cmd/limits.go.
 
 	q := url.Values{}
-	q.Set("page[limit]", strconv.Itoa(limit))
+	jsonapi.SetPageQuery(q, limit, opts.After, opts.Count)
 	q.Set("fields[item]", requestFields)
 	// Newest first, which is what this command's help promises and what
 	// `blocks list` and `beacons list` already do. Without it the server
@@ -91,9 +94,6 @@ func List(ctx context.Context, apiURL, team string, opts ListOptions) (*Page, er
 	// rebuilds the query itself and lifts only the cursor out, so the sort
 	// has to be re-supplied here or page two would silently revert.
 	q.Set("sort", "-id")
-	if opts.After != "" {
-		q.Set("page[after]", opts.After)
-	}
 	switch {
 	case opts.Committed && opts.Pending:
 		return nil, fmt.Errorf("--committed and --pending are mutually exclusive")
@@ -223,10 +223,7 @@ func parseOne(body []byte) (*Item, error) {
 
 func parseList(body []byte) (*Page, error) {
 	var env struct {
-		Data  []resourceObject `json:"data"`
-		Links struct {
-			Next string `json:"next"`
-		} `json:"links"`
+		Data []resourceObject `json:"data"`
 	}
 	if err := json.Unmarshal(body, &env); err != nil {
 		return nil, fmt.Errorf("parsing item list: %w", err)
@@ -239,21 +236,7 @@ func parseList(body []byte) (*Page, error) {
 		}
 		page.Items = append(page.Items, it)
 	}
-	page.NextCursor = cursorFromLink(env.Links.Next)
+	info := jsonapi.ParsePage(body)
+	page.NextCursor, page.Total = info.NextCursor, info.Total
 	return page, nil
-}
-
-// cursorFromLink pulls page[after] out of the server's `next` link so the
-// caller can page without parsing URLs itself. An unparseable or absent
-// link means "no more pages", which is the safe reading: a bad cursor
-// would otherwise loop.
-func cursorFromLink(next string) string {
-	if next == "" {
-		return ""
-	}
-	u, err := url.Parse(next)
-	if err != nil {
-		return ""
-	}
-	return u.Query().Get("page[after]")
 }

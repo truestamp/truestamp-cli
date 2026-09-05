@@ -145,21 +145,6 @@ func TestList_CommittedFiltersServerSide(t *testing.T) {
 
 // TestCursorFromLink extracts the cursor from the server's own next link
 // rather than synthesising one, so paging follows what the server says.
-func TestCursorFromLink(t *testing.T) {
-	cases := map[string]string{
-		"https://x/items?page%5Bafter%5D=ABC&page%5Blimit%5D=25": "ABC",
-		"https://x/items?page[after]=ABC":                        "ABC",
-		"https://x/items?page%5Blimit%5D=25":                     "",
-		"":                                                       "",
-		"://not a url":                                           "",
-	}
-	for link, want := range cases {
-		if got := cursorFromLink(link); got != want {
-			t.Errorf("cursorFromLink(%q) = %q, want %q", link, got, want)
-		}
-	}
-}
-
 func TestList_SurfacesNextCursor(t *testing.T) {
 	body := `{"data":[],"links":{"next":"https://x/items?page%5Bafter%5D=CUR"}}`
 	apiURL, _ := serveItems(t, body)
