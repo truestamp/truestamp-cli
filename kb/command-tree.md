@@ -88,7 +88,7 @@ Azure CLI bans it by name. Every attested `new` is local scaffolding (`jj new`, 
 ### R4 — Append-only nouns get no destructive verb
 
 Not now, not later. A noun is append-only when its records are cryptographically committed or are
-chain history: `items`, `proofs`, `blocks`, `beacons`, `keys`.
+chain history: `items`, `proofs`, `blocks`, `beacons`, `entropy`, `keys`.
 
 Ordinary mutable config nouns — `teams`, and future nouns holding endpoints or secrets — **do** get
 `delete <id>` when a route exists, and the word is `delete`, uniformly.
@@ -316,23 +316,23 @@ Worked cold against a hypothetical `webhooks`. No step needs a judgement call, w
 A dash carries its reason. Cells marked **deferred** are designed but not built; see
 [Deferred](#deferred).
 
-| Verb | items | proofs | blocks | beacons | keys | teams |
-| ---- | ----- | ------ | ------ | ------- | ---- | ----- |
-| `list` | `items list` | deferred, nothing stored | `blocks list` | `beacons list` | `keys list` | `teams list` |
-| `get` | `get <ulid>` | `get <id>` → bytes | `get <uuid\|hash>` | `get <uuid\|hash>` | `get <kid>` | `get <id>` |
-| `latest` | newest item is not special | not a sequence | `blocks latest` | `beacons latest` | designation moves → `current` | no head |
-| `current` | no ambient item | no ambient proof | head is appended → `latest` | head is appended → `latest` | `keys current` | `teams current` |
-| `use` | not user-selectable | not user-selectable | not user-selectable | not user-selectable | Truestamp selects it | `teams use [id]` |
-| `genesis` | not a chain | not a chain | `blocks genesis` | chain lives in `blocks` | visible in `list` | not a chain |
-| `create` | `items create` | `get` generates it | Truestamp writes the chain | Truestamp writes the chain | Truestamp rotates keys | `teams create` |
-| `update` | `items update` | regenerate via `get` | append-only | append-only | append-only | deferred, no route |
-| `delete` | R4, committed | nothing stored | R4, chain history | R4, chain history | R4, retired not removed | deferred, no route |
-| `convert` | — | `proofs convert` | — | — | — | — |
-| `pull` | no local mirror | `get` writes one bundle | deferred | mirror lives in `blocks` | `pin` stores the keyring | no local mirror |
-| `verify` | verify its proof | root `verify` does this | deferred | verify its proof | via `blocks verify` | nothing to verify |
-| `pin` | no pinned document | bundle carries its key | `pull` stores the chain | — | deferred | — |
-| `diff` | no pinned baseline | no pinned baseline | `verify` walks the store | no pinned baseline | deferred | no pinned baseline |
-| `events` | no event log | no event log | the chain *is* the log | the chain *is* the log | deferred | no event log |
+| Verb | items | proofs | blocks | beacons | entropy | keys | teams |
+| ---- | ----- | ------ | ------ | ------- | ------- | ---- | ----- |
+| `list` | `items list` | deferred, nothing stored | `blocks list` | `beacons list` | `entropy list` | `keys list` | `teams list` |
+| `get` | `get <ulid>` | `get <id>` → bytes | `get <uuid\|hash>` | `get <uuid\|hash>` | `get <uuid\|hash>` | `get <kid>` | `get <id>` |
+| `latest` | newest item is not special | not a sequence | `blocks latest` | `beacons latest` | `entropy latest` | designation moves → `current` | no head |
+| `current` | no ambient item | no ambient proof | head is appended → `latest` | head is appended → `latest` | newest is appended → `latest` | `keys current` | `teams current` |
+| `use` | not user-selectable | not user-selectable | not user-selectable | not user-selectable | not user-selectable | Truestamp selects it | `teams use [id]` |
+| `genesis` | not a chain | not a chain | `blocks genesis` | chain lives in `blocks` | captured, not chained | visible in `list` | not a chain |
+| `create` | `items create` | `get` generates it | Truestamp writes the chain | Truestamp writes the chain | Truestamp captures them | Truestamp rotates keys | `teams create` |
+| `update` | `items update` | regenerate via `get` | append-only | append-only | append-only | append-only | deferred, no route |
+| `delete` | R4, committed | nothing stored | R4, chain history | R4, chain history | R4, committed | R4, retired not removed | deferred, no route |
+| `convert` | — | `proofs convert` | — | — | — | — | — |
+| `pull` | no local mirror | `get` writes one bundle | deferred | mirror lives in `blocks` | no local mirror | `pin` stores the keyring | no local mirror |
+| `verify` | verify its proof | root `verify` does this | deferred | verify its proof | verify its proof | via `blocks verify` | nothing to verify |
+| `pin` | no pinned document | bundle carries its key | `pull` stores the chain | — | — | deferred | — |
+| `diff` | no pinned baseline | no pinned baseline | `verify` walks the store | no pinned baseline | no pinned baseline | deferred | no pinned baseline |
+| `events` | no event log | no event log | the chain *is* the log | the chain *is* the log | no event log | deferred | no event log |
 
 ## The tree
 
@@ -379,6 +379,11 @@ truestamp
 │   │   ├── list                 --limit --json --silent
 │   │   ├── get <uuid|hash>      --hash-only --json --silent
 │   │   └── latest               --hash-only --json --silent
+│   │
+│   ├── entropy                  "Read-only: public entropy observations (NIST, Stellar, Bitcoin)"
+│   │   ├── list                 --source entropy_nist|entropy_stellar|entropy_bitcoin --limit --json --silent
+│   │   ├── get <uuid|hash>      --json --silent
+│   │   └── latest               --source --json --silent
 │   │
 │   ├── keys                     "Read-only: Truestamp's published signing keys.
 │   │   │                         The only group that needs no credential."
@@ -487,12 +492,15 @@ items and entropy in *this* block's tree. The public-chain commitment is `extern
 which is **not** includable and costs extra round trips. Hence `--commitments` is designed as a flag
 on `blocks get`, not a default. It is deferred: the flag is not registered yet.
 
-### Entropy needs a discovery path
+### Entropy has its own group
 
-`proofs get --type entropy_nist|entropy_stellar|entropy_bitcoin` takes UUIDv7s that nothing else in
-the tree surfaces. `entropy_observations` *is* in the block's includes list, so a deferred `blocks get
---entropy` is that path. Until it lands, three of the six frozen ptype subject types name resources
-with no route into the tree.
+`proofs get --type entropy_nist|entropy_stellar|entropy_bitcoin` takes UUIDv7s that, until the
+`entropy` group landed, nothing in the tree surfaced. `entropy list|get|latest` is that discovery
+path: the seventh noun, shaped like `beacons`, over `GET /entropy_observations`. `--source` takes
+the wire names so one vocabulary serves both the filter and `proofs get --type`. `entropy get` by
+hash resolves the value an item's metadata commits to under `subject.metadata.witnesses`, which is
+how a witness named in a proof is traced to its observation. The per-block view, `blocks get
+--entropy` over the block's `entropy_observations` include, stays deferred.
 
 ### `keys` complements `verify --keyring`; neither subsumes the other
 

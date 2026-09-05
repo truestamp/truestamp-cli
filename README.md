@@ -118,7 +118,7 @@ The `install.sh` installer and the Homebrew cask both verify the SHA-256 automat
 
 ## Quick start
 
-The three main commands (`items create`, `proofs get`, `verify`) form the full lifecycle of a Truestamp item. Commands that talk to the Truestamp API (`items`, `proofs get`, `blocks`, `beacons`, `teams`, `console`, `verify --remote`) need credentials: run `truestamp auth login` for the browser OAuth flow, or set `TRUESTAMP_API_KEY` / `--api-key` for headless and CI use. Without a credential they exit non-zero with a "Not authenticated" hint. Plain `verify` computes locally and needs no credentials at all.
+The three main commands (`items create`, `proofs get`, `verify`) form the full lifecycle of a Truestamp item. Commands that talk to the Truestamp API (`items`, `proofs get`, `blocks`, `beacons`, `entropy`, `teams`, `console`, `verify --remote`) need credentials: run `truestamp auth login` for the browser OAuth flow, or set `TRUESTAMP_API_KEY` / `--api-key` for headless and CI use. Without a credential they exit non-zero with a "Not authenticated" hint. Plain `verify` computes locally and needs no credentials at all.
 
 ### Create an item
 
@@ -281,6 +281,7 @@ Truestamp resources:
   truestamp proofs convert [file]       Convert a bundle between JSON and CBOR
   truestamp blocks list|get|latest|genesis    Read-only: the block chain (latest = head block)
   truestamp beacons list|get|latest     Read-only: public randomness over finalized blocks
+  truestamp entropy list|get|latest     Read-only: public entropy observations (NIST, Stellar, Bitcoin)
   truestamp keys list|get|current       Read-only: the published signing keyring (no credential needed)
   truestamp teams list|get|current|create|use  List, create, and switch teams
 

@@ -10,6 +10,7 @@ import (
 
 	"github.com/spf13/cobra"
 	"github.com/truestamp/truestamp-cli/internal/blocks"
+	"github.com/truestamp/truestamp-cli/internal/ids"
 	"github.com/truestamp/truestamp-cli/internal/ui"
 )
 
@@ -79,7 +80,7 @@ Examples:
 
 		var b *blocks.Block
 		switch {
-		case looksLikeHash(arg):
+		case ids.LooksLikeHash64(arg):
 			b, err = blocks.ByHash(cmd.Context(), cfg, arg)
 		case strings.Contains(arg, "-"):
 			b, err = blocks.Get(cmd.Context(), cfg, arg)

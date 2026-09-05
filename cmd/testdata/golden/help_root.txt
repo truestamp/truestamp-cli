@@ -13,6 +13,7 @@ Verify a proof:
 Truestamp resources:
   beacons     Read-only: public randomness over finalized blocks
   blocks      Read-only: Truestamp's block chain
+  entropy     Read-only: public entropy observations (NIST, Stellar, Bitcoin)
   items       Create, list, and update timestamped items
   keys        Read-only: Truestamp's published signing keys
   proofs      Get and convert proof bundles
