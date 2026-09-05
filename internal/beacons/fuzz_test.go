@@ -21,15 +21,15 @@ func FuzzParseBeacon(f *testing.F) {
 	})
 }
 
-// FuzzParseBeaconList exercises the array parser symmetrically.
+// FuzzParseBeaconList exercises the list-document parser symmetrically.
 func FuzzParseBeaconList(f *testing.F) {
+	f.Add([]byte(`{"data":[` + validResource + `]}`))
+	f.Add([]byte(`{"data":[]}`))
+	f.Add([]byte(`{"data":[null]}`))
 	f.Add([]byte(`[` + validBody + `]`))
-	f.Add([]byte(`{"result":[` + validBody + `]}`))
-	f.Add([]byte(`[]`))
-	f.Add([]byte(`[null]`))
 	f.Add([]byte(`{`))
 	f.Fuzz(func(_ *testing.T, data []byte) {
-		_, _ = unmarshalBeaconList(data)
+		_, _ = unmarshalBeaconDocument(data)
 	})
 }
 

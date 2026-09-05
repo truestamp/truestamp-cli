@@ -282,9 +282,8 @@ truestamp entropy list --max 500 --json | jq -r '.observations[].id'
 truestamp items list --count --limit 1           # Items (1 shown, 10 total)
 ```
 
-`beacons list` is the one list without a cursor: its endpoint takes `?limit=`
-(at most 100) and nothing else, so it carries `--limit` alone and its `--json`
-is a bare array. The block history behind it is `blocks list`.
+`beacons list` pages the same way; its endpoint clamps a page above 100 to
+100 rather than refusing it, and `--max` still terminates on the cursor.
 
 ---
 
@@ -1982,12 +1981,14 @@ truestamp beacons latest
 #    Previous  f30efc591419a999a40927298a75432a05feaa9fb5fc858c9c84cda6993669f0
 #   (two more rows follow, Details and Verify — see below)
 
-# Most-recent N beacons, newest first (default 25, maximum 100 — a
-# larger --limit is not silently capped, the server rejects it with
-# `HTTP 400: must be less than or equal to 100`)
+# Most-recent N beacons, newest first (default 25; the server clamps a
+# page above 100 to 100). Paging is the same as every other list, see
+# Conventions → Paging lists: --after / --before, --oldest-first (the
+# genesis beacon first), --max and --count.
 truestamp beacons list
 truestamp beacons list --limit 3
-#   Beacons (latest 3)
+truestamp beacons list --oldest-first --limit 3
+#   Beacons (3)
 #
 #   TIMESTAMP               HASH                                                                ID
 #   2026-09-04T15:53:00Z    79ac0abb5f8c295054e58be910f6c334e279eae249346a2c6addd3a33ff95d8d    01a06d1f-8fb4-710a-894d-3412252cdcd8
@@ -2026,8 +2027,8 @@ MOMENT=$(truestamp beacons latest --hash-only)
 echo "beacon hash: $MOMENT"
 # beacon hash: 79ac0abb5f8c295054e58be910f6c334e279eae249346a2c6addd3a33ff95d8d
 
-# Pipeline-friendly JSON (a top-level array for `list`, an object otherwise)
-truestamp beacons list --limit 10 --json | jq -r '.[].hash'
+# Pipeline-friendly JSON (the paged envelope for `list`, an object otherwise)
+truestamp beacons list --limit 10 --json | jq -r '.beacons[].hash'
 # 79ac0abb5f8c295054e58be910f6c334e279eae249346a2c6addd3a33ff95d8d
 # f30efc591419a999a40927298a75432a05feaa9fb5fc858c9c84cda6993669f0
 # 1b7a533329e0cbcf5b8a744c2eac1e0ddc1f8fecd90a869e9506942dd9ed58f0
@@ -2139,12 +2140,11 @@ The item card closes with the same kind of link the beacon card does: a
 Details URL at `/items/<id>`, on whichever origin `base_url` names.
 
 `items list --json`, like every keyset-paged list (`blocks list`,
-`entropy list`), is an object: `{"items": [...], "next_cursor": "...",
+`beacons list`, `entropy list`), is an object: `{"items": [...], "next_cursor": "...",
 "prev_cursor": "..."}`, plus `"total"` under `--count`, with `next_cursor`
 empty once the last page has been read and `prev_cursor` empty on the
 first. Reach for `.items[]` in `jq`, not `.[]`.
-`beacons list --json` is the exception, a bare array: its endpoint has no
-cursor. `--limit` is bounded on one side only: the
+`--limit` is bounded on one side only: the
 CLI refuses `--limit 0` locally, because the API contract states a minimum
 of 1, and forwards everything else for the server to accept or refuse. The
 ceiling is the server's and it names its own when it declines.

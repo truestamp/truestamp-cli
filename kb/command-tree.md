@@ -298,8 +298,8 @@ The clean break was mandated for commands; flags do not get an exemption.
 
 ### R14 — Lists page the same way, in both directions, and never without a cap
 
-Every list over a keyset-paged JSON:API resource (`items`, `blocks`, `entropy`) carries the same
-flags, registered by one helper (`cmd/paging.go`): `--limit` is the page size; `--after <cursor>` and
+Every list over a keyset-paged JSON:API resource (`items`, `blocks`, `beacons`, `entropy`) carries the
+same flags, registered by one helper (`cmd/paging.go`): `--limit` is the page size; `--after <cursor>` and
 `--before <cursor>` continue from a cursor a previous page printed, forward along the listing or back
 toward its start (`page[after]` / `page[before]`, at most one per call); `--oldest-first` starts the
 walk at the beginning instead of the newest row (`sort=id` instead of `-id`); `--max N` follows
@@ -317,9 +317,10 @@ never cut and the cursors handed back always continue from the rows shown. There
 link on the server; the end of the listing is the first page of the opposite order, which is what
 `--oldest-first` is for.
 
-`beacons list` is the exception: its endpoint takes `?limit=` (at most 100) and returns no cursor, so
-it carries `--limit` alone and its `--json` stays a bare array. Chain history is `blocks list`.
-`teams list` and `keys list` fetch complete documents (your memberships, the published keyring) and
+`beacons list` pages the same way since 2026-09-05, when `/api/json/beacons` became a JSON:API index
+over a keyset-paginated read (the CLI side asked for it; the request is `paging.md` in the service
+repository). Its endpoint clamps a page above 100 to 100 rather than refusing it, which `--max`
+tolerates because the cursor still advances. `teams list` and `keys list` fetch complete documents (your memberships, the published keyring) and
 carry no paging flags, although the teams routes do page server-side.
 
 ## Applying the rules to a new noun
@@ -403,7 +404,7 @@ truestamp
 │   │   └── genesis              --json --silent
 │   │
 │   ├── beacons                  "Read-only: public randomness over finalized blocks"
-│   │   ├── list                 --limit --json --silent    (no cursor: R14's exception)
+│   │   ├── list                 --limit --after --before --oldest-first --max --count --json --silent
 │   │   ├── get <uuid|hash>      --hash-only --json --silent
 │   │   └── latest               --hash-only --json --silent
 │   │
@@ -607,7 +608,8 @@ silently dropped:
   every write to a **final output destination** goes through them. Writes into string builders
   deliberately do not: stripping there would remove colour before it ever reached a terminal.
 - The `--json` payload shapes were left alone. `verify --json` keeps the server's field names,
-  `hash --json` keeps its bare array, and `beacon --json` keeps the raw API response. R10 mandates
+  `hash --json` keeps its bare array, and `beacon --json` kept the raw API response until R14 gave every
+  paged list one envelope. R10 mandates
   the *presence* of `--json` on record-rendering commands, not a uniform envelope around it.
 
 ## Deferred

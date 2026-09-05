@@ -4,25 +4,31 @@
 package cmd
 
 import (
-	"fmt"
-	"github.com/truestamp/truestamp-cli/internal/inputsrc"
 	"io"
 	"strings"
 
 	"github.com/spf13/cobra"
 	"github.com/truestamp/truestamp-cli/internal/beacons"
+	"github.com/truestamp/truestamp-cli/internal/inputsrc"
 	"github.com/truestamp/truestamp-cli/internal/ui"
 )
 
 var beaconsListCmd = &cobra.Command{
 	Use:   "list",
 	Short: "Show the most recent beacons (newest first)",
-	Long: `List recent beacons, newest first. The server caps --limit and says so if you ask for more.
+	Long: `List beacons, newest first.
+
+Paging is by keyset cursor, like every other list: --limit sets the page
+size (the server clamps a page above 100 to 100), --after and --before
+continue from a cursor a previous page printed, --oldest-first starts at
+the genesis beacon, --max follows cursors until that many beacons have
+been fetched, and --count adds the total.
 
 Examples:
   truestamp beacons list
   truestamp beacons list --limit 3
-  truestamp beacons list --limit 10 --json | jq '.[].hash'`,
+  truestamp beacons list --oldest-first --limit 3
+  truestamp beacons list --limit 10 --json | jq -r '.beacons[].hash'`,
 	Args: cobra.NoArgs,
 	RunE: runBeaconsList,
 }
@@ -32,18 +38,23 @@ func runBeaconsList(cmd *cobra.Command, _ []string) error {
 	if err != nil {
 		return err
 	}
-
-	limit, err := pageLimit(cmd)
+	paging, err := readPagingOptions(cmd)
 	if err != nil {
 		return err
 	}
-
 	cfg, err := beaconConfig(cmd)
 	if err != nil {
 		return err
 	}
-
-	items, err := beacons.List(cmd.Context(), cfg, limit)
+	rows, pg, err := walkPages(paging, func(after, before string, limit int) (*pageOf[beacons.Beacon], error) {
+		p, err := beacons.List(cmd.Context(), cfg, beacons.ListOptions{
+			Limit: limit, After: after, Before: before, OldestFirst: paging.OldestFirst, Count: paging.Count,
+		})
+		if err != nil {
+			return nil, err
+		}
+		return &pageOf[beacons.Beacon]{Rows: p.Beacons, NextCursor: p.NextCursor, PrevCursor: p.PrevCursor, Total: p.Total}, nil
+	})
 	if err != nil {
 		return renderAPIError(cmd, err, "beacon")
 	}
@@ -52,9 +63,9 @@ func runBeaconsList(cmd *cobra.Command, _ []string) error {
 		return nil
 	}
 	if jsonOut {
-		return emitJSON(cmd.OutOrStdout(), items)
+		return emitJSON(cmd.OutOrStdout(), listEnvelope("beacons", rows, pg))
 	}
-	renderBeaconList(cmd.OutOrStdout(), items)
+	renderBeaconList(cmd.OutOrStdout(), rows, pg)
 	// One-line hint on interactive runs pointing at `proofs get --type beacon`.
 	// Suppressed when stdout is piped so shell pipelines stay clean.
 	if inputsrc.IsStdoutTerminal() {
@@ -68,9 +79,8 @@ func runBeaconsList(cmd *cobra.Command, _ []string) error {
 // always shown full-width, truncation would silently drop the bytes a
 // user came here to capture (the whole point of `beacons list` is to
 // surface the hash for copy-paste or shell substitution).
-func renderBeaconList(w io.Writer, items []beacons.Beacon) {
-	heading := fmt.Sprintf("  Beacons (latest %d)", len(items))
-	header := ui.AccentBoldStyle().Render(heading)
+func renderBeaconList(w io.Writer, items []beacons.Beacon, pg listPage) {
+	header := ui.AccentBoldStyle().Render(listHeading("Beacons", len(items), pg))
 
 	rows := make([][]string, 0, len(items)+1)
 	rows = append(rows, []string{"TIMESTAMP", "HASH", "ID"})
@@ -90,11 +100,11 @@ func renderBeaconList(w io.Writer, items []beacons.Beacon) {
 	// which would make long hash rows blow up vertical spacing on
 	// narrow terminals.
 	ui.Fprintln(w, strings.Join([]string{header, "", tbl.String()}, "\n"))
+	renderMoreHint(w, pg)
 }
 
 func init() {
-	addLimitFlag(beaconsListCmd, "beacons")
+	addPagingFlags(beaconsListCmd, "beacons")
 	addRecordOutputFlags(beaconsListCmd)
-
 	beaconsCmd.AddCommand(beaconsListCmd)
 }
