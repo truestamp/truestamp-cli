@@ -2197,7 +2197,9 @@ that did not yet exist.
 
 The same observations are published on the web at `<base-url>/entropy`.
 The `--source` vocabulary is the wire names, identical to the
-`entropy_*` proof subject types, so one word names both.
+`entropy_*` proof subject types, so one word names both; the card and the
+list drop the `entropy_` prefix for display (`stellar`), and `--json`
+keeps the wire name.
 
 ```sh
 # Newest observation from any source. A bare `truestamp entropy` prints help.
@@ -2205,7 +2207,7 @@ truestamp entropy latest
 #   Entropy Observation
 #
 #             ID  01a07349-c2b3-7290-8cbe-e392bf94cd9d
-#         Source  entropy_stellar
+#         Source  stellar
 #          State  created
 #   Entropy Hash  27bce1e57b76e5092704be389273259b05870d3c705a38c7fe0dd41f407d39c2
 #      Published  2026-09-05T20:36:47Z  (5s ago)
@@ -2226,11 +2228,11 @@ truestamp entropy latest --source entropy_bitcoin --json | jq -r .entropy_hash
 truestamp entropy list --limit 4
 #   Entropy Observations (4)
 #
-#   PUBLISHED               SOURCE             STATE      ID                                      HASH
-#   2026-09-05T20:36:47Z    entropy_stellar    created    01a07349-c2b3-7290-8cbe-e392bf94cd9d    27bce1e5…407d39c2
-#   2026-09-05T20:36:42Z    entropy_stellar    created    01a07349-af28-75fc-8edc-f62b8097010d    a5f4dd3e…6be8edb3
-#   2026-09-05T20:36:37Z    entropy_stellar    created    01a07349-9b9e-7d40-90f2-493759b1865a    bdcb9659…8a4e8d40
-#   2026-09-05T20:36:00Z    entropy_nist       created    01a07349-8a08-7862-8064-48350f95c400    c4b3baf8…89bc82a7
+#   PUBLISHED               SOURCE     STATE      ID                                      HASH
+#   2026-09-05T20:36:47Z    stellar    created    01a07349-c2b3-7290-8cbe-e392bf94cd9d    27bce1e5…407d39c2
+#   2026-09-05T20:36:42Z    stellar    created    01a07349-af28-75fc-8edc-f62b8097010d    a5f4dd3e…6be8edb3
+#   2026-09-05T20:36:37Z    stellar    created    01a07349-9b9e-7d40-90f2-493759b1865a    bdcb9659…8a4e8d40
+#   2026-09-05T20:36:00Z    nist       created    01a07349-8a08-7862-8064-48350f95c400    c4b3baf8…89bc82a7
 truestamp entropy list --source entropy_bitcoin --limit 2
 
 # Page like every other list: --after continues from a printed cursor,

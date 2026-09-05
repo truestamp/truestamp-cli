@@ -229,10 +229,13 @@ func TestCLI_Entropy_List_Text(t *testing.T) {
 	if exit != 0 {
 		t.Fatalf("exit=%d", exit)
 	}
-	for _, want := range []string{"Entropy Observations (2)", "PUBLISHED", "SOURCE", "entropy_stellar", "entropy_nist", testEntropyStellarID} {
+	for _, want := range []string{"Entropy Observations (2)", "PUBLISHED", "SOURCE", "stellar", "nist", testEntropyStellarID} {
 		if !strings.Contains(stdout, want) {
 			t.Errorf("list should show %q, got:\n%s", want, stdout)
 		}
+	}
+	if strings.Contains(stdout, "entropy_stellar") {
+		t.Errorf("the SOURCE column should drop the entropy_ prefix, got:\n%s", stdout)
 	}
 }
 
@@ -256,7 +259,7 @@ func TestCLI_Entropy_Get_Card(t *testing.T) {
 	if exit != 0 {
 		t.Fatalf("exit=%d\n%s", exit, stdout)
 	}
-	for _, want := range []string{"Entropy Observation", testEntropyStellarID, "entropy_stellar", testEntropyStellarHash,
+	for _, want := range []string{"Entropy Observation", testEntropyStellarID, "Source", "stellar", testEntropyStellarHash,
 		"sequence", "4523312", "pulse.pulseIndex", "1928582", "/entropy/" + testEntropyStellarID, "/verify/entropy_stellar/" + testEntropyStellarID} {
 		if !strings.Contains(stdout, want) {
 			t.Errorf("card should show %q, got:\n%s", want, stdout)

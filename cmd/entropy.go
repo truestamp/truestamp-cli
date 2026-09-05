@@ -199,7 +199,7 @@ func renderObservationCard(w io.Writer, apiURL string, o *entropy.Observation) {
 	tbl := ui.CompactTable().
 		StyleFunc(ui.LabelValueStyleFunc()).
 		Row("ID", o.ID).
-		Row("Source", o.Source).
+		Row("Source", displaySource(o.Source)).
 		Row("State", o.State).
 		Row("Entropy Hash", o.EntropyHash)
 	if o.SourcePublishedAt != "" {
@@ -220,6 +220,15 @@ func renderObservationCard(w io.Writer, apiURL string, o *entropy.Observation) {
 		tbl = tbl.Row("Verify", verify)
 	}
 	ui.Fprintln(w, strings.Join([]string{header, "", tbl.String()}, "\n"))
+}
+
+// displaySource renders a source for a human: the wire name minus its
+// entropy_ prefix ("stellar"), which the surrounding card or column
+// already says is an entropy source. --source and --json keep the wire
+// name, so one vocabulary still serves the flag, the JSON and
+// `proofs get --type`.
+func displaySource(source string) string {
+	return strings.TrimPrefix(source, "entropy_")
 }
 
 // entropyRows adds one row per field of the source's record, under the
@@ -281,7 +290,7 @@ func renderObservationList(cmd *cobra.Command, list []entropy.Observation, pg li
 	// and in --json, and `entropy get` accepts it whole.
 	rows := [][]string{{"PUBLISHED", "SOURCE", "STATE", "ID", "HASH"}}
 	for _, o := range list {
-		rows = append(rows, []string{ui.TruncateToSecond(o.SourcePublishedAt), o.Source, o.State, o.ID, truncateHash(o.EntropyHash)})
+		rows = append(rows, []string{ui.TruncateToSecond(o.SourcePublishedAt), displaySource(o.Source), o.State, o.ID, truncateHash(o.EntropyHash)})
 	}
 	tbl := ui.CompactTable().StyleFunc(ui.HeaderRowStyleFunc()).Rows(rows...)
 	ui.Fprintln(w, strings.Join([]string{header, "", tbl.String()}, "\n"))
