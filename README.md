@@ -309,7 +309,7 @@ Other:
 A bare group prints help: `truestamp items` tells you what you can do with items,
 and works before you have signed in.
 
-Cross-cutting reference lives where it is owned: the vocabulary in the [whitepaper](https://github.com/truestamp/truestamp-v2), the output contract and exit codes in this file, and machine-readable registries in `truestamp schema`. Each command's own `--help` carries the constraints that apply to it.
+Cross-cutting reference lives where it is owned: the vocabulary in the Truestamp whitepaper (not yet published; this README will link it when it is), the output contract and exit codes in this file, and machine-readable registries in `truestamp schema`. Each command's own `--help` carries the constraints that apply to it.
 
 Run `truestamp <command> --help` for per-command flags.
 
@@ -454,7 +454,7 @@ Because the verify behaviour flags (`--remote`, `--silent`, `--json`, `--offline
 
 ## What gets verified
 
-`truestamp verify` implements Appendix E of the [Truestamp whitepaper](https://github.com/truestamp/truestamp-v2/blob/main/whitepaper/whitepaper.pdf), the normative specification for a conforming verifier, and is a port of the whitepaper's reference verifier: on any bundle the two produce reports whose statuses match. Nothing in a bundle is opaque. It carries the subject's claims (or entropy payload), the subject and block metadata maps, and the witness details, and it carries no metadata hash and no block hash, so every value below is recomputed from bytes the bundle carries. The report is five categories in a fixed order:
+`truestamp verify` implements Appendix E of the Truestamp whitepaper, the normative specification for a conforming verifier, and is a port of the whitepaper's reference verifier (the whitepaper is not yet published; this README will link it when it is, and until then the report itself is the reference, since every step names what it recomputed and what it compared): on any bundle the two produce reports whose statuses match. Nothing in a bundle is opaque. It carries the subject's claims (or entropy payload), the subject and block metadata maps, and the witness details, and it carries no metadata hash and no block hash, so every value below is recomputed from bytes the bundle carries. The report is five categories in a fixed order:
 
 **Data Integrity**
 
@@ -517,7 +517,7 @@ Dev setup, testing, and release process are in [`CONTRIBUTING.md`](./CONTRIBUTIN
 
 ## Related projects
 
-- [`truestamp/truestamp-v2`](https://github.com/truestamp/truestamp-v2): the Truestamp service that generates the proofs this CLI verifies.
+- [Truestamp](https://www.truestamp.com): the service that generates the proofs this CLI verifies. Its API reference is at [truestamp.com/api/json/redoc](https://www.truestamp.com/api/json/redoc), with a plain-text edition for LLMs at [truestamp.com/llms-full.txt](https://www.truestamp.com/llms-full.txt).
 - [`truestamp/homebrew-tap`](https://github.com/truestamp/homebrew-tap): the Homebrew tap this CLI publishes to.
 
 ## License

@@ -535,7 +535,7 @@ truestamp items create --file
 # Provide the content via stdin (name required separately)
 curl -fsSL https://example.com/data.bin | truestamp items create -F -n "data.bin"
 
-# Submit a precomputed claims JSON (see truestamp-v2/kb/items/submit-an-item.md for the shape)
+# Submit a precomputed claims JSON (`truestamp items create --help` lists the fields it may carry)
 truestamp items create --claims=claims.json
 
 # Claims via stdin
@@ -1459,11 +1459,10 @@ The wire protocol is plain JSON arrays over Phoenix Channels V2 and
 is fully driveable from `websocat`. See
 [kb/console/websocket.md](kb/console/websocket.md) for the
 client-side architecture (auth on the upgrade, heartbeats, ref
-correlation, reconnect, redaction), [kb/console/panes.md](kb/console/panes.md)
-for the pane and key-binding reference, and
-[truestamp-v2/kb/api/console-websocket.md](https://github.com/truestamp/truestamp-v2/blob/main/kb/api/console-websocket.md)
-for the authoritative wire protocol reference (commands, events,
-catalog, limits).
+correlation, reconnect, redaction) and the parts of the wire protocol the
+client relies on, and [kb/console/panes.md](kb/console/panes.md) for the
+pane and key-binding reference. The server's full protocol reference
+(commands, events, catalog, limits) is not published.
 
 ---
 
