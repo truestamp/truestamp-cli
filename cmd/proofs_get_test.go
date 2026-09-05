@@ -321,7 +321,7 @@ func TestCLI_ProofsGet_NotCommittedError(t *testing.T) {
 	// Assert on intent, not on a phrase that a line break can split: the
 	// server's own detail, the machine-readable code, and the one thing
 	// the server cannot say -- that waiting will fix this.
-	for _, want := range []string{"not yet been committed", "no_external_commitments", "transient"} {
+	for _, want := range []string{"not yet been committed", "no_external_commitments", "clears on its own"} {
 		if !strings.Contains(stderr, want) {
 			t.Errorf("stderr missing %q\ngot: %s", want, stderr)
 		}
@@ -613,7 +613,7 @@ func TestCLI_ProofsGet_ExplainsGenerateCodes(t *testing.T) {
 			detail: "The item's stored metadata no longer reproduces the hash committed at submission.",
 			wantAll: []string{
 				"subject_not_recomputable", "What drifted: metadata.",
-				"Retry: no, this condition is permanent.",
+				"This will not clear on its own.",
 			},
 		},
 		{
@@ -626,7 +626,7 @@ func TestCLI_ProofsGet_ExplainsGenerateCodes(t *testing.T) {
 			detail: "Stored data no longer reproduces its committed hash.",
 			wantAll: []string{
 				"What drifted: claims and metadata.",
-				"Retry: no, this condition is permanent.",
+				"This will not clear on its own.",
 			},
 		},
 		{
@@ -658,7 +658,7 @@ func TestCLI_ProofsGet_ExplainsGenerateCodes(t *testing.T) {
 			status:  400,
 			meta:    `"code":"subject_not_ready"`,
 			detail:  "Subject is not yet ready for proof generation.",
-			wantAll: []string{"subject_not_ready", "Retry: yes, this is transient.", "Try again shortly"},
+			wantAll: []string{"subject_not_ready", "Proof not available yet", "This clears on its own: try again shortly."},
 		},
 		{
 			// A code the CLI has no case for must render plainly: no
@@ -668,14 +668,14 @@ func TestCLI_ProofsGet_ExplainsGenerateCodes(t *testing.T) {
 			meta:     `"code":"some_future_code"`,
 			detail:   "Something the CLI has never seen.",
 			wantAll:  []string{"some_future_code", "Something the CLI has never seen."},
-			wantNone: []string{"Retry:", "transient", "permanent", "Try again"},
+			wantNone: []string{"clears on its own", "will not clear", "try again"},
 		},
 		{
 			name:    "no_external_commitments is reported as transient",
 			status:  400,
 			meta:    `"code":"no_external_commitments"`,
 			detail:  "Subject has not yet been committed to a public blockchain.",
-			wantAll: []string{"Retry: yes, this is transient.", "Try again shortly"},
+			wantAll: []string{"Proof not available yet", "This clears on its own: try again shortly."},
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
