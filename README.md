@@ -379,6 +379,7 @@ truestamp upgrade --check            # only report whether an upgrade is availab
 truestamp upgrade --check --exit-code  # ... and encode the answer in the exit status
 truestamp upgrade --yes              # skip the interactive confirmation prompt (also -y)
 truestamp upgrade --version vX.Y.Z   # pin to a specific release tag (also the opt-in path for pre-releases)
+truestamp upgrade --no-verify        # skip the cosign signature check even when cosign is installed (SHA-256 still enforced)
 ```
 
 `--check` always exits `0`, whatever it finds, so a check in a script never fails the script. Add `--exit-code` to encode the answer in the status instead; the codes are listed under [Exit codes](#exit-codes). A pre-release latest never auto-installs; pass `--version <tag>` to install one explicitly.

@@ -59,7 +59,8 @@ Examples:
   truestamp upgrade --check               # only print whether an upgrade is available
   truestamp upgrade --check --exit-code   # same, encoded in the exit status ('schema get exit-codes')
   truestamp upgrade --yes                 # upgrade without interactive confirmation
-  truestamp upgrade --version v0.4.0      # pin to a specific release tag`,
+  truestamp upgrade --version v0.4.0      # pin to a specific release tag
+  truestamp upgrade --no-verify           # skip the cosign check (SHA-256 still enforced)`,
 	Args: cobra.NoArgs,
 	RunE: runUpgrade,
 }
@@ -69,8 +70,9 @@ func init() {
 	upgradeCmd.Flags().BoolVar(&upgradeFlagExitCode, "exit-code", false, "With --check, encode the result in the exit status (1=upgrade available, 2=network error, 3=pre-release) instead of always exiting 0")
 	upgradeCmd.Flags().BoolVarP(&upgradeFlagYes, "yes", "y", false, "Skip the interactive confirmation prompt")
 	upgradeCmd.Flags().StringVar(&upgradeFlagVersion, "version", "", "Pin to a specific release tag (e.g. v0.4.0). Bypasses the pre-release filter.")
-	upgradeCmd.Flags().BoolVar(&upgradeFlagNoVerify, "no-verify", false, "Skip cosign signature verification (SHA-256 is still enforced)")
-	_ = upgradeCmd.Flags().MarkHidden("no-verify")
+	// Visible on purpose: a flag that weakens verification is either in
+	// --help or absent, never present but undocumented.
+	upgradeCmd.Flags().BoolVar(&upgradeFlagNoVerify, "no-verify", false, "Skip the cosign signature check even when cosign is installed; the SHA-256 checksum is still enforced")
 
 	upgradeCmd.GroupID = groupOther
 	rootCmd.AddCommand(upgradeCmd)

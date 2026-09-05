@@ -408,7 +408,7 @@ truestamp
 └── Other
     ├── console                  --ws-url
     ├── schema                   list · get <name>
-    ├── upgrade                  --check [--exit-code] --version <tag> -y/--yes
+    ├── upgrade                  --check [--exit-code] --version <tag> -y/--yes --no-verify
     ├── version                  --json --silent
     └── completion
 ```
