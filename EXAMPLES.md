@@ -2398,17 +2398,6 @@ jq -r .public_key proof.json | truestamp convert keyid
 
 Both spellings print the same kid.
 
-### Extract the item timestamp from a proof
-
-The item's ULID carries the millisecond at which the item was **submitted**
-to Truestamp; it is the `submitted` value the verify report's Temporal Info
-row prints.
-
-```sh
-jq -r .subject.id proof.json | truestamp convert id
-# 2026-09-03T16:15:14.222Z
-```
-
 ### Extract the block commit time from a proof (in your local zone)
 
 ```sh
@@ -2509,21 +2498,6 @@ round="$(truestamp proofs convert --to cbor proof.json \
 # round-trip stable
 ```
 
-### Inspect every Merkle sibling in a proof's inclusion path
-
-```sh
-jq -r .inclusion_proof proof.json | truestamp convert merkle
-# depth: 5
-#    0  right  7251f2b6c01afe3d1f1b4723566641f7f2590e8caa86be1706b8b291d71dc386
-#    1  right  9a56135841b89f111a2c9eb344c7023fdbc24eb3e7504a00f0bd67255a2dffe3
-#    2  right  265788d3f3f9a03ce8452be58c9cbfc85b739cf1f5216c0eef3b147309bd5f45
-#    3  right  845b98c0469e9bfc51fcd6756131c6b612624bffdb4d729808ab1359cc948647
-#    4  right  33010ae04a22ef2505c2e4079f633491eae67f6a39e828922935cf56776eb494
-```
-
-The same decoder reads a commitment's epoch proof:
-`jq -r '.commitments[0].epoch_proof' proof.json | truestamp convert merkle`.
-
 ### Convert every commitment timestamp to your local zone
 
 ```sh
@@ -2591,14 +2565,6 @@ truestamp verify proof.json --json | jq .temporal
 #   "stellar_commit": "2026-09-03T18:10:02Z",
 #   "bitcoin_commit": "2026-09-03T18:15:06Z"
 # }
-
-# Compare the claims.hash field in a proof against a fresh local hash.
-# Works for external-hash proofs only; claims-only proofs have no
-# .subject.claims.hash field (jq returns "null") and don't need this
-# comparison, because the claims content is already in the bundle.
-proof_hash="$(jq -r .subject.claims.hash proof.json)"
-fresh_hash="$(truestamp hash -a sha256 --json contract.pdf | jq -r .digest.hex)"
-[ "$proof_hash" = "$fresh_hash" ] && echo "match" || echo "MISMATCH"
 
 # Branch on submission mode at the jq layer
 jq 'if .subject.claims | has("hash") then "external-hash mode" else "claims-only mode" end' proof.json
@@ -2743,15 +2709,11 @@ requests:
 5. With `--remote`, posts the bundle to the Truestamp API's `/proof/verify`.
 
 `--offline` skips the first four. `--skip-signatures` skips the Ed25519
-**Proof Signature** check, and the **Key Binding** cross-check goes with it
-*unless* `--keyring` pins a local copy, in which case the binding still
-runs against that file. Note that `--skip-signatures` does *not* skip the
-**Signing Key** step, which still decodes `public_key` and derives its key
-id, so an undecodable public key still fails. A run with
-`--skip-signatures` raises a `warn` row and repeats the caveat under its
-verdict, because it establishes nothing about who issued the proof.
-Everything else local (subject hash, Merkle inclusion, block hash, epoch
-proofs, witnesses, submission window) is always performed.
+**Proof Signature** check, and the **Key Binding** cross-check with it
+unless `--keyring` pins a local copy; `README.md` §What gets verified
+spells out exactly what each flag skips and what still runs. Everything
+else local (subject hash, Merkle inclusion, block hash, epoch proofs,
+witnesses, submission window) is always performed.
 
 ---
 

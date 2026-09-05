@@ -74,23 +74,7 @@ Pagination limits: the CLI enforces only the floor (`--limit 0` is refused local
 
 ### Pipeline recipes
 
-```bash
-# Recompute a Truestamp claims_hash locally (equivalent one-liner)
-truestamp jcs < claims.json | truestamp hash --prefix 0x11 -a sha256 --style bare --no-filename
-truestamp hash --prefix 0x11 --jcs -a sha256 --style bare --no-filename < claims.json
-
-# Convert a JSON proof to deterministic CBOR and verify
-truestamp proofs convert --to cbor proof.json | truestamp verify --offline
-
-# Derive the 4-byte kid fingerprint from an Ed25519 pubkey
-truestamp convert keyid CTwMqDZnPd/QTLSq8aTeSD3a+j2DQxKcGfhhIYJQ65Y=
-
-# sha256sum-compatible drop-in
-truestamp hash doc.pdf                                # "<hex>  doc.pdf"
-truestamp hash --style bsd -a sha512 doc.pdf          # "SHA512 (doc.pdf) = <hex>"
-```
-
-Exit code 0 = all checks passed, 1 = failure.
+`README.md` §Composable pipelines and `EXAMPLES.md` own the recipes, and `cmd/docs_test.go` executes every documented example, so a new recipe belongs there rather than here. Exit codes are `README.md` §Exit codes (0 = all checks passed, 1 = failure).
 
 ## Package Structure
 

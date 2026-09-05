@@ -381,7 +381,7 @@ truestamp upgrade --yes              # skip the interactive confirmation prompt 
 truestamp upgrade --version vX.Y.Z   # pin to a specific release tag (also the opt-in path for pre-releases)
 ```
 
-`--check` always exits `0`, whatever it finds, so a check in a script never fails the script. Add `--exit-code` to encode the answer instead: `0` up-to-date, `1` upgrade available, `2` network error, `3` the latest release is a pre-release (it will not auto-install; pass `--version <tag>` to install one explicitly).
+`--check` always exits `0`, whatever it finds, so a check in a script never fails the script. Add `--exit-code` to encode the answer in the status instead; the codes are listed under [Exit codes](#exit-codes). A pre-release latest never auto-installs; pass `--version <tag>` to install one explicitly.
 
 ### Passive upgrade notices
 
