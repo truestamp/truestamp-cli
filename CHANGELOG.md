@@ -148,6 +148,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **`items create --hash` is renamed `--data-hash`.** `--hash` meant the hash of
   *your* data here and the hash you *expect* on `verify`: one word, two roles.
   The server-side claims field is still `hash` and is unchanged.
+- **`upgrade --no-verify` is no longer hidden.** It skips the cosign signature
+  check even when cosign is installed (the SHA-256 checksum is still enforced)
+  and was present in the binary but absent from `--help` and every document.
+  A flag that weakens verification is either visible or absent.
 - **`teams create --set` is renamed `--use`.** `set` is a retired verb (R3), and
   the flag does exactly what `teams use` does with the new team's id, so it
   takes that verb's name.
