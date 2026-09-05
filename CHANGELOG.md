@@ -81,8 +81,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   no `--all`: the tables behind these lists grow by the minute, so following
   pages costs a cap you wrote down. `beacons list` joined the others once the
   server gave `/api/json/beacons` keyset paging; its `--json`, a bare array in
-  v0.13.0, is now the same envelope, and the endpoint clamps a page above 100 to
-  100 instead of refusing it.
+  v0.13.0, is now the same envelope, and the old 100-row ceiling is gone.
 - **`proofs get` refusals read like the rest of the CLI.** A `/proof/generate`
   refusal is a banner (`Proof not available yet`, `Proof cannot be generated`),
   the server's detail, what to do next (`This clears on its own: try again
