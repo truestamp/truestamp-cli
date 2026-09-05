@@ -9,7 +9,6 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
-	"os/exec"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -18,14 +17,6 @@ import (
 
 // runCLIOut runs the binary and returns combined output plus the error,
 // for cases where the distinction between the two streams does not matter.
-func runCLIOut(t *testing.T, args ...string) (string, error) {
-	t.Helper()
-	cmd := exec.Command(binaryPath, args...)
-	cmd.Env = cleanEnv()
-	out, err := cmd.CombinedOutput()
-	return string(out), err
-}
-
 // itemsServer is a mock JSON:API surface recording what the CLI actually
 // asked for, so the tests can assert on the request and not only on the
 // rendered output.
@@ -260,8 +251,8 @@ func TestCLI_Items_Update_SendsOnlyChangedAttributes(t *testing.T) {
 // `--name` here would be a cryptographic hazard rather than a feature.
 func TestCLI_Items_Update_CannotReachASignedField(t *testing.T) {
 	for _, flag := range []string{"--claims", "--name", "--description", "--data-hash"} {
-		out, err := runCLIOut(t, "items", "update", "01AAA", flag, "x")
-		if err == nil {
+		out, code := runCLIText(t, "items", "update", "01AAA", flag, "x")
+		if code == 0 {
 			t.Errorf("items update must not accept %s: claims are immutable", flag)
 		}
 		if !strings.Contains(out, "unknown flag") {
@@ -342,8 +333,8 @@ func TestCLI_Items_RequireAuth(t *testing.T) {
 		{"items", "list"}, {"items", "get", "01AAA"},
 		{"items", "update", "01AAA", "--visibility", "public"},
 	} {
-		out, err := runCLIOut(t, args...)
-		if err == nil {
+		out, code := runCLIText(t, args...)
+		if code == 0 {
 			t.Errorf("%v should fail without a credential", args)
 		}
 		if !strings.Contains(out, "Not authenticated") {

@@ -9,14 +9,11 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
-	"io"
 	"net/http"
-	"net/http/httptest"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
-	"sync"
 	"testing"
 
 	"github.com/truestamp/truestamp-cli/internal/items"
@@ -600,9 +597,10 @@ func TestCLI_ItemsCreate_JSONOutput_ClaimsOnly_OmitsHashKeys(t *testing.T) {
 
 // --- Integer literal preservation + producer-side portability guard ---
 
-// startCreateEchoServer stands up a fake /api/json/items endpoint that records
-// the RAW request body, the actual bytes that went out on the wire, and
-// answers with a minimal JSON:API item so the command completes normally.
+// startCreateEchoServer is the items mock server answering every request
+// with a minimal JSON:API item, so the command completes normally, and
+// handing back the RAW request body: the actual bytes that went out on the
+// wire.
 //
 // Asserting on these bytes rather than on an intermediate map is the entire
 // point: the corruption this guards against happened during decode, so any
@@ -610,31 +608,12 @@ func TestCLI_ItemsCreate_JSONOutput_ClaimsOnly_OmitsHashKeys(t *testing.T) {
 // second time and agree with itself.
 func startCreateEchoServer(t *testing.T) (url string, body func() []byte) {
 	t.Helper()
-
-	var mu sync.Mutex
-	var captured []byte
-
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		raw, err := io.ReadAll(r.Body)
-		if err != nil {
-			t.Errorf("reading request body: %v", err)
-		}
-		mu.Lock()
-		captured = raw
-		mu.Unlock()
-
-		w.Header().Set("Content-Type", "application/vnd.api+json")
+	s := startItemsServer(t, func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusCreated)
 		fmt.Fprint(w, `{"data":{"id":"01HJHB01T8FYZ7YTR9P5N62K5B","type":"item",`+
 			`"attributes":{"display_name":"Echo","visibility":"private","state":"pending"}}}`)
-	}))
-	t.Cleanup(srv.Close)
-
-	return srv.URL, func() []byte {
-		mu.Lock()
-		defer mu.Unlock()
-		return captured
-	}
+	})
+	return s.URL, func() []byte { return []byte(s.body()) }
 }
 
 // TestCLI_ItemsCreate_PreservesLiteralsOnTheWire is the end-to-end regression for
