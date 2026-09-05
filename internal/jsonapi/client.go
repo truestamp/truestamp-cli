@@ -47,6 +47,7 @@ var (
 // (falling back to `title`) from the JSON:API error envelope.
 type APIError struct {
 	Status     int
+	Code       string // errors[].code, the server's machine-readable reason, when present
 	Pointer    string // errors[].source.pointer, when present
 	Detail     string
 	RetryAfter string // verbatim Retry-After header on 429
@@ -65,6 +66,10 @@ func (e *APIError) Error() string {
 }
 
 func (e *APIError) Unwrap() error { return e.Sentinel }
+
+// CodeInvalidKeyset is the server's code for a page[after] / page[before]
+// value that is not a cursor it issued.
+const CodeInvalidKeyset = "invalid_keyset"
 
 // NotFound is the error a client returns when a filter-style lookup came
 // back empty and there was no 404 to classify.
@@ -154,6 +159,7 @@ func ParseError(status int, body []byte) *APIError {
 	e := &APIError{Status: status, Sentinel: sentinelFor(status)}
 	var envelope struct {
 		Errors []struct {
+			Code   string `json:"code"`
 			Detail string `json:"detail"`
 			Title  string `json:"title"`
 			Source struct {
@@ -170,6 +176,7 @@ func ParseError(status int, body []byte) *APIError {
 			}
 		}
 		e.Pointer = chosen.Source.Pointer
+		e.Code = chosen.Code
 		switch {
 		case chosen.Detail != "":
 			e.Detail = chosen.Detail

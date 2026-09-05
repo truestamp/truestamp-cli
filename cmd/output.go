@@ -132,6 +132,10 @@ func renderAPIError(cmd *cobra.Command, err error, noun string) error {
 		switch {
 		case errors.Is(err, jsonapi.ErrNotFound):
 			return fmt.Errorf("%s not found", noun)
+		case apiErr.Code == jsonapi.CodeInvalidKeyset:
+			// A cursor is opaque and only meaningful to the listing that
+			// printed it; say that rather than echoing "invalid keyset".
+			return errors.New("the cursor was not recognised: use one printed by a previous page of this listing (More: --after, Back: --before)")
 		case errors.Is(err, jsonapi.ErrRateLimited) && apiErr.RetryAfter != "":
 			return fmt.Errorf("rate limited (Retry-After: %s): %s", apiErr.RetryAfter, apiErr.Detail)
 		}
