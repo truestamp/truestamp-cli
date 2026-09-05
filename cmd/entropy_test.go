@@ -94,6 +94,11 @@ func startEntropyServer(t *testing.T) *entropyServer {
 			return
 		case q.Get("page[before]") == "CURSORC":
 			rows = []string{nist}
+		case q.Has("page[after]") || q.Has("page[before]"):
+			// Anything else is not a cursor this listing issued.
+			w.WriteHeader(http.StatusBadRequest)
+			_, _ = w.Write([]byte(`{"errors":[{"code":"invalid_keyset","status":"400","title":"InvalidKeyset","detail":"invalid keyset"}]}`))
+			return
 		default:
 			rows = []string{stellar, nist}
 			// The first page of the unfiltered listing continues: a next
@@ -375,5 +380,15 @@ func TestCLI_Entropy_List_OldestFirst(t *testing.T) {
 	}
 	if srv.query().Get("sort") != "id" {
 		t.Errorf("--oldest-first must ask for ascending order, asked %v", srv.query())
+	}
+}
+
+// TestCLI_Entropy_List_BadCursor: the server's invalid_keyset is rendered
+// as advice about where cursors come from, not as its raw detail.
+func TestCLI_Entropy_List_BadCursor(t *testing.T) {
+	srv := startEntropyServer(t)
+	_, stderr, exit := runCLI(t, "--base-url", srv.URL, "--api-key", "test-key", "entropy", "list", "--after", "garbage")
+	if exit == 0 || !strings.Contains(stderr, "cursor was not recognised") || strings.Contains(stderr, "invalid keyset") {
+		t.Errorf("exit=%d stderr=%q", exit, stderr)
 	}
 }

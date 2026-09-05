@@ -56,6 +56,10 @@ func TestParseError_PrefersPointerBearingError(t *testing.T) {
 	if err.Pointer != "/data/attributes/ownership_model" || err.Detail != "not entitled" {
 		t.Errorf("pointer-bearing error should be chosen, got pointer=%q detail=%q", err.Pointer, err.Detail)
 	}
+	bad := ParseError(400, []byte(`{"errors":[{"code":"invalid_keyset","status":"400","title":"InvalidKeyset","detail":"invalid keyset"}]}`))
+	if bad.Code != CodeInvalidKeyset || !errors.Is(bad, ErrBadRequest) {
+		t.Errorf("the server's code should be carried, got %+v", bad)
+	}
 }
 
 func TestSentinelFor_Classes(t *testing.T) {
