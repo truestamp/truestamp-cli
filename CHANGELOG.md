@@ -33,11 +33,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   a synonym of `update`, which sets named fields from flags, and it is
   confined to files the CLI owns. See R3 in `kb/command-tree.md`.
 
-- **`config path` carries `--json` and `--silent`** like every other
-  record-rendering command. The styled form puts a label on stdout, so
-  `$(truestamp config path)` captured `"Config Path  /path"` rather than the
-  path; `--json | jq -r .path` captures the value alone.
-
 - **`proofs get --type` is now optional.** A ULID is unambiguously an item, but
   blocks, beacons and entropy observations all use UUIDv7, so nothing
   client-side can tell them apart — the one place id-shape dispatch cannot work.
@@ -116,12 +111,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   silently, because koanf does not error on unrecognized keys. Update your
   `config.toml` and any CI environment that set them.
 
-  The reason is structural rather than cosmetic. `internal/config` resolves a
-  flag name to a config key *globally*, so a flag called `json` mapped to
-  `verify.json` for every command that registered one. That was inert only
-  because nothing else read the value; registering `--json` as a root persistent
-  flag, which the command-tree reorganization does, would have made
-  `truestamp hash --json` write into `verify.json`. See
+  Every record-rendering command carries the pair: `version`, `config show`,
+  `config path` and `auth status` gained it. `auth status --json` reports a
+  stable `reason` identifier (`not_authenticated`, `credential_rejected`,
+  `team_not_accessible`, …) rather than an English sentence, and its `ok`
+  field agrees with the exit code; `config path --json | jq -r .path` captures
+  the bare path where the styled form puts a label on stdout. The two flags
+  are mutually exclusive on every command, enforced once in `config.Load`
+  rather than per command: `verify` checked this already, no other command
+  did, and a command added later cannot now forget to. The keys are global
+  rather than scoped under `[verify]` because `internal/config` resolves a
+  flag name to a config key globally; see
   [`kb/command-tree.md`](kb/command-tree.md) R10.
 
 - **`items update --to-team` moves an item between teams**, deliberately not the
@@ -164,10 +164,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **`-o/--output` on `proofs get` is renamed `-o/--out`.** A local `--output`
   would shadow any inherited output flag, so `--output json` could silently
   write a file literally named `json`.
-- **`version`, `config show` and `auth status` gained `--json` and `--silent`.**
-  `auth status --json` reports a stable `reason` identifier
-  (`not_authenticated`, `credential_rejected`, `team_not_accessible`, …) rather
-  than an English sentence, and its `ok` field agrees with the exit code.
 - **Redirected output no longer contains ANSI escape sequences.**
   `truestamp auth status > file` wrote 32 chunks of raw terminal escapes into
   that file, and `--no-color` made no difference to it. lipgloss has no global
@@ -192,9 +188,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   key matches the only flag that sets it. Its environment variable changes from
   `TRUESTAMP_VERIFY_SKIP_EXTERNAL` to **`TRUESTAMP_VERIFY_OFFLINE`**. As above,
   the retired key is ignored silently rather than warned about.
-- **`--silent` and `--json` are mutually exclusive on every command**, enforced
-  once in `config.Load` rather than per-command. `verify` checked this already;
-  no other command did, and a command added later cannot now forget to.
 - **Go module dependencies refreshed across the board.** Direct bumps:
   `bubbles` v2.1.1 → v2.2.1, `bubbletea` v2.0.8 → v2.0.9, `lipgloss`
   v2.0.5 → v2.0.6, `fxamacker/cbor` v2.9.2 → v2.9.3, `gofrs/uuid`

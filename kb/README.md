@@ -8,19 +8,19 @@ These files are **not** published to <https://get.truestamp.com/>, that site is 
 
 ## Index
 
-| Document | Covers | Read it when |
-| -------- | ------ | ------------ |
-| [command-tree.md](command-tree.md) | The noun-first tree and the closed verb vocabulary (R0 to R13) that decides where a command goes and what it is called, the verb matrix across all six resource groups, the clean-break inventory, phases, and the deferred designs with their research | **Before adding, renaming, or moving any command, group, or flag** |
-| [proof-bundle-format.md](proof-bundle-format.md) | The published version 1 wire format: every key, the block map, commitment entries, the witness registry, the frozen type registry, the E.6 hard rejections in order, the CBOR value-space conversion, the E.4 hex-encoding rule and its exclusions | Touching `internal/proof`, parsing, or CBOR |
-| [verification-steps.md](verification-steps.md) | The ordered E.7 to E.21 steps as the reference verifier runs them, E.22 group names and categories, the submission window's two edges, what may be skipped, E.25 containment, remote mode | Touching `internal/verify` or `cmd/verify.go` |
-| [architecture.md](architecture.md) | Appendix E conformance machinery, code organization, CLI behavior, data handling, testing, grouped under those five headings. Post-action cards and web-URL construction (`internal/ui/weburls.go`) are under "CLI behavior"; the `internal/ui` styling foundation and the logic/presentation split are under "Code organization" | Any structural change, or touching `internal/ui` |
-| [upgrade-and-install.md](upgrade-and-install.md) | `truestamp upgrade`: install-method detection, the two-layer pre-release defense, passive notices, Windows print-only, exit-code contract | Touching `internal/selfupgrade`, `internal/upgradecheck`, `internal/install` |
-| [configuration.md](configuration.md) | Resolution order, global and per-subcommand flags, env vars, config.toml, and the semantics `--help` cannot convey | Touching `internal/config` or adding a flag |
-| [authentication.md](authentication.md) | OAuth 2.1 loopback + PKCE, token storage and rotation, credential precedence, the reactive 401-retry transport | Touching `internal/auth` or any authenticated call site |
-| [jcs-canonicalization.md](jcs-canonicalization.md) | RFC 8785 canonicalization, the deliberate oversized-integer deviation, the two safe-integer thresholds and why they differ by one | Touching `internal/jcs` or anything that hashes claims |
-| [external-apis.md](external-apis.md) | Every third-party service this binary talks to, and when | Adding or changing egress |
-| [team-management.md](team-management.md) | `truestamp teams`, the console Teams pane, team creation, ownership models | Touching `internal/teams` or team surfaces |
-| [console/](console/) | `truestamp console`, split by package: [panes](console/panes.md) (`internal/console`), [websocket](console/websocket.md) (`internal/wschannel`), [logging](console/logging.md) (`internal/logging`), [limits](console/limits.md), [testing](console/testing.md) | Touching any console subsystem, start at [console/README.md](console/README.md) |
+What each document covers, and when to read it, is the table in [`CLAUDE.md`](../CLAUDE.md) §"Knowledge base": that copy is loaded into every session, so it is the one kept current, and a second table here had already drifted from it. The files:
+
+- [command-tree.md](command-tree.md), the noun-first tree and the verb vocabulary
+- [proof-bundle-format.md](proof-bundle-format.md), the published wire format
+- [verification-steps.md](verification-steps.md), the ordered Appendix E steps
+- [architecture.md](architecture.md), code organization and CLI behavior
+- [upgrade-and-install.md](upgrade-and-install.md), `truestamp upgrade`
+- [configuration.md](configuration.md), flags, env vars, config.toml
+- [authentication.md](authentication.md), OAuth, token storage, credential precedence
+- [jcs-canonicalization.md](jcs-canonicalization.md), RFC 8785 and the safe-integer thresholds
+- [external-apis.md](external-apis.md), every third-party service this binary talks to
+- [team-management.md](team-management.md), `truestamp teams` and the console Teams pane
+- [console/](console/README.md), `truestamp console`, split by package
 
 ## Normative sources
 
