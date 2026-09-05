@@ -26,7 +26,7 @@ import (
 
 // resourceGroups are the plural noun groups (R0). Everything about them is
 // asserted uniformly, which is the point of having rules at all.
-var resourceGroups = []string{"items", "proofs", "blocks", "beacons", "keys", "teams"}
+var resourceGroups = []string{"items", "proofs", "blocks", "beacons", "entropy", "keys", "teams"}
 
 // TestTree_BareGroupPrintsHelp pins R0 for every group at once: a group is
 // a namespace, never a command. Two groups used to run something —
@@ -178,7 +178,7 @@ func TestTree_LatestAndCurrentAreNotBothPresent(t *testing.T) {
 	}
 	// And the specific assignments, which are the load-bearing ones.
 	for group, want := range map[string]string{
-		"blocks": "latest", "beacons": "latest", "keys": "current", "teams": "current",
+		"blocks": "latest", "beacons": "latest", "entropy": "latest", "keys": "current", "teams": "current",
 	} {
 		g := findCommand(t, group)
 		found := false
@@ -209,7 +209,7 @@ func TestTree_CurrentImpliesUse(t *testing.T) {
 // property, not an accident. A `create` appearing on blocks or keys would
 // mean someone believed the CLI could write the chain.
 func TestTree_ReadOnlyGroupsHaveNoWriteVerbs(t *testing.T) {
-	for _, name := range []string{"blocks", "beacons", "keys"} {
+	for _, name := range []string{"blocks", "beacons", "entropy", "keys"} {
 		g := findCommand(t, name)
 		if !strings.HasPrefix(g.Short, "Read-only:") {
 			t.Errorf("group %q is read-only and its Short must say so (R11), got %q", name, g.Short)
@@ -227,7 +227,7 @@ func TestTree_ReadOnlyGroupsHaveNoWriteVerbs(t *testing.T) {
 // artifact and lives in one place. `items proof` and `blocks proof` would
 // each bring their own --type vocabulary and filename convention.
 func TestTree_NoProofVerbOnSourceNouns(t *testing.T) {
-	for _, name := range []string{"items", "blocks", "beacons"} {
+	for _, name := range []string{"items", "blocks", "beacons", "entropy"} {
 		if hasSub(t, name, "proof") || hasSub(t, name, "proofs") {
 			t.Errorf("group %q has a proof verb; proofs are a derived artifact with their own group (R7)", name)
 		}

@@ -15,7 +15,7 @@ path, flag, type, default and enum - as machine-readable JSON.
 
 - [External tools used in these examples](#external-tools-used-in-these-examples)
 - [Conventions](#conventions)
-- [`truestamp auth`](#truestamp-auth) - **start here: prerequisite for `items` / `proofs get` / `blocks` / `beacons` / `teams` / `console` / `verify --remote`**
+- [`truestamp auth`](#truestamp-auth) - **start here: prerequisite for `items` / `proofs get` / `blocks` / `beacons` / `entropy` / `teams` / `console` / `verify --remote`**
 - [`truestamp config`](#truestamp-config)
 - [Lifecycle: the three-step flow](#lifecycle-the-three-step-flow)
 - [`truestamp items create`](#truestamp-items-create)
@@ -35,6 +35,7 @@ path, flag, type, default and enum - as machine-readable JSON.
 - [`truestamp beacons`](#truestamp-beacons)
 - [`truestamp items` (list, get, update)](#truestamp-items-list-get-update)
 - [`truestamp blocks`](#truestamp-blocks)
+- [`truestamp entropy`](#truestamp-entropy)
 - [`truestamp keys`](#truestamp-keys)
 - [`truestamp schema`](#truestamp-schema)
 - [`truestamp upgrade`](#truestamp-upgrade)
@@ -2173,6 +2174,98 @@ truestamp proofs get 01a06cfc-c5b6-77d5-a9c6-4ed42fef6429 | truestamp verify --o
 #   ...
 #   VERDICT: PASSED
 ```
+
+## `truestamp entropy`
+
+Inspect the entropy observations Truestamp witnesses, via the read-only
+JSON:API at `/api/json/entropy_observations`. An **entropy observation**
+is a public random value captured from an independent source together
+with the moment it was captured: a NIST Randomness Beacon pulse
+(`entropy_nist`), a Stellar ledger close (`entropy_stellar`), a Bitcoin
+block (`entropy_bitcoin`). Every item commits to the newest observation
+per source at submission, which opens the **submitted-after** edge of its
+submission window: the item cannot have been submitted before a value
+that did not yet exist.
+
+The same observations are published on the web at `<base-url>/entropy`.
+The `--source` vocabulary is the wire names, identical to the
+`entropy_*` proof subject types, so one word names both.
+
+```sh
+# Newest observation from any source. A bare `truestamp entropy` prints help.
+truestamp entropy latest
+#   Entropy Observation
+#
+#             ID  01a07349-c2b3-7290-8cbe-e392bf94cd9d
+#         Source  entropy_stellar
+#          State  created
+#   Entropy Hash  27bce1e57b76e5092704be389273259b05870d3c705a38c7fe0dd41f407d39c2
+#      Published  2026-09-05T20:36:47Z  (5s ago)
+#       Captured  2026-09-05T20:36:48Z  (3s ago)
+#    Signing Key  96b1cd2f
+#      closed_at  2026-09-05T20:36:47Z
+#           hash  e1e983b5b0ea0281e081a48efa33e9ff868be82cb5db0198999acafe5552be2d
+#   paging_token  19427872246595584
+#       sequence  4523404
+#        Details  https://www.truestamp.com/entropy/01a07349-c2b3-7290-8cbe-e392bf94cd9d
+#         Verify  https://www.truestamp.com/verify/entropy_stellar/01a07349-c2b3-7290-8cbe-e392bf94cd9d
+
+# Newest from one source: what a newly submitted item would commit to for it
+truestamp entropy latest --source entropy_nist
+truestamp entropy latest --source entropy_bitcoin --json | jq -r .entropy_hash
+
+# Most recent observations, newest first, across sources or from one
+truestamp entropy list --limit 4
+#   Entropy Observations (4)
+#
+#   PUBLISHED               SOURCE             STATE      ID                                      HASH
+#   2026-09-05T20:36:47Z    entropy_stellar    created    01a07349-c2b3-7290-8cbe-e392bf94cd9d    27bce1e5…407d39c2
+#   2026-09-05T20:36:42Z    entropy_stellar    created    01a07349-af28-75fc-8edc-f62b8097010d    a5f4dd3e…6be8edb3
+#   2026-09-05T20:36:37Z    entropy_stellar    created    01a07349-9b9e-7d40-90f2-493759b1865a    bdcb9659…8a4e8d40
+#   2026-09-05T20:36:00Z    entropy_nist       created    01a07349-8a08-7862-8064-48350f95c400    c4b3baf8…89bc82a7
+truestamp entropy list --source entropy_bitcoin --limit 2
+
+# Look up by UUIDv7 id, or by the 64-hex entropy hash
+truestamp entropy get 01a07335-b8fe-7ef2-856c-c9b4eca99850
+truestamp entropy get 4142459a2859a57a5e5d6540579b977215d6329110adc0a890fdce6f05054f2d --json
+```
+
+The card shows the observation's identity, its state (`created` until a
+block commits it, then `committed`, with the block's id as a `Block` row),
+the `Entropy Hash`, when the source published the value and when
+Truestamp captured it, then the source's own record under the source's
+own field names: a Stellar ledger's `sequence`, `closed_at`, `hash` and
+`paging_token`; a NIST pulse as `pulse.pulseIndex`, `pulse.outputValue`
+and so on; a Bitcoin block's fields likewise. Nothing is renamed. The
+`HASH` column of the list is shortened; the full value is on the card and
+in `--json`, and `entropy get` accepts it whole.
+
+The entropy hash is the value an item's metadata commits to under
+`subject.metadata.witnesses`, which makes `get` by hash the way to trace a
+witness named in a proof back to the observation it came from, and each
+observation is a proof subject in its own right:
+
+```sh
+# From an item proof to the Stellar observation it witnessed
+truestamp entropy get "$(jq -r .subject.metadata.witnesses.entropy_stellar proof.json)"
+
+# From an observation to its own proof, verified
+truestamp proofs get 01a07335-b8fe-7ef2-856c-c9b4eca99850 | truestamp verify
+#   [PASS]  Entropy Source       External consistency verified via Stellar Horizon API
+#   VERDICT: PASSED
+```
+
+`--source` outside the three wire names is refused before any request
+(`--source must be one of entropy_nist | entropy_stellar | entropy_bitcoin,
+got "nist"`), a malformed id is refused locally, and a well-formed unknown
+one is a server answer: `entropy observation not found`, exit `1`. All
+three subcommands carry `--json` and `--silent` / `-s`.
+
+All entropy subcommands require authentication, like `beacons`: run
+`truestamp auth login`, or set `TRUESTAMP_API_KEY` / `--api-key` for
+headless and CI use.
+
+---
 
 ## `truestamp keys`
 

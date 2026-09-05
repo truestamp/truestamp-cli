@@ -9,6 +9,7 @@ import (
 
 	"github.com/spf13/cobra"
 	"github.com/truestamp/truestamp-cli/internal/beacons"
+	"github.com/truestamp/truestamp-cli/internal/ids"
 )
 
 var beaconsGetCmd = &cobra.Command{
@@ -30,15 +31,6 @@ Examples:
 	RunE: runBeaconsGet,
 }
 
-// looksLikeHash reports whether arg has the shape of a 64-hex block or
-// beacon hash rather than a UUIDv7. This is a shape test on a value the
-// user typed, not an inference about a proof bundle's subject type: the
-// filename-independence rule in CLAUDE.md is about the latter and does
-// not apply. Shared by `beacons get` and `blocks get`.
-func looksLikeHash(arg string) bool {
-	return !strings.Contains(arg, "-") && len(arg) == 64
-}
-
 func runBeaconsGet(cmd *cobra.Command, args []string) error {
 	jsonOut, hashOnly, silent, err := beaconSharedFlags(cmd)
 	if err != nil {
@@ -56,7 +48,7 @@ func runBeaconsGet(cmd *cobra.Command, args []string) error {
 	// whichever shape it has.
 	var b *beacons.Beacon
 	switch {
-	case looksLikeHash(arg):
+	case ids.LooksLikeHash64(arg):
 		b, err = beacons.ByHash(cmd.Context(), cfg, arg)
 	case strings.Contains(arg, "-"):
 		b, err = beacons.Get(cmd.Context(), cfg, arg)

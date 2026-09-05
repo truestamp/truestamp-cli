@@ -14,10 +14,9 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/url"
-	"regexp"
 	"strconv"
 
-	"github.com/gofrs/uuid/v5"
+	"github.com/truestamp/truestamp-cli/internal/ids"
 	"github.com/truestamp/truestamp-cli/internal/jsonapi"
 )
 
@@ -156,26 +155,8 @@ func validateShape(b *Beacon) error {
 	return nil
 }
 
-// hashRE matches 64 lowercase hex chars.
-var hashRE = regexp.MustCompile(`^[0-9a-f]{64}$`)
-
 // ValidateHash returns nil iff s is exactly 64 lowercase hex characters.
-// Exported so cobra commands can run this client-side before the network.
-func ValidateHash(s string) error {
-	if !hashRE.MatchString(s) {
-		return fmt.Errorf("hash must be 64 lowercase hex characters, got %q", s)
-	}
-	return nil
-}
+func ValidateHash(s string) error { return ids.ValidateHash64(s) }
 
-// ValidateUUIDv7 returns nil iff s parses as a UUID whose version nibble is 7.
-func ValidateUUIDv7(s string) error {
-	u, err := uuid.FromString(s)
-	if err != nil {
-		return fmt.Errorf("invalid UUID: %w", err)
-	}
-	if u.Version() != 7 {
-		return fmt.Errorf("id must be a UUIDv7 (version=7), got version=%d", u.Version())
-	}
-	return nil
-}
+// ValidateUUIDv7 returns nil iff s parses as a UUID whose version is 7.
+func ValidateUUIDv7(s string) error { return ids.ValidateUUIDv7(s) }

@@ -12,6 +12,7 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
 	"github.com/truestamp/truestamp-cli/internal/encoding"
+	"github.com/truestamp/truestamp-cli/internal/entropy"
 	"github.com/truestamp/truestamp-cli/internal/hashing"
 	"github.com/truestamp/truestamp-cli/internal/introspect"
 	"github.com/truestamp/truestamp-cli/internal/proof"
@@ -371,6 +372,11 @@ func cliEnums() introspect.EnumValues {
 		"encoding":  {"hex", "base64", "base64url"},
 		"style":     {"gnu", "bsd", "bare"},
 		"log-level": {"debug", "info", "warn", "error"},
+
+		// --source: an entropy source, the same vocabulary as the entropy_*
+		// proof subject types.
+		"truestamp entropy list|source":   entropy.Sources,
+		"truestamp entropy latest|source": entropy.Sources,
 
 		// --type: a proof subject type on two commands, an id shape on a third.
 		"truestamp verify|type":     proofTypeValues,

@@ -57,6 +57,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   where a beacon is its four-field public projection. `blocks latest` and
   `beacons latest` answer different questions: only finalized blocks project as
   beacons, and the head is routinely not yet finalized.
+- **`truestamp entropy`**, a read-only group over the entropy observations
+  Truestamp witnesses: `list` (`--source`, `--limit`), `get <uuid|hash>` and
+  `latest` (`--source`). An observation is a public random value captured from
+  the NIST Randomness Beacon, a Stellar ledger close or a Bitcoin block, the
+  witness that opens an item's submitted-after edge, and a proof subject in its
+  own right. This is the discovery path the three `entropy_*` subject types
+  lacked: `proofs get --type entropy_*` took ids nothing in the tree surfaced.
+  `get` by hash traces the value under an item's `subject.metadata.witnesses`
+  back to the observation it came from. The source vocabulary is the wire names,
+  the same words `proofs get --type` takes. The three id validators shared by
+  beacons, blocks and entropy moved to one package, `internal/ids`.
 - **`truestamp keys`**, a read-only group over the published signing keyring:
   `list`, `get <kid>` and `current`. The only group that needs no credential.
 - **`truestamp schema`**, a read-only introspection namespace.

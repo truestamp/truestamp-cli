@@ -31,10 +31,9 @@ import (
 	"errors"
 	"fmt"
 	"net/url"
-	"regexp"
 	"strconv"
 
-	"github.com/gofrs/uuid/v5"
+	"github.com/truestamp/truestamp-cli/internal/ids"
 	"github.com/truestamp/truestamp-cli/internal/jsonapi"
 )
 
@@ -80,30 +79,12 @@ var (
 // reported rather than resolved by picking one.
 var ErrAmbiguousHash = errors.New("more than one block matches that hash")
 
-// hashRe is the client-side guard standing in for the server-side one the
-// blocks filter does not have.
-var hashRe = regexp.MustCompile(`^[0-9a-f]{64}$`)
-
 // ValidateHash rejects anything that is not exactly 64 lowercase hex
 // characters, before it can reach filter[block_hash].
-func ValidateHash(h string) error {
-	if !hashRe.MatchString(h) {
-		return fmt.Errorf("block hash must be exactly 64 lowercase hex characters, got %q", h)
-	}
-	return nil
-}
+func ValidateHash(h string) error { return ids.ValidateHash64(h) }
 
 // ValidateUUIDv7 rejects an id that is not a UUIDv7.
-func ValidateUUIDv7(id string) error {
-	u, err := uuid.FromString(id)
-	if err != nil {
-		return fmt.Errorf("block id must be a UUIDv7, got %q", id)
-	}
-	if u.Version() != 7 {
-		return fmt.Errorf("block id must be a UUIDv7, got a UUIDv%d", u.Version())
-	}
-	return nil
-}
+func ValidateUUIDv7(id string) error { return ids.ValidateUUIDv7(id) }
 
 // defaultLimit matches the beacons convention. The server's block :read
 // action declares no default_limit and no max_page_size, against a table
