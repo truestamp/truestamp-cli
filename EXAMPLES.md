@@ -1145,7 +1145,7 @@ truestamp teams get 019fcf1c-0f5f-7136-bde5-e1676bcdfdc8
 
 # Create a team. With no name on a TTY, an interactive prompt opens.
 truestamp teams create "Acme Legal"
-truestamp teams create "Acme Legal" --ownership-model team_retains --set
+truestamp teams create "Acme Legal" --ownership-model team_retains --use
 truestamp teams create -n "Acme Legal" --json
 
 # Set the active team. The id is read back from the API before it is

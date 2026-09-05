@@ -60,7 +60,7 @@ func newCreateTestCmd() (*cobra.Command, *bytes.Buffer, *bytes.Buffer) {
 	f := c.Flags()
 	f.StringP("name", "n", "", "")
 	f.String("ownership-model", "", "")
-	f.Bool("set", false, "")
+	f.Bool("use", false, "")
 	f.Bool("json", false, "")
 	f.BoolP("silent", "s", false, "")
 	var out, errb bytes.Buffer

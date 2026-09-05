@@ -148,6 +148,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **`items create --hash` is renamed `--data-hash`.** `--hash` meant the hash of
   *your* data here and the hash you *expect* on `verify`: one word, two roles.
   The server-side claims field is still `hash` and is unchanged.
+- **`teams create --set` is renamed `--use`.** `set` is a retired verb (R3), and
+  the flag does exactly what `teams use` does with the new team's id, so it
+  takes that verb's name.
 - **`beacons list --hash-only` is removed.** It existed only to be rejected with
   an error message; a flag that exists to fail is a trap.
 - **`proofs get` (then still `download`) writes the bundle to stdout by
