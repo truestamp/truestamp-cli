@@ -193,22 +193,30 @@ func TestSchema_EnumsMatchCompletion(t *testing.T) {
 		t.Fatal("no --type values in the schema; nothing to compare")
 	}
 
-	out, err := exec.Command(binaryPath, "__complete", "verify", "--type", "").CombinedOutput()
-	if err != nil {
-		t.Fatalf("__complete: %v\n%s", err, out)
+	completed := completionValues(t, "verify", "--type", "")
+	if !slices.Equal(schemaValues, completed) {
+		t.Errorf("schema and completion disagree about --type\n schema:     %v\n completion: %v",
+			schemaValues, completed)
 	}
-	var completionValues []string
+}
+
+// completionValues runs cobra's hidden __complete for args and returns the
+// offered values, with the directive line and the trailer stripped.
+func completionValues(t *testing.T, args ...string) []string {
+	t.Helper()
+	out, err := exec.Command(binaryPath, append([]string{"__complete"}, args...)...).CombinedOutput()
+	if err != nil {
+		t.Fatalf("__complete %v: %v\n%s", args, err, out)
+	}
+	var values []string
 	for _, line := range strings.Split(string(out), "\n") {
 		line = strings.TrimSpace(line)
 		if line == "" || strings.HasPrefix(line, ":") || strings.HasPrefix(line, "Completion ended") {
 			continue
 		}
-		completionValues = append(completionValues, line)
+		values = append(values, line)
 	}
-	if !slices.Equal(schemaValues, completionValues) {
-		t.Errorf("schema and completion disagree about --type\n schema:     %v\n completion: %v",
-			schemaValues, completionValues)
-	}
+	return values
 }
 
 // TestSchema_SubjectTypesAreFrozen guards the registry CLAUDE.md calls
@@ -343,14 +351,10 @@ func TestSchema_WitnessEnumMatchesTheFlag(t *testing.T) {
 		}
 	}
 
-	completion, err := exec.Command(binaryPath, "__complete",
-		"proofs", "get", "--witnesses", "").CombinedOutput()
-	if err != nil {
-		t.Fatalf("__complete: %v", err)
-	}
+	completed := completionValues(t, "proofs", "get", "--witnesses", "")
 	for _, e := range raw {
 		name := e.(map[string]any)["name"].(string)
-		if !strings.Contains(string(completion), name) {
+		if !slices.Contains(completed, name) {
 			t.Errorf("witness %q is in the schema but not offered by completion", name)
 		}
 	}
