@@ -175,7 +175,10 @@ func renderMoreHint(w io.Writer, pg listPage) {
 
 // listEnvelope is the --json shape of every paged list: the rows under
 // the noun, next_cursor and prev_cursor (empty at the end and the start
-// of the listing respectively) and, under --count, total.
+// of the listing respectively), under --count total, and page_limit
+// whenever the server used a smaller page than was asked for. Unlike the
+// human clamp note, page_limit is not gated on a following page: JSON
+// reports the fact, next_cursor says whether there is more.
 func listEnvelope(noun string, rows any, pg listPage) map[string]any {
 	out := map[string]any{noun: rows, "next_cursor": pg.Next, "prev_cursor": pg.Prev}
 	if pg.Counted {

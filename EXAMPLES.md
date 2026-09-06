@@ -283,7 +283,11 @@ truestamp items list --count --limit 1           # Items (1 shown, 10 total)
 ```
 
 Every collection clamps a page above 250 rows to 250 rather than refusing
-it; the listing says so, and `--max` follows the cursor past it.
+it. The listing says so when a page follows, and `--max` follows the cursor
+past it; `--json` carries `"page_limit": 250` whenever the server used a
+smaller page than asked for, even when nothing follows (a short collection
+fetched with `--limit 500` still reports it), so read `next_cursor`, not
+`page_limit`, to learn whether there is more.
 
 ---
 
