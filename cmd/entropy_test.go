@@ -79,7 +79,10 @@ func startEntropyServer(t *testing.T) *entropyServer {
 		case q.Has("filter[entropy_hash]"):
 			rows = nil
 		case q.Get("filter[source]") == "entropy_nist":
-			rows = []string{nist}
+			// A short filtered collection: one row, no next, yet the server
+			// still echoes its cap in meta.page.limit.
+			_, _ = w.Write([]byte(`{"data":[` + nist + `],"links":{"next":null,"prev":null},"meta":{"page":{"limit":2}}}`))
+			return
 		case q.Get("filter[source]") == "entropy_stellar":
 			rows = []string{stellar}
 		case q.Get("page[after]") == "CURSOR1":
@@ -409,5 +412,11 @@ func TestCLI_Entropy_List_ClampIsAnnounced(t *testing.T) {
 	stdout, _, _ = runCLI(t, "--base-url", srv.URL, "--api-key", "test-key", "entropy", "list", "--limit", "2", "--json")
 	if strings.Contains(stdout, "page_limit") {
 		t.Errorf("no clamp, no page_limit key, got:\n%s", stdout)
+	}
+	// A clamped last page has nothing to follow, so the note stays quiet;
+	// the JSON still records the fact.
+	stdout, _, _ = runCLI(t, "--base-url", srv.URL, "--api-key", "test-key", "entropy", "list", "--limit", "300", "--source", "entropy_nist")
+	if strings.Contains(stdout, "the server caps a page") {
+		t.Errorf("no cursor to follow, no clamp note, got:\n%s", stdout)
 	}
 }
