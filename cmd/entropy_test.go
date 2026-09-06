@@ -104,7 +104,7 @@ func startEntropyServer(t *testing.T) *entropyServer {
 			// The first page of the unfiltered listing continues: a next
 			// link the CLI must lift the cursor out of.
 			_, _ = w.Write([]byte(`{"data":[` + strings.Join(rows, ",") + `],"links":{"next":"http://` + r.Host +
-				`/api/json/entropy_observations?page%5Bafter%5D=CURSOR1&page%5Blimit%5D=2&sort=-id"},"meta":{"page":{"total":593419}}}`))
+				`/api/json/entropy_observations?page%5Bafter%5D=CURSOR1&page%5Blimit%5D=2&sort=-id"},"meta":{"page":{"total":593419,"limit":2}}}`))
 			return
 		}
 		_, _ = w.Write([]byte(`{"data":[` + strings.Join(rows, ",") + `]}`))
@@ -390,5 +390,24 @@ func TestCLI_Entropy_List_BadCursor(t *testing.T) {
 	_, stderr, exit := runCLI(t, "--base-url", srv.URL, "--api-key", "test-key", "entropy", "list", "--after", "garbage")
 	if exit == 0 || !strings.Contains(stderr, "cursor was not recognised") || strings.Contains(stderr, "invalid keyset") {
 		t.Errorf("exit=%d stderr=%q", exit, stderr)
+	}
+}
+
+// TestCLI_Entropy_List_ClampIsAnnounced: a page smaller than the one
+// asked for is the server's max_page_size at work; the listing says so
+// rather than leaving the caller to count rows.
+func TestCLI_Entropy_List_ClampIsAnnounced(t *testing.T) {
+	srv := startEntropyServer(t)
+	stdout, _, exit := runCLI(t, "--base-url", srv.URL, "--api-key", "test-key", "entropy", "list", "--limit", "300")
+	if exit != 0 || !strings.Contains(stdout, "the server caps a page at 2 rows") {
+		t.Errorf("exit=%d, expected the clamp note, got:\n%s", exit, stdout)
+	}
+	stdout, _, _ = runCLI(t, "--base-url", srv.URL, "--api-key", "test-key", "entropy", "list", "--limit", "300", "--json")
+	if !strings.Contains(stdout, `"page_limit": 2`) {
+		t.Errorf("--json should carry page_limit when clamped, got:\n%s", stdout)
+	}
+	stdout, _, _ = runCLI(t, "--base-url", srv.URL, "--api-key", "test-key", "entropy", "list", "--limit", "2", "--json")
+	if strings.Contains(stdout, "page_limit") {
+		t.Errorf("no clamp, no page_limit key, got:\n%s", stdout)
 	}
 }

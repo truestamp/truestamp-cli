@@ -52,7 +52,7 @@ evidence, and the authoritative answer is:
 			if err != nil {
 				return nil, err
 			}
-			return &pageOf[items.Item]{Rows: p.Items, NextCursor: p.NextCursor, PrevCursor: p.PrevCursor, Total: p.Total}, nil
+			return &pageOf[items.Item]{Rows: p.Items, NextCursor: p.NextCursor, PrevCursor: p.PrevCursor, Total: p.Total, Limit: p.Limit}, nil
 		})
 		if err != nil {
 			return renderAPIError(cmd, err, "item")

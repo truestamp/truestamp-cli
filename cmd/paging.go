@@ -43,6 +43,10 @@ type listPage struct {
 	Prev    string
 	Total   int
 	Counted bool
+	// ClampedTo is the page size the server used when it was smaller than
+	// the one asked for (every collection clamps to its max_page_size, 250
+	// by default, rather than refusing); zero otherwise.
+	ClampedTo int
 }
 
 // pageOf is one fetched page of any row type, the shape walkPages
@@ -52,6 +56,7 @@ type pageOf[T any] struct {
 	NextCursor string
 	PrevCursor string
 	Total      int
+	Limit      int // the page size the server reported using
 }
 
 func addPagingFlags(cmd *cobra.Command, noun string) {
@@ -103,6 +108,9 @@ func walkPages[T any](opts pagingOptions, fetch func(after, before string, limit
 			return nil, listPage{}, err
 		}
 		pg.Total = got.Total
+		if got.Limit > 0 && got.Limit < limit {
+			pg.ClampedTo = got.Limit
+		}
 		if backward {
 			rows = append(append([]T(nil), got.Rows...), rows...)
 			if first {
@@ -157,6 +165,9 @@ func renderMoreHint(w io.Writer, pg listPage) {
 	if pg.Prev != "" {
 		ui.Fprintln(w, ui.FaintStyle().Render("    Back: --before "+pg.Prev))
 	}
+	if pg.ClampedTo > 0 {
+		ui.Fprintln(w, ui.FaintStyle().Render(fmt.Sprintf("    (the server caps a page at %d rows; --max follows the cursor past it)", pg.ClampedTo)))
+	}
 }
 
 // listEnvelope is the --json shape of every paged list: the rows under
@@ -166,6 +177,9 @@ func listEnvelope(noun string, rows any, pg listPage) map[string]any {
 	out := map[string]any{noun: rows, "next_cursor": pg.Next, "prev_cursor": pg.Prev}
 	if pg.Counted {
 		out["total"] = pg.Total
+	}
+	if pg.ClampedTo > 0 {
+		out["page_limit"] = pg.ClampedTo
 	}
 	return out
 }

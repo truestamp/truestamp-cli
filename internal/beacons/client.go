@@ -72,6 +72,7 @@ type Page struct {
 	NextCursor string
 	PrevCursor string
 	Total      int
+	Limit      int // the page size the server actually used
 }
 
 // defaultLimit is sent when a caller asks for no particular page size.
@@ -82,8 +83,9 @@ const defaultLimit = 25
 // GET /beacons is a JSON:API index over a keyset-paginated read, the same
 // contract as /blocks: page[limit], page[after], page[before],
 // page[count] and sort=id|-id, answered as a resource document with
-// links.next/prev and meta.page.total. Like /blocks it sets no page-size
-// ceiling; the floor is cmd/limits.go's.
+// links.next/prev and meta.page.total. Like every collection it clamps
+// page[limit] to its max_page_size (250) and reports the size used in
+// meta.page.limit; the floor is cmd/limits.go's.
 func List(ctx context.Context, cfg Config, opts ListOptions) (*Page, error) {
 	if opts.Limit <= 0 {
 		opts.Limit = defaultLimit
@@ -100,7 +102,7 @@ func List(ctx context.Context, cfg Config, opts ListOptions) (*Page, error) {
 		return nil, err
 	}
 	info := jsonapi.ParsePage(body)
-	return &Page{Beacons: list, NextCursor: info.NextCursor, PrevCursor: info.PrevCursor, Total: info.Total}, nil
+	return &Page{Beacons: list, NextCursor: info.NextCursor, PrevCursor: info.PrevCursor, Total: info.Total, Limit: info.Limit}, nil
 }
 
 // Get fetches a single beacon by UUIDv7 id.

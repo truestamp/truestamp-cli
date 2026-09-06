@@ -18,7 +18,7 @@ const defaultPageLimit = 25
 // the list commands, so a reader learns the flag once.
 func addLimitFlag(cmd *cobra.Command, noun string) {
 	cmd.Flags().Int("limit", defaultPageLimit,
-		"How many "+noun+" per page (the server owns the ceiling)")
+		"How many "+noun+" per page; the server clamps a page above its ceiling (250) and the listing says so")
 }
 
 // pageLimit reads --limit and enforces only the bound the server's published

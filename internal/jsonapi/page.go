@@ -50,6 +50,11 @@ type PageInfo struct {
 	// Total is meta.page.total, present only when the request asked for
 	// page[count]=true; zero otherwise.
 	Total int
+	// Limit is meta.page.limit, the page size the server actually used.
+	// Every collection clamps page[limit] to its max_page_size (250 by
+	// default) rather than refusing it, so this can be smaller than what
+	// was asked for; zero when the server did not report one.
+	Limit int
 }
 
 // ParsePage reads links.next, links.prev and meta.page.total from a list
@@ -63,6 +68,7 @@ func ParsePage(body []byte) PageInfo {
 		Meta struct {
 			Page struct {
 				Total int `json:"total"`
+				Limit int `json:"limit"`
 			} `json:"page"`
 		} `json:"meta"`
 	}
@@ -73,6 +79,7 @@ func ParsePage(body []byte) PageInfo {
 		NextCursor: cursorFromLink(env.Links.Next, "page[after]"),
 		PrevCursor: cursorFromLink(env.Links.Prev, "page[before]"),
 		Total:      env.Meta.Page.Total,
+		Limit:      env.Meta.Page.Limit,
 	}
 }
 

@@ -52,7 +52,7 @@ var blocksListCmd = &cobra.Command{
 			if err != nil {
 				return nil, err
 			}
-			return &pageOf[blocks.Block]{Rows: p.Blocks, NextCursor: p.NextCursor, PrevCursor: p.PrevCursor, Total: p.Total}, nil
+			return &pageOf[blocks.Block]{Rows: p.Blocks, NextCursor: p.NextCursor, PrevCursor: p.PrevCursor, Total: p.Total, Limit: p.Limit}, nil
 		})
 		if err != nil {
 			return renderAPIError(cmd, err, "block")
