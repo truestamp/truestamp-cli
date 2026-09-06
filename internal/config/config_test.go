@@ -1,5 +1,5 @@
 // Copyright (c) 2019-2026 Truestamp, Inc.
-// SPDX-License-Identifier: MIT
+// SPDX-License-Identifier: Apache-2.0
 
 package config
 
@@ -183,12 +183,12 @@ func TestLoad_ComposesAllServiceURLs(t *testing.T) {
 		},
 		{
 			name:           "trailing path stripped",
-			base:           "https://staging.example.com/whatever?x=1",
-			wantAPI:        "https://staging.example.com/api/json",
-			wantKeyring:    "https://staging.example.com/.well-known/keyring.json",
-			wantWebSocket:  "wss://staging.example.com/console/websocket",
-			wantHealth:     "https://staging.example.com/health",
-			wantNormalised: "https://staging.example.com",
+			base:           "https://alt.example.com/whatever?x=1",
+			wantAPI:        "https://alt.example.com/api/json",
+			wantKeyring:    "https://alt.example.com/.well-known/keyring.json",
+			wantWebSocket:  "wss://alt.example.com/console/websocket",
+			wantHealth:     "https://alt.example.com/health",
+			wantNormalised: "https://alt.example.com",
 		},
 	}
 	for _, tc := range cases {

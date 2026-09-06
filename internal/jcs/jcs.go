@@ -1,5 +1,5 @@
 // Copyright (c) 2019-2026 Truestamp, Inc.
-// SPDX-License-Identifier: MIT
+// SPDX-License-Identifier: Apache-2.0
 
 // Package jcs canonicalizes JSON per RFC 8785 with the one deviation the
 // Truestamp wire format requires: an integer literal is emitted exactly as it

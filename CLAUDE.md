@@ -1,3 +1,8 @@
+<!--
+Copyright (c) 2019-2026 Truestamp, Inc.
+SPDX-License-Identifier: Apache-2.0
+-->
+
 # Truestamp Proof Verifier -- Go CLI
 
 Go CLI tool that cryptographically verifies Truestamp proof bundle JSON files. Compiles to a single static binary with zero runtime dependencies. No dependency on the Truestamp application.

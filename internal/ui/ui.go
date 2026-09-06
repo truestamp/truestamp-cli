@@ -1,5 +1,5 @@
 // Copyright (c) 2019-2026 Truestamp, Inc.
-// SPDX-License-Identifier: MIT
+// SPDX-License-Identifier: Apache-2.0
 
 // Package ui provides shared styling for the Truestamp CLI using lipgloss v2.
 // Colors are sourced from the Catppuccin palette (Latte for light terminals,

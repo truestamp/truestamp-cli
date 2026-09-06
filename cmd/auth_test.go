@@ -1,5 +1,5 @@
 // Copyright (c) 2019-2026 Truestamp, Inc.
-// SPDX-License-Identifier: MIT
+// SPDX-License-Identifier: Apache-2.0
 
 package cmd
 
@@ -24,7 +24,7 @@ func TestAPIKeysURL(t *testing.T) {
 	}{
 		{"https://www.truestamp.com/api/json", "https://www.truestamp.com/api-keys", false},
 		{"http://localhost:4000/api/json", "http://localhost:4000/api-keys", false},
-		{"https://staging.truestamp.com", "https://staging.truestamp.com/api-keys", false},
+		{"https://alt.example.com", "https://alt.example.com/api-keys", false},
 		{"https://host:8443/custom/path", "https://host:8443/api-keys", false},
 		{"", "", true},
 		{"not a url", "", true},

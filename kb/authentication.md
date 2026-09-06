@@ -1,3 +1,8 @@
+<!--
+Copyright (c) 2019-2026 Truestamp, Inc.
+SPDX-License-Identifier: Apache-2.0
+-->
+
 # Authentication
 
 Authentication is **OAuth-first, API-key-second**, unified behind a single `auth.Authorizer` ([`internal/auth/auth.go`](../internal/auth/auth.go)). One `Authorizer` is resolved once in `cmd/root.go`'s `PersistentPreRunE` and installed process-wide via `auth.SetDefault`; every authenticated call site draws from `auth.Default()`.

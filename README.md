@@ -1,11 +1,16 @@
+<!--
+Copyright (c) 2019-2026 Truestamp, Inc.
+SPDX-License-Identifier: Apache-2.0
+-->
+
 # Truestamp CLI
 
 [![CI](https://github.com/truestamp/truestamp-cli/actions/workflows/ci.yml/badge.svg)](https://github.com/truestamp/truestamp-cli/actions/workflows/ci.yml)
 [![Release](https://img.shields.io/github/v/release/truestamp/truestamp-cli)](https://github.com/truestamp/truestamp-cli/releases/latest)
 [![Go Reference](https://pkg.go.dev/badge/github.com/truestamp/truestamp-cli.svg)](https://pkg.go.dev/github.com/truestamp/truestamp-cli)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](./LICENSE)
+[![License: Apache 2.0](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](./LICENSE)
 
-Standalone Go CLI for cryptographic timestamping with [Truestamp](https://truestamp.com). Verifies Truestamp proof bundles end to end: user claims, hash chains, Merkle inclusion, Ed25519 signatures, and commitments to public blockchains. Every hash, Merkle walk and signature check is recomputed locally, so a proof can be checked without running or trusting the Truestamp application.
+Standalone Go CLI for cryptographic timestamping with [Truestamp](https://www.truestamp.com). Verifies Truestamp proof bundles end to end: user claims, hash chains, Merkle inclusion, Ed25519 signatures, and commitments to public blockchains. Every hash, Merkle walk and signature check is recomputed locally, so a proof can be checked without running or trusting the Truestamp application.
 
 Ships as a single self-contained binary. Release builds are pure Go with cgo disabled, so there is no interpreter or language runtime to install.
 
@@ -517,11 +522,11 @@ Dev setup, testing, and release process are in [`CONTRIBUTING.md`](./CONTRIBUTIN
 
 ## Related projects
 
-- [Truestamp](https://www.truestamp.com): the service that generates the proofs this CLI verifies. Its API reference is at [truestamp.com/api/json/redoc](https://www.truestamp.com/api/json/redoc), with a plain-text edition for LLMs at [truestamp.com/llms-full.txt](https://www.truestamp.com/llms-full.txt).
+- [Truestamp](https://www.truestamp.com): the service that generates the proofs this CLI verifies. Its API reference is at [www.truestamp.com/api/json/redoc](https://www.truestamp.com/api/json/redoc), with a plain-text edition for LLMs at [www.truestamp.com/llms-full.txt](https://www.truestamp.com/llms-full.txt).
 - [`truestamp/homebrew-tap`](https://github.com/truestamp/homebrew-tap): the Homebrew tap this CLI publishes to.
 
 ## License
 
-MIT. See [LICENSE](./LICENSE).
+Apache License 2.0. See [LICENSE](./LICENSE).
 
-Copyright (c) 2019-2026 [Truestamp, Inc.](https://truestamp.com) All rights reserved.
+Copyright (c) 2019-2026 [Truestamp, Inc.](https://www.truestamp.com)

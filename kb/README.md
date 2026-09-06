@@ -1,3 +1,8 @@
+<!--
+Copyright (c) 2019-2026 Truestamp, Inc.
+SPDX-License-Identifier: Apache-2.0
+-->
+
 # Knowledge base
 
 Reference documentation for `truestamp-cli`, split out of `CLAUDE.md` so it can be read on demand instead of loaded in full for every task.

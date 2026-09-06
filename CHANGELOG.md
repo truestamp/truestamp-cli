@@ -1,3 +1,8 @@
+<!--
+Copyright (c) 2019-2026 Truestamp, Inc.
+SPDX-License-Identifier: Apache-2.0
+-->
+
 # Changelog
 
 All notable changes to this project will be documented in this file.
@@ -6,6 +11,53 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
+
+### Changed
+
+- **Relicensed from MIT to Apache License 2.0.** `LICENSE` now carries the
+  canonical Apache-2.0 text verbatim (SHA-256
+  `cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30`), and the
+  `SPDX-License-Identifier` in all 263 header-carrying files moved from `MIT`
+  to `Apache-2.0`. The copyright line is unchanged. Apache-2.0 adds what MIT
+  leaves unsaid: an express patent grant with defensive termination, so a
+  patent suit over this code terminates the plaintiff's own license; an
+  explicit statement that the license conveys no trademark rights; and section
+  4(b)'s requirement that modified files be marked as changed, which for a
+  verifier matters more than housekeeping — a silently altered verifier that
+  reports `pass` is the failure mode with the worst consequences. All
+  dependencies are permissive (MIT, BSD, ISC, Apache-2.0), so nothing in the
+  graph constrains the choice.
+
+  **Releases through `v0.13.0` were published under MIT and remain MIT.**
+  Those grants are perpetual and are not affected by this change; the new
+  terms apply from the next release forward.
+
+  No `NOTICE` file is added. Apache-2.0 section 4(d) obligations attach only
+  to a work that has one, and no dependency linked into the shipped binary
+  requires an attribution notice — the single dependency carrying a `NOTICE`
+  (`gopkg.in/yaml.v3`) is test-only and absent from `go list -deps
+  ./cmd/truestamp`.
+
+- **`truestamp --help` names the license.** The copyright banner gained a
+  `Licensed under the Apache License, Version 2.0.` line, so the terms are
+  visible from the binary rather than only from the repository. The banner
+  also dropped `All rights reserved.` — a Buenos Aires Convention formality
+  that has been legally inert for decades and reads as a contradiction beside
+  an open license. Removed from `README.md` and the `get.truestamp.com`
+  landing page for the same reason.
+
+- **Per-file SPDX headers extended to project documentation.** Only
+  `kb/proof-bundle-format.md` and `kb/verification-steps.md` carried one;
+  every root-level and `kb/` document now does, along with `docs/index.html`
+  (placed after the doctype, since a comment ahead of it triggers quirks
+  mode). Data fixtures, golden files, machine-managed files (`go.mod`,
+  `go.sum`), and `docs/CNAME` remain bare, as does
+  `internal/config/defaults/config.toml`: the 0.8.0 notes recorded a header
+  on that file propagating into user configs written by `truestamp config
+  init`, and treated that as intended. The header was never actually present
+  in any released tag, and the propagation is not wanted — a user's own
+  config file should carry no license or copyright text. The file stays plain
+  config and the stale policy is withdrawn.
 
 ### Added
 

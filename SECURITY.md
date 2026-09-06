@@ -1,3 +1,8 @@
+<!--
+Copyright (c) 2019-2026 Truestamp, Inc.
+SPDX-License-Identifier: Apache-2.0
+-->
+
 # Security Policy
 
 We take the security of `truestamp-cli` seriously because this CLI is what users rely on to verify Truestamp proofs end to end. Any compromise of the binary or its verification logic directly undermines the cryptographic guarantees we offer.

@@ -1,5 +1,5 @@
 // Copyright (c) 2019-2026 Truestamp, Inc.
-// SPDX-License-Identifier: MIT
+// SPDX-License-Identifier: Apache-2.0
 
 // Package hashing is the algorithm registry behind `truestamp hash`. The
 // goal is feature-parity with sha256sum / shasum / openssl dgst so

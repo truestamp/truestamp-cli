@@ -1,5 +1,5 @@
 // Copyright (c) 2019-2026 Truestamp, Inc.
-// SPDX-License-Identifier: MIT
+// SPDX-License-Identifier: Apache-2.0
 
 package version
 
@@ -57,6 +57,13 @@ func TestCopyright_ContainsBuildYear(t *testing.T) {
 	result := Copyright()
 	if !strings.Contains(result, BuildYear) {
 		t.Errorf("Copyright() should contain build year, got %q", result)
+	}
+}
+
+func TestCopyright_ContainsLicense(t *testing.T) {
+	result := Copyright()
+	if !strings.Contains(result, "Apache License, Version 2.0") {
+		t.Errorf("Copyright() should name the license, got %q", result)
 	}
 }
 

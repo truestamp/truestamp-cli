@@ -1,5 +1,5 @@
 // Copyright (c) 2019-2026 Truestamp, Inc.
-// SPDX-License-Identifier: MIT
+// SPDX-License-Identifier: Apache-2.0
 
 // Package blocks is a thin client for the Truestamp Blocks JSON:API
 // surface (GET /api/json/blocks, /blocks/:id).

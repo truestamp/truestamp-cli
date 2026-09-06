@@ -1,5 +1,5 @@
 // Copyright (c) 2019-2026 Truestamp, Inc.
-// SPDX-License-Identifier: MIT
+// SPDX-License-Identifier: Apache-2.0
 
 // Package wschannel implements a minimal Phoenix Channels V2 client
 // targeted at long-lived authenticated connections (TUI panes, daemons).

@@ -1,5 +1,5 @@
 // Copyright (c) 2019-2026 Truestamp, Inc.
-// SPDX-License-Identifier: MIT
+// SPDX-License-Identifier: Apache-2.0
 
 // Package external fetches supplementary data from third-party public sources
 // (Stellar Horizon, Bitcoin block explorers, the NIST Randomness Beacon) to

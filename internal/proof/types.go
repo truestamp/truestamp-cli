@@ -1,5 +1,5 @@
 // Copyright (c) 2019-2026 Truestamp, Inc.
-// SPDX-License-Identifier: MIT
+// SPDX-License-Identifier: Apache-2.0
 
 // Package proof parses, downloads, and converts Truestamp proof bundles in
 // both JSON and CBOR wire formats. Proofs are the self-contained artifacts

@@ -1,5 +1,5 @@
 // Copyright (c) 2019-2026 Truestamp, Inc.
-// SPDX-License-Identifier: MIT
+// SPDX-License-Identifier: Apache-2.0
 
 // Package verify runs the Appendix E verification pipeline against a parsed
 // proof bundle and produces a [Report] of graded step results.

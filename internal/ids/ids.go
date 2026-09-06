@@ -1,5 +1,5 @@
 // Copyright (c) 2019-2026 Truestamp, Inc.
-// SPDX-License-Identifier: MIT
+// SPDX-License-Identifier: Apache-2.0
 
 // Package ids validates the two identifier shapes the read-only resource
 // groups accept on the command line: a UUIDv7 and a 64-hex-character

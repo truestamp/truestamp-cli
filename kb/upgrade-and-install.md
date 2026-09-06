@@ -1,3 +1,8 @@
+<!--
+Copyright (c) 2019-2026 Truestamp, Inc.
+SPDX-License-Identifier: Apache-2.0
+-->
+
 # Upgrade and install
 
 How `truestamp upgrade` decides what it is allowed to do, and how the binary

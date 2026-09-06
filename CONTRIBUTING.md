@@ -1,3 +1,8 @@
+<!--
+Copyright (c) 2019-2026 Truestamp, Inc.
+SPDX-License-Identifier: Apache-2.0
+-->
+
 # Contributing
 
 Thanks for your interest in `truestamp-cli`. This guide covers everything you need to hack on the CLI locally and, if you're a maintainer, to cut a release.
@@ -153,6 +158,21 @@ New code is expected to ship with tests. The repo has **eight categories** of te
 - Include a short description of the motivation and the observable behaviour change.
 - Update `CHANGELOG.md` under `## [Unreleased]` using the Keep-a-Changelog groupings (`Added` / `Changed` / `Fixed` / `Removed`).
 - CI must be green before a reviewer will look at the PR. The `protect-main` ruleset will not let the PR merge otherwise.
+
+## License of contributions
+
+This project is licensed under the [Apache License, Version 2.0](./LICENSE).
+
+Unless you state otherwise in writing, any contribution you intentionally submit for inclusion in this project is submitted under the terms of that license, per section 5 of the license text. No separate paperwork is required.
+
+New source files carry the canonical two-line header:
+
+```go
+// Copyright (c) 2019-2026 Truestamp, Inc.
+// SPDX-License-Identifier: Apache-2.0
+```
+
+Use the comment syntax appropriate to the file type (`#` for TOML / YAML / shell, `<!-- -->` for HTML). Data fixtures, golden files, and machine-managed files (`go.mod`, `go.sum`) do not carry headers.
 
 ## Cutting a release (maintainer)
 

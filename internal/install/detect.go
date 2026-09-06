@@ -1,5 +1,5 @@
 // Copyright (c) 2019-2026 Truestamp, Inc.
-// SPDX-License-Identifier: MIT
+// SPDX-License-Identifier: Apache-2.0
 
 // Package install detects how the running truestamp binary was installed.
 // The detection is best-effort: it inspects the resolved executable path,

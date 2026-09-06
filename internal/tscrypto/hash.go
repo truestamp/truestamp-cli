@@ -1,5 +1,5 @@
 // Copyright (c) 2019-2026 Truestamp, Inc.
-// SPDX-License-Identifier: MIT
+// SPDX-License-Identifier: Apache-2.0
 
 // Package tscrypto implements the Truestamp-specific cryptographic
 // primitives used by proofs: SHA-256 with one-byte domain-separation

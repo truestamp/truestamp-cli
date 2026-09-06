@@ -1,5 +1,5 @@
 // Copyright (c) 2019-2026 Truestamp, Inc.
-// SPDX-License-Identifier: MIT
+// SPDX-License-Identifier: Apache-2.0
 
 // Package bitcoin provides BIP 37 partial merkle tree verification
 // and thin wrappers around btcsuite/btcd for transaction and txoutproof parsing.

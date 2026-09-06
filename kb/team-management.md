@@ -1,3 +1,8 @@
+<!--
+Copyright (c) 2019-2026 Truestamp, Inc.
+SPDX-License-Identifier: Apache-2.0
+-->
+
 # Team management surfaces
 
 The CLI exposes team discovery and selection in two places that share the same on-disk source of truth (the top-level `team` key in `config.toml`):

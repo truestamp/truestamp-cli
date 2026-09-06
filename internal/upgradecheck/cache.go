@@ -1,5 +1,5 @@
 // Copyright (c) 2019-2026 Truestamp, Inc.
-// SPDX-License-Identifier: MIT
+// SPDX-License-Identifier: Apache-2.0
 
 // Package upgradecheck handles passive "new version available" notices
 // emitted after unrelated commands succeed. Results are cached to disk
