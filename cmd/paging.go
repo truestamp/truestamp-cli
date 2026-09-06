@@ -165,7 +165,10 @@ func renderMoreHint(w io.Writer, pg listPage) {
 	if pg.Prev != "" {
 		ui.Fprintln(w, ui.FaintStyle().Render("    Back: --before "+pg.Prev))
 	}
-	if pg.ClampedTo > 0 {
+	// The clamp is only worth a line when there is something past it: the
+	// server rewrites page[limit] to its cap even on a short collection,
+	// so a last page of 10 rows can carry meta.page.limit 250.
+	if pg.ClampedTo > 0 && pg.Next != "" {
 		ui.Fprintln(w, ui.FaintStyle().Render(fmt.Sprintf("    (the server caps a page at %d rows; --max follows the cursor past it)", pg.ClampedTo)))
 	}
 }
