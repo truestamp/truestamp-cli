@@ -48,6 +48,9 @@ type Page struct {
 	PrevCursor string
 	// Total is the server's count of matching items, only when asked for.
 	Total int
+	// Limit is the page size the server actually used (it clamps to its
+	// max_page_size rather than refusing).
+	Limit int
 }
 
 // DefaultLimit matches the server's own default for the paginated read.
@@ -244,6 +247,6 @@ func parseList(body []byte) (*Page, error) {
 		page.Items = append(page.Items, it)
 	}
 	info := jsonapi.ParsePage(body)
-	page.NextCursor, page.PrevCursor, page.Total = info.NextCursor, info.PrevCursor, info.Total
+	page.NextCursor, page.PrevCursor, page.Total, page.Limit = info.NextCursor, info.PrevCursor, info.Total, info.Limit
 	return page, nil
 }

@@ -19,7 +19,7 @@ var beaconsListCmd = &cobra.Command{
 	Long: `List beacons, newest first.
 
 Paging is by keyset cursor, like every other list: --limit sets the page
-size (uncapped, as for blocks), --after and --before
+size (the server clamps a page above 250), --after and --before
 continue from a cursor a previous page printed, --oldest-first starts at
 the genesis beacon, --max follows cursors until that many beacons have
 been fetched, and --count adds the total.
@@ -53,7 +53,7 @@ func runBeaconsList(cmd *cobra.Command, _ []string) error {
 		if err != nil {
 			return nil, err
 		}
-		return &pageOf[beacons.Beacon]{Rows: p.Beacons, NextCursor: p.NextCursor, PrevCursor: p.PrevCursor, Total: p.Total}, nil
+		return &pageOf[beacons.Beacon]{Rows: p.Beacons, NextCursor: p.NextCursor, PrevCursor: p.PrevCursor, Total: p.Total, Limit: p.Limit}, nil
 	})
 	if err != nil {
 		return renderAPIError(cmd, err, "beacon")

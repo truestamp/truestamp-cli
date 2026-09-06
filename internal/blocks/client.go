@@ -108,6 +108,7 @@ type Page struct {
 	NextCursor string
 	PrevCursor string
 	Total      int
+	Limit      int // the page size the server actually used
 }
 
 // List fetches one page of blocks, newest first.
@@ -128,7 +129,7 @@ func List(ctx context.Context, cfg Config, opts ListOptions) (*Page, error) {
 		return nil, err
 	}
 	info := jsonapi.ParsePage(body)
-	return &Page{Blocks: list, NextCursor: info.NextCursor, PrevCursor: info.PrevCursor, Total: info.Total}, nil
+	return &Page{Blocks: list, NextCursor: info.NextCursor, PrevCursor: info.PrevCursor, Total: info.Total, Limit: info.Limit}, nil
 }
 
 // Get fetches one block by UUIDv7 id.

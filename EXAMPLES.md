@@ -260,7 +260,7 @@ once:
 
 | Flag | What it does |
 | --- | --- |
-| `--limit N` | Page size (default 25; the server owns any ceiling and names it if you exceed it) |
+| `--limit N` | Page size (default 25; a page above 250 is clamped to 250, and the listing says so) |
 | `--after <cursor>` | Continue forward from the cursor a page printed |
 | `--before <cursor>` | Continue backward from the cursor a page printed |
 | `--oldest-first` | Start at the beginning (genesis, the first observation, the oldest item) instead of the newest row |
@@ -282,8 +282,8 @@ truestamp entropy list --max 500 --json | jq -r '.observations[].id'
 truestamp items list --count --limit 1           # Items (1 shown, 10 total)
 ```
 
-`beacons list` pages the same way, with no page-size ceiling, as for
-`blocks list`.
+Every collection clamps a page above 250 rows to 250 rather than refusing
+it; the listing says so, and `--max` follows the cursor past it.
 
 ---
 
@@ -1981,8 +1981,8 @@ truestamp beacons latest
 #    Previous  f30efc591419a999a40927298a75432a05feaa9fb5fc858c9c84cda6993669f0
 #   (two more rows follow, Details and Verify — see below)
 
-# Most-recent N beacons, newest first (default 25, no ceiling). Paging is
-# the same as every other list, see
+# Most-recent N beacons, newest first (default 25, at most 250 per page).
+# Paging is the same as every other list, see
 # Conventions → Paging lists: --after / --before, --oldest-first (the
 # genesis beacon first), --max and --count.
 truestamp beacons list

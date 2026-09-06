@@ -319,7 +319,9 @@ link on the server; the end of the listing is the first page of the opposite ord
 
 `beacons list` pages the same way since 2026-09-05, when `/api/json/beacons` became a JSON:API index
 over a keyset-paginated read at this CLI's request; the service documents the contract in its
-`kb/api/beacon-api.md`. Like `/blocks`, it sets no page-size ceiling. `teams list` and `keys list` fetch complete documents (your memberships, the published keyring) and
+`kb/api/beacon-api.md`. Every collection clamps `page[limit]` to its `max_page_size` (Ash's default, 250) and
+echoes the size used in `meta.page.limit`; there is no uncapped collection. The CLI prints a note when
+a page came back smaller than asked for, and `--max` walks past it. `teams list` and `keys list` fetch complete documents (your memberships, the published keyring) and
 carry no paging flags, although the teams routes do page server-side.
 
 ## Applying the rules to a new noun

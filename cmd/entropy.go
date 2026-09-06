@@ -80,7 +80,7 @@ Examples:
 			if err != nil {
 				return nil, err
 			}
-			return &pageOf[entropy.Observation]{Rows: p.Observations, NextCursor: p.NextCursor, PrevCursor: p.PrevCursor, Total: p.Total}, nil
+			return &pageOf[entropy.Observation]{Rows: p.Observations, NextCursor: p.NextCursor, PrevCursor: p.PrevCursor, Total: p.Total, Limit: p.Limit}, nil
 		})
 		if err != nil {
 			return renderAPIError(cmd, err, "entropy observation")
