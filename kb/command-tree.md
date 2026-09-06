@@ -318,8 +318,8 @@ link on the server; the end of the listing is the first page of the opposite ord
 `--oldest-first` is for.
 
 `beacons list` pages the same way since 2026-09-05, when `/api/json/beacons` became a JSON:API index
-over a keyset-paginated read (the CLI side asked for it; the request is `paging.md` in the service
-repository). Like `/blocks`, it sets no page-size ceiling. `teams list` and `keys list` fetch complete documents (your memberships, the published keyring) and
+over a keyset-paginated read at this CLI's request; the service documents the contract in its
+`kb/api/beacon-api.md`. Like `/blocks`, it sets no page-size ceiling. `teams list` and `keys list` fetch complete documents (your memberships, the published keyring) and
 carry no paging flags, although the teams routes do page server-side.
 
 ## Applying the rules to a new noun
