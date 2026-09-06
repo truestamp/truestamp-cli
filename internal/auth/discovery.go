@@ -1,5 +1,5 @@
 // Copyright (c) 2019-2026 Truestamp, Inc.
-// SPDX-License-Identifier: MIT
+// SPDX-License-Identifier: Apache-2.0
 
 package auth
 
@@ -18,7 +18,7 @@ const discoveryPath = "/.well-known/oauth-authorization-server"
 
 // Discovery is the subset of RFC 8414 authorization-server metadata the
 // CLI consumes. Endpoints are read from here (never hardcoded) so the
-// same binary works against dev/staging/prod, which differ only by origin.
+// same binary works against any deployment; they differ only by origin.
 type Discovery struct {
 	Issuer                            string   `json:"issuer"`
 	AuthorizationEndpoint             string   `json:"authorization_endpoint"`

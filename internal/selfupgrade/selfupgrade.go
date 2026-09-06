@@ -1,5 +1,5 @@
 // Copyright (c) 2019-2026 Truestamp, Inc.
-// SPDX-License-Identifier: MIT
+// SPDX-License-Identifier: Apache-2.0
 
 // Package selfupgrade implements the in-place upgrade flow for users who
 // installed truestamp via docs/install.sh or manual tarball extraction.

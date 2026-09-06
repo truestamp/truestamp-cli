@@ -1,5 +1,5 @@
 // Copyright (c) 2019-2026 Truestamp, Inc.
-// SPDX-License-Identifier: MIT
+// SPDX-License-Identifier: Apache-2.0
 
 // Package testfixtures locates the shared golden test data under the
 // repository's top-level testdata/ directory, so tests in every package read

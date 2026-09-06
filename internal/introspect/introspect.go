@@ -1,5 +1,5 @@
 // Copyright (c) 2019-2026 Truestamp, Inc.
-// SPDX-License-Identifier: MIT
+// SPDX-License-Identifier: Apache-2.0
 
 // Package introspect walks a live cobra command tree and renders it as
 // data. It is what backs `truestamp schema get commands`.

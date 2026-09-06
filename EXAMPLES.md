@@ -1,3 +1,8 @@
+<!--
+Copyright (c) 2019-2026 Truestamp, Inc.
+SPDX-License-Identifier: Apache-2.0
+-->
+
 # Truestamp CLI - Examples
 
 A hands-on tour of every sub-command, followed by real-world pipeline recipes.
@@ -1208,8 +1213,7 @@ truestamp teams use --clear
 team is configured; once a team is named, by `teams use`, `--team` or
 `TRUESTAMP_TEAM`, that row leads with `★`. `teams get` and `teams current`
 render the same detail card, which adds Personal, Ownership, Created and a
-public Details link (the link's host follows `base_url`, so the card below
-shows a staging origin):
+public Details link (the link's host follows `base_url`):
 
 ```text
   Team
@@ -1220,7 +1224,7 @@ shows a staging origin):
    Personal  yes
   Ownership  creator_retains
     Created  2026-08-04T23:29:10Z
-    Details  https://staging.truestamp.com/teams/019fcf1c-0f5f-7136-bde5-e1676bcdfdc8
+    Details  https://www.truestamp.com/teams/019fcf1c-0f5f-7136-bde5-e1676bcdfdc8
 ```
 
 `teams current` heads the identical card `Team (active)`, and exits `1`
@@ -1442,12 +1446,12 @@ before the first frame is drawn:
 truestamp console --log-file /tmp/truestamp-console.log
 jq -c 'select(.component == "console")' /tmp/truestamp-console.log
 # {"time":"...","level":"INFO","msg":"command_start","component":"console","cmd":"truestamp console","argc":0,"version":"0.13.0-...","install_method":"unknown"}
-# {"time":"...","level":"INFO","msg":"console session start","component":"console","ws_url":"wss://staging.truestamp.com/console/websocket","log_path":"...","version":"0.13.0-..."}
+# {"time":"...","level":"INFO","msg":"console session start","component":"console","ws_url":"wss://www.truestamp.com/console/websocket","log_path":"...","version":"0.13.0-..."}
 # {"time":"...","level":"ERROR","msg":"command_end","component":"console","duration_ms":4,"exit":1,"err":"bubbletea: error opening TTY: ..."}
 ```
 
-(`ws_url` is whatever your `--base-url` derives to; the run above was pointed
-at staging, and ended early because it had no controlling terminal.)
+(`ws_url` is whatever your `--base-url` derives to; the run above ended early
+because it had no controlling terminal.)
 
 Defaults: 10 MB rotation, 14-day retention, 5 backups, gzip-compressed.
 The Connection pane shows the live path. **Credentials are redacted**

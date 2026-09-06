@@ -1,5 +1,5 @@
 // Copyright (c) 2019-2026 Truestamp, Inc.
-// SPDX-License-Identifier: MIT
+// SPDX-License-Identifier: Apache-2.0
 
 // Package inputsrc resolves a CLI input to a byte slice (or a stream) from
 // one of six conventional sources: a positional argument, an explicit file

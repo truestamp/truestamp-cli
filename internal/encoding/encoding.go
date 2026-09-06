@@ -1,5 +1,5 @@
 // Copyright (c) 2019-2026 Truestamp, Inc.
-// SPDX-License-Identifier: MIT
+// SPDX-License-Identifier: Apache-2.0
 
 // Package encoding is a small translation layer over the stdlib
 // encoders used across the Truestamp wire format: hex, base64 (standard,

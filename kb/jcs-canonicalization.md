@@ -1,3 +1,8 @@
+<!--
+Copyright (c) 2019-2026 Truestamp, Inc.
+SPDX-License-Identifier: Apache-2.0
+-->
+
 # JCS Handling
 
 Canonicalization goes through **`internal/jcs`**, never through `github.com/gowebpki/jcs` directly. `internal/jcs` is the only package permitted to import the library; a grep gate keeps it that way:

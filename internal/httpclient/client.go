@@ -1,5 +1,5 @@
 // Copyright (c) 2019-2026 Truestamp, Inc.
-// SPDX-License-Identifier: MIT
+// SPDX-License-Identifier: Apache-2.0
 
 // Package httpclient provides a shared HTTP client for all external API calls.
 // The client is safe for concurrent use and reuses connections.

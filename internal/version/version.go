@@ -1,5 +1,5 @@
 // Copyright (c) 2019-2026 Truestamp, Inc.
-// SPDX-License-Identifier: MIT
+// SPDX-License-Identifier: Apache-2.0
 
 // Package version provides build-time version information.
 // Variables are set via ldflags at compile time.
@@ -95,9 +95,9 @@ func Short() string {
 	return Version
 }
 
-// Copyright returns the copyright notice with dynamic end year.
+// Copyright returns the copyright and license notice with dynamic end year.
 func Copyright() string {
-	return fmt.Sprintf("Truestamp, Inc., https://truestamp.com\nCopyright (c) 2019-%s Truestamp, Inc. All rights reserved.", BuildYear)
+	return fmt.Sprintf("Truestamp, Inc., https://www.truestamp.com\nCopyright (c) 2019-%s Truestamp, Inc.\nLicensed under the Apache License, Version 2.0.", BuildYear)
 }
 
 // Platform returns the GOOS/GOARCH pair for this binary.

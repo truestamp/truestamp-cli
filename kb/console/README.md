@@ -1,3 +1,8 @@
+<!--
+Copyright (c) 2019-2026 Truestamp, Inc.
+SPDX-License-Identifier: Apache-2.0
+-->
+
 # `truestamp console`: interactive TUI architecture
 
 The `truestamp console` subcommand opens an interactive Bubble Tea

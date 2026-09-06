@@ -1,3 +1,8 @@
+<!--
+Copyright (c) 2019-2026 Truestamp, Inc.
+SPDX-License-Identifier: Apache-2.0
+-->
+
 # Console command surface and panes
 
 The `truestamp console` TUI: how it is launched, the four panes, key bindings, client-side event coalescing, and reconnection behaviour. The socket underneath is documented in [websocket.md](websocket.md).

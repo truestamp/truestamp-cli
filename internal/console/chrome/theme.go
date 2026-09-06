@@ -1,5 +1,5 @@
 // Copyright (c) 2019-2026 Truestamp, Inc.
-// SPDX-License-Identifier: MIT
+// SPDX-License-Identifier: Apache-2.0
 
 // Package chrome provides the structural primitives that wrap every
 // console pane: a fixed Page layout (header + body + footer), a Theme

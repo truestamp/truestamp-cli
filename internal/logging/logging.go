@@ -1,5 +1,5 @@
 // Copyright (c) 2019-2026 Truestamp, Inc.
-// SPDX-License-Identifier: MIT
+// SPDX-License-Identifier: Apache-2.0
 
 // Package logging provides a file-backed structured logger for the
 // truestamp CLI: a single JSON-line log per invocation, written to a

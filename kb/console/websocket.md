@@ -1,3 +1,8 @@
+<!--
+Copyright (c) 2019-2026 Truestamp, Inc.
+SPDX-License-Identifier: Apache-2.0
+-->
+
 # WebSocket client (`internal/wschannel`)
 
 Homegrown Phoenix Channels V2 client (`client.go`, roughly 1.2k LOC).

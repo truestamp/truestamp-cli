@@ -1,5 +1,5 @@
 // Copyright (c) 2019-2026 Truestamp, Inc.
-// SPDX-License-Identifier: MIT
+// SPDX-License-Identifier: Apache-2.0
 
 // Package auth is the CLI's authentication core. It implements an
 // OAuth 2.1 client (browser-based loopback Authorization Code + PKCE with
@@ -37,7 +37,7 @@ import (
 // is a public client (PKCE is the per-flow secret), so embedding it in the
 // binary is standard and safe, the same convention gh/gcloud/stripe use.
 // The server seeds this exact id via an idempotent boot-upsert across
-// dev/staging/prod, so a single constant is correct for every environment;
+// every deployment, so a single constant is correct for all of them;
 // only the issuer/endpoints vary, and those come from discovery.
 const ClientID = "019ef661-6737-71ec-abd0-ac8f4684ce45"
 

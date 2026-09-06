@@ -1,5 +1,5 @@
 // Copyright (c) 2019-2026 Truestamp, Inc.
-// SPDX-License-Identifier: MIT
+// SPDX-License-Identifier: Apache-2.0
 
 package cmd
 
@@ -18,7 +18,7 @@ import (
 // --oldest-first starts the walk at the beginning instead of the newest
 // row, --max follows cursors until that many rows have been fetched, and
 // --count asks for the total. There is deliberately no --all: the tables behind these lists grow by the
-// minute (staging holds well over half a million entropy observations),
+// minute (the entropy tables alone hold well over half a million rows),
 // and an unbounded walk is a footgun, so the walk always has a cap the
 // caller wrote down.
 //

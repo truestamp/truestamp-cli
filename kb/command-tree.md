@@ -1,3 +1,8 @@
+<!--
+Copyright (c) 2019-2026 Truestamp, Inc.
+SPDX-License-Identifier: Apache-2.0
+-->
+
 # Command tree and verb vocabulary
 
 The rules that decide where a command goes and what it is called. Read this **before adding any
@@ -310,7 +315,7 @@ rendering is one envelope, `{"<noun>": [...], "next_cursor": "...", "prev_cursor
 `total` only under `--count`, the cursors empty at the end and the start respectively. Rows are
 always in the listing's order whichever way the walk went: pages fetched backward are prepended.
 
-There is no `--all`. The tables behind these lists grow by the minute (staging alone holds over half
+There is no `--all`. The tables behind these lists grow by the minute (the entropy tables alone hold over half
 a million entropy observations), so an unbounded walk is a footgun, and following pages costs a cap
 the caller wrote down. `--max` asks the last page for exactly the rows still wanted, so a page is
 never cut and the cursors handed back always continue from the rows shown. There is no "last page"

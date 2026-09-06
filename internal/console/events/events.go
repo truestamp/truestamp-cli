@@ -1,5 +1,5 @@
 // Copyright (c) 2019-2026 Truestamp, Inc.
-// SPDX-License-Identifier: MIT
+// SPDX-License-Identifier: Apache-2.0
 
 // Package events projects raw `stream` payloads from the console wire
 // protocol into a canonical Row that drives the Monitor pane's table

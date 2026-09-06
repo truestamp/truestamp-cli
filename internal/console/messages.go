@@ -1,5 +1,5 @@
 // Copyright (c) 2019-2026 Truestamp, Inc.
-// SPDX-License-Identifier: MIT
+// SPDX-License-Identifier: Apache-2.0
 
 // Package console implements the interactive `truestamp console` TUI: a
 // multi-pane Bubble Tea application that holds an authenticated WebSocket

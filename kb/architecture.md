@@ -1,3 +1,8 @@
+<!--
+Copyright (c) 2019-2026 Truestamp, Inc.
+SPDX-License-Identifier: Apache-2.0
+-->
+
 # Architecture Notes
 
 Design decisions and their reasoning. Upgrade/install internals live in
