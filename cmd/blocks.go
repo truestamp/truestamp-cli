@@ -192,7 +192,7 @@ func renderBlockList(cmd *cobra.Command, list []blocks.Block, pg listPage) error
 	}
 	w := cmd.OutOrStdout()
 	if len(list) == 0 {
-		ui.Fprintln(w, ui.FaintStyle().Render("  No blocks."))
+		ui.Fprintln(w, ui.HintStyle().Render(hintIndent+"No blocks."))
 		return nil
 	}
 	header := ui.AccentBoldStyle().Render(listHeading("Blocks", len(list), pg))
@@ -201,7 +201,8 @@ func renderBlockList(cmd *cobra.Command, list []blocks.Block, pg listPage) error
 		tbl = tbl.Row(b.ID, fmt.Sprintf("%-9s %s", b.State, b.BlockHash))
 	}
 	ui.Fprintln(w, strings.Join([]string{header, "", tbl.String()}, "\n"))
-	renderMoreHint(w, pg)
+	renderListHints(cmd.ErrOrStderr(), pg,
+		"Hint: 'truestamp blocks get <id>' shows one block; 'truestamp proofs get --type block <id>' fetches its proof bundle.")
 	return nil
 }
 

@@ -225,12 +225,26 @@ func TestCLI_Entropy_List_MaxFollowsCursors(t *testing.T) {
 // into both renderings, and a page that continues says how.
 func TestCLI_Entropy_List_CountAndHint(t *testing.T) {
 	srv := startEntropyServer(t)
-	stdout, _, exit := runCLI(t, "--base-url", srv.URL, "--api-key", "test-key", "entropy", "list", "--count")
+	stdout, stderr, exit := runCLI(t, "--base-url", srv.URL, "--api-key", "test-key", "entropy", "list", "--count")
 	if exit != 0 {
 		t.Fatalf("exit=%d", exit)
 	}
-	if !strings.Contains(stdout, "(2 shown, 593,419 total)") || !strings.Contains(stdout, "More: --after CURSOR1") {
-		t.Errorf("text listing should show the total and the continuation, got:\n%s", stdout)
+	// The total is part of the listing and stays on stdout.
+	if !strings.Contains(stdout, "(2 shown, 593,419 total)") {
+		t.Errorf("text listing should show the total, got:\n%s", stdout)
+	}
+	// runCLI pipes both streams, so this asserts the pipeline guarantee:
+	// guidance is suppressed entirely when stdout is not a terminal, on
+	// BOTH streams. The cursor lines used to print to stdout regardless,
+	// which put "More: --after ..." into every redirected listing. The
+	// content and formatting of the block are covered in-process by
+	// TestHintBlock_* in cmd/hints_test.go, which can open the TTY gate.
+	for _, stream := range []struct{ name, body string }{{"stdout", stdout}, {"stderr", stderr}} {
+		for _, marker := range []string{"More: --after", "Back: --before", "the server caps a page", "Hint:"} {
+			if strings.Contains(stream.body, marker) {
+				t.Errorf("piped %s must carry no guidance, found %q in:\n%s", stream.name, marker, stream.body)
+			}
+		}
 	}
 	if srv.query().Get("page[count]") != "true" {
 		t.Errorf("--count must ask the server for the total, asked %v", srv.query())
@@ -363,9 +377,12 @@ func TestCLI_Entropy_List_Backward(t *testing.T) {
 	if srv.requests() != 2 || srv.query().Get("page[before]") != "CURSORC" {
 		t.Errorf("want two requests, the second continuing from CURSORC; saw %d, last %v", srv.requests(), srv.query())
 	}
-	stdout, _, _ = runCLI(t, "--base-url", srv.URL, "--api-key", "test-key", "entropy", "list", "--after", "CURSOR1")
-	if !strings.Contains(stdout, "Back: --before CURSORB") {
-		t.Errorf("a page that can go back should say how, got:\n%s", stdout)
+	// The prev cursor reaching the caller is asserted through --json
+	// above; the "Back: --before ..." line it renders is guidance, gated
+	// on a terminal, and covered by TestHintBlock_* in-process.
+	stdoutBack, stderrBack, _ := runCLI(t, "--base-url", srv.URL, "--api-key", "test-key", "entropy", "list", "--after", "CURSOR1")
+	if strings.Contains(stdoutBack, "Back: --before") || strings.Contains(stderrBack, "Back: --before") {
+		t.Errorf("piped output must carry no guidance:\nstdout:\n%s\nstderr:\n%s", stdoutBack, stderrBack)
 	}
 	_, stderr, exit = runCLI(t, "--base-url", srv.URL, "entropy", "list", "--after", "A", "--before", "B")
 	if exit == 0 || !strings.Contains(stderr, "--after and --before are mutually exclusive") {
@@ -401,9 +418,15 @@ func TestCLI_Entropy_List_BadCursor(t *testing.T) {
 // rather than leaving the caller to count rows.
 func TestCLI_Entropy_List_ClampIsAnnounced(t *testing.T) {
 	srv := startEntropyServer(t)
-	stdout, _, exit := runCLI(t, "--base-url", srv.URL, "--api-key", "test-key", "entropy", "list", "--limit", "300")
-	if exit != 0 || !strings.Contains(stdout, "the server caps a page at 2 rows") {
-		t.Errorf("exit=%d, expected the clamp note, got:\n%s", exit, stdout)
+	stdout, stderr, exit := runCLI(t, "--base-url", srv.URL, "--api-key", "test-key", "entropy", "list", "--limit", "300")
+	// The human clamp note is guidance (terminal only, covered in-process
+	// by TestHintBlock_*). What a pipeline must see is the --json fact,
+	// asserted next, and nothing else.
+	if exit != 0 {
+		t.Fatalf("exit=%d", exit)
+	}
+	if strings.Contains(stdout, "the server caps a page") || strings.Contains(stderr, "the server caps a page") {
+		t.Errorf("piped output must carry no clamp note:\nstdout:\n%s\nstderr:\n%s", stdout, stderr)
 	}
 	stdout, _, _ = runCLI(t, "--base-url", srv.URL, "--api-key", "test-key", "entropy", "list", "--limit", "300", "--json")
 	if !strings.Contains(stdout, `"page_limit": 2`) {
@@ -415,8 +438,8 @@ func TestCLI_Entropy_List_ClampIsAnnounced(t *testing.T) {
 	}
 	// A clamped last page has nothing to follow, so the note stays quiet;
 	// the JSON still records the fact.
-	stdout, _, _ = runCLI(t, "--base-url", srv.URL, "--api-key", "test-key", "entropy", "list", "--limit", "300", "--source", "entropy_nist")
-	if strings.Contains(stdout, "the server caps a page") {
-		t.Errorf("no cursor to follow, no clamp note, got:\n%s", stdout)
+	stdout, _, _ = runCLI(t, "--base-url", srv.URL, "--api-key", "test-key", "entropy", "list", "--limit", "300", "--source", "entropy_nist", "--json")
+	if !strings.Contains(stdout, `"page_limit": 2`) {
+		t.Errorf("a clamped last page still records page_limit in JSON, got:\n%s", stdout)
 	}
 }

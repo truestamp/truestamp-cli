@@ -273,7 +273,10 @@ once:
 | `--count` | Add the server's total to the heading (`(2 shown, 45,934 total)`) and `"total"` to `--json` |
 
 A text page that continues ends with `More: --after <cursor>` and, when it
-can go back, `Back: --before <cursor>`; `--json` is one envelope,
+can go back, `Back: --before <cursor>`. Both go to **stderr**, and only when
+stdout is a terminal: they are guidance about the listing, not the listing, so
+`truestamp items list | wc -l` counts rows and `... > f` writes a file the next
+command can read. `--json` is one envelope,
 `{"<noun>": [...], "next_cursor": "...", "prev_cursor": "..."}`. There is no
 `--all`: the tables behind these lists grow by the minute, so following pages
 costs a cap you wrote down, and `--max` sizes its last request to the rows
@@ -2105,7 +2108,9 @@ truestamp items list --limit 2
 #
 #   01M1PHJRN546DKV7QYAW7RAP2B  ✓ committed  contract.pdf
 #   01M1PHJR9R51VQ7JPTR9RNAMS3  ✓ committed  contract.pdf
-#     More: --after g2wAAAABbQAAABowMU0xUEhKUjlSNTFWUTdKUFRSOVJOQU1TM2o=
+#
+# ...and on stderr, when stdout is a terminal:
+#   More: --after g2wAAAABbQAAABowMU0xUEhKUjlSNTFWUTdKUFRSOVJOQU1TM2o=
 
 truestamp items list --after g2wAAAABbQAAABowMU0xUEhKUjlSNTFWUTdKUFRSOVJOQU1TM2o=
 truestamp items list --limit 100

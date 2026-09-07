@@ -310,7 +310,9 @@ toward its start (`page[after]` / `page[before]`, at most one per call); `--olde
 walk at the beginning instead of the newest row (`sort=id` instead of `-id`); `--max N` follows
 cursors in the chosen direction until N rows have been fetched; and `--count` asks the server for the
 total (`page[count]=true`, read from `meta.page.total`). A text page ends with `More: --after
-<cursor>` and `Back: --before <cursor>`, each only when there is somewhere to go; the `--json`
+<cursor>` and `Back: --before <cursor>`, each only when there is somewhere to go. Both are
+guidance, so both go to stderr and only when stdout is a terminal (see kb/architecture.md
+"Trailing guidance"); a piped or redirected listing carries rows alone. the `--json`
 rendering is one envelope, `{"<noun>": [...], "next_cursor": "...", "prev_cursor": "...", "total": N}`,
 `total` only under `--count`, the cursors empty at the end and the start respectively. Rows are
 always in the listing's order whichever way the walk went: pages fetched backward are prepended.

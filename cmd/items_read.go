@@ -202,7 +202,7 @@ func renderItemList(cmd *cobra.Command, list []items.Item, pg listPage) error {
 	}
 	w := cmd.OutOrStdout()
 	if len(list) == 0 {
-		ui.Fprintln(w, ui.FaintStyle().Render("  No items."))
+		ui.Fprintln(w, ui.HintStyle().Render(hintIndent+"No items."))
 		return nil
 	}
 	header := ui.AccentBoldStyle().Render(listHeading("Items", len(list), pg))
@@ -211,7 +211,8 @@ func renderItemList(cmd *cobra.Command, list []items.Item, pg listPage) error {
 		tbl = tbl.Row(it.ID, itemListLine(it))
 	}
 	ui.Fprintln(w, strings.Join([]string{header, "", tbl.String()}, "\n"))
-	renderMoreHint(w, pg)
+	renderListHints(cmd.ErrOrStderr(), pg,
+		"Hint: 'truestamp items get <id>' shows one item; 'truestamp proofs get <id>' fetches its proof bundle.")
 	return nil
 }
 

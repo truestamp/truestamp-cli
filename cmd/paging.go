@@ -9,6 +9,8 @@ import (
 	"strconv"
 
 	"github.com/spf13/cobra"
+
+	"github.com/truestamp/truestamp-cli/internal/inputsrc"
 	"github.com/truestamp/truestamp-cli/internal/ui"
 )
 
@@ -155,22 +157,71 @@ func listHeading(noun string, shown int, pg listPage) string {
 	return fmt.Sprintf("  %s (%d)", noun, shown)
 }
 
-// renderMoreHint prints the continuation lines: More continues in the
-// listing's order, Back returns toward its start. Each appears only when
-// there is somewhere to go.
-func renderMoreHint(w io.Writer, pg listPage) {
+// hintIndent is the one indent every trailing guidance line uses, in
+// every command. It matches the two-space inset of the empty-state lines
+// ("  No blocks.") and of the "Hint:" tips, so a listing's footer lines
+// up with itself. The cursor lines used to inset four and the tips two,
+// which read as a ragged edge under the table.
+const hintIndent = "  "
+
+// stdoutIsTerminal is a seam. Guidance is suppressed unless stdout is a
+// terminal, and `go test` is never a terminal, so without this the hint
+// text would be untestable: every assertion would be against an empty
+// buffer and would keep passing if the content rotted. Tests swap this
+// through [withTerminalStdout].
+var stdoutIsTerminal = inputsrc.IsStdoutTerminal
+
+// hintBlock writes trailing guidance as one block: a blank separator line
+// and then each line at [hintIndent], in [ui.HintStyle].
+//
+// Everything goes to errw, and only when stdout is a terminal. Guidance is
+// commentary about the output, not the output, so a pipeline must never
+// receive it: `truestamp entropy list | wc -l` should count rows, and
+// `... > f` should write a file the next command can read. Cursor lines
+// used to go to stdout ungated, which broke both. Splitting the block
+// across two streams was worse still, because the halves could interleave
+// out of order once either was redirected.
+//
+// The separator is emitted only when there is something to follow it, so a
+// last page with no tip does not end in a stray gap.
+func hintBlock(errw io.Writer, lines ...string) {
+	if !stdoutIsTerminal() {
+		return
+	}
+	wrote := false
+	for _, l := range lines {
+		if l == "" {
+			continue
+		}
+		if !wrote {
+			ui.Fprintln(errw, "")
+			wrote = true
+		}
+		ui.Fprintln(errw, ui.HintStyle().Render(hintIndent+l))
+	}
+}
+
+// renderListHints writes a listing's trailing guidance: the cursor lines
+// that continue or reverse the walk, the page-clamp note, and an optional
+// command-specific tip.
+func renderListHints(errw io.Writer, pg listPage, tip string) {
+	var lines []string
+	// More continues in the listing's order, Back returns toward its
+	// start. Each appears only when there is somewhere to go.
 	if pg.Next != "" {
-		ui.Fprintln(w, ui.FaintStyle().Render("    More: --after "+pg.Next))
+		lines = append(lines, "More: --after "+pg.Next)
 	}
 	if pg.Prev != "" {
-		ui.Fprintln(w, ui.FaintStyle().Render("    Back: --before "+pg.Prev))
+		lines = append(lines, "Back: --before "+pg.Prev)
 	}
 	// The clamp is only worth a line when there is something past it: the
 	// server rewrites page[limit] to its cap even on a short collection,
 	// so a last page of 10 rows can carry meta.page.limit 250.
 	if pg.ClampedTo > 0 && pg.Next != "" {
-		ui.Fprintln(w, ui.FaintStyle().Render(fmt.Sprintf("    (the server caps a page at %d rows; --max follows the cursor past it)", pg.ClampedTo)))
+		lines = append(lines, fmt.Sprintf("(the server caps a page at %d rows; --max follows the cursor past it)", pg.ClampedTo))
 	}
+	lines = append(lines, tip)
+	hintBlock(errw, lines...)
 }
 
 // listEnvelope is the --json shape of every paged list: the rows under

@@ -14,7 +14,6 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/truestamp/truestamp-cli/internal/entropy"
 	"github.com/truestamp/truestamp-cli/internal/ids"
-	"github.com/truestamp/truestamp-cli/internal/inputsrc"
 	"github.com/truestamp/truestamp-cli/internal/ui"
 )
 
@@ -286,7 +285,7 @@ func renderObservationList(cmd *cobra.Command, list []entropy.Observation, pg li
 	}
 	w := cmd.OutOrStdout()
 	if len(list) == 0 {
-		ui.Fprintln(w, ui.FaintStyle().Render("  No entropy observations."))
+		ui.Fprintln(w, ui.HintStyle().Render(hintIndent+"No entropy observations."))
 		return nil
 	}
 	header := ui.AccentBoldStyle().Render(listHeading("Entropy Observations", len(list), pg))
@@ -299,11 +298,9 @@ func renderObservationList(cmd *cobra.Command, list []entropy.Observation, pg li
 	}
 	tbl := ui.CompactTable().StyleFunc(ui.HeaderRowStyleFunc()).Rows(rows...)
 	ui.Fprintln(w, strings.Join([]string{header, "", tbl.String()}, "\n"))
-	renderMoreHint(w, pg)
-	if inputsrc.IsStdoutTerminal() {
-		ui.Fprintln(cmd.ErrOrStderr(), ui.FaintStyle().Render(
-			"  Hint: 'truestamp proofs get <id>' fetches a verifiable proof bundle for an observation."))
-	}
+	renderListHints(cmd.ErrOrStderr(), pg,
+		"Hint: 'truestamp proofs get --type entropy_<source> <id>' fetches a verifiable proof bundle "+
+			"(<source> is the SOURCE column).")
 	return nil
 }
 

@@ -36,6 +36,7 @@ var (
 	Cyan   color.Color = catppuccin.Mocha.Sky()
 	Accent color.Color = catppuccin.Mocha.Mauve()
 	Dim    color.Color = catppuccin.Mocha.Overlay0()
+	Hint   color.Color = catppuccin.Mocha.Subtext1()
 	Label  color.Color = catppuccin.Mocha.Subtext0()
 	Value  color.Color = catppuccin.Mocha.Text()
 	Banner color.Color = catppuccin.Mocha.Text()
@@ -104,6 +105,7 @@ func Init(noColor bool) {
 			Cyan = catppuccin.Latte.Sky()
 			Accent = catppuccin.Latte.Mauve()
 			Dim = catppuccin.Latte.Overlay0()
+			Hint = catppuccin.Latte.Subtext1()
 			Label = catppuccin.Latte.Subtext0()
 			Value = catppuccin.Latte.Text()
 			Banner = catppuccin.Latte.Text()
@@ -172,9 +174,29 @@ func ValueStyle() lipgloss.Style {
 	return lipgloss.NewStyle().Foreground(Value)
 }
 
-// FaintStyle returns a faint/dim style.
+// FaintStyle returns a faint/dim style. It is for decoration that the
+// reader is not expected to act on. Anything meant to be READ — a hint, a
+// cursor to paste, an empty-state line — uses [HintStyle] instead.
 func FaintStyle() lipgloss.Style {
 	return lipgloss.NewStyle().Faint(true).Foreground(Dim)
+}
+
+// HintStyle returns the style for trailing guidance: the "More:" / "Back:"
+// cursor lines, the "Hint:" tips, and empty-state text.
+//
+// It is deliberately NOT [FaintStyle]. That style compounds two dimming
+// effects — an already-low-contrast foreground (Overlay0) plus the ANSI
+// faint attribute (SGR 2), which terminals render by reducing brightness
+// again. Measured against each flavour's base, Overlay0 is 3.36:1 on
+// Mocha and 2.30:1 on Latte: below the WCAG AA 4.5:1 floor on dark and
+// failing outright on light, before the faint attribute is applied at
+// all. Subtext1 is 9.26:1 and 5.53:1, so it clears AA in both themes
+// while still reading as subordinate to Value.
+//
+// A hint the reader cannot see is not a subtle hint, it is a missing one,
+// and the "More: --after <cursor>" line exists to be copied.
+func HintStyle() lipgloss.Style {
+	return lipgloss.NewStyle().Foreground(Hint)
 }
 
 // AccentBoldStyle returns a bold accent-colored style.

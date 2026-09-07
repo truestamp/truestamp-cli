@@ -133,7 +133,7 @@ func renderOneKey(cmd *cobra.Command, k external.KeyringKey) error {
 
 func renderKeyList(w io.Writer, kr *external.KeyringResponse) {
 	if len(kr.Keys) == 0 {
-		ui.Fprintln(w, ui.FaintStyle().Render("  The published keyring contains no keys."))
+		ui.Fprintln(w, ui.HintStyle().Render(hintIndent+"The published keyring contains no keys."))
 		return
 	}
 	header := ui.AccentBoldStyle().Render(fmt.Sprintf("  Signing Keys (%d)", len(kr.Keys)))
