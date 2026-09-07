@@ -5,7 +5,6 @@ package cmd
 
 import (
 	"fmt"
-	"github.com/truestamp/truestamp-cli/internal/inputsrc"
 	"io"
 	"sort"
 	"strings"
@@ -78,14 +77,14 @@ func runTeamList(cmd *cobra.Command, _ []string) error {
 
 	renderTeamList(cmd.OutOrStdout(), memberships, appConfig.Team)
 
-	if inputsrc.IsStdoutTerminal() {
-		hint := "  Hint: 'truestamp teams use <id>' switches the active team."
+	{
+		hint := "Hint: 'truestamp teams use <id>' switches the active team."
 		if appConfig.Team == "" {
 			hint += "  No active team is currently set."
 		} else {
 			hint += "  ★ marks the current selection."
 		}
-		ui.Fprintln(cmd.ErrOrStderr(), ui.FaintStyle().Render(hint))
+		hintBlock(cmd.ErrOrStderr(), hint)
 	}
 	return nil
 }
@@ -105,11 +104,11 @@ func renderEmptyTeamList(w io.Writer, apiURL string) {
 	body := []string{
 		header,
 		"",
-		"  " + ui.FaintStyle().Render("No teams found for your account."),
+		"  " + ui.HintStyle().Render("No teams found for your account."),
 	}
 	if url := ui.TeamCreateURL(apiURL); url != "" {
 		body = append(body,
-			"  "+ui.FaintStyle().Render("Visit "+url+" in your browser to create one."),
+			"  "+ui.HintStyle().Render("Visit "+url+" in your browser to create one."),
 		)
 	}
 	ui.Fprintln(w, strings.Join(body, "\n"))

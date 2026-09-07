@@ -46,6 +46,25 @@ Design decisions and their reasoning. Upgrade/install internals live in
 
   `internal/tscrypto.ComputeKeyID`'s `hash[:4]` is not truncation either — the 4-byte key id is the specified value, not an abbreviation of a longer one. Likewise `ui.TruncateToSecond` drops sub-second timestamp precision, which is a time-format choice, not a cryptographic value.
 
+- **Trailing guidance is one block, one indent, one style**: the `More:` / `Back:` cursor lines, the page-clamp note, the `Hint:` tips and the empty-state text all go through `cmd.renderListHints` (or at minimum `ui.HintStyle()` + the `cmd.hintIndent` constant). One blank line separates the block from the content above it, emitted once by whichever line comes first and only when there is something to print, so a listing with no continuation and no tip does not end in a stray gap. `cmd/hints_test.go` pins the indent, the separator, the "nothing to print writes nothing" case, and the stream split.
+
+  Two defects motivated this. **Alignment**: the cursor lines inset four spaces while the tips inset two, so a listing's footer stepped in and out under the table. Everything is `hintIndent` (two) now, matching the empty-state lines. **Contrast**: every one of them rendered through `ui.FaintStyle()`, which compounds a low-contrast foreground with the ANSI faint attribute (SGR 2). Measured against each Catppuccin flavour's `Base`:
+
+  | Token | Mocha (dark) | Latte (light) |
+  | ----- | ------------ | ------------- |
+  | `Overlay0` (`Dim`, the old hint colour) | 3.36:1 — under AA | **2.30:1 — fails outright** |
+  | `Subtext0` (`Label`) | 7.37:1 | 4.37:1 — just under AA |
+  | `Subtext1` (`Hint`, current) | 9.26:1 | 5.53:1 |
+  | `Text` (`Value`) | 11.34:1 | 7.06:1 |
+
+  Light was the worse of the two, and the faint attribute dimmed it further. `ui.HintStyle()` uses `Subtext1` and does **not** set `Faint(true)`: it clears WCAG AA in both themes while still reading as subordinate to `Value`. `ui.FaintStyle()` remains for decoration the reader is not expected to act on; anything meant to be read — a hint, a cursor to paste, the sole "No blocks." line a command prints — uses `HintStyle`.
+
+  **Guidance is commentary about the output, never the output.** The whole block — cursor lines included — goes to **stderr**, and only when stdout is a terminal. `truestamp entropy list | wc -l` counts rows, and `... > f` writes a file the next command can read.
+
+  This was a deliberate breaking change. The cursor lines previously went to stdout ungated, so `More: --after <cursor>` landed in every redirected listing and every pipe; the tips were already stderr-and-TTY-gated, and splitting one block across two streams was worse still, because the halves could interleave out of order once either was redirected. `cmd/hints_test.go` pins the suppression, and the entropy CLI tests assert the pipeline guarantee on *both* streams.
+
+  The gate is `cmd.stdoutIsTerminal`, a package-level seam rather than a direct `inputsrc.IsStdoutTerminal()` call, because `go test` is never a terminal: without it every hint assertion would run against an empty buffer and would keep passing after the text rotted. `cmd/hints_test.go` swaps it through `withTerminalStdout`. The subprocess tests in `cmd/entropy_test.go` cannot reach that seam (they exec a real binary whose stdout is a pipe), so they assert the complementary property — that a piped run carries no guidance at all.
+
 - **Post-action card URL shape**: The beacon, proofs get, items create, team and verify cards all share the `ui.SubjectDetailURL` / `ui.SubjectVerifyURL` / `ui.BeaconDetailURL` / `ui.BeaconVerifyURL` helpers in [`internal/ui/weburls.go`](../internal/ui/weburls.go); the same file also exports `ui.TeamDetailURL` / `ui.TeamCreateURL` for the team surfaces. Never hand-build a card URL, every helper must go through this file. Every helper goes through one `publicWebBase` function that strips a trailing `/api/json` and emits the URL unconditionally: localhost, 127.0.0.1, and plain-http hosts all render URLs so developers can click through against their dev server. The small tradeoff (a dev-host URL may appear in a shared transcript) is accepted by design.
 - **Card vertical spacing**: Every post-action card uses `ui.CompactTable()` which returns a lipgloss table with `HiddenBorder` plus `BorderTop/Bottom/Left/Right(false)`. Without the false flags, HiddenBorder still emits invisible top/bottom border rows that stack with section separators and double the apparent vertical gap between a section header and its first row. Using `CompactTable` keeps the table content flush to whatever precedes/follows it, letting callers control inter-section spacing explicitly with `""` elements in `strings.Join`.
 - **Hash command is sha256sum-compatible by default**: `--style gnu` (the default) emits byte-identical output to GNU coreutils' sha256sum (text mode: `<hex>  <filename>\n`, binary mode with `--binary`: `<hex> *<filename>\n`, filenames with `\` or `\n` get the standard `\` line-prefix + `\\` / `\n` escaping). `--style bsd` matches `shasum --tag`. Cross-tool output equivalence is asserted in `cmd/hash_test.go`.

@@ -288,8 +288,8 @@ func runAuthLogout(cmd *cobra.Command, _ []string) error {
 		appLogger.Info("auth_logout_apikey", "config_path", config.ActivePath())
 		ui.Fprintln(out, ui.SuccessBanner("Stored API key removed from "+config.ActivePath()))
 	} else if hasOAuth && cfg.APIKey != "" {
-		ui.Fprintln(out, ui.FaintStyle().Render(
-			"  Note: a config-file API key is still set; run 'truestamp auth logout --api-key' to remove it."))
+		hintBlock(cmd.ErrOrStderr(),
+			"Note: a config-file API key is still set; run 'truestamp auth logout --api-key' to remove it.")
 	}
 
 	auth.SetDefault(auth.Resolve(

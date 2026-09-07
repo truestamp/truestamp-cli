@@ -9,7 +9,6 @@ import (
 
 	"github.com/spf13/cobra"
 	"github.com/truestamp/truestamp-cli/internal/beacons"
-	"github.com/truestamp/truestamp-cli/internal/inputsrc"
 	"github.com/truestamp/truestamp-cli/internal/ui"
 )
 
@@ -66,12 +65,10 @@ func runBeaconsList(cmd *cobra.Command, _ []string) error {
 		return emitJSON(cmd.OutOrStdout(), listEnvelope("beacons", rows, pg))
 	}
 	renderBeaconList(cmd.OutOrStdout(), rows, pg)
-	// One-line hint on interactive runs pointing at `proofs get --type beacon`.
-	// Suppressed when stdout is piped so shell pipelines stay clean.
-	if inputsrc.IsStdoutTerminal() {
-		ui.Fprintln(cmd.ErrOrStderr(), ui.FaintStyle().Render(
-			"  Hint: 'truestamp proofs get --type beacon <id>' fetches a verifiable proof bundle."))
-	}
+	// The tip is suppressed when stdout is piped so shell pipelines stay
+	// clean; renderListHints applies that gate.
+	renderListHints(cmd.ErrOrStderr(), pg,
+		"Hint: 'truestamp proofs get --type beacon <id>' fetches a verifiable proof bundle.")
 	return nil
 }
 
@@ -100,7 +97,6 @@ func renderBeaconList(w io.Writer, items []beacons.Beacon, pg listPage) {
 	// which would make long hash rows blow up vertical spacing on
 	// narrow terminals.
 	ui.Fprintln(w, strings.Join([]string{header, "", tbl.String()}, "\n"))
-	renderMoreHint(w, pg)
 }
 
 func init() {
