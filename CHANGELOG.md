@@ -12,6 +12,71 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.15.0] - 2026-09-07
+
+### Changed
+
+- **Hashes and ids are rendered whole, everywhere.** `entropy list` and
+  `blocks list` truncated their hash column to eight hex characters, an
+  ellipsis and eight more, through a shared `truncateHash` helper. A listing
+  exists to be copied, pasted, grepped and piped, and an abbreviated hash
+  serves none of those; the abbreviation was also silent, so a reader could
+  not tell a truncated hash from a short one. Both render the full value now
+  and the helper is deleted. `beacons list` already did this correctly.
+  `cmd/list_full_values_test.go` is the regression gate, and the rule is
+  recorded in `kb/architecture.md`.
+
+- **Trailing guidance moved to stderr, and only prints to a terminal.**
+  BREAKING for anyone parsing text output. The `More:` / `Back:` cursor
+  lines and the page-clamp note previously went to stdout unconditionally,
+  so `More: --after <cursor>` landed in every pipe and every redirect. The
+  whole guidance block — those lines plus the `Hint:` tips — now goes to
+  stderr, and is suppressed entirely when stdout is not a terminal.
+  `truestamp entropy list | wc -l` counts rows; `... > f` writes a file the
+  next command can read. `--json` is unaffected: `next_cursor` and
+  `prev_cursor` are, as before, the machine-readable way to page.
+
+- **Guidance is legible in both light and dark terminals.** Every hint
+  rendered through a style that compounded a low-contrast foreground with
+  the ANSI faint attribute. Measured against each Catppuccin flavour's base,
+  the old colour was 3.36:1 on dark and 2.30:1 on light — below the WCAG AA
+  floor on dark and failing outright on light, before the faint attribute
+  dimmed it further. The new hint colour is 9.26:1 and 5.53:1 and does not
+  set the faint attribute. Empty-state text ("No blocks.") moved with it,
+  since that line is a command's entire output.
+
+- **Guidance lines share one indent.** The cursor lines inset four spaces
+  and the tips two, so a listing's footer stepped in and out under the
+  table. Everything insets two now, and a single blank line separates the
+  block from the content above it.
+
+- **`entropy list`, `blocks list` and `items list` have more useful tips.**
+  The entropy tip named `proofs get <id>`, but observation ids are UUIDv7,
+  which costs the server a round trip to resolve; it now names
+  `--type entropy_<source>`, which the listing's own SOURCE column supplies,
+  as the beacons tip already did. `blocks list` and `items list` had no tip
+  and now point at their `get` and proof commands.
+
+### Developer experience
+
+- **Issue templates refreshed, and a pull request template added.** The bug
+  form's "Affected subcommand" dropdown still listed `create`, `download`
+  and `beacon`, none of which survived the noun-first reorganization, and
+  was missing nine groups that now exist; it is removed rather than updated,
+  since the exact-command field already carries the subcommand and cannot go
+  stale. The separate install-method and operating-system dropdowns are gone
+  too, both redundant with the `truestamp version` output the form already
+  asks for: the bug form is five fields where it was ten. A new issue
+  chooser links the private security advisory form (`SECURITY.md` says not
+  to file security issues publicly, but nothing in the UI said so), the
+  feedback board, the roadmap and the support page.
+
+- **GitHub Actions pinned versions bumped** across `ci.yml`, `codeql.yml`
+  and `release.yml`: `jdx/mise-action` to v4.3.0,
+  `actions/attest-build-provenance` to v4.2.2, and both `github/codeql-action`
+  entry points to a newer v4. Every pinned SHA was verified against the
+  upstream tag it claims.
+
 ## [0.14.0] - 2026-09-07
 
 ### Changed
@@ -2021,7 +2086,8 @@ carried it, and not whether a third-party service happened to answer.
   v0.1.0 is the first release of a standalone Go codebase; the two share
   nothing beyond the repository name.
 
-[Unreleased]: https://github.com/truestamp/truestamp-cli/compare/v0.14.0...HEAD
+[Unreleased]: https://github.com/truestamp/truestamp-cli/compare/v0.15.0...HEAD
+[0.15.0]: https://github.com/truestamp/truestamp-cli/releases/tag/v0.15.0
 [0.14.0]: https://github.com/truestamp/truestamp-cli/releases/tag/v0.14.0
 [0.13.0]: https://github.com/truestamp/truestamp-cli/releases/tag/v0.13.0
 [0.12.1]: https://github.com/truestamp/truestamp-cli/releases/tag/v0.12.1
