@@ -12,6 +12,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.14.0] - 2026-09-07
+
 ### Changed
 
 - **Relicensed from MIT to Apache License 2.0.** `LICENSE` now carries the
@@ -2019,7 +2021,9 @@ carried it, and not whether a third-party service happened to answer.
   v0.1.0 is the first release of a standalone Go codebase; the two share
   nothing beyond the repository name.
 
-[Unreleased]: https://github.com/truestamp/truestamp-cli/compare/v0.12.1...HEAD
+[Unreleased]: https://github.com/truestamp/truestamp-cli/compare/v0.14.0...HEAD
+[0.14.0]: https://github.com/truestamp/truestamp-cli/releases/tag/v0.14.0
+[0.13.0]: https://github.com/truestamp/truestamp-cli/releases/tag/v0.13.0
 [0.12.1]: https://github.com/truestamp/truestamp-cli/releases/tag/v0.12.1
 [0.12.0]: https://github.com/truestamp/truestamp-cli/releases/tag/v0.12.0
 [0.11.1]: https://github.com/truestamp/truestamp-cli/releases/tag/v0.11.1
