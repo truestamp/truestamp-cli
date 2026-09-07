@@ -198,21 +198,11 @@ func renderBlockList(cmd *cobra.Command, list []blocks.Block, pg listPage) error
 	header := ui.AccentBoldStyle().Render(listHeading("Blocks", len(list), pg))
 	tbl := ui.CompactTable().StyleFunc(ui.LabelValueStyleFunc())
 	for _, b := range list {
-		tbl = tbl.Row(b.ID, fmt.Sprintf("%-9s %s", b.State, truncateHash(b.BlockHash)))
+		tbl = tbl.Row(b.ID, fmt.Sprintf("%-9s %s", b.State, b.BlockHash))
 	}
 	ui.Fprintln(w, strings.Join([]string{header, "", tbl.String()}, "\n"))
 	renderMoreHint(w, pg)
 	return nil
-}
-
-// truncateHash shortens a 64-hex hash for a list column. The full value
-// is always available from `blocks get` and from --json; this is display
-// only, and never something another command consumes.
-func truncateHash(h string) string {
-	if len(h) <= 16 {
-		return h
-	}
-	return h[:8] + "…" + h[len(h)-8:]
 }
 
 func init() {
