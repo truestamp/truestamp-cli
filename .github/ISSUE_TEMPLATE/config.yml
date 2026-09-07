@@ -1,0 +1,20 @@
+# Copyright (c) 2019-2026 Truestamp, Inc.
+# SPDX-License-Identifier: Apache-2.0
+
+blank_issues_enabled: true
+contact_links:
+  - name: Feature idea or product feedback
+    url: https://truestamp.userjot.com/board/features
+    about: Suggest and vote on ideas, and see what's already been asked for. To post without a UserJot account, use the Feedback popup at truestamp.com/support.
+
+  - name: Roadmap and release updates
+    url: https://truestamp.userjot.com/roadmap
+    about: What's planned, in progress, and recently shipped.
+
+  - name: Security vulnerability
+    url: https://github.com/truestamp/truestamp-cli/security/advisories/new
+    about: Please report security issues privately, not as a public issue. See SECURITY.md.
+
+  - name: Help using Truestamp
+    url: https://www.truestamp.com/support
+    about: Knowledge base, API docs, FAQ, and support@truestamp.com.
