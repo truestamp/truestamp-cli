@@ -290,11 +290,12 @@ func renderObservationList(cmd *cobra.Command, list []entropy.Observation, pg li
 		return nil
 	}
 	header := ui.AccentBoldStyle().Render(listHeading("Entropy Observations", len(list), pg))
-	// The hash is shortened for the column; the full value is on the card
-	// and in --json, and `entropy get` accepts it whole.
+	// Hashes and ids are rendered whole. A truncated hash cannot be
+	// copied, pasted, grepped or fed to another command, which is what a
+	// listing is for.
 	rows := [][]string{{"PUBLISHED", "SOURCE", "STATE", "ID", "HASH"}}
 	for _, o := range list {
-		rows = append(rows, []string{ui.TruncateToSecond(o.SourcePublishedAt), displaySource(o.Source), o.State, o.ID, truncateHash(o.EntropyHash)})
+		rows = append(rows, []string{ui.TruncateToSecond(o.SourcePublishedAt), displaySource(o.Source), o.State, o.ID, o.EntropyHash})
 	}
 	tbl := ui.CompactTable().StyleFunc(ui.HeaderRowStyleFunc()).Rows(rows...)
 	ui.Fprintln(w, strings.Join([]string{header, "", tbl.String()}, "\n"))
