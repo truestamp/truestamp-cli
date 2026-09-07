@@ -3,13 +3,21 @@
 
 name: Feature Request
 description: Suggest an idea for the Truestamp CLI
+title: "[Feature] "
 labels: [enhancement]
 body:
+  - type: markdown
+    attributes:
+      value: |
+        This form is for the CLI itself — a flag, an output format, a sub-command, shell behaviour.
+
+        For the Truestamp service (new chains, webhooks, the API, the web app), [the feedback board](https://truestamp.userjot.com/board/features) is the better home: ideas are votable and feed the [roadmap](https://truestamp.userjot.com/roadmap). Posting needs a UserJot account; the Feedback popup on [truestamp.com/support](https://www.truestamp.com/support) doesn't.
+
   - type: textarea
     id: problem
     attributes:
       label: Problem
-      description: What are you trying to accomplish? What goes wrong with the current behavior?
+      description: What are you trying to accomplish, and what goes wrong today?
     validations:
       required: true
 
@@ -17,15 +25,12 @@ body:
     id: proposal
     attributes:
       label: Proposed solution
+      description: What would you like `truestamp` to do? A sketch of the command line you'd want to type is ideal.
     validations:
       required: true
 
   - type: textarea
-    id: alternatives
+    id: more
     attributes:
-      label: Alternatives considered
-
-  - type: textarea
-    id: additional
-    attributes:
-      label: Additional context
+      label: Anything else
+      description: Optional. Alternatives you considered, or other context.
