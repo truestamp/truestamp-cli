@@ -450,13 +450,19 @@ func TestDoGet_404NotFound(t *testing.T) {
 	}
 }
 
-func TestDoGet_429RetryAfterPropagated(t *testing.T) {
+func TestDoGet_429RateLimitPropagated(t *testing.T) {
 	// /teams is the first call ListMyMemberships makes, so the rate-
-	// limit response on that endpoint propagates through.
+	// limit response on that endpoint propagates through. The refusal is
+	// the contract's request-rate-plug shape; its Retry-After is over the
+	// retry cap so the transport surfaces it after one attempt instead of
+	// sleeping.
+	var calls int
 	cfg, stop := newServer(t, func(w http.ResponseWriter, _ *http.Request) {
-		w.Header().Set("Retry-After", "30")
+		calls++
+		w.Header().Set("Retry-After", "3600")
+		w.Header().Set("Content-Type", "application/vnd.api+json")
 		w.WriteHeader(http.StatusTooManyRequests)
-		_, _ = w.Write([]byte(`{"errors":[{"detail":"rate limited"}]}`))
+		_, _ = w.Write([]byte(`{"errors":[{"id":"9c1f0a2e-5b6d-4e7f-8a9b-0c1d2e3f4a5b","status":"429","code":"rate_limited","title":"Too Many Requests","detail":"API rate limit exceeded. Slow down and retry shortly.","meta":{"retry_after_ms":3600000,"limit":120}}]}`))
 	})
 	defer stop()
 
@@ -465,11 +471,17 @@ func TestDoGet_429RetryAfterPropagated(t *testing.T) {
 	if !ok {
 		t.Fatalf("err type = %T, want *APIError", err)
 	}
-	if apiErr.RetryAfter != "30" {
-		t.Errorf("Retry-After = %q, want 30", apiErr.RetryAfter)
+	if apiErr.RetryAfter != "3600" {
+		t.Errorf("Retry-After = %q, want 3600", apiErr.RetryAfter)
+	}
+	if apiErr.Code != "rate_limited" || apiErr.RetryAfterMS != 3600000 || apiErr.Limit != 120 {
+		t.Errorf("rate-limit meta not carried: %+v", apiErr)
 	}
 	if !errors.Is(err, ErrRateLimited) {
 		t.Errorf("err should wrap ErrRateLimited, got %v", err)
+	}
+	if calls != 1 {
+		t.Errorf("calls = %d, want 1: a wait over the cap is surfaced, not slept", calls)
 	}
 }
 

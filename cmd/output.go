@@ -8,6 +8,9 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"math"
+	"strings"
+	"time"
 
 	"github.com/spf13/cobra"
 	"github.com/truestamp/truestamp-cli/internal/jsonapi"
@@ -136,10 +139,48 @@ func renderAPIError(cmd *cobra.Command, err error, noun string) error {
 			// A cursor is opaque and only meaningful to the listing that
 			// printed it; say that rather than echoing "invalid keyset".
 			return errors.New("the cursor was not recognised: use one printed by a previous page of this listing (More: --after, Back: --before)")
-		case errors.Is(err, jsonapi.ErrRateLimited) && apiErr.RetryAfter != "":
-			return fmt.Errorf("rate limited (Retry-After: %s): %s", apiErr.RetryAfter, apiErr.Detail)
+		case errors.Is(err, jsonapi.ErrRateLimited):
+			return errors.New(describeRateLimit(apiErr))
 		}
 		return errors.New(apiErr.Error())
 	}
 	return err
+}
+
+// describeRateLimit is the one rendering of a 429 that is still standing
+// after the one retry jsonapi.Send makes: what the server said, how long
+// it asked the holder to wait (or that no wait will admit the request),
+// and the limit it named. The limit's window is server configuration and
+// is not carried, so the number is shown as the server sent it, never as
+// "per minute".
+func describeRateLimit(e *jsonapi.APIError) string {
+	var notes []string
+	wait, named := e.RetryAfterDelay()
+	switch {
+	case e.NeverAdmitted:
+		notes = append(notes, "this request is over the limit on its own and no wait will admit it")
+	case named:
+		notes = append(notes, "retry after "+formatWait(wait))
+	}
+	if e.Limit > 0 {
+		notes = append(notes, fmt.Sprintf("limit %d", e.Limit))
+	}
+	msg := "rate limited"
+	if len(notes) > 0 {
+		msg += " (" + strings.Join(notes, ", ") + ")"
+	}
+	if e.Detail != "" {
+		msg += ": " + e.Detail
+	}
+	return msg
+}
+
+// formatWait renders a wait in whole seconds, rounded up and never below
+// one, the way the server's own detail phrases it.
+func formatWait(d time.Duration) string {
+	secs := int64(math.Ceil(d.Seconds()))
+	if secs < 1 {
+		secs = 1
+	}
+	return fmt.Sprintf("%ds", secs)
 }

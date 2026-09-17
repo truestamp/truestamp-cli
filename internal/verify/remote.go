@@ -8,12 +8,12 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"io"
 	"net/http"
 	"os"
 
 	"github.com/truestamp/truestamp-cli/internal/auth"
 	"github.com/truestamp/truestamp-cli/internal/httpclient"
+	"github.com/truestamp/truestamp-cli/internal/jsonapi"
 	"github.com/truestamp/truestamp-cli/internal/proof"
 )
 
@@ -132,15 +132,15 @@ func RunRemoteBytesCtx(ctx context.Context, data []byte, displayName string, opt
 		req.Header.Set("tenant", opts.Team)
 	}
 
-	resp, err := httpclient.Do(req)
+	// jsonapi.Send carries the one retry of a rate-limited request; the
+	// request itself is built here rather than by jsonapi.DoRaw so the
+	// credential handling of this path stays exactly as it was.
+	resp, respBody, err := jsonapi.Send(req)
 	if err != nil {
 		return nil, fmt.Errorf("API request failed: %w", err)
 	}
-	defer resp.Body.Close()
-
-	respBody, err := io.ReadAll(io.LimitReader(resp.Body, httpclient.MaxResponseSize))
-	if err != nil {
-		return nil, fmt.Errorf("reading API response: %w", err)
+	if resp.StatusCode == http.StatusTooManyRequests {
+		return nil, jsonapi.ErrorFromResponse(resp, respBody)
 	}
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 		return nil, parseAPIError(resp.StatusCode, respBody)

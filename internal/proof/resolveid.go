@@ -43,6 +43,11 @@ func ResolveSubjectType(ctx context.Context, apiURL, team, id string) (string, e
 	if err != nil {
 		return "", fmt.Errorf("resolving id: %w", err)
 	}
+	if resp.StatusCode == http.StatusTooManyRequests {
+		// A rate limit is not an unresolvable id: carry the classified
+		// refusal so the command can say "wait", not "pass --type".
+		return "", fmt.Errorf("resolving id: %w", jsonapi.ErrorFromResponse(resp, body))
+	}
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 		return "", fmt.Errorf("could not resolve %s (HTTP %d): pass --type explicitly", id, resp.StatusCode)
 	}

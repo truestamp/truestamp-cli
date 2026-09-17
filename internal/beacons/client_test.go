@@ -219,11 +219,16 @@ func TestError_400(t *testing.T) {
 	}
 }
 
-func TestError_429_RetryAfter(t *testing.T) {
+func TestError_429_RateLimited(t *testing.T) {
+	// The contract's action-level refusal: no Retry-After header, the wait
+	// in meta.retry_after_ms, here null because the request can never be
+	// admitted, which is the one 429 the transport must not retry.
+	var calls int
 	cfg, stop := newServer(t, func(w http.ResponseWriter, _ *http.Request) {
-		w.Header().Set("Retry-After", "42")
+		calls++
+		w.Header().Set("Content-Type", "application/vnd.api+json")
 		w.WriteHeader(http.StatusTooManyRequests)
-		_, _ = w.Write([]byte(`{"errors":[{"detail":"Too many requests"}]}`))
+		_, _ = w.Write([]byte(`{"errors":[{"status":"429","code":"rate_limited","title":"Too Many Requests","detail":"Rate limit exceeded.","meta":{"retry_after_ms":null,"limit":60}}]}`))
 	})
 	defer stop()
 	_, err := Latest(context.Background(), cfg)
@@ -234,8 +239,11 @@ func TestError_429_RetryAfter(t *testing.T) {
 	if !errors.As(err, &apiErr) {
 		t.Fatalf("not an *APIError: %v", err)
 	}
-	if apiErr.RetryAfter != "42" {
-		t.Errorf("Retry-After not surfaced: %q", apiErr.RetryAfter)
+	if apiErr.RetryAfter != "" || !apiErr.NeverAdmitted || apiErr.Limit != 60 || apiErr.Code != "rate_limited" {
+		t.Errorf("refusal not carried as sent: %+v", apiErr)
+	}
+	if calls != 1 {
+		t.Errorf("calls = %d, want 1: a null retry_after_ms is never retried", calls)
 	}
 }
 
