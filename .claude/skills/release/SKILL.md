@@ -316,9 +316,9 @@ Expected GoReleaser step sequence (verify with `gh run view $run_id --json jobs 
 6. `Merge homebrew-tap PR` (marked `continue-on-error: true` — a flaky tap merge doesn't fail the whole release)
 7. `Attest build provenance`
 
-**On workflow failure:** route by which job failed.
+**On workflow failure:** route by which job failed, and read the failed step's log before doing anything to the tag (`gh run view "$run_id" --log-failed`).
 
-- `ci` gate failed → nothing was published. Clean up per `references/failure-recovery.md` scenario 1.
+- `ci` gate failed → nothing was published. A transient infrastructure failure (a Go module proxy stream error in `Download modules`, a `Checkout` or `Set up job` stall, a lost runner) is fixed with `gh run rerun "$run_id" --failed --repo truestamp/truestamp-cli`, which re-runs the failed job and the `GoReleaser` job that was skipped behind it. Keep the tag — it is already correct and signed at `RELEASE_SHA` — and go back to the watch loop above on the same `run_id`. A failure in the code or the workflow configuration is cleaned up per `references/failure-recovery.md` scenario 1, which has the classification table.
 - `GoReleaser` failed → partial state is possible. See `references/failure-recovery.md` scenario 2.
 
 ### Step 11 — Verify every release output
