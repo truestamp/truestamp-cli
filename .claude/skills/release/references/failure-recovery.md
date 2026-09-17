@@ -23,7 +23,7 @@ Read the results:
 | GitHub Release | Tag on origin | Tap PR open | Scenario |
 | -------------- | ------------- | ----------- | -------- |
 | ❌ missing     | ❌ missing    | ❌ none     | Nothing published. Start the playbook from Step 2. |
-| ❌ missing     | ✅ present    | ❌ none     | **Scenario 1** — tag pushed, `ci` gate failed (or pipeline crashed early). |
+| ❌ missing     | ✅ present    | ❌ none     | **Scenario 1** — tag pushed, `ci` gate failed (or pipeline crashed early). Classify the failure first: transient infrastructure is re-run on the same tag; code or configuration deletes the tag. |
 | ❌ missing     | ✅ present    | ❌ none     | **Scenario 2a** — GoReleaser failed before publish. Same recipe as scenario 1. |
 | ✅ present     | ✅ present    | ✅ dangling | **Scenario 2b** — tap merge step failed (marked `continue-on-error`). Recover without re-tagging. |
 | ✅ present     | ✅ present    | ❌ merged   | Release is healthy — re-verify Step 11 of the playbook. If a specific check reports wrong (e.g., asset count < 14), **scenario 3**. |
@@ -32,7 +32,34 @@ Read the results:
 
 **Diagnosis:** tag is on origin, `release.yml` failed during the `ci` job (or any pre-GoReleaser step), no artifacts published.
 
-**Recovery is safe** because nothing reached users. Delete the tag and restart cleanly.
+**Recovery is safe** because nothing reached users. There are two recipes, though, and the first move is to find out which one applies: read the failed step's log before touching the tag.
+
+```bash
+gh run view <run_id> --repo truestamp/truestamp-cli --log-failed 2>&1 | grep -i 'error\|fail' | head -20
+```
+
+Classify what you see:
+
+| Failure | Kind | Recipe |
+| ------- | ---- | ------ |
+| `Download modules` dies with a Go module proxy stream error (`proxy.golang.org … stream error … INTERNAL_ERROR`) | Transient infrastructure | **Re-run, keep the tag** |
+| `Checkout` or `Set up job` stalls, or the runner is lost mid-job | Transient infrastructure | **Re-run, keep the tag** |
+| A test, lint, vet, gosec or build step fails on code that passed the release PR minutes earlier | Flaky test or a real defect — run it locally a few times to tell | Flaky → **Re-run, keep the tag**; real → **Delete the tag and restart** |
+| `goreleaser check` fails, or the workflow itself is broken | Code or configuration | **Delete the tag and restart** |
+
+### Re-run, keep the tag (transient infrastructure)
+
+The tag is already correct and signed at `RELEASE_SHA`, nothing reached users, and the Go module proxy caches by tag SHA, which does not change — so a fresh tag would fix nothing, and it would cost another signing through 1Password (the maintainer's per-use approval). Re-run only what failed:
+
+```bash
+gh run rerun <run_id> --failed --repo truestamp/truestamp-cli
+```
+
+`--failed` re-runs the failed job and every job that was skipped behind it, so `GoReleaser` (gated on `needs: ci`) runs as soon as the gate passes. Go back to the playbook's Step 10 watch loop on the same `run_id`, then run Step 11 as normal.
+
+Precedent: v0.16.0 (2026-09-17), run 35274234423. `Download modules` on the ubuntu runner hit `proxy.golang.org … stream error: INTERNAL_ERROR; received from peer`, GoReleaser was skipped, nothing was published. One `--failed` re-run passed the gate, ran GoReleaser, and completed the release on the same tag with all 14 assets, the tap merge and the attestation.
+
+### Delete the tag and restart (code or configuration)
 
 ```bash
 # Remove the GitHub Release (no-op if one wasn't created).
@@ -55,7 +82,7 @@ Three sub-scenarios based on where inside the GoReleaser job it fell over.
 
 **Diagnosis:** `gh release view vX.Y.Z` reports no release. No tap PR was created.
 
-Same recovery as Scenario 1. Safe to delete tag + restart.
+Same recovery as Scenario 1, classification included: a transient failure before publish (a stalled checkout, a lost runner, a module proxy error during the build) is re-run with `--failed` on the same tag; a broken cross-compile or a `goreleaser check` failure is code or configuration, so delete the tag and restart.
 
 ### 2b — Publish succeeded, tap merge step failed
 
@@ -98,7 +125,7 @@ Don't delete the release — users already have the binaries.
 | ----------------- | ------------ | -------- |
 | Asset count ≠ 14 | `.goreleaser.yaml` changed the artifact set without updating docs | Update the playbook's Step 11 expected count, or restore the missing artifacts; depends on whether the change was intentional |
 | Tap cask version wrong | Scenario 2b — tap merge silently failed despite workflow green | Apply Scenario 2b recipe |
-| Tag shows unsigned on GitHub | Signing key misconfigured when tag was created | Delete tag (Scenario 1 recipe), fix `git config --get tag.gpgsign` / `git config --get user.signingkey`, re-tag and re-push |
+| Tag shows unsigned on GitHub | Signing key misconfigured when tag was created | Delete tag (Scenario 1's "Delete the tag and restart" recipe), fix `git config --get tag.gpgsign` / `git config --get user.signingkey`, re-tag and re-push |
 | Signatures in `checksums.txt.sigstore` don't verify with cosign | OIDC token issue at signing time — rare | Re-run the release: delete everything per Scenario 1, investigate logs |
 
 ## Scenario 4 — Go proxy cached a broken version
@@ -122,7 +149,7 @@ curl -s "https://proxy.golang.org/github.com/truestamp/truestamp-cli/@v/vX.Y.Z.i
 # If it returns 410 Gone or 404, you still have a chance to re-tag.
 ```
 
-In practice, if you catch the broken release within a few minutes of the tag push AND nobody else has run `go install …@vX.Y.Z`, the proxy probably hasn't cached it yet. Delete fast (Scenario 1 recipe) and try again. But if `curl` shows a cached version, bump the patch.
+In practice, if you catch the broken release within a few minutes of the tag push AND nobody else has run `go install …@vX.Y.Z`, the proxy probably hasn't cached it yet. Delete fast (Scenario 1's "Delete the tag and restart" recipe) and try again. But if `curl` shows a cached version, bump the patch.
 
 ## Last resort — manual everything
 
