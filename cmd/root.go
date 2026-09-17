@@ -21,7 +21,9 @@ import (
 	"github.com/truestamp/truestamp-cli/internal/auth"
 	"github.com/truestamp/truestamp-cli/internal/config"
 	"github.com/truestamp/truestamp-cli/internal/httpclient"
+	"github.com/truestamp/truestamp-cli/internal/inputsrc"
 	"github.com/truestamp/truestamp-cli/internal/install"
+	"github.com/truestamp/truestamp-cli/internal/jsonapi"
 	"github.com/truestamp/truestamp-cli/internal/logging"
 	"github.com/truestamp/truestamp-cli/internal/ui"
 	"github.com/truestamp/truestamp-cli/internal/upgradecheck"
@@ -135,6 +137,11 @@ var rootCmd = &cobra.Command{
 		appLogPath = logPath
 		appStartTime = time.Now()
 
+		// Say why a command has gone quiet when the API rate limits it
+		// and the transport is sitting out the wait before its one
+		// retry.
+		jsonapi.SetRateLimitNotifier(rateLimitNotice(cmd, cfg.Silent))
+
 		// Stash the logger on the command's context so Bubble Tea
 		// programs and downstream callers that already accept a
 		// context can pull it out without a package-level dependency.
@@ -226,6 +233,29 @@ func LoggerFrom(ctx context.Context) *slog.Logger {
 // making authenticated calls so the user gets a clear "log in" message
 // instead of a raw 401.
 func authConfigured() bool { return auth.Default().Mode() != auth.ModeNone }
+
+// stderrIsTerminal is a seam, like stdoutIsTerminal in paging.go: the
+// rate-limit wait notice is a courtesy for a human watching the command
+// and is suppressed when stderr is a pipe or a file.
+var stderrIsTerminal = inputsrc.IsStderrTerminal
+
+// rateLimitNotice is what jsonapi.Send calls before the one retry of a
+// rate-limited request, with the wait it is about to sit out and the
+// limit the refusal named. Always a log line; on stderr only for a human
+// at a terminal, and never under --silent. It goes to stderr under --json
+// too: stdout stays the record, and a script reading it is not watching.
+func rateLimitNotice(cmd *cobra.Command, silent bool) func(wait time.Duration, limit int64) {
+	return func(wait time.Duration, limit int64) {
+		if appLogger != nil {
+			appLogger.Warn("rate_limited_retry", "wait_ms", wait.Milliseconds(), "limit", limit)
+		}
+		if silent || !stderrIsTerminal() {
+			return
+		}
+		ui.Fprintln(cmd.ErrOrStderr(), ui.HintStyle().Render(
+			"Rate limited by the API, retrying in "+formatWait(wait)+"."))
+	}
+}
 
 // maybeEmitUpgradeNotice runs after any successful subcommand and may
 // write a one-line "upgrade available" notice to stderr. It is a no-op

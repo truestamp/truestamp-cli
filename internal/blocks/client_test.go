@@ -257,6 +257,11 @@ func TestAPIErrorsCarryDetailAndClass(t *testing.T) {
 	}
 	for _, tc := range cases {
 		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if tc.status == http.StatusTooManyRequests {
+				// Over the retry cap, so the transport surfaces the
+				// 429 after one attempt instead of sleeping.
+				w.Header().Set("Retry-After", "3600")
+			}
 			w.WriteHeader(tc.status)
 			_, _ = w.Write([]byte(`{"errors":[{"detail":"the server said this"}]}`))
 		}))

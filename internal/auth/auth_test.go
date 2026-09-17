@@ -33,6 +33,51 @@ type fakeAS struct {
 	refresh      map[string]bool   // valid (unrotated) refresh tokens
 	revoked      map[string]bool
 	tokenCounter int
+	// refusals is how many upcoming token and revocation requests answer
+	// 429 with retryAfter as the Retry-After header, in the RFC 6749
+	// shape the rate-limit contract gives the OAuth endpoints. See
+	// rateLimit.
+	refusals   int
+	retryAfter string
+}
+
+// rateLimit makes the next n token and revocation requests answer 429
+// with the given Retry-After header (none when empty).
+func (f *fakeAS) rateLimit(n int, retryAfter string) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.refusals, f.retryAfter = n, retryAfter
+}
+
+// refusalsLeft reports how many rate-limit refusals are still queued.
+func (f *fakeAS) refusalsLeft() int {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return f.refusals
+}
+
+// refuse answers a queued rate-limit refusal and reports whether it did.
+// code is the RFC 6749 error value: `slow_down` on /oauth/token and
+// `invalid_request` on /oauth/revoke, which the client must not key on.
+func (f *fakeAS) refuse(w http.ResponseWriter, code string) bool {
+	f.mu.Lock()
+	if f.refusals == 0 {
+		f.mu.Unlock()
+		return false
+	}
+	f.refusals--
+	retryAfter := f.retryAfter
+	f.mu.Unlock()
+	if retryAfter != "" {
+		w.Header().Set("Retry-After", retryAfter)
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusTooManyRequests)
+	_ = json.NewEncoder(w).Encode(map[string]string{
+		"error":             code,
+		"error_description": "Rate limit exceeded; retry after 1 seconds",
+	})
+	return true
 }
 
 func newFakeAS(t *testing.T) *fakeAS {
@@ -86,6 +131,9 @@ func (f *fakeAS) handleAuthorize(w http.ResponseWriter, r *http.Request) {
 }
 
 func (f *fakeAS) handleToken(w http.ResponseWriter, r *http.Request) {
+	if f.refuse(w, "slow_down") {
+		return
+	}
 	_ = r.ParseForm()
 	if r.PostForm.Get("client_id") != ClientID {
 		writeTokenError(w, "invalid_client")
@@ -140,6 +188,9 @@ func (f *fakeAS) issueTokens(w http.ResponseWriter, scope string) {
 }
 
 func (f *fakeAS) handleRevoke(w http.ResponseWriter, r *http.Request) {
+	if f.refuse(w, "invalid_request") {
+		return
+	}
 	_ = r.ParseForm()
 	f.mu.Lock()
 	f.revoked[r.PostForm.Get("token")] = true

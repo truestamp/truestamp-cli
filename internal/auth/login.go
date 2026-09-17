@@ -113,7 +113,7 @@ func Login(ctx context.Context, baseOrigin string, store Store, opts LoginOption
 
 	tok, err := conf.Exchange(tokenContext(ctx), code, oauth2.VerifierOption(verifier))
 	if err != nil {
-		return nil, fmt.Errorf("exchanging authorization code: %w", err)
+		return nil, fmt.Errorf("exchanging authorization code: %w", tokenRateLimited(err))
 	}
 
 	sess := sessionFromToken(disc, tok)
@@ -148,7 +148,9 @@ func revokeToken(ctx context.Context, revocationURL, refreshToken string) error 
 		return err
 	}
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-	resp, err := (&http.Client{Timeout: 15 * time.Second}).Do(req)
+	// The revocation endpoint shares the OAuth request-rate limit; the
+	// token client repeats a 429 once after its Retry-After.
+	resp, err := tokenHTTPClient().Do(req)
 	if err != nil {
 		return err
 	}

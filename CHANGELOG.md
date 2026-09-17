@@ -12,6 +12,34 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- **Rate-limit refusals follow the API's new contract, and are retried
+  once.** Every Truestamp surface now refuses an over-limit request with
+  HTTP 429, the error code `rate_limited`, the wait in
+  `meta.retry_after_ms` and the applicable limit in `meta.limit`, with a
+  `Retry-After` header on refusals from the per-surface request-rate limit.
+  The CLI reads the header, else `meta.retry_after_ms`, else a two-second
+  default, waits that long and repeats the request once (never when
+  `retry_after_ms` is `null`, which means the request can never be
+  admitted, and not when the wait is over a minute), printing "Rate limited
+  by the API, retrying in Ns." to a terminal's stderr while it waits. A
+  refusal that survives the retry is reported as
+  `rate limited (retry after Ns, limit L): <detail>` on every command,
+  including `proofs get`, `verify --remote` and `auth status`, which used
+  to render it as a generic API error, an unresolvable id, or an unexpected
+  response. The OAuth token and revocation endpoints get the same one
+  retry, keyed on the 429 status and `Retry-After` rather than the body's
+  `error` value; a rate-limited token refresh is reported as a rate limit,
+  not as an expired session, so the holder waits instead of signing in
+  again. Third-party sources (Horizon, Blockstream, the NIST beacon,
+  GitHub) are untouched: their 429s still grade as `skip` or a failed
+  upgrade check. The retired `rate_limit_exceeded` / `per_ms` /
+  `retry_after` and `temporarily_unavailable` shapes were never handled by
+  this CLI, so nothing is dropped; the test fixtures now use the published
+  shapes. `README.md` §Rate limits documents the behaviour and the server's
+  defaults at the time of writing, as defaults and not as guarantees.
+
 ## [0.15.0] - 2026-09-07
 
 ### Changed

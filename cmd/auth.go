@@ -6,9 +6,8 @@ package cmd
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
-	"github.com/truestamp/truestamp-cli/internal/inputsrc"
-	"io"
 	"net/http"
 	"net/url"
 	"strings"
@@ -20,6 +19,8 @@ import (
 	"github.com/truestamp/truestamp-cli/internal/auth"
 	"github.com/truestamp/truestamp-cli/internal/config"
 	"github.com/truestamp/truestamp-cli/internal/httpclient"
+	"github.com/truestamp/truestamp-cli/internal/inputsrc"
+	"github.com/truestamp/truestamp-cli/internal/jsonapi"
 	"github.com/truestamp/truestamp-cli/internal/teams"
 	"github.com/truestamp/truestamp-cli/internal/ui"
 )
@@ -438,12 +439,27 @@ func runAuthStatus(cmd *cobra.Command, _ []string) error {
 
 	userResult, err := checkAuth(ctx, azr, apiURL, cfg.Team)
 	if err != nil {
+		// A refresh the authorization server rate limited says nothing
+		// about the credential or the network: name it as the wait it is.
+		var tokenLimited *auth.TokenRateLimitedError
+		if errors.As(err, &tokenLimited) {
+			rec.Reason = "rate_limited"
+			rec.Message = err.Error()
+			return fail("Rate limited by the authorization server", err.Error())
+		}
 		rec.Reason = "api_unreachable"
 		rec.Message = err.Error()
 		return fail("Could not reach the API", err.Error())
 	}
 
 	switch {
+	case userResult.rateLimited:
+		rec.Reason = "rate_limited"
+		rec.HTTPStatus = userResult.httpStatus
+		rec.Message = userResult.message
+		return fail("Rate limited by the API", rec.Message,
+			"The credential was not checked. Wait, then run 'truestamp auth status' again.")
+
 	case userResult.unauthorized:
 		rec.Reason = "credential_rejected"
 		rec.HTTPStatus = userResult.httpStatus
@@ -472,6 +488,13 @@ func runAuthStatus(cmd *cobra.Command, _ []string) error {
 			rec.Reason = "team_lookup_failed"
 			rec.Message = err.Error()
 			return fail("Could not look up team", err.Error())
+		}
+		if teamResult.rateLimited {
+			rec.Reason = "rate_limited"
+			rec.HTTPStatus = teamResult.httpStatus
+			rec.Message = teamResult.message
+			return fail("Rate limited by the API", rec.Message,
+				"The team was not checked. Wait, then run 'truestamp auth status' again.")
 		}
 		if !teamResult.found {
 			rec.Reason = "team_not_accessible"
@@ -563,6 +586,7 @@ func formatTokenExpiry(exp time.Time) string {
 type authCheckResult struct {
 	ok           bool
 	unauthorized bool
+	rateLimited  bool // 429 after the one retry: the credential was not checked
 	httpStatus   int
 	message      string
 	userID       string
@@ -572,12 +596,13 @@ type authCheckResult struct {
 
 // teamCheckResult summarizes the outcome of the /teams/{id} probe.
 type teamCheckResult struct {
-	found      bool
-	httpStatus int
-	name       string
-	personal   bool
-	role       string
-	message    string
+	found       bool
+	rateLimited bool // 429 after the one retry: the team was not checked
+	httpStatus  int
+	name        string
+	personal    bool
+	role        string
+	message     string
 }
 
 // checkAuth sends GET {apiURL}/users authorized by azr and interprets the
@@ -601,15 +626,10 @@ func checkAuth(ctx context.Context, azr auth.Authorizer, apiURL, team string) (*
 		req.Header.Set("tenant", team)
 	}
 
-	resp, err := httpclient.Do(req)
+	// jsonapi.Send carries the one retry of a rate-limited probe.
+	resp, body, err := jsonapi.Send(req)
 	if err != nil {
 		return nil, err
-	}
-	defer resp.Body.Close()
-
-	body, err := io.ReadAll(io.LimitReader(resp.Body, httpclient.MaxResponseSize))
-	if err != nil {
-		return nil, fmt.Errorf("reading response: %w", err)
 	}
 
 	result := &authCheckResult{httpStatus: resp.StatusCode}
@@ -621,6 +641,9 @@ func checkAuth(ctx context.Context, azr auth.Authorizer, apiURL, team string) (*
 	case resp.StatusCode == http.StatusUnauthorized || resp.StatusCode == http.StatusForbidden:
 		result.unauthorized = true
 		result.message = extractAPIErrorMessage(body)
+	case resp.StatusCode == http.StatusTooManyRequests:
+		result.rateLimited = true
+		result.message = describeRateLimit(jsonapi.ErrorFromResponse(resp, body))
 	default:
 		result.message = extractAPIErrorMessage(body)
 	}
@@ -644,18 +667,17 @@ func fetchTeam(ctx context.Context, azr auth.Authorizer, apiURL, teamID string) 
 	}
 	req.Header.Set("tenant", teamID)
 
-	resp, err := httpclient.Do(req)
+	resp, body, err := jsonapi.Send(req)
 	if err != nil {
 		return nil, err
 	}
-	defer resp.Body.Close()
-
-	body, err := io.ReadAll(io.LimitReader(resp.Body, httpclient.MaxResponseSize))
-	if err != nil {
-		return nil, fmt.Errorf("reading response: %w", err)
-	}
 
 	result := &teamCheckResult{httpStatus: resp.StatusCode}
+	if resp.StatusCode == http.StatusTooManyRequests {
+		result.rateLimited = true
+		result.message = describeRateLimit(jsonapi.ErrorFromResponse(resp, body))
+		return result, nil
+	}
 	if resp.StatusCode >= 200 && resp.StatusCode < 300 {
 		result.found = true
 		result.name, result.personal = extractTeamAttrs(body)

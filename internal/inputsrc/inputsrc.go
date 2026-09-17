@@ -308,6 +308,13 @@ func IsStdoutTerminal() bool {
 	return term.IsTerminal(int(os.Stdout.Fd()))
 }
 
+// IsStderrTerminal reports whether stderr is attached to a terminal. Used
+// to decide whether a progress courtesy (a rate-limit wait) has a human
+// to read it. Same term.IsTerminal contract as the other two.
+func IsStderrTerminal() bool {
+	return term.IsTerminal(int(os.Stderr.Fd()))
+}
+
 // IsStdinPipe returns true when stdin is a pipe or a regular file, i.e.
 // when there is plausibly data to read. Exported so commands that need to
 // branch on the presence of piped input before calling Resolve can do so

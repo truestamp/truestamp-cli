@@ -13,6 +13,7 @@ import (
 
 	"github.com/spf13/cobra"
 	"github.com/truestamp/truestamp-cli/internal/inputsrc"
+	"github.com/truestamp/truestamp-cli/internal/jsonapi"
 	"github.com/truestamp/truestamp-cli/internal/proof"
 	"github.com/truestamp/truestamp-cli/internal/ui"
 )
@@ -176,6 +177,9 @@ output file).`,
 			case proof.IDTypeUUIDv7:
 				resolved, rErr := proof.ResolveSubjectType(cmd.Context(), cfg.APIURL, cfg.Team, id)
 				if rErr != nil {
+					if errors.Is(rErr, jsonapi.ErrRateLimited) {
+						return renderAPIError(cmd, rErr, "proof")
+					}
 					return fmt.Errorf("%w\n(or pass --type explicitly: %s)",
 						rErr, strings.Join(proofTypesForUUIDv7, " | "))
 				}
@@ -205,6 +209,9 @@ output file).`,
 			var apiErr *proof.GenerateAPIError
 			if errors.As(err, &apiErr) {
 				return explainGenerateError(cmd, apiErr)
+			}
+			if errors.Is(err, jsonapi.ErrRateLimited) {
+				return renderAPIError(cmd, err, "proof")
 			}
 			return err
 		}

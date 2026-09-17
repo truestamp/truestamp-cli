@@ -504,6 +504,12 @@ Two rules run through the whole report and are worth knowing before you read one
 
 `--offline` skips every network step (Key Binding, Entropy Source, the commitment confirmations and the key event's). `--skip-signatures` skips the Ed25519 Proof Signature check, and the key binding with it — unless `--keyring` pins a keyring, in which case the binding still runs, because whether a key id appears in the published document is a separate question from whether the signature verified. The report discloses the skip under the verdict and `--json` reports `"signatures_checked": false`. The Signing Key step still runs under both flags.
 
+## Rate limits
+
+The Truestamp API refuses an over-limit request with HTTP `429` and an error whose code is `rate_limited`. The refusal names how long to wait: a `Retry-After` header (whole seconds) on refusals from the per-surface request-rate limit, or `meta.retry_after_ms` on refusals raised inside an action (an item submission over the per-user rate, for example). The CLI waits that long and repeats the request once, saying why it has gone quiet when stderr is a terminal. A second refusal, a wait of more than a minute, or a `retry_after_ms` of `null` (the request is over the limit on its own, and no wait admits it) is reported as `rate limited (retry after Ns, limit L): <server detail>`, and the command exits `1`. The OAuth token and revocation endpoints get the same one retry, keyed on the `429` status and `Retry-After`; a rate-limited token refresh is reported as a rate limit and never as an expired session, so wait rather than signing in again.
+
+The limits themselves are server configuration and can change without a CLI release. At the time of writing the defaults are 120 requests per minute per user for the JSON:API (per client IP when unauthenticated), 60 per minute per IP for the OAuth endpoints, and 1,000 item submissions per minute per user; the limit a refusal names (`meta.limit`) is the one that applied.
+
 ## Exit codes
 
 | Code | Meaning |

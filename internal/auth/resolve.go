@@ -6,12 +6,16 @@ package auth
 import (
 	"context"
 	"errors"
+	"fmt"
 	"io"
+	"math"
 	"net/http"
 	"sync"
 	"time"
 
 	"golang.org/x/oauth2"
+
+	"github.com/truestamp/truestamp-cli/internal/httpclient"
 )
 
 // Credentials carries the resolved API-key state used by [Resolve].
@@ -175,7 +179,7 @@ func (a *oauthAuthorizer) token(ctx context.Context, force bool) (*oauth2.Token,
 		if IsInvalidGrant(err) {
 			return nil, ErrSessionExpired
 		}
-		return nil, err
+		return nil, tokenRateLimited(err)
 	}
 	a.tok = nt
 	a.sess.AccessToken = nt.AccessToken
@@ -238,8 +242,17 @@ func (t retryTransport) RoundTrip(req *http.Request) (*http.Response, error) {
 		return resp, err
 	}
 	// Force a refresh; if the session is dead (or the body can't be
-	// rewound), surface the original 401.
+	// rewound), surface the original 401. One refresh failure is not a
+	// 401 in disguise: the authorization server rate limiting the refresh
+	// says nothing about the credential, and reporting it as the 401
+	// would send the holder to re-login for nothing, so that one is
+	// surfaced as the error it is.
 	if rerr := azr.ForceRefresh(req.Context()); rerr != nil {
+		var rl *TokenRateLimitedError
+		if errors.As(rerr, &rl) {
+			drainAndClose(resp)
+			return nil, rerr
+		}
 		return resp, err
 	}
 	if req.Body != nil {
@@ -279,8 +292,51 @@ func IsInvalidGrant(err error) bool {
 	return false
 }
 
-// tokenContext returns ctx carrying a dedicated HTTP client for OAuth token
-// endpoint calls (a bounded timeout, independent of the per-command client).
+// TokenRateLimitedError is returned in OAuth mode when the authorization
+// server refused a token request (the code exchange or a refresh) with
+// 429 after the one retry the token client makes. The session is intact,
+// which is why this is deliberately not ErrSessionExpired: the holder
+// should wait, not re-login. Wait is the Retry-After the refusal named,
+// zero when it named none.
+type TokenRateLimitedError struct{ Wait time.Duration }
+
+func (e *TokenRateLimitedError) Error() string {
+	if e.Wait > 0 {
+		return fmt.Sprintf("the authorization server is rate limiting token requests, retry after %ds",
+			int64(math.Ceil(e.Wait.Seconds())))
+	}
+	return "the authorization server is rate limiting token requests, wait a moment and retry"
+}
+
+// tokenRateLimited converts a 429 from the token endpoint into a
+// *TokenRateLimitedError and returns any other error as it is. It keys on
+// the status and the Retry-After header, never on the RFC 6749 `error`
+// value (`slow_down` there today), per the rate-limit contract.
+func tokenRateLimited(err error) error {
+	var re *oauth2.RetrieveError
+	if !errors.As(err, &re) || re.Response == nil || re.Response.StatusCode != http.StatusTooManyRequests {
+		return err
+	}
+	wait, _ := httpclient.ParseRetryAfter(re.Response.Header.Get("Retry-After"), time.Now())
+	return &TokenRateLimitedError{Wait: wait}
+}
+
+// tokenAttemptTimeout bounds each attempt against a token or revocation
+// endpoint. It is applied per attempt (on the transport) rather than as
+// http.Client.Timeout, which spans the whole call and would cancel the
+// Retry-After wait between a 429 and the one retry.
+const tokenAttemptTimeout = 30 * time.Second
+
+// tokenHTTPClient is the client for the OAuth protocol endpoints: each
+// attempt bounded by tokenAttemptTimeout, a 429 repeated once after its
+// Retry-After (httpclient.NewRetryAfterTransport), independent of the
+// per-command shared client.
+func tokenHTTPClient() *http.Client {
+	return &http.Client{Transport: httpclient.NewRetryAfterTransport(httpclient.NewAttemptTransport(tokenAttemptTimeout))}
+}
+
+// tokenContext returns ctx carrying the dedicated HTTP client for OAuth
+// token endpoint calls.
 func tokenContext(ctx context.Context) context.Context {
-	return context.WithValue(ctx, oauth2.HTTPClient, &http.Client{Timeout: 30 * time.Second})
+	return context.WithValue(ctx, oauth2.HTTPClient, tokenHTTPClient())
 }

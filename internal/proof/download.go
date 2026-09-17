@@ -194,6 +194,12 @@ func GenerateCtx(ctx context.Context, apiURL, team, id, subjectType, format stri
 	if err != nil {
 		return nil, err
 	}
+	if resp.StatusCode == http.StatusTooManyRequests {
+		// A rate-limit refusal is the shared envelope (errors[].code
+		// `rate_limited`, the wait in meta.retry_after_ms), not a generate
+		// refusal, and it has already been retried once by jsonapi.Send.
+		return nil, jsonapi.ErrorFromResponse(resp, respBody)
+	}
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 		return nil, parseGenerateError(resp.StatusCode, respBody)
 	}

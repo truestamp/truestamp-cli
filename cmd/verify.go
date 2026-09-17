@@ -13,6 +13,7 @@ import (
 	lipgloss "charm.land/lipgloss/v2"
 	"github.com/spf13/cobra"
 	"github.com/truestamp/truestamp-cli/internal/inputsrc"
+	"github.com/truestamp/truestamp-cli/internal/jsonapi"
 	"github.com/truestamp/truestamp-cli/internal/proof"
 	"github.com/truestamp/truestamp-cli/internal/verify"
 )
@@ -162,6 +163,18 @@ Exit code 0 when the proof passes, 1 when it fails or is rejected.`,
 		}
 
 		if err != nil {
+			// A rate-limited --remote request (already retried once) is
+			// neither a rejection nor a verdict: render it the way every
+			// other rate limit in the tree is rendered.
+			if errors.Is(err, jsonapi.ErrRateLimited) {
+				appLogger.Error("verify_failed",
+					"source", string(src.Type),
+					"display_name", displayName,
+					"remote", cfg.Verify.Remote,
+					"err", err.Error(),
+				)
+				return renderAPIError(cmd, err, "proof")
+			}
 			rejectionCode := proof.RejectionCode(err)
 			var remoteRejection *verify.RemoteRejectionError
 			if errors.As(err, &remoteRejection) {
