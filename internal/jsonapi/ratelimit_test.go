@@ -38,6 +38,16 @@ const (
 	neverRefusal = `{"errors":[{"status":"429","code":"rate_limited","title":"Too Many Requests","detail":"Rate limit exceeded.","meta":{"retry_after_ms":null,"limit":1000}}]}`
 )
 
+// assertJittered checks that a recorded wait is base plus jitter in
+// [0, httpclient.RetryJitter): the server's windows are clock-aligned, so
+// the retry must not land on the exact second every other client was told.
+func assertJittered(t *testing.T, got, base time.Duration) {
+	t.Helper()
+	if got < base || got >= base+httpclient.RetryJitter {
+		t.Errorf("wait = %v, want %v plus jitter below %v", got, base, httpclient.RetryJitter)
+	}
+}
+
 // stubWait replaces the sleeper for one test and records every wait.
 func stubWait(t *testing.T) *[]time.Duration {
 	t.Helper()
@@ -161,9 +171,11 @@ func refusingServer(t *testing.T, n int32, retryAfter, body string) (Config, *at
 
 func TestSend_RetriesOnceAfterPlugRefusal(t *testing.T) {
 	waits := stubWait(t)
-	var notified []string
+	var notifiedWaits []time.Duration
+	var notifiedLimits []int64
 	SetRateLimitNotifier(func(wait time.Duration, limit int64) {
-		notified = append(notified, wait.String()+"/"+itoa(limit))
+		notifiedWaits = append(notifiedWaits, wait)
+		notifiedLimits = append(notifiedLimits, limit)
 	})
 	t.Cleanup(func() { SetRateLimitNotifier(nil) })
 
@@ -178,11 +190,15 @@ func TestSend_RetriesOnceAfterPlugRefusal(t *testing.T) {
 	if calls.Load() != 2 {
 		t.Errorf("calls = %d, want 2", calls.Load())
 	}
-	if len(*waits) != 1 || (*waits)[0] != 37*time.Second {
-		t.Errorf("waits = %v, want [37s]: the header wins over meta.retry_after_ms", *waits)
+	if len(*waits) != 1 {
+		t.Fatalf("waits = %v, want one wait", *waits)
 	}
-	if len(notified) != 1 || notified[0] != "37s/120" {
-		t.Errorf("notifier saw %v, want [37s/120]", notified)
+	// The header wins over meta.retry_after_ms (37 s, not 36.412 s), and
+	// the wait carries jitter.
+	assertJittered(t, (*waits)[0], 37*time.Second)
+	if len(notifiedWaits) != 1 || notifiedWaits[0] != (*waits)[0] || notifiedLimits[0] != 120 {
+		t.Errorf("notifier saw %v / %v, want the wait actually slept (%v) and limit 120",
+			notifiedWaits, notifiedLimits, (*waits)[0])
 	}
 }
 
@@ -192,9 +208,10 @@ func TestSend_ActionRefusalWaitsRetryAfterMS(t *testing.T) {
 	if _, err := Get(context.Background(), cfg, "/items"); err != nil {
 		t.Fatalf("Get after one 429: %v", err)
 	}
-	if calls.Load() != 2 || len(*waits) != 1 || (*waits)[0] != 11204*time.Millisecond {
-		t.Errorf("calls %d, waits %v; want 2 calls and [11.204s]", calls.Load(), *waits)
+	if calls.Load() != 2 || len(*waits) != 1 {
+		t.Fatalf("calls %d, waits %v; want 2 calls and one wait", calls.Load(), *waits)
 	}
+	assertJittered(t, (*waits)[0], 11204*time.Millisecond)
 }
 
 func TestSend_DefaultWaitWhenNothingNamed(t *testing.T) {
@@ -203,9 +220,10 @@ func TestSend_DefaultWaitWhenNothingNamed(t *testing.T) {
 	if _, err := Get(context.Background(), cfg, "/items"); err != nil {
 		t.Fatalf("Get after one 429: %v", err)
 	}
-	if calls.Load() != 2 || len(*waits) != 1 || (*waits)[0] != httpclient.DefaultRetryAfter {
-		t.Errorf("calls %d, waits %v; want 2 calls and [%v]", calls.Load(), *waits, httpclient.DefaultRetryAfter)
+	if calls.Load() != 2 || len(*waits) != 1 {
+		t.Fatalf("calls %d, waits %v; want 2 calls and one wait", calls.Load(), *waits)
 	}
+	assertJittered(t, (*waits)[0], httpclient.DefaultRetryAfter)
 }
 
 func TestSend_NeverAdmittedIsNotRetried(t *testing.T) {

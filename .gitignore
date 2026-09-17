@@ -21,3 +21,6 @@ coverage/
 
 # CLI <-> server OAuth migration coordination log (never commit)
 CHAT.md
+
+# Local reports and scratch documents (see ~/.claude/CLAUDE.md)
+/tmp/
