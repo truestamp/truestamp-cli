@@ -6,9 +6,6 @@ package jsonapi
 import (
 	"bytes"
 	"io"
-	"strconv"
 )
 
 func bytesReader(b []byte) io.Reader { return bytes.NewReader(b) }
-
-func itoa(n int64) string { return strconv.FormatInt(n, 10) }

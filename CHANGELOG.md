@@ -20,7 +20,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `meta.retry_after_ms` and the applicable limit in `meta.limit`, with a
   `Retry-After` header on refusals from the per-surface request-rate limit.
   The CLI reads the header, else `meta.retry_after_ms`, else a two-second
-  default, waits that long and repeats the request once (never when
+  default, waits that long plus up to two seconds of random jitter (the
+  server's windows are aligned to the clock minute, so every refused
+  client is told the same second, and the API docs ask clients not to
+  retry on exactly that second) and repeats the request once (never when
   `retry_after_ms` is `null`, which means the request can never be
   admitted, and not when the wait is over a minute), printing "Rate limited
   by the API, retrying in Ns." to a terminal's stderr while it waits. A

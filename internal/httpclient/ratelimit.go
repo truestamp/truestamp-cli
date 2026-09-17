@@ -6,6 +6,7 @@ package httpclient
 import (
 	"context"
 	"io"
+	"math/rand/v2"
 	"net/http"
 	"strconv"
 	"strings"
@@ -21,7 +22,8 @@ import (
 // it only in the body, in a shape that is the surface's own
 // (internal/jsonapi reads the JSON:API envelope's meta.retry_after_ms).
 // What every surface shares is the header, the bounds on how long the CLI
-// will wait, and the single retry, so those live here.
+// will wait, the jitter added to that wait, and the single retry, so those
+// live here.
 //
 // The shared client built by Init is deliberately NOT given the retry: the
 // third-party sources the verifier consults through GetJSONCtx report a
@@ -40,7 +42,31 @@ const (
 	// refusal asking for longer (a daily quota, say) is surfaced at once,
 	// with the wait it named, rather than parking the command.
 	MaxRetryAfter = 60 * time.Second
+
+	// RetryJitter is the most random delay added on top of the wait a
+	// refusal named. The server's windows are aligned to the clock
+	// minute, so every client refused in a given minute is told the same
+	// second and, retrying on that exact second, would arrive at the
+	// boundary together with all the others (truestamp-v2
+	// kb/api/json-api.md: "add a little random jitter to Retry-After
+	// rather than retrying on the exact second"). A uniform draw from
+	// [0, RetryJitter) spreads the herd over a couple of seconds without
+	// making a short wait meaningfully longer. It is applied after
+	// BoundRetry has decided, so it never turns a retry into a refusal.
+	RetryJitter = 2 * time.Second
 )
+
+// Jitter returns delay plus a random amount in [0, RetryJitter). Both
+// retry sites, internal/jsonapi.Send and the transport below, apply it to
+// the wait they are about to sleep.
+func Jitter(delay time.Duration) time.Duration {
+	return delay + jitter()
+}
+
+// jitter draws the random part, a variable so tests can pin it. The draw
+// only spreads retries across a couple of seconds; nothing depends on it
+// being unpredictable, so math/rand is the right source (gosec G404).
+var jitter = func() time.Duration { return rand.N(RetryJitter) } // #nosec G404
 
 // ParseRetryAfter parses a Retry-After header value (RFC 9110 §10.2.3):
 // a non-negative integer number of seconds, or an HTTP-date, in which case
@@ -133,9 +159,9 @@ func Discard(resp *http.Response) {
 }
 
 // retryAfterTransport repeats a request once after a 429, waiting the
-// Retry-After the refusal names (DefaultRetryAfter when it names none),
-// and gives up instead when that wait is over MaxRetryAfter or the body
-// cannot be rewound. It keys on the status and the header only, never on
+// Retry-After the refusal names (DefaultRetryAfter when it names none)
+// plus Jitter, and gives up instead when that wait is over MaxRetryAfter
+// or the body cannot be rewound. It keys on the status and the header only, never on
 // the body: the OAuth endpoints answer with an RFC 6749 body whose error
 // value is not the signal (`slow_down` on /oauth/token, `invalid_request`
 // on /oauth/register and /oauth/revoke).
@@ -181,7 +207,7 @@ func (t retryAfterTransport) RoundTrip(req *http.Request) (*http.Response, error
 		return resp, nil
 	}
 	Discard(resp)
-	if werr := Wait(req.Context(), delay); werr != nil {
+	if werr := Wait(req.Context(), Jitter(delay)); werr != nil {
 		return nil, werr
 	}
 	return t.base.RoundTrip(retry)

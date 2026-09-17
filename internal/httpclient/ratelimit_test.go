@@ -61,6 +61,27 @@ func TestBoundRetry(t *testing.T) {
 	}
 }
 
+// assertWait checks that a recorded wait is base plus jitter in
+// [0, RetryJitter).
+func assertWait(t *testing.T, got, base time.Duration) {
+	t.Helper()
+	if got < base || got >= base+RetryJitter {
+		t.Errorf("wait = %v, want %v plus jitter below %v", got, base, RetryJitter)
+	}
+}
+
+func TestJitter_Bounds(t *testing.T) {
+	seen := map[time.Duration]bool{}
+	for i := 0; i < 500; i++ {
+		got := Jitter(30 * time.Second)
+		assertWait(t, got, 30*time.Second)
+		seen[got] = true
+	}
+	if len(seen) < 100 {
+		t.Errorf("jitter is not random enough: %d distinct values in 500 draws", len(seen))
+	}
+}
+
 // stubSleep replaces the sleeper for one test and records every wait, so
 // a 30 s Retry-After is observed rather than spent.
 func stubSleep(t *testing.T) *[]time.Duration {
@@ -120,8 +141,27 @@ func TestRetryAfterTransport_RetriesOnceAfterHeader(t *testing.T) {
 	if calls.Load() != 2 {
 		t.Errorf("calls = %d, want exactly 2", calls.Load())
 	}
-	if len(*waits) != 1 || (*waits)[0] != 30*time.Second {
-		t.Errorf("waits = %v, want [30s] from Retry-After", *waits)
+	if len(*waits) != 1 {
+		t.Fatalf("waits = %v, want one wait from Retry-After", *waits)
+	}
+	assertWait(t, (*waits)[0], 30*time.Second)
+}
+
+func TestRetryAfterTransport_AppliesJitter(t *testing.T) {
+	waits := stubSleep(t)
+	orig := jitter
+	jitter = func() time.Duration { return 1500 * time.Millisecond }
+	t.Cleanup(func() { jitter = orig })
+
+	srv, _ := refuseThenAccept(t, 1, "30")
+	client := &http.Client{Transport: NewRetryAfterTransport(nil)}
+	resp, err := client.Get(srv.URL)
+	if err != nil {
+		t.Fatalf("Get: %v", err)
+	}
+	resp.Body.Close()
+	if len(*waits) != 1 || (*waits)[0] != 31500*time.Millisecond {
+		t.Errorf("waits = %v, want [31.5s]: the Retry-After plus the jitter drawn", *waits)
 	}
 }
 
@@ -138,9 +178,10 @@ func TestRetryAfterTransport_DefaultWaitWhenNoHeader(t *testing.T) {
 	if resp.StatusCode != http.StatusOK || calls.Load() != 2 {
 		t.Errorf("status %d after %d calls, want 200 after 2", resp.StatusCode, calls.Load())
 	}
-	if len(*waits) != 1 || (*waits)[0] != DefaultRetryAfter {
-		t.Errorf("waits = %v, want [%v]", *waits, DefaultRetryAfter)
+	if len(*waits) != 1 {
+		t.Fatalf("waits = %v, want one default wait", *waits)
 	}
+	assertWait(t, (*waits)[0], DefaultRetryAfter)
 }
 
 func TestRetryAfterTransport_SecondRefusalIsReturned(t *testing.T) {
