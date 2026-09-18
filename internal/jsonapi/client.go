@@ -236,10 +236,10 @@ func tokenRateLimited(err error) *APIError {
 // `meta.retry_after_ms`, else httpclient.DefaultRetryAfter; never when
 // `meta.retry_after_ms` is null, and not when the wait is over
 // httpclient.MaxRetryAfter. The wait is jittered (httpclient.Jitter): the
-// server's windows are aligned to the clock minute, and a client that
-// retried on the exact second it was told would arrive at the boundary
-// with every other refused client. Whatever the second attempt answers is
-// returned as is. Callers that build their own *http.Request (`auth
+// server's per-address guard is a window aligned to the clock minute, and
+// a client that retried on the exact second it was told would arrive at
+// the boundary with every other refused client. Whatever the second
+// attempt answers is returned as is. Callers that build their own *http.Request (`auth
 // status`'s probes, `verify --remote`) go through Send too, so the policy
 // is one. A transport failure is returned unwrapped.
 func Send(req *http.Request) (*http.Response, []byte, error) {

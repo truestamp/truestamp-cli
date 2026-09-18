@@ -12,6 +12,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- **The rate-limit documentation follows the server's token-bucket
+  budgets.** After 0.16.0 shipped, the API's per-caller budget became a
+  token bucket (120 requests, refilling at 120 per minute), each API
+  surface gained a per-address guard of 1,000 requests per minute checked
+  before authentication, and proof generation and verification gained
+  per-account limits (300 and 30 per minute, with a fleet-wide ceiling of
+  120 per minute on verifications that contact the public chains). The
+  CLI's handling needed no change: it already reads `meta.retry_after_ms`
+  on the header-less action-level refusals those produce. `README.md`
+  §Rate limits, `kb/architecture.md`, `kb/authentication.md` and the code
+  comments now describe the budgets as they are, and the jitter's
+  rationale is stated for the guard, the one limiter that is still
+  aligned to the clock minute.
+
 ## [0.16.0] - 2026-09-17
 
 ### Changed

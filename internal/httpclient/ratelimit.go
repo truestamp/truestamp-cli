@@ -44,12 +44,15 @@ const (
 	MaxRetryAfter = 60 * time.Second
 
 	// RetryJitter is the most random delay added on top of the wait a
-	// refusal named. The server's windows are aligned to the clock
-	// minute, so every client refused in a given minute is told the same
-	// second and, retrying on that exact second, would arrive at the
+	// refusal named. The server's per-address guard (and the OAuth
+	// endpoints' per-address limit) is a window aligned to the clock
+	// minute, so every client it refuses in a given minute is told the
+	// same second and, retrying on that exact second, would arrive at the
 	// boundary together with all the others (truestamp-v2
-	// kb/api/json-api.md: "add a little random jitter to Retry-After
-	// rather than retrying on the exact second"). A uniform draw from
+	// kb/api/json-api.md: "add a little random jitter to its Retry-After
+	// rather than retrying on the exact second"). The per-caller budget
+	// is a token bucket whose Retry-After is the caller's own short wait,
+	// where the draw is merely harmless. A uniform draw from
 	// [0, RetryJitter) spreads the herd over a couple of seconds without
 	// making a short wait meaningfully longer. It is applied after
 	// BoundRetry has decided, so it never turns a retry into a refusal.
