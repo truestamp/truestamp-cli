@@ -14,7 +14,7 @@ require (
 	github.com/charmbracelet/colorprofile v0.4.3
 	github.com/cli/browser v1.3.0
 	github.com/coder/websocket v1.8.15
-	github.com/fxamacker/cbor/v2 v2.9.3
+	github.com/fxamacker/cbor/v2 v2.9.4
 	github.com/gofrs/uuid/v5 v5.5.1
 	github.com/gowebpki/jcs v1.0.1
 	github.com/knadh/koanf/parsers/toml/v2 v2.2.2
