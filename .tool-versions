@@ -14,10 +14,10 @@
 # GO-2026-4918; 1.26.1 carried six (5 in crypto/x509, 1 in html/template).
 # Re-run `task vuln-check` after every Go bump.
 go 1.26.8
-goreleaser 2.17.0
-cosign 3.1.2
+goreleaser 2.18.1
+cosign 3.1.3
 shellcheck 0.11.0
-syft 1.49.0
+syft 1.51.1
 caddy 2.11.4
 # go-task (the `task` runner). Pinned so CI installs it via mise and runs the
 # exact same Taskfile tasks developers run locally (`task lint`, `task gosec`,
@@ -25,7 +25,7 @@ caddy 2.11.4
 # for every tool version in both places: CI no longer `go install`s any linter
 # at `@latest`, so a fresh tool release can't break CI on unchanged code and a
 # local run can never disagree with CI on tool versions.
-aqua:go-task/task 3.52.0
+aqua:go-task/task 3.53.1
 # Go quality and vulnerability tooling, run by `task lint` (staticcheck +
 # gosec) and `task vuln-check` (govulncheck) both locally AND in CI (CI invokes
 # these same tasks — see .github/workflows/ci.yml). Pinning via mise — rather
@@ -38,9 +38,9 @@ aqua:go-task/task 3.52.0
 # govulncheck does NOT reduce CVE coverage: it queries the live vuln.go.dev
 # database at run time, so newly-published CVEs are still caught. Bump these
 # intentionally — re-run `task lint && task vuln-check` after each bump.
-staticcheck 2026.1
-aqua:securego/gosec 2.28.0
-go:golang.org/x/vuln/cmd/govulncheck 1.6.0
+staticcheck 2026.2.1
+aqua:securego/gosec 2.29.0
+go:golang.org/x/vuln/cmd/govulncheck 1.8.0
 # websocat: hand-rolled WebSocket testing for the `truestamp console`
 # wire protocol. See kb/console/testing.md ("Hand-rolled testing with
 # websocat") and the upstream truestamp-v2 kb/internal/console-wiring.md
