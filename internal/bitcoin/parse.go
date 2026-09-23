@@ -13,14 +13,19 @@ import (
 )
 
 // DecodeTxOutProof decodes a txoutproof hex string into a wire.MsgMerkleBlock.
+// The merkle block must account for every byte: trailing bytes are an error.
 func DecodeTxOutProof(txoutproofHex string) (*wire.MsgMerkleBlock, error) {
 	raw, err := hex.DecodeString(txoutproofHex)
 	if err != nil {
 		return nil, fmt.Errorf("decoding txoutproof hex: %w", err)
 	}
 	var mb wire.MsgMerkleBlock
-	if err := mb.BtcDecode(bytes.NewReader(raw), wire.ProtocolVersion, wire.LatestEncoding); err != nil {
+	r := bytes.NewReader(raw)
+	if err := mb.BtcDecode(r, wire.ProtocolVersion, wire.LatestEncoding); err != nil {
 		return nil, fmt.Errorf("parsing merkle block: %w", err)
+	}
+	if r.Len() != 0 {
+		return nil, fmt.Errorf("parsing merkle block: %d trailing bytes", r.Len())
 	}
 	return &mb, nil
 }

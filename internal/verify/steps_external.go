@@ -194,11 +194,19 @@ func defaultedNetworkReason(network string) string {
 // the binding; the Blockstream lookup here is the stricter verifier E.1
 // and E.19 permit.
 //
+// The binding runs only when the whole byte chain from the epoch root to
+// the header holds: a raw transaction that is present and not 64 bytes,
+// whose first OP_RETURN equals epoch_merkle_root and whose recomputed txid
+// equals transaction_hash, placed by the txoutproof under the header's
+// Merkle root. A confirmed header proves nothing about the epoch root
+// unless every one of those links ties the root to it.
+//
 // E.19(c) makes every offline input optional: an absent txoutproof skips
 // the Merkle rows, an absent raw_transaction skips the OP_RETURN and txid
 // rows, an absent block_merkle_root skips the cross-check, and an absent
 // transaction_hash or block_height leaves the binding step with nothing
-// to look up. Absence is always a skip, never a failure.
+// to look up. Absence is always a skip, never a failure, and a chain with
+// a missing link leaves the commitment unconfirmed.
 
 func confirmBitcoin(r *Report, entry *proof.Commitment, group, category string, opts Options) bool {
 	if entry.RawTransaction == "" && entry.Txoutproof == "" && entry.BlockMerkleRoot == "" {
@@ -213,9 +221,9 @@ func confirmBitcoin(r *Report, entry *proof.Commitment, group, category string, 
 		return false
 	}
 
-	checkBitcoinRawTx(r, entry, group, category)
-	headerBlockHash := checkBitcoinTxOutProof(r, entry, group, category)
-	return bindBitcoinHeader(r, entry, group, category, headerBlockHash, opts)
+	rawTxHolds := checkBitcoinRawTx(r, entry, group, category)
+	headerBlockHash, placed := checkBitcoinTxOutProof(r, entry, group, category)
+	return bindBitcoinHeader(r, entry, group, category, headerBlockHash, rawTxHolds && placed, opts)
 }
 
 // consistency records an offline internal-consistency check the way the
@@ -231,28 +239,62 @@ func consistency(r *Report, group, category string, ok bool, msg string) {
 
 // checkBitcoinRawTx runs E.19(b) steps 1 and 2: the OP_RETURN payload of
 // the first nulldata output MUST equal epoch_merkle_root, and the txid
-// recomputed per BIP 141 MUST equal transaction_hash.
-func checkBitcoinRawTx(r *Report, entry *proof.Commitment, group, category string) {
+// recomputed per BIP 141 MUST equal transaction_hash. It reports whether
+// the raw transaction ties the epoch root to transaction_hash: present,
+// not 64 bytes, and both checks holding.
+func checkBitcoinRawTx(r *Report, entry *proof.Commitment, group, category string) bool {
 	if entry.RawTransaction == "" {
 		r.skip(group, category, "OP_RETURN and txid checks skipped (no raw transaction)")
-		return
+		return false
 	}
+	if msg := sixtyFourByteRejection(entry.RawTransaction); msg != "" {
+		r.fail(group, category, msg)
+		return false
+	}
+	holds := true
 	if extracted, err := bitcoin.ExtractOpReturn(entry.RawTransaction); err != nil {
 		r.fail(group, category, fmt.Sprintf("OP_RETURN extraction failed: %s", err))
+		holds = false
 	} else {
-		consistency(r, group, category, tscrypto.SecureEqual(extracted, entry.EpochMerkleRoot),
+		matches := tscrypto.SecureEqual(extracted, entry.EpochMerkleRoot)
+		consistency(r, group, category, matches,
 			"OP_RETURN in the supplied raw transaction matches the epoch root (internal consistency)")
+		holds = holds && matches
 	}
 	computedTxid, err := bitcoin.ComputeTxID(entry.RawTransaction)
 	switch {
 	case err != nil:
 		r.fail(group, category, fmt.Sprintf("Txid computation failed: %s", err))
+		return false
 	case entry.TransactionHash == "":
 		r.skip(group, category, "Transaction id check skipped (no transaction id)")
+		return false
 	default:
-		consistency(r, group, category, tscrypto.SecureEqual(computedTxid, entry.TransactionHash),
+		matches := tscrypto.SecureEqual(computedTxid, entry.TransactionHash)
+		consistency(r, group, category, matches,
 			fmt.Sprintf("Transaction id %s recomputed from the supplied raw transaction (internal consistency)", entry.TransactionHash))
+		return holds && matches
 	}
+}
+
+// sixtyFourByteRejection returns the fail row for a raw transaction that
+// is exactly 64 bytes, or whose serialization without witness data (the
+// bytes its txid hashes) is, naming which of the two matched. It returns
+// "" otherwise, and for a transaction that does not parse; the OP_RETURN
+// and txid rows report the parse failure.
+func sixtyFourByteRejection(rawTxHex string) string {
+	tx, err := bitcoin.DecodeTransaction(rawTxHex)
+	if err != nil {
+		return ""
+	}
+	const why = ", the length of an inner Merkle node, so its txid could stand for one (CVE-2017-12842)"
+	switch {
+	case len(rawTxHex) == 128:
+		return "Raw transaction rejected: it is exactly 64 bytes" + why
+	case tx.SerializeSizeStripped() == 64:
+		return "Raw transaction rejected: without its witness data, the bytes its txid hashes, it is exactly 64 bytes" + why
+	}
+	return ""
 }
 
 // checkBitcoinTxOutProof runs E.19(b) steps 3 to 5 and the
@@ -262,15 +304,17 @@ func checkBitcoinRawTx(r *Report, entry *proof.Commitment, group, category strin
 // the entry's block_merkle_root. Returns the block hash recomputed from
 // the 80-byte header (step 6) in display byte order, "" when no header
 // could be recovered; it feeds the binding step and has no row of its own.
-func checkBitcoinTxOutProof(r *Report, entry *proof.Commitment, group, category string) string {
+// Also reports whether the txoutproof placed transaction_hash under that
+// header's Merkle root.
+func checkBitcoinTxOutProof(r *Report, entry *proof.Commitment, group, category string) (blockHash string, placed bool) {
 	if entry.Txoutproof == "" {
 		r.skip(group, category, "Bitcoin Merkle proof skipped (no txoutproof)")
-		return ""
+		return "", false
 	}
 	mb, err := bitcoin.DecodeTxOutProof(entry.Txoutproof)
 	if err != nil {
 		r.fail(group, category, fmt.Sprintf("Txoutproof parse failed: %s", err))
-		return ""
+		return "", false
 	}
 	merkleResult := bitcoin.VerifyPartialMerkleTree(mb.Hashes, mb.Flags, mb.Transactions, &mb.Header.MerkleRoot)
 
@@ -290,7 +334,8 @@ func checkBitcoinTxOutProof(r *Report, entry *proof.Commitment, group, category 
 				break
 			}
 		}
-		consistency(r, group, category, merkleResult.Valid && inMatched,
+		placed = merkleResult.Valid && inMatched
+		consistency(r, group, category, placed,
 			"Supplied txoutproof places the transaction under the supplied block Merkle root (internal consistency)")
 	}
 
@@ -302,21 +347,27 @@ func checkBitcoinTxOutProof(r *Report, entry *proof.Commitment, group, category 
 		consistency(r, group, category, tscrypto.SecureEqual(entry.BlockMerkleRoot, mb.Header.MerkleRoot.String()),
 			"Commitment block_merkle_root matches the supplied txoutproof header (internal consistency)")
 	}
-	return mb.Header.BlockHash().String()
+	return mb.Header.BlockHash().String(), placed
 }
 
 // bindBitcoinHeader runs E.19(b)'s mandatory binding step: the block hash
 // recomputed from the bundle's own header MUST be confirmed against
 // something outside the bundle before the commitment may be reported as
-// passing. When no confirmation point is available the commitment is
-// reported skip, never pass.
-func bindBitcoinHeader(r *Report, entry *proof.Commitment, group, category, headerBlockHash string, opts Options) bool {
+// passing. linked says whether the raw transaction and the txoutproof tie
+// the epoch root to that header; the header is looked up only when they
+// do. When no confirmation point is available the commitment is reported
+// skip, never pass.
+func bindBitcoinHeader(r *Report, entry *proof.Commitment, group, category, headerBlockHash string, linked bool, opts Options) bool {
 	switch {
 	case opts.SkipExternal:
 		r.skip(group, category, "Bitcoin commitment unconfirmed: external confirmation skipped (offline)")
 		return false
 	case headerBlockHash == "":
 		r.skip(group, category, "Bitcoin commitment unconfirmed: no block header was recovered to confirm against the chain")
+		return false
+	case !linked:
+		r.skip(group, category,
+			"Bitcoin commitment unconfirmed: the checks above do not tie the epoch root to this block's header, so the header was not looked up")
 		return false
 	case !entry.HasBlockHeight:
 		r.skip(group, category, "Bitcoin commitment unconfirmed: the entry carries no block_height to confirm the header at")

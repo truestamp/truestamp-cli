@@ -20,6 +20,11 @@ type MerkleResult struct {
 	MatchedTxIDs []*chainhash.Hash
 }
 
+// maxTotalTxs is the most transactions a block can hold, the bound Bitcoin
+// Core's CPartialMerkleTree places on a partial tree's transaction count:
+// MAX_BLOCK_WEIGHT / MIN_TRANSACTION_WEIGHT, 4,000,000 / 240.
+const maxTotalTxs = 16666
+
 // VerifyPartialMerkleTree verifies a Bitcoin BIP 37 partial merkle tree.
 // Takes the hashes and raw flag bytes from wire.MsgMerkleBlock directly.
 func VerifyPartialMerkleTree(
@@ -28,7 +33,7 @@ func VerifyPartialMerkleTree(
 	totalTxs uint32,
 	expectedRoot *chainhash.Hash,
 ) MerkleResult {
-	if totalTxs == 0 {
+	if totalTxs == 0 || totalTxs > maxTotalTxs {
 		return MerkleResult{Valid: false}
 	}
 
