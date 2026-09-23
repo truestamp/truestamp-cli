@@ -13,7 +13,11 @@
 //	                           keyring, the reference verifier's offline
 //	                           reports and the server's online reports
 //	testdata/tamper/           mutations of the complete bundle with the
-//	                           server's and the reference verifier's reports
+//	                           server's and the reference verifier's reports,
+//	                           and one mutation of the Appendix D bundle with
+//	                           no reports: its Bitcoin entry carries a real,
+//	                           unrelated mainnet txoutproof and no raw
+//	                           transaction
 //	testdata/staging-2026-09-03/ a staging item whose bundle carries a real
 //	                           Bitcoin regtest commitment (raw transaction,
 //	                           txoutproof, block merkle root) ahead of its
@@ -66,4 +70,14 @@ const (
 	StagingDir    = "staging-2026-09-03"
 	WhitepaperDir = "whitepaper"
 	AppendixD     = "bundle.json"
+
+	// BitcoinUnrelatedTxoutproof, in TamperDir, is the Appendix D bundle
+	// with its Bitcoin entry rewritten by a third party, none of whose
+	// changes touch the signature: transaction_hash names an unrelated
+	// transaction in mainnet block 870456 (the second in the block),
+	// txoutproof is that transaction's real proof from the chain
+	// (Blockstream's /tx/{txid}/merkleblock-proof), timestamp is
+	// 2001-01-01, and there is no raw transaction, so nothing ties the
+	// epoch root to that block.
+	BitcoinUnrelatedTxoutproof = "bitcoin-unrelated-txoutproof.json"
 )

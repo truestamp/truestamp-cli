@@ -6,6 +6,7 @@ package bitcoin
 import (
 	"bytes"
 	"encoding/hex"
+	"strings"
 	"testing"
 
 	"github.com/btcsuite/btcd/chainhash/v2"
@@ -172,6 +173,42 @@ func TestVerifyPartialMerkleTree_DuplicateChildHashes(t *testing.T) {
 	)
 	if result.Valid {
 		t.Error("duplicate child hashes should be rejected per BIP 37")
+	}
+}
+
+// TestVerifyPartialMerkleTree_TotalTxsBound pins Bitcoin Core's bound on
+// a partial tree's transaction count: a tree that is otherwise valid (its
+// root taken whole, one hash and one flag bit) is rejected above 16,666.
+func TestVerifyPartialMerkleTree_TotalTxsBound(t *testing.T) {
+	t.Parallel()
+	var root chainhash.Hash
+	root[0] = 0xAB
+	for _, tc := range []struct {
+		totalTxs uint32
+		valid    bool
+	}{
+		{1, true},
+		{16666, true},
+		{16667, false},
+		{1 << 31, false},
+	} {
+		result := VerifyPartialMerkleTree([]*chainhash.Hash{&root}, []byte{0x00}, tc.totalTxs, &root)
+		if result.Valid != tc.valid {
+			t.Errorf("total_txs %d: valid = %v, want %v", tc.totalTxs, result.Valid, tc.valid)
+		}
+	}
+}
+
+// TestDecodeTxOutProof_TrailingBytes pins that the merkle block accounts
+// for every byte of the txoutproof.
+func TestDecodeTxOutProof_TrailingBytes(t *testing.T) {
+	t.Parallel()
+	if _, err := DecodeTxOutProof(testTxoutproofHex); err != nil {
+		t.Fatalf("the unmodified proof: %v", err)
+	}
+	_, err := DecodeTxOutProof(testTxoutproofHex + "00")
+	if err == nil || !strings.Contains(err.Error(), "1 trailing bytes") {
+		t.Errorf("one trailing byte: err = %v", err)
 	}
 }
 
