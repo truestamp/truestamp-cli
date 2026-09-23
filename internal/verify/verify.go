@@ -41,10 +41,6 @@ type Options struct {
 	// lookups. Every network-dependent step reports skip.
 	SkipExternal bool
 
-	// SkipSignatures leaves E.16's Ed25519 check and the keyring
-	// cross-check unperformed; the report discloses it.
-	SkipSignatures bool
-
 	// KeyringFile pins a local copy of /.well-known/keyring.json for E.17.
 	// It takes precedence over KeyringURL and needs no network.
 	KeyringFile string
@@ -125,7 +121,7 @@ func runBundle(bundle *proof.Bundle, filename string, fileSize int64, opts Optio
 	}
 
 	// [E.16] The signature over everything derived above.
-	stepSignature(r, bundle, publicKey, keyID, subjectHash, blockHash, opts)
+	stepSignature(r, bundle, publicKey, keyID, subjectHash, blockHash)
 
 	// [E.17] Is that key Truestamp's? The keyring path and the carried key
 	// event path each get their own group.

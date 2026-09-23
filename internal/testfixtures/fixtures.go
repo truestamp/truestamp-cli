@@ -13,9 +13,12 @@
 //	                           keyring, the reference verifier's offline
 //	                           reports and the server's online reports
 //	testdata/tamper/           mutations of the complete bundle with the
-//	                           server's and the reference verifier's reports,
-//	                           and one mutation of the Appendix D bundle with
-//	                           no reports: its Bitcoin entry carries a real,
+//	                           server's and the reference verifier's reports;
+//	                           one mutation of the complete bundle with no
+//	                           reports, carrying the production key and a
+//	                           signature that does not verify; and one
+//	                           mutation of the Appendix D bundle with no
+//	                           reports: its Bitcoin entry carries a real,
 //	                           unrelated mainnet txoutproof and no raw
 //	                           transaction
 //	testdata/staging-2026-09-03/ a staging item whose bundle carries a real
@@ -80,4 +83,15 @@ const (
 	// 2001-01-01, and there is no raw transaction, so nothing ties the
 	// epoch root to that block.
 	BitcoinUnrelatedTxoutproof = "bitcoin-unrelated-txoutproof.json"
+
+	// CopiedKeyInvalidSignature, in TamperDir, is the complete production
+	// bundle with forged claims and every hash above them recomputed, so
+	// the chain is self-consistent: the subject hash is the block's only
+	// leaf (an empty inclusion proof, block.merkle_root rewritten) and the
+	// block hash is the only leaf of each epoch tree (empty epoch proofs,
+	// epoch_merkle_root rewritten). public_key is still Truestamp's
+	// production key, so the pinned production keyring binds it, and the
+	// signature is 64 zero bytes. Offline, only the signature check tells
+	// it from a real proof.
+	CopiedKeyInvalidSignature = "copied-key-invalid-signature.json"
 )

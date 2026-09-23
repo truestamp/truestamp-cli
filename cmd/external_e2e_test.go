@@ -237,7 +237,7 @@ func TestCLI_ExternalEndpoints_EndToEnd(t *testing.T) {
 
 	t.Run("Blockstream 404 on an entropy source skips", func(t *testing.T) {
 		stub.setMode("btc_404")
-		out, _ := runVerifyJSON(t, bin, entropyPath, "--skip-signatures", "--base-url", baseURL)
+		out, _ := runVerifyJSON(t, bin, entropyPath, "--base-url", baseURL)
 		st := stepStatuses(out, "Entropy Source")
 		if !st["skip"] || st["fail"] {
 			t.Errorf("Entropy Source: want a skip and no fail, got %v\n%s", st, formatCLISteps(out.Steps))
@@ -249,7 +249,7 @@ func TestCLI_ExternalEndpoints_EndToEnd(t *testing.T) {
 
 	t.Run("Blockstream height mismatch on an entropy source fails", func(t *testing.T) {
 		stub.setMode("btc_height_mismatch")
-		out, code := runVerifyJSON(t, bin, entropyPath, "--skip-signatures", "--base-url", baseURL)
+		out, code := runVerifyJSON(t, bin, entropyPath, "--base-url", baseURL)
 		if code == 0 {
 			t.Errorf("exit code 0 for a bundle whose entropy source disagrees\n%s", formatCLISteps(out.Steps))
 		}

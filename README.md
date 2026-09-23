@@ -451,11 +451,10 @@ Settings are resolved in this order (later overrides earlier):
 | `--type` |   |   |
 | `--remote` | `TRUESTAMP_VERIFY_REMOTE` | `false` |
 | `--offline` | `TRUESTAMP_VERIFY_OFFLINE` | `false` |
-| `--skip-signatures` | `TRUESTAMP_VERIFY_SKIP_SIGNATURES` | `false` |
 
 `--expected-hash` is the hash of a file you hold; it is compared against `subject.claims.hash` for an item and reported under Hash Comparison. `--keyring` pins a local copy of `/.well-known/keyring.json` for the Key Binding step; without it an online run fetches the live keyring from `--base-url` and an offline run reports the binding as not checked. `--type` asserts which subject type you expected (`item | entropy_nist | entropy_stellar | entropy_bitcoin | block | beacon`); a disagreement with the bundle's own signed `type` is the hard rejection `subject_type_mismatch` and exits 1. It has no default and is never inferred: **the filename is never consulted**, so renaming a proof can never change a verdict.
 
-Because the verify behaviour flags (`--remote`, `--silent`, `--json`, `--offline`, `--skip-signatures`) are also config keys, an ambient `TRUESTAMP_VERIFY_SKIP_SIGNATURES` (or `[verify] skip_signatures = true` in `config.toml`) silently weakens a run that still exits 0. Scripts that need a full check should pass the flags explicitly and read the report, not just the exit code.
+Because the verify behaviour flags (`--remote`, `--silent`, `--json`, `--offline`) are also config keys, an ambient `TRUESTAMP_VERIFY_OFFLINE` (or `[verify] offline = true` in `config.toml`) silently weakens a run that still exits 0. Scripts that need a full check should pass the flags explicitly and read the report, not just the exit code.
 
 ## What gets verified
 
@@ -502,7 +501,7 @@ Two rules run through the whole report and are worth knowing before you read one
 - **A step that could not run is a `skip`, never a `fail`.** An unreachable keyring, a Horizon timeout or a chain with no public API establishes nothing either way, and none of them can make a sound proof report as defective. The verdict says so: any `skip` is a check the run did not perform, not a check that failed.
 - **A `skip` never changes the verdict.** Only a step that ran and disagreed fails a proof.
 
-`--offline` skips every network step (Key Binding, Entropy Source, the commitment confirmations and the key event's). `--skip-signatures` skips the Ed25519 Proof Signature check, and the key binding with it — unless `--keyring` pins a keyring, in which case the binding still runs, because whether a key id appears in the published document is a separate question from whether the signature verified. The report discloses the skip under the verdict and `--json` reports `"signatures_checked": false`. The Signing Key step still runs under both flags.
+`--offline` skips every network step (Key Binding, Entropy Source, the commitment confirmations and the key event's). No flag skips the Signing Key step or the Ed25519 Proof Signature check: a signature that does not verify fails the run in every mode, with or without a keyring.
 
 ## Rate limits
 

@@ -50,10 +50,6 @@ type JSONReport struct {
 	SkippedExternal bool   `json:"skipped_external"`
 	GeneratedAt     string `json:"generated_at,omitempty"`
 
-	// SignaturesChecked is false when --skip-signatures left E.16
-	// unperformed; `passed` alone cannot say so.
-	SignaturesChecked bool `json:"signatures_checked"`
-
 	// Remote is true when the steps were reported by the Truestamp server.
 	Remote bool `json:"remote,omitempty"`
 }
@@ -95,7 +91,6 @@ func BuildJSONReport(r *Report) *JSONReport {
 		ProofVersion:         r.ProofVersion,
 		SkippedExternal:      r.SkippedExternal,
 		GeneratedAt:          r.GeneratedAt,
-		SignaturesChecked:    !r.SignaturesSkipped(),
 		Remote:               r.Remote,
 	}
 	if r.HashProvided() {

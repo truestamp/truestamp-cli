@@ -36,7 +36,7 @@ SPDX-License-Identifier: Apache-2.0
 
 Steps that may report `skip` for lack of network or a keyring: E.18, E.19's binding step, E.21, the key event's chain confirmations, and E.17's keyring cross-check. Nothing in E.6 to E.16, E.17a or E.20 may be skipped for that reason. Inapplicability skips are required and reported, not omitted: E.7 for a non-item, E.13/E.17a/Submitted After for block-like, no key event carried, a committed-but-not-carried witness, an unknown witness name. A `skip` is a check this run did not perform, not a check that failed; the terminal report says so under the verdict.
 
-`--skip-signatures` leaves E.16 unperformed and is disclosed: a `skip` plus a `warn` under Proof Signature, `signatures_checked: false` in JSON, and a sentence under the verdict. E.25 does not list E.16 among the steps a run may skip and still call itself verified.
+Nothing skips E.16. The Proof Signature step runs in every mode, offline or online and with or without a keyring, and a signature that does not verify fails the run.
 
 ## Reporting model (E.22), verdict, conformance (E.25)
 

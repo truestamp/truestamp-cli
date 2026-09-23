@@ -127,9 +127,8 @@ func (c Config) Timeout() time.Duration {
 
 // VerifyConfig holds verify-subcommand-specific configuration.
 type VerifyConfig struct {
-	Offline        bool `koanf:"offline" json:"offline"`
-	SkipSignatures bool `koanf:"skip_signatures" json:"skip_signatures"`
-	Remote         bool `koanf:"remote" json:"remote"`
+	Offline bool `koanf:"offline" json:"offline"`
+	Remote  bool `koanf:"remote" json:"remote"`
 
 	// Keyring is the path of a pinned copy of /.well-known/keyring.json
 	// used for the Appendix E.17 key binding. Empty means an online run
@@ -167,10 +166,9 @@ var flagKeyMap = map[string]string{
 	"silent":       "silent",
 	"json":         "json",
 	// Verify subcommand flags
-	"offline":         "verify.offline",
-	"skip-signatures": "verify.skip_signatures",
-	"remote":          "verify.remote",
-	"keyring":         "verify.keyring",
+	"offline": "verify.offline",
+	"remote":  "verify.remote",
+	"keyring": "verify.keyring",
 	// Hash subcommand flags
 	"algorithm": "hash.algorithm",
 	"encoding":  "hash.encoding",
@@ -188,26 +186,25 @@ func Load(configPath string, flags *pflag.FlagSet) (*Config, error) {
 
 	// 1. Compiled defaults
 	defaults := map[string]interface{}{
-		"base_url":               "https://www.truestamp.com",
-		"api_key":                "",
-		"team":                   "",
-		"http_timeout":           "10s",
-		"cosign_path":            "",
-		"silent":                 false,
-		"json":                   false,
-		"verify.offline":         false,
-		"verify.skip_signatures": false,
-		"verify.remote":          false,
-		"verify.keyring":         "",
-		"hash.algorithm":         "sha256",
-		"hash.encoding":          "hex",
-		"hash.style":             "gnu",
-		"convert.time_zone":      "UTC",
-		"logging.file":           "",
-		"logging.level":          "info",
-		"logging.max_size_mb":    10,
-		"logging.max_backups":    5,
-		"logging.max_age_days":   14,
+		"base_url":             "https://www.truestamp.com",
+		"api_key":              "",
+		"team":                 "",
+		"http_timeout":         "10s",
+		"cosign_path":          "",
+		"silent":               false,
+		"json":                 false,
+		"verify.offline":       false,
+		"verify.remote":        false,
+		"verify.keyring":       "",
+		"hash.algorithm":       "sha256",
+		"hash.encoding":        "hex",
+		"hash.style":           "gnu",
+		"convert.time_zone":    "UTC",
+		"logging.file":         "",
+		"logging.level":        "info",
+		"logging.max_size_mb":  10,
+		"logging.max_backups":  5,
+		"logging.max_age_days": 14,
 	}
 	if err := k.Load(confmap.Provider(defaults, "."), nil); err != nil {
 		return nil, fmt.Errorf("loading defaults: %w", err)
@@ -517,7 +514,6 @@ json = %v
 
 [verify]
 offline = %v
-skip_signatures = %v
 remote = %v
 keyring = %q
 
@@ -537,7 +533,7 @@ max_backups = %d
 max_age_days = %d
 `, c.BaseURL, apiKey, c.Team, c.HTTPTimeout, c.CosignPath,
 		c.Silent, c.JSON,
-		c.Verify.Offline, c.Verify.SkipSignatures, c.Verify.Remote, c.Verify.Keyring,
+		c.Verify.Offline, c.Verify.Remote, c.Verify.Keyring,
 		c.Hash.Algorithm, c.Hash.Encoding, c.Hash.Style,
 		c.Convert.TimeZone,
 		c.Logging.File, c.Logging.Level,

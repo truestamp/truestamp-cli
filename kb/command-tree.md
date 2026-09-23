@@ -381,7 +381,7 @@ authoritative form of this picture; this one is the reader's overview.
 truestamp
 ├── Verify a proof
 │   ├── verify [file|url|-]      --file --url --offline --remote --keyring <path> --type <t>
-│   │                            --expected-hash --skip-signatures --json --silent
+│   │                            --expected-hash --json --silent
 │   └── inspect [file|url|-]     --file --url --json --silent
 │
 ├── Truestamp resources

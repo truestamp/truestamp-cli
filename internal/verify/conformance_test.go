@@ -366,6 +366,41 @@ func TestTamper(t *testing.T) {
 		}
 	})
 
+	// Truestamp's production key copied into a bundle whose hashes are
+	// self-consistent and whose signature does not verify. Proof Signature
+	// is the one failing row with or without the keyring, and the pinned
+	// keyring binding the copied key does not rescue the run.
+	t.Run(testfixtures.CopiedKeyInvalidSignature, func(t *testing.T) {
+		data := testfixtures.Read(t, testfixtures.TamperDir, testfixtures.CopiedKeyInvalidSignature)
+		for _, tc := range []struct {
+			name       string
+			opts       Options
+			keyBinding Status
+		}{
+			{"offline", Options{SkipExternal: true}, StatusSkip},
+			{"offline with the production keyring", offlineWithKeyring(), StatusPass},
+		} {
+			t.Run(tc.name, func(t *testing.T) {
+				r := mustRun(t, data, tc.opts)
+				if r.Passed() || BuildJSONReport(r).Passed {
+					t.Fatalf("verdict PASSED, want FAILED\n%s", render(r.Steps))
+				}
+				var fails []Step
+				for _, s := range r.Steps {
+					if s.Status == StatusFail {
+						fails = append(fails, s)
+					}
+					if s.Group == groupKeyBinding && s.Status != tc.keyBinding {
+						t.Errorf("Key Binding = %s %q, want %s", s.Status, s.Message, tc.keyBinding)
+					}
+				}
+				if len(fails) != 1 || fails[0].Group != groupProof || fails[0].Message != "proof signature invalid (Ed25519)" {
+					t.Errorf("failing rows = %v, want the one Proof Signature row \"proof signature invalid (Ed25519)\"\n%s", fails, render(r.Steps))
+				}
+			})
+		}
+	})
+
 	for file, code := range map[string]string{"old-layout.json": proof.CodeUnsupportedLayout, "tamper-type.json": proof.CodeUnexpectedSubjectFieldsForBlockLike} {
 		t.Run(file, func(t *testing.T) {
 			_, err := RunFromBytes(testfixtures.Read(t, testfixtures.TamperDir, file), file, offlineWithKeyring())

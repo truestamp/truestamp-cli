@@ -57,7 +57,6 @@ Flags:
       --offline                   Run with no network access: chain, source and keyring lookups are reported as skipped
       --remote                    Also ask the Truestamp server to verify the bundle (requires authentication)
   -s, --silent                    No output, exit code only
-      --skip-signatures           Skip the Ed25519 proof signature check; the key binding is skipped too unless --keyring pins one (disclosed in the report)
       --type string               Assert the expected subject type; a mismatch is rejected. One of: item | entropy_nist | entropy_stellar | entropy_bitcoin | block | beacon
       --url string[="(prompt)"]   URL to download proof from (interactive prompt if no URL given)
 

@@ -138,9 +138,6 @@ Exit code 0 when the proof passes, 1 when it fails or is rejected.`,
 
 		var report *verify.Report
 		if cfg.Verify.Remote {
-			if cfg.Verify.SkipSignatures {
-				return fmt.Errorf("--skip-signatures cannot be used with --remote (the server always checks the signature)")
-			}
 			if !authConfigured() {
 				return fmt.Errorf("not authenticated: --remote verification needs `truestamp auth login`, or TRUESTAMP_API_KEY / --api-key for headless use")
 			}
@@ -156,7 +153,6 @@ Exit code 0 when the proof passes, 1 when it fails or is rejected.`,
 				ExpectedHash:        expectedHash,
 				ExpectedSubjectType: typeFlag,
 				SkipExternal:        cfg.Verify.Offline,
-				SkipSignatures:      cfg.Verify.SkipSignatures,
 				KeyringFile:         keyringFile,
 				KeyringURL:          cfg.KeyringURL,
 			})
@@ -259,13 +255,6 @@ func init() {
 	f.BoolP("silent", "s", false, "No output, exit code only")
 	f.Bool("json", false, "Output the report as JSON, in the same field names the Truestamp API uses")
 	f.Bool("offline", false, "Run with no network access: chain, source and keyring lookups are reported as skipped")
-	// Narrower than it used to read. The key binding check is NOT skipped
-	// when --keyring pins a keyring: that check asks whether the key id is
-	// in the published document, which is a separate question from whether
-	// the signature verified, and discarding a check the user explicitly
-	// asked for would report less than the run actually established.
-	f.Bool("skip-signatures", false,
-		"Skip the Ed25519 proof signature check; the key binding is skipped too unless --keyring pins one (disclosed in the report)")
 	f.Bool("remote", false, "Also ask the Truestamp server to verify the bundle (requires authentication)")
 	verifyCmd.GroupID = groupVerification
 	rootCmd.AddCommand(verifyCmd)
