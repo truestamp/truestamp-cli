@@ -934,13 +934,6 @@ truestamp verify --type beacon truestamp-beacon-019d....json
 #   bundle carries; the filename is never consulted.
 truestamp verify --type item   truestamp-item-01K....json
 
-# Skip the signature check (disclosed in the report; never a full verify)
-truestamp verify contract.proof.json --skip-signatures
-#   [SKIP]  Proof Signature      proof signature verification skipped (--skip-signatures)
-#   [WARN]  Proof Signature      this run establishes nothing about who signed the
-#                                proof: the Ed25519 signature was not checked
-#                                (--skip-signatures)
-
 # Script-friendly modes
 truestamp verify contract.proof.json --json        # structured output
 truestamp verify contract.proof.json --silent      # exit code only
@@ -980,7 +973,7 @@ diffable: `passed`, `id`, `source`, `steps` (each with `group`, `status`,
 `failed_count`, `warn_count`, `skip_count`, `info_count`, `hash_provided`,
 `expected_hash_provided`, `hash_matched`, `proof_version`,
 `skipped_external`, `generated_at`, plus `verifier` (this CLI's name and
-version) and `signatures_checked`.
+version).
 
 Use `--remote` to also ask the Truestamp server to verify the bundle
 (requires authentication: `truestamp auth login` or `TRUESTAMP_API_KEY`).
@@ -1028,8 +1021,7 @@ echo '{"version":1,"type":"nope","block":{}}' | truestamp verify --json
   "expected_hash_provided": false,
   "hash_matched": false,
   "proof_version": 0,
-  "skipped_external": false,
-  "signatures_checked": false
+  "skipped_external": false
 }
 ```
 
@@ -2805,7 +2797,7 @@ Environment variables for CI:
 | `TRUESTAMP_LOGGING_LEVEL` / `TRUESTAMP_LOGGING_FILE` | Log level and log file path (named after the `[logging]` config section, not the flag) |
 | `TRUESTAMP_LOGGING_MAX_SIZE_MB` / `TRUESTAMP_LOGGING_MAX_BACKUPS` / `TRUESTAMP_LOGGING_MAX_AGE_DAYS` | Log rotation budget |
 | `TRUESTAMP_SILENT` / `TRUESTAMP_JSON` | CLI-wide defaults for `--silent` / `--json` (setting both is an error) |
-| `TRUESTAMP_VERIFY_OFFLINE` / `TRUESTAMP_VERIFY_SKIP_SIGNATURES` / `TRUESTAMP_VERIFY_REMOTE` | Defaults for the corresponding `verify` flags |
+| `TRUESTAMP_VERIFY_OFFLINE` / `TRUESTAMP_VERIFY_REMOTE` | Defaults for the corresponding `verify` flags |
 | `TRUESTAMP_HASH_ALGORITHM` | Default algorithm for `truestamp hash` |
 | `TRUESTAMP_HASH_ENCODING` | Default digest encoding (`hex` / `base64` / `base64url`) |
 | `TRUESTAMP_HASH_STYLE` | Default output style (`gnu` / `bsd` / `bare`) |
@@ -2876,12 +2868,10 @@ requests:
 4. For an entropy subject, and for every entropy witness an item bundle carries, hits the upstream publisher the observation came from, to compare the captured value: the **NIST Randomness Beacon** (`beacon.nist.gov`) for `entropy_nist`, Horizon for `entropy_stellar`, Blockstream mainnet for `entropy_bitcoin` (Bitcoin entropy is always captured from mainnet, even by deployments that commit to testnet or regtest).
 5. With `--remote`, posts the bundle to the Truestamp API's `/proof/verify`.
 
-`--offline` skips the first four. `--skip-signatures` skips the Ed25519
-**Proof Signature** check, and the **Key Binding** cross-check with it
-unless `--keyring` pins a local copy; `README.md` §What gets verified
-spells out exactly what each flag skips and what still runs. Everything
-else local (subject hash, Merkle inclusion, block hash, epoch proofs,
-witnesses, submission window) is always performed.
+`--offline` skips the first four; `README.md` §What gets verified spells
+out exactly what it skips and what still runs. Everything local (subject
+hash, Merkle inclusion, block hash, epoch proofs, the Ed25519 **Proof
+Signature**, witnesses, submission window) is always performed.
 
 ---
 

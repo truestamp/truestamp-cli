@@ -370,20 +370,6 @@ func (r *Report) Counts() StepCounts {
 // FailedCount returns the number of failed steps.
 func (r *Report) FailedCount() int { return r.Counts().Failed }
 
-// SignaturesSkipped reports whether this run left Appendix E.16's Ed25519
-// check unperformed (the --skip-signatures path emits the group's only
-// skip). E.25 does not list E.16 among the steps a verifier MAY skip and
-// still call a run verified, so surfaces that state an outcome disclose
-// it.
-func (r *Report) SignaturesSkipped() bool {
-	for _, s := range r.Steps {
-		if s.Group == groupProof && s.Status == StatusSkip {
-			return true
-		}
-	}
-	return false
-}
-
 // StepsByCategory returns the steps grouped in Appendix E.22's category
 // display order, each category's rows in emission order.
 func (r *Report) StepsByCategory() [][]Step {

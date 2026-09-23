@@ -154,7 +154,6 @@ type conformanceOutput struct {
 	HashMatched          bool    `json:"hash_matched"`
 	ProofVersion         int     `json:"proof_version"`
 	SkippedExternal      bool    `json:"skipped_external"`
-	SignaturesChecked    bool    `json:"signatures_checked"`
 	Verifier             struct {
 		Name    string `json:"name"`
 		Version string `json:"version"`
@@ -309,8 +308,8 @@ func TestCLI_Verify_ProductionOffline_JSONShape(t *testing.T) {
 	if out.HashProvided != nil || out.ExpectedHashProvided || out.HashMatched {
 		t.Errorf("hash fields: %v %v %v", out.HashProvided, out.ExpectedHashProvided, out.HashMatched)
 	}
-	if out.ProofVersion != 1 || !out.SkippedExternal || !out.SignaturesChecked || out.Verifier.Name != "truestamp-cli" {
-		t.Errorf("proof_version=%d skipped_external=%v signatures_checked=%v verifier=%+v", out.ProofVersion, out.SkippedExternal, out.SignaturesChecked, out.Verifier)
+	if out.ProofVersion != 1 || !out.SkippedExternal || out.Verifier.Name != "truestamp-cli" {
+		t.Errorf("proof_version=%d skipped_external=%v verifier=%+v", out.ProofVersion, out.SkippedExternal, out.Verifier)
 	}
 	if len(out.Steps) != 35 {
 		t.Errorf("%d steps, want 35\n%s", len(out.Steps), formatCLISteps(out.Steps))
@@ -497,26 +496,90 @@ func TestCLI_Verify_Tamper_ExitCode1(t *testing.T) {
 	}
 }
 
-func TestCLI_SkipSignatures_DisclosedNotHidden(t *testing.T) {
-	out, code := runVerifyJSON(t, binaryPath, prodPath(testfixtures.ProdComplete), "--offline", "--skip-signatures")
-	if code != 0 || !out.Passed || out.SignaturesChecked {
-		t.Errorf("exit %d passed %v signatures_checked %v", code, out.Passed, out.SignaturesChecked)
+// The flag, env var and config key that once skipped the signature check.
+// They are assembled from pieces so that no file under cmd/ or internal/
+// spells them: a grep for the old name finds nothing, and these tests
+// still hand every spelling to the binary.
+var (
+	retiredSignatureFlag   = "--skip" + "-signatures"
+	retiredSignatureEnv    = "TRUESTAMP_VERIFY_SKIP" + "_SIGNATURES"
+	retiredSignatureConfig = "skip" + "_signatures"
+)
+
+// TestCLI_CopiedKeyInvalidSignature_FailsEverywhere runs a bundle carrying
+// Truestamp's production public key, self-consistent hashes and a
+// signature that does not verify. It fails Proof Signature and exits 1
+// with and without a pinned keyring, and with the retired env var or
+// config key set: nothing skips the signature check.
+func TestCLI_CopiedKeyInvalidSignature_FailsEverywhere(t *testing.T) {
+	fixture := tamperPath(testfixtures.CopiedKeyInvalidSignature)
+	configPath := filepath.Join(t.TempDir(), "config.toml")
+	if err := os.WriteFile(configPath, []byte("[verify]\n"+retiredSignatureConfig+" = true\n"), 0o644); err != nil {
+		t.Fatal(err)
 	}
-	if st := stepStatuses(out, "Proof Signature"); !st["skip"] || !st["warn"] || st["pass"] {
-		t.Errorf("Proof Signature = %v", st)
+	withKeyring := []string{"--keyring", prodKeyring()}
+	cases := []struct {
+		name    string
+		env     []string
+		args    []string
+		keyring bool
+	}{
+		{"offline", nil, nil, false},
+		{"offline, pinned keyring", nil, withKeyring, true},
+		{"env var", []string{retiredSignatureEnv + "=true"}, nil, false},
+		{"env var, pinned keyring", []string{retiredSignatureEnv + "=true"}, withKeyring, true},
+		{"config key", nil, []string{"--config", configPath}, false},
+		{"config key, pinned keyring", nil, append([]string{"--config", configPath}, withKeyring...), true},
 	}
-	if st := stepStatuses(out, "Signing Key"); !st["pass"] {
-		t.Errorf("Signing Key still runs under --skip-signatures, got %v", st)
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			args := append([]string{"verify", fixture, "--offline", "--json"}, tc.args...)
+			cmd := exec.Command(binaryPath, args...)
+			cmd.Env = append(cleanEnv(), tc.env...)
+			raw, err := cmd.Output()
+			code := 0
+			var exitErr *exec.ExitError
+			if errors.As(err, &exitErr) {
+				code = exitErr.ExitCode()
+			} else if err != nil {
+				t.Fatalf("running: %v", err)
+			}
+			var out conformanceOutput
+			if jErr := json.Unmarshal(raw, &out); jErr != nil {
+				t.Fatalf("parsing --json output (exit %d): %v\n%s", code, jErr, raw)
+			}
+			if code != 1 || out.Passed || out.FailedCount != 1 {
+				t.Errorf("exit %d passed %v failed_count %d, want exit 1, not passed, one failure\n%s",
+					code, out.Passed, out.FailedCount, formatCLISteps(out.Steps))
+			}
+			for _, s := range out.Steps {
+				if s.Group == "Proof Signature" && (s.Status != "fail" || s.Message != "proof signature invalid (Ed25519)") {
+					t.Errorf("Proof Signature = %s %q, want fail \"proof signature invalid (Ed25519)\"", s.Status, s.Message)
+				}
+			}
+			if st := stepStatuses(out, "Proof Signature"); !st["fail"] {
+				t.Errorf("no failing Proof Signature row\n%s", formatCLISteps(out.Steps))
+			}
+			// A pinned keyring binds the copied key; the run still fails.
+			if st := stepStatuses(out, "Key Binding"); st["pass"] != tc.keyring {
+				t.Errorf("Key Binding = %v, pass wanted %v", st, tc.keyring)
+			}
+		})
 	}
-	text, _ := runCLIText(t, "verify", prodPath(testfixtures.ProdComplete), "--offline", "--skip-signatures")
-	if !strings.Contains(text, "NOT checked") {
-		t.Errorf("the verdict does not disclose the skipped signature\n%s", text)
+
+	text, code := runCLIText(t, "verify", fixture, "--offline", "--keyring", prodKeyring())
+	if code != 1 || !strings.Contains(text, "VERDICT: FAILED") || strings.Contains(text, "PASSED") ||
+		!strings.Contains(text, "[FAIL]  Proof Signature      proof signature invalid (Ed25519)") {
+		t.Errorf("exit %d\n%s", code, text)
 	}
-	help, _ := runCLIText(t, "verify", "--help")
-	for _, l := range strings.Split(help, "\n") {
-		if strings.Contains(l, "--skip-signatures") && strings.Contains(strings.ToLower(l), "signing key") {
-			t.Errorf("--skip-signatures help claims to skip the Signing Key check: %q", strings.TrimSpace(l))
-		}
+
+	// The flag itself is gone: cobra refuses it before anything runs.
+	text, code = runCLIText(t, "verify", fixture, "--offline", retiredSignatureFlag)
+	if code == 0 || !strings.Contains(text, "unknown flag: "+retiredSignatureFlag) {
+		t.Errorf("the retired flag was accepted: exit %d\n%s", code, text)
+	}
+	if help, _ := runCLIText(t, "verify", "--help"); strings.Contains(help, retiredSignatureFlag) {
+		t.Errorf("verify --help still offers %s\n%s", retiredSignatureFlag, help)
 	}
 }
 

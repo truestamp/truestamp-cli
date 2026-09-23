@@ -179,7 +179,6 @@ func presentConfig(cfg *config.Config) {
 	verify := ui.CompactTable().
 		StyleFunc(configStyleFunc).
 		Row("Offline", fmt.Sprintf("%v", cfg.Verify.Offline)).
-		Row("Skip Signatures", fmt.Sprintf("%v", cfg.Verify.SkipSignatures)).
 		Row("Remote", fmt.Sprintf("%v", cfg.Verify.Remote))
 
 	hash := ui.CompactTable().

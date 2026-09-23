@@ -78,7 +78,7 @@ tasks:
   # =============================================================================
 
   run:
-    desc: "Run verify without building (usage: task run -- proof.json [--offline] [--skip-signatures] [--json])"
+    desc: "Run verify without building (usage: task run -- proof.json [--offline] [--json])"
     cmds:
       - go run ./cmd/truestamp verify {{.CLI_ARGS}}
 

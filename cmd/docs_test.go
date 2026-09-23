@@ -365,6 +365,10 @@ func TestDocs_NoRetiredNames(t *testing.T) {
 		// and must keep its name.
 		"verify.skip_external": "the config key is verify.offline",
 		"--skip-external":      "removed; the flag is --offline",
+		// The Ed25519 signature check has no switch that skips it.
+		retiredSignatureFlag:   "removed; the signature is always checked",
+		retiredSignatureEnv:    "removed; the signature is always checked",
+		retiredSignatureConfig: "removed; the signature is always checked",
 		// Retired command PATHS, written without the `truestamp` prefix.
 		// Prose says "`beacon list` accepts 1..100" as often as it writes
 		// the whole invocation.

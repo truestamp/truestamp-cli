@@ -59,10 +59,6 @@ func Render(r *Report, color bool) string {
 		b.WriteString("\n  The proof is internally sound: every value in it reproduces, and the\n" +
 			"  signature over those values is valid. Any `skip` above is a check this\n" +
 			"  run did not perform, not a check that failed.\n")
-		if r.SignaturesSkipped() {
-			b.WriteString("\n  The Ed25519 signature was NOT checked (--skip-signatures); nothing here\n" +
-				"  establishes who signed this proof.\n")
-		}
 	} else {
 		fmt.Fprintf(&b, "\n  VERDICT: %s\n", verdictStyle(false, color).Render("FAILED"))
 		b.WriteString("\n  At least one step failed. This proof should not be relied on.\n")

@@ -33,7 +33,7 @@ import (
 //	proof_hash = SHA-256(0x61 || payload)
 //	verify Ed25519 over that 32-byte digest, using public_key
 
-func stepSignature(r *Report, bundle *proof.Bundle, publicKey []byte, keyID, subjectHash, blockHash string, opts Options) {
+func stepSignature(r *Report, bundle *proof.Bundle, publicKey []byte, keyID, subjectHash, blockHash string) {
 	switch {
 	case publicKey == nil:
 		r.fail(groupProof, CatCryptographic,
@@ -77,18 +77,6 @@ func stepSignature(r *Report, bundle *proof.Bundle, publicKey []byte, keyID, sub
 		return
 	}
 	payloadSize := 81 + 32*len(roots)
-
-	if opts.SkipSignatures {
-		r.skip(groupProof, CatCryptographic,
-			"proof signature verification skipped (--skip-signatures)")
-		// E.25 lists the steps a verifier MAY skip and still call the run
-		// verified; E.16 is not among them, so the omission is disclosed
-		// as a warn: a skip cannot move the verdict, and nothing else in
-		// the report says the signature went unchecked.
-		r.warn(groupProof, CatCryptographic,
-			"this run establishes nothing about who signed the proof: the Ed25519 signature was not checked (--skip-signatures)")
-		return
-	}
 
 	if len(signature) != 64 {
 		r.fail(groupProof, CatCryptographic,
@@ -139,7 +127,7 @@ func stepKeyring(r *Report, bundle *proof.Bundle, publicKey []byte, keyID string
 			return
 		}
 		source, sourceLabel = "pinned "+opts.KeyringFile, "pinned keyring"
-	case opts.SkipExternal || opts.SkipSignatures || opts.KeyringURL == "":
+	case opts.SkipExternal || opts.KeyringURL == "":
 		r.skip(groupKeyBinding, CatCryptographic, keyringNotSupplied)
 		return
 	default:
