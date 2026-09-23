@@ -14,9 +14,11 @@
 // Offline operation is first class: every step from E.6 through E.16, the
 // witness step E.17a and the submission window E.20 run with no network
 // access. The network-dependent steps (E.18, E.19's binding lookup, E.21,
-// the key event's chain confirmations, and the E.17 keyring fetch) run
-// only when the caller allows them and report `skip` on any failure to
-// reach a source; a skipped check never fails a proof.
+// and the key event's chain confirmations) run only when the caller allows
+// them and report `skip` on any failure to reach a source; a skipped check
+// never fails a proof. The E.17 keyring fetch also runs only online, but a
+// fetch that fails is the failure `keyring_unavailable`, because without
+// the keyring nothing ties the signing key to Truestamp.
 package verify
 
 import (
@@ -46,7 +48,8 @@ type Options struct {
 	KeyringFile string
 
 	// KeyringURL is fetched for E.17 when no file is pinned and the run is
-	// online. Empty means no keyring is fetched.
+	// online, and a fetch that fails fails the run. Empty means no keyring
+	// is fetched.
 	KeyringURL string
 }
 
