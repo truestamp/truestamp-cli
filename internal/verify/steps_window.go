@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/truestamp/truestamp-cli/internal/proof"
+	"github.com/truestamp/truestamp-cli/internal/proof/ptype"
 )
 
 // --- [E.20] Step 12: the submission window ---
@@ -18,9 +19,14 @@ import (
 // checking, and a violation is a real failure, but it is not external
 // evidence and must never be presented as such.
 //
-// The SUBMITTED-BEFORE edge is grounded by the earliest commitment whose
-// chain confirmed in this run; unconfirmed, its timestamp is a candidate
-// rather than an established edge.
+// The SUBMITTED-BEFORE edge is a time read from a chain in this run. A
+// commitment's carried `timestamp` is not covered by the signature, so
+// anyone holding the bundle can rewrite it, and it never appears as the
+// edge or as a candidate for it. For each top-level Stellar commitment
+// whose memo matched the epoch root, Horizon returns the close time of the
+// ledger holding the transaction, and the edge is the earliest of those
+// times. A confirmed Bitcoin commitment gives an info row only: this
+// verifier reads no time from the Bitcoin chain.
 //
 // The SUBMITTED-AFTER edge is grounded by the witnesses the fingerprint
 // commits to. Each carried witness names the time its own source published
@@ -30,14 +36,14 @@ import (
 // frozen into the item hash at submission, and still short of an
 // externally confirmed edge.
 
-func stepSubmissionWindow(r *Report, bundle *proof.Bundle, witnesses witnessSet, confirmedChains, confirmedWitnesses map[string]bool) {
+func stepSubmissionWindow(r *Report, bundle *proof.Bundle, witnesses witnessSet, confirmedChains []chainRead, confirmedWitnesses map[string]bool) {
 	if bundle.IsBlockLike() {
 		r.skip(groupSubmittedAfter, CatTiming,
 			"not established: a block-like proof carries no submission fingerprint")
 		if ms, ok := uuidv7Ms(bundle.Block.ID); ok {
 			r.Temporal.CommittedAt = formatSeconds(ms)
 		}
-		reportSubmittedBefore(r, bundle, confirmedChains)
+		reportSubmittedBefore(r, confirmedChains)
 		return
 	}
 
@@ -62,7 +68,7 @@ func stepSubmissionWindow(r *Report, bundle *proof.Bundle, witnesses witnessSet,
 	}
 
 	reportSubmittedAfter(r, bundle, witnesses, confirmedWitnesses)
-	reportSubmittedBefore(r, bundle, confirmedChains)
+	reportSubmittedBefore(r, confirmedChains)
 }
 
 func reportSubmittedAfter(r *Report, bundle *proof.Bundle, witnesses witnessSet, confirmed map[string]bool) {
@@ -133,66 +139,50 @@ func latestWitness(entries []*witnessEntry) *witnessEntry {
 	return latest
 }
 
-// timestampedCommitment is a commitment entry whose timestamp parsed.
-type timestampedCommitment struct {
-	chain     string
-	timestamp string
-	ms        int64
-}
+// bitcoinNoEdge says why a confirmed Bitcoin commitment moves no edge.
+const bitcoinNoEdge = "the bitcoin commitment is confirmed on chain, but this verifier reads no time from the Bitcoin chain for this edge"
 
-func reportSubmittedBefore(r *Report, bundle *proof.Bundle, confirmedChains map[string]bool) {
-	var timestamped, confirmed []timestampedCommitment
-	for _, c := range bundle.Commitments {
-		if c.Timestamp == "" {
-			continue
-		}
-		ms, ok := isoMs(c.Timestamp)
-		if !ok {
-			continue
-		}
-		tc := timestampedCommitment{chain: c.Chain, timestamp: c.Timestamp, ms: ms}
-		timestamped = append(timestamped, tc)
-		if confirmedChains[c.Chain] {
-			confirmed = append(confirmed, tc)
+// reportSubmittedBefore reports the edge from the top-level commitments
+// that confirmed in this run: a pass on the earliest Stellar close time
+// Horizon returned, or else one info row saying why there is none.
+func reportSubmittedBefore(r *Report, confirmed []chainRead) {
+	var edge *chainRead
+	var untimed, bitcoinConfirmed bool
+	for i := range confirmed {
+		c := &confirmed[i]
+		switch {
+		case c.chain == ptype.ChainBitcoin:
+			bitcoinConfirmed = true
+		case !c.hasTime:
+			untimed = true
+		case edge == nil || c.ms < edge.ms:
+			edge = c
 		}
 	}
 
-	switch {
-	case len(timestamped) == 0:
-		r.info(groupSubmittedBefore, CatTiming, "not established: no commitment carries a timestamp")
-	case len(confirmed) == 0:
-		earliest := earliestCommitment(timestamped)
-		r.info(groupSubmittedBefore, CatTiming, fmt.Sprintf(
-			"submitted before %s is a candidate from the %s commitment; that commitment was not confirmed in this run",
-			earliest.timestamp, earliest.chain))
-	default:
-		edge := earliestCommitment(confirmed)
+	if edge != nil {
 		r.pass(groupSubmittedBefore, CatTiming, fmt.Sprintf(
-			"Submitted before %s: the %s commitment carrying the earliest confirmed timestamp is confirmed on chain",
-			edge.timestamp, edge.chain))
-		// An unconfirmed commitment timestamped ahead of the confirmed edge
-		// is named but never displaces it.
-		var earlier []timestampedCommitment
-		for _, tc := range timestamped {
-			if tc.ms < edge.ms {
-				earlier = append(earlier, tc)
-			}
+			"Submitted before %s: the close time of ledger %d, read from the %s Horizon in this run for the stellar commitment whose memo matched the epoch root",
+			formatMs(edge.ms), edge.ledger, edge.network))
+		if bitcoinConfirmed {
+			r.info(groupSubmittedBefore, CatTiming, bitcoinNoEdge)
 		}
-		if len(earlier) > 0 {
-			candidate := earliestCommitment(earlier)
-			r.info(groupSubmittedBefore, CatTiming, fmt.Sprintf(
-				"An earlier candidate, %s from the %s commitment, was not confirmed in this run; confirming it would tighten the edge",
-				candidate.timestamp, candidate.chain))
-		}
+		return
 	}
-}
 
-func earliestCommitment(entries []timestampedCommitment) timestampedCommitment {
-	earliest := entries[0]
-	for _, e := range entries[1:] {
-		if e.ms < earliest.ms {
-			earliest = e
-		}
+	var reasons []string
+	switch {
+	case r.SkippedExternal:
+		reasons = append(reasons, "no chain was read in this run (offline)")
+	case len(confirmed) == 0:
+		reasons = append(reasons, "no commitment was confirmed on its chain in this run")
 	}
-	return earliest
+	if untimed {
+		reasons = append(reasons, "Horizon returned no usable close time for the confirmed stellar commitment")
+	}
+	if bitcoinConfirmed {
+		reasons = append(reasons, bitcoinNoEdge)
+	}
+	r.info(groupSubmittedBefore, CatTiming, "not established: "+strings.Join(reasons, "; ")+
+		"; a commitment's carried timestamp is not signed and never stands in for this edge")
 }
