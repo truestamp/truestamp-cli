@@ -27,11 +27,24 @@ import (
 // clock outside Truestamp. Every one of them reports `skip` when it cannot
 // reach its source; a skipped check never fails a proof (E.22).
 
+// chainRead is a top-level commitment that confirmed on its chain in this
+// run. A Stellar read carries the Horizon instance it came from, and the
+// ledger and close time Horizon returned, in this run, for the transaction
+// whose memo matched the epoch root; hasTime is false when that time does
+// not parse. A Bitcoin read carries no time: this verifier reads none from
+// the Bitcoin chain that could serve as an edge.
+type chainRead struct {
+	chain   string
+	network string
+	ledger  int
+	ms      int64
+	hasTime bool
+}
+
 // stepExternal runs the commitment confirmations and the entropy re-fetches
-// in the reference verifier's row order, returning the chains that
+// in the reference verifier's row order, returning the commitments that
 // confirmed and the entropy witnesses that confirmed, which E.20 consumes.
-func stepExternal(r *Report, bundle *proof.Bundle, witnesses witnessSet, opts Options) (confirmedChains, confirmedWitnesses map[string]bool) {
-	confirmedChains = map[string]bool{}
+func stepExternal(r *Report, bundle *proof.Bundle, witnesses witnessSet, opts Options) (confirmedChains []chainRead, confirmedWitnesses map[string]bool) {
 	confirmedWitnesses = map[string]bool{}
 
 	for i := range bundle.Commitments {
@@ -47,15 +60,17 @@ func stepExternal(r *Report, bundle *proof.Bundle, witnesses witnessSet, opts Op
 					short(entry.EpochMerkleRoot), short(entry.TransactionHash)))
 				continue
 			}
-			if confirmStellar(r, entry, groupStellar, CatBlockchain) {
-				confirmedChains[ptype.ChainStellar] = true
+			if result := confirmStellar(r, entry, groupStellar, CatBlockchain); result != nil {
+				read := chainRead{chain: ptype.ChainStellar, network: external.NetworkLabel(entry.Network), ledger: result.Ledger}
+				read.ms, read.hasTime = isoMs(result.Timestamp)
+				confirmedChains = append(confirmedChains, read)
 			}
 		case ptype.ChainBitcoin:
 			if entry.EpochMerkleRoot != "" && r.Temporal.BitcoinCommit == "" {
 				r.Temporal.BitcoinCommit = commitmentTime(entry)
 			}
 			if confirmBitcoin(r, entry, groupBitcoin, CatBlockchain, opts) {
-				confirmedChains[ptype.ChainBitcoin] = true
+				confirmedChains = append(confirmedChains, chainRead{chain: ptype.ChainBitcoin})
 			}
 		}
 	}
@@ -115,12 +130,13 @@ func stellarNetwork(bundle *proof.Bundle) string {
 
 // confirmStellar looks the transaction up on Horizon and grades the memo
 // and ledger. It reports two rows on success, the way the server does, and
-// returns whether the entry confirmed. Only a substantive disagreement with
-// the chain may fail the group; every transport outcome is a skip.
-func confirmStellar(r *Report, entry *proof.Commitment, group, category string) bool {
+// returns what Horizon said when the entry confirmed, nil otherwise. Only
+// a substantive disagreement with the chain may fail the group; every
+// transport outcome is a skip.
+func confirmStellar(r *Report, entry *proof.Commitment, group, category string) *external.StellarResult {
 	if entry.TransactionHash == "" {
 		r.skip(group, category, "Stellar commitment unconfirmed: the entry carries no transaction id to look up")
-		return false
+		return nil
 	}
 	network := entry.Network
 	networkLabel := external.NetworkLabel(network)
@@ -131,7 +147,7 @@ func confirmStellar(r *Report, entry *proof.Commitment, group, category string) 
 		r.pass(group, category, "Stellar memo matches expected epoch root")
 	case external.OutcomeMismatch:
 		r.fail(group, category, fmt.Sprintf("Stellar commitment does not match the chain: %s", err))
-		return false
+		return nil
 	case external.OutcomeNotFound:
 		// A 404 is only a definitive absence when the entry named the
 		// network it was looking in. When `network` is absent or
@@ -145,10 +161,10 @@ func confirmStellar(r *Report, entry *proof.Commitment, group, category string) 
 		} else {
 			r.fail(group, category, fmt.Sprintf("Transaction %s not found on %s", entry.TransactionHash, networkLabel))
 		}
-		return false
+		return nil
 	default:
 		r.skip(group, category, fmt.Sprintf("Stellar commitment unconfirmed: %s", err))
-		return false
+		return nil
 	}
 
 	// The ledger, when carried, must match. A present value that is not an
@@ -158,16 +174,16 @@ func confirmStellar(r *Report, entry *proof.Commitment, group, category string) 
 		r.fail(group, category, fmt.Sprintf(
 			"Transaction %s confirmed on %s, but the entry's ledger %s is not an integer",
 			entry.TransactionHash, networkLabel, entry.Fields.Literal("ledger")))
-		return false
+		return nil
 	case entry.HasLedger && result.Ledger != entry.Ledger:
 		r.fail(group, category, fmt.Sprintf(
 			"Transaction %s is in ledger %d on %s, not the ledger %d the entry names",
 			entry.TransactionHash, result.Ledger, networkLabel, entry.Ledger))
-		return false
+		return nil
 	}
 	r.pass(group, category, fmt.Sprintf("Transaction %s confirmed on %s (ledger %d)",
 		entry.TransactionHash, networkLabel, result.Ledger))
-	return true
+	return result
 }
 
 // defaultedNetworkReason says WHY E.18's endpoint rule fell through to the
