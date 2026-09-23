@@ -134,11 +134,13 @@ func stepKeyring(r *Report, bundle *proof.Bundle, publicKey []byte, keyID string
 		var err error
 		keyring, err = external.FetchKeyring(opts.KeyringURL)
 		if err != nil {
-			// An unreachable or unintelligible keyring establishes
-			// nothing either way; E.22 forbids a skipped external check
-			// from failing a proof.
-			r.skip(groupKeyBinding, CatCryptographic,
-				fmt.Sprintf("keyring cross-check not performed: %s", err))
+			// An online run expects the published keyring. A fetch that
+			// fails, whether the host is unreachable or the answer is not
+			// a keyring, leaves nothing to tie the key to Truestamp, and
+			// skipping here would let a self-signed bundle pass wherever
+			// the fetch can be blocked. So the run fails.
+			r.fail(groupKeyBinding, CatCryptographic,
+				fmt.Sprintf("keyring_unavailable: could not read the keyring from %s (%s), so nothing shows this bundle was signed by a published Truestamp key", opts.KeyringURL, err))
 			return
 		}
 		// E.17 asks for an independently obtained, pinned keyring and

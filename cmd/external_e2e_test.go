@@ -210,6 +210,42 @@ func TestCLI_ExternalEndpoints_EndToEnd(t *testing.T) {
 		}
 	})
 
+	// E.17: unlike the chain lookups, a keyring an online run cannot read
+	// FAILS the run with keyring_unavailable. The origin is the dead
+	// address, so the keyring URL derived from it refuses connections;
+	// every other row grades as in the case above, so Key Binding is the
+	// one failure. Offline, the same origin is never contacted and the
+	// binding keeps its skip.
+	t.Run("unreachable keyring fails and exits 1, offline still skips", func(t *testing.T) {
+		stub.setMode("unused")
+		out, code := runVerifyJSON(t, bin, conformanceVectorPath(t), "--base-url", deadURL, "--expected-hash", appendixDClaimsHash)
+		if code != 1 || out.Passed || out.FailedCount != 1 {
+			t.Errorf("exit %d passed %v failed_count %d, want exit 1, not passed, one failure\n%s",
+				code, out.Passed, out.FailedCount, formatCLISteps(out.Steps))
+		}
+		for _, s := range out.Steps {
+			if s.Group == "Key Binding" && (s.Status != "fail" || !strings.HasPrefix(s.Message, "keyring_unavailable: ")) {
+				t.Errorf("Key Binding = %s %q, want a keyring_unavailable failure", s.Status, s.Message)
+			}
+		}
+		if kb := stepStatuses(out, "Key Binding"); !kb["fail"] {
+			t.Errorf("no failing Key Binding row\n%s", formatCLISteps(out.Steps))
+		}
+
+		out, code = runVerifyJSON(t, bin, conformanceVectorPath(t), "--offline", "--base-url", deadURL, "--expected-hash", appendixDClaimsHash)
+		if code != 0 || !out.Passed {
+			t.Errorf("offline: exit %d passed %v, want exit 0 and passed\n%s", code, out.Passed, formatCLISteps(out.Steps))
+		}
+		for _, s := range out.Steps {
+			if s.Group == "Key Binding" && (s.Status != "skip" || !strings.HasPrefix(s.Message, "no keyring supplied")) {
+				t.Errorf("offline Key Binding = %s %q, want the no-keyring skip", s.Status, s.Message)
+			}
+		}
+		if kb := stepStatuses(out, "Key Binding"); !kb["skip"] {
+			t.Errorf("offline: no skipped Key Binding row\n%s", formatCLISteps(out.Steps))
+		}
+	})
+
 	// E.18: a chain that answers and DISAGREES still fails. Same bundle,
 	// one field rewritten so the lookup lands on the live stub; `network`
 	// is not part of the signed payload, so every cryptographic check
