@@ -1,0 +1,38 @@
+[
+  {
+    "code": 0,
+    "run": "label verified"
+  },
+  {
+    "code": 1,
+    "run": "a runtime error outside verification, such as an invalid command line or an input that cannot be read; no report"
+  },
+  {
+    "code": 2,
+    "run": "the verifier stopped on a fault it did not catch, or caught one before steps 0 to 3 passed; no report"
+  },
+  {
+    "code": 3,
+    "run": "label failed"
+  },
+  {
+    "code": 4,
+    "run": "a bare rejection other than configuration_error"
+  },
+  {
+    "code": 5,
+    "run": "label unattributed"
+  },
+  {
+    "code": 6,
+    "run": "label supplied-keyring"
+  },
+  {
+    "code": 7,
+    "run": "label internally-consistent"
+  },
+  {
+    "code": 8,
+    "run": "configuration_error"
+  }
+]

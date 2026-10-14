@@ -1,0 +1,14 @@
+{
+  "about": "The same transaction without its witness. It parses, and its one output script that begins with 0x6a pushes 52 bytes (0x6a 0x34), so it is not a well-formed raw_transaction.",
+  "block_hash": "0000000000000000000004fe7503727513a5a4b28db703b6496d4bb600f5495f",
+  "expected": {
+    "fails": "op_return",
+    "transaction_hash": "2400287675586647c850a2d7c3a5261cf21eac5a500d5e345a5f992e0fe6c75b",
+    "well_formed": false
+  },
+  "height": 932662,
+  "hex": "02000000026814730123c5ca79b263e726d8233bbec21b870a8e00fcb88d3700983928dde60000000000ffffffff477b73d2cde2b49fd3f0cba7534dd6a0d518c8f916df6fc276bd6d4ea919a1b70200000000ffffffff03d0810d0000000000160014f2eac266f2864cdde4f505da86d5bd76274ab6570000000000000000366a344249513a746f3a555344542854524f4e293a54564a523661766152385a4a527869427773736d7077646877426350453277524a5342010000000000001600140725c3b8b84fd2114ca6e20a412fcf00ba1f2d5000000000",
+  "kind": "transaction",
+  "network": "mainnet",
+  "source": "A test of Truestamp's app, test/truestamp/bitcoin/explorer_verification_test.exs, which keeps a mainnet transaction and the txoutproof a public block explorer gave for it; mempool.space's Esplora API placed the transaction in this block, at this height, on 2026-09-27."
+}

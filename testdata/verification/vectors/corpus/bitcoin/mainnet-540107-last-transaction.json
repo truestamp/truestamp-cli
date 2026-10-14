@@ -1,0 +1,14 @@
+{
+  "about": "The last transaction of block 540107, at index 229 of its 230, counting the coinbase as 0. It has no witness, so these are its bytes as the block holds them: one input and two outputs, a P2SH script and a P2PKH script. It parses, but no output script begins with 0x6a, so it is not a well-formed raw_transaction.",
+  "block_hash": "00000000000000000021868c2cefc52a480d173c849412fe81c4e5ab806f94ab",
+  "expected": {
+    "fails": "op_return",
+    "transaction_hash": "9c97cf68319da27bb6a54be63c6eb2f2a8d85eba408b4da2fda0abb7a12754e5",
+    "well_formed": false
+  },
+  "height": 540107,
+  "hex": "0100000001b51a86687d999e613822e11603025b4c39e7141846aa08bfc8ab83dbe3194cec000000006a473044022014781fe9b58d8ae05e5037a40b93f513ebbf898671735e2ec55996028dfe015a022046061d1b11e3a641253d75c10e0251f77d51970c90519efbf91569f363255011012103bc359c089f1e1f1e9078b55eae3ffbdd01e21acc3d32a5fdd9bcdd8fa1af1264feffffff02a08601000000000017a9143326bba18854e7a2040c0ea8541bc72ec0ee67998793491200000000001976a91482dacc29a6ba492ac6431d2a4fe54bb790f97d1688ac9b3d0800",
+  "kind": "transaction",
+  "network": "mainnet",
+  "source": "Mainnet block 540107, whole, in btcd's test file testdata/block-00000000000000000021868c2cefc52a480d173c849412fe81c4e5ab806f94ab.blk (github.com/btcsuite/btcd/wire/v2 v2.0.1); mempool.space's Esplora API gave the same hash for height 540107 on 2026-09-27. Each merkleblock is built from the block's 230 transactions, as Bitcoin Core's CPartialMerkleTree builds one."
+}

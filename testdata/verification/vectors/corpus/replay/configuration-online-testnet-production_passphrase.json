@@ -1,0 +1,28 @@
+{
+  "reads": [
+    {
+      "answer": {
+        "outcome": "found",
+        "value": {
+          "hash": "0f9188f13cb7b2c71f2a335e3a4fc328bf5beb436012afca590b1a11466e2206"
+        }
+      },
+      "read": {
+        "kind": "bitcoin_identity",
+        "network": "regtest"
+      }
+    },
+    {
+      "answer": {
+        "outcome": "found",
+        "value": {
+          "network_passphrase": "Public Global Stellar Network ; September 2015"
+        }
+      },
+      "read": {
+        "kind": "stellar_identity",
+        "network": "testnet"
+      }
+    }
+  ]
+}

@@ -1,0 +1,14 @@
+{
+  "about": "The same transaction without its witness: one input and two outputs, the second exactly 0x6a 0x20 and 32 bytes. It is a well-formed raw_transaction, whose OP_RETURN pushes op_return.",
+  "block_hash": "00000000000000000021868c2cefc52a480d173c849412fe81c4e5ab806f94ab",
+  "expected": {
+    "op_return": "2eae7f097b71495b28239701f285dbec344206fdf795a2a4deb3b3722e5b36dd",
+    "transaction_hash": "5de21dd276cf8e5e4d4297d154b870b3ea0d9954de273e693e1a7f989067ea13",
+    "well_formed": true
+  },
+  "height": 540107,
+  "hex": "01000000015f2c275470bfc27a732270ed6b9030bb5e93a3b530bcfc14907888c0508703b30000000017160014aa94bdb05cda3cb788b59f7f5980dee90c73be0cfdffffff028e8251000000000017a91498c114ad7f5b555131bd7517783dd24af37d5be3870000000000000000226a202eae7f097b71495b28239701f285dbec344206fdf795a2a4deb3b3722e5b36ddca3d0800",
+  "kind": "transaction",
+  "network": "mainnet",
+  "source": "Mainnet block 540107, whole, in btcd's test file testdata/block-00000000000000000021868c2cefc52a480d173c849412fe81c4e5ab806f94ab.blk (github.com/btcsuite/btcd/wire/v2 v2.0.1); mempool.space's Esplora API gave the same hash for height 540107 on 2026-09-27. Each merkleblock is built from the block's 230 transactions, as Bitcoin Core's CPartialMerkleTree builds one."
+}

@@ -1,0 +1,14 @@
+{
+  "about": "The transaction at index 173 of block 540107's 230, counting the coinbase as 0, serialized with its witness (BIP 144). After the version, its marker octet 0x00 reads as a count of no inputs, so it is not a transaction serialized without witness data, and the SHA-256d of these bytes is its witness hash, not its txid.",
+  "block_hash": "00000000000000000021868c2cefc52a480d173c849412fe81c4e5ab806f94ab",
+  "expected": {
+    "fails": "parse",
+    "transaction_hash": "250b6178cd88d653a64167752beb5e3b451b2ac121b7309e11271adad8493720",
+    "well_formed": false
+  },
+  "height": 540107,
+  "hex": "010000000001015f2c275470bfc27a732270ed6b9030bb5e93a3b530bcfc14907888c0508703b30000000017160014aa94bdb05cda3cb788b59f7f5980dee90c73be0cfdffffff028e8251000000000017a91498c114ad7f5b555131bd7517783dd24af37d5be3870000000000000000226a202eae7f097b71495b28239701f285dbec344206fdf795a2a4deb3b3722e5b36dd02473044022008476cd06f7b9744810237d8fadd67ea041ebac9f09e8e9628016e32d1cbc4380220536d311db4fb667b6a8f89a22e4e9ca3289b09543ddb396ee7a132703f251e2c01210256c3b756a7f12c05ed79c076c5609fed8ad625ff95f812b1053957a29bfb206eca3d0800",
+  "kind": "transaction",
+  "network": "mainnet",
+  "source": "Mainnet block 540107, whole, in btcd's test file testdata/block-00000000000000000021868c2cefc52a480d173c849412fe81c4e5ab806f94ab.blk (github.com/btcsuite/btcd/wire/v2 v2.0.1); mempool.space's Esplora API gave the same hash for height 540107 on 2026-09-27. Each merkleblock is built from the block's 230 transactions, as Bitcoin Core's CPartialMerkleTree builds one."
+}

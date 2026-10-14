@@ -1,0 +1,96 @@
+{
+  "block_hash": {
+    "byte": "0x31",
+    "construction": "block_hash",
+    "family": "Blocks",
+    "hashed": "JCS(block record)",
+    "signed": true,
+    "signer": "chain_assigned_key"
+  },
+  "claims_hash": {
+    "byte": "0x10",
+    "construction": "claims_hash",
+    "family": "Items",
+    "hashed": "JCS(claims)",
+    "signed": false
+  },
+  "entropy_hash": {
+    "byte": "0x20",
+    "construction": "entropy_hash",
+    "family": "Entropy",
+    "hashed": "JCS(entropy object)",
+    "signed": false
+  },
+  "epoch_hash": {
+    "byte": "0x40",
+    "construction": "epoch_hash",
+    "family": "Epochs",
+    "hashed": "JCS(epoch record)",
+    "signed": false
+  },
+  "genesis_previous_block_hash": {
+    "byte": "0x30",
+    "construction": "genesis previous_block_hash",
+    "family": "Blocks",
+    "hashed": "JCS(genesis object)",
+    "signed": false
+  },
+  "handover": {
+    "byte": "0x62",
+    "construction": "handover",
+    "family": "Keys",
+    "hashed": "JCS(rotation event without handover_signature)",
+    "signed": true,
+    "signer": "outgoing_key"
+  },
+  "item_hash": {
+    "byte": "0x11",
+    "construction": "item_hash",
+    "family": "Items",
+    "hashed": "JCS(item record)",
+    "signed": false
+  },
+  "key_id": {
+    "byte": "0x60",
+    "construction": "key_id",
+    "family": "Keys",
+    "hashed": "the 32 key bytes; the hash cut to 4 bytes",
+    "signed": false
+  },
+  "merkle_leaf": {
+    "byte": "0x00",
+    "construction": "leaf",
+    "family": "Merkle",
+    "hashed": "the 32 bytes of the leaf value",
+    "signed": false
+  },
+  "merkle_node": {
+    "byte": "0x01",
+    "construction": "node",
+    "family": "Merkle",
+    "hashed": "the 32 bytes of the left child, then of the right",
+    "signed": false
+  },
+  "observation_hash": {
+    "byte": "0x21",
+    "construction": "observation_hash",
+    "family": "Entropy",
+    "hashed": "JCS(observation record)",
+    "signed": false
+  },
+  "prerotation_commitment": {
+    "byte": "0x61",
+    "construction": "prerotation_commitment",
+    "family": "Keys",
+    "hashed": "the 32 bytes of the next key",
+    "signed": false
+  },
+  "proof_hash": {
+    "byte": "0x50",
+    "construction": "proof_hash",
+    "family": "Proofs",
+    "hashed": "JCS(proof)",
+    "signed": true,
+    "signer": "active_key"
+  }
+}

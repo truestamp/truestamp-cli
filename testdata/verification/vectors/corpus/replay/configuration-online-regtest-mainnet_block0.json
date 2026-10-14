@@ -1,0 +1,28 @@
+{
+  "reads": [
+    {
+      "answer": {
+        "outcome": "found",
+        "value": {
+          "hash": "000000000019d6689c085ae165831e934ff763ae46a2a6c172b3f1b60a8ce26f"
+        }
+      },
+      "read": {
+        "kind": "bitcoin_identity",
+        "network": "regtest"
+      }
+    },
+    {
+      "answer": {
+        "outcome": "found",
+        "value": {
+          "network_passphrase": "Test SDF Network ; September 2015"
+        }
+      },
+      "read": {
+        "kind": "stellar_identity",
+        "network": "testnet"
+      }
+    }
+  ]
+}

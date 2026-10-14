@@ -1,0 +1,84 @@
+{
+  "reads": [
+    {
+      "answer": {
+        "outcome": "unreachable",
+        "reason": "timeout"
+      },
+      "read": {
+        "kind": "bitcoin_identity",
+        "network": "regtest"
+      }
+    },
+    {
+      "answer": {
+        "outcome": "found",
+        "value": {
+          "outputValue": "FDBA0E7DA81C11481C72F9B01CBAE7C364C53270C8EDFFB34537C8F7028D75163D70C142873DD560A6E985101A99E02BD7C7EA6ABA8BD36F3C581CB65C2F6216",
+          "timeStamp": "2026-09-26T01:48:00.000Z"
+        }
+      },
+      "read": {
+        "chainIndex": 2,
+        "kind": "nist_pulse",
+        "pulseIndex": 1200018
+      }
+    },
+    {
+      "answer": {
+        "outcome": "found",
+        "value": {
+          "network_passphrase": "Test SDF Network ; September 2015"
+        }
+      },
+      "read": {
+        "kind": "stellar_identity",
+        "network": "testnet"
+      }
+    },
+    {
+      "answer": {
+        "outcome": "found",
+        "value": {
+          "closed_at": "2026-09-26T01:48:30Z",
+          "hash": "84e52c6a9487098304fe1c3ccd550a0c323e330db2e8854c17145b217a94c6e7"
+        }
+      },
+      "read": {
+        "kind": "stellar_ledger",
+        "network": "testnet",
+        "sequence": 1000222
+      }
+    },
+    {
+      "answer": {
+        "outcome": "found",
+        "value": {
+          "closed_at": "2026-09-26T01:51:15Z",
+          "hash": "ed4f19f6b1be8262ae2931cda5d914f39ed110f187225c59e57575f1b8154585"
+        }
+      },
+      "read": {
+        "kind": "stellar_ledger",
+        "network": "testnet",
+        "sequence": 1000255
+      }
+    },
+    {
+      "answer": {
+        "outcome": "found",
+        "value": {
+          "ledger": 1000255,
+          "memo": "488e6583a192071810724dd392b551c4ca119ca6688deb9034683eb42eba1364",
+          "memo_type": "hash",
+          "successful": true
+        }
+      },
+      "read": {
+        "hash": "860d4085c0af0b5f8cadff2bb0647cf75bbd16901817684dc4e180c200c70681",
+        "kind": "stellar_transaction",
+        "network": "testnet"
+      }
+    }
+  ]
+}

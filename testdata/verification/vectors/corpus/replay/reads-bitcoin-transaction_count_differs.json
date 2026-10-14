@@ -1,0 +1,146 @@
+{
+  "reads": [
+    {
+      "answer": {
+        "outcome": "found",
+        "value": {
+          "hash": "223bff25fec763ffe4c6c68df85bd025707ce4ab6cb516442155eebadee3bff9",
+          "median_time_past": 1790385900,
+          "transaction_count": 1
+        }
+      },
+      "read": {
+        "height": 200,
+        "kind": "bitcoin_block_at_height",
+        "network": "regtest"
+      }
+    },
+    {
+      "answer": {
+        "outcome": "found",
+        "value": {
+          "hash": "23c63d48d5e69929c1540d99b402070ffeb515b50e814188d0eb6e94e97e018b",
+          "median_time_past": 1790386980,
+          "transaction_count": 4
+        }
+      },
+      "read": {
+        "height": 218,
+        "kind": "bitcoin_block_at_height",
+        "network": "regtest"
+      }
+    },
+    {
+      "answer": {
+        "outcome": "found",
+        "value": {
+          "hash": "066ee8ed37e3b69aaef26bca28f2818674e61412e1be5bc8f17b0e4cc5971386",
+          "median_time_past": 1790387220,
+          "transaction_count": 5
+        }
+      },
+      "read": {
+        "height": 222,
+        "kind": "bitcoin_block_at_height",
+        "network": "regtest"
+      }
+    },
+    {
+      "answer": {
+        "outcome": "found",
+        "value": {
+          "hash": "0e0c4622149194aa2d64e55cc0d40f279f2c2a3c8c33d0e4cd2b84ecf805a40a",
+          "median_time_past": 1790387580,
+          "transaction_count": 1
+        }
+      },
+      "read": {
+        "height": 228,
+        "kind": "bitcoin_block_at_height",
+        "network": "regtest"
+      }
+    },
+    {
+      "answer": {
+        "outcome": "found",
+        "value": {
+          "hash": "0f9188f13cb7b2c71f2a335e3a4fc328bf5beb436012afca590b1a11466e2206"
+        }
+      },
+      "read": {
+        "kind": "bitcoin_identity",
+        "network": "regtest"
+      }
+    },
+    {
+      "answer": {
+        "outcome": "found",
+        "value": {
+          "height": 233
+        }
+      },
+      "read": {
+        "kind": "bitcoin_tip",
+        "network": "regtest"
+      }
+    },
+    {
+      "answer": {
+        "outcome": "found",
+        "value": {
+          "network_passphrase": "Test SDF Network ; September 2015"
+        }
+      },
+      "read": {
+        "kind": "stellar_identity",
+        "network": "testnet"
+      }
+    },
+    {
+      "answer": {
+        "outcome": "found",
+        "value": {
+          "closed_at": "2026-09-26T01:47:15Z",
+          "hash": "aa5a9bbbece5365a0542ded39106bdf44fe7698c7cb9a50a786c0cb8019815c4"
+        }
+      },
+      "read": {
+        "kind": "stellar_ledger",
+        "network": "testnet",
+        "sequence": 1000207
+      }
+    },
+    {
+      "answer": {
+        "outcome": "found",
+        "value": {
+          "ledger": 1000255,
+          "memo": "488e6583a192071810724dd392b551c4ca119ca6688deb9034683eb42eba1364",
+          "memo_type": "hash",
+          "successful": true
+        }
+      },
+      "read": {
+        "hash": "860d4085c0af0b5f8cadff2bb0647cf75bbd16901817684dc4e180c200c70681",
+        "kind": "stellar_transaction",
+        "network": "testnet"
+      }
+    },
+    {
+      "answer": {
+        "outcome": "found",
+        "value": {
+          "ledger": 1000207,
+          "memo": "91b12929a2a889809cda8f552932f95f3a7c252db4a52f52fd34e009d1f0247f",
+          "memo_type": "hash",
+          "successful": true
+        }
+      },
+      "read": {
+        "hash": "ce220fa351309fe7ccdb0ee6ab8f873784082da489a2e749ca3ca1b98a97d1a6",
+        "kind": "stellar_transaction",
+        "network": "testnet"
+      }
+    }
+  ]
+}

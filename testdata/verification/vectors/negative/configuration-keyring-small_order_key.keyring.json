@@ -1,0 +1,17 @@
+{
+  "keys": [
+    {
+      "active": true,
+      "key_id": "fbd680e8",
+      "public_key": "IVL40Zt5HSRFMkLhXy6rbLfP-ntqXtMAl5YOBpiB2xI",
+      "sequence": 0
+    },
+    {
+      "active": true,
+      "key_id": "54f277cc",
+      "public_key": "AQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+      "sequence": 1
+    }
+  ],
+  "version": "1.0"
+}

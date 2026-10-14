@@ -1,0 +1,17 @@
+{
+  "about": "A merkleblock of mainnet's genesis block that matches its one transaction: total_txs 1, one hash and one flag bit, so the header's Merkle root field is that transaction's hash.",
+  "block_hash": "000000000019d6689c085ae165831e934ff763ae46a2a6c172b3f1b60a8ce26f",
+  "expected": {
+    "header_hash": "000000000019d6689c085ae165831e934ff763ae46a2a6c172b3f1b60a8ce26f",
+    "header_merkle_root": "4a5e1e4baab89f3a32518a88c31bc87f618f76673e2cc77ab2127b7afdeda33b",
+    "header_time": "2009-01-03T18:15:05Z",
+    "matched": "4a5e1e4baab89f3a32518a88c31bc87f618f76673e2cc77ab2127b7afdeda33b",
+    "total_txs": 1,
+    "well_formed": true
+  },
+  "height": 0,
+  "hex": "0100000000000000000000000000000000000000000000000000000000000000000000003ba3edfd7a7b12b27ac72c3e67768f617fc81bc3888a51323a9fb8aa4b1e5e4a29ab5f49ffff001d1dac2b7c01000000013ba3edfd7a7b12b27ac72c3e67768f617fc81bc3888a51323a9fb8aa4b1e5e4a0101",
+  "kind": "merkleblock",
+  "network": "mainnet",
+  "source": "Bitcoin Core, src/kernel/chainparams.cpp: mainnet's genesis block. The merkleblock is built from its one transaction, as Bitcoin Core's CPartialMerkleTree builds one."
+}

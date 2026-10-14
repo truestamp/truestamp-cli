@@ -1,0 +1,244 @@
+[
+  {
+    "class": "B64U32",
+    "octets": "2152f8d19b791d24453242e15f2eab6cb7cffa7b6a5ed30097960e069881db12",
+    "text": "IVL40Zt5HSRFMkLhXy6rbLfP-ntqXtMAl5YOBpiB2xI"
+  },
+  {
+    "canonical": "IVL40Zt5HSRFMkLhXy6rbLfP-ntqXtMAl5YOBpiB2xI",
+    "class": "B64U32",
+    "refused": "padded",
+    "text": "IVL40Zt5HSRFMkLhXy6rbLfP-ntqXtMAl5YOBpiB2xI="
+  },
+  {
+    "canonical": "IVL40Zt5HSRFMkLhXy6rbLfP-ntqXtMAl5YOBpiB2xI",
+    "class": "B64U32",
+    "refused": "standard_alphabet",
+    "text": "IVL40Zt5HSRFMkLhXy6rbLfP+ntqXtMAl5YOBpiB2xI"
+  },
+  {
+    "canonical": "IVL40Zt5HSRFMkLhXy6rbLfP-ntqXtMAl5YOBpiB2xI",
+    "class": "B64U32",
+    "refused": "unused_bits",
+    "text": "IVL40Zt5HSRFMkLhXy6rbLfP-ntqXtMAl5YOBpiB2xJ"
+  },
+  {
+    "canonical": "IVL40Zt5HSRFMkLhXy6rbLfP-ntqXtMAl5YOBpiB2xI",
+    "class": "B64U32",
+    "refused": "trailing_newline",
+    "text": "IVL40Zt5HSRFMkLhXy6rbLfP-ntqXtMAl5YOBpiB2xI\n"
+  },
+  {
+    "canonical": "IVL40Zt5HSRFMkLhXy6rbLfP-ntqXtMAl5YOBpiB2xI",
+    "class": "B64U32",
+    "refused": "embedded_crlf",
+    "text": "IVL40Zt5HSRFMkLhXy6rbLfP-ntqXtMAl5YOBpiB\r\n2xI"
+  },
+  {
+    "canonical": "IVL40Zt5HSRFMkLhXy6rbLfP-ntqXtMAl5YOBpiB2xI",
+    "class": "B64U32",
+    "refused": "leading_space",
+    "text": " IVL40Zt5HSRFMkLhXy6rbLfP-ntqXtMAl5YOBpiB2xI"
+  },
+  {
+    "class": "B64U32",
+    "refused": "too_short",
+    "text": "IVL40Zt5HSRFMkLhXy6rbLfP-ntqXtMAl5YOBpiB2x"
+  },
+  {
+    "class": "B64U32",
+    "refused": "too_long",
+    "text": "IVL40Zt5HSRFMkLhXy6rbLfP-ntqXtMAl5YOBpiB2xIA"
+  },
+  {
+    "class": "B64U32",
+    "refused": "other_character",
+    "text": "IVL40Zt5HS.FMkLhXy6rbLfP-ntqXtMAl5YOBpiB2xI"
+  },
+  {
+    "class": "B64U32",
+    "octets": "db995fe25169d141cab9bbba92baa01f9f2e1ece7df4cb2ac05190f37fcc1f9d",
+    "text": "25lf4lFp0UHKubu6krqgH58uHs599MsqwFGQ83_MH50"
+  },
+  {
+    "canonical": "25lf4lFp0UHKubu6krqgH58uHs599MsqwFGQ83_MH50",
+    "class": "B64U32",
+    "refused": "padded",
+    "text": "25lf4lFp0UHKubu6krqgH58uHs599MsqwFGQ83_MH50="
+  },
+  {
+    "canonical": "25lf4lFp0UHKubu6krqgH58uHs599MsqwFGQ83_MH50",
+    "class": "B64U32",
+    "refused": "standard_alphabet",
+    "text": "25lf4lFp0UHKubu6krqgH58uHs599MsqwFGQ83/MH50"
+  },
+  {
+    "canonical": "25lf4lFp0UHKubu6krqgH58uHs599MsqwFGQ83_MH50",
+    "class": "B64U32",
+    "refused": "unused_bits",
+    "text": "25lf4lFp0UHKubu6krqgH58uHs599MsqwFGQ83_MH51"
+  },
+  {
+    "class": "B64U32",
+    "octets": "0000000000000000000000000000000000000000000000000000000000000000",
+    "text": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
+  },
+  {
+    "canonical": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+    "class": "B64U32",
+    "refused": "padded",
+    "text": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA="
+  },
+  {
+    "canonical": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+    "class": "B64U32",
+    "refused": "unused_bits",
+    "text": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAB"
+  },
+  {
+    "class": "B64U32",
+    "octets": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+    "text": "__________________________________________8"
+  },
+  {
+    "canonical": "__________________________________________8",
+    "class": "B64U32",
+    "refused": "padded",
+    "text": "__________________________________________8="
+  },
+  {
+    "canonical": "__________________________________________8",
+    "class": "B64U32",
+    "refused": "standard_alphabet",
+    "text": "//////////////////////////////////////////8"
+  },
+  {
+    "canonical": "__________________________________________8",
+    "class": "B64U32",
+    "refused": "unused_bits",
+    "text": "__________________________________________9"
+  },
+  {
+    "class": "B64U64",
+    "octets": "90f2b97db826135ef545494d10b053ef7d50aebdda7e200ea278637b2b6e3c055d68df1d552c59dfaeb52367405021c5e957dc585cc6c80fe9eeb2364c03450d",
+    "text": "kPK5fbgmE171RUlNELBT731Qrr3afiAOonhjeytuPAVdaN8dVSxZ3661I2dAUCHF6VfcWFzGyA_p7rI2TANFDQ"
+  },
+  {
+    "canonical": "kPK5fbgmE171RUlNELBT731Qrr3afiAOonhjeytuPAVdaN8dVSxZ3661I2dAUCHF6VfcWFzGyA_p7rI2TANFDQ",
+    "class": "B64U64",
+    "refused": "padded",
+    "text": "kPK5fbgmE171RUlNELBT731Qrr3afiAOonhjeytuPAVdaN8dVSxZ3661I2dAUCHF6VfcWFzGyA_p7rI2TANFDQ=="
+  },
+  {
+    "canonical": "kPK5fbgmE171RUlNELBT731Qrr3afiAOonhjeytuPAVdaN8dVSxZ3661I2dAUCHF6VfcWFzGyA_p7rI2TANFDQ",
+    "class": "B64U64",
+    "refused": "standard_alphabet",
+    "text": "kPK5fbgmE171RUlNELBT731Qrr3afiAOonhjeytuPAVdaN8dVSxZ3661I2dAUCHF6VfcWFzGyA/p7rI2TANFDQ"
+  },
+  {
+    "canonical": "kPK5fbgmE171RUlNELBT731Qrr3afiAOonhjeytuPAVdaN8dVSxZ3661I2dAUCHF6VfcWFzGyA_p7rI2TANFDQ",
+    "class": "B64U64",
+    "refused": "unused_bits",
+    "text": "kPK5fbgmE171RUlNELBT731Qrr3afiAOonhjeytuPAVdaN8dVSxZ3661I2dAUCHF6VfcWFzGyA_p7rI2TANFDR"
+  },
+  {
+    "canonical": "kPK5fbgmE171RUlNELBT731Qrr3afiAOonhjeytuPAVdaN8dVSxZ3661I2dAUCHF6VfcWFzGyA_p7rI2TANFDQ",
+    "class": "B64U64",
+    "refused": "trailing_newline",
+    "text": "kPK5fbgmE171RUlNELBT731Qrr3afiAOonhjeytuPAVdaN8dVSxZ3661I2dAUCHF6VfcWFzGyA_p7rI2TANFDQ\n"
+  },
+  {
+    "canonical": "kPK5fbgmE171RUlNELBT731Qrr3afiAOonhjeytuPAVdaN8dVSxZ3661I2dAUCHF6VfcWFzGyA_p7rI2TANFDQ",
+    "class": "B64U64",
+    "refused": "embedded_crlf",
+    "text": "kPK5fbgmE171RUlNELBT731Qrr3afiAOonhjeytu\r\nPAVdaN8dVSxZ3661I2dAUCHF6VfcWFzGyA_p7rI2TANFDQ"
+  },
+  {
+    "canonical": "kPK5fbgmE171RUlNELBT731Qrr3afiAOonhjeytuPAVdaN8dVSxZ3661I2dAUCHF6VfcWFzGyA_p7rI2TANFDQ",
+    "class": "B64U64",
+    "refused": "leading_space",
+    "text": " kPK5fbgmE171RUlNELBT731Qrr3afiAOonhjeytuPAVdaN8dVSxZ3661I2dAUCHF6VfcWFzGyA_p7rI2TANFDQ"
+  },
+  {
+    "class": "B64U64",
+    "refused": "too_short",
+    "text": "kPK5fbgmE171RUlNELBT731Qrr3afiAOonhjeytuPAVdaN8dVSxZ3661I2dAUCHF6VfcWFzGyA_p7rI2TANFD"
+  },
+  {
+    "class": "B64U64",
+    "refused": "too_long",
+    "text": "kPK5fbgmE171RUlNELBT731Qrr3afiAOonhjeytuPAVdaN8dVSxZ3661I2dAUCHF6VfcWFzGyA_p7rI2TANFDQA"
+  },
+  {
+    "class": "B64U64",
+    "refused": "other_character",
+    "text": "kPK5fbgmE1.1RUlNELBT731Qrr3afiAOonhjeytuPAVdaN8dVSxZ3661I2dAUCHF6VfcWFzGyA_p7rI2TANFDQ"
+  },
+  {
+    "class": "B64U64",
+    "octets": "01000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000",
+    "text": "AQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
+  },
+  {
+    "canonical": "AQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+    "class": "B64U64",
+    "refused": "padded",
+    "text": "AQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=="
+  },
+  {
+    "canonical": "AQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+    "class": "B64U64",
+    "refused": "unused_bits",
+    "text": "AQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAB"
+  },
+  {
+    "class": "B64U64",
+    "octets": "00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000",
+    "text": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
+  },
+  {
+    "canonical": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+    "class": "B64U64",
+    "refused": "padded",
+    "text": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=="
+  },
+  {
+    "canonical": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+    "class": "B64U64",
+    "refused": "unused_bits",
+    "text": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAB"
+  },
+  {
+    "class": "B64U64",
+    "octets": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+    "text": "_____________________________________________________________________________________w"
+  },
+  {
+    "canonical": "_____________________________________________________________________________________w",
+    "class": "B64U64",
+    "refused": "padded",
+    "text": "_____________________________________________________________________________________w=="
+  },
+  {
+    "canonical": "_____________________________________________________________________________________w",
+    "class": "B64U64",
+    "refused": "standard_alphabet",
+    "text": "/////////////////////////////////////////////////////////////////////////////////////w"
+  },
+  {
+    "canonical": "_____________________________________________________________________________________w",
+    "class": "B64U64",
+    "refused": "unused_bits",
+    "text": "_____________________________________________________________________________________x"
+  },
+  {
+    "class": "B64U32",
+    "refused": "empty",
+    "text": ""
+  },
+  {
+    "class": "B64U64",
+    "refused": "empty",
+    "text": ""
+  }
+]

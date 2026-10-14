@@ -44,6 +44,9 @@ tasks:
       # (e.g. internal/config/defaults/config.toml). Track them here
       # so editing one invalidates the cache and forces a rebuild.
       - "internal/config/defaults/*.toml"
+      # internal/specdata embeds the spec pins under verification/, which
+      # task verification-sync replaces.
+      - "internal/specdata/verification/**/*"
       - go.mod
       - go.sum
     generates:
@@ -328,6 +331,364 @@ tasks:
       - task: fuzz
       - task: vuln-check
       - task: build-all
+
+  # =============================================================================
+  # Proof specification (truestamp-verification)
+  # =============================================================================
+
+  # Copies the proof specification into the CLI from one commit of the spec
+  # repository. testdata/verification/ gets spec/, vectors/ and
+  # MANIFEST.sha256; internal/specdata/verification/ gets spec/ alone, the
+  # runtime pins, which internal/specdata embeds with go:embed (go:embed
+  # reaches only its own package's directory, never testdata/). Each gets
+  # SOURCE, one line holding the full id of the commit and a newline.
+  # internal/specdata's tests hold both copies to that manifest and to each
+  # other, so a failure there is fixed by syncing again, never by editing a
+  # copied file. A change to the spec is made and committed in
+  # truestamp-verification, and reaches the CLI only through this sync.
+  #
+  # Only a commit on the spec's main is taken. jj records every working-copy
+  # snapshot as a git commit on no branch, so a SOURCE naming one would name
+  # work that may never be published and that jj may later discard.
+  # SPEC_ALLOW_OFF_MAIN=1 takes another commit on purpose, with a warning.
+  #
+  # verification-check re-reads the commit SOURCE names from the spec repo and
+  # compares both copies with it, which the manifest test cannot do: an edit
+  # made together with its manifest line passes that test. Run it by hand
+  # before landing a sync. It stays out of CI, which has no copy of the spec
+  # repository to read.
+  #
+  # Both read the spec repo with read-only git (rev-parse, merge-base,
+  # cat-file, archive) and take their inputs from the environment or as task
+  # variables. The default SPEC_REPO is relative to this Taskfile, so from a
+  # worktree pass an absolute SPEC_REPO.
+  #
+  #   task verification-sync                               # ../truestamp-verification at the head of its main branch
+  #   task verification-sync SPEC_REV=<commit or ref> SPEC_REPO=<absolute path>
+  #   task verification-check [SPEC_REPO=<absolute path>]
+  verification-sync:
+    desc: "Copy the proof spec at one commit on its main into testdata/verification/ and internal/specdata/verification/ (SPEC_REPO=../truestamp-verification, SPEC_REV=refs/heads/main, the main branch, never a tag of that name; from a worktree SPEC_REPO must be absolute; SPEC_ALLOW_OFF_MAIN=1 takes a commit not on main)."
+    silent: true
+    env:
+      SPEC_REPO: '{{.SPEC_REPO | default "../truestamp-verification"}}'
+      SPEC_REV: '{{.SPEC_REV | default "refs/heads/main"}}'
+      SPEC_ALLOW_OFF_MAIN: '{{.SPEC_ALLOW_OFF_MAIN}}'
+    cmds:
+      - |
+        set -euo pipefail
+
+        fixtures="testdata/verification"
+        pins="internal/specdata/verification"
+        commit=""
+        stage=""
+        reported=""
+        # Set by the swap below while the fixtures hold the new commit and the
+        # pins do not yet.
+        mixed=""
+
+        # Every failure ends in one ERROR line: fail's own, or, for a step
+        # that fails without one, the line the EXIT trap adds.
+        fail() {
+          echo "ERROR: $*" >&2
+          reported=1
+          exit 1
+        }
+        exists() { [ -e "$1" ] || [ -L "$1" ]; }
+        # The name beside a target that the swap below uses, such as
+        # testdata/.verification.new.
+        beside() { echo "$(dirname "$1")/.$(basename "$1").$2"; }
+        cleanup() {
+          exit_code=$?
+          if [ -n "$stage" ]; then rm -rf "$stage"; fi
+          rm -rf "$(beside "$fixtures" new)" "$(beside "$pins" new)"
+          if [ "$exit_code" -ne 0 ] && [ -z "$reported" ]; then
+            echo "ERROR: the sync of ${commit:-$SPEC_REV} stopped at the failure above.$mixed" >&2
+          fi
+        }
+        trap cleanup EXIT
+
+        # This shell's cd takes a lone "-" as the previous directory and has
+        # no "--", so a value beginning with "-" is refused, not guessed at.
+        case "$SPEC_REPO" in
+          -*) fail "SPEC_REPO $SPEC_REPO begins with '-'. Pass it as ./$SPEC_REPO or as an absolute path." ;;
+        esac
+        if ! repo="$(cd "$SPEC_REPO" 2>/dev/null && pwd -P)"; then
+          fail "SPEC_REPO $SPEC_REPO is not a directory from $PWD. From a worktree, pass an absolute SPEC_REPO."
+        fi
+
+        # SOURCE records the full id, never the ref it was named by, since a
+        # branch moves. The default names the branch in full: a bare "main"
+        # would resolve to a tag named main before the branch.
+        if ! commit="$(git -C "$repo" rev-parse --verify --quiet "$SPEC_REV^{commit}")"; then
+          fail "no commit $SPEC_REV in $repo. Set SPEC_REPO and SPEC_REV."
+        fi
+
+        on_main=0
+        git -C "$repo" merge-base --is-ancestor "$commit" refs/heads/main || on_main=$?
+        case "$on_main" in
+          0) ;;
+          1)
+            if [ "$SPEC_ALLOW_OFF_MAIN" = "1" ]; then
+              echo "WARNING: SPEC_ALLOW_OFF_MAIN=1: syncing $commit, which is not on main in $repo." >&2
+            else
+              fail "$commit is not on main in $repo. Sync a commit on main, or set SPEC_ALLOW_OFF_MAIN=1 to take it on purpose."
+            fi
+            ;;
+          *) fail "could not tell whether $commit is on main in $repo." ;;
+        esac
+
+        stage="$(mktemp -d)"
+        mkdir "$stage/fixtures" "$stage/pins"
+        staged="$stage/fixtures"
+
+        # From the commit itself, never the spec's working copy, so an
+        # uncommitted edit there cannot reach the CLI.
+        if ! git -C "$repo" archive --format=tar "$commit" spec vectors MANIFEST.sha256 \
+          | tar -x -f - -C "$staged"; then
+          fail "could not take spec/, vectors/ and MANIFEST.sha256 from $commit."
+        fi
+
+        # Refuse a copy that is not exactly what its manifest lists: a link
+        # anywhere, including the top level, a manifest the manifest test
+        # rejects, a file the manifest leaves out, a manifest out of order or
+        # with a path twice, or a byte that differs (a stale manifest, or a
+        # line-end conversion or filter on the way out of git).
+        if [ ! -d "$staged/spec" ] || [ ! -d "$staged/vectors" ] || [ ! -f "$staged/MANIFEST.sha256" ] \
+          || [ -n "$(cd "$staged" && find spec vectors MANIFEST.sha256 ! -type f ! -type d)" ]; then
+          fail "$commit has a link or a missing entry among spec/, vectors/ and MANIFEST.sha256."
+        fi
+        # The manifest test's grammar (manifestLine in
+        # internal/specdata/manifest_test.go): each line a digest, two spaces
+        # and a path under spec/ or vectors/ with no segment beginning with a
+        # dot, so no nested .gitattributes or other dotfile, and a final
+        # newline.
+        if [ "$(tail -c 1 "$staged/MANIFEST.sha256" | od -An -tx1 | tr -d ' \n')" != "0a" ]; then
+          fail "MANIFEST.sha256 at $commit does not end in a newline."
+        fi
+        found=0
+        bad="$(LC_ALL=C grep -a -n -m 1 -E -v '^[0-9a-f]{64}  (spec|vectors)(/[A-Za-z0-9_-][A-Za-z0-9._-]*)+$' \
+          "$staged/MANIFEST.sha256")" || found=$?
+        case "$found" in
+          0) fail "MANIFEST.sha256 at $commit line ${bad%%:*} is not a lowercase SHA-256, two spaces and a path under spec/ or vectors/ made of letters, digits, '.', '_' and '-', with no segment beginning with a dot." ;;
+          1) ;;
+          *) fail "could not read MANIFEST.sha256 at $commit." ;;
+        esac
+        listed="$(sed 's/^[0-9a-f]\{64\}  //' "$staged/MANIFEST.sha256")"
+        if [ "$listed" != "$(printf '%s\n' "$listed" | LC_ALL=C sort -u)" ]; then
+          fail "MANIFEST.sha256 at $commit is not sorted by path, or lists a path twice."
+        fi
+        # Nor a name that gofmt or Go's module rules act on. gofmt -w . (task
+        # fmt) rewrites every .go file under the tree, testdata/ included.
+        # go install builds the CLI from Go's module zip of this repository,
+        # testdata/ included, and that zip is refused for a path that
+        # module.CheckFilePath rejects (within the grammar above, a segment
+        # ending in a dot, or one whose part before its first dot is a name
+        # Windows reserves: aux, con, nul, prn, com1 to com9 or lpt1 to lpt9,
+        # in any case) and for two paths that differ only in case. It leaves
+        # out the files of a vendor folder. A nested go.mod, its name in any
+        # case, makes the module zip drop its folder; go:embed skips that
+        # folder silently when the name is exactly go.mod, or on a disk that
+        # ignores case. The manifest's paths are checked, before the file
+        # list is, so two names a case-insensitive disk holds as one file are
+        # named.
+        found=0
+        bad="$(printf '%s\n' "$listed" | LC_ALL=C awk '
+          BEGIN {
+            n = split("con prn aux nul com1 com2 com3 com4 com5 com6 com7 com8 com9 lpt1 lpt2 lpt3 lpt4 lpt5 lpt6 lpt7 lpt8 lpt9", r, " ")
+            for (i = 1; i <= n; i++) reserved[r[i]] = 1
+          }
+          {
+            if ($0 ~ /\.go$/) { print "gofmt " $0; exit }
+            k = split($0, seg, "/")
+            for (i = 1; i <= k; i++) {
+              s = seg[i]
+              stem = tolower(s)
+              sub(/\..*$/, "", stem)
+              if (s ~ /\.$/) { print "module " $0 " its segment " s " ends in a dot, which module.CheckFilePath refuses"; exit }
+              if (stem in reserved) { print "module " $0 " its segment " s " begins with " stem ", a name Windows reserves, which module.CheckFilePath refuses"; exit }
+              if (tolower(s) == "go.mod") { print "module " $0 " its segment " s " is a nested go.mod, which makes the module zip drop its folder and can make go:embed skip it silently"; exit }
+              if (s == "vendor") { print "module " $0 " it is under a vendor folder, whose files the module zip leaves out"; exit }
+            }
+            p = $0
+            while (p != "") {
+              f = tolower(p)
+              if ((f in seen) && seen[f] != p) { print "module " p " it and " seen[f] " differ only in case, which the module zip refuses"; exit }
+              seen[f] = p
+              if (index(p, "/") == 0) break
+              sub(/\/[^\/]*$/, "", p)
+            }
+          }')" || found=$?
+        if [ "$found" -ne 0 ]; then
+          fail "could not check the paths MANIFEST.sha256 at $commit lists."
+        fi
+        case "$bad" in
+          "") ;;
+          gofmt\ *) fail "$commit holds ${bad#gofmt }, a .go file: gofmt -w . (task fmt) would rewrite it." ;;
+          *)
+            bad="${bad#module }"
+            fail "$commit holds ${bad%% *}: ${bad#* }. go install builds the CLI from Go's module zip of this repository, testdata/ included, so that name would stop the install or change what it ships."
+            ;;
+        esac
+        if [ "$listed" != "$(cd "$staged" && find spec vectors -type f | LC_ALL=C sort)" ]; then
+          fail "MANIFEST.sha256 at $commit does not list exactly the files under spec/ and vectors/."
+        fi
+        if ! (cd "$staged" && shasum -a 256 --check --quiet --strict MANIFEST.sha256); then
+          fail "a file at $commit does not match its line in MANIFEST.sha256."
+        fi
+
+        printf '%s\n' "$commit" > "$staged/SOURCE"
+        cp -R "$staged/spec" "$stage/pins/spec"
+        cp "$staged/SOURCE" "$stage/pins/SOURCE"
+
+        # Each copy is replaced whole, so a file deleted in the spec leaves the
+        # CLI too. Both new copies are first placed beside their targets, so a
+        # failed copy changes nothing. Each is then swapped in by renames within
+        # its own directory, and its old copy is removed only once the new one
+        # is in place, so a failure leaves every target holding its old copy or
+        # its new one, never neither.
+        mkdir -p "$(dirname "$fixtures")" "$(dirname "$pins")"
+        for target in "$fixtures" "$pins"; do
+          old="$(beside "$target" old)"
+          if exists "$old" && ! exists "$target"; then
+            fail "$old holds the only copy of $target, left by an interrupted sync. Move it back to $target, then sync $commit again."
+          fi
+          rm -rf "$old" "$(beside "$target" new)"
+        done
+        if ! cp -R "$stage/fixtures" "$(beside "$fixtures" new)" \
+          || ! cp -R "$stage/pins" "$(beside "$pins" new)"; then
+          fail "could not place $commit beside $fixtures and $pins; neither was changed."
+        fi
+        # A failure once the fixtures are swapped also says that they already
+        # hold the new commit.
+        for target in "$fixtures" "$pins"; do
+          new="$(beside "$target" new)"
+          old="$(beside "$target" old)"
+          if exists "$target"; then
+            mv "$target" "$old" || fail "could not move $target aside to sync $commit; it is unchanged.$mixed"
+          fi
+          if ! mv "$new" "$target"; then
+            if exists "$old" && ! mv "$old" "$target"; then
+              fail "could not move $commit into $target, nor its previous copy back; that copy is in $old.$mixed"
+            fi
+            fail "could not move $commit into $target; its previous copy is back in place.$mixed"
+          fi
+          if [ "$target" = "$fixtures" ]; then
+            mixed=" $fixtures already holds $commit, so the two copies disagree until a re-sync."
+          else
+            mixed=""
+          fi
+          rm -rf "$old"
+        done
+        echo "Synced truestamp-verification $commit into $fixtures and $pins."
+
+  verification-check:
+    desc: "Compare testdata/verification/ and internal/specdata/verification/ with the spec commit their SOURCE names, read again from SPEC_REPO (default ../truestamp-verification; from a worktree it must be absolute). By hand before landing a sync; not in CI."
+    silent: true
+    env:
+      SPEC_REPO: '{{.SPEC_REPO | default "../truestamp-verification"}}'
+      SPEC_ALLOW_OFF_MAIN: '{{.SPEC_ALLOW_OFF_MAIN}}'
+    cmds:
+      - |
+        set -euo pipefail
+
+        fixtures="testdata/verification"
+        pins="internal/specdata/verification"
+        commit=""
+        stage=""
+        reported=""
+
+        fail() {
+          echo "ERROR: $*" >&2
+          reported=1
+          exit 1
+        }
+        cleanup() {
+          exit_code=$?
+          if [ -n "$stage" ]; then rm -rf "$stage"; fi
+          if [ "$exit_code" -ne 0 ] && [ -z "$reported" ]; then
+            echo "ERROR: the check of ${commit:-the copies} stopped at the failure above." >&2
+          fi
+        }
+        trap cleanup EXIT
+
+        # As in verification-sync: this cd has no "--" and takes "-" itself.
+        case "$SPEC_REPO" in
+          -*) fail "SPEC_REPO $SPEC_REPO begins with '-'. Pass it as ./$SPEC_REPO or as an absolute path." ;;
+        esac
+        if ! repo="$(cd "$SPEC_REPO" 2>/dev/null && pwd -P)"; then
+          fail "SPEC_REPO $SPEC_REPO is not a directory from $PWD. From a worktree, pass an absolute SPEC_REPO."
+        fi
+
+        # SOURCE is one line, a 40-hex commit id and a newline, the same in both.
+        commit="$(head -c 40 "$fixtures/SOURCE" 2>/dev/null || true)"
+        case "$commit" in
+          *[!0-9a-f]*) commit="" ;;
+        esac
+        if [ "${#commit}" -ne 40 ] || ! printf '%s\n' "$commit" | cmp -s - "$fixtures/SOURCE" \
+          || ! cmp -s "$fixtures/SOURCE" "$pins/SOURCE"; then
+          fail "$fixtures/SOURCE and $pins/SOURCE do not hold the same one line, a 40-hex commit id and a newline. Run task verification-sync."
+        fi
+
+        if ! git -C "$repo" cat-file -e "$commit^{commit}" 2>/dev/null; then
+          fail "SOURCE names $commit, which $repo does not hold."
+        fi
+
+        on_main=0
+        git -C "$repo" merge-base --is-ancestor "$commit" refs/heads/main || on_main=$?
+        case "$on_main" in
+          0) ;;
+          1)
+            if [ "$SPEC_ALLOW_OFF_MAIN" = "1" ]; then
+              echo "WARNING: SPEC_ALLOW_OFF_MAIN=1: checking $commit, which is not on main in $repo." >&2
+            else
+              fail "SOURCE names $commit, which is not on main in $repo."
+            fi
+            ;;
+          *) fail "could not tell whether $commit is on main in $repo." ;;
+        esac
+
+        # The trees the sync would write from that commit, SOURCE included, so
+        # the comparison below is exact.
+        stage="$(mktemp -d)"
+        mkdir "$stage/fixtures" "$stage/pins"
+        if ! git -C "$repo" archive --format=tar "$commit" spec vectors MANIFEST.sha256 \
+          | tar -x -f - -C "$stage/fixtures"; then
+          fail "could not take spec/, vectors/ and MANIFEST.sha256 from $commit."
+        fi
+
+        # The manifest grammar verification-sync enforces, which is the
+        # manifest test's: a copy that matches the commit exactly still fails
+        # that test if its manifest does.
+        if [ ! -f "$stage/fixtures/MANIFEST.sha256" ] \
+          || [ "$(tail -c 1 "$stage/fixtures/MANIFEST.sha256" | od -An -tx1 | tr -d ' \n')" != "0a" ]; then
+          fail "MANIFEST.sha256 at $commit is not a file that ends in a newline."
+        fi
+        found=0
+        bad="$(LC_ALL=C grep -a -n -m 1 -E -v '^[0-9a-f]{64}  (spec|vectors)(/[A-Za-z0-9_-][A-Za-z0-9._-]*)+$' \
+          "$stage/fixtures/MANIFEST.sha256")" || found=$?
+        case "$found" in
+          0) fail "MANIFEST.sha256 at $commit line ${bad%%:*} is not a lowercase SHA-256, two spaces and a path under spec/ or vectors/ made of letters, digits, '.', '_' and '-', with no segment beginning with a dot." ;;
+          1) ;;
+          *) fail "could not read MANIFEST.sha256 at $commit." ;;
+        esac
+
+        printf '%s\n' "$commit" > "$stage/fixtures/SOURCE"
+        cp -R "$stage/fixtures/spec" "$stage/pins/spec"
+        cp "$stage/fixtures/SOURCE" "$stage/pins/SOURCE"
+
+        # diff follows links, so they are refused first.
+        links="$(find "$fixtures" "$pins" ! -type f ! -type d)"
+        if [ -n "$links" ]; then
+          printf '%s\n' "$links" >&2
+          fail "the copies of $commit hold a link or another entry that is not a file or a directory."
+        fi
+        differs=0
+        diff -rq "$stage/fixtures" "$fixtures" || differs=1
+        diff -rq "$stage/pins" "$pins" || differs=1
+        if [ "$differs" -ne 0 ]; then
+          fail "the copies differ from $commit, which their SOURCE names. Run task verification-sync to replace them."
+        fi
+        echo "$fixtures and $pins match truestamp-verification $commit."
 
   # =============================================================================
   # Release (GoReleaser)

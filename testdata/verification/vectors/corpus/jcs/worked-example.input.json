@@ -1,0 +1,6 @@
+{
+  "version": 1,
+  "type": "block",
+  "format": "truestamp-proof",
+  "environment": "test"
+}

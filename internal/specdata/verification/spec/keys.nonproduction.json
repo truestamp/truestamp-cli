@@ -1,0 +1,44 @@
+{
+  "keys": [
+    {
+      "environment": "dev",
+      "key_id": "1270d791",
+      "public_key": "F-HsbiHAMtfETVypiSLoJfAuKwt19_QMr16rr5h8OLk"
+    },
+    {
+      "environment": "dev",
+      "key_id": "97223329",
+      "public_key": "CTwMqDZnPd_QTLSq8aTeSD3a-j2DQxKcGfhhIYJQ65Y"
+    },
+    {
+      "environment": "test",
+      "key_id": "04a76bfd",
+      "public_key": "krcqBwjUBsOjj10-7DuxK5VussLbOau7X56e2PVgyyE"
+    },
+    {
+      "environment": "test",
+      "key_id": "5e81cc77",
+      "public_key": "YJll6FVApZOcLcDRTsgWPyWxEJmbg18dLqYXy8DoLx8"
+    },
+    {
+      "environment": "test",
+      "key_id": "9602c03e",
+      "public_key": "Ivwpd5Lwtv_Av8_bftsMCqFOAlo2XsDjQuhuOCnLdLY"
+    },
+    {
+      "environment": "test",
+      "key_id": "d0b1cefe",
+      "public_key": "11l5O7wTooGagnx2rbb7qKSa7gB_SfLQmS2ZuCWtLEg"
+    },
+    {
+      "environment": "test",
+      "key_id": "f12cfabb",
+      "public_key": "25lf4lFp0UHKubu6krqgH58uHs599MsqwFGQ83_MH50"
+    },
+    {
+      "environment": "test",
+      "key_id": "fbd680e8",
+      "public_key": "IVL40Zt5HSRFMkLhXy6rbLfP-ntqXtMAl5YOBpiB2xI"
+    }
+  ]
+}

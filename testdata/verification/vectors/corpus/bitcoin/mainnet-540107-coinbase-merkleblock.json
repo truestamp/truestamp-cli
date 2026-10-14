@@ -1,0 +1,17 @@
+{
+  "about": "A merkleblock of block 540107 that matches its coinbase, the first of its 230 transactions.",
+  "block_hash": "00000000000000000021868c2cefc52a480d173c849412fe81c4e5ab806f94ab",
+  "expected": {
+    "header_hash": "00000000000000000021868c2cefc52a480d173c849412fe81c4e5ab806f94ab",
+    "header_merkle_root": "bc337232e053ba46ae12f21c640d16190cbba10f914759ef54a7f07eda58be70",
+    "header_time": "2018-09-05T23:30:43Z",
+    "matched": "5301a7831d21d8395e511ba4786ddcd71b630148bd6bb902f4b1c71b7df563ed",
+    "total_txs": 230,
+    "well_formed": true
+  },
+  "height": 540107,
+  "hex": "00000020a1d2b3b757ad55fa1c670f9f59372a2a26f1a85197711e00000000000000000070be58da7ef0a754ef5947910fa1bb0c19160d641cf212ae46ba53e0327233bc2367905b2dd729174c3ae2dbe600000009ed63f57d1bc7b1f402b96bbd4801631bd7dc6d78a41b515e39d8211d83a70153e5976399fa0eaf6ca8e75fafed0ed991b788b0a7f091eeeef57d3bffdaf58606154af9121a3126dcc45a4b1e0fc11b0ace780b016dcb9ba55d9a6a60ba15353c6ffd8ba356efc66a431fa01084728a37911cb295535208429ff4dcb109c05d2ee8759477a555ba80193f8c38668cf3026aa84c70967dbcfac7e80ac46d1763ab87ced4711f04e46b4e32cf7cbb414773dcbba2d51e76e17fb98289a8127a3d8fbeec0ca73021092632c1fa2438d965f5408cd45d8a249cc1c16c34ab02f10a1022672d82da0215c345042a4c70ac9f541dddd2c06c9a37372b2b4d19dfbaf63d7284cd177ae2b4e41956a535f3c23300f03ab1466057c432e0ba567208a8d7f803ff0100",
+  "kind": "merkleblock",
+  "network": "mainnet",
+  "source": "Mainnet block 540107, whole, in btcd's test file testdata/block-00000000000000000021868c2cefc52a480d173c849412fe81c4e5ab806f94ab.blk (github.com/btcsuite/btcd/wire/v2 v2.0.1); mempool.space's Esplora API gave the same hash for height 540107 on 2026-09-27. Each merkleblock is built from the block's 230 transactions, as Bitcoin Core's CPartialMerkleTree builds one."
+}

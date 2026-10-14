@@ -1,0 +1,15 @@
+{
+  "about": "The header of regtest's genesis block: mainnet's genesis transaction under another time, nBits and nonce. Its hash is the value a regtest source gives for its block at height 0, which is not mainnet's (SPEC.md 10.2, step 0).",
+  "block_hash": "0f9188f13cb7b2c71f2a335e3a4fc328bf5beb436012afca590b1a11466e2206",
+  "expected": {
+    "header_hash": "0f9188f13cb7b2c71f2a335e3a4fc328bf5beb436012afca590b1a11466e2206",
+    "header_merkle_root": "4a5e1e4baab89f3a32518a88c31bc87f618f76673e2cc77ab2127b7afdeda33b",
+    "header_time": "2011-02-02T23:16:42Z",
+    "meets_target": true
+  },
+  "height": 0,
+  "hex": "0100000000000000000000000000000000000000000000000000000000000000000000003ba3edfd7a7b12b27ac72c3e67768f617fc81bc3888a51323a9fb8aa4b1e5e4adae5494dffff7f2002000000",
+  "kind": "header",
+  "network": "regtest",
+  "source": "Bitcoin Core, src/kernel/chainparams.cpp: regtest's genesis block."
+}

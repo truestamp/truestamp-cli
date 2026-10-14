@@ -1,0 +1,249 @@
+[
+  {
+    "about": "The worked example of SPEC.md 6.3: VECTOR_KEY over proof_hash.",
+    "id": "pass-vector_key",
+    "message": "9f46e27f4a5e1d937189020719959df9d4f7b65948b616d4bde9d187688e21b2",
+    "public_key": "IVL40Zt5HSRFMkLhXy6rbLfP-ntqXtMAl5YOBpiB2xI",
+    "signature": "kPK5fbgmE171RUlNELBT731Qrr3afiAOonhjeytuPAVdaN8dVSxZ3661I2dAUCHF6VfcWFzGyA_p7rI2TANFDQ",
+    "verify": "pass"
+  },
+  {
+    "about": "The key of the seed of 32 bytes of 0x41 over 32 zero octets.",
+    "id": "pass-seed_41",
+    "message": "0000000000000000000000000000000000000000000000000000000000000000",
+    "public_key": "25lf4lFp0UHKubu6krqgH58uHs599MsqwFGQ83_MH50",
+    "signature": "2AFdM1hcBrHMNnxZ2tzgWLiiNhIZWC2SyOoROOvEhrSsnB7F8rW5McpWfspGFqlFRl96eGsVe5Ky_sSYrOTPAQ",
+    "verify": "pass"
+  },
+  {
+    "about": "The key of the seed of 32 bytes of 0x43 over 32 octets of 0xff.",
+    "id": "pass-seed_43",
+    "message": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+    "public_key": "Ivwpd5Lwtv_Av8_bftsMCqFOAlo2XsDjQuhuOCnLdLY",
+    "signature": "-ivc3tLcaFle4IaU07s1xeBORAuoJumxgatxKuErDYgw8_adbNEoBSaN9FyV0iRtw8gHOUO6PMxRaT09woP5Cw",
+    "verify": "pass"
+  },
+  {
+    "about": "The key of the seed of 32 bytes of 0x44 over the worked example's proof_hash.",
+    "id": "pass-seed_44",
+    "message": "9f46e27f4a5e1d937189020719959df9d4f7b65948b616d4bde9d187688e21b2",
+    "public_key": "11l5O7wTooGagnx2rbb7qKSa7gB_SfLQmS2ZuCWtLEg",
+    "signature": "KQaQfPCNj1UgTC6lBtELirOW-jnDBAWI34afy8A6wCfO78MuLsOJHVmmL_7VjQ5e5v4LCCsO0NP0jClB9VhJAw",
+    "verify": "pass"
+  },
+  {
+    "about": "The mixed-order test key of SPEC.md 9, the 0x44 key plus a point of order 8, with a challenge k that is a multiple of 8, so the point of order 8 drops out of [k]A.",
+    "id": "pass-mixed_order-k_multiple_of_8",
+    "message": "9f46e27f4a5e1d937189020719959df9d4f7b65948b616d4bde9d187688e21b2",
+    "public_key": "YJll6FVApZOcLcDRTsgWPyWxEJmbg18dLqYXy8DoLx8",
+    "signature": "y1hSQuzSZ-TpsNjnvbuRWcBSYR5jnahxIzEUyXNKRUfrTtx6XTAcdq2jK4DWEc-0mRcRHJLbfxiVyM7s3OcdDg",
+    "verify": "pass"
+  },
+  {
+    "about": "The identity written with y = p + 1, and the signature (identity, 0). A verifier that skips steps 2 and 3, as OpenSSL and Go's crypto/ed25519 do, passes it.",
+    "id": "step_2-identity-y_p_plus_1",
+    "message": "9f46e27f4a5e1d937189020719959df9d4f7b65948b616d4bde9d187688e21b2",
+    "public_key": "7v_______________________________________38",
+    "signature": "AQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+    "step": 2,
+    "verify": "fail"
+  },
+  {
+    "about": "A key written with y = p, a second spelling of y = 0, and the signature (identity, 0). A verifier that skips steps 2 and 3, as OpenSSL and Go's crypto/ed25519 do, refuses it at step 7 over this message.",
+    "id": "step_2-y_p",
+    "message": "9f46e27f4a5e1d937189020719959df9d4f7b65948b616d4bde9d187688e21b2",
+    "public_key": "7f_______________________________________38",
+    "signature": "AQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+    "step": 2,
+    "verify": "fail"
+  },
+  {
+    "about": "A key written with y = 2^255 - 1, a second spelling of y = 18, and the signature (identity, 0). A verifier that skips steps 2 and 3, as OpenSSL and Go's crypto/ed25519 do, refuses it at step 7 over this message.",
+    "id": "step_2-y_max",
+    "message": "9f46e27f4a5e1d937189020719959df9d4f7b65948b616d4bde9d187688e21b2",
+    "public_key": "_________________________________________38",
+    "signature": "AQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+    "step": 2,
+    "verify": "fail"
+  },
+  {
+    "about": "The key at index 0 of spec/small-order-keys.json, of order 1, and the signature (identity, 0). A verifier that skips steps 2 and 3, as OpenSSL and Go's crypto/ed25519 do, passes it.",
+    "id": "step_3-small_order-0",
+    "message": "9f46e27f4a5e1d937189020719959df9d4f7b65948b616d4bde9d187688e21b2",
+    "public_key": "AQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+    "signature": "AQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+    "step": 3,
+    "verify": "fail"
+  },
+  {
+    "about": "The key at index 1 of spec/small-order-keys.json, of order 2, and the signature (identity, 0). A verifier that skips steps 2 and 3, as OpenSSL and Go's crypto/ed25519 do, refuses it at step 7 over this message.",
+    "id": "step_3-small_order-1",
+    "message": "9f46e27f4a5e1d937189020719959df9d4f7b65948b616d4bde9d187688e21b2",
+    "public_key": "7P_______________________________________38",
+    "signature": "AQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+    "step": 3,
+    "verify": "fail"
+  },
+  {
+    "about": "The key at index 2 of spec/small-order-keys.json, of order 4, and the signature (identity, 0). A verifier that skips steps 2 and 3, as OpenSSL and Go's crypto/ed25519 do, passes it.",
+    "id": "step_3-small_order-2",
+    "message": "9f46e27f4a5e1d937189020719959df9d4f7b65948b616d4bde9d187688e21b2",
+    "public_key": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+    "signature": "AQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+    "step": 3,
+    "verify": "fail"
+  },
+  {
+    "about": "The key at index 3 of spec/small-order-keys.json, of order 4, and the signature (identity, 0). A verifier that skips steps 2 and 3, as OpenSSL and Go's crypto/ed25519 do, refuses it at step 7 over this message.",
+    "id": "step_3-small_order-3",
+    "message": "9f46e27f4a5e1d937189020719959df9d4f7b65948b616d4bde9d187688e21b2",
+    "public_key": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAIA",
+    "signature": "AQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+    "step": 3,
+    "verify": "fail"
+  },
+  {
+    "about": "The key at index 4 of spec/small-order-keys.json, of order 8, and the signature (identity, 0). A verifier that skips steps 2 and 3, as OpenSSL and Go's crypto/ed25519 do, refuses it at step 7 over this message.",
+    "id": "step_3-small_order-4",
+    "message": "9f46e27f4a5e1d937189020719959df9d4f7b65948b616d4bde9d187688e21b2",
+    "public_key": "JuiVj8KyJ7BFw_SJ8u-Y8NXfrAXTxjM5sTgCiG1T_AU",
+    "signature": "AQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+    "step": 3,
+    "verify": "fail"
+  },
+  {
+    "about": "The key at index 5 of spec/small-order-keys.json, of order 8, and the signature (identity, 0). A verifier that skips steps 2 and 3, as OpenSSL and Go's crypto/ed25519 do, refuses it at step 7 over this message.",
+    "id": "step_3-small_order-5",
+    "message": "9f46e27f4a5e1d937189020719959df9d4f7b65948b616d4bde9d187688e21b2",
+    "public_key": "JuiVj8KyJ7BFw_SJ8u-Y8NXfrAXTxjM5sTgCiG1T_IU",
+    "signature": "AQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+    "step": 3,
+    "verify": "fail"
+  },
+  {
+    "about": "The key at index 6 of spec/small-order-keys.json, of order 8, and the signature (identity, 0). A verifier that skips steps 2 and 3, as OpenSSL and Go's crypto/ed25519 do, refuses it at step 7 over this message.",
+    "id": "step_3-small_order-6",
+    "message": "9f46e27f4a5e1d937189020719959df9d4f7b65948b616d4bde9d187688e21b2",
+    "public_key": "xxdqcD1N2E-6PAt2DRBnDyogU_osOczGTsf9d5KsA3o",
+    "signature": "AQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+    "step": 3,
+    "verify": "fail"
+  },
+  {
+    "about": "The key at index 7 of spec/small-order-keys.json, of order 8, and the signature (identity, 0). A verifier that skips steps 2 and 3, as OpenSSL and Go's crypto/ed25519 do, refuses it at step 7 over this message.",
+    "id": "step_3-small_order-7",
+    "message": "9f46e27f4a5e1d937189020719959df9d4f7b65948b616d4bde9d187688e21b2",
+    "public_key": "xxdqcD1N2E-6PAt2DRBnDyogU_osOczGTsf9d5KsA_o",
+    "signature": "AQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+    "step": 3,
+    "verify": "fail"
+  },
+  {
+    "about": "The key at index 8 of spec/small-order-keys.json, of order 1, and the signature (identity, 0). A verifier that skips steps 2 and 3, as OpenSSL and Go's crypto/ed25519 do, passes it.",
+    "id": "step_3-small_order-8",
+    "message": "9f46e27f4a5e1d937189020719959df9d4f7b65948b616d4bde9d187688e21b2",
+    "public_key": "AQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAIA",
+    "signature": "AQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+    "step": 3,
+    "verify": "fail"
+  },
+  {
+    "about": "The key at index 9 of spec/small-order-keys.json, of order 2, and the signature (identity, 0). A verifier that skips steps 2 and 3, as OpenSSL and Go's crypto/ed25519 do, refuses it at step 7 over this message.",
+    "id": "step_3-small_order-9",
+    "message": "9f46e27f4a5e1d937189020719959df9d4f7b65948b616d4bde9d187688e21b2",
+    "public_key": "7P________________________________________8",
+    "signature": "AQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+    "step": 3,
+    "verify": "fail"
+  },
+  {
+    "about": "A key whose y is below p and on no point of the curve: no x satisfies the curve's equation for it.",
+    "id": "step_4-not_on_curve",
+    "message": "9f46e27f4a5e1d937189020719959df9d4f7b65948b616d4bde9d187688e21b2",
+    "public_key": "AgAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+    "signature": "AQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+    "step": 4,
+    "verify": "fail"
+  },
+  {
+    "about": "The key of step_4-not_on_curve, and the signature (identity, L), whose s step 5 refuses. Step 4 comes first and refuses the key, so the first step that refuses it is 4: a verifier that checks s before the key names step 5.",
+    "id": "step_4-not_on_curve-s_equal_l",
+    "message": "9f46e27f4a5e1d937189020719959df9d4f7b65948b616d4bde9d187688e21b2",
+    "public_key": "AgAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+    "signature": "AQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAADt0_VcGmMSWNac96Le-d4UAAAAAAAAAAAAAAAAAAAAEA",
+    "step": 4,
+    "verify": "fail"
+  },
+  {
+    "about": "The worked example's signature with s replaced by L.",
+    "id": "step_5-s_equal_l",
+    "message": "9f46e27f4a5e1d937189020719959df9d4f7b65948b616d4bde9d187688e21b2",
+    "public_key": "IVL40Zt5HSRFMkLhXy6rbLfP-ntqXtMAl5YOBpiB2xI",
+    "signature": "kPK5fbgmE171RUlNELBT731Qrr3afiAOonhjeytuPAXt0_VcGmMSWNac96Le-d4UAAAAAAAAAAAAAAAAAAAAEA",
+    "step": 5,
+    "verify": "fail"
+  },
+  {
+    "about": "The worked example's signature with s + L in place of s, a second spelling of it: a verifier that reduces s modulo L accepts it.",
+    "id": "step_5-s_plus_l",
+    "message": "9f46e27f4a5e1d937189020719959df9d4f7b65948b616d4bde9d187688e21b2",
+    "public_key": "IVL40Zt5HSRFMkLhXy6rbLfP-ntqXtMAl5YOBpiB2xI",
+    "signature": "kPK5fbgmE171RUlNELBT731Qrr3afiAOonhjeytuPAVKPNV6b49rN4VSGwofSgDa6VfcWFzGyA_p7rI2TANFHQ",
+    "step": 5,
+    "verify": "fail"
+  },
+  {
+    "about": "The worked example's signature, checked over 32 zero octets rather than proof_hash.",
+    "id": "step_7-other_message",
+    "message": "0000000000000000000000000000000000000000000000000000000000000000",
+    "public_key": "IVL40Zt5HSRFMkLhXy6rbLfP-ntqXtMAl5YOBpiB2xI",
+    "signature": "kPK5fbgmE171RUlNELBT731Qrr3afiAOonhjeytuPAVdaN8dVSxZ3661I2dAUCHF6VfcWFzGyA_p7rI2TANFDQ",
+    "step": 7,
+    "verify": "fail"
+  },
+  {
+    "about": "A signature by the key of the seed of 32 bytes of 0x44, checked under VECTOR_KEY.",
+    "id": "step_7-other_key",
+    "message": "9f46e27f4a5e1d937189020719959df9d4f7b65948b616d4bde9d187688e21b2",
+    "public_key": "IVL40Zt5HSRFMkLhXy6rbLfP-ntqXtMAl5YOBpiB2xI",
+    "signature": "KQaQfPCNj1UgTC6lBtELirOW-jnDBAWI34afy8A6wCfO78MuLsOJHVmmL_7VjQ5e5v4LCCsO0NP0jClB9VhJAw",
+    "step": 7,
+    "verify": "fail"
+  },
+  {
+    "about": "R is the identity written with y = p + 1, and s = k a, so [s]B - [k]A is the identity, whose encoding is not R. A verifier that decodes R and compares points accepts it.",
+    "id": "step_7-r_not_canonical",
+    "message": "9f46e27f4a5e1d937189020719959df9d4f7b65948b616d4bde9d187688e21b2",
+    "public_key": "IVL40Zt5HSRFMkLhXy6rbLfP-ntqXtMAl5YOBpiB2xI",
+    "signature": "7v_______________________________________3_29rw32H3akT5nLxSGzPUCjPsnmp5eGN0_4xpBbQ3ABA",
+    "step": 7,
+    "verify": "fail"
+  },
+  {
+    "about": "R is [r]B plus a point of order 8, and s = r + k a, so [s]B - [k]A is [r]B, not R. The cofactored equation accepts it.",
+    "id": "step_7-r_small_order_component",
+    "message": "9f46e27f4a5e1d937189020719959df9d4f7b65948b616d4bde9d187688e21b2",
+    "public_key": "IVL40Zt5HSRFMkLhXy6rbLfP-ntqXtMAl5YOBpiB2xI",
+    "signature": "cp7_OqOxAj5IowzH9Lqk3AfNmdm4D9Zy31Thq-C1tYLZZ6iib34rcEjfcAkiPzDO4uMa7So3nAp3MWkvXgZsAA",
+    "step": 7,
+    "verify": "fail"
+  },
+  {
+    "about": "R is the encoding of [r]B with its sign bit, bit 255, flipped, and s = r + k a for that R, so [s]B - [k]A is [r]B, whose encoding differs from R in that one bit. A verifier that compares only the first 31 octets of R, or that ignores its sign bit, accepts it.",
+    "id": "step_7-r_sign_bit_flipped",
+    "message": "9f46e27f4a5e1d937189020719959df9d4f7b65948b616d4bde9d187688e21b2",
+    "public_key": "IVL40Zt5HSRFMkLhXy6rbLfP-ntqXtMAl5YOBpiB2xI",
+    "signature": "Y0Kw8arDLI914W6QkKlwg6f-ETmlD8onZua9cjMM2hkNmy3XRlhhnIcDOTeWPF__1aQzHFIzqB9lid1E63-KAw",
+    "step": 7,
+    "verify": "fail"
+  },
+  {
+    "about": "The mixed-order test key with a challenge k that is not a multiple of 8. The cofactored equation accepts it.",
+    "id": "step_7-mixed_order-k_not_multiple_of_8",
+    "message": "9f46e27f4a5e1d937189020719959df9d4f7b65948b616d4bde9d187688e21b2",
+    "public_key": "YJll6FVApZOcLcDRTsgWPyWxEJmbg18dLqYXy8DoLx8",
+    "signature": "QYbykTEZb6gpVNuBC7MVOW6sxFFLU0DiSOKMSwvTomMgqEjsMfznHpjDH76XkxM_dvy38Z1cdC9IzJzi3o-sDw",
+    "step": 7,
+    "verify": "fail"
+  }
+]
