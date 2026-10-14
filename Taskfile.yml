@@ -690,6 +690,243 @@ tasks:
         fi
         echo "$fixtures and $pins match truestamp-verification $commit."
 
+  # Copies the Merkle library's known answers, vectors/merkle.json of
+  # truestamp-merkle-elixir, into testdata/merkle/ from one commit, with
+  # SOURCE, one line holding the full id of the commit and a newline.
+  # internal/registry's walk tests read the copy, and its copy test holds
+  # the file to the SHA-256 of the file at the commit SOURCE names, so a sync
+  # of another commit changes that test too. The default commit is the one
+  # the spec's reference verifier pins in its elixir/mix.lock, so the known
+  # answers are those of the library the reference walks with.
+  #
+  # As for the spec, only a commit on the library's main is taken, unless
+  # MERKLE_ALLOW_OFF_MAIN=1. The file is read from the commit, never from the
+  # library's working copy, with read-only git (rev-parse, merge-base,
+  # ls-tree, cat-file); one that is not a regular file is refused, and its
+  # bytes are copied as git holds them, with no filter or line-end
+  # conversion. The copy is swapped in by renames within testdata/, so a
+  # failure leaves the old copy or the new one, never neither.
+  #
+  # merkle-vectors-check re-reads vectors/merkle.json at the commit SOURCE
+  # names and compares the copy with it, which the copy test cannot do: an
+  # edit of the file made together with the test's digest passes that test.
+  # It reads with the same read-only git and writes nothing in the tree.
+  # Run it by hand before landing a sync. It stays out of CI, which has no
+  # copy of the library to read.
+  #
+  #   task merkle-vectors-sync                         # ../truestamp-merkle-elixir at the commit the spec pins
+  #   task merkle-vectors-sync MERKLE_REV=<commit> MERKLE_REPO=<absolute path>
+  #   task merkle-vectors-check [MERKLE_REPO=<absolute path>]
+  merkle-vectors-sync:
+    desc: "Copy vectors/merkle.json of truestamp-merkle-elixir at one commit on its main into testdata/merkle/ with SOURCE (MERKLE_REPO=../truestamp-merkle-elixir, MERKLE_REV=0862f3e96f670ef605bdfa4077c96039040e585f, the commit the spec's elixir/mix.lock pins; from a worktree MERKLE_REPO must be absolute; MERKLE_ALLOW_OFF_MAIN=1 takes a commit not on main)."
+    silent: true
+    env:
+      MERKLE_REPO: '{{.MERKLE_REPO | default "../truestamp-merkle-elixir"}}'
+      MERKLE_REV: '{{.MERKLE_REV | default "0862f3e96f670ef605bdfa4077c96039040e585f"}}'
+      MERKLE_ALLOW_OFF_MAIN: '{{.MERKLE_ALLOW_OFF_MAIN}}'
+    cmds:
+      - |
+        set -euo pipefail
+
+        target="testdata/merkle"
+        commit=""
+        stage=""
+        reported=""
+
+        fail() {
+          echo "ERROR: $*" >&2
+          reported=1
+          exit 1
+        }
+        exists() { [ -e "$1" ] || [ -L "$1" ]; }
+        # The name beside the target that the swap below uses, such as
+        # testdata/.merkle.new.
+        beside() { echo "$(dirname "$1")/.$(basename "$1").$2"; }
+        cleanup() {
+          exit_code=$?
+          if [ -n "$stage" ]; then rm -rf "$stage"; fi
+          rm -rf "$(beside "$target" new)"
+          if [ "$exit_code" -ne 0 ] && [ -z "$reported" ]; then
+            echo "ERROR: the sync of ${commit:-$MERKLE_REV} stopped at the failure above." >&2
+          fi
+        }
+        trap cleanup EXIT
+
+        # This shell's cd takes a lone "-" as the previous directory and has
+        # no "--", so a value beginning with "-" is refused, not guessed at.
+        case "$MERKLE_REPO" in
+          -*) fail "MERKLE_REPO $MERKLE_REPO begins with '-'. Pass it as ./$MERKLE_REPO or as an absolute path." ;;
+        esac
+        if ! repo="$(cd "$MERKLE_REPO" 2>/dev/null && pwd -P)"; then
+          fail "MERKLE_REPO $MERKLE_REPO is not a directory from $PWD. From a worktree, pass an absolute MERKLE_REPO."
+        fi
+
+        # SOURCE records the full id, never the name it was given by.
+        if ! commit="$(git -C "$repo" rev-parse --verify --quiet "$MERKLE_REV^{commit}")"; then
+          fail "no commit $MERKLE_REV in $repo. Set MERKLE_REPO and MERKLE_REV."
+        fi
+
+        on_main=0
+        git -C "$repo" merge-base --is-ancestor "$commit" refs/heads/main || on_main=$?
+        case "$on_main" in
+          0) ;;
+          1)
+            if [ "$MERKLE_ALLOW_OFF_MAIN" = "1" ]; then
+              echo "WARNING: MERKLE_ALLOW_OFF_MAIN=1: syncing $commit, which is not on main in $repo." >&2
+            else
+              fail "$commit is not on main in $repo. Sync a commit on main, or set MERKLE_ALLOW_OFF_MAIN=1 to take it on purpose."
+            fi
+            ;;
+          *) fail "could not tell whether $commit is on main in $repo." ;;
+        esac
+
+        # A regular file in the commit's tree: not a link, a submodule or a
+        # folder, and absent if any folder above it is a link.
+        if ! entry="$(git -C "$repo" ls-tree "$commit" -- vectors/merkle.json)"; then
+          fail "could not read the tree of $commit."
+        fi
+        tab="$(printf '\t')"
+        case "$entry" in
+          "100644 blob "*"${tab}vectors/merkle.json") ;;
+          "") fail "$commit has no vectors/merkle.json." ;;
+          *) fail "vectors/merkle.json at $commit is not a regular file: $entry" ;;
+        esac
+
+        stage="$(mktemp -d)"
+        mkdir "$stage/merkle"
+        if ! git -C "$repo" cat-file blob "$commit:vectors/merkle.json" > "$stage/merkle/merkle.json"; then
+          fail "could not read vectors/merkle.json at $commit."
+        fi
+        if [ ! -s "$stage/merkle/merkle.json" ]; then
+          fail "vectors/merkle.json at $commit is empty."
+        fi
+        printf '%s\n' "$commit" > "$stage/merkle/SOURCE"
+
+        old="$(beside "$target" old)"
+        new="$(beside "$target" new)"
+        if exists "$old" && ! exists "$target"; then
+          fail "$old holds the only copy of $target, left by an interrupted sync. Move it back to $target, then sync $commit again."
+        fi
+        rm -rf "$old" "$new"
+        mkdir -p "$(dirname "$target")"
+        if ! cp -R "$stage/merkle" "$new"; then
+          fail "could not place $commit beside $target; it was not changed."
+        fi
+        if exists "$target"; then
+          mv "$target" "$old" || fail "could not move $target aside to sync $commit; it is unchanged."
+        fi
+        if ! mv "$new" "$target"; then
+          if exists "$old" && ! mv "$old" "$target"; then
+            fail "could not move $commit into $target, nor its previous copy back; that copy is in $old."
+          fi
+          fail "could not move $commit into $target; its previous copy is back in place."
+        fi
+        rm -rf "$old"
+        echo "Synced vectors/merkle.json of truestamp-merkle-elixir $commit into $target."
+
+  merkle-vectors-check:
+    desc: "Compare testdata/merkle/ with vectors/merkle.json at the commit its SOURCE names, read again from MERKLE_REPO (default ../truestamp-merkle-elixir; from a worktree it must be absolute; MERKLE_ALLOW_OFF_MAIN=1 checks a commit not on main). By hand before landing a sync; not in CI."
+    silent: true
+    env:
+      MERKLE_REPO: '{{.MERKLE_REPO | default "../truestamp-merkle-elixir"}}'
+      MERKLE_ALLOW_OFF_MAIN: '{{.MERKLE_ALLOW_OFF_MAIN}}'
+    cmds:
+      - |
+        set -euo pipefail
+
+        target="testdata/merkle"
+        commit=""
+        stage=""
+        reported=""
+
+        fail() {
+          echo "ERROR: $*" >&2
+          reported=1
+          exit 1
+        }
+        cleanup() {
+          exit_code=$?
+          if [ -n "$stage" ]; then rm -rf "$stage"; fi
+          if [ "$exit_code" -ne 0 ] && [ -z "$reported" ]; then
+            echo "ERROR: the check of ${commit:-$target} stopped at the failure above." >&2
+          fi
+        }
+        trap cleanup EXIT
+
+        # As in merkle-vectors-sync: this cd has no "--" and takes "-" itself.
+        case "$MERKLE_REPO" in
+          -*) fail "MERKLE_REPO $MERKLE_REPO begins with '-'. Pass it as ./$MERKLE_REPO or as an absolute path." ;;
+        esac
+        if ! repo="$(cd "$MERKLE_REPO" 2>/dev/null && pwd -P)"; then
+          fail "MERKLE_REPO $MERKLE_REPO is not a directory from $PWD. From a worktree, pass an absolute MERKLE_REPO."
+        fi
+
+        # SOURCE is one line, a 40-hex commit id and a newline.
+        commit="$(head -c 40 "$target/SOURCE" 2>/dev/null || true)"
+        case "$commit" in
+          *[!0-9a-f]*) commit="" ;;
+        esac
+        if [ "${#commit}" -ne 40 ] || ! printf '%s\n' "$commit" | cmp -s - "$target/SOURCE"; then
+          commit=""
+          fail "$target/SOURCE does not hold one line, a 40-hex commit id and a newline. Run task merkle-vectors-sync."
+        fi
+
+        # The id must be a commit's own full id: rev-parse peels the id of an
+        # annotated tag to its commit, and SOURCE never names a tag.
+        if ! resolved="$(git -C "$repo" rev-parse --verify --quiet "$commit^{commit}")" \
+          || [ "$resolved" != "$commit" ]; then
+          fail "SOURCE names $commit, which is not a commit $repo holds."
+        fi
+
+        on_main=0
+        git -C "$repo" merge-base --is-ancestor "$commit" refs/heads/main || on_main=$?
+        case "$on_main" in
+          0) ;;
+          1)
+            if [ "$MERKLE_ALLOW_OFF_MAIN" = "1" ]; then
+              echo "WARNING: MERKLE_ALLOW_OFF_MAIN=1: checking $commit, which is not on main in $repo." >&2
+            else
+              fail "SOURCE names $commit, which is not on main in $repo."
+            fi
+            ;;
+          *) fail "could not tell whether $commit is on main in $repo." ;;
+        esac
+
+        # The tree the sync would write from that commit, SOURCE included, so
+        # the comparison below is exact.
+        if ! entry="$(git -C "$repo" ls-tree "$commit" -- vectors/merkle.json)"; then
+          fail "could not read the tree of $commit."
+        fi
+        tab="$(printf '\t')"
+        case "$entry" in
+          "100644 blob "*"${tab}vectors/merkle.json") ;;
+          "") fail "$commit has no vectors/merkle.json." ;;
+          *) fail "vectors/merkle.json at $commit is not a regular file: $entry" ;;
+        esac
+        stage="$(mktemp -d)"
+        mkdir "$stage/merkle"
+        if ! git -C "$repo" cat-file blob "$commit:vectors/merkle.json" > "$stage/merkle/merkle.json"; then
+          fail "could not read vectors/merkle.json at $commit."
+        fi
+        if [ ! -s "$stage/merkle/merkle.json" ]; then
+          fail "vectors/merkle.json at $commit is empty."
+        fi
+        printf '%s\n' "$commit" > "$stage/merkle/SOURCE"
+
+        # diff follows links, so they are refused first.
+        if [ -L "$target" ] || [ ! -d "$target" ]; then
+          fail "$target is not a directory."
+        fi
+        links="$(find "$target" ! -type f ! -type d)"
+        if [ -n "$links" ]; then
+          printf '%s\n' "$links" >&2
+          fail "$target holds a link or another entry that is not a file or a directory."
+        fi
+        if ! diff -rq "$stage/merkle" "$target"; then
+          fail "$target differs from vectors/merkle.json at $commit, which its SOURCE names. Run task merkle-vectors-sync to replace it."
+        fi
+        echo "$target matches vectors/merkle.json of truestamp-merkle-elixir $commit."
+
   # =============================================================================
   # Release (GoReleaser)
   # =============================================================================

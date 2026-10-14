@@ -93,6 +93,12 @@ var requiredAttributes = []string{
 	"/internal/specdata/verification/** -text",
 }
 
+// otherCopyAttributes are root .gitattributes lines that stop git
+// converting line endings in a copy another package holds to its source,
+// internal/registry's Merkle known answers; each names a path outside both
+// copies here, so neither copy's bytes depend on it.
+var otherCopyAttributes = []string{"/testdata/merkle/** -text"}
+
 // conversionAttributes are the attributes by which git can change a file's
 // bytes on checkout or commit.
 var conversionAttributes = []string{"text", "eol", "crlf", "filter", "ident", "working-tree-encoding"}
@@ -147,15 +153,19 @@ func TestCopies_BothSourceFilesNameTheSameFullCommitID(t *testing.T) {
 // git is not run here, so its reading of the attributes is not asked for:
 // the root file is read for the two lines, and for any other line that could
 // change a copied file's bytes, and the directories above the copies for a
-// .gitattributes of their own. The copies themselves cannot hold one: no
-// manifest line names a dotfile, and the pins hold only what the fixtures'
-// spec/ holds.
+// .gitattributes of their own. The one other line allowed is
+// otherCopyAttributes' exact line for the Merkle copy, which stops git
+// converting that copy and names no path in either copy here. The copies
+// themselves cannot hold one: no manifest line names a dotfile, and the pins
+// hold only what the fixtures' spec/ holds.
 func TestCopies_GitLeavesTheLineEndingsOfEveryCopiedFileAlone(t *testing.T) {
 	if problems := gitattributesProblems(repoRoot); len(problems) > 0 {
 		t.Fatal("git could convert line endings in a copied file, so a clone with " +
 			"core.autocrlf=true would rewrite it. The root .gitattributes needs " +
 			fmt.Sprintf("%q", requiredAttributes) + ", and nothing else there or above " +
-			"the copies may set a conversion attribute:\n  " + strings.Join(problems, "\n  "))
+			"the copies may set a conversion attribute but the exact line " +
+			fmt.Sprintf("%q", otherCopyAttributes) + " for the Merkle copy:\n  " +
+			strings.Join(problems, "\n  "))
 	}
 }
 
@@ -428,6 +438,10 @@ func TestSourceProblems_NotOneLineHoldingA40HexCommitID(t *testing.T) {
 	}
 }
 
+// Each defect is reported, and the allowed lines are not. Mutants killed:
+// the skip of otherCopyAttributes removed, which reports the Merkle copy's
+// line; the skip widened to a prefix match on /testdata/merkle/, which lets
+// a later line convert the Merkle copy again.
 func TestGitattributesProblems_EachDefect(t *testing.T) {
 	good := "# comment\n" + strings.Join(requiredAttributes, "\n") + "\n"
 	cases := []struct {
@@ -449,6 +463,12 @@ func TestGitattributesProblems_EachDefect(t *testing.T) {
 			want:  "internal/specdata/.gitattributes may set attributes on a copy"},
 		{name: "no root .gitattributes", root: "",
 			want: ".gitattributes cannot be read"},
+		{name: "a line that sets text on the Merkle copy", root: good + otherCopyAttributes[0] + "\n/testdata/merkle/** text\n",
+			want: ".gitattributes line 5 sets a conversion attribute: /testdata/merkle/** text"},
+		{name: "a line that sets eol on the Merkle copy", root: good + otherCopyAttributes[0] + "\n/testdata/merkle/** eol=crlf\n",
+			want: ".gitattributes line 5 sets a conversion attribute: /testdata/merkle/** eol=crlf"},
+		{name: "a wider -text line than the Merkle copy's", root: good + "/testdata/** -text\n",
+			want: ".gitattributes line 4 sets a conversion attribute: /testdata/** -text"},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
@@ -470,6 +490,13 @@ func TestGitattributesProblems_EachDefect(t *testing.T) {
 	writeFile(t, filepath.Join(root, ".gitattributes"), good+"*.png binary\n*.md diff=markdown\n")
 	if problems := gitattributesProblems(root); len(problems) > 0 {
 		t.Fatalf("the required lines with lines that convert nothing gave %q, want none", problems)
+	}
+	// The Merkle copy's exact line is the one conversion attribute allowed
+	// besides the required lines.
+	merkle := t.TempDir()
+	writeFile(t, filepath.Join(merkle, ".gitattributes"), good+"# the Merkle copy\n"+otherCopyAttributes[0]+"\n")
+	if problems := gitattributesProblems(merkle); len(problems) > 0 {
+		t.Fatalf("the required lines with the Merkle copy's line %q gave %q, want none", otherCopyAttributes[0], problems)
 	}
 }
 
@@ -697,6 +724,9 @@ func gitattributesProblems(root string) []string {
 		}
 		if slices.Contains(requiredAttributes, line) {
 			seen[line] = true
+			continue
+		}
+		if slices.Contains(otherCopyAttributes, line) {
 			continue
 		}
 		fields := strings.Fields(line)
