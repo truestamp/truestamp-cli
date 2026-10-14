@@ -1,0 +1,17 @@
+{
+  "about": "A merkleblock of block 540107 that matches its last transaction, at index 229 of its 230, counting the coinbase as 0: 6 hashes and 2 flag octets. Three levels of a tree of 230 have an odd width, 115, 29 and 15 nodes at heights 1, 3 and 4, and the walk to index 229 passes through the last node of each, so the nodes above them, at heights 2, 4 and 5, have no right child and pair that node's hash with itself. A parser that walks it as Bitcoin Core's CPartialMerkleTree does finds it well formed, with total_txs 230, matching that transaction and reaching the header's Merkle root field.",
+  "block_hash": "00000000000000000021868c2cefc52a480d173c849412fe81c4e5ab806f94ab",
+  "expected": {
+    "header_hash": "00000000000000000021868c2cefc52a480d173c849412fe81c4e5ab806f94ab",
+    "header_merkle_root": "bc337232e053ba46ae12f21c640d16190cbba10f914759ef54a7f07eda58be70",
+    "header_time": "2018-09-05T23:30:43Z",
+    "matched": "9c97cf68319da27bb6a54be63c6eb2f2a8d85eba408b4da2fda0abb7a12754e5",
+    "total_txs": 230,
+    "well_formed": true
+  },
+  "height": 540107,
+  "hex": "00000020a1d2b3b757ad55fa1c670f9f59372a2a26f1a85197711e00000000000000000070be58da7ef0a754ef5947910fa1bb0c19160d641cf212ae46ba53e0327233bc2367905b2dd729174c3ae2dbe6000000065627d7e54b46cd2dd8323df28a0b26efc3d76933bf3d91c3ffe1257894f03a079903fac096e31d14e6f68def84f05dc79e1f2fc6a683e7181ec26f8b5eb1a7a6026024240b6963660fabff9593abe079ab4e5c6f6c68d7bbc0a9feb2e95a20b95ebb070cc7b43cf85adf94581de5cfef0b49f0e05288da3c34cf2d4dd6c564f826af3b523239239cd1100ca7b954b0b056ef2238ba6df4f72272a0fdeb75d055e55427a1b7aba0fda24d8b40ba5ed8a8f2b26e3ce64ba5b67ba29d3168cf979c02d52d",
+  "kind": "merkleblock",
+  "network": "mainnet",
+  "source": "Mainnet block 540107, whole, in btcd's test file testdata/block-00000000000000000021868c2cefc52a480d173c849412fe81c4e5ab806f94ab.blk (github.com/btcsuite/btcd/wire/v2 v2.0.1); mempool.space's Esplora API gave the same hash for height 540107 on 2026-09-27. Each merkleblock is built from the block's 230 transactions, as Bitcoin Core's CPartialMerkleTree builds one."
+}

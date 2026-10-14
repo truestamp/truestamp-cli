@@ -24,3 +24,9 @@ CHAT.md
 
 # Local reports and scratch documents (see ~/.claude/CLAUDE.md)
 /tmp/
+
+# The folders `task verification-sync` places beside each copy of
+# truestamp-verification while it swaps the copy in (.verification.new and
+# .verification.old), so no snapshot records one, even one a failed sync leaves.
+/testdata/.verification.*
+/internal/specdata/.verification.*

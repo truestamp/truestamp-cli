@@ -1,0 +1,582 @@
+{
+  "accepted": [
+    {
+      "about": "the code itself",
+      "input": "395742504b4e56375343503837565a57",
+      "item_code": "9WBPKNV7SCP87VZW"
+    },
+    {
+      "about": "lowercase",
+      "input": "397762706b6e76377363703837767a77",
+      "item_code": "9WBPKNV7SCP87VZW"
+    },
+    {
+      "about": "mixed case",
+      "input": "397742704b6e56377343703837765a77",
+      "item_code": "9WBPKNV7SCP87VZW"
+    },
+    {
+      "about": "a hyphen between every two groups of four, 19 characters",
+      "input": "395742502d4b4e56372d534350382d37565a57",
+      "item_code": "9WBPKNV7SCP87VZW"
+    },
+    {
+      "about": "an underscore between every two groups of four",
+      "input": "395742505f4b4e56375f534350385f37565a57",
+      "item_code": "9WBPKNV7SCP87VZW"
+    },
+    {
+      "about": "a space between every two groups of four",
+      "input": "39574250204b4e563720534350382037565a57",
+      "item_code": "9WBPKNV7SCP87VZW"
+    },
+    {
+      "about": "lowercase, with a space between every two groups",
+      "input": "39776270206b6e763720736370382037767a77",
+      "item_code": "9WBPKNV7SCP87VZW"
+    },
+    {
+      "about": "lowercase, with a hyphen between every two groups",
+      "input": "397762702d6b6e76372d736370382d37767a77",
+      "item_code": "9WBPKNV7SCP87VZW"
+    },
+    {
+      "about": "mixed case, with an underscore between every two groups",
+      "input": "397742705f4b6e56375f734370385f37765a77",
+      "item_code": "9WBPKNV7SCP87VZW"
+    },
+    {
+      "about": "a hyphen between the first two groups only",
+      "input": "395742502d4b4e56375343503837565a57",
+      "item_code": "9WBPKNV7SCP87VZW"
+    },
+    {
+      "about": "an underscore between the middle two groups only",
+      "input": "395742504b4e56375f5343503837565a57",
+      "item_code": "9WBPKNV7SCP87VZW"
+    },
+    {
+      "about": "a space between the last two groups only",
+      "input": "395742504b4e5637534350382037565a57",
+      "item_code": "9WBPKNV7SCP87VZW"
+    },
+    {
+      "about": "a space and an underscore between the last three groups",
+      "input": "395742504b4e563720534350385f37565a57",
+      "item_code": "9WBPKNV7SCP87VZW"
+    },
+    {
+      "about": "a hyphen, an underscore and a space between the groups",
+      "input": "395742502d4b4e56375f534350382037565a57",
+      "item_code": "9WBPKNV7SCP87VZW"
+    },
+    {
+      "about": "a space, a hyphen and an underscore between the groups",
+      "input": "39574250204b4e56372d534350385f37565a57",
+      "item_code": "9WBPKNV7SCP87VZW"
+    },
+    {
+      "about": "O for 0",
+      "input": "4a5a325a53445a535a4d3556444f3733",
+      "item_code": "JZ2ZSDZSZM5VD073"
+    },
+    {
+      "about": "lowercase, with o for 0",
+      "input": "6a7a327a73647a737a6d3576646f3733",
+      "item_code": "JZ2ZSDZSZM5VD073"
+    },
+    {
+      "about": "O for 0, with a hyphen between every two groups",
+      "input": "4a5a325a2d53445a532d5a4d35562d444f3733",
+      "item_code": "JZ2ZSDZSZM5VD073"
+    },
+    {
+      "about": "O for 0 and I for 1",
+      "input": "4f493233343536373839414243444534",
+      "item_code": "0123456789ABCDE4"
+    },
+    {
+      "about": "O for 0 and L for 1",
+      "input": "4f4c3233343536373839414243444534",
+      "item_code": "0123456789ABCDE4"
+    },
+    {
+      "about": "lowercase, with o for 0 and i for 1",
+      "input": "6f693233343536373839616263646534",
+      "item_code": "0123456789ABCDE4"
+    },
+    {
+      "about": "lowercase, with o for 0 and l for 1",
+      "input": "6f6c3233343536373839616263646534",
+      "item_code": "0123456789ABCDE4"
+    },
+    {
+      "about": "mixed case, with o for 0 and I for 1",
+      "input": "6f493233343536373839614263446534",
+      "item_code": "0123456789ABCDE4"
+    },
+    {
+      "about": "mixed case, with O for 0 and l for 1",
+      "input": "4f6c3233343536373839416243644534",
+      "item_code": "0123456789ABCDE4"
+    },
+    {
+      "about": "lowercase, with o for 0, i for 1 and a space between every two groups",
+      "input": "6f693233203435363720383961622063646534",
+      "item_code": "0123456789ABCDE4"
+    }
+  ],
+  "derive": [
+    {
+      "about": "the recomputed item_hash of positive/item-genesis-witness.proof.json",
+      "item_code": "HN56SH5HC26EZ9R4",
+      "item_hash": "8d4a6cc4b1608cefa713b45d3fc3e09e3390d64556e3ab4e0725e386b0dab8c7",
+      "proof": "positive/item-genesis-witness.proof.json"
+    },
+    {
+      "about": "the recomputed item_hash of positive/item-rotation-witness.proof.json",
+      "item_code": "RM3XZA6CN92D7N4H",
+      "item_hash": "c507dfa8ccaa44d3d48f6e5a1a6b3b374881c02b80857233234930c92af5aea9",
+      "proof": "positive/item-rotation-witness.proof.json"
+    },
+    {
+      "about": "the recomputed item_hash of positive/item.proof.json",
+      "item_code": "WX495M26THGQBJ68",
+      "item_hash": "e74892d046d46175c8dbdecbbbc705a36816df58e65a2ee1861c100c16eb5f8c",
+      "proof": "positive/item.proof.json"
+    },
+    {
+      "about": "the SHA-256 of the ASCII text `illustrative item_hash 1`",
+      "item_code": "9WBPKNV7SCP87VZW",
+      "item_hash": "4f1769d767cb2c83eff1c48165939090d42fac433c5eabe6f02c5cf9d025181b"
+    },
+    {
+      "about": "the SHA-256 of the ASCII text `illustrative item_hash 3`",
+      "item_code": "JZ2ZSDZSZM5VD073",
+      "item_hash": "97c5fcb7f9fd0bb680eb7b302f6826a16a2e21c32695ff82ed827b6748c86b95"
+    },
+    {
+      "about": "32 zero bytes",
+      "item_code": "0000000000000000",
+      "item_hash": "0000000000000000000000000000000000000000000000000000000000000000"
+    },
+    {
+      "about": "32 bytes of 0xff",
+      "item_code": "ZZZZZZZZZZZZZZZN",
+      "item_hash": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
+    },
+    {
+      "about": "a hash whose leftmost 75 bits are the values 0 to 14, then zero bits",
+      "item_code": "0123456789ABCDE4",
+      "item_hash": "00443214c74254b635c000000000000000000000000000000000000000000000"
+    },
+    {
+      "about": "a hash whose leftmost 75 bits are the values 15 to 29, then zero bits",
+      "item_code": "FGHJKMNPQRSTVWXS",
+      "item_hash": "7c2329d2b6be33adf3a000000000000000000000000000000000000000000000"
+    },
+    {
+      "about": "a hash whose leftmost 75 bits are the values 17 to 31, then zero bits",
+      "item_code": "HJKMNPQRSTVWXYZH",
+      "item_hash": "8ca74adaf8ceb7cefbe000000000000000000000000000000000000000000000"
+    }
+  ],
+  "refused": [
+    {
+      "about": "a U, which is not in the alphabet",
+      "input": "395742554b4e56375343503837565a57"
+    },
+    {
+      "about": "a lowercase u",
+      "input": "397762756b6e76377363703837767a77"
+    },
+    {
+      "about": "one wrong symbol, the check symbol",
+      "input": "395742504b4e56375343503837565a58"
+    },
+    {
+      "about": "the code without the check's final m: what a derivation that leaves out the final m gives for the item_hash whose code is 9WBPKNV7SCP87VZW",
+      "input": "395742504b4e56375343503837565a45"
+    },
+    {
+      "about": "one wrong symbol, the first",
+      "input": "385742504b4e56375343503837565a57"
+    },
+    {
+      "about": "two neighbours exchanged",
+      "input": "395742504b4e56375343503856375a57"
+    },
+    {
+      "about": "two neighbours exchanged across the boundary of two groups of four",
+      "input": "395742504b4e56375343503738565a57"
+    },
+    {
+      "about": "the last data symbol exchanged with the check symbol",
+      "input": "395742504b4e5637534350383756575a"
+    },
+    {
+      "about": "15 symbols, the code without its check symbol",
+      "input": "395742504b4e56375343503837565a"
+    },
+    {
+      "about": "17 symbols, the code and one more",
+      "input": "395742504b4e56375343503837565a5730"
+    },
+    {
+      "about": "15 letters and a space",
+      "input": "626c6f636b636861696e2070726f6f66"
+    },
+    {
+      "about": "17 letters and a space",
+      "input": "6e6f746172697a656420636f6e7472616374"
+    },
+    {
+      "about": "periods between the groups of four",
+      "input": "395742502e4b4e56372e534350382e37565a57"
+    },
+    {
+      "about": "slashes between the groups of four",
+      "input": "395742502f4b4e56372f534350382f37565a57"
+    },
+    {
+      "about": "a space before the first symbol",
+      "input": "20395742504b4e56375343503837565a57"
+    },
+    {
+      "about": "a hyphen before the first symbol, with a hyphen between every two groups",
+      "input": "2d395742502d4b4e56372d534350382d37565a57"
+    },
+    {
+      "about": "an underscore before the first symbol",
+      "input": "5f395742504b4e56375343503837565a57"
+    },
+    {
+      "about": "a space after the last symbol",
+      "input": "395742504b4e56375343503837565a5720"
+    },
+    {
+      "about": "a hyphen after the last symbol, with a hyphen between every two groups",
+      "input": "395742502d4b4e56372d534350382d37565a572d"
+    },
+    {
+      "about": "an underscore after the last symbol",
+      "input": "395742504b4e56375343503837565a575f"
+    },
+    {
+      "about": "a hyphen inside the first group",
+      "input": "3957422d504b4e56375343503837565a57"
+    },
+    {
+      "about": "a space inside the third group, with a space between every two groups",
+      "input": "39574250204b4e56372053432050382037565a57"
+    },
+    {
+      "about": "two hyphens together between the middle two groups",
+      "input": "395742504b4e56372d2d5343503837565a57"
+    },
+    {
+      "about": "a hyphen and a space together between the first two groups",
+      "input": "395742502d204b4e56375343503837565a57"
+    },
+    {
+      "about": "separators alone, one between every two empty groups",
+      "input": "2d2d2d"
+    },
+    {
+      "about": "20 characters, a hyphen between every two groups and one more before the last group",
+      "input": "395742502d4b4e56372d534350382d2d37565a57"
+    },
+    {
+      "about": "a trailing carriage return and line feed",
+      "input": "395742504b4e56375343503837565a570d0a"
+    },
+    {
+      "about": "a line feed between the middle two groups",
+      "input": "395742504b4e56370a5343503837565a57"
+    },
+    {
+      "about": "a carriage return between the middle two groups",
+      "input": "395742504b4e56370d5343503837565a57"
+    },
+    {
+      "about": "a tab between the first two groups",
+      "input": "39574250094b4e56375343503837565a57"
+    },
+    {
+      "about": "a tab between every two groups",
+      "input": "39574250094b4e563709534350380937565a57"
+    },
+    {
+      "about": "a vertical tab (U+000B) between the middle two groups",
+      "input": "395742504b4e56370b5343503837565a57"
+    },
+    {
+      "about": "a form feed (U+000C) between the middle two groups",
+      "input": "395742504b4e56370c5343503837565a57"
+    },
+    {
+      "about": "a thin space (U+2009) between the middle two groups",
+      "input": "395742504b4e5637e280895343503837565a57"
+    },
+    {
+      "about": "an ideographic space (U+3000) between the middle two groups",
+      "input": "395742504b4e5637e380805343503837565a57"
+    },
+    {
+      "about": "a dotless i (U+0131), whose Unicode uppercase is I, for 1",
+      "input": "30c4b13233343536373839414243444534"
+    },
+    {
+      "about": "a long s (U+017F), whose Unicode uppercase is S",
+      "input": "395742504b4e5637c5bf43503837565a57"
+    },
+    {
+      "about": "the code, then the byte 0xFF, so the value is not UTF-8",
+      "input": "395742504b4e56375343503837565a57ff"
+    },
+    {
+      "about": "the code, then the bytes 0xC0 0x80, an overlong NUL, so the value is not UTF-8",
+      "input": "395742504b4e56375343503837565a57c080"
+    },
+    {
+      "about": "a UUID, the id of positive/item.proof.json",
+      "input": "30316130646236362d633265302d373861342d623863632d313262313162633937343933"
+    },
+    {
+      "about": "26 symbols, the 128 bits of that id in the alphabet, two zero bits first",
+      "input": "30314d3344504447513046324a42484b304a503444574a58344b"
+    },
+    {
+      "about": "an item_hash, the one of positive/item.proof.json",
+      "input": "65373438393264303436643436313735633864626465636262626337303561333638313664663538653635613265653138363163313030633136656235663863"
+    },
+    {
+      "about": "the empty value",
+      "input": ""
+    },
+    {
+      "about": "separators alone",
+      "input": "202d205f20"
+    },
+    {
+      "about": "a vertical tab (U+000B) before the first symbol",
+      "input": "0b395742504b4e56375343503837565a57"
+    },
+    {
+      "about": "a vertical tab (U+000B) after the last symbol",
+      "input": "395742504b4e56375343503837565a570b"
+    },
+    {
+      "about": "a form feed (U+000C) before the first symbol",
+      "input": "0c395742504b4e56375343503837565a57"
+    },
+    {
+      "about": "a form feed (U+000C) after the last symbol",
+      "input": "395742504b4e56375343503837565a570c"
+    },
+    {
+      "about": "an ideographic space (U+3000) before the first symbol",
+      "input": "e38080395742504b4e56375343503837565a57"
+    },
+    {
+      "about": "an ideographic space (U+3000) after the last symbol",
+      "input": "395742504b4e56375343503837565a57e38080"
+    },
+    {
+      "about": "a thin space (U+2009) before the first symbol",
+      "input": "e28089395742504b4e56375343503837565a57"
+    },
+    {
+      "about": "a thin space (U+2009) after the last symbol",
+      "input": "395742504b4e56375343503837565a57e28089"
+    },
+    {
+      "about": "a next line (U+0085) before the first symbol",
+      "input": "c285395742504b4e56375343503837565a57"
+    },
+    {
+      "about": "a next line (U+0085) after the last symbol",
+      "input": "395742504b4e56375343503837565a57c285"
+    },
+    {
+      "about": "a tab (U+0009) before the first symbol",
+      "input": "09395742504b4e56375343503837565a57"
+    },
+    {
+      "about": "a tab (U+0009) after the last symbol",
+      "input": "395742504b4e56375343503837565a5709"
+    },
+    {
+      "about": "a line feed (U+000A) before the first symbol",
+      "input": "0a395742504b4e56375343503837565a57"
+    },
+    {
+      "about": "a line feed (U+000A) after the last symbol",
+      "input": "395742504b4e56375343503837565a570a"
+    },
+    {
+      "about": "a hyphen (U+2010) between the groups of four",
+      "input": "39574250e280904b4e5637e2809053435038e2809037565a57"
+    },
+    {
+      "about": "a non-breaking hyphen (U+2011) between the groups of four",
+      "input": "39574250e280914b4e5637e2809153435038e2809137565a57"
+    },
+    {
+      "about": "a figure dash (U+2012) between the groups of four",
+      "input": "39574250e280924b4e5637e2809253435038e2809237565a57"
+    },
+    {
+      "about": "an en dash (U+2013) between the groups of four",
+      "input": "39574250e280934b4e5637e2809353435038e2809337565a57"
+    },
+    {
+      "about": "an em dash (U+2014) between the groups of four",
+      "input": "39574250e280944b4e5637e2809453435038e2809437565a57"
+    },
+    {
+      "about": "a horizontal bar (U+2015) between the groups of four",
+      "input": "39574250e280954b4e5637e2809553435038e2809537565a57"
+    },
+    {
+      "about": "a minus sign (U+2212) between the groups of four",
+      "input": "39574250e288924b4e5637e2889253435038e2889237565a57"
+    },
+    {
+      "about": "a no-break space (U+00A0) between the groups of four",
+      "input": "39574250c2a04b4e5637c2a053435038c2a037565a57"
+    },
+    {
+      "about": "a narrow no-break space (U+202F) between the groups of four",
+      "input": "39574250e280af4b4e5637e280af53435038e280af37565a57"
+    },
+    {
+      "about": "a U in place of the symbol 0 of 0123456789ABCDE4",
+      "input": "55313233343536373839414243444534"
+    },
+    {
+      "about": "a U in place of the symbol 1 of 0123456789ABCDE4",
+      "input": "30553233343536373839414243444534"
+    },
+    {
+      "about": "a U in place of the symbol 2 of 0123456789ABCDE4",
+      "input": "30315533343536373839414243444534"
+    },
+    {
+      "about": "a U in place of the symbol 3 of 0123456789ABCDE4",
+      "input": "30313255343536373839414243444534"
+    },
+    {
+      "about": "a U in place of the symbol 4 of 0123456789ABCDE4",
+      "input": "30313233553536373839414243444534"
+    },
+    {
+      "about": "a U in place of the symbol 5 of 0123456789ABCDE4",
+      "input": "30313233345536373839414243444534"
+    },
+    {
+      "about": "a U in place of the symbol 6 of 0123456789ABCDE4",
+      "input": "30313233343555373839414243444534"
+    },
+    {
+      "about": "a U in place of the symbol 7 of 0123456789ABCDE4",
+      "input": "30313233343536553839414243444534"
+    },
+    {
+      "about": "a U in place of the symbol 8 of 0123456789ABCDE4",
+      "input": "30313233343536375539414243444534"
+    },
+    {
+      "about": "a U in place of the symbol 9 of 0123456789ABCDE4",
+      "input": "30313233343536373855414243444534"
+    },
+    {
+      "about": "a U in place of the symbol A of 0123456789ABCDE4",
+      "input": "30313233343536373839554243444534"
+    },
+    {
+      "about": "a U in place of the symbol B of 0123456789ABCDE4",
+      "input": "30313233343536373839415543444534"
+    },
+    {
+      "about": "a U in place of the symbol C of 0123456789ABCDE4",
+      "input": "30313233343536373839414255444534"
+    },
+    {
+      "about": "a U in place of the symbol D of 0123456789ABCDE4",
+      "input": "30313233343536373839414243554534"
+    },
+    {
+      "about": "a U in place of the symbol E of 0123456789ABCDE4",
+      "input": "30313233343536373839414243445534"
+    },
+    {
+      "about": "a U in place of the symbol F of FGHJKMNPQRSTVWXS",
+      "input": "5547484a4b4d4e505152535456575853"
+    },
+    {
+      "about": "a U in place of the symbol G of FGHJKMNPQRSTVWXS",
+      "input": "4655484a4b4d4e505152535456575853"
+    },
+    {
+      "about": "a U in place of the symbol H of FGHJKMNPQRSTVWXS",
+      "input": "4647554a4b4d4e505152535456575853"
+    },
+    {
+      "about": "a U in place of the symbol J of FGHJKMNPQRSTVWXS",
+      "input": "464748554b4d4e505152535456575853"
+    },
+    {
+      "about": "a U in place of the symbol K of FGHJKMNPQRSTVWXS",
+      "input": "4647484a554d4e505152535456575853"
+    },
+    {
+      "about": "a U in place of the symbol M of FGHJKMNPQRSTVWXS",
+      "input": "4647484a4b554e505152535456575853"
+    },
+    {
+      "about": "a U in place of the symbol N of FGHJKMNPQRSTVWXS",
+      "input": "4647484a4b4d55505152535456575853"
+    },
+    {
+      "about": "a U in place of the symbol P of FGHJKMNPQRSTVWXS",
+      "input": "4647484a4b4d4e555152535456575853"
+    },
+    {
+      "about": "a U in place of the symbol Q of FGHJKMNPQRSTVWXS",
+      "input": "4647484a4b4d4e505552535456575853"
+    },
+    {
+      "about": "a U in place of the symbol R of FGHJKMNPQRSTVWXS",
+      "input": "4647484a4b4d4e505155535456575853"
+    },
+    {
+      "about": "a U in place of the symbol S of FGHJKMNPQRSTVWXS",
+      "input": "4647484a4b4d4e505152555456575853"
+    },
+    {
+      "about": "a U in place of the symbol T of FGHJKMNPQRSTVWXS",
+      "input": "4647484a4b4d4e505152535556575853"
+    },
+    {
+      "about": "a U in place of the symbol V of FGHJKMNPQRSTVWXS",
+      "input": "4647484a4b4d4e505152535455575853"
+    },
+    {
+      "about": "a U in place of the symbol W of FGHJKMNPQRSTVWXS",
+      "input": "4647484a4b4d4e505152535456555853"
+    },
+    {
+      "about": "a U in place of the symbol X of FGHJKMNPQRSTVWXS",
+      "input": "4647484a4b4d4e505152535456575553"
+    },
+    {
+      "about": "a U in place of the symbol Y of HJKMNPQRSTVWXYZH",
+      "input": "484a4b4d4e5051525354565758555a48"
+    },
+    {
+      "about": "a U in place of the symbol Z of HJKMNPQRSTVWXYZH",
+      "input": "484a4b4d4e5051525354565758595548"
+    }
+  ]
+}

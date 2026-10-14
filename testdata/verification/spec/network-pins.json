@@ -1,0 +1,42 @@
+{
+  "dev": {
+    "commitment": {
+      "bitcoin": "regtest",
+      "stellar": "testnet"
+    },
+    "entropy": {
+      "bitcoin": "mainnet",
+      "stellar": "testnet"
+    }
+  },
+  "prod": {
+    "commitment": {
+      "bitcoin": "mainnet",
+      "stellar": "public"
+    },
+    "entropy": {
+      "bitcoin": "mainnet",
+      "stellar": "public"
+    }
+  },
+  "staging": {
+    "commitment": {
+      "bitcoin": "regtest",
+      "stellar": "testnet"
+    },
+    "entropy": {
+      "bitcoin": "mainnet",
+      "stellar": "testnet"
+    }
+  },
+  "test": {
+    "commitment": {
+      "bitcoin": "regtest",
+      "stellar": "testnet"
+    },
+    "entropy": {
+      "bitcoin": "regtest",
+      "stellar": "testnet"
+    }
+  }
+}

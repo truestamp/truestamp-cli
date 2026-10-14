@@ -1,0 +1,17 @@
+{
+  "A": "2152f8d19b791d24453242e15f2eab6cb7cffa7b6a5ed30097960e069881db12",
+  "K": "IVL40Zt5HSRFMkLhXy6rbLfP-ntqXtMAl5YOBpiB2xI",
+  "M": "{\"environment\":\"test\",\"format\":\"truestamp-proof\",\"type\":\"block\",\"version\":1}",
+  "S": "90f2b97db826135ef545494d10b053ef7d50aebdda7e200ea278637b2b6e3c055d68df1d552c59dfaeb52367405021c5e957dc585cc6c80fe9eeb2364c03450d",
+  "V": "kPK5fbgmE171RUlNELBT731Qrr3afiAOonhjeytuPAVdaN8dVSxZ3661I2dAUCHF6VfcWFzGyA_p7rI2TANFDQ",
+  "document": "{\"proof\":{\"environment\":\"test\",\"format\":\"truestamp-proof\",\"type\":\"block\",\"version\":1},\"signature\":{\"alg\":\"truestamp-ed25519-sha256-jcs\",\"public_key\":\"IVL40Zt5HSRFMkLhXy6rbLfP-ntqXtMAl5YOBpiB2xI\",\"value\":\"kPK5fbgmE171RUlNELBT731Qrr3afiAOonhjeytuPAVdaN8dVSxZ3661I2dAUCHF6VfcWFzGyA_p7rI2TANFDQ\"}}",
+  "key_id": "fbd680e8",
+  "proof": {
+    "environment": "test",
+    "format": "truestamp-proof",
+    "type": "block",
+    "version": 1
+  },
+  "proof_hash": "9f46e27f4a5e1d937189020719959df9d4f7b65948b616d4bde9d187688e21b2",
+  "sk": "4242424242424242424242424242424242424242424242424242424242424242"
+}

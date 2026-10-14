@@ -1,0 +1,679 @@
+{
+  "classes": {
+    "BLOCK HEIGHT": "used only by LINK_HEAD and by a rotation's height check",
+    "CHAIN POINTER": "may cause an offline rejection (POLICY, LINK_CHAIN_ORDER), but supports a pass or an edge only after a read made during verification",
+    "CHECKED": "recomputed and compared",
+    "PATH INPUT": "bound by the walk",
+    "PINNED": "compared with pinned values before anything uses them",
+    "PREIMAGE": "input to a CHECKED hash or a named check; a payload value is compared with its source only after a read",
+    "RECORDED": "never a verdict input except where a row above uses it; shown under a provenance heading chosen by attribution",
+    "SUBMITTED": "bound by claims_hash; shown only as the submitter's statement, with bidirectional and zero-width characters escaped"
+  },
+  "conditions": {
+    "genesis_block": "the block record's metadata has a genesis member",
+    "introduces_key_or_prerotation": "the block record's metadata.key_event is a genesis, rotation, emergency_rotation or prerotation",
+    "stellar_source": "the entropy object's source is stellar",
+    "walked": "the inclusion_proof of the subject or of an observation walks to this value; it does not in a block proof or in a beacon proof with no observations"
+  },
+  "members": [
+    {
+      "class": "PINNED",
+      "document": "envelope",
+      "pointer": "/signature/alg"
+    },
+    {
+      "class": "CHECKED",
+      "pointer": "/block/block_hash"
+    },
+    {
+      "class": "CHECKED",
+      "otherwise": "BLOCK HEIGHT",
+      "pointer": "/block/record/height",
+      "when": "genesis_block"
+    },
+    {
+      "class": "RECORDED",
+      "pointer": "/block/record/id"
+    },
+    {
+      "class": "PREIMAGE",
+      "pointer": "/block/record/leaf_count"
+    },
+    {
+      "class": "CHECKED",
+      "otherwise": "PREIMAGE",
+      "pointer": "/block/record/merkle_root",
+      "when": "walked"
+    },
+    {
+      "class": "CHAIN POINTER",
+      "pointer": "/block/record/metadata/genesis/bitcoin/header_hash"
+    },
+    {
+      "class": "CHAIN POINTER",
+      "pointer": "/block/record/metadata/genesis/bitcoin/height"
+    },
+    {
+      "class": "CHAIN POINTER",
+      "pointer": "/block/record/metadata/genesis/bitcoin/network"
+    },
+    {
+      "class": "PREIMAGE",
+      "pointer": "/block/record/metadata/key_event/active_key_id"
+    },
+    {
+      "class": "CHECKED",
+      "pointer": "/block/record/metadata/key_event/handover_signature"
+    },
+    {
+      "class": "CHECKED",
+      "pointer": "/block/record/metadata/key_event/height"
+    },
+    {
+      "class": "CHECKED",
+      "pointer": "/block/record/metadata/key_event/key_id"
+    },
+    {
+      "class": "RECORDED",
+      "pointer": "/block/record/metadata/key_event/prerotation_commitment"
+    },
+    {
+      "class": "CHECKED",
+      "pointer": "/block/record/metadata/key_event/previous_block_hash"
+    },
+    {
+      "class": "CHECKED",
+      "pointer": "/block/record/metadata/key_event/previous_key_id"
+    },
+    {
+      "class": "RECORDED",
+      "pointer": "/block/record/metadata/key_event/previous_public_key"
+    },
+    {
+      "class": "PREIMAGE",
+      "pointer": "/block/record/metadata/key_event/public_key"
+    },
+    {
+      "class": "RECORDED",
+      "pointer": "/block/record/metadata/key_event/reason"
+    },
+    {
+      "class": "RECORDED",
+      "pointer": "/block/record/metadata/key_event/revoked_key_id"
+    },
+    {
+      "class": "RECORDED",
+      "pointer": "/block/record/metadata/key_event/sequence"
+    },
+    {
+      "class": "PREIMAGE",
+      "pointer": "/block/record/metadata/key_event/type"
+    },
+    {
+      "class": "CHECKED",
+      "otherwise": "RECORDED",
+      "pointer": "/block/record/previous_block_hash",
+      "when": "genesis_block"
+    },
+    {
+      "class": "CHECKED",
+      "otherwise": "RECORDED",
+      "pointer": "/block/record/signing_key_id",
+      "when": "introduces_key_or_prerotation"
+    },
+    {
+      "class": "CHECKED",
+      "pointer": "/commitments/*/epoch/epoch_hash"
+    },
+    {
+      "class": "PREIMAGE",
+      "pointer": "/commitments/*/epoch/record/leaf_count"
+    },
+    {
+      "class": "CHECKED",
+      "pointer": "/commitments/*/epoch/record/merkle_root"
+    },
+    {
+      "class": "PATH INPUT",
+      "pointer": "/commitments/*/inclusion_proof/leaf_index"
+    },
+    {
+      "class": "PATH INPUT",
+      "pointer": "/commitments/*/inclusion_proof/path"
+    },
+    {
+      "class": "CHECKED",
+      "pointer": "/commitments/*/inclusion_proof/tree_size"
+    },
+    {
+      "class": "CHAIN POINTER",
+      "pointer": "/commitments/*/network"
+    },
+    {
+      "class": "CHECKED",
+      "pointer": "/commitments/bitcoin/header_hash"
+    },
+    {
+      "class": "CHECKED",
+      "pointer": "/commitments/bitcoin/header_merkle_root"
+    },
+    {
+      "class": "CHECKED",
+      "pointer": "/commitments/bitcoin/header_time"
+    },
+    {
+      "class": "CHAIN POINTER",
+      "pointer": "/commitments/bitcoin/height"
+    },
+    {
+      "class": "PREIMAGE",
+      "pointer": "/commitments/bitcoin/raw_transaction"
+    },
+    {
+      "class": "CHECKED",
+      "pointer": "/commitments/bitcoin/transaction_hash"
+    },
+    {
+      "class": "PREIMAGE",
+      "pointer": "/commitments/bitcoin/txoutproof"
+    },
+    {
+      "class": "CHAIN POINTER",
+      "pointer": "/commitments/stellar/ledger"
+    },
+    {
+      "class": "CHAIN POINTER",
+      "pointer": "/commitments/stellar/transaction_hash"
+    },
+    {
+      "class": "PINNED",
+      "pointer": "/constructions"
+    },
+    {
+      "class": "PINNED",
+      "pointer": "/environment"
+    },
+    {
+      "class": "PINNED",
+      "pointer": "/format"
+    },
+    {
+      "class": "CHAIN POINTER",
+      "pointer": "/observations/*/entropy/network"
+    },
+    {
+      "class": "PREIMAGE",
+      "pointer": "/observations/*/entropy/payload/closed_at"
+    },
+    {
+      "class": "PREIMAGE",
+      "pointer": "/observations/*/entropy/payload/height"
+    },
+    {
+      "class": "CHAIN POINTER",
+      "pointer": "/observations/*/entropy/payload/pulse/chainIndex"
+    },
+    {
+      "class": "PREIMAGE",
+      "pointer": "/observations/*/entropy/payload/pulse/outputValue"
+    },
+    {
+      "class": "CHAIN POINTER",
+      "pointer": "/observations/*/entropy/payload/pulse/pulseIndex"
+    },
+    {
+      "class": "PREIMAGE",
+      "pointer": "/observations/*/entropy/payload/pulse/timeStamp"
+    },
+    {
+      "class": "RECORDED",
+      "pointer": "/observations/*/entropy/payload/pulse/version"
+    },
+    {
+      "class": "CHAIN POINTER",
+      "pointer": "/observations/*/entropy/payload/sequence"
+    },
+    {
+      "class": "PREIMAGE",
+      "pointer": "/observations/*/entropy/payload/time"
+    },
+    {
+      "class": "PREIMAGE",
+      "pointer": "/observations/*/entropy/source"
+    },
+    {
+      "class": "PATH INPUT",
+      "pointer": "/observations/*/inclusion_proof/leaf_index"
+    },
+    {
+      "class": "PATH INPUT",
+      "pointer": "/observations/*/inclusion_proof/path"
+    },
+    {
+      "class": "CHECKED",
+      "pointer": "/observations/*/inclusion_proof/tree_size"
+    },
+    {
+      "class": "CHECKED",
+      "pointer": "/observations/*/observation_hash"
+    },
+    {
+      "class": "CHECKED",
+      "pointer": "/observations/*/record/entropy_hash"
+    },
+    {
+      "class": "RECORDED",
+      "pointer": "/observations/*/record/id"
+    },
+    {
+      "class": "CHAIN POINTER",
+      "pointer": "/observations/entropy_bitcoin/entropy/payload/hash"
+    },
+    {
+      "class": "PREIMAGE",
+      "pointer": "/observations/entropy_stellar/entropy/payload/hash"
+    },
+    {
+      "class": "CHECKED",
+      "pointer": "/signing_key_event/block/block_hash"
+    },
+    {
+      "class": "CHECKED",
+      "otherwise": "BLOCK HEIGHT",
+      "pointer": "/signing_key_event/block/record/height",
+      "when": "genesis_block"
+    },
+    {
+      "class": "RECORDED",
+      "pointer": "/signing_key_event/block/record/id"
+    },
+    {
+      "class": "PREIMAGE",
+      "pointer": "/signing_key_event/block/record/leaf_count"
+    },
+    {
+      "class": "PREIMAGE",
+      "pointer": "/signing_key_event/block/record/merkle_root"
+    },
+    {
+      "class": "CHAIN POINTER",
+      "pointer": "/signing_key_event/block/record/metadata/genesis/bitcoin/header_hash"
+    },
+    {
+      "class": "CHAIN POINTER",
+      "pointer": "/signing_key_event/block/record/metadata/genesis/bitcoin/height"
+    },
+    {
+      "class": "CHAIN POINTER",
+      "pointer": "/signing_key_event/block/record/metadata/genesis/bitcoin/network"
+    },
+    {
+      "class": "CHECKED",
+      "pointer": "/signing_key_event/block/record/metadata/key_event/handover_signature"
+    },
+    {
+      "class": "CHECKED",
+      "pointer": "/signing_key_event/block/record/metadata/key_event/height"
+    },
+    {
+      "class": "CHECKED",
+      "pointer": "/signing_key_event/block/record/metadata/key_event/key_id"
+    },
+    {
+      "class": "RECORDED",
+      "pointer": "/signing_key_event/block/record/metadata/key_event/prerotation_commitment"
+    },
+    {
+      "class": "CHECKED",
+      "pointer": "/signing_key_event/block/record/metadata/key_event/previous_block_hash"
+    },
+    {
+      "class": "CHECKED",
+      "pointer": "/signing_key_event/block/record/metadata/key_event/previous_key_id"
+    },
+    {
+      "class": "RECORDED",
+      "pointer": "/signing_key_event/block/record/metadata/key_event/previous_public_key"
+    },
+    {
+      "class": "PREIMAGE",
+      "pointer": "/signing_key_event/block/record/metadata/key_event/public_key"
+    },
+    {
+      "class": "RECORDED",
+      "pointer": "/signing_key_event/block/record/metadata/key_event/reason"
+    },
+    {
+      "class": "RECORDED",
+      "pointer": "/signing_key_event/block/record/metadata/key_event/sequence"
+    },
+    {
+      "class": "PREIMAGE",
+      "pointer": "/signing_key_event/block/record/metadata/key_event/type"
+    },
+    {
+      "class": "CHECKED",
+      "otherwise": "RECORDED",
+      "pointer": "/signing_key_event/block/record/previous_block_hash",
+      "when": "genesis_block"
+    },
+    {
+      "class": "CHECKED",
+      "otherwise": "RECORDED",
+      "pointer": "/signing_key_event/block/record/signing_key_id",
+      "when": "introduces_key_or_prerotation"
+    },
+    {
+      "class": "CHECKED",
+      "pointer": "/signing_key_event/commitments/*/epoch/epoch_hash"
+    },
+    {
+      "class": "PREIMAGE",
+      "pointer": "/signing_key_event/commitments/*/epoch/record/leaf_count"
+    },
+    {
+      "class": "CHECKED",
+      "pointer": "/signing_key_event/commitments/*/epoch/record/merkle_root"
+    },
+    {
+      "class": "PATH INPUT",
+      "pointer": "/signing_key_event/commitments/*/inclusion_proof/leaf_index"
+    },
+    {
+      "class": "PATH INPUT",
+      "pointer": "/signing_key_event/commitments/*/inclusion_proof/path"
+    },
+    {
+      "class": "CHECKED",
+      "pointer": "/signing_key_event/commitments/*/inclusion_proof/tree_size"
+    },
+    {
+      "class": "CHAIN POINTER",
+      "pointer": "/signing_key_event/commitments/*/network"
+    },
+    {
+      "class": "CHECKED",
+      "pointer": "/signing_key_event/commitments/bitcoin/header_hash"
+    },
+    {
+      "class": "CHECKED",
+      "pointer": "/signing_key_event/commitments/bitcoin/header_merkle_root"
+    },
+    {
+      "class": "CHECKED",
+      "pointer": "/signing_key_event/commitments/bitcoin/header_time"
+    },
+    {
+      "class": "CHAIN POINTER",
+      "pointer": "/signing_key_event/commitments/bitcoin/height"
+    },
+    {
+      "class": "PREIMAGE",
+      "pointer": "/signing_key_event/commitments/bitcoin/raw_transaction"
+    },
+    {
+      "class": "CHECKED",
+      "pointer": "/signing_key_event/commitments/bitcoin/transaction_hash"
+    },
+    {
+      "class": "PREIMAGE",
+      "pointer": "/signing_key_event/commitments/bitcoin/txoutproof"
+    },
+    {
+      "class": "CHAIN POINTER",
+      "pointer": "/signing_key_event/commitments/stellar/ledger"
+    },
+    {
+      "class": "CHAIN POINTER",
+      "pointer": "/signing_key_event/commitments/stellar/transaction_hash"
+    },
+    {
+      "class": "SUBMITTED",
+      "pointer": "/subject/claims"
+    },
+    {
+      "class": "CHAIN POINTER",
+      "pointer": "/subject/entropy/network"
+    },
+    {
+      "class": "PREIMAGE",
+      "pointer": "/subject/entropy/payload/closed_at"
+    },
+    {
+      "class": "PREIMAGE",
+      "otherwise": "CHAIN POINTER",
+      "pointer": "/subject/entropy/payload/hash",
+      "when": "stellar_source"
+    },
+    {
+      "class": "PREIMAGE",
+      "pointer": "/subject/entropy/payload/height"
+    },
+    {
+      "class": "CHAIN POINTER",
+      "pointer": "/subject/entropy/payload/pulse/chainIndex"
+    },
+    {
+      "class": "PREIMAGE",
+      "pointer": "/subject/entropy/payload/pulse/outputValue"
+    },
+    {
+      "class": "CHAIN POINTER",
+      "pointer": "/subject/entropy/payload/pulse/pulseIndex"
+    },
+    {
+      "class": "PREIMAGE",
+      "pointer": "/subject/entropy/payload/pulse/timeStamp"
+    },
+    {
+      "class": "RECORDED",
+      "pointer": "/subject/entropy/payload/pulse/version"
+    },
+    {
+      "class": "CHAIN POINTER",
+      "pointer": "/subject/entropy/payload/sequence"
+    },
+    {
+      "class": "PREIMAGE",
+      "pointer": "/subject/entropy/payload/time"
+    },
+    {
+      "class": "PREIMAGE",
+      "pointer": "/subject/entropy/source"
+    },
+    {
+      "class": "PATH INPUT",
+      "pointer": "/subject/inclusion_proof/leaf_index"
+    },
+    {
+      "class": "PATH INPUT",
+      "pointer": "/subject/inclusion_proof/path"
+    },
+    {
+      "class": "CHECKED",
+      "pointer": "/subject/inclusion_proof/tree_size"
+    },
+    {
+      "class": "CHECKED",
+      "pointer": "/subject/item_hash"
+    },
+    {
+      "class": "CHECKED",
+      "pointer": "/subject/observation_hash"
+    },
+    {
+      "class": "CHECKED",
+      "pointer": "/subject/record/claims_hash"
+    },
+    {
+      "class": "CHECKED",
+      "pointer": "/subject/record/entropy_hash"
+    },
+    {
+      "class": "RECORDED",
+      "pointer": "/subject/record/id"
+    },
+    {
+      "class": "CHECKED",
+      "pointer": "/subject/record/witness_hashes/*"
+    },
+    {
+      "class": "PINNED",
+      "pointer": "/type"
+    },
+    {
+      "class": "PINNED",
+      "pointer": "/version"
+    },
+    {
+      "class": "CHECKED",
+      "pointer": "/witnesses/block/block_hash"
+    },
+    {
+      "class": "CHECKED",
+      "otherwise": "BLOCK HEIGHT",
+      "pointer": "/witnesses/block/record/height",
+      "when": "genesis_block"
+    },
+    {
+      "class": "RECORDED",
+      "pointer": "/witnesses/block/record/id"
+    },
+    {
+      "class": "PREIMAGE",
+      "pointer": "/witnesses/block/record/leaf_count"
+    },
+    {
+      "class": "PREIMAGE",
+      "pointer": "/witnesses/block/record/merkle_root"
+    },
+    {
+      "class": "CHAIN POINTER",
+      "pointer": "/witnesses/block/record/metadata/genesis/bitcoin/header_hash"
+    },
+    {
+      "class": "CHAIN POINTER",
+      "pointer": "/witnesses/block/record/metadata/genesis/bitcoin/height"
+    },
+    {
+      "class": "CHAIN POINTER",
+      "pointer": "/witnesses/block/record/metadata/genesis/bitcoin/network"
+    },
+    {
+      "class": "PREIMAGE",
+      "pointer": "/witnesses/block/record/metadata/key_event/active_key_id"
+    },
+    {
+      "class": "CHECKED",
+      "pointer": "/witnesses/block/record/metadata/key_event/handover_signature"
+    },
+    {
+      "class": "CHECKED",
+      "pointer": "/witnesses/block/record/metadata/key_event/height"
+    },
+    {
+      "class": "CHECKED",
+      "pointer": "/witnesses/block/record/metadata/key_event/key_id"
+    },
+    {
+      "class": "RECORDED",
+      "pointer": "/witnesses/block/record/metadata/key_event/prerotation_commitment"
+    },
+    {
+      "class": "CHECKED",
+      "pointer": "/witnesses/block/record/metadata/key_event/previous_block_hash"
+    },
+    {
+      "class": "CHECKED",
+      "pointer": "/witnesses/block/record/metadata/key_event/previous_key_id"
+    },
+    {
+      "class": "RECORDED",
+      "pointer": "/witnesses/block/record/metadata/key_event/previous_public_key"
+    },
+    {
+      "class": "PREIMAGE",
+      "pointer": "/witnesses/block/record/metadata/key_event/public_key"
+    },
+    {
+      "class": "RECORDED",
+      "pointer": "/witnesses/block/record/metadata/key_event/reason"
+    },
+    {
+      "class": "RECORDED",
+      "pointer": "/witnesses/block/record/metadata/key_event/revoked_key_id"
+    },
+    {
+      "class": "RECORDED",
+      "pointer": "/witnesses/block/record/metadata/key_event/sequence"
+    },
+    {
+      "class": "PREIMAGE",
+      "pointer": "/witnesses/block/record/metadata/key_event/type"
+    },
+    {
+      "class": "CHECKED",
+      "otherwise": "RECORDED",
+      "pointer": "/witnesses/block/record/previous_block_hash",
+      "when": "genesis_block"
+    },
+    {
+      "class": "CHECKED",
+      "otherwise": "RECORDED",
+      "pointer": "/witnesses/block/record/signing_key_id",
+      "when": "introduces_key_or_prerotation"
+    },
+    {
+      "class": "CHAIN POINTER",
+      "pointer": "/witnesses/entropy_*/network"
+    },
+    {
+      "class": "PREIMAGE",
+      "pointer": "/witnesses/entropy_*/payload/closed_at"
+    },
+    {
+      "class": "PREIMAGE",
+      "pointer": "/witnesses/entropy_*/payload/height"
+    },
+    {
+      "class": "CHAIN POINTER",
+      "pointer": "/witnesses/entropy_*/payload/pulse/chainIndex"
+    },
+    {
+      "class": "PREIMAGE",
+      "pointer": "/witnesses/entropy_*/payload/pulse/outputValue"
+    },
+    {
+      "class": "CHAIN POINTER",
+      "pointer": "/witnesses/entropy_*/payload/pulse/pulseIndex"
+    },
+    {
+      "class": "PREIMAGE",
+      "pointer": "/witnesses/entropy_*/payload/pulse/timeStamp"
+    },
+    {
+      "class": "RECORDED",
+      "pointer": "/witnesses/entropy_*/payload/pulse/version"
+    },
+    {
+      "class": "CHAIN POINTER",
+      "pointer": "/witnesses/entropy_*/payload/sequence"
+    },
+    {
+      "class": "PREIMAGE",
+      "pointer": "/witnesses/entropy_*/payload/time"
+    },
+    {
+      "class": "PREIMAGE",
+      "pointer": "/witnesses/entropy_*/source"
+    },
+    {
+      "class": "CHAIN POINTER",
+      "pointer": "/witnesses/entropy_bitcoin/payload/hash"
+    },
+    {
+      "class": "PREIMAGE",
+      "pointer": "/witnesses/entropy_stellar/payload/hash"
+    }
+  ]
+}

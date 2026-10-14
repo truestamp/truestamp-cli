@@ -1,0 +1,4 @@
+# Copied byte for byte from truestamp-verification by `task verification-sync`
+# and pinned by its MANIFEST.sha256, so no line-end conversion may touch them.
+/testdata/verification/** -text
+/internal/specdata/verification/** -text

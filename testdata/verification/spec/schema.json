@@ -1,0 +1,1234 @@
+{
+  "$defs": {
+    "ASCII128": {
+      "maxLength": 128,
+      "minLength": 1,
+      "not": {
+        "pattern": "\\n"
+      },
+      "pattern": "^[\\x20\\x21\\x23-\\x5b\\x5d-\\x7e]{1,128}$",
+      "type": "string"
+    },
+    "ASCII16": {
+      "maxLength": 16,
+      "minLength": 1,
+      "not": {
+        "pattern": "\\n"
+      },
+      "pattern": "^[\\x20\\x21\\x23-\\x5b\\x5d-\\x7e]{1,16}$",
+      "type": "string"
+    },
+    "B64U32": {
+      "maxLength": 43,
+      "minLength": 43,
+      "pattern": "^[A-Za-z0-9_-]{42}[AEIMQUYcgkosw048]$",
+      "type": "string"
+    },
+    "B64U64": {
+      "maxLength": 86,
+      "minLength": 86,
+      "pattern": "^[A-Za-z0-9_-]{85}[AQgw]$",
+      "type": "string"
+    },
+    "BITCOIN_COMMITMENT": {
+      "additionalProperties": false,
+      "properties": {
+        "epoch": {
+          "$ref": "#/$defs/EPOCH_NODE"
+        },
+        "header_hash": {
+          "$ref": "#/$defs/HEX64"
+        },
+        "header_merkle_root": {
+          "$ref": "#/$defs/HEX64"
+        },
+        "header_time": {
+          "$ref": "#/$defs/TIME"
+        },
+        "height": {
+          "$ref": "#/$defs/INT"
+        },
+        "inclusion_proof": {
+          "$ref": "#/$defs/MERKLE_PROOF"
+        },
+        "network": {
+          "$ref": "#/$defs/BITCOIN_NETWORK"
+        },
+        "raw_transaction": {
+          "$ref": "#/$defs/RAW_TRANSACTION"
+        },
+        "transaction_hash": {
+          "$ref": "#/$defs/HEX64"
+        },
+        "txoutproof": {
+          "$ref": "#/$defs/TXOUTPROOF"
+        }
+      },
+      "required": [
+        "epoch",
+        "header_hash",
+        "header_merkle_root",
+        "header_time",
+        "height",
+        "inclusion_proof",
+        "network",
+        "raw_transaction",
+        "transaction_hash",
+        "txoutproof"
+      ],
+      "type": "object"
+    },
+    "BITCOIN_NETWORK": {
+      "enum": [
+        "mainnet",
+        "testnet",
+        "regtest"
+      ]
+    },
+    "BLOCK_NODE": {
+      "additionalProperties": false,
+      "properties": {
+        "block_hash": {
+          "$ref": "#/$defs/HEX64"
+        },
+        "record": {
+          "$ref": "#/$defs/BLOCK_RECORD"
+        }
+      },
+      "required": [
+        "block_hash",
+        "record"
+      ],
+      "type": "object"
+    },
+    "BLOCK_RECORD": {
+      "additionalProperties": false,
+      "allOf": [
+        {
+          "else": {
+            "properties": {
+              "merkle_root": {
+                "not": {
+                  "const": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+                }
+              }
+            }
+          },
+          "if": {
+            "properties": {
+              "leaf_count": {
+                "const": 0
+              }
+            },
+            "required": [
+              "leaf_count"
+            ]
+          },
+          "then": {
+            "properties": {
+              "merkle_root": {
+                "const": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+              }
+            }
+          }
+        }
+      ],
+      "properties": {
+        "height": {
+          "$ref": "#/$defs/INT"
+        },
+        "id": {
+          "$ref": "#/$defs/UUID7"
+        },
+        "leaf_count": {
+          "$ref": "#/$defs/INT"
+        },
+        "merkle_root": {
+          "$ref": "#/$defs/HEX64"
+        },
+        "metadata": {
+          "$ref": "#/$defs/METADATA"
+        },
+        "previous_block_hash": {
+          "$ref": "#/$defs/HEX64"
+        },
+        "signing_key_id": {
+          "$ref": "#/$defs/KID"
+        }
+      },
+      "required": [
+        "height",
+        "id",
+        "leaf_count",
+        "merkle_root",
+        "metadata",
+        "previous_block_hash",
+        "signing_key_id"
+      ],
+      "type": "object"
+    },
+    "COMMITMENTS": {
+      "additionalProperties": false,
+      "minProperties": 1,
+      "properties": {
+        "bitcoin": {
+          "$ref": "#/$defs/BITCOIN_COMMITMENT"
+        },
+        "stellar": {
+          "$ref": "#/$defs/STELLAR_COMMITMENT"
+        }
+      },
+      "type": "object"
+    },
+    "CONSTRUCTIONS": {
+      "if": {
+        "type": "string"
+      },
+      "then": {
+        "maxLength": 121,
+        "minLength": 121,
+        "pattern": "^https://www\\.truestamp\\.com/\\.well-known/constructions-[0-9a-f]{64}\\.json$",
+        "type": "string"
+      },
+      "type": [
+        "object",
+        "string"
+      ]
+    },
+    "EMERGENCY_ROTATION_EVENT": {
+      "additionalProperties": false,
+      "properties": {
+        "handover_signature": {
+          "$ref": "#/$defs/B64U64"
+        },
+        "height": {
+          "$ref": "#/$defs/INT"
+        },
+        "key_id": {
+          "$ref": "#/$defs/KID"
+        },
+        "prerotation_commitment": {
+          "$ref": "#/$defs/HEX64"
+        },
+        "previous_block_hash": {
+          "$ref": "#/$defs/HEX64"
+        },
+        "previous_key_id": {
+          "$ref": "#/$defs/KID"
+        },
+        "previous_public_key": {
+          "$ref": "#/$defs/B64U32"
+        },
+        "public_key": {
+          "$ref": "#/$defs/B64U32"
+        },
+        "reason": {
+          "$ref": "#/$defs/ASCII128"
+        },
+        "sequence": {
+          "$ref": "#/$defs/INT",
+          "minimum": 1
+        },
+        "type": {
+          "const": "emergency_rotation"
+        }
+      },
+      "required": [
+        "height",
+        "key_id",
+        "previous_block_hash",
+        "previous_key_id",
+        "previous_public_key",
+        "public_key",
+        "reason",
+        "sequence",
+        "type"
+      ],
+      "type": "object"
+    },
+    "ENTROPY_BITCOIN": {
+      "additionalProperties": false,
+      "properties": {
+        "network": {
+          "$ref": "#/$defs/BITCOIN_NETWORK"
+        },
+        "payload": {
+          "additionalProperties": false,
+          "properties": {
+            "hash": {
+              "$ref": "#/$defs/HEX64"
+            },
+            "height": {
+              "$ref": "#/$defs/INT"
+            },
+            "time": {
+              "$ref": "#/$defs/INT"
+            }
+          },
+          "required": [
+            "hash",
+            "height",
+            "time"
+          ],
+          "type": "object"
+        },
+        "source": {
+          "const": "bitcoin"
+        }
+      },
+      "required": [
+        "network",
+        "payload",
+        "source"
+      ],
+      "type": "object"
+    },
+    "ENTROPY_NIST": {
+      "additionalProperties": false,
+      "properties": {
+        "payload": {
+          "additionalProperties": false,
+          "properties": {
+            "pulse": {
+              "additionalProperties": false,
+              "properties": {
+                "chainIndex": {
+                  "$ref": "#/$defs/INT"
+                },
+                "outputValue": {
+                  "$ref": "#/$defs/NISTHEX"
+                },
+                "pulseIndex": {
+                  "$ref": "#/$defs/INT"
+                },
+                "timeStamp": {
+                  "$ref": "#/$defs/NISTTIME"
+                },
+                "version": {
+                  "$ref": "#/$defs/ASCII16"
+                }
+              },
+              "required": [
+                "chainIndex",
+                "outputValue",
+                "pulseIndex",
+                "timeStamp",
+                "version"
+              ],
+              "type": "object"
+            }
+          },
+          "required": [
+            "pulse"
+          ],
+          "type": "object"
+        },
+        "source": {
+          "const": "nist"
+        }
+      },
+      "required": [
+        "payload",
+        "source"
+      ],
+      "type": "object"
+    },
+    "ENTROPY_STELLAR": {
+      "additionalProperties": false,
+      "properties": {
+        "network": {
+          "$ref": "#/$defs/STELLAR_NETWORK"
+        },
+        "payload": {
+          "additionalProperties": false,
+          "properties": {
+            "closed_at": {
+              "$ref": "#/$defs/TIME"
+            },
+            "hash": {
+              "$ref": "#/$defs/HEX64"
+            },
+            "sequence": {
+              "$ref": "#/$defs/INT"
+            }
+          },
+          "required": [
+            "closed_at",
+            "hash",
+            "sequence"
+          ],
+          "type": "object"
+        },
+        "source": {
+          "const": "stellar"
+        }
+      },
+      "required": [
+        "network",
+        "payload",
+        "source"
+      ],
+      "type": "object"
+    },
+    "ENV": {
+      "enum": [
+        "dev",
+        "staging",
+        "test"
+      ]
+    },
+    "EPOCH_NODE": {
+      "additionalProperties": false,
+      "properties": {
+        "epoch_hash": {
+          "$ref": "#/$defs/HEX64"
+        },
+        "record": {
+          "$ref": "#/$defs/EPOCH_RECORD"
+        }
+      },
+      "required": [
+        "epoch_hash",
+        "record"
+      ],
+      "type": "object"
+    },
+    "EPOCH_RECORD": {
+      "additionalProperties": false,
+      "properties": {
+        "leaf_count": {
+          "$ref": "#/$defs/INT"
+        },
+        "merkle_root": {
+          "$ref": "#/$defs/HEX64"
+        }
+      },
+      "required": [
+        "leaf_count",
+        "merkle_root"
+      ],
+      "type": "object"
+    },
+    "GENESIS": {
+      "additionalProperties": false,
+      "properties": {
+        "bitcoin": {
+          "additionalProperties": false,
+          "properties": {
+            "header_hash": {
+              "$ref": "#/$defs/HEX64"
+            },
+            "height": {
+              "$ref": "#/$defs/INT"
+            },
+            "network": {
+              "$ref": "#/$defs/BITCOIN_NETWORK"
+            }
+          },
+          "required": [
+            "header_hash",
+            "height",
+            "network"
+          ],
+          "type": "object"
+        }
+      },
+      "required": [
+        "bitcoin"
+      ],
+      "type": "object"
+    },
+    "GENESIS_EVENT": {
+      "additionalProperties": false,
+      "properties": {
+        "key_id": {
+          "$ref": "#/$defs/KID"
+        },
+        "prerotation_commitment": {
+          "$ref": "#/$defs/HEX64"
+        },
+        "public_key": {
+          "$ref": "#/$defs/B64U32"
+        },
+        "sequence": {
+          "const": 0
+        },
+        "type": {
+          "const": "genesis"
+        }
+      },
+      "required": [
+        "key_id",
+        "public_key",
+        "sequence",
+        "type"
+      ],
+      "type": "object"
+    },
+    "HEX64": {
+      "maxLength": 64,
+      "minLength": 64,
+      "pattern": "^[0-9a-f]{64}$",
+      "type": "string"
+    },
+    "HEXBYTES": {
+      "not": {
+        "pattern": "\\n"
+      },
+      "pattern": "^(?:[0-9a-f]{2})+$",
+      "type": "string"
+    },
+    "INT": {
+      "maximum": 9007199254740991,
+      "minimum": 0,
+      "type": "integer"
+    },
+    "ITEM_SUBJECT": {
+      "additionalProperties": false,
+      "properties": {
+        "claims": {
+          "type": "object"
+        },
+        "inclusion_proof": {
+          "$ref": "#/$defs/MERKLE_PROOF"
+        },
+        "item_hash": {
+          "$ref": "#/$defs/HEX64"
+        },
+        "record": {
+          "additionalProperties": false,
+          "properties": {
+            "claims_hash": {
+              "$ref": "#/$defs/HEX64"
+            },
+            "id": {
+              "$ref": "#/$defs/UUID7"
+            },
+            "witness_hashes": {
+              "additionalProperties": false,
+              "properties": {
+                "block": {
+                  "$ref": "#/$defs/HEX64"
+                },
+                "entropy_bitcoin": {
+                  "$ref": "#/$defs/HEX64"
+                },
+                "entropy_nist": {
+                  "$ref": "#/$defs/HEX64"
+                },
+                "entropy_stellar": {
+                  "$ref": "#/$defs/HEX64"
+                }
+              },
+              "required": [
+                "block"
+              ],
+              "type": "object"
+            }
+          },
+          "required": [
+            "claims_hash",
+            "id",
+            "witness_hashes"
+          ],
+          "type": "object"
+        }
+      },
+      "required": [
+        "claims",
+        "inclusion_proof",
+        "item_hash",
+        "record"
+      ],
+      "type": "object"
+    },
+    "KEY_EVENT": {
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "type": {
+                "const": "genesis"
+              }
+            },
+            "required": [
+              "type"
+            ]
+          },
+          "then": {
+            "$ref": "#/$defs/GENESIS_EVENT"
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "type": {
+                "const": "rotation"
+              }
+            },
+            "required": [
+              "type"
+            ]
+          },
+          "then": {
+            "$ref": "#/$defs/ROTATION_EVENT"
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "type": {
+                "const": "emergency_rotation"
+              }
+            },
+            "required": [
+              "type"
+            ]
+          },
+          "then": {
+            "$ref": "#/$defs/EMERGENCY_ROTATION_EVENT"
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "type": {
+                "const": "prerotation"
+              }
+            },
+            "required": [
+              "type"
+            ]
+          },
+          "then": {
+            "$ref": "#/$defs/PREROTATION_EVENT"
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "type": {
+                "const": "revocation"
+              }
+            },
+            "required": [
+              "type"
+            ]
+          },
+          "then": {
+            "$ref": "#/$defs/REVOCATION_EVENT"
+          }
+        }
+      ],
+      "properties": {
+        "type": {
+          "enum": [
+            "genesis",
+            "rotation",
+            "emergency_rotation",
+            "prerotation",
+            "revocation"
+          ]
+        }
+      },
+      "required": [
+        "type"
+      ],
+      "type": "object"
+    },
+    "KID": {
+      "maxLength": 8,
+      "minLength": 8,
+      "pattern": "^[0-9a-f]{8}$",
+      "type": "string"
+    },
+    "MERKLE_PROOF": {
+      "additionalProperties": false,
+      "properties": {
+        "leaf_index": {
+          "$ref": "#/$defs/INT"
+        },
+        "path": {
+          "items": {
+            "$ref": "#/$defs/HEX64"
+          },
+          "maxItems": 32,
+          "type": "array"
+        },
+        "tree_size": {
+          "$ref": "#/$defs/INT"
+        }
+      },
+      "required": [
+        "leaf_index",
+        "path",
+        "tree_size"
+      ],
+      "type": "object"
+    },
+    "METADATA": {
+      "additionalProperties": false,
+      "allOf": [
+        {
+          "else": {
+            "properties": {
+              "key_event": {
+                "properties": {
+                  "type": {
+                    "not": {
+                      "const": "genesis"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "if": {
+            "required": [
+              "genesis"
+            ]
+          },
+          "then": {
+            "properties": {
+              "key_event": {
+                "properties": {
+                  "type": {
+                    "const": "genesis"
+                  }
+                }
+              }
+            },
+            "required": [
+              "key_event"
+            ]
+          }
+        }
+      ],
+      "properties": {
+        "genesis": {
+          "$ref": "#/$defs/GENESIS"
+        },
+        "key_event": {
+          "$ref": "#/$defs/KEY_EVENT"
+        }
+      },
+      "type": "object"
+    },
+    "NISTHEX": {
+      "maxLength": 128,
+      "minLength": 128,
+      "pattern": "^[0-9A-F]{128}$",
+      "type": "string"
+    },
+    "NISTTIME": {
+      "maxLength": 24,
+      "minLength": 24,
+      "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}\\.[0-9]{3}Z$",
+      "type": "string"
+    },
+    "OBSERVATIONS": {
+      "additionalProperties": false,
+      "properties": {
+        "entropy_bitcoin": {
+          "$ref": "#/$defs/OBSERVATION_SUBJECT_BITCOIN"
+        },
+        "entropy_nist": {
+          "$ref": "#/$defs/OBSERVATION_SUBJECT_NIST"
+        },
+        "entropy_stellar": {
+          "$ref": "#/$defs/OBSERVATION_SUBJECT_STELLAR"
+        }
+      },
+      "required": [],
+      "type": "object"
+    },
+    "OBSERVATION_SUBJECT": {
+      "additionalProperties": false,
+      "properties": {
+        "entropy": {
+          "type": "object"
+        },
+        "inclusion_proof": {
+          "$ref": "#/$defs/MERKLE_PROOF"
+        },
+        "observation_hash": {
+          "$ref": "#/$defs/HEX64"
+        },
+        "record": {
+          "additionalProperties": false,
+          "properties": {
+            "entropy_hash": {
+              "$ref": "#/$defs/HEX64"
+            },
+            "id": {
+              "$ref": "#/$defs/UUID7"
+            }
+          },
+          "required": [
+            "entropy_hash",
+            "id"
+          ],
+          "type": "object"
+        }
+      },
+      "required": [
+        "entropy",
+        "inclusion_proof",
+        "observation_hash",
+        "record"
+      ],
+      "type": "object"
+    },
+    "OBSERVATION_SUBJECT_BITCOIN": {
+      "$ref": "#/$defs/OBSERVATION_SUBJECT",
+      "properties": {
+        "entropy": {
+          "$ref": "#/$defs/ENTROPY_BITCOIN"
+        }
+      }
+    },
+    "OBSERVATION_SUBJECT_NIST": {
+      "$ref": "#/$defs/OBSERVATION_SUBJECT",
+      "properties": {
+        "entropy": {
+          "$ref": "#/$defs/ENTROPY_NIST"
+        }
+      }
+    },
+    "OBSERVATION_SUBJECT_STELLAR": {
+      "$ref": "#/$defs/OBSERVATION_SUBJECT",
+      "properties": {
+        "entropy": {
+          "$ref": "#/$defs/ENTROPY_STELLAR"
+        }
+      }
+    },
+    "PREROTATION_EVENT": {
+      "additionalProperties": false,
+      "properties": {
+        "active_key_id": {
+          "$ref": "#/$defs/KID"
+        },
+        "prerotation_commitment": {
+          "$ref": "#/$defs/HEX64"
+        },
+        "type": {
+          "const": "prerotation"
+        }
+      },
+      "required": [
+        "active_key_id",
+        "prerotation_commitment",
+        "type"
+      ],
+      "type": "object"
+    },
+    "PROOF": {
+      "additionalProperties": false,
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "type": {
+                "const": "item"
+              }
+            },
+            "required": [
+              "type"
+            ]
+          },
+          "then": {
+            "properties": {
+              "observations": false,
+              "subject": {
+                "$ref": "#/$defs/ITEM_SUBJECT"
+              }
+            },
+            "required": [
+              "subject",
+              "witnesses"
+            ]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "type": {
+                "const": "entropy_nist"
+              }
+            },
+            "required": [
+              "type"
+            ]
+          },
+          "then": {
+            "properties": {
+              "observations": false,
+              "subject": {
+                "$ref": "#/$defs/OBSERVATION_SUBJECT_NIST"
+              },
+              "witnesses": false
+            },
+            "required": [
+              "subject"
+            ]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "type": {
+                "const": "entropy_stellar"
+              }
+            },
+            "required": [
+              "type"
+            ]
+          },
+          "then": {
+            "properties": {
+              "observations": false,
+              "subject": {
+                "$ref": "#/$defs/OBSERVATION_SUBJECT_STELLAR"
+              },
+              "witnesses": false
+            },
+            "required": [
+              "subject"
+            ]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "type": {
+                "const": "entropy_bitcoin"
+              }
+            },
+            "required": [
+              "type"
+            ]
+          },
+          "then": {
+            "properties": {
+              "observations": false,
+              "subject": {
+                "$ref": "#/$defs/OBSERVATION_SUBJECT_BITCOIN"
+              },
+              "witnesses": false
+            },
+            "required": [
+              "subject"
+            ]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "type": {
+                "const": "block"
+              }
+            },
+            "required": [
+              "type"
+            ]
+          },
+          "then": {
+            "properties": {
+              "observations": false,
+              "subject": false,
+              "witnesses": false
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "type": {
+                "const": "beacon"
+              }
+            },
+            "required": [
+              "type"
+            ]
+          },
+          "then": {
+            "properties": {
+              "subject": false,
+              "witnesses": false
+            },
+            "required": [
+              "observations"
+            ]
+          }
+        }
+      ],
+      "properties": {
+        "block": {
+          "$ref": "#/$defs/BLOCK_NODE"
+        },
+        "commitments": {
+          "$ref": "#/$defs/COMMITMENTS"
+        },
+        "constructions": {
+          "$ref": "#/$defs/CONSTRUCTIONS"
+        },
+        "environment": {
+          "$ref": "#/$defs/ENV"
+        },
+        "format": {
+          "const": "truestamp-proof"
+        },
+        "observations": {
+          "$ref": "#/$defs/OBSERVATIONS"
+        },
+        "signing_key_event": {
+          "$ref": "#/$defs/SIGNING_KEY_EVENT"
+        },
+        "subject": true,
+        "type": {
+          "enum": [
+            "item",
+            "entropy_nist",
+            "entropy_stellar",
+            "entropy_bitcoin",
+            "block",
+            "beacon"
+          ]
+        },
+        "version": {
+          "const": 1
+        },
+        "witnesses": {
+          "$ref": "#/$defs/WITNESSES"
+        }
+      },
+      "required": [
+        "block",
+        "commitments",
+        "format",
+        "type",
+        "version"
+      ],
+      "type": "object"
+    },
+    "RAW_TRANSACTION": {
+      "$ref": "#/$defs/HEXBYTES",
+      "maxLength": 2000
+    },
+    "REVOCATION_EVENT": {
+      "additionalProperties": false,
+      "properties": {
+        "revoked_key_id": {
+          "$ref": "#/$defs/KID"
+        },
+        "type": {
+          "const": "revocation"
+        }
+      },
+      "required": [
+        "revoked_key_id",
+        "type"
+      ],
+      "type": "object"
+    },
+    "ROTATION_EVENT": {
+      "additionalProperties": false,
+      "properties": {
+        "handover_signature": {
+          "$ref": "#/$defs/B64U64"
+        },
+        "height": {
+          "$ref": "#/$defs/INT"
+        },
+        "key_id": {
+          "$ref": "#/$defs/KID"
+        },
+        "prerotation_commitment": {
+          "$ref": "#/$defs/HEX64"
+        },
+        "previous_block_hash": {
+          "$ref": "#/$defs/HEX64"
+        },
+        "previous_key_id": {
+          "$ref": "#/$defs/KID"
+        },
+        "previous_public_key": {
+          "$ref": "#/$defs/B64U32"
+        },
+        "public_key": {
+          "$ref": "#/$defs/B64U32"
+        },
+        "reason": {
+          "$ref": "#/$defs/ASCII128"
+        },
+        "sequence": {
+          "$ref": "#/$defs/INT",
+          "minimum": 1
+        },
+        "type": {
+          "const": "rotation"
+        }
+      },
+      "required": [
+        "handover_signature",
+        "height",
+        "key_id",
+        "previous_block_hash",
+        "previous_key_id",
+        "previous_public_key",
+        "public_key",
+        "reason",
+        "sequence",
+        "type"
+      ],
+      "type": "object"
+    },
+    "SIGNATURE": {
+      "additionalProperties": false,
+      "properties": {
+        "alg": {
+          "const": "truestamp-ed25519-sha256-jcs"
+        },
+        "public_key": {
+          "$ref": "#/$defs/B64U32"
+        },
+        "value": {
+          "$ref": "#/$defs/B64U64"
+        }
+      },
+      "required": [
+        "alg",
+        "public_key",
+        "value"
+      ],
+      "type": "object"
+    },
+    "SIGNING_KEY_EVENT": {
+      "additionalProperties": false,
+      "properties": {
+        "block": {
+          "$ref": "#/$defs/BLOCK_NODE",
+          "properties": {
+            "record": {
+              "properties": {
+                "metadata": {
+                  "properties": {
+                    "key_event": {
+                      "properties": {
+                        "type": {
+                          "enum": [
+                            "genesis",
+                            "rotation",
+                            "emergency_rotation"
+                          ]
+                        }
+                      }
+                    }
+                  },
+                  "required": [
+                    "key_event"
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "commitments": {
+          "$ref": "#/$defs/COMMITMENTS"
+        }
+      },
+      "required": [
+        "block",
+        "commitments"
+      ],
+      "type": "object"
+    },
+    "STELLAR_COMMITMENT": {
+      "additionalProperties": false,
+      "properties": {
+        "epoch": {
+          "$ref": "#/$defs/EPOCH_NODE"
+        },
+        "inclusion_proof": {
+          "$ref": "#/$defs/MERKLE_PROOF"
+        },
+        "ledger": {
+          "$ref": "#/$defs/INT"
+        },
+        "network": {
+          "$ref": "#/$defs/STELLAR_NETWORK"
+        },
+        "transaction_hash": {
+          "$ref": "#/$defs/HEX64"
+        }
+      },
+      "required": [
+        "epoch",
+        "inclusion_proof",
+        "ledger",
+        "network",
+        "transaction_hash"
+      ],
+      "type": "object"
+    },
+    "STELLAR_NETWORK": {
+      "enum": [
+        "public",
+        "testnet"
+      ]
+    },
+    "TIME": {
+      "maxLength": 20,
+      "minLength": 20,
+      "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$",
+      "type": "string"
+    },
+    "TXOUTPROOF": {
+      "$ref": "#/$defs/HEXBYTES",
+      "maxLength": 2048
+    },
+    "UUID7": {
+      "maxLength": 36,
+      "minLength": 36,
+      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+      "type": "string"
+    },
+    "WITNESSES": {
+      "additionalProperties": false,
+      "properties": {
+        "block": {
+          "$ref": "#/$defs/BLOCK_NODE"
+        },
+        "entropy_bitcoin": {
+          "$ref": "#/$defs/ENTROPY_BITCOIN"
+        },
+        "entropy_nist": {
+          "$ref": "#/$defs/ENTROPY_NIST"
+        },
+        "entropy_stellar": {
+          "$ref": "#/$defs/ENTROPY_STELLAR"
+        }
+      },
+      "required": [
+        "block"
+      ],
+      "type": "object"
+    }
+  },
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "proof": {
+      "$ref": "#/$defs/PROOF"
+    },
+    "signature": {
+      "$ref": "#/$defs/SIGNATURE"
+    }
+  },
+  "required": [
+    "proof",
+    "signature"
+  ],
+  "type": "object"
+}

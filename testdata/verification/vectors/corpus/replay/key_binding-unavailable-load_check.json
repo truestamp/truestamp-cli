@@ -1,0 +1,50 @@
+{
+  "reads": [
+    {
+      "answer": {
+        "outcome": "found",
+        "value": {
+          "hash": "0f9188f13cb7b2c71f2a335e3a4fc328bf5beb436012afca590b1a11466e2206"
+        }
+      },
+      "read": {
+        "kind": "bitcoin_identity",
+        "network": "regtest"
+      }
+    },
+    {
+      "answer": {
+        "outcome": "found",
+        "value": {
+          "keyring": {
+            "keys": [
+              {
+                "active": true,
+                "key_id": "fbd680e8",
+                "public_key": "IVL40Zt5HSRFMkLhXy6rbLfP-ntqXtMAl5YOBpiB2xI",
+                "sequence": 0
+              }
+            ],
+            "version": "1.0"
+          }
+        }
+      },
+      "read": {
+        "kind": "keyring",
+        "url": "https://www.truestamp.com/.well-known/keyring.json"
+      }
+    },
+    {
+      "answer": {
+        "outcome": "found",
+        "value": {
+          "network_passphrase": "Test SDF Network ; September 2015"
+        }
+      },
+      "read": {
+        "kind": "stellar_identity",
+        "network": "testnet"
+      }
+    }
+  ]
+}

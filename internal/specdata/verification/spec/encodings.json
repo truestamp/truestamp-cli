@@ -1,0 +1,70 @@
+{
+  "ASCII128": {
+    "pattern": "[\\x20\\x21\\x23-\\x5b\\x5d-\\x7e]{1,128}"
+  },
+  "ASCII16": {
+    "pattern": "[\\x20\\x21\\x23-\\x5b\\x5d-\\x7e]{1,16}"
+  },
+  "B64U32": {
+    "decodes_to_octets": 32,
+    "pattern": "[A-Za-z0-9_-]{42}[AEIMQUYcgkosw048]"
+  },
+  "B64U64": {
+    "decodes_to_octets": 64,
+    "pattern": "[A-Za-z0-9_-]{85}[AQgw]"
+  },
+  "ENV": {
+    "values": [
+      "dev",
+      "staging",
+      "test"
+    ]
+  },
+  "HEX64": {
+    "pattern": "[0-9a-f]{64}"
+  },
+  "HEXBYTES": {
+    "caps_in_octets": {
+      "raw_transaction": 1000,
+      "txoutproof": 1024
+    },
+    "pattern": "(?:[0-9a-f]{2})+"
+  },
+  "INT": {
+    "maximum": 9007199254740991,
+    "minimum": 0
+  },
+  "KID": {
+    "pattern": "[0-9a-f]{8}"
+  },
+  "MERKLE_PROOF": {
+    "schema": "schema.json#/$defs/MERKLE_PROOF"
+  },
+  "NETWORK": {
+    "values_by_chain": {
+      "bitcoin": [
+        "mainnet",
+        "testnet",
+        "regtest"
+      ],
+      "stellar": [
+        "public",
+        "testnet"
+      ]
+    }
+  },
+  "NISTHEX": {
+    "pattern": "[0-9A-F]{128}"
+  },
+  "NISTTIME": {
+    "pattern": "[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}\\.[0-9]{3}Z",
+    "round_trip": true
+  },
+  "TIME": {
+    "pattern": "[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z",
+    "round_trip": true
+  },
+  "UUID7": {
+    "pattern": "[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}"
+  }
+}

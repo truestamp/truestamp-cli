@@ -1,0 +1,259 @@
+{
+   "sign\u0061ture": {
+      "v\u0061lue": "KeN18PcVrGiSwLNNBP4e2xg8NCLUR9spnN2LODRJWNcu_P1diXIyl7VZMkTmJkOg7kkWZdZN7M2dur14S8\u0061-BA",
+      "public_key": "IVL40Zt5HSRFMkLhXy6rbLfP-ntqXtMAl5YOBpiB2xI",
+      "\u0061lg": "truest\u0061mp-ed25519-sh\u0061256-jcs"
+   },
+   "proof": {
+      "witnesses": {
+         "entropy_stell\u0061r": {
+            "source": "stell\u0061r",
+            "p\u0061ylo\u0061d": {
+               "sequence": 1000222.0,
+               "h\u0061sh": "84e52c6\u00619487098304fe1c3ccd550\u00610c323e330db2e8854c17145b217\u006194c6e7",
+               "closed_\u0061t": "2026-09-26T01:48:30Z"
+            },
+            "network": "testnet"
+         },
+         "entropy_nist": {
+            "source": "nist",
+            "p\u0061ylo\u0061d": {
+               "pulse": {
+                  "version": "2.0",
+                  "timeSt\u0061mp": "2026-09-26T01:48:00.000Z",
+                  "pulseIndex": 1200018.0,
+                  "outputV\u0061lue": "FDBA0E7DA81C11481C72F9B01CBAE7C364C53270C8EDFFB34537C8F7028D75163D70C142873DD560A6E985101A99E02BD7C7EA6ABA8BD36F3C581CB65C2F6216",
+                  "ch\u0061inIndex": 2.0
+               }
+            }
+         },
+         "entropy_bitcoin": {
+            "source": "bitcoin",
+            "p\u0061ylo\u0061d": {
+               "time": 1790387100.0,
+               "height": 215.0,
+               "h\u0061sh": "4688b3b0f3274\u0061f83\u0061eb59fe154f7eed\u00610091fd9d746dc\u00619bd3f05863d50f16d"
+            },
+            "network": "regtest"
+         },
+         "block": {
+            "record": {
+               "signing_key_id": "9602c03e",
+               "previous_block_h\u0061sh": "bf93c2bf45b206b25c37f95c78b6\u006171fbdb04eeb\u00612800\u0061cc18bf01574c7208d5",
+               "met\u0061d\u0061t\u0061": {
+                  "key_event": {
+                     "type": "prerot\u0061tion",
+                     "prerot\u0061tion_commitment": "1e4\u006118d77\u0061\u006180cd6\u0061e919e9f86cb51ebf53d8182e309cde7f963cc8787d30\u0061b0",
+                     "\u0061ctive_key_id": "9602c03e"
+                  }
+               },
+               "merkle_root": "e3b0c44298fc1c149\u0061fbf4c8996fb92427\u0061e41e4649b934c\u0061495991b7852b855",
+               "le\u0061f_count": 0.0,
+               "id": "01\u00610db65-6350-741d-be1f-442cbe5\u00618c0d",
+               "height": 3.0
+            },
+            "block_h\u0061sh": "940829eb0fc4717d\u0061c15092189394ef52fbbfd\u0061555ef5ff0f4c3878fb374\u006198e"
+         }
+      },
+      "version": 1.0,
+      "type": "item",
+      "subject": {
+         "record": {
+            "witness_h\u0061shes": {
+               "entropy_stell\u0061r": "2bfcd684973d6e7234cb0d27174cd2b317cf53219ddd8609d6728\u0061286b046d\u0061b",
+               "entropy_nist": "1d2d1432\u00617ee7221ec781b943d017779b83930b6478f7e58b567e08587fe1482",
+               "entropy_bitcoin": "c5e73ce\u006168\u0061\u0061f7999c859639b8b7816f356be9b40d0ff8304b9001377\u0061e040c\u0061",
+               "block": "940829eb0fc4717d\u0061c15092189394ef52fbbfd\u0061555ef5ff0f4c3878fb374\u006198e"
+            },
+            "id": "01\u00610db66-c2e0-78\u00614-b8cc-12b11bc97493",
+            "cl\u0061ims_h\u0061sh": "bd4341f1\u006142c9b0c085b7\u0061e89df18bd\u0061b66eeb77284c1e53077e4\u0061e45320f4f3"
+         },
+         "item_h\u0061sh": "e74892d046d46175c8dbdecbbbc705\u006136816df58e65\u00612ee1861c100c16eb5f8c",
+         "inclusion_proof": {
+            "tree_size": 3.0,
+            "p\u0061th": [
+               "c07f375\u00619e1f4\u00615b88c2b6797625eeccbb3\u00617e7436b6d334d449447e58cbdb\u00611"
+            ],
+            "le\u0061f_index": 2.0
+         },
+         "cl\u0061ims": {
+            "\uff5a": "fullwidth z, U+FF5A",
+            "\ud83d\ude00": "grinning f\u0061ce, U+1F600",
+            "toler\u0061nce": 1e-7,
+            "timest\u0061mp": "2026-09-26T01:48:50Z",
+            "sm\u0061llest": 5e-324,
+            "nonce": "f1823440d622b04db8bf58e291d3753c9e63330ffee1fd22b9\u0061e33684c2e\u00617c0",
+            "n\u0061me": "Q3 report \"fin\u0061l\", s\u0061ved \u0061s C:\\reports\\q3.pdf",
+            "loc\u0061tion": {
+               "longitude": -122.4194,
+               "l\u0061titude": 37.7749
+            },
+            "h\u0061sh_type": "md5",
+            "h\u0061sh": "69e3941192b086bfdc0e4e120c18ff12"
+         }
+      },
+      "signing_key_event": {
+         "commitments": {
+            "stell\u0061r": {
+               "tr\u0061ns\u0061ction_h\u0061sh": "860d4085c0\u0061f0b5f8c\u0061dff2bb0647cf75bbd16901817684dc4e180c200c70681",
+               "network": "testnet",
+               "ledger": 1000255.0,
+               "inclusion_proof": {
+                  "tree_size": 3.0,
+                  "p\u0061th": [
+                     "bbe839c78f255d6ccc6ff55e6\u0061e097f969266486cf6dc4e1\u006158b0\u006173f1f66cd9"
+                  ],
+                  "le\u0061f_index": 2.0
+               },
+               "epoch": {
+                  "record": {
+                     "merkle_root": "bc5d02c06782dc89c5f4\u00616810d7df4e3b9826\u00612943cb2f6fdf0f98bcec1c115b",
+                     "le\u0061f_count": 3.0
+                  },
+                  "epoch_h\u0061sh": "488e6583\u0061192071810724dd392b551c4c\u0061119c\u00616688deb9034683eb42eb\u00611364"
+               }
+            },
+            "bitcoin": {
+               "txoutproof": "00000020cb1b81b9b036\u0061\u0061f305b73e573694bdb0064db4cf65b18b4403960552\u0061b78b\u00617cc19\u00612d4755f1ec7d94\u0061b0\u0061c6e330\u0061c7528b08d5fb79db0578c4601508ee1874d4025b76\u0061ffff7f200000000005000000043\u00613f2e9d5be6\u00617f8e5e5b0f\u006159fc1df5\u006170\u00612328d11ec1d7\u0061cb321bd9ff\u0061345f466265687908\u0061918d209c7\u0061f1265cf88b27f3\u0061859408345e7b08e0156c5e649cd9c\u006173dc410e237d5\u00619c4311df0e79e527d24cbf57d1271c2f5c9d4f\u0061\u0061\u00613f464dd5f214e2f\u00618d44cf7b6cf382\u0061c0d56ef\u00610b249cc5fd96db53d5037f9471776e012b",
+               "tr\u0061ns\u0061ction_h\u0061sh": "64f4\u00613\u0061\u00614f9d5c2f1c27d157bf4cd227e5790edf11439c5\u00617d230e41dc73c\u0061d9",
+               "r\u0061w_tr\u0061ns\u0061ction": "0200000001d4482484866f76536c37fbd382\u0061288fe2\u006145792c58be397f03\u00612d5\u0061e735316700100000000fdffffff023ce8052\u00610100000016001479063\u006189f84f\u0061c2081623dff7fc5585724e982570000000000000000226\u006120488e6583\u0061192071810724dd392b551c4c\u0061119c\u00616688deb9034683eb42eb\u00611364dd000000",
+               "network": "regtest",
+               "inclusion_proof": {
+                  "tree_size": 3.0,
+                  "p\u0061th": [
+                     "bbe839c78f255d6ccc6ff55e6\u0061e097f969266486cf6dc4e1\u006158b0\u006173f1f66cd9"
+                  ],
+                  "le\u0061f_index": 2.0
+               },
+               "height": 222.0,
+               "he\u0061der_time": "2026-09-26T01:52:00Z",
+               "he\u0061der_merkle_root": "4d87e18e5001468c57b09db75f8db02875\u0061c30e3c60\u0061\u0061b947decf155472d9\u0061c1",
+               "he\u0061der_h\u0061sh": "066ee8ed37e3b69\u0061\u0061ef26bc\u006128f2818674e61412e1be5bc8f17b0e4cc5971386",
+               "epoch": {
+                  "record": {
+                     "merkle_root": "bc5d02c06782dc89c5f4\u00616810d7df4e3b9826\u00612943cb2f6fdf0f98bcec1c115b",
+                     "le\u0061f_count": 3.0
+                  },
+                  "epoch_h\u0061sh": "488e6583\u0061192071810724dd392b551c4c\u0061119c\u00616688deb9034683eb42eb\u00611364"
+               }
+            }
+         },
+         "block": {
+            "record": {
+               "signing_key_id": "fbd680e8",
+               "previous_block_h\u0061sh": "5e6d728fd156c04e24c56fc19339506c85e0c497f295181812d35b5325528d31",
+               "met\u0061d\u0061t\u0061": {
+                  "key_event": {
+                     "type": "rot\u0061tion",
+                     "sequence": 2.0,
+                     "re\u0061son": "scheduled rot\u0061tion",
+                     "public_key": "IVL40Zt5HSRFMkLhXy6rbLfP-ntqXtMAl5YOBpiB2xI",
+                     "previous_public_key": "Ivwpd5Lwtv_Av8_bftsMCqFOAlo2XsDjQuhuOCnLdLY",
+                     "previous_key_id": "9602c03e",
+                     "previous_block_h\u0061sh": "5e6d728fd156c04e24c56fc19339506c85e0c497f295181812d35b5325528d31",
+                     "key_id": "fbd680e8",
+                     "height": 5.0,
+                     "h\u0061ndover_sign\u0061ture": "lGwR5OSy9L_PQXi4cA8jZCdM6wU-P4FVhtR\u00614WMVb3D04NTxq90SXJ_dLYETb5leVcMVCj9PTjYTVELk1Pm1AA"
+                  }
+               },
+               "merkle_root": "e3b0c44298fc1c149\u0061fbf4c8996fb92427\u0061e41e4649b934c\u0061495991b7852b855",
+               "le\u0061f_count": 0.0,
+               "id": "01\u00610db68-2270-796b-\u0061428-e3946340\u0061287",
+               "height": 5.0
+            },
+            "block_h\u0061sh": "38029526ddf5d8904f2b325b2\u006131e628bd49c\u00618fd9\u00618b772\u0061cf9359633\u006125552"
+         }
+      },
+      "form\u0061t": "truest\u0061mp-proof",
+      "environment": "test",
+      "constructions": {
+         "witnesses": "for e\u0061ch n\u0061me in record.witness_h\u0061shes: witness_h\u0061shes.block = the block_h\u0061sh of witnesses.block, \u0061nd witness_h\u0061shes.entropy_X = the entropy_h\u0061sh of witnesses.entropy_X; witnesses h\u0061s ex\u0061ctly the n\u0061mes of witness_h\u0061shes",
+         "submitted_before": "the e\u0061rliest of these, e\u0061ch re\u0061d from its ch\u0061in during verific\u0061tion for \u0061 top-level commitment: the Stell\u0061r ledger closed_\u0061t, or the medi\u0061n time p\u0061st of the best-ch\u0061in Bitcoin block \u0061t height + 10, which \u0061ssumes \u0061t le\u0061st 6 of blocks height + 1 to height + 10 c\u0061rry honest times; signing_key_event commitments \u0061nd times c\u0061rried in this proof \u0061re never used",
+         "submitted_\u0061fter": "the l\u0061test of these, e\u0061ch re\u0061d from its source during verific\u0061tion for \u0061n entropy object whose entropy_h\u0061sh m\u0061tched: the timeSt\u0061mp of the NIST pulse \u0061t ch\u0061inIndex \u0061nd pulseIndex, the closed_\u0061t of the Stell\u0061r ledger \u0061t sequence, or the medi\u0061n time p\u0061st of the Bitcoin block whose h\u0061sh is h\u0061sh, on the best ch\u0061in or not; the object's p\u0061ylo\u0061d v\u0061lues (NIST outputV\u0061lue \u0061nd timeSt\u0061mp; Stell\u0061r h\u0061sh \u0061nd closed_\u0061t; Bitcoin height, \u0061nd time \u0061s th\u0061t block's he\u0061der nTime) must equ\u0061l wh\u0061t th\u0061t re\u0061d returns, or the proof f\u0061ils; \u0061 time c\u0061rried in this proof is only comp\u0061red, never \u0061n edge; the network of \u0061 Stell\u0061r or Bitcoin entropy object is the verifier's pinned network for th\u0061t source, \u0061nd nothing in this proof decides it",
+         "stell\u0061r": "tr\u0061ns\u0061ction tr\u0061ns\u0061ction_h\u0061sh on network is successful, h\u0061s memo_type h\u0061sh with memo = epoch.epoch_h\u0061sh, \u0061nd is in ledger ledger; network is the verifier's pinned Stell\u0061r network, \u0061nd nothing in this proof decides it",
+         "specific\u0061tion": "the full rules \u0061nd \u0061 reference verifier \u0061re \u0061t https:\/\/github.com\/truest\u0061mp\/truest\u0061mp-verific\u0061tion, which governs wherever this summ\u0061ry differs",
+         "sign\u0061ture": "sign\u0061ture.v\u0061lue is strict Ed25519 by sign\u0061ture.public_key over the 32 bytes proof_h\u0061sh = SHA-256(0x50 || JCS(proof)), where proof is the top-level proof member, \u0061nd sign\u0061ture.\u0061lg n\u0061mes ex\u0061ctly this rule; proof_h\u0061sh is never c\u0061rried; strict Ed25519 is pure Ed25519 (RFC 8032, not Ed25519ph) with the key checks, s below L, \u0061nd the cof\u0061ctorless equ\u0061tion: [s]B - [k mod L]A encodes to R; the key checks refuse \u0061 key whose y is \u0061t or \u0061bove 2^255 - 19, \u0061nd every encoding of \u0061 point of sm\u0061ll order (order dividing 8)",
+         "recorded": "ids, the times inside ids, \u0061nd every v\u0061lue this text does not derive \u0061re Truest\u0061mp records bound by these h\u0061shes \u0061nd the sign\u0061ture; they \u0061re never \u0061 verdict input except \u0061s the other rows \u0061nd the verifier's pins use them",
+         "p\u0061rsing": "the file is one UTF-8 JSON text (RFC 8259) with no duplic\u0061te member n\u0061mes or lone surrog\u0061tes, \u0061t most 32 levels deep, whose numbers \u0061re re\u0061d \u0061s the ne\u0061rest bin\u0061ry64 v\u0061lue (underflow gives 0), none \u0061n integer \u0061bove 2^53-1 \u0061nd below 10^21 in m\u0061gnitude however written; form\u0061tting \u0061nd member order do not m\u0061tter, since every h\u0061sh \u0061nd the sign\u0061ture use JCS of the p\u0061rsed v\u0061lues",
+         "observ\u0061tion_h\u0061sh": "SHA-256(0x21 || JCS(record))",
+         "merkle_p\u0061th": "merkle_p\u0061th(st\u0061rt, proof) is RFC 9162 section 2.1.3.2 over proof.le\u0061f_index, proof.tree_size \u0061nd proof.p\u0061th, \u0061 list of h\u0061shes: f\u0061il unless le\u0061f_index < tree_size \u0061nd p\u0061th h\u0061s \u0061t most 32 h\u0061shes; set fn = le\u0061f_index, sn = tree_size - 1 \u0061nd r = SHA-256(0x00 || st\u0061rt); then for e\u0061ch p in p\u0061th, in order: f\u0061il if sn = 0; if fn is odd or fn = sn, set r = SHA-256(0x01 || p || r) \u0061nd then, while fn is even \u0061nd not 0, h\u0061lve fn \u0061nd sn; if neither, set r = SHA-256(0x01 || r || p); in both c\u0061ses, then h\u0061lve fn \u0061nd sn once; \u0061fter the l\u0061st p, f\u0061il unless sn = 0; h\u0061lving rounds down, e\u0061ch h\u0061sh is the 32 bytes its hex spells, \u0061nd the result is the fin\u0061l r",
+         "keyring": "sign\u0061ture.public_key is Truest\u0061mp's only if its 32 bytes equ\u0061l \u0061 key in Truest\u0061mp's keyring, published \u0061t https:\/\/www.truest\u0061mp.com\/.well-known\/keyring.json \u0061nd with the specific\u0061tion; nothing in this proof decides it",
+         "key_event": "wherever record.met\u0061d\u0061t\u0061.key_event is present: genesis, rot\u0061tion \u0061nd emergency_rot\u0061tion introduce public_key, which p\u0061sses the key checks, \u0061nd key_id = record.signing_key_id = the key id of public_key, which is hex of the first 4 bytes of SHA-256(0x60 || its 32 bytes); prerot\u0061tion \u0061nd revoc\u0061tion introduce no key, \u0061nd for prerot\u0061tion record.signing_key_id = \u0061ctive_key_id; signing_key_event.block introduces sign\u0061ture.public_key",
+         "item_h\u0061sh": "SHA-256(0x11 || JCS(record))",
+         "inclusion": "\u0061 subject's merkle_p\u0061th(item_h\u0061sh or observ\u0061tion_h\u0061sh, inclusion_proof) = block.record.merkle_root; e\u0061ch commitment entry's merkle_p\u0061th(block_h\u0061sh of the block these commitments belong to, inclusion_proof) = epoch.record.merkle_root; \u0061t both levels, inclusion_proof.tree_size = th\u0061t record's le\u0061f_count; in every block record, le\u0061f_count = 0 ex\u0061ctly when merkle_root is the SHA-256 of zero bytes",
+         "height": "record.height counts blocks from 0 \u0061t genesis; the height of witnesses.block is below the height of block",
+         "h\u0061ndover": "in \u0061 rot\u0061tion or emergency_rot\u0061tion key_event: previous_key_id is the key id of previous_public_key; height \u0061nd previous_block_h\u0061sh equ\u0061l those of the block record whose met\u0061d\u0061t\u0061 c\u0061rries the key_event; \u0061nd h\u0061ndover_sign\u0061ture, required in \u0061 rot\u0061tion \u0061nd option\u0061l in \u0061n emergency_rot\u0061tion, is strict Ed25519 by previous_public_key over the 32 bytes SHA-256(0x62 || JCS(the key_event without h\u0061ndover_sign\u0061ture))",
+         "genesis": "when record.met\u0061d\u0061t\u0061.genesis is present: record.height = 0 \u0061nd previous_block_h\u0061sh = SHA-256(0x30 || JCS(met\u0061d\u0061t\u0061.genesis)); genesis.bitcoin.he\u0061der_h\u0061sh is the best-ch\u0061in block \u0061t genesis.bitcoin.height on the verifier's pinned Bitcoin network, which nothing in this proof decides; the re\u0061d comp\u0061res nothing else, \u0061nd it gives no edge",
+         "epoch_h\u0061sh": "SHA-256(0x40 || JCS(record)) for the epoch of e\u0061ch commitment entry, whose record holds the epoch tree's merkle_root \u0061nd le\u0061f_count; epoch_h\u0061sh is the v\u0061lue written to Stell\u0061r \u0061nd Bitcoin, so the ch\u0061in commits the tree's le\u0061f count with its root",
+         "environment": "present only outside production, n\u0061ming the environment th\u0061t signed the proof (dev, st\u0061ging or test); \u0061 verifier rejects \u0061 proof from \u0061ny environment but its own",
+         "entropy_h\u0061sh": "SHA-256(0x20 || JCS(entropy object))",
+         "encoding": "JCS is RFC 8785; h\u0061shes, key ids \u0061nd Bitcoin byte strings \u0061re lowerc\u0061se hex, Bitcoin h\u0061shes in the reversed byte order explorers displ\u0061y, except NIST outputV\u0061lue, which is upperc\u0061se hex \u0061s NIST publishes it; Ed25519 keys \u0061nd sign\u0061tures \u0061re unp\u0061dded b\u0061se64url (RFC 4648 section 5); times \u0061re RFC 3339 UTC, except the Bitcoin entropy p\u0061ylo\u0061d time, which is integer Unix seconds; SHA-256d is SHA-256 \u0061pplied twice; rev reverses byte order; medi\u0061n time p\u0061st is the medi\u0061n of the he\u0061der times of \u0061 block \u0061nd the 10 blocks before it",
+         "cl\u0061ims_h\u0061sh": "SHA-256(0x10 || JCS(cl\u0061ims))",
+         "cl\u0061ims": "the submitter's st\u0061tements ex\u0061ctly \u0061s submitted, \u0061ttested \u0061s submitted \u0061nd never \u0061s true; h\u0061sh is lowerc\u0061se hex of the length h\u0061sh_type fixes (for ex\u0061mple md5 32, sh\u00611 40, sh\u0061256 64) \u0061nd is never recomputed; timest\u0061mp is \u0061 time the submitter cl\u0061ims \u0061nd never \u0061n edge of the submission window; nonce, if present, is 1 to 32 bytes in lowerc\u0061se hex",
+         "checks": "compute e\u0061ch h\u0061sh this text defines from its preim\u0061ge \u0061s c\u0061rried \u0061nd comp\u0061re it with the v\u0061lue the proof c\u0061rries for it; every merkle_p\u0061th, \u0061nd every comp\u0061rison of one h\u0061sh with \u0061nother, st\u0061rts from the computed v\u0061lue, never the c\u0061rried one",
+         "ch\u0061in_order": "\u0061 Stell\u0061r entropy object sequence is below the ledger of \u0061 top-level stell\u0061r commitment on the s\u0061me network; \u0061 Bitcoin entropy object height is \u0061t or below the height of \u0061 top-level bitcoin commitment on the s\u0061me network",
+         "block_h\u0061sh": "SHA-256(0x31 || JCS(record))",
+         "bitcoin": "r\u0061w_tr\u0061ns\u0061ction is \u0061 tr\u0061ns\u0061ction seri\u0061lized without witness d\u0061t\u0061 (BIP 144 m\u0061rker, fl\u0061g \u0061nd witnesses removed), with \u0061t le\u0061st one input; tr\u0061ns\u0061ction_h\u0061sh = rev(SHA-256d(r\u0061w_tr\u0061ns\u0061ction)); ex\u0061ctly one output script begins 0x6\u0061 \u0061nd it is 0x6\u0061 0x20 followed by the 32 bytes epoch.epoch_h\u0061sh's hex spells, in th\u0061t order; txoutproof is \u0061 BIP 37 merkleblock: \u0061n 80-byte he\u0061der, tot\u0061l_txs, \u0061nd \u0061 p\u0061rti\u0061l Merkle tree th\u0061t pl\u0061ces tr\u0061ns\u0061ction_h\u0061sh under he\u0061der_merkle_root; he\u0061der_h\u0061sh = rev(SHA-256d(he\u0061der)) \u0061nd meets the t\u0061rget in the he\u0061der nBits; he\u0061der_merkle_root = rev(the he\u0061der Merkle root field); he\u0061der_time = the he\u0061der nTime; he\u0061der_h\u0061sh is the best-ch\u0061in block \u0061t height on network, \u0061nd th\u0061t block h\u0061s tot\u0061l_txs tr\u0061ns\u0061ctions; network is the verifier's pinned Bitcoin network, \u0061nd nothing in this proof decides it",
+         "be\u0061con": "block.block_h\u0061sh is the be\u0061con v\u0061lue; e\u0061ch member of observ\u0061tions is \u0061n entropy le\u0061f of th\u0061t block, checked \u0061s \u0061n observ\u0061tion subject; no one, Truest\u0061mp included, could compute the v\u0061lue before Submitted \u0061fter, but Truest\u0061mp chooses the block contents \u0061fter the entropy is public \u0061nd so c\u0061n bi\u0061s it"
+      },
+      "commitments": {
+         "stell\u0061r": {
+            "tr\u0061ns\u0061ction_h\u0061sh": "860d4085c0\u0061f0b5f8c\u0061dff2bb0647cf75bbd16901817684dc4e180c200c70681",
+            "network": "testnet",
+            "ledger": 1000255.0,
+            "inclusion_proof": {
+               "tree_size": 3.0,
+               "p\u0061th": [
+                  "f8720ee7949078856953\u0061f4754\u0061812529b2640e18\u0061e607e7c06\u00618c4cdf9dfe7b",
+                  "3f1b13269efdfe00e61f0f2c7bc01\u0061261b17c7\u0061564d5706d99d816cb52f770f9"
+               ],
+               "le\u0061f_index": 1.0
+            },
+            "epoch": {
+               "record": {
+                  "merkle_root": "bc5d02c06782dc89c5f4\u00616810d7df4e3b9826\u00612943cb2f6fdf0f98bcec1c115b",
+                  "le\u0061f_count": 3.0
+               },
+               "epoch_h\u0061sh": "488e6583\u0061192071810724dd392b551c4c\u0061119c\u00616688deb9034683eb42eb\u00611364"
+            }
+         },
+         "bitcoin": {
+            "txoutproof": "00000020cb1b81b9b036\u0061\u0061f305b73e573694bdb0064db4cf65b18b4403960552\u0061b78b\u00617cc19\u00612d4755f1ec7d94\u0061b0\u0061c6e330\u0061c7528b08d5fb79db0578c4601508ee1874d4025b76\u0061ffff7f200000000005000000043\u00613f2e9d5be6\u00617f8e5e5b0f\u006159fc1df5\u006170\u00612328d11ec1d7\u0061cb321bd9ff\u0061345f466265687908\u0061918d209c7\u0061f1265cf88b27f3\u0061859408345e7b08e0156c5e649cd9c\u006173dc410e237d5\u00619c4311df0e79e527d24cbf57d1271c2f5c9d4f\u0061\u0061\u00613f464dd5f214e2f\u00618d44cf7b6cf382\u0061c0d56ef\u00610b249cc5fd96db53d5037f9471776e012b",
+            "tr\u0061ns\u0061ction_h\u0061sh": "64f4\u00613\u0061\u00614f9d5c2f1c27d157bf4cd227e5790edf11439c5\u00617d230e41dc73c\u0061d9",
+            "r\u0061w_tr\u0061ns\u0061ction": "0200000001d4482484866f76536c37fbd382\u0061288fe2\u006145792c58be397f03\u00612d5\u0061e735316700100000000fdffffff023ce8052\u00610100000016001479063\u006189f84f\u0061c2081623dff7fc5585724e982570000000000000000226\u006120488e6583\u0061192071810724dd392b551c4c\u0061119c\u00616688deb9034683eb42eb\u00611364dd000000",
+            "network": "regtest",
+            "inclusion_proof": {
+               "tree_size": 3.0,
+               "p\u0061th": [
+                  "f8720ee7949078856953\u0061f4754\u0061812529b2640e18\u0061e607e7c06\u00618c4cdf9dfe7b",
+                  "3f1b13269efdfe00e61f0f2c7bc01\u0061261b17c7\u0061564d5706d99d816cb52f770f9"
+               ],
+               "le\u0061f_index": 1.0
+            },
+            "height": 222.0,
+            "he\u0061der_time": "2026-09-26T01:52:00Z",
+            "he\u0061der_merkle_root": "4d87e18e5001468c57b09db75f8db02875\u0061c30e3c60\u0061\u0061b947decf155472d9\u0061c1",
+            "he\u0061der_h\u0061sh": "066ee8ed37e3b69\u0061\u0061ef26bc\u006128f2818674e61412e1be5bc8f17b0e4cc5971386",
+            "epoch": {
+               "record": {
+                  "merkle_root": "bc5d02c06782dc89c5f4\u00616810d7df4e3b9826\u00612943cb2f6fdf0f98bcec1c115b",
+                  "le\u0061f_count": 3.0
+               },
+               "epoch_h\u0061sh": "488e6583\u0061192071810724dd392b551c4c\u0061119c\u00616688deb9034683eb42eb\u00611364"
+            }
+         }
+      },
+      "block": {
+         "record": {
+            "signing_key_id": "9602c03e",
+            "previous_block_h\u0061sh": "940829eb0fc4717d\u0061c15092189394ef52fbbfd\u0061555ef5ff0f4c3878fb374\u006198e",
+            "met\u0061d\u0061t\u0061": {},
+            "merkle_root": "\u006172265e95bd9\u0061\u0061269d\u0061573f251092c2c85fd0026c7115e9476\u0061b074ed579f982",
+            "le\u0061f_count": 3.0,
+            "id": "01\u00610db67-\u0061d40-773c-8f68-92f749710110",
+            "height": 4.0
+         },
+         "block_h\u0061sh": "5e6d728fd156c04e24c56fc19339506c85e0c497f295181812d35b5325528d31"
+      }
+   }
+}

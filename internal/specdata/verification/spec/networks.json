@@ -1,0 +1,11 @@
+{
+  "bitcoin": [
+    "mainnet",
+    "testnet",
+    "regtest"
+  ],
+  "stellar": [
+    "public",
+    "testnet"
+  ]
+}

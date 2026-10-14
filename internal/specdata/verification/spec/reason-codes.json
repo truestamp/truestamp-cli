@@ -1,0 +1,222 @@
+[
+  {
+    "code": "configuration_error",
+    "meaning": "a check of step 0 fails (section 10.2): a keyring file or configured keyring fails its load checks, a run whose environment is not prod is not keyless and has no keyring source (section 6.4), an online run pins a network it has no source for, or a source's identity read gives a value step 0 forbids",
+    "status": "bare",
+    "step": "CONFIGURATION"
+  },
+  {
+    "code": "input_too_large",
+    "meaning": "the file is over MAX_READ_OCTETS",
+    "status": "bare",
+    "step": "READ"
+  },
+  {
+    "code": "malformed_json",
+    "meaning": "the file breaks a parsing rule of section 10.1; sub_reason names the rule",
+    "status": "bare",
+    "step": "PARSE",
+    "sub_reasons": [
+      "syntax",
+      "invalid_utf8",
+      "lone_surrogate",
+      "duplicate_name",
+      "number",
+      "depth"
+    ]
+  },
+  {
+    "code": "invalid_envelope",
+    "meaning": "the document is not exactly the envelope of section 3.1: a member missing or extra, alg other than the pin, K or V off its class, or K failing the checks of a key's bytes (section 6.2); sub_reason names the first check of section 10.2, step 3, that fails",
+    "status": "bare",
+    "step": "ENVELOPE",
+    "sub_reasons": [
+      "document",
+      "proof",
+      "signature",
+      "alg",
+      "public_key",
+      "value"
+    ]
+  },
+  {
+    "code": "environment_mismatch",
+    "meaning": "environment fails the check of section 6.4",
+    "status": "fail",
+    "step": "ENVIRONMENT"
+  },
+  {
+    "code": "keyring_unavailable",
+    "meaning": "the keyring that would govern cannot be used: Truestamp's key chain is not verified, or an external verifier's online keyring read failed, so no key binds (sections 8.2 and 8.3)",
+    "status": "fail",
+    "step": "KEY_BINDING"
+  },
+  {
+    "code": "key_binding_failed",
+    "meaning": "K is not in the keyring that governs (section 6.1); a revoked key is in no current keyring (section 8.1)",
+    "status": "fail",
+    "step": "KEY_BINDING"
+  },
+  {
+    "code": "key_binding_not_performed",
+    "meaning": "keyless mode, which the verifier states in words (section 8.3)",
+    "status": "skip",
+    "step": "KEY_BINDING"
+  },
+  {
+    "code": "signature_invalid",
+    "meaning": "V does not verify under K over proof_hash (section 6.1) by the strict rules of section 6.2, including an s that is not below L",
+    "status": "fail",
+    "step": "SIGNATURE"
+  },
+  {
+    "code": "unsupported_format",
+    "meaning": "format is not \"truestamp-proof\"",
+    "status": "fail",
+    "step": "SHAPE"
+  },
+  {
+    "code": "unsupported_version",
+    "meaning": "version is not 1; the only signal of a later format",
+    "status": "fail",
+    "step": "SHAPE"
+  },
+  {
+    "code": "shape_invalid",
+    "meaning": "the proof fails a check of SHAPE other than those of format, version and the constructions digest (section 10.2, step 7)",
+    "status": "fail",
+    "step": "SHAPE"
+  },
+  {
+    "code": "construction_mismatch",
+    "meaning": "the constructions digest is not in CONSTRUCTIONS_ACCEPTED",
+    "status": "fail",
+    "step": "SHAPE"
+  },
+  {
+    "code": "network_mismatch",
+    "meaning": "a network differs from the verifier's pin for that chain or source",
+    "status": "fail",
+    "step": "POLICY"
+  },
+  {
+    "code": "derivation_mismatch",
+    "meaning": "a CHECKED value that no key-event check of section 10.3 covers differs from its recomputation (section 10.2, step 9): a record hash; a walk that fails or reaches another root; a tree_size that differs from its record's leaf_count; an epoch_hash that differs from the copy in the carried Bitcoin transaction; the hash a txoutproof matches, or a Bitcoin transaction_hash, header_hash, header_merkle_root or header_time; a LINK_WITNESS link",
+    "status": "fail",
+    "step": "DERIVE"
+  },
+  {
+    "code": "bitcoin_evidence_invalid",
+    "meaning": "a raw_transaction or txoutproof that is not well formed, including a header hash above the target its own nBits encodes (section 10.2, step 9)",
+    "status": "fail",
+    "step": "DERIVE"
+  },
+  {
+    "code": "key_event_mismatch",
+    "meaning": "a key event fails a check of section 10.3 (its ids, its position, its handover signature, or the checks of its public_key's bytes), or the event at /signing_key_event/block does not introduce K (LINK_KEY_EVENT)",
+    "status": "fail",
+    "step": "DERIVE"
+  },
+  {
+    "code": "ordering_violation",
+    "meaning": "LINK_HEAD or LINK_CHAIN_ORDER fails (section 10.3)",
+    "status": "fail",
+    "step": "DERIVE"
+  },
+  {
+    "code": "not_attributable",
+    "meaning": "on LINK_KEY_EVENT or KEY_EVENT_COMMITMENT, in place of pass when the attribution is not truestamp",
+    "status": "info",
+    "step": "DERIVE, CHAIN"
+  },
+  {
+    "code": "offline",
+    "meaning": "no read was made in this run; the message names the read that would confirm the row",
+    "status": "skip",
+    "step": "CHAIN, SOURCES"
+  },
+  {
+    "code": "chain_mismatch",
+    "meaning": "a chain read contradicts the proof (section 10.4)",
+    "status": "fail",
+    "step": "CHAIN"
+  },
+  {
+    "code": "source_unreachable",
+    "meaning": "the source gave no usable answer (section 10.4)",
+    "status": "skip",
+    "step": "CHAIN, SOURCES"
+  },
+  {
+    "code": "not_held_by_source",
+    "meaning": "the source does not hold the value, and its absence is no contradiction",
+    "status": "skip",
+    "step": "CHAIN, SOURCES"
+  },
+  {
+    "code": "not_yet_indexed",
+    "meaning": "the value lies beyond the source's indexed tip, or within STELLAR_INDEX_MARGIN of it",
+    "status": "skip",
+    "step": "CHAIN, SOURCES"
+  },
+  {
+    "code": "chain_not_final",
+    "meaning": "the Bitcoin tip is below height + BITCOIN_FINALITY",
+    "status": "skip",
+    "step": "CHAIN"
+  },
+  {
+    "code": "entropy_mismatch",
+    "meaning": "the pulse, ledger or block read differs from the entropy object",
+    "status": "fail",
+    "step": "SOURCES"
+  },
+  {
+    "code": "window_not_established",
+    "meaning": "no submitted-before edge was drawn; values give the reason for each absent edge",
+    "status": "info",
+    "step": "WINDOW"
+  },
+  {
+    "code": "window_inverted",
+    "meaning": "the submitted-after edge is later than the submitted-before edge",
+    "status": "fail",
+    "step": "WINDOW"
+  },
+  {
+    "code": "recorded_time_outside_window",
+    "meaning": "the time in a subject's id lies outside an established window",
+    "status": "info",
+    "step": "WINDOW"
+  },
+  {
+    "code": "expected_hash_mismatch",
+    "meaning": "the caller gave a hash, and the proof has no claims.hash of a listed type to compare it with, or the caller's hash is not hex of that type's length, or it differs from claims.hash (section 10.2, step 13)",
+    "status": "fail",
+    "step": "EXPECTED_HASH"
+  },
+  {
+    "code": "expected_hash_weak_algorithm",
+    "meaning": "the caller's hash matched, and claims.hash_type is md5 or sha1, whose collisions are practical",
+    "status": "warn",
+    "step": "EXPECTED_HASH"
+  },
+  {
+    "code": "expected_hash_not_checked",
+    "meaning": "no expected hash was given",
+    "status": "skip",
+    "step": "EXPECTED_HASH"
+  },
+  {
+    "code": "prior_failure",
+    "meaning": "a row it depends on failed: every later step up to EXPECTED_HASH after a failure at steps 4 to 7 (section 10.2); a CHAIN or SOURCES row, KEY_EVENT_COMMITMENT included, after a failed row before CHAIN (the external gate of section 10.2); and the WINDOW row after any failed row (section 11.3)",
+    "status": "skip",
+    "step": "any step after a failure"
+  },
+  {
+    "code": "internal_error",
+    "meaning": "a fault in the verifier (section 10.5)",
+    "status": "fail",
+    "step": "any step from ENVIRONMENT on"
+  }
+]
