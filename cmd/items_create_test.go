@@ -228,10 +228,14 @@ func TestCLI_ItemsCreate_ClaimsFile_InvalidJSON_Error(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	cmd := exec.Command(binaryPath, "items", "create", "--claims="+path, "--api-key", "fake")
+	srv, hits := countingAPI(t)
+	cmd := exec.Command(binaryPath, "items", "create", "--claims="+path, "--api-key", "fake", "--base-url", srv.URL)
 	out, _ := cmd.CombinedOutput()
 	if !containsString(string(out), "parsing claims JSON") {
 		t.Errorf("expected JSON parse error, got: %s", out)
+	}
+	if n := hits.Load(); n != 0 {
+		t.Errorf("a claims file that does not parse sent %d requests, want 0", n)
 	}
 }
 
@@ -251,11 +255,15 @@ func TestCLI_ItemsCreate_ClaimsStdin_ParsesJSON(t *testing.T) {
 }
 
 func TestCLI_ItemsCreate_ClaimsStdin_InvalidJSON_Error(t *testing.T) {
-	cmd := exec.Command(binaryPath, "items", "create", "-C", "--api-key", "fake")
+	srv, hits := countingAPI(t)
+	cmd := exec.Command(binaryPath, "items", "create", "-C", "--api-key", "fake", "--base-url", srv.URL)
 	cmd.Stdin = strings.NewReader("not json")
 	out, _ := cmd.CombinedOutput()
 	if !containsString(string(out), "parsing claims JSON") {
 		t.Errorf("expected JSON parse error, got: %s", out)
+	}
+	if n := hits.Load(); n != 0 {
+		t.Errorf("claims on stdin that do not parse sent %d requests, want 0", n)
 	}
 }
 
@@ -340,10 +348,14 @@ func TestCLI_ItemsCreate_FileFlag_HashesFile(t *testing.T) {
 }
 
 func TestCLI_ItemsCreate_FileFlag_NonexistentFile_Error(t *testing.T) {
-	cmd := exec.Command(binaryPath, "items", "create", "--file=/nonexistent/file.txt", "--api-key", "fake")
+	srv, hits := countingAPI(t)
+	cmd := exec.Command(binaryPath, "items", "create", "--file=/nonexistent/file.txt", "--api-key", "fake", "--base-url", srv.URL)
 	out, _ := cmd.CombinedOutput()
 	if !containsString(string(out), "cannot access") {
 		t.Errorf("expected file access error, got: %s", out)
+	}
+	if n := hits.Load(); n != 0 {
+		t.Errorf("a file that cannot be read sent %d requests, want 0", n)
 	}
 }
 
@@ -972,10 +984,14 @@ func TestCLI_ItemsCreate_TrailingDataRejected(t *testing.T) {
 	if err := os.WriteFile(path, []byte(`{"name":"A"} {"name":"B"}`), 0644); err != nil {
 		t.Fatal(err)
 	}
-	cmd := exec.Command(binaryPath, "items", "create", "--claims="+path, "--api-key", "fake")
+	srv, hits := countingAPI(t)
+	cmd := exec.Command(binaryPath, "items", "create", "--claims="+path, "--api-key", "fake", "--base-url", srv.URL)
 	out, _ := cmd.CombinedOutput()
 	if !containsString(string(out), "parsing claims JSON") {
 		t.Errorf("expected a parse error for trailing data, got: %s", out)
+	}
+	if n := hits.Load(); n != 0 {
+		t.Errorf("a claims file with trailing data sent %d requests, want 0", n)
 	}
 }
 

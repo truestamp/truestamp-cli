@@ -353,6 +353,19 @@ func TestIsTerminal_Nil(t *testing.T) {
 	}
 }
 
+// TestIsTerminal_DevNullIsNot: /dev/null is a character device but not a
+// terminal, so a stderr of /dev/null leaves the notice off.
+func TestIsTerminal_DevNullIsNot(t *testing.T) {
+	f, err := os.OpenFile(os.DevNull, os.O_WRONLY, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer f.Close()
+	if isTerminal(f) {
+		t.Errorf("%s should not be a terminal", os.DevNull)
+	}
+}
+
 func TestEmitIfNewer_BadSemver(t *testing.T) {
 	var buf bytes.Buffer
 	// Either side being unparseable → early return, no emit.

@@ -115,6 +115,19 @@ tasks:
     cmds:
       - go test ./...
 
+  test-nonet:
+    desc: "Run the whole suite (go test -count=1 ./...), or the command after --, with no network: macOS only, under the sandbox profile in tools/nonet/ with its own HOME, TMPDIR, GOCACHE and STATICCHECK_CACHE under NONET_WORK (default $TMPDIR), outside the tree. It refuses exactly every connection off loopback, loopback ports 4000 to 4003, 5432 and 4369, DNS, the Docker and Postgres Unix sockets and the keychain tool (/usr/bin/security). The recorder sees the command and every process it starts but those started through a SIP-protected binary such as /bin/sh, which are refused but not recorded. The control in tools/nonet/control/ runs first and must see every refusal. nonet exits 2 on a bad setup, 3 if the control fails, 4 if the command passes with a recorded network attempt, and otherwise with the command's status; Task reports any failure as exit 201, so read nonet's code from Task's \"exit status N\" line or run task -x test-nonet. The proof-bundle lane runs the CLI's tests, a reviewer's included, only under this guard or, where a sandbox would nest, the lane's copy of it. Example: task test-nonet -- go vet ./..."
+    preconditions:
+      - sh: test "$(uname -s)" = Darwin && command -v sandbox-exec >/dev/null && command -v clang >/dev/null
+        msg: "test-nonet needs macOS's sandbox-exec and clang"
+    cmds:
+      - |
+        work="${NONET_WORK:-${TMPDIR:-/tmp}}"
+        work="${work%/}/truestamp-cli-nonet-$(printf %s "{{.ROOT_DIR}}" | shasum | cut -c1-8)"
+        mkdir -p "$work"
+        clang -dynamiclib -O2 -o "$work/netrec.dylib" tools/nonet/netrec.c
+        NONET_WORK="$work" tools/nonet/nonet.sh {{if .CLI_ARGS}}{{.CLI_ARGS}}{{else}}go test -count=1 ./...{{end}}
+
   test-verbose:
     desc: Run all Go tests with verbose output
     cmds:

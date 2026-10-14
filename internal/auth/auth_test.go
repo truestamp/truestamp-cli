@@ -13,6 +13,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"path/filepath"
 	"strings"
 	"sync"
 	"testing"
@@ -214,9 +215,14 @@ func writeTokenError(w http.ResponseWriter, code string) {
 	_ = json.NewEncoder(w).Encode(map[string]string{"error": code})
 }
 
-// useMockKeyring routes go-keyring through its in-memory mock for the test.
+// useMockKeyring routes go-keyring through its in-memory mock for the
+// test, and gives it a HOME and XDG cache directory of its own, so the
+// session store's fallback file is never the developer's.
 func useMockKeyring(t *testing.T) {
 	t.Helper()
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	t.Setenv("XDG_CACHE_HOME", filepath.Join(home, "cache"))
 	keyring.MockInit()
 }
 

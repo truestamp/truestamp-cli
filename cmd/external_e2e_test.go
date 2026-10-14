@@ -455,7 +455,7 @@ func buildWithEndpoints(t *testing.T, endpoints map[string]string) string {
 		ld = append(ld, fmt.Sprintf("-X %s.%s=%s", pkg, name, url))
 	}
 	out := filepath.Join(t.TempDir(), "truestamp-endpoints")
-	cmd := exec.Command("go", "build", "-ldflags", strings.Join(ld, " "), "-o", out, "./cmd/truestamp")
+	cmd := exec.Command("go", "build", "-buildvcs=false", "-ldflags", strings.Join(ld, " "), "-o", out, "./cmd/truestamp")
 	cmd.Dir = modRoot
 	if b, err := cmd.CombinedOutput(); err != nil {
 		t.Fatalf("building endpoint-redirected binary: %v\n%s", err, b)
