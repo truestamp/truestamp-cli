@@ -1,0 +1,31 @@
+; Copyright (c) 2019-2026 Truestamp, Inc.
+; SPDX-License-Identifier: Apache-2.0
+;
+; The macOS sandbox profile `task test-nonet` runs every command under. It
+; refuses exactly: every connection off loopback; loopback ports 4000 to
+; 4003, 5432 and 4369; DNS; the Docker and Postgres Unix sockets; and
+; running the keychain tool. Everything else is allowed.
+(version 1)
+(allow default)
+; Deny every outbound socket connection, then allow loopback only.
+(deny network-outbound)
+(allow network-outbound (remote ip "localhost:*"))
+; Unix-domain sockets stay usable (go's toolchain and tests may use them),
+; except the system DNS resolver, so no test can send a DNS query.
+(allow network-outbound (remote unix-socket))
+(deny network-outbound (remote unix-socket (path-literal "/private/var/run/mDNSResponder")))
+(deny mach-lookup (global-name "com.apple.dnssd.service"))
+; Unix sockets of a development Mac's services that no CLI test may
+; reach, matched by the end of the resolved path, so in any home
+; directory: Docker's (~/.docker/run/docker.sock, which
+; /var/run/docker.sock links to) and Postgres's (/tmp/.s.PGSQL.5432).
+(deny network-outbound (remote unix-socket (path-regex #"/\.docker/run/docker\.sock$")))
+(deny network-outbound (remote unix-socket (path-regex #"/\.s\.PGSQL\.5432$")))
+; Loopback services of a development Mac that no CLI test may reach: the
+; Truestamp app's dev server (4000, and clustered nodes 4001-4003),
+; Postgres (5432) and epmd (4369).
+(deny network-outbound (remote ip "localhost:4000") (remote ip "localhost:4001") (remote ip "localhost:4002") (remote ip "localhost:4003") (remote ip "localhost:5432") (remote ip "localhost:4369"))
+; The keychain tool go-keyring runs on macOS, so no test can read or
+; write a stored OAuth session; the session store falls back to its file
+; under the run's own HOME.
+(deny process-exec (literal "/usr/bin/security"))

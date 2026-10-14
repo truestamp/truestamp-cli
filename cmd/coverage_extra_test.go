@@ -15,6 +15,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"sync/atomic"
 	"testing"
 )
 
@@ -68,22 +69,59 @@ func TestCLI_ConvertMerkle_Invalid(t *testing.T) {
 
 // --- upgrade --check ---
 
+// TestCLI_Upgrade_Check_UpgradeAvailable runs `upgrade --check --exit-code`
+// against an httptest server standing in for the GitHub Releases API. The
+// release endpoint is redirected at link time, as buildWithEndpoints does
+// for the verification sources, so the shipped binary has no override.
 func TestCLI_Upgrade_Check_UpgradeAvailable(t *testing.T) {
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		_, _ = w.Write([]byte(`{"tag_name":"v99.0.0","prerelease":false}`))
+	const releasePath = "/repos/truestamp/truestamp-cli/releases/latest"
+	var hits atomic.Int32
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		hits.Add(1)
+		if r.URL.Path != releasePath {
+			http.NotFound(w, r)
+			return
+		}
+		_, _ = w.Write([]byte(`{"tag_name":"v99.0.0","prerelease":false,"draft":false}`))
 	}))
 	defer srv.Close()
-	cmd := exec.Command(binaryPath, "upgrade", "--check")
-	cmd.Env = append(os.Environ(),
-		"TRUESTAMP_UPGRADE_URL="+srv.URL, // unused but harmless
-		"TRUESTAMP_NO_UPGRADE_CHECK=1",
-	)
-	// We can't easily redirect LatestReleaseURL in a subprocess without
-	// an explicit flag, so this just confirms the command returns.
-	_ = cmd.Run()
+
+	bin := buildWithLdflags(t,
+		"-X github.com/truestamp/truestamp-cli/internal/selfupgrade.LatestReleaseURL="+srv.URL+releasePath,
+		"-X github.com/truestamp/truestamp-cli/internal/version.Version=1.0.0")
+	cmd := exec.Command(bin, "upgrade", "--check", "--exit-code")
+	cmd.Env = offlineEnv(t, offlineAPIKey)
+	out, err := cmd.Output()
+	var exitErr *exec.ExitError
+	if !errors.As(err, &exitErr) || exitErr.ExitCode() != checkExitUpgradeAvail {
+		t.Fatalf("upgrade --check --exit-code: err = %v, want exit %d\n%s", err, checkExitUpgradeAvail, out)
+	}
+	if want := "truestamp 99.0.0 is available (current: 1.0.0)"; !strings.Contains(string(out), want) {
+		t.Errorf("output %q does not contain %q", out, want)
+	}
+	if n := hits.Load(); n != 1 {
+		t.Errorf("the release server saw %d requests, want 1", n)
+	}
 }
 
-// --- auth subcommands (argv shape only; API calls will fail but we hit the code) ---
+// buildWithLdflags compiles the CLI with the given -ldflags -X settings and
+// returns the binary's path.
+func buildWithLdflags(t *testing.T, settings ...string) string {
+	t.Helper()
+	modRoot, err := findModuleRoot()
+	if err != nil {
+		t.Fatalf("locating module root: %v", err)
+	}
+	out := filepath.Join(t.TempDir(), "truestamp-ldflags")
+	cmd := exec.Command("go", "build", "-buildvcs=false", "-ldflags", strings.Join(settings, " "), "-o", out, "./cmd/truestamp")
+	cmd.Dir = modRoot
+	if b, err := cmd.CombinedOutput(); err != nil {
+		t.Fatalf("building the redirected binary: %v\n%s", err, b)
+	}
+	return out
+}
+
+// --- auth subcommands (an isolated HOME and a loopback --base-url) ---
 
 func TestCLI_Auth_Help(t *testing.T) {
 	for _, verb := range []string{"login", "logout", "status"} {
@@ -97,20 +135,61 @@ func TestCLI_Auth_Help(t *testing.T) {
 	}
 }
 
-func TestCLI_Auth_Status_NoAPIKey(t *testing.T) {
-	cmd := exec.Command(binaryPath, "auth", "status")
-	cmd.Env = append(os.Environ(), "TRUESTAMP_API_KEY=")
-	out, _ := cmd.CombinedOutput()
-	// Any outcome is fine; we just need the code path to execute.
-	_ = out
+// countingAPI is a loopback API that answers 401 to every request and
+// counts them, for the tests that must send none.
+func countingAPI(t *testing.T) (*httptest.Server, *atomic.Int32) {
+	t.Helper()
+	var hits atomic.Int32
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		hits.Add(1)
+		w.WriteHeader(http.StatusUnauthorized)
+	}))
+	t.Cleanup(srv.Close)
+	return srv, &hits
 }
 
+// TestCLI_Auth_Status_NoAPIKey: with no API key and no stored session, in
+// an isolated HOME, `auth status` reports not_authenticated and sends no
+// request.
+func TestCLI_Auth_Status_NoAPIKey(t *testing.T) {
+	srv, hits := countingAPI(t)
+	cmd := exec.Command(binaryPath, "auth", "status", "--json", "--base-url", srv.URL)
+	cmd.Env = offlineEnv(t, "")
+	out, err := cmd.Output()
+	if err == nil {
+		t.Fatalf("auth status with no credential exited 0:\n%s", out)
+	}
+	var rec struct {
+		OK     bool   `json:"ok"`
+		Reason string `json:"reason"`
+	}
+	if jerr := json.Unmarshal(out, &rec); jerr != nil {
+		t.Fatalf("auth status --json: %v\n%s", jerr, out)
+	}
+	if rec.OK || rec.Reason != "not_authenticated" {
+		t.Errorf("auth status = %+v, want ok false and reason not_authenticated", rec)
+	}
+	if n := hits.Load(); n != 0 {
+		t.Errorf("auth status with no credential sent %d requests, want 0", n)
+	}
+}
+
+// TestCLI_Auth_Logout_NoAPIKey: with no API key and no stored session, in
+// an isolated HOME, `auth logout` says so and sends no request.
 func TestCLI_Auth_Logout_NoAPIKey(t *testing.T) {
-	cmd := exec.Command(binaryPath, "auth", "logout")
-	cmd.Env = append(os.Environ(), "TRUESTAMP_API_KEY=")
-	// logout typically asks for confirmation; stdin is not a TTY so it
-	// should auto-abort.
-	_, _ = cmd.CombinedOutput()
+	srv, hits := countingAPI(t)
+	cmd := exec.Command(binaryPath, "auth", "logout", "--base-url", srv.URL)
+	cmd.Env = offlineEnv(t, "")
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		t.Fatalf("auth logout: %v\n%s", err, out)
+	}
+	if !strings.Contains(string(out), "Not logged in.") {
+		t.Errorf("auth logout output %q does not say Not logged in.", out)
+	}
+	if n := hits.Load(); n != 0 {
+		t.Errorf("auth logout with no credential sent %d requests, want 0", n)
+	}
 }
 
 // --- create: presentCreate + printCreateJSON ---

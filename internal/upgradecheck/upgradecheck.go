@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/truestamp/truestamp-cli/internal/selfupgrade"
+	"golang.org/x/term"
 )
 
 // terminalCheck is the hook used by Disabled to detect a TTY. Tests
@@ -64,17 +65,16 @@ func inCI() bool {
 	return false
 }
 
-// isTerminal reports whether f refers to a character device (a TTY).
-// Uses os.Stat and the ModeCharDevice bit, no new dependencies needed.
+// isTerminal reports whether f is a terminal. It goes through
+// golang.org/x/term.IsTerminal (tcgetattr), as internal/inputsrc does,
+// rather than the os.ModeCharDevice bit: /dev/null is a character device
+// too, so a stderr of /dev/null would count as a terminal and turn the
+// notice on with no one to read it.
 func isTerminal(f *os.File) bool {
 	if f == nil {
 		return false
 	}
-	info, err := f.Stat()
-	if err != nil {
-		return false
-	}
-	return (info.Mode() & os.ModeCharDevice) != 0
+	return term.IsTerminal(int(f.Fd()))
 }
 
 // MaybeNotify writes a single-line "new version available" notice to w if

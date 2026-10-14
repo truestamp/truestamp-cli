@@ -28,14 +28,33 @@ import (
 var (
 	binaryPath         string
 	subprocessCoverDir string // set during TestMain when coverage is requested
+
+	// runDir is this run's temporary directory, made by runTests and
+	// removed before TestMain exits. cleanEnv points HOME and
+	// XDG_CONFIG_HOME at paths under it that do not exist.
+	runDir string
 )
 
+// deadBaseURL is the API origin every subprocess of this package
+// inherits: a loopback port nothing listens on, so a test that forgets
+// --base-url gets a refused connection, and the credential store is keyed
+// by an origin no stored session uses.
+const deadBaseURL = "http://127.0.0.1:9"
+
 func TestMain(m *testing.M) {
+	os.Exit(runTests(m))
+}
+
+// runTests builds the binary into a temporary directory, runs the tests
+// and removes the directory before TestMain exits: os.Exit runs no
+// deferred call, so the removal is deferred here instead.
+func runTests(m *testing.M) int {
 	tmp, err := os.MkdirTemp("", "truestamp-test-*")
 	if err != nil {
 		panic(err)
 	}
 	defer os.RemoveAll(tmp)
+	runDir = tmp
 
 	binaryPath = filepath.Join(tmp, "truestamp")
 
@@ -47,7 +66,10 @@ func TestMain(m *testing.M) {
 	// When TRUESTAMP_COVERDIR is set (task test-coverage-full sets it to
 	// coverage/bin), build the subprocess binary with -cover so its runtime
 	// coverage is recorded there.
-	buildArgs := []string{"build"}
+	// -buildvcs=false: the binary reports version "dev" in a checkout as
+	// in a copy without VCS metadata, so the once-a-day upgrade notice,
+	// which is off for "dev", never reaches api.github.com from a test.
+	buildArgs := []string{"build", "-buildvcs=false"}
 	subprocessCoverDir = os.Getenv("TRUESTAMP_COVERDIR")
 	if subprocessCoverDir != "" {
 		buildArgs = append(buildArgs, "-cover", "-coverpkg=./...")
@@ -60,7 +82,95 @@ func TestMain(m *testing.M) {
 		panic("failed to build binary: " + err.Error() + "\n" + string(out))
 	}
 
-	os.Exit(m.Run())
+	if err := isolatePackage(tmp); err != nil {
+		panic("isolating the test environment: " + err.Error())
+	}
+	return m.Run()
+}
+
+// isolatePackage gives this test process, and so every subprocess it
+// starts without an Env of its own, a HOME and XDG directories under dir,
+// no TRUESTAMP_* variable but the upgrade-check opt-out, and deadBaseURL
+// as TRUESTAMP_BASE_URL. No test of this package then reads the
+// developer's configuration, OAuth session or keychain entry for a real
+// origin. The go command's caches and settings file are pinned first,
+// from the inherited HOME, so a test that runs `go build` still finds
+// them.
+func isolatePackage(dir string) error {
+	goVars := []string{"GOCACHE", "GOMODCACHE", "GOPATH", "GOENV"}
+	out, err := exec.Command("go", append([]string{"env"}, goVars...)...).Output()
+	if err != nil {
+		return fmt.Errorf("go env: %w", err)
+	}
+	values := strings.Split(strings.TrimRight(string(out), "\n"), "\n")
+	if len(values) != len(goVars) {
+		return fmt.Errorf("go env printed %d lines for %d variables", len(values), len(goVars))
+	}
+	for i, name := range goVars {
+		if os.Getenv(name) == "" {
+			if err := os.Setenv(name, values[i]); err != nil {
+				return err
+			}
+		}
+	}
+	for _, e := range os.Environ() {
+		if name, _, _ := strings.Cut(e, "="); strings.HasPrefix(name, "TRUESTAMP_") {
+			if err := os.Unsetenv(name); err != nil {
+				return err
+			}
+		}
+	}
+	home := filepath.Join(dir, "home")
+	vars := map[string]string{
+		"HOME":                       home,
+		"XDG_CONFIG_HOME":            filepath.Join(home, "config"),
+		"XDG_CACHE_HOME":             filepath.Join(home, "cache"),
+		"XDG_DATA_HOME":              filepath.Join(home, "data"),
+		"XDG_STATE_HOME":             filepath.Join(home, "state"),
+		"TRUESTAMP_NO_UPGRADE_CHECK": "1",
+		"TRUESTAMP_BASE_URL":         deadBaseURL,
+	}
+	for name, v := range vars {
+		if strings.HasPrefix(name, "XDG_") || name == "HOME" {
+			if err := os.MkdirAll(v, 0o700); err != nil {
+				return err
+			}
+		}
+		if err := os.Setenv(name, v); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// TestPackageEnvironment_IsIsolated: a subprocess started with the
+// inherited environment, and one started with cleanEnv, both resolve
+// deadBaseURL and a configuration file under this run's runDir, never
+// the developer's HOME or a fixed shared path.
+func TestPackageEnvironment_IsIsolated(t *testing.T) {
+	inherited, err := exec.Command(binaryPath, "config", "show", "--json").Output()
+	if err != nil {
+		t.Fatalf("config show --json with the inherited environment: %v\n%s", err, inherited)
+	}
+	clean, stderr, code := runCLI(t, "config", "show", "--json")
+	if code != 0 {
+		t.Fatalf("config show --json with cleanEnv: exit %d\n%s", code, stderr)
+	}
+	for name, out := range map[string][]byte{"inherited": inherited, "cleanEnv": []byte(clean)} {
+		var rec struct {
+			ConfigFile string `json:"config_file"`
+			BaseURL    string `json:"base_url"`
+		}
+		if err := json.Unmarshal(out, &rec); err != nil {
+			t.Fatalf("%s: config show --json: %v\n%s", name, err, out)
+		}
+		if rec.BaseURL != deadBaseURL {
+			t.Errorf("%s: base_url = %q, want %q", name, rec.BaseURL, deadBaseURL)
+		}
+		if !strings.HasPrefix(rec.ConfigFile, runDir+string(filepath.Separator)) {
+			t.Errorf("%s: config_file = %q, want a path under %q", name, rec.ConfigFile, runDir)
+		}
+	}
 }
 
 // findModuleRoot walks up from the current working directory to find go.mod.
@@ -584,11 +694,15 @@ func TestCLI_CopiedKeyInvalidSignature_FailsEverywhere(t *testing.T) {
 }
 
 func TestCLI_Verify_RemoteRequiresAuth(t *testing.T) {
-	cmd := exec.Command(binaryPath, "verify", prodPath(testfixtures.ProdComplete), "--remote")
+	srv, hits := countingAPI(t)
+	cmd := exec.Command(binaryPath, "verify", prodPath(testfixtures.ProdComplete), "--remote", "--base-url", srv.URL)
 	cmd.Env = append(cleanEnv(), "HOME="+t.TempDir(), "XDG_CONFIG_HOME="+t.TempDir())
 	out, err := cmd.CombinedOutput()
 	if err == nil || !strings.Contains(string(out), "not authenticated") {
 		t.Errorf("remote without a credential: %v\n%s", err, out)
+	}
+	if n := hits.Load(); n != 0 {
+		t.Errorf("verify --remote without a credential sent %d requests, want 0", n)
 	}
 }
 

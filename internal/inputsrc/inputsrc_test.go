@@ -7,6 +7,7 @@ import (
 	"context"
 	"errors"
 	"io"
+	"io/fs"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -83,10 +84,11 @@ func TestResolve_FileFlagPickerWithPositional(t *testing.T) {
 
 func TestResolve_PositionalURL_AutoDetect(t *testing.T) {
 	// AutoDetectURL off: positional is treated as a file path (and the
-	// file doesn't exist, so we get an error).
-	_, _, err := Resolve(context.Background(), Options{PositionalArg: "https://example.com/x"})
-	if err == nil {
-		t.Fatal("expected read error for URL-like positional without AutoDetectURL")
+	// file doesn't exist, so we get the file-read error). The host is in
+	// .invalid, so a fetch could never reach a real one.
+	_, _, err := Resolve(context.Background(), Options{PositionalArg: "https://truestamp-test.invalid/x"})
+	if !errors.Is(err, fs.ErrNotExist) {
+		t.Fatalf("URL-like positional without AutoDetectURL: err = %v, want the file-read error", err)
 	}
 
 	// AutoDetectURL on but URL unreachable: we should hit the HTTP layer.

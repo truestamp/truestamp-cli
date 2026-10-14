@@ -26,8 +26,9 @@ import (
 // isolatedEnv returns an env slice with the platform config dir pointed
 // at dir, plus the noise-suppressing flags every subprocess wants.
 func isolatedEnv(dir string) []string {
-	// cleanEnv already strips the developer's TRUESTAMP_* variables; the
-	// later entries win over its placeholder HOME / XDG values.
+	// cleanEnv already strips the developer's TRUESTAMP_* variables but the
+	// dead TRUESTAMP_BASE_URL; the later entries win over its placeholder
+	// HOME / XDG values.
 	return append(cleanEnv(),
 		"XDG_CONFIG_HOME="+dir,
 		"HOME="+dir,
@@ -145,7 +146,13 @@ func TestCLI_ConfigShow_ReportsActiveFile(t *testing.T) {
 	}
 
 	cmd := exec.Command(binaryPath, "config", "show", "--config", custom)
-	cmd.Env = isolatedEnv(dir)
+	// Without the dead TRUESTAMP_BASE_URL, which would win over the file's
+	// base_url: the origin is then the file's .invalid host.
+	for _, e := range isolatedEnv(dir) {
+		if !strings.HasPrefix(e, "TRUESTAMP_BASE_URL=") {
+			cmd.Env = append(cmd.Env, e)
+		}
+	}
 	out, err := cmd.CombinedOutput()
 	if err != nil {
 		t.Fatalf("config show failed: %s\n%s", err, out)

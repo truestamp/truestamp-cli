@@ -9,6 +9,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -149,18 +150,21 @@ func runCLI(t *testing.T, args ...string) (stdout, stderr string, exit int) {
 }
 
 // cleanEnv returns a minimal env for CLI subprocess tests. It strips any
-// TRUESTAMP_* vars the developer's shell may have set and redirects
-// HOME/XDG_CONFIG_HOME to non-existent paths so no config file leaks in.
+// TRUESTAMP_* var but the package's dead loopback TRUESTAMP_BASE_URL and
+// redirects HOME/XDG_CONFIG_HOME to paths under this run's runDir that
+// do not exist, so no config file leaks in and no two runs share one.
 // This mirrors the approach used in the golden test suite.
 func cleanEnv() []string {
 	out := []string{
 		"NO_COLOR=1",
 		"TRUESTAMP_NO_UPGRADE_CHECK=1",
-		"HOME=/tmp/truestamp-test-home-does-not-exist",
-		"XDG_CONFIG_HOME=/tmp/truestamp-test-config-does-not-exist",
+		"HOME=" + filepath.Join(runDir, "clean-home-does-not-exist"),
+		"XDG_CONFIG_HOME=" + filepath.Join(runDir, "clean-config-does-not-exist"),
 	}
 	for _, e := range os.Environ() {
 		switch {
+		case strings.HasPrefix(e, "TRUESTAMP_BASE_URL="):
+			// Kept: deadBaseURL, from isolatePackage.
 		case strings.HasPrefix(e, "TRUESTAMP_"):
 			continue
 		case strings.HasPrefix(e, "HOME="):

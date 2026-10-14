@@ -504,6 +504,9 @@ func TestLoad_DefaultPathFallback(t *testing.T) {
 // flagKeyMap don't error, the closure returns ("", nil) and koanf
 // skips them.
 func TestLoad_UnknownFlagInFlagMapIsIgnored(t *testing.T) {
+	dir := t.TempDir()
+	t.Setenv("XDG_CONFIG_HOME", dir)
+	t.Setenv("HOME", dir)
 	flags := pflag.NewFlagSet("test", pflag.ContinueOnError)
 	flags.String("not-in-map", "", "")
 	if err := flags.Parse([]string{"--not-in-map", "value"}); err != nil {
