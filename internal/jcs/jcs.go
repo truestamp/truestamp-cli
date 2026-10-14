@@ -28,6 +28,14 @@
 // The one thing the wrapper adds on top of the library is a strict RFC 8259
 // gate, because the library is not a validating parser and silently rewrites
 // several malformed documents into different valid ones. See rejectNonRFC8259.
+//
+// [Encode] and [CanonicalForm] (encode.go and canonical_form.go) take a value
+// rather than bytes: a value internal/strictjson read under the parsing rules
+// of SPEC.md section 10.1, whose numbers rule J5 has already read as binary64
+// values, so neither has the deviation above. Encode writes JCS(x) exactly as
+// RFC 8785 does (SPEC.md section 2.2), with gowebpki's NumberToJSON for
+// numbers, and CanonicalForm writes the canonical form of SPEC.md section 9.
+// [Canonicalize] takes bytes, and is what the callers that pass bytes use.
 package jcs
 
 import (

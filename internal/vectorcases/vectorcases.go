@@ -1,0 +1,186 @@
+// Copyright (c) 2019-2026 Truestamp, Inc.
+// SPDX-License-Identifier: Apache-2.0
+
+// Package vectorcases loads the conformance cases of SPEC.md section 13.2
+// (The vectors), testdata/verification/vectors/cases.json, for the tests that
+// run them. It is test support: no command imports it.
+//
+// It ports the reference verifier's test support Truestamp.Verifier.Test.Cases
+// (elixir/test/support/cases.ex in truestamp-verification), adapted to Go: a
+// case decodes into typed structs, and the per-step runner that compares
+// each case's rejection or rows through the last step built is this
+// package's runner_test.go, which runs every step built so far.
+//
+// The reference reads cases.json with a test reader of its own; here
+// encoding/json decodes it, which shares no code with the strict reader the
+// runner tests, so a defect in that reader cannot hide in the cases it is
+// compared with. The decode refuses unknown members, and the runner also
+// parses cases.json with the strict reader, which refuses a repeated member
+// name that encoding/json would keep the last of. cases.json is larger than
+// MAX_READ_OCTETS, which binds a document and not a data file (SPEC.md
+// section 9), so that parse does not make J1.
+package vectorcases
+
+import (
+	"bytes"
+	"encoding/json"
+	"fmt"
+	"os"
+	"path/filepath"
+	"runtime"
+	"slices"
+	"strings"
+)
+
+// Steps are the steps of SPEC.md section 10.2, in their order.
+var Steps = []string{
+	"CONFIGURATION", "READ", "PARSE", "ENVELOPE", "ENVIRONMENT", "KEY_BINDING",
+	"SIGNATURE", "SHAPE", "POLICY", "DERIVE", "CHAIN", "SOURCES", "WINDOW",
+	"EXPECTED_HASH", "VERDICT",
+}
+
+// StepIndex returns the position of step in [Steps], or -1.
+func StepIndex(step string) int {
+	return slices.Index(Steps, step)
+}
+
+// Case is one case of cases.json (SPEC.md section 13.2).
+type Case struct {
+	// ID is the case's name, unique in the file.
+	ID string `json:"id"`
+	// Proof is the path of its proof, relative to vectors/.
+	Proof    string   `json:"proof"`
+	Config   Config   `json:"config"`
+	Expected Expected `json:"expected"`
+}
+
+// Config is a case's configuration.
+type Config struct {
+	// Environment is the verifier's environment, E_v.
+	Environment string `json:"environment"`
+	// ExpectedHash is the caller's hash, or nil when none is given.
+	ExpectedHash *string `json:"expected_hash"`
+	// Keyring is test, none, unavailable or the path of a keyring file, or
+	// nil when neither a keyring nor keyless mode is asked for.
+	Keyring *string `json:"keyring"`
+	// Networks gives every pin for the case.
+	Networks Networks `json:"networks"`
+	// Online is the path of the case's replay file under corpus/replay/, or
+	// nil for an offline case.
+	Online *string `json:"online"`
+}
+
+// Networks is a case's commitment pin per chain and entropy pin per source.
+type Networks struct {
+	Commitment map[string]string `json:"commitment"`
+	Entropy    map[string]string `json:"entropy"`
+}
+
+// Expected is a case's expected output: a bare rejection's Code and
+// SubReason, or a report's Label and Rows.
+type Expected struct {
+	Code      string `json:"code"`
+	SubReason string `json:"sub_reason"`
+	Label     string `json:"label"`
+	Rows      []Row  `json:"rows"`
+	// Trace is the path of a trace file, for a case that gives a sound
+	// proof's trace.
+	Trace string `json:"trace"`
+	// SubmittedAfter and SubmittedBefore are an online case's edges, each
+	// null or {basis, instant}, kept as their JSON.
+	SubmittedAfter  json.RawMessage `json:"submitted_after"`
+	SubmittedBefore json.RawMessage `json:"submitted_before"`
+}
+
+// Bare reports whether the case expects a bare rejection.
+func (e Expected) Bare() bool { return e.Code != "" }
+
+// Row is a report row reduced as SPEC.md section 13.1 compares it:
+// (code, part, status, step), where a nil Code or Part is null.
+type Row struct {
+	Code   *string
+	Part   *string
+	Status string
+	Step   string
+}
+
+// UnmarshalJSON reads a row from its four-element array.
+func (r *Row) UnmarshalJSON(data []byte) error {
+	var parts []*string
+	if err := json.Unmarshal(data, &parts); err != nil {
+		return err
+	}
+	if len(parts) != 4 || parts[2] == nil || parts[3] == nil {
+		return fmt.Errorf("vectorcases: a row is not [code, part, status, step]: %s", data)
+	}
+	*r = Row{Code: parts[0], Part: parts[1], Status: *parts[2], Step: *parts[3]}
+	return nil
+}
+
+// String writes the row as cases.json does, for messages.
+func (r Row) String() string {
+	text := func(s *string) string {
+		if s == nil {
+			return "null"
+		}
+		return fmt.Sprintf("%q", *s)
+	}
+	return fmt.Sprintf("[%s, %s, %q, %q]", text(r.Code), text(r.Part), r.Status, r.Step)
+}
+
+// Family is the first hyphen-separated word of a case's id, such as parse
+// for parse-depth-33.
+func (c Case) Family() string {
+	family, _, _ := strings.Cut(c.ID, "-")
+	return family
+}
+
+// ProofPath is the absolute path of the case's proof.
+func (c Case) ProofPath() string {
+	return Path(c.Proof)
+}
+
+// Dir returns the absolute path of testdata/verification/vectors.
+func Dir() string {
+	_, file, _, ok := runtime.Caller(0)
+	if !ok {
+		panic("vectorcases: cannot locate source file")
+	}
+	return filepath.Join(filepath.Dir(file), "..", "..", "testdata", "verification", "vectors")
+}
+
+// Path joins a path relative to vectors/, as cases.json writes one, under
+// [Dir].
+func Path(relative string) string {
+	return filepath.Join(Dir(), filepath.FromSlash(relative))
+}
+
+// Load reads every case of cases.json, in the file's order. A member the
+// structs above do not name, a case without an id, proof or environment,
+// and two cases with one id are errors.
+func Load() ([]Case, error) {
+	data, err := os.ReadFile(Path("cases.json"))
+	if err != nil {
+		return nil, err
+	}
+	decoder := json.NewDecoder(bytes.NewReader(data))
+	decoder.DisallowUnknownFields()
+	var cases []Case
+	if err := decoder.Decode(&cases); err != nil {
+		return nil, fmt.Errorf("vectorcases: cases.json: %w", err)
+	}
+	if decoder.More() {
+		return nil, fmt.Errorf("vectorcases: cases.json: content after the array")
+	}
+	seen := make(map[string]bool, len(cases))
+	for _, c := range cases {
+		if c.ID == "" || c.Proof == "" || c.Config.Environment == "" {
+			return nil, fmt.Errorf("vectorcases: a case lacks its id, proof or environment: %+v", c)
+		}
+		if seen[c.ID] {
+			return nil, fmt.Errorf("vectorcases: two cases are named %s", c.ID)
+		}
+		seen[c.ID] = true
+	}
+	return cases, nil
+}
