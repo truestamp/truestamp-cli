@@ -38,7 +38,9 @@
 // Adapted from the reference, which is offline: an online run under E_v
 // prod with no supplied keyring reads the keyring from www.truestamp.com at
 // CONFIGURATION, and an online run given an explicit --base-url reads it
-// from that origin, both through [Config.ReadKeyring]; a read that does not
+// from that origin, both through [Config.ReadKeyring], the seam that
+// [NewKeyringReader] (keyring_read.go) fills over HTTP and a conformance
+// test from a case's replay file; a read that does not
 // give a keyring passing the load checks is no rejection, and leaves the
 // run with no keyring that can bind, so KEY_BINDING fails
 // keyring_unavailable whatever K is (SPEC.md section 8.3). The
@@ -190,7 +192,7 @@ func Configure(cfg Config) (*Run, *Rejection, error) {
 				"or with --no-keyring to check the signature only against the key the proof carries.",
 			cfg.Environment, cfg.Environment)), nil
 	case source.Kind == SourceDefault && !cfg.Online:
-		loaded, err := keyring.Load(keyring.CompiledPin(), "prod", "")
+		loaded, err := keyring.Load(compiledPin(), "prod", "")
 		if err != nil {
 			return nil, keyringRefused(err), nil
 		}
@@ -221,22 +223,42 @@ func Configure(cfg Config) (*Run, *Rejection, error) {
 	return run, nil, nil
 }
 
+// compiledPin gives the bytes of the compiled pin, the keyring an offline
+// run under E_v prod with no keyring option loads (SPEC.md section 8.3).
+// It is keyring.CompiledPin; the package's tests replace it, through
+// export_test.go, with a keyring holding a key that exists only in the
+// test, since the pin holds no key until Truestamp's production keys join
+// the spec.
+var compiledPin = keyring.CompiledPin
+
 // readOnline reads the keyring at url through the run's reader and loads it
-// under E_v, and trust_root takes the digest of the bytes read. Any
-// failure, of the read, of J1 to J6 or of a load check, leaves the run with
-// no keyring, no digest and KeyringUnavailable.
+// under E_v, and trust_root takes the digest of the bytes read (SPEC.md
+// sections 8.3 and 10.5). A keyring answered from a replay is a value with
+// no bytes of its own (section 13.2), so it loads with [keyring.LoadValue]
+// and trust_root's digest is null; it answers only the read of
+// www.truestamp.com, since a keyring read from another origin is a supplied
+// keyring, whose attribution keyring:<d> names the digest of its bytes,
+// which such a value lacks. Any failure, of the read, of J1 to J6 or of a
+// load check, a replayed value for another origin included, leaves the run
+// with no keyring, no digest and KeyringUnavailable: KEY_BINDING then fails
+// keyring_unavailable whatever K is, and the compiled pin is not consulted.
 func readOnline(run *Run, url string, kind TrustRootKind) {
 	run.TrustRoot = TrustRoot{Kind: kind, Location: url}
 	if run.Config.ReadKeyring == nil {
 		run.KeyringUnavailable = true
 		return
 	}
-	data, err := run.Config.ReadKeyring(url)
-	if err != nil {
+	answer, err := run.Config.ReadKeyring(url)
+	if err != nil || (answer.Replayed && kind != KindCurrentKeyring) {
 		run.KeyringUnavailable = true
 		return
 	}
-	loaded, err := keyring.Load(data, run.Config.Environment, url)
+	var loaded *keyring.Keyring
+	if answer.Replayed {
+		loaded, err = keyring.LoadValue(answer.Value, run.Config.Environment, url)
+	} else {
+		loaded, err = keyring.Load(answer.Bytes, run.Config.Environment, url)
+	}
 	if err != nil {
 		run.KeyringUnavailable = true
 		return
@@ -481,13 +503,16 @@ func KeyBinding(run *Run) {
 }
 
 // unavailable is the message of keyring_unavailable: the keyring could not
-// be read (SPEC.md section 8.3).
+// be read (SPEC.md section 8.3). For the keyring of www.truestamp.com it
+// also names an offline run, and says, as section 8.3 requires of a message
+// that mentions one, that such a run checks only against the keys built
+// into the verifier and cannot see a key revoked since.
 func unavailable(root TrustRoot) string {
-	from := "www.truestamp.com"
 	if root.Kind != KindCurrentKeyring {
-		from = root.Location
+		return fmt.Sprintf("The keyring could not be read from %s in this run, so no key binds this proof, whatever key it carries.", root.Location)
 	}
-	return fmt.Sprintf("The keyring could not be read from %s in this run, so no key binds this proof, whatever key it carries.", from)
+	return "The keyring could not be read from www.truestamp.com in this run, so no key binds this proof, whatever key it carries. " +
+		"A run with --offline checks the proof only against the keys built into this verifier, and cannot see a key Truestamp has revoked since it was built."
 }
 
 func bound(kind TrustRootKind) string {

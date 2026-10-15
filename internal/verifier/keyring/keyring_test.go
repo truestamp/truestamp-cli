@@ -489,3 +489,61 @@ func TestLoad_TheDigestIsOfTheBytesAsRead(t *testing.T) {
 		t.Fatalf("two spellings of one keyring give %d digests", len(digests))
 	}
 }
+
+// LoadValue makes exactly Load's checks over a keyring already read, the
+// form a replay file answers a keyring read with (SPEC.md section 13.2):
+// each of the cases' keyrings but the one whose bytes the strict reader
+// refuses gives, read and then loaded as a value, the verdict Load gives
+// its bytes, under each E_v, and a value that loads has no digest, since it
+// has no bytes of its own; an unknown E_v is refused. Mutants killed: Load
+// giving LoadValue a fixed "test" (keyring.test.json loads from its bytes
+// under staging and prod); LoadValue setting a digest of the value;
+// LoadValue without its own environment check (production is taken).
+func TestLoadValue_MakesLoadsChecksOverAValue(t *testing.T) {
+	files := []string{
+		"keyring.test.json",
+		"negative/configuration-keyring-extra_member.keyring.json",
+		"negative/configuration-keyring-version.keyring.json",
+		"negative/configuration-keyring-key_extra_member.keyring.json",
+		"negative/configuration-keyring-wrong_key_id.keyring.json",
+		"negative/configuration-keyring-repeated_key.keyring.json",
+		"negative/configuration-keyring-y_not_below_p.keyring.json",
+		"negative/configuration-keyring-small_order_key.keyring.json",
+		"negative/configuration-nonproduction_key-under-prod.keyring.json",
+	}
+	loaded := 0
+	for _, file := range files {
+		data, err := os.ReadFile(vectorcases.Path(file))
+		if err != nil {
+			t.Fatal(err)
+		}
+		value, err := strictjson.Parse(data)
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, environment := range specdata.Environments() {
+			fromBytes, errBytes := Load(data, environment, file)
+			fromValue, errValue := LoadValue(value, environment, file)
+			if (errBytes == nil) != (errValue == nil) {
+				t.Errorf("%s under %s: Load %v, LoadValue %v", file, environment, errBytes, errValue)
+				continue
+			}
+			if errBytes != nil {
+				if b, v := failureOf(t, errBytes), failureOf(t, errValue); *b != *v {
+					t.Errorf("%s under %s: Load %+v, LoadValue %+v", file, environment, b, v)
+				}
+				continue
+			}
+			loaded++
+			if fromValue.Digest != "" || fromValue.Location != file || len(fromValue.Keys) != len(fromBytes.Keys) || fromValue.Keys[0] != fromBytes.Keys[0] {
+				t.Errorf("%s under %s: %+v from the value, %+v from the bytes", file, environment, fromValue, fromBytes)
+			}
+		}
+	}
+	if loaded != 4 {
+		t.Fatalf("%d loads, want 4: keyring.test.json under test, the non-production keyring under dev, staging and test", loaded)
+	}
+	if _, err := LoadValue(map[string]any{}, "production", ""); !errors.Is(err, ErrUnknownEnvironment) {
+		t.Errorf("LoadValue under production: %v", err)
+	}
+}

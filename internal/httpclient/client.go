@@ -4,6 +4,15 @@
 // Package httpclient provides a shared HTTP client for all external API calls.
 // The client is safe for concurrent use and reuses connections.
 // Call Init once during startup to set the timeout; the default is 10s.
+//
+// internal/verifier's reads outside the document, such as the keyring
+// read of SPEC.md section 10.2, step 0 (CONFIGURATION), do not use the
+// shared client: each goes through a [SingleRead], one attempt that
+// follows no redirect and ends within one deadline (SPEC.md sections 8.3
+// (External verifiers) and 10.4 (Chain and source reads)). The verify
+// command's current path, internal/verify through internal/external, still
+// makes its keyring, chain and NIST Beacon reads through the shared client
+// and its redirect policy.
 package httpclient
 
 import (
@@ -53,8 +62,9 @@ func checkRedirect(req *http.Request, via []*http.Request) error {
 }
 
 // newClient builds a shared client carrying the redirect policy. Every
-// construction site must go through it so the policy cannot be lost by
-// building an http.Client literal.
+// construction site of the shared client must go through it so the policy
+// cannot be lost by building an http.Client literal. A [SingleRead] builds
+// its own client, with the stricter policy of following no redirect.
 func newClient(timeout time.Duration) *http.Client {
 	return &http.Client{Timeout: timeout, CheckRedirect: checkRedirect}
 }
@@ -241,4 +251,86 @@ func IsTransport(err error) bool {
 func IsTruncated(err error) bool {
 	var te *TruncatedError
 	return errors.As(err, &te)
+}
+
+// SingleRead makes the reads a verifier makes outside the document, such
+// as the keyring read of SPEC.md section 10.2, step 0 (CONFIGURATION), by
+// the rules SPEC.md section 8.3 (External verifiers) and section 10.4
+// (Chain and source reads) need of a read whose answer decides a verdict.
+// It is modeled on the Truestamp application's
+// Truestamp.SourceCache.ReadBounds (lib/truestamp/source_cache/read_bounds.ex
+// in truestamp-v2), which gives every verification read one attempt, no
+// redirect followed and one deadline over the whole read:
+//
+//   - one GET, with no retry;
+//   - no redirect followed, to any host: a 3xx is the answer, an HTTP error
+//     like any status but 200 OK, so the origin a read names is the only
+//     one that can answer it;
+//   - one deadline over the whole read: the connect, a TLS handshake, the
+//     wait for the headers and every wait for the body, so a source that
+//     answers slowly, or trickles its answer, ends the read when the
+//     deadline passes;
+//   - a bound on the body, so an answer larger than its caller can use is
+//     refused unread past the bound.
+//
+// It has its own client, apart from the shared one, so neither the shared
+// client's redirect policy nor the transport [SetTransport] installs (the
+// auth package's 401 retry) applies to it, and it sends no credential.
+type SingleRead struct {
+	client   *http.Client
+	deadline time.Duration
+}
+
+// NewSingleRead returns a [SingleRead] whose reads go through transport,
+// http.DefaultTransport when it is nil, and each end within deadline.
+func NewSingleRead(transport http.RoundTripper, deadline time.Duration) *SingleRead {
+	if transport == nil {
+		transport = http.DefaultTransport
+	}
+	return &SingleRead{
+		client:   &http.Client{Transport: transport, CheckRedirect: noRedirect},
+		deadline: deadline,
+	}
+}
+
+// noRedirect makes the client return a 3xx as the answer, unfollowed.
+func noRedirect(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }
+
+// Get reads url once, within the reader's deadline, and returns the body
+// of a 200 OK answer of at most limit octets. Errors are typed as
+// [GetJSONCtx]'s are: a *TransportError for a failure before the whole
+// body arrived (the deadline passing included), a *StatusError for any
+// status but 200 OK (a 3xx included, unfollowed), and a *TruncatedError
+// for a body over limit, of which at most limit + 1 octets are read.
+func (r *SingleRead) Get(ctx context.Context, url string, limit int) ([]byte, error) {
+	ctx, cancel := context.WithTimeout(ctx, r.deadline)
+	defer cancel()
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	if err != nil {
+		return nil, &TransportError{URL: url, Err: err}
+	}
+	stampUserAgent(req)
+	resp, err := r.client.Do(req)
+	if err != nil {
+		return nil, &TransportError{URL: url, Err: err}
+	}
+	defer func() { _ = resp.Body.Close() }()
+	if resp.StatusCode != http.StatusOK {
+		head, _ := io.ReadAll(io.LimitReader(resp.Body, 81))
+		bodyStr := Truncate(string(head), 80)
+		return nil, &StatusError{
+			StatusCode: resp.StatusCode,
+			URL:        url,
+			Body:       bodyStr,
+			HTML:       len(bodyStr) > 0 && bodyStr[0] == '<',
+		}
+	}
+	body, err := io.ReadAll(io.LimitReader(resp.Body, int64(limit)+1))
+	if err != nil {
+		return nil, &TransportError{URL: url, Err: err}
+	}
+	if len(body) > limit {
+		return nil, &TruncatedError{URL: url, Limit: limit}
+	}
+	return body, nil
 }

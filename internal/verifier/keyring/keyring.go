@@ -40,8 +40,11 @@
 // the first check it fails; both refuse exactly the same keyrings, and
 // SPEC.md fixes no order. Adapted from the reference: a key's public key is
 // a [32]byte, and a failure also names the index of the key that fails. A
-// loaded keyring holds its digest d (section 8.3), made by [Digest] from
-// the bytes as read (digest.go).
+// keyring [Load] loads holds its digest d (section 8.3), made by [Digest]
+// from the bytes as read (digest.go). [LoadValue] makes the same checks
+// over a value already read, which has no bytes and so no digest: the
+// keyring a conformance case's replay file answers a keyring read with
+// (section 13.2 (The vectors)).
 package keyring
 
 import (
@@ -172,7 +175,8 @@ var ErrUnknownEnvironment = errors.New("keyring: not an environment a verifier k
 // Load loads the keyring whose bytes are data in a run whose E_v is
 // environment, with the checks of the package's list: the keyring, or a
 // [*Failure] naming the first check that fails. location names where the
-// bytes came from, for trust_root (SPEC.md section 10.5), or is "".
+// bytes came from, for trust_root (SPEC.md section 10.5), or is "". The
+// keyring's Digest is d of data.
 func Load(data []byte, environment string, location string) (*Keyring, error) {
 	if !slices.Contains(specdata.Environments(), environment) {
 		return nil, ErrUnknownEnvironment
@@ -184,6 +188,25 @@ func Load(data []byte, environment string, location string) (*Keyring, error) {
 			return nil, &Failure{Check: CheckJSON, Key: -1, Rejection: rejection}
 		}
 		return nil, err
+	}
+	loaded, err := LoadValue(value, environment, location)
+	if err != nil {
+		return nil, err
+	}
+	loaded.Digest = Digest(data)
+	return loaded, nil
+}
+
+// LoadValue makes checks 1 to 7 over value, a keyring already read under
+// SPEC.md section 10.1 into the strict reader's values, in a run whose E_v
+// is environment: the keyring, or a [*Failure] naming the first check that
+// fails. Such a value has no bytes of its own, so the keyring's Digest is
+// "", which trust_root writes as null (section 10.5). It loads the keyring
+// a conformance case's replay file answers a keyring read with (SPEC.md
+// section 13.2 (The vectors): a value the load checks then judge).
+func LoadValue(value any, environment string, location string) (*Keyring, error) {
+	if !slices.Contains(specdata.Environments(), environment) {
+		return nil, ErrUnknownEnvironment
 	}
 	keys, failure := form(value)
 	if failure != nil {
@@ -204,7 +227,7 @@ func Load(data []byte, environment string, location string) (*Keyring, error) {
 	if failure := each(keys, func(key Key) Check { return nonproductionKey(key, environment) }); failure != nil {
 		return nil, failure
 	}
-	return &Keyring{Keys: keys, Digest: Digest(data), Location: location}, nil
+	return &Keyring{Keys: keys, Location: location}, nil
 }
 
 // each makes check over every key, in order: the failure of the first key

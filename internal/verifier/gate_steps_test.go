@@ -357,7 +357,7 @@ func TestKeyBinding_EachKeyringAndItsAttribution(t *testing.T) {
 	online := keyringBytes(keyringEntry(k, true, 0))
 	origin := "https://keys.truestamp.example/.well-known/keyring.json"
 	read := func(data []byte, err error) KeyringReader {
-		return func(string) ([]byte, error) { return data, err }
+		return byteReader(func(string) ([]byte, error) { return data, err })
 	}
 	prod := func(online bool, source KeyringSource, reader KeyringReader) Config {
 		cfg, _ := NewConfig("prod")

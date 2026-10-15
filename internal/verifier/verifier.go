@@ -25,6 +25,8 @@
 //   - options.go: the options of `truestamp verify` that set a Config,
 //     which only the run's own options may set (sections 6.4 and 8.3);
 //   - gate.go: the steps (gate.ex);
+//   - keyring_read.go: the online keyring read of step 0, which no
+//     reference module ports (the reference is offline);
 //   - run.go, row.go, rejection.go and pointer.go: the run's state, its
 //     rows, the bare rejection and JSON Pointers into the proof (run.ex,
 //     row.ex, rejection.ex and pointer.ex).
@@ -38,5 +40,6 @@
 // www.truestamp.com governs; such a read, and the read of a keyring from
 // the origin an explicit --base-url names, go through [Config.ReadKeyring],
 // and a read that does not give a keyring passing the load checks binds no
-// key. Offline, under prod, the compiled pin governs.
+// key, whatever the compiled pin holds. Offline, under prod, the compiled
+// pin governs.
 package verifier

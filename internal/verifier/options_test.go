@@ -62,9 +62,9 @@ type recorder struct {
 	urls []string
 }
 
-func (r *recorder) read(url string) ([]byte, error) {
+func (r *recorder) read(url string) (KeyringRead, error) {
 	r.urls = append(r.urls, url)
-	return r.data, r.err
+	return KeyringRead{Bytes: r.data}, r.err
 }
 
 // clearTruestampEnv removes every TRUESTAMP_* variable for the test, so

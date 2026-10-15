@@ -62,11 +62,28 @@ type KeyringSource struct {
 	URL string
 }
 
-// KeyringReader reads the keyring at url online and gives its bytes as
-// read, or an error for a read that gave none (a transport failure, an
-// HTTP error, a redirect). It is the seam every online keyring read goes
-// through.
-type KeyringReader func(url string) ([]byte, error)
+// KeyringRead is what an online keyring read gives: the keyring's bytes as
+// read, which load under SPEC.md section 10.1 and give trust_root its
+// digest d (section 8.3); or, from a conformance case's replay file
+// (section 13.2 (The vectors)), Replayed and the keyring as Value, a value
+// the replay's own reader already read under section 10.1, which has no
+// bytes of its own, so trust_root's digest is null (section 10.5).
+type KeyringRead struct {
+	// Bytes are the keyring's bytes as read, when Replayed is false.
+	Bytes []byte
+	// Replayed says the answer is Value, with no bytes.
+	Replayed bool
+	// Value is the replayed keyring, when Replayed is true.
+	Value any
+}
+
+// KeyringReader reads the keyring at url online, or gives an error for a
+// read that gave no keyring (a transport failure, an HTTP error, a
+// redirect, a host that is not a valid DNS name, an unreachable answer in a
+// replay). It is the seam every online keyring read goes through:
+// [NewKeyringReader] reads over HTTP, and a conformance test answers from a
+// case's replay file.
+type KeyringReader func(url string) (KeyringRead, error)
 
 // Config is a run's configuration (SPEC.md section 10.2, step 0). E_v,
 // keyless mode and --keyring FILE come only from the run's options
