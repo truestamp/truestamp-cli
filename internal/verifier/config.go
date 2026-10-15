@@ -106,8 +106,14 @@ type Config struct {
 	Environment string
 	// Keyring is the keyring source.
 	Keyring KeyringSource
-	// Networks are the network pins (SPEC.md section 9): by default the row
-	// of spec/network-pins.json for E_v.
+	// Networks are the network pins (SPEC.md section 9), which POLICY
+	// compares every network of the proof with: the row of
+	// spec/network-pins.json for E_v, which [NewConfig] sets and nothing a
+	// user gives replaces, since no flag, configuration key or environment
+	// variable reaches this member ([Options.Config] starts from
+	// NewConfig). It is also the conformance seam: a conformance test sets
+	// it to a case's networks (SPEC.md section 13.2), which in 25 cases
+	// differ from the defaults of the case's E_v.
 	Networks specdata.NetworkPins
 	// Online says whether the run reads outside the document.
 	Online bool

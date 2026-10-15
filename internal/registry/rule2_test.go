@@ -51,10 +51,12 @@ import (
 // such as internal/tscrypto's walk, still applies 0x00 and 0x01 itself.
 //
 //  6. crypto/sha256 used outside the registry's digest, the one function
-//     that applies a prefix byte, and outside contentDigest, the one
-//     function of the new verifier that makes a content digest (SPEC.md
-//     sections 4.1 and 8.3: trust_root's digest of a keyring's bytes as
-//     read); in internal/registry, digest given a
+//     that applies a prefix byte, and outside contentDigests, the two
+//     functions of the new verifier that make a content digest, a SHA-256
+//     with no prefix byte (SPEC.md section 4.1): keyring.Digest,
+//     trust_root's digest of a keyring's bytes as read (section 8.3), and
+//     SHAPE's shapeConstructions, check 6's d of a constructions text's JCS
+//     (sections 7.2 and 10.2); in internal/registry, digest given a
 //     construction that is not a registry constant (or RecordHash's
 //     checked kind), or the leaf or node; a hex integer literal, or a byte
 //     slice or array literal holding a literal, outside the table; and an
@@ -69,15 +71,15 @@ import (
 //     "members", "fields"), as part 5 of the app's rule bans;
 //  8. an import that is not on the package's list in scannedPackages, so
 //     that nothing in internal/registry hashes but digest and the walk, and
-//     nothing in another package of the new verifier hashes at all: no
-//     list but the registry's holds crypto/sha256, and none holds a hash
-//     package (crypto, crypto/sha1, crypto/sha512, crypto/md5,
-//     crypto/hmac, crypto/sha3, hash or a hash/ package), internal/tscrypto
-//     or internal/hashing, whose generic hashers and prefix tables the
-//     other checks do not see. Another crypto/ package, such as
-//     crypto/ed25519, may be listed, and so may crypto/sha256 on the list
-//     of contentDigest's package, which check 6 confines to that one
-//     function;
+//     nothing in another package of the new verifier hashes but the two
+//     content digests: no list holds crypto/sha256 but the registry's and
+//     those of the content digests' two packages, internal/verifier and
+//     internal/verifier/keyring, where check 6 confines it to those two
+//     functions; and none holds another hash package (crypto, crypto/sha1,
+//     crypto/sha512, crypto/md5, crypto/hmac, crypto/sha3, hash or a hash/
+//     package), internal/tscrypto or internal/hashing, whose generic hashers
+//     and prefix tables the other checks do not see. Another crypto/
+//     package, such as crypto/ed25519, may be listed;
 // 10. in a package marked to print nothing (internal/verifier/source, which
 //     sends a Bitcoin Core node's RPC credentials and reads what the node
 //     answers), a call of fmt's Print, Printf, Println, Fprint, Fprintf or
@@ -119,12 +121,12 @@ type scannedPackage struct {
 var scannedPackages = map[string]scannedPackage{
 	registryDir: {imports: registryImports, memberSets: true},
 	"internal/verifier": {imports: []string{
-		"cmp", "context", "encoding/hex", "errors", "fmt", "math", "net", "net/url", "regexp", "slices", "strconv", "strings", "sync", "time",
+		"cmp", "context", "crypto/sha256", "encoding/hex", "errors", "fmt", "math", "net", "net/url", "regexp", "slices", "strconv", "strings", "sync", "time",
 		"unicode/utf16", "unicode/utf8",
 		"github.com/spf13/pflag",
 		"github.com/truestamp/truestamp-cli/internal/config",
 		"github.com/truestamp/truestamp-cli/internal/httpclient",
-		registryPath, specdataPath, strictjsonPath,
+		jcsPath, registryPath, specdataPath, strictjsonPath,
 		"github.com/truestamp/truestamp-cli/internal/verifier/ed25519",
 		"github.com/truestamp/truestamp-cli/internal/verifier/keyring",
 		"github.com/truestamp/truestamp-cli/internal/verifier/source",
@@ -142,17 +144,33 @@ var scannedPackages = map[string]scannedPackage{
 	"internal/verifier/ed25519": {imports: []string{"crypto/ed25519", "errors", "math/big", specdataPath}},
 }
 
-// contentDigest is the one function of the new verifier outside the
-// registry that may use crypto/sha256: keyring.Digest, trust_root's digest
-// d, the SHA-256 of a keyring's bytes as read, a content digest SPEC.md
-// section 4.1 puts outside the registry (section 8.3). Check 6 allows the
-// use in that function of that file and nowhere else in its package, and
-// check 8 lets that package alone list crypto/sha256 beside the registry.
-var contentDigest = struct{ file, function string }{"internal/verifier/keyring/digest.go", "Digest"}
+// contentDigest is a function of the new verifier outside the registry
+// that may use crypto/sha256, by its file and its name.
+type contentDigest struct{ file, function string }
 
-// inContentDigest reports whether pos, in f, lies in contentDigest.
+// contentDigests are the two content digests, SHA-256 with no prefix byte,
+// which SPEC.md section 4.1 puts outside the registry: keyring.Digest,
+// trust_root's digest d of a keyring's bytes as read (section 8.3), and
+// shapeConstructions, SHAPE's check 6, whose d is the SHA-256 of a
+// constructions text's JCS (sections 7.2 and 10.2). Check 6 allows the use
+// in each of those functions of its file, and nowhere else in its
+// package, and check 8 lets their two packages alone list crypto/sha256
+// beside the registry.
+var contentDigests = []contentDigest{
+	{"internal/verifier/keyring/digest.go", "Digest"},
+	{"internal/verifier/shape.go", "shapeConstructions"},
+}
+
+// inContentDigest reports whether pos, in f, lies in one of
+// contentDigests.
 func inContentDigest(f goFile, pos token.Pos) bool {
-	return f.rel == contentDigest.file && enclosingFunc(f.file, pos) == contentDigest.function
+	function := enclosingFunc(f.file, pos)
+	return slices.Contains(contentDigests, contentDigest{f.rel, function})
+}
+
+// contentDigestDir reports whether dir holds one of contentDigests.
+func contentDigestDir(dir string) bool {
+	return slices.ContainsFunc(contentDigests, func(d contentDigest) bool { return path.Dir(d.file) == dir })
 }
 
 // registryImports are the only packages internal/registry's non-test files
@@ -955,12 +973,14 @@ func TestRule2_SkipsTheRootsOwnDirectoriesOnly(t *testing.T) {
 // verifierPlanted is a file of a package of the new verifier other than the
 // registry that hashes through what the scan's other checks do not see:
 // the generic crypto package, another hash, the old prefix tables and the
-// CLI's hash command's registry. Each import is off the package's list.
+// CLI's hash command's registry. Each import is off the package's list but
+// crypto/sha256, which the package lists for its content digest, and
+// which check 6 refuses here, outside that function.
 const verifierPlanted = `package verifier
 
 import (
 	"crypto" // want "imports crypto, which is not among the imports of internal/verifier"
-	"crypto/sha256" // want "imports crypto/sha256, which is not among the imports of internal/verifier"
+	"crypto/sha256"
 	"crypto/sha512" // want "imports crypto/sha512, which is not among"
 	"hash/fnv" // want "imports hash/fnv, which is not among"
 
@@ -999,8 +1019,8 @@ func members(document map[string]any, name string) {
 func TestRule2_HoldsEachScannedPackageToItsImports(t *testing.T) {
 	sources := map[string]string{"internal/verifier/planted.go": verifierPlanted}
 	fset, files, want := parsePlanted(t, sources, "want")
-	if len(want) != 8 {
-		t.Fatalf("%d planted lines, want 8", len(want))
+	if len(want) != 7 {
+		t.Fatalf("%d planted lines, want 7", len(want))
 	}
 	assertFindings(t, rule2Findings(fset, files, scannedPackages), want)
 }
@@ -1068,8 +1088,8 @@ func hasher(p string) bool {
 }
 
 // hasherImports names each hash package a list of packages other than the
-// registry's allows, but crypto/sha256 on the list of contentDigest's
-// package.
+// registry's allows, but crypto/sha256 on the list of a package that holds
+// one of contentDigests.
 func hasherImports(packages map[string]scannedPackage) []string {
 	var found []string
 	for dir, pkg := range packages {
@@ -1077,7 +1097,7 @@ func hasherImports(packages map[string]scannedPackage) []string {
 			continue
 		}
 		for _, p := range pkg.imports {
-			if hasher(p) && !(dir == path.Dir(contentDigest.file) && p == "crypto/sha256") {
+			if hasher(p) && !(contentDigestDir(dir) && p == "crypto/sha256") {
 				found = append(found, dir+" may import "+p)
 			}
 		}
@@ -1087,23 +1107,26 @@ func hasherImports(packages map[string]scannedPackage) []string {
 }
 
 // No list of a package of the new verifier but the registry's names a
-// hash package, but contentDigest's package's crypto/sha256: crypto/sha256
-// is otherwise the registry's alone, and crypto, the other hashes of
-// crypto/, hash and the hash/ packages, internal/tscrypto and
-// internal/hashing are no one's; another crypto/ package, such as
-// crypto/ed25519, may be listed; and every package under internal/verifier
-// is on the list. Mutants killed: crypto/sha256 added to
-// internal/verifier's list; hasher banning every crypto/ package (the
-// planted list's crypto/ed25519 is named); the content digest's allowance
-// made for every package (the planted internal/verifier/x's crypto/sha256
-// is not named) or for every hash package of its own (the planted
-// keyring's crypto/sha512 is not named).
+// hash package, but crypto/sha256 on the lists of the two packages that
+// hold contentDigests: crypto/sha256 is otherwise the registry's alone,
+// and crypto, the other hashes of crypto/, hash and the hash/ packages,
+// internal/tscrypto and internal/hashing are no one's; another crypto/
+// package, such as crypto/ed25519, may be listed; and every package under
+// internal/verifier is on the list. Mutants killed: crypto/sha256 added to
+// internal/verifier/ed25519's list; contentDigests holding keyring.Digest
+// alone (internal/verifier's crypto/sha256 is named); hasher banning every
+// crypto/ package (the planted list's crypto/ed25519 is named); the
+// content digests' allowance made for every package (the planted
+// internal/verifier/x's crypto/sha256 is not named) or for every hash
+// package of their own (the planted keyring's crypto/sha512 and
+// internal/verifier's crypto/md5 are not named).
 func TestRule2_NoOtherPackageOfTheNewVerifierMayImportAHasher(t *testing.T) {
 	if found := hasherImports(scannedPackages); len(found) != 0 {
 		t.Errorf("hash packages listed: %q", found)
 	}
 	planted := map[string]scannedPackage{
 		registryDir:                 {imports: []string{"crypto/sha256"}},
+		"internal/verifier":         {imports: []string{"crypto/sha256", "crypto/md5"}},
 		"internal/verifier/ed25519": {imports: []string{"crypto/ed25519", "crypto/subtle", "errors", "math/big"}},
 		"internal/verifier/keyring": {imports: []string{"crypto/sha256", "crypto/sha512"}},
 		"internal/verifier/x": {imports: []string{
@@ -1112,7 +1135,7 @@ func TestRule2_NoOtherPackageOfTheNewVerifierMayImportAHasher(t *testing.T) {
 			"github.com/truestamp/truestamp-cli/internal/hashing",
 		}},
 	}
-	want := []string{"internal/verifier/keyring may import crypto/sha512"}
+	want := []string{"internal/verifier may import crypto/md5", "internal/verifier/keyring may import crypto/sha512"}
 	for _, p := range planted["internal/verifier/x"].imports {
 		want = append(want, "internal/verifier/x may import "+p)
 	}
@@ -1130,11 +1153,12 @@ func TestRule2_NoOtherPackageOfTheNewVerifierMayImportAHasher(t *testing.T) {
 	}
 }
 
-// contentDigestPlanted are files of the content digest's package and of
-// another package of the new verifier that use crypto/sha256: the one
-// function check 6 allows, a second function in its file, a function of its
-// name in another file of its package, and one of its name in another
-// package, whose import check 8 also refuses.
+// contentDigestPlanted are files of the content digests' packages and of
+// another package of the new verifier that use crypto/sha256: the two
+// functions check 6 allows; a second function in each one's file; a
+// function of each one's name in another file of its package; a use in
+// another file of internal/verifier; and a function named like one in
+// another package, whose import check 8 also refuses.
 var contentDigestPlanted = map[string]string{
 	"internal/verifier/keyring/digest.go": `package keyring
 
@@ -1156,46 +1180,89 @@ func Digest(data []byte) [32]byte {
 	return sha256.Sum256(data) // want "uses crypto/sha256 outside the registry's digest"
 }
 `,
+	"internal/verifier/shape.go": `package verifier
+
+import "crypto/sha256"
+
+func shapeConstructions(text []byte) [32]byte {
+	return sha256.Sum256(text)
+}
+
+func shapeTimes(text []byte) [32]byte {
+	return sha256.Sum256(text) // want "uses crypto/sha256 outside the registry's digest"
+}
+`,
+	"internal/verifier/layout.go": `package verifier
+
+import "crypto/sha256"
+
+func shapeConstructions(text []byte) [32]byte {
+	return sha256.Sum256(text) // want "uses crypto/sha256 outside the registry's digest"
+}
+`,
+	"internal/verifier/policy.go": `package verifier
+
+import "crypto/sha256"
+
+func Policy(text []byte) {
+	_ = sha256.Sum256(text) // want "uses crypto/sha256 outside the registry's digest"
+}
+`,
 	"internal/verifier/digest.go": `package verifier
 
-import "crypto/sha256" // want "imports crypto/sha256, which is not among the imports of internal/verifier"
+import "crypto/sha256"
 
 func Digest(data []byte) [32]byte {
 	return sha256.Sum256(data) // want "uses crypto/sha256 outside the registry's digest"
 }
 `,
+	"internal/verifier/ed25519/digest.go": `package ed25519
+
+import "crypto/sha256" // want "imports crypto/sha256, which is not among the imports of internal/verifier/ed25519"
+
+func shapeConstructions(data []byte) [32]byte {
+	return sha256.Sum256(data) // want "uses crypto/sha256 outside the registry's digest"
+}
+`,
 }
 
-// Check 6 allows crypto/sha256 in exactly one function outside the
-// registry, contentDigest, by its file and its name, and the module's own
-// keyring.Digest is that function and uses it. Mutants killed: the
-// allowance matched by the function's name alone (keyring.go's Digest
-// passes), by its file alone (another passes), or in every scanned package
-// by its name (internal/verifier's Digest passes its check 6 finding).
-func TestRule2_AllowsTheOneContentDigest(t *testing.T) {
+// Check 6 allows crypto/sha256 in exactly two functions outside the
+// registry, contentDigests, each by its file and its name, and the
+// module's own keyring.Digest and shapeConstructions are those functions
+// and each uses it once. Mutants killed: the allowance matched by the
+// function's name alone (keyring.go's Digest and layout.go's
+// shapeConstructions pass); by its file alone (another and shapeTimes
+// pass); by its name in every scanned package (internal/verifier's Digest
+// passes its check 6 finding); or for every function of a content
+// digest's package (policy.go's Policy passes); and shapeConstructions
+// left off contentDigests (the planted shape.go's shapeConstructions gives
+// a finding).
+func TestRule2_AllowsTheTwoContentDigests(t *testing.T) {
 	fset, files, want := parsePlanted(t, contentDigestPlanted, "want")
-	if len(want) != 4 {
-		t.Fatalf("%d planted lines, want 4", len(want))
+	if len(want) != 8 {
+		t.Fatalf("%d planted lines, want 8", len(want))
 	}
 	assertFindings(t, rule2Findings(fset, files, scannedPackages), want)
 
 	_, module := parseModule(t, repoRoot)
-	uses := 0
+	uses := map[contentDigest]int{}
 	for _, f := range module {
-		if f.rel != contentDigest.file {
+		sha256Name := importName(f.file, "crypto/sha256")
+		if sha256Name == "" {
 			continue
 		}
-		sha256Name := importName(f.file, "crypto/sha256")
 		ast.Inspect(f.file, func(node ast.Node) bool {
 			if sel, ok := node.(*ast.SelectorExpr); ok {
 				if x, ok := sel.X.(*ast.Ident); ok && x.Name == sha256Name && inContentDigest(f, sel.Pos()) {
-					uses++
+					uses[contentDigest{f.rel, enclosingFunc(f.file, sel.Pos())}]++
 				}
 			}
 			return true
 		})
 	}
-	if uses != 1 {
-		t.Fatalf("%s's %s uses crypto/sha256 %d times, want once", contentDigest.file, contentDigest.function, uses)
+	for _, d := range contentDigests {
+		if uses[d] != 1 {
+			t.Errorf("%s's %s uses crypto/sha256 %d times, want once", d.file, d.function, uses[d])
+		}
 	}
 }

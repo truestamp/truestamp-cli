@@ -1,0 +1,343 @@
+// Copyright (c) 2019-2026 Truestamp, Inc.
+// SPDX-License-Identifier: Apache-2.0
+
+package verifier
+
+import (
+	"go/ast"
+	"go/constant"
+	"go/token"
+	"go/types"
+	"slices"
+	"strconv"
+	"strings"
+	"testing"
+
+	"github.com/truestamp/truestamp-cli/internal/specdata"
+	"github.com/truestamp/truestamp-cli/internal/strictjson"
+)
+
+// SPEC.md section 10.6, rule 1: constructions is read once, at SHAPE, and
+// only compared with CONSTRUCTIONS_ACCEPTED (section 7.2). This static
+// test ports the reference's shape_test.exs test that no module of the
+// program but Shape names the member, and the application's test that
+// Shape reads it once. Its scope is the reference's, the whole program:
+// every non-test Go file of the module, the commands, the shared packages
+// and the verifier's own, each type-checked (module_static_test.go). It
+// finds every use of the member's name: a string literal "constructions",
+// or any expression whose constant value is that string, so a key built by
+// concatenation, in parentheses or from a constant of any package of the
+// module is seen. The one exemption is the counterpart of the reference's
+// SpecFile.path("constructions"): internal/specdata/constructions.go's
+// constant constructionsDir, the directory of the texts under spec/, its
+// declaration and its uses in that file other than as a key, matched by
+// the file and the constant's name. A name built at run time, from values
+// that are not constants, is out of the test's sight; planted files show
+// each shape it refuses.
+
+// constructionsMember is the member's name.
+const constructionsMember = "constructions"
+
+// The exemption: the constant constructionsDir of its file.
+const (
+	constructionsDirFile = "internal/specdata/constructions.go"
+	constructionsDirName = "constructionsDir"
+)
+
+// memberUses sorts the uses of the member's name in one file:
+//
+//   - reads: an index of a map, as proof["constructions"], each with the
+//     function it sits in;
+//   - keys: a key of a map literal, as a row's values {"constructions":
+//     "full"};
+//   - parts: the argument of Name in a Pointer literal given as a field
+//     part, as a failure's part Pointer{Name("constructions")};
+//   - exempt: the declaration of constructionsDir in its file, and its uses
+//     there other than as a key;
+//   - unclassified: any other place, such as a constant, a comparison, a
+//     case, or a Name given to valueAt, each a read this test cannot
+//     classify, and so refuses.
+type memberUses struct {
+	reads                      []string
+	keys, parts, exempt, other int
+}
+
+// isMemberName reports whether e is the member's name: a string literal
+// "constructions", or an expression m's type check gives that constant
+// value.
+func isMemberName(m *typedModule, e ast.Expr) bool {
+	if lit, ok := e.(*ast.BasicLit); ok && lit.Kind == token.STRING {
+		if value, err := strconv.Unquote(lit.Value); err == nil && value == constructionsMember {
+			return true
+		}
+	}
+	tv, ok := m.info.Types[e]
+	return ok && tv.Value != nil && tv.Value.Kind() == constant.String && constant.StringVal(tv.Value) == constructionsMember
+}
+
+// classifyMemberUses sorts each use of the member's name in f, one of m's
+// files. A use is the largest expression that is the name, so the
+// literals of a concatenation are not counted again.
+func classifyMemberUses(m *typedModule, f moduleFile) memberUses {
+	var uses memberUses
+	classified := map[ast.Expr]bool{}
+	exempt := map[ast.Expr]bool{}
+	var dir types.Object
+	if f.rel == constructionsDirFile {
+		for _, decl := range f.file.Decls {
+			gen, ok := decl.(*ast.GenDecl)
+			if !ok || gen.Tok != token.CONST {
+				continue
+			}
+			for _, spec := range gen.Specs {
+				value := spec.(*ast.ValueSpec)
+				for i, name := range value.Names {
+					if name.Name == constructionsDirName && i < len(value.Values) {
+						exempt[value.Values[i]] = true
+						dir = m.info.Defs[name]
+					}
+				}
+			}
+		}
+	}
+	for _, decl := range f.file.Decls {
+		function := ""
+		if fn, ok := decl.(*ast.FuncDecl); ok {
+			function = fn.Name.Name
+		}
+		ast.Inspect(decl, func(n ast.Node) bool {
+			switch x := n.(type) {
+			case *ast.IndexExpr:
+				if isMemberName(m, x.Index) {
+					uses.reads = append(uses.reads, function)
+					classified[x.Index] = true
+				}
+			case *ast.CompositeLit:
+				if _, isMap := x.Type.(*ast.MapType); isMap {
+					for _, element := range x.Elts {
+						if kv, ok := element.(*ast.KeyValueExpr); ok && isMemberName(m, kv.Key) {
+							uses.keys++
+							classified[kv.Key] = true
+						}
+					}
+				}
+			case *ast.KeyValueExpr:
+				key, ok := x.Key.(*ast.Ident)
+				pointer, isLit := x.Value.(*ast.CompositeLit)
+				if !ok || key.Name != "part" || !isLit {
+					return true
+				}
+				if typ, ok := pointer.Type.(*ast.Ident); !ok || typ.Name != "Pointer" || len(pointer.Elts) != 1 {
+					return true
+				}
+				if call, ok := pointer.Elts[0].(*ast.CallExpr); ok && len(call.Args) == 1 {
+					if fn, ok := call.Fun.(*ast.Ident); ok && fn.Name == "Name" && isMemberName(m, call.Args[0]) {
+						uses.parts++
+						classified[call.Args[0]] = true
+					}
+				}
+			}
+			return true
+		})
+	}
+	ast.Inspect(f.file, func(n ast.Node) bool {
+		e, ok := n.(ast.Expr)
+		if !ok || !isMemberName(m, e) {
+			return true
+		}
+		ident, isIdent := e.(*ast.Ident)
+		switch {
+		case classified[e]:
+		case exempt[e] || dir != nil && isIdent && m.info.Uses[ident] == dir:
+			uses.exempt++
+		default:
+			uses.other++
+		}
+		return false
+	})
+	return uses
+}
+
+// No non-test file of the module but internal/verifier/shape.go uses the
+// member's name, beside constructionsDir's exemption, which is in use; and
+// shape.go reads the member exactly once, at check 6 (shapeConstructions),
+// every other use there being a key of a row's values or the part of a
+// failure. Mutants killed: Policy reading the member (policy.go holds the
+// name), by a literal, a concatenation ("construct"+"ions") or a constant
+// of internal/specdata naming constructionsDir; a second read in Shape,
+// by a literal or a parenthesized one (two reads); a read through valueAt
+// with Pointer{Name("constructions")} (an unclassified use); a read in
+// cmd/ or in internal/registry/ (the file holds the name); the walk held
+// to internal/verifier (it finds no internal/registry/walk.go or
+// cmd/verify.go, and those two reads pass).
+func TestConstructions_ReadOnlyAtShape(t *testing.T) {
+	m := typedModuleOf(t)
+	byPath := map[string]moduleFile{}
+	for _, f := range m.files {
+		byPath[f.rel] = f
+	}
+	for _, rel := range []string{"internal/verifier/shape.go", "internal/verifier/policy.go", "internal/verifier/keyring/keyring.go",
+		"internal/registry/walk.go", constructionsDirFile, "internal/jcs/jcs.go", "cmd/verify.go", "cmd/truestamp/main.go"} {
+		if _, ok := byPath[rel]; !ok {
+			t.Fatalf("the walk found %d files, without %s", len(m.files), rel)
+		}
+	}
+	var holders []string
+	for _, f := range m.files {
+		uses := classifyMemberUses(m, f)
+		if len(uses.reads)+uses.keys+uses.parts+uses.other > 0 {
+			holders = append(holders, f.rel)
+		}
+		if f.rel == constructionsDirFile && (uses.exempt == 0 || len(uses.reads)+uses.keys+uses.parts+uses.other > 0) {
+			t.Errorf("%s: %+v, want the uses of %s alone", f.rel, uses, constructionsDirName)
+		}
+	}
+	if !slices.Equal(holders, []string{"internal/verifier/shape.go"}) {
+		t.Errorf("files using the name %q: %q, want internal/verifier/shape.go alone", constructionsMember, holders)
+	}
+	uses := classifyMemberUses(m, byPath["internal/verifier/shape.go"])
+	if !slices.Equal(uses.reads, []string{"shapeConstructions"}) || uses.other != 0 || uses.keys == 0 || uses.parts == 0 {
+		t.Errorf("shape.go: reads in %q, %d keys, %d parts, %d unclassified; want one read, in shapeConstructions", uses.reads, uses.keys, uses.parts, uses.other)
+	}
+}
+
+// specdataImport is the import of internal/specdata, for the planted
+// files.
+const specdataImport = `import "` + modulePath + `/internal/specdata"`
+
+// constructionsPlanted are files whose uses of "constructions" the
+// classifier must sort, by their slash path from a module root, each with
+// the uses it holds; a file want does not name holds none.
+var constructionsPlanted = []struct {
+	name    string
+	sources map[string]string
+	want    map[string]memberUses
+}{
+	{"the shapes shape.go uses", map[string]string{"internal/p/p.go": `package p
+func shapeConstructions(proof map[string]any) (map[string]any, *f) {
+	value, present := proof["constructions"]
+	_ = value
+	_ = present
+	return map[string]any{"constructions": "none"}, &f{part: Pointer{Name("constructions")}}
+}`}, map[string]memberUses{"internal/p/p.go": {reads: []string{"shapeConstructions"}, keys: 1, parts: 1}}},
+	{"a second read", map[string]string{"internal/p/p.go": `package p
+func a(proof map[string]any) { _ = proof["constructions"] }
+func b(proof map[string]any) { _, _ = proof["constructions"] }`}, map[string]memberUses{"internal/p/p.go": {reads: []string{"a", "b"}}}},
+	{"a read through valueAt", map[string]string{"internal/p/p.go": `package p
+func a(proof map[string]any) { _ = valueAt(proof, Pointer{Name("constructions")}) }`}, map[string]memberUses{"internal/p/p.go": {other: 1}}},
+	{"a constant", map[string]string{"internal/p/p.go": `package p
+const c = "constructions"`}, map[string]memberUses{"internal/p/p.go": {other: 1}}},
+	{"a comparison over the proof's names", map[string]string{"internal/p/p.go": `package p
+func a(proof map[string]any) {
+	for name := range proof {
+		if name == "constructions" {
+		}
+	}
+}`}, map[string]memberUses{"internal/p/p.go": {other: 1}}},
+	{"a case", map[string]string{"internal/p/p.go": `package p
+func a(name string) {
+	switch name {
+	case "constructions":
+	}
+}`}, map[string]memberUses{"internal/p/p.go": {other: 1}}},
+	{"a part given to another field", map[string]string{"internal/p/p.go": `package p
+var x = f{at: Pointer{Name("constructions")}}`}, map[string]memberUses{"internal/p/p.go": {other: 1}}},
+	{"other words", map[string]string{"internal/p/p.go": `package p
+var a = "constructions text"
+var b = "https://www.truestamp.com/.well-known/constructions-"`}, nil},
+	{"a key built by concatenation", map[string]string{"internal/p/p.go": `package p
+func a(proof map[string]any) { _ = proof["construct"+"ions"] }`}, map[string]memberUses{"internal/p/p.go": {reads: []string{"a"}}}},
+	{"a key in parentheses", map[string]string{"internal/p/p.go": `package p
+func a(proof map[string]any) { _ = proof[("constructions")] }`}, map[string]memberUses{"internal/p/p.go": {reads: []string{"a"}}}},
+	{"a key from a constant of the file", map[string]string{"internal/p/p.go": `package p
+const member = "construct" + "ions"
+func a(proof map[string]any) { _ = proof[member] }`}, map[string]memberUses{"internal/p/p.go": {reads: []string{"a"}, other: 1}}},
+	{"a key from a constant of another package", map[string]string{
+		"internal/specdata/member.go": `package specdata
+const Member = "construct" + "ions"`,
+		"internal/p/p.go": `package p
+` + specdataImport + `
+func a(proof map[string]any) { _ = proof[specdata.Member] }`,
+	}, map[string]memberUses{"internal/specdata/member.go": {other: 1}, "internal/p/p.go": {reads: []string{"a"}}}},
+	{"a read in a function declared twice, as in two files for two systems", map[string]string{
+		"internal/p/p_unix.go": `package p
+func a(proof map[string]any) { _ = proof["construct"+"ions"] }`,
+		"internal/p/p_windows.go": `package p
+func a(proof map[string]any) { _ = proof["construct"+"ions"] }`,
+	}, map[string]memberUses{"internal/p/p_unix.go": {reads: []string{"a"}}, "internal/p/p_windows.go": {reads: []string{"a"}}}},
+	{"constructionsDir and its uses in its file", map[string]string{
+		constructionsDirFile: `package specdata
+const constructionsDir = "constructions"
+const Member = constructionsDir
+func open(dir string) {}
+func load() { open(constructionsDir) }`,
+		"internal/p/p.go": `package p
+` + specdataImport + `
+func a(proof map[string]any) { _ = proof[specdata.Member] }`,
+	}, map[string]memberUses{constructionsDirFile: {exempt: 3}, "internal/p/p.go": {reads: []string{"a"}}}},
+	{"a read through constructionsDir in its file", map[string]string{constructionsDirFile: `package specdata
+const constructionsDir = "constructions"
+func a(proof map[string]any) { _ = proof[constructionsDir] }`}, map[string]memberUses{constructionsDirFile: {reads: []string{"a"}, exempt: 1}}},
+	{"another constant in constructionsDir's file", map[string]string{constructionsDirFile: `package specdata
+const constructionsDir = "constructions"
+const member = "constructions"`}, map[string]memberUses{constructionsDirFile: {exempt: 1, other: 1}}},
+	{"a constructionsDir in another file", map[string]string{"internal/registry/dir.go": `package registry
+const constructionsDir = "constructions"
+func open(dir string) {}
+func load() { open(constructionsDir) }`}, map[string]memberUses{"internal/registry/dir.go": {other: 2}}},
+}
+
+// The classifier sorts each planted shape: shape.go's three shapes, a
+// read in each of two functions, five reads it cannot classify, and a key
+// built by concatenation, in parentheses or from a constant of its file or
+// of another package, each a read, even in a function declared twice;
+// constructionsDir's uses in its own file alone are exempt, never as a
+// key; and a string that only holds the word is no use of the member.
+// Mutants killed: classifyMemberUses counting a Name argument as a part
+// whatever field it is given to (the planted at passes); the walk counting
+// only index reads (the constant passes); isMemberName reading string
+// literals alone (each built key passes); the importer giving every
+// package an empty one, the module's included (specdata.Member passes);
+// the exemption matched by the constant's name alone (the registry's
+// constructionsDir passes), by the file alone (member passes) or covering
+// a key (the read through constructionsDir passes); a use counted again
+// inside a concatenation (member's literals count).
+func TestConstructions_TheClassifierSortsEachPlantedShape(t *testing.T) {
+	for _, c := range constructionsPlanted {
+		m := typedSources(t, c.sources)
+		for _, f := range m.files {
+			got, want := classifyMemberUses(m, f), c.want[f.rel]
+			if !slices.Equal(got.reads, want.reads) || got.keys != want.keys || got.parts != want.parts || got.exempt != want.exempt || got.other != want.other {
+				t.Errorf("%s, %s: %+v, want %+v", c.name, f.rel, got, want)
+			}
+		}
+	}
+}
+
+// After SHAPE, POLICY gives the same rows whatever constructions holds: the
+// accepted text, a reference to it, a text no one accepted, a value of
+// another type, or nothing. Mutant killed: Policy giving no rows to a proof
+// without constructions.
+func TestConstructions_PolicyIsTheSameWhateverTheMemberHolds(t *testing.T) {
+	item := positiveProofs(t)["item"]
+	shaped := shapeRun(t, item)
+	d := specdata.Accepted()[0]
+	var first string
+	for i, value := range []any{item["constructions"], constructionsReferencePrefix + d + constructionsReferenceSuffix,
+		map[string]any{"x": "y"}, strictjson.Number(0), nil} {
+		run := *shaped
+		run.Rows = slices.Clone(shaped.Rows)
+		run.Proof = put(item, Pointer{Name("constructions")}, value)
+		if value == nil {
+			run.Proof = remove(item, Pointer{Name("constructions")})
+		}
+		Policy(&run)
+		got := rowSummary(run.Rows[8:])
+		if i == 0 {
+			first = got
+		}
+		if got != first || !strings.Contains(got, "POLICY") {
+			t.Errorf("constructions %#v: %s, want %s", value, got, first)
+		}
+	}
+}

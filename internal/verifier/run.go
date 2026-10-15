@@ -12,7 +12,8 @@
 // caller has passed steps 0 to 3. ENVIRONMENT, KEY_BINDING, SIGNATURE and
 // SHAPE each take it and add their row; a failure at any of them ends it
 // ([Run.EndRun]), and a SHAPE that passes gives the run its type and
-// subject id.
+// subject id. POLICY takes it and adds a row for each network of the
+// proof; a failure there does not end it.
 //
 // Adapted from the reference: the CLI runs online, so the run says when
 // the keyring that would govern could not be read (KEY_BINDING then fails
@@ -20,7 +21,7 @@
 // takes the kind current_keyring, which the always-offline reference never
 // gives, and the run holds the outcome of each source's identity read
 // (SPEC.md section 10.2, step 0), as the Truestamp application's run holds
-// its sources. Its members are those steps 0 to 7 set; it holds no trace,
+// its sources. Its members are those steps 0 to 8 set; it holds no trace,
 // external gate, label or edges.
 
 package verifier
