@@ -30,13 +30,15 @@ import (
 // will report is made, so all of its rows are compared, the skip
 // prior_failure rows of the later steps included.
 //
-// An online case's step 0 also confirms each pinned source's identity,
-// which is not built, so an online case that CONFIGURATION decides is not
-// run, and every other online case runs from READ, its rows compared from
-// there, after a CONFIGURATION made offline under its environment and
-// keyring. An online case whose keyring is unavailable, a failed online
-// read of the keyring, is compared through ENVELOPE: its KEY_BINDING row
-// needs its replay file's keyring read, which the replay adapter answers.
+// An online case runs online, every read it makes answered from its replay
+// file by the replay adapter (vectorcases.Replay, SPEC.md section 13.2), so
+// an online case under prod with no keyring option, whose keyring is
+// unavailable, reads the keyring of www.truestamp.com from its file at
+// CONFIGURATION, and its failed read fails KEY_BINDING. An online case's
+// step 0 also confirms each pinned source's identity, which is not built,
+// so an online case that CONFIGURATION decides is not run; every other
+// online case passes that check in its expected rows, so all of its rows
+// are compared.
 
 // lastBuilt is the last step the runner runs.
 const lastBuilt = "SIGNATURE"
@@ -69,10 +71,10 @@ func keyringUnavailable(c vectorcases.Case) bool {
 
 // caseConfig is the configuration a case gives (SPEC.md section 13.2): its
 // E_v and pins, and its keyring: test, the vectors' keyring.test.json; none,
-// keyless mode; a path, that keyring file; and no keyring option. An online
-// case's configuration is made offline, and its keyring unavailable, the
-// failed online read, is no keyring option.
-func caseConfig(t *testing.T, c vectorcases.Case) verifier.Config {
+// keyless mode; a path, that keyring file; and no keyring option, which
+// unavailable is too. A case is offline unless it names a replay file; an
+// online one reads its keyring, when it reads one, through reader.
+func caseConfig(t *testing.T, c vectorcases.Case, reader verifier.KeyringReader) verifier.Config {
 	t.Helper()
 	cfg, err := verifier.NewConfig(c.Config.Environment)
 	if err != nil {
@@ -82,6 +84,9 @@ func caseConfig(t *testing.T, c vectorcases.Case) verifier.Config {
 	cfg.Networks = specdata.NetworkPins{
 		Commitment: specdata.ChainNetworks{Bitcoin: pins.Commitment["bitcoin"], Stellar: pins.Commitment["stellar"]},
 		Entropy:    specdata.ChainNetworks{Bitcoin: pins.Entropy["bitcoin"], Stellar: pins.Entropy["stellar"]},
+	}
+	if c.Config.Online != nil {
+		cfg.Online, cfg.ReadKeyring = true, reader
 	}
 	switch keyring := c.Config.Keyring; {
 	case keyring == nil || *keyring == "unavailable":
@@ -120,48 +125,56 @@ func reportOf(run *verifier.Run, from int) outcome {
 	return o
 }
 
-// run runs the built steps over the case's proof file: an offline case
-// from CONFIGURATION, and an online case from READ.
+// replayReader is the replay adapter's keyring reader for an online case:
+// each keyring read is answered from the case's replay file, a found
+// keyring as a value with no bytes of its own (SPEC.md section 13.2), and
+// an unreachable one as a failed read; a read the file does not hold fails
+// the test. It records the URL of each read in urls.
+func replayReader(t *testing.T, c vectorcases.Case, urls *[]string) verifier.KeyringReader {
+	t.Helper()
+	if c.Config.Online == nil {
+		return nil
+	}
+	replay, err := vectorcases.LoadReplay(*c.Config.Online)
+	if err != nil {
+		t.Fatalf("%s: %v", c.ID, err)
+	}
+	return func(url string) (verifier.KeyringRead, error) {
+		*urls = append(*urls, url)
+		value, err := replay.Keyring(url)
+		if errors.Is(err, vectorcases.ErrNoAnswer) {
+			t.Errorf("%s: %v", c.ID, err)
+		}
+		if err != nil {
+			return verifier.KeyringRead{}, err
+		}
+		return verifier.KeyringRead{Replayed: true, Value: value}, nil
+	}
+}
+
+// run runs the built steps over the case's proof file, from CONFIGURATION,
+// an online case's keyring read answered by the replay adapter. Each online
+// case under prod with no keyring option reads the keyring of
+// www.truestamp.com once, and no other case reads one.
 func run(t *testing.T, c vectorcases.Case) outcome {
 	t.Helper()
-	cfg := caseConfig(t, c)
-	if c.Config.Online == nil {
-		r, rejection, err := verifier.GateFile(cfg, c.ProofPath())
-		if err != nil {
-			t.Fatalf("%s: %v", c.ID, err)
-		}
-		if rejection != nil {
-			return bareOf(rejection)
-		}
-		return reportOf(r, 0)
+	var urls []string
+	cfg := caseConfig(t, c, replayReader(t, c, &urls))
+	r, rejection, err := verifier.GateFile(cfg, c.ProofPath())
+	if err != nil {
+		t.Fatalf("%s: %v", c.ID, err)
 	}
-	r, rejection, err := verifier.Configure(cfg)
-	if err != nil || rejection != nil {
-		t.Fatalf("%s: the offline CONFIGURATION of an online case: %v, %v", c.ID, rejection, err)
+	wantReads := 0
+	if c.Config.Online != nil && c.Config.Environment == "prod" && (c.Config.Keyring == nil || keyringUnavailable(c)) {
+		wantReads = 1
 	}
-	data, err := strictjson.ReadFile(c.ProofPath())
-	var tooLarge *strictjson.Rejection
-	switch {
-	case errors.As(err, &tooLarge):
-		return outcome{code: string(tooLarge.Code)}
-	case err != nil:
-		t.Fatalf("%s: the proof file cannot be read: %v", c.ID, err)
+	if len(urls) != wantReads || (wantReads == 1 && urls[0] != verifier.CurrentKeyringURL) {
+		t.Errorf("%s: keyring reads %q, want %d of %s", c.ID, urls, wantReads, verifier.CurrentKeyringURL)
 	}
-	for _, step := range []func() *verifier.Rejection{
-		func() *verifier.Rejection { return verifier.Read(r, data) },
-		func() *verifier.Rejection { return verifier.Parse(r, data) },
-		func() *verifier.Rejection { return verifier.Envelope(r) },
-	} {
-		if rejection := step(); rejection != nil {
-			return bareOf(rejection)
-		}
+	if rejection != nil {
+		return bareOf(rejection)
 	}
-	if !keyringUnavailable(c) {
-		verifier.Environment(r)
-		verifier.KeyBinding(r)
-		verifier.Signature(r)
-	}
-	return reportOf(r, 1)
+	return reportOf(r, 0)
 }
 
 // decidedAt returns the step at which a case ends in a bare rejection, or
@@ -225,8 +238,15 @@ func attributionFits(attribution, label string) bool {
 // rows, all of them when the gate ends the run, whose label is then failed
 // and whose attribution is none; a run the gate opens has the attribution
 // its label needs; every row's values write with JCS; an online case
-// CONFIGURATION decides is not run. Mutants killed: parseNumber without
-// its call to profileNumber (the parse-integer-* and parse-number-* cases
+// CONFIGURATION decides is not run; and the two online cases whose keyring
+// is unavailable, key_binding-unavailable-unreachable and
+// key_binding-unavailable-load_check, read the keyring of
+// www.truestamp.com through the replay adapter and fail KEY_BINDING
+// keyring_unavailable. Mutants killed: a failed online keyring read
+// binding against the compiled pin (both online key_binding-* cases fail
+// key_binding_failed); a replayed keyring loaded under a fixed "test"
+// (key_binding-unavailable-load_check's VECTOR_KEY binds); parseNumber
+// without its call to profileNumber (the parse-integer-* and parse-number-* cases
 // are accepted); skipWhitespace without the carriage return (the
 // sameness-format-* cases, which end their lines in CRLF, are refused);
 // Envelope without the signature's member count (the
@@ -274,20 +294,14 @@ func TestCases_ThroughSignature(t *testing.T) {
 				t.Fatalf("a row's values: %v", got.badValues)
 			}
 			want := c.Expected.Rows
-			if online {
-				want = rowsBetween("READ", "VERDICT", want)
-			}
 			switch {
-			case online && keyringUnavailable(c):
-				tally["online report, from READ through ENVELOPE"]++
-				want = rowsBetween("READ", "ENVELOPE", want)
 			case got.ended:
-				tally[map[bool]string{false: "report, the gate fails", true: "online report, from READ, the gate fails"}[online]]++
+				tally[map[bool]string{false: "report, the gate fails", true: "online report, the gate fails"}[online]]++
 				if c.Expected.Label != "failed" || got.attribution != verifier.AttributionNone {
 					t.Fatalf("the gate ended the run with attribution %q; the case's label is %s", got.attribution, c.Expected.Label)
 				}
 			default:
-				tally[map[bool]string{false: "report, the gate passes", true: "online report, from READ, the gate passes"}[online]]++
+				tally[map[bool]string{false: "report, the gate passes", true: "online report, the gate passes"}[online]]++
 				want = rowsThrough(want)
 				if !attributionFits(got.attribution, c.Expected.Label) {
 					t.Fatalf("attribution %q, label %s", got.attribution, c.Expected.Label)
@@ -307,8 +321,8 @@ func TestCases_ThroughSignature(t *testing.T) {
 		"rejected at ENVELOPE":                         32,
 		"report, the gate fails":                       30,
 		"report, the gate passes":                      285,
-		"online report, from READ, the gate passes":    62,
-		"online report, from READ through ENVELOPE":    2,
+		"online report, the gate passes":               62,
+		"online report, the gate fails":                2,
 	}
 	if len(tally) != len(want) {
 		t.Fatalf("tally = %v, want %v", tally, want)
@@ -325,11 +339,14 @@ func TestCases_ThroughSignature(t *testing.T) {
 // cases, each signature_invalid; the 2 mixed_order-* cases, one passing
 // and one signature_invalid, both keyless; the 5 offline key_binding-*
 // cases, three key_binding_failed, the inactive key passing and the
-// keyless skip; and the 9 gates-* cases, three of them failing at the gate
-// and six passing it, three of those online. Each offline one runs to its
-// expected rows of the gate. Mutant killed: keyless mode skipping
-// SIGNATURE (the four keyless signature-* cases and
-// mixed_order-k_not_multiple_of_8 pass).
+// keyless skip; the 2 online key_binding-* cases, each
+// keyring_unavailable; and the 9 gates-* cases, three of them failing at
+// the gate and six passing it, three of those online. Each runs to its
+// expected rows of the gate, the online ones through the replay adapter.
+// Mutants killed: keyless mode skipping SIGNATURE (the four keyless
+// signature-* cases and mixed_order-k_not_multiple_of_8 pass); a failed
+// online keyring read binding against the compiled pin (the two online
+// key_binding-* cases fail key_binding_failed).
 func TestCases_FamiliesCutAtSignature(t *testing.T) {
 	cases, err := vectorcases.Load()
 	if err != nil {
@@ -359,11 +376,9 @@ func TestCases_FamiliesCutAtSignature(t *testing.T) {
 			got[family] = map[string]int{}
 		}
 		got[family][gateCode(c)]++
-		if c.Config.Online == nil {
-			o := run(t, c)
-			if want := rowsBetween("ENVIRONMENT", "SIGNATURE", c.Expected.Rows); !rowsEqual(rowsBetween("ENVIRONMENT", "SIGNATURE", o.rows), want) {
-				t.Errorf("%s: gate rows %v, want %v", c.ID, o.rows, want)
-			}
+		o := run(t, c)
+		if want := rowsBetween("ENVIRONMENT", "SIGNATURE", c.Expected.Rows); !rowsEqual(rowsBetween("ENVIRONMENT", "SIGNATURE", o.rows), want) {
+			t.Errorf("%s: gate rows %v, want %v", c.ID, o.rows, want)
 		}
 	}
 	want := map[string]map[string]int{

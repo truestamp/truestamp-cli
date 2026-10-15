@@ -398,7 +398,7 @@ func TestConfigure_WithoutAKeyringSource(t *testing.T) {
 		for _, online := range []bool{false, true} {
 			cfg, _ := NewConfig(environment)
 			cfg.Online = online
-			cfg.ReadKeyring = func(string) ([]byte, error) { t.Fatal("a keyring was read"); return nil, nil }
+			cfg.ReadKeyring = byteReader(func(string) ([]byte, error) { t.Fatal("a keyring was read"); return nil, nil })
 			if _, rejection := configure(t, cfg); rejection == nil || rejection.Code != specdata.ReasonConfigurationError {
 				t.Errorf("%s, online %v: %v", environment, online, rejection)
 			}
@@ -445,7 +445,7 @@ func TestConfigure_TheOnlineKeyringRead(t *testing.T) {
 	}
 	cases := []struct {
 		name   string
-		reader KeyringReader
+		reader func(string) ([]byte, error)
 		bound  bool
 	}{
 		{"a sound keyring", func(string) ([]byte, error) { return good, nil }, true},
@@ -464,7 +464,7 @@ func TestConfigure_TheOnlineKeyringRead(t *testing.T) {
 		cfg.Online = true
 		if c.reader != nil {
 			reader := c.reader
-			cfg.ReadKeyring = func(url string) ([]byte, error) { read = append(read, url); return reader(url) }
+			cfg.ReadKeyring = byteReader(func(url string) ([]byte, error) { read = append(read, url); return reader(url) })
 		}
 		run, rejection := configure(t, cfg)
 		if rejection != nil {
@@ -526,7 +526,7 @@ func TestConfigure_ANonproductionKeyLoadsOutsideProd(t *testing.T) {
 		for name, source := range sources {
 			cfg, _ := NewConfig(environment)
 			cfg.Keyring, cfg.Online = source, source.Kind == SourceOrigin
-			cfg.ReadKeyring = func(string) ([]byte, error) { return data, nil }
+			cfg.ReadKeyring = byteReader(func(string) ([]byte, error) { return data, nil })
 			run, rejection := configure(t, cfg)
 			switch {
 			case environment != "prod":
@@ -554,7 +554,7 @@ func TestConfigure_ANonproductionKeyLoadsOutsideProd(t *testing.T) {
 	}
 	cfg, _ := NewConfig("test")
 	cfg.Keyring, cfg.Online = KeyringSource{Kind: SourceOrigin, URL: url}, true
-	cfg.ReadKeyring = func(string) ([]byte, error) { return vector, nil }
+	cfg.ReadKeyring = byteReader(func(string) ([]byte, error) { return vector, nil })
 	run, rejection := configure(t, cfg)
 	if rejection != nil || run.Keyring == nil || run.KeyringUnavailable {
 		t.Fatalf("an origin's VECTOR_KEY under test: %v, %+v", rejection, run)

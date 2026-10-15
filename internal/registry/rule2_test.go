@@ -112,9 +112,10 @@ type scannedPackage struct {
 var scannedPackages = map[string]scannedPackage{
 	registryDir: {imports: registryImports, memberSets: true},
 	"internal/verifier": {imports: []string{
-		"cmp", "encoding/hex", "errors", "fmt", "net/url", "slices", "strconv", "strings", "unicode/utf16",
+		"cmp", "context", "encoding/hex", "errors", "fmt", "net", "net/url", "slices", "strconv", "strings", "time", "unicode/utf16",
 		"github.com/spf13/pflag",
 		"github.com/truestamp/truestamp-cli/internal/config",
+		"github.com/truestamp/truestamp-cli/internal/httpclient",
 		registryPath, specdataPath, strictjsonPath,
 		"github.com/truestamp/truestamp-cli/internal/verifier/ed25519",
 		"github.com/truestamp/truestamp-cli/internal/verifier/keyring",
