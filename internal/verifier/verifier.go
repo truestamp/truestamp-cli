@@ -19,7 +19,11 @@
 // that governs, all 32 octets compared (section 6.1); and SIGNATURE, V
 // under K over proof_hash by the strict rule of section 6.2. A failure at
 // any of them ends the run with the attribution none; a run that passes
-// them carries its attribution and trust_root (section 10.5).
+// them carries its attribution and trust_root (section 10.5). It holds
+// checks 1 to 3 of step 7, SHAPE, past the gate: format, version and the
+// schema of spec/schema.json, through the package's own interpreter of
+// SPEC.md section 9's keyword subset; a failure ends the run, and a pass
+// gives the run its type and subject id.
 //
 //   - config.go: a run's [Config] (the reference's config.ex);
 //   - options.go: the options of `truestamp verify` that set a Config,
@@ -32,6 +36,11 @@
 //     network pin, and each source's identity, confirmed both ways before
 //     the file is read (sections 9 and 10.2, step 0), through the readers
 //     of internal/verifier/source;
+//   - shape.go: step 7, SHAPE, checks 1 to 3 (shape.ex);
+//   - schema.go: the checker of spec/schema.json, SHAPE's check 3, which
+//     refuses a schema outside SPEC.md section 9's subset when it loads
+//     (schema.ex);
+//   - layout.go: the value at a pointer into the proof (layout.ex);
 //   - run.go, row.go, rejection.go and pointer.go: the run's state, its
 //     rows, the bare rejection and JSON Pointers into the proof (run.ex,
 //     row.ex, rejection.ex and pointer.ex).
