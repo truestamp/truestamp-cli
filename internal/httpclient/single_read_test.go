@@ -209,3 +209,54 @@ type refuseAll struct{}
 func (refuseAll) RoundTrip(*http.Request) (*http.Response, error) {
 	return nil, errors.New("refused by the shared client's test transport")
 }
+
+// Post sends one POST with its body and the headers its caller gives, the
+// User-Agent beside them, and returns a 200 OK body within its bound; it
+// follows no redirect, a 3xx a *StatusError; a status other than 200 OK is
+// a *StatusError whose text quotes the body the server sent, which is why a
+// caller that sends credentials never quotes it; and an answer over its
+// bound is a *TruncatedError.
+// Mutants killed: Post sending GET; the header not copied onto the
+// request; Post following redirects (the target is sent a request).
+func TestSingleRead_Post(t *testing.T) {
+	type seen struct{ method, body, auth, contentType string }
+	var got []seen
+	target, reached := countingServer(t, func(w http.ResponseWriter, _ *http.Request) {})
+	srv, requests := countingServer(t, func(w http.ResponseWriter, r *http.Request) {
+		body := make([]byte, 64)
+		n, _ := r.Body.Read(body)
+		got = append(got, seen{r.Method, string(body[:n]), r.Header.Get("Authorization"), r.Header.Get("Content-Type")})
+		switch r.URL.Path {
+		case "/ok":
+			_, _ = w.Write([]byte(`{"result":1}`))
+		case "/moved":
+			http.Redirect(w, r, target.URL, http.StatusTemporaryRedirect)
+		case "/big":
+			_, _ = w.Write([]byte(strings.Repeat("x", 33)))
+		default:
+			http.Error(w, "an error body "+r.Header.Get("Authorization"), http.StatusUnauthorized)
+		}
+	})
+	read := NewSingleRead(nil, 5*time.Second)
+	header := http.Header{"Authorization": {"Basic c2VjcmV0"}, "Content-Type": {"application/json"}}
+	body, err := read.Post(context.Background(), srv.URL+"/ok", []byte(`{"id":1}`), header, 32)
+	if err != nil || string(body) != `{"result":1}` {
+		t.Fatalf("Post: %q, %v", body, err)
+	}
+	if len(got) != 1 || got[0] != (seen{"POST", `{"id":1}`, "Basic c2VjcmV0", "application/json"}) {
+		t.Fatalf("the server saw %+v", got)
+	}
+	if _, err := read.Post(context.Background(), srv.URL+"/moved", nil, nil, 32); Status(err) != http.StatusTemporaryRedirect || reached.Load() != 0 {
+		t.Fatalf("a 307: %v, the target sent %d requests", err, reached.Load())
+	}
+	if _, err := read.Post(context.Background(), srv.URL+"/big", nil, nil, 32); !IsTruncated(err) {
+		t.Fatalf("an answer over the bound: %v", err)
+	}
+	_, err = read.Post(context.Background(), srv.URL+"/denied", nil, http.Header{"Authorization": {"Basic c2VjcmV0"}}, 32)
+	if Status(err) != http.StatusUnauthorized || !strings.Contains(err.Error(), "an error body") {
+		t.Fatalf("a 401: %v", err)
+	}
+	if requests.Load() != 4 {
+		t.Fatalf("%d requests, want 4", requests.Load())
+	}
+}

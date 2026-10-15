@@ -50,9 +50,10 @@ func DefaultKeyringReader() KeyringReader {
 	return NewKeyringReader(newSingleRead(nil, KeyringReadDeadline))
 }
 
-// newSingleRead builds the reads of [DefaultKeyringReader]. It is
-// httpclient.NewSingleRead, and a seam a test replaces to see the
-// transport and deadline the reads are built with.
+// newSingleRead builds the reads of [DefaultKeyringReader] and
+// [DefaultIdentityReader]. It is httpclient.NewSingleRead, and a seam a
+// test replaces to see the transport and deadline the reads are built
+// with.
 var newSingleRead = httpclient.NewSingleRead
 
 // NewKeyringReader returns the reader of an online run's keyring through

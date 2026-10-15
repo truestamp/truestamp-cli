@@ -151,7 +151,7 @@ func TestKeyringRead_AFailedReadFromTruestampBindsNoKeyWhateverThePinHolds(t *te
 	for name, handler := range answers {
 		www, requests := server(t, handler)
 		net := &testNet{www: www}
-		cfg, err := Options{Environment: "prod"}.Config(realReader(net, readDeadline))
+		cfg, err := Options{Environment: "prod"}.Config(realReader(net, readDeadline), nil)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -225,7 +225,7 @@ func TestKeyringRead_AnExplicitBaseURLsOriginFailsTheSameWay(t *testing.T) {
 			t.Fatalf("%s: the origin's keyring URL is %q", name, options.OriginKeyringURL)
 		}
 		net := &testNet{}
-		cfg, err := options.Config(realReader(net, readDeadline))
+		cfg, err := options.Config(realReader(net, readDeadline), nil)
 		if err != nil || cfg.Keyring != (KeyringSource{Kind: SourceOrigin, URL: url}) {
 			t.Fatalf("%s: %+v, %v", name, cfg.Keyring, err)
 		}
@@ -270,7 +270,7 @@ func TestKeyringRead_OfflineTheCompiledPinGoverns(t *testing.T) {
 		cfg, err := options.Config(byteReader(func(url string) ([]byte, error) {
 			t.Errorf("%v: an offline run read %s", args, url)
 			return nil, errors.New("read")
-		}))
+		}), nil)
 		if err != nil || cfg.Online {
 			t.Fatalf("%v: %+v, %v", args, cfg, err)
 		}
@@ -300,7 +300,7 @@ func TestKeyringRead_AHostThatIsNotADNSNameIsRefused(t *testing.T) {
 	delete(proof, "environment")
 	_, options := loadOptions(t, "", "--base-url", "https://www.truestamp.com..")
 	net := &testNet{}
-	cfg, err := options.Config(realReader(net, readDeadline))
+	cfg, err := options.Config(realReader(net, readDeadline), nil)
 	if err != nil || cfg.Keyring.Kind != SourceOrigin {
 		t.Fatalf("%+v, %v", cfg.Keyring, err)
 	}
@@ -473,7 +473,7 @@ func TestKeyringRead_TheKeyringReadReplacesThePin(t *testing.T) {
 		}),
 	}
 	for name, reader := range readers {
-		cfg, err := Options{Environment: "prod"}.Config(reader)
+		cfg, err := Options{Environment: "prod"}.Config(reader, nil)
 		if err != nil {
 			t.Fatal(err)
 		}

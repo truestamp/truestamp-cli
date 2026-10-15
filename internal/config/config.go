@@ -145,6 +145,27 @@ type VerifyConfig struct {
 	// it. config show --json leaves them out while the verify command does
 	// not read them.
 	Keyrings KeyringsConfig `koanf:"keyrings" json:"-"`
+
+	// Horizon, Esplora and BitcoinCore are the Stellar and Bitcoin
+	// sources an operator pins for the verifier of internal/verifier
+	// (SPEC.md section 9): a Horizon server's URL, an Esplora server's
+	// URL, and a Bitcoin Core node's JSON-RPC URL. Each may come from the
+	// configuration file, an environment variable (TRUESTAMP_VERIFY_HORIZON,
+	// TRUESTAMP_VERIFY_ESPLORA, TRUESTAMP_VERIFY_BITCOIN_CORE) or a flag
+	// (--horizon, --esplora, --bitcoin-core), a flag over a variable over
+	// the file. config show leaves them out while the verify command does
+	// not read them.
+	Horizon     string `koanf:"horizon" json:"-"`
+	Esplora     string `koanf:"esplora" json:"-"`
+	BitcoinCore string `koanf:"bitcoin_core" json:"-"`
+
+	// BitcoinCoreUser and BitcoinCorePassword are the Bitcoin Core node's
+	// RPC credentials. They come from the configuration file or the
+	// environment (TRUESTAMP_VERIFY_BITCOIN_CORE_USER,
+	// TRUESTAMP_VERIFY_BITCOIN_CORE_PASSWORD) only: no flag maps to
+	// either. config show never shows them.
+	BitcoinCoreUser     string `koanf:"bitcoin_core_user" json:"-"`
+	BitcoinCorePassword string `koanf:"bitcoin_core_password" json:"-"`
 }
 
 // KeyringsConfig holds a configured keyring file for each non-production
@@ -192,7 +213,10 @@ var sectionPrefixes = []string{"verify", "hash", "convert", "logging"}
 // verifier's environment and keyless mode are set only by options given
 // for the run, never by the configuration file or an environment variable
 // (SPEC.md sections 6.4 and 8.3), and a flag listed here is also a config
-// key.
+// key. The source flags are here, since a source pin may come from any of
+// the three (section 9); the Bitcoin Core node's RPC credentials have no
+// flag, and none may map to them, since they never come from the command
+// line.
 var flagKeyMap = map[string]string{
 	// Root persistent flags
 	"base-url":     "base_url",
@@ -207,6 +231,10 @@ var flagKeyMap = map[string]string{
 	"offline": "verify.offline",
 	"remote":  "verify.remote",
 	"keyring": "verify.keyring",
+	// The verifier's source flags (internal/verifier)
+	"horizon":      "verify.horizon",
+	"esplora":      "verify.esplora",
+	"bitcoin-core": "verify.bitcoin_core",
 	// Hash subcommand flags
 	"algorithm": "hash.algorithm",
 	"encoding":  "hash.encoding",
@@ -224,28 +252,33 @@ func Load(configPath string, flags *pflag.FlagSet) (*Config, error) {
 
 	// 1. Compiled defaults
 	defaults := map[string]interface{}{
-		"base_url":                "https://www.truestamp.com",
-		"api_key":                 "",
-		"team":                    "",
-		"http_timeout":            "10s",
-		"cosign_path":             "",
-		"silent":                  false,
-		"json":                    false,
-		"verify.offline":          false,
-		"verify.remote":           false,
-		"verify.keyring":          "",
-		"verify.keyrings.dev":     "",
-		"verify.keyrings.staging": "",
-		"verify.keyrings.test":    "",
-		"hash.algorithm":          "sha256",
-		"hash.encoding":           "hex",
-		"hash.style":              "gnu",
-		"convert.time_zone":       "UTC",
-		"logging.file":            "",
-		"logging.level":           "info",
-		"logging.max_size_mb":     10,
-		"logging.max_backups":     5,
-		"logging.max_age_days":    14,
+		"base_url":                     "https://www.truestamp.com",
+		"api_key":                      "",
+		"team":                         "",
+		"http_timeout":                 "10s",
+		"cosign_path":                  "",
+		"silent":                       false,
+		"json":                         false,
+		"verify.offline":               false,
+		"verify.remote":                false,
+		"verify.keyring":               "",
+		"verify.keyrings.dev":          "",
+		"verify.keyrings.staging":      "",
+		"verify.keyrings.test":         "",
+		"verify.horizon":               "",
+		"verify.esplora":               "",
+		"verify.bitcoin_core":          "",
+		"verify.bitcoin_core_user":     "",
+		"verify.bitcoin_core_password": "",
+		"hash.algorithm":               "sha256",
+		"hash.encoding":                "hex",
+		"hash.style":                   "gnu",
+		"convert.time_zone":            "UTC",
+		"logging.file":                 "",
+		"logging.level":                "info",
+		"logging.max_size_mb":          10,
+		"logging.max_backups":          5,
+		"logging.max_age_days":         14,
 	}
 	if err := k.Load(confmap.Provider(defaults, "."), nil); err != nil {
 		return nil, fmt.Errorf("loading defaults: %w", err)

@@ -6,16 +6,18 @@
 // Call Init once during startup to set the timeout; the default is 10s.
 //
 // internal/verifier's reads outside the document, such as the keyring
-// read of SPEC.md section 10.2, step 0 (CONFIGURATION), do not use the
-// shared client: each goes through a [SingleRead], one attempt that
-// follows no redirect and ends within one deadline (SPEC.md sections 8.3
-// (External verifiers) and 10.4 (Chain and source reads)). The verify
+// read and the sources' identity reads of SPEC.md section 10.2, step 0
+// (CONFIGURATION), do not use the shared client: each goes through a
+// [SingleRead], one attempt that follows no redirect and ends within one
+// deadline (SPEC.md sections 8.3 (External verifiers) and 10.4 (Chain and
+// source reads)). The verify
 // command's current path, internal/verify through internal/external, still
 // makes its keyring, chain and NIST Beacon reads through the shared client
 // and its redirect policy.
 package httpclient
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
@@ -115,7 +117,7 @@ func SetUserAgent(version string) {
 // User-Agent header, the configured value is applied.
 func Do(req *http.Request) (*http.Response, error) {
 	stampUserAgent(req)
-	return httpClient.Do(req)
+	return httpClient.Do(req) // #nosec G704 -- the shared client sends the requests of the CLI's API commands to the base URL the user configures, which is their purpose; the verifier's reads never use it
 }
 
 // stampUserAgent applies the shared User-Agent header when one is
@@ -275,7 +277,17 @@ func IsTruncated(err error) bool {
 //
 // It has its own client, apart from the shared one, so neither the shared
 // client's redirect policy nor the transport [SetTransport] installs (the
-// auth package's 401 retry) applies to it, and it sends no credential.
+// auth package's 401 retry) applies to it. [SingleRead.Get] sends no
+// credential; [SingleRead.Post] sends only the headers its caller gives,
+// such as a Bitcoin Core node's RPC credentials in an Authorization
+// header, never in the URL. An error's text can carry bytes the server
+// sent, which a server could fill with the headers it was sent: a
+// *StatusError quotes at most 80 octets of the body of a status that is
+// not 200 OK, and a *TransportError can quote the URL and whatever
+// the transport's own error quotes, such as a malformed status line or header
+// line. So a caller that sends credentials never quotes the text of
+// either (internal/verifier/source gives fixed reasons, naming a status by
+// its code alone).
 type SingleRead struct {
 	client   *http.Client
 	deadline time.Duration
@@ -303,11 +315,31 @@ func noRedirect(*http.Request, []*http.Request) error { return http.ErrUseLastRe
 // status but 200 OK (a 3xx included, unfollowed), and a *TruncatedError
 // for a body over limit, of which at most limit + 1 octets are read.
 func (r *SingleRead) Get(ctx context.Context, url string, limit int) ([]byte, error) {
+	return r.read(ctx, http.MethodGet, url, nil, nil, limit)
+}
+
+// Post sends body to url once, with header, within the reader's deadline,
+// and returns the body of a 200 OK answer of at most limit octets, with
+// the errors of [SingleRead.Get]. It is the read of a JSON-RPC call, such
+// as a Bitcoin Core node's: header holds the call's Content-Type and any
+// Authorization, which travel only in the request.
+func (r *SingleRead) Post(ctx context.Context, url string, body []byte, header http.Header, limit int) ([]byte, error) {
+	return r.read(ctx, http.MethodPost, url, body, header, limit)
+}
+
+func (r *SingleRead) read(ctx context.Context, method, url string, body []byte, header http.Header, limit int) ([]byte, error) {
 	ctx, cancel := context.WithTimeout(ctx, r.deadline)
 	defer cancel()
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	var payload io.Reader
+	if body != nil {
+		payload = bytes.NewReader(body)
+	}
+	req, err := http.NewRequestWithContext(ctx, method, url, payload)
 	if err != nil {
 		return nil, &TransportError{URL: url, Err: err}
+	}
+	for name, values := range header {
+		req.Header[name] = append([]string(nil), values...)
 	}
 	stampUserAgent(req)
 	resp, err := r.client.Do(req)
@@ -325,12 +357,12 @@ func (r *SingleRead) Get(ctx context.Context, url string, limit int) ([]byte, er
 			HTML:       len(bodyStr) > 0 && bodyStr[0] == '<',
 		}
 	}
-	body, err := io.ReadAll(io.LimitReader(resp.Body, int64(limit)+1))
+	answer, err := io.ReadAll(io.LimitReader(resp.Body, int64(limit)+1))
 	if err != nil {
 		return nil, &TransportError{URL: url, Err: err}
 	}
-	if len(body) > limit {
+	if len(answer) > limit {
 		return nil, &TruncatedError{URL: url, Limit: limit}
 	}
-	return body, nil
+	return answer, nil
 }

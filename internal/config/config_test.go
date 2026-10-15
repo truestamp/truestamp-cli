@@ -665,3 +665,73 @@ func TestLoad_NoEnvironmentVariableReachesTheConfiguredKeyrings(t *testing.T) {
 		t.Errorf("the dotted name alone: %+v, %v", cfg, err)
 	}
 }
+
+// --- The verifier's sources ----------------------------------------------
+
+// The verifier's source URLs load from the configuration file, from the
+// environment over the file, and from a flag over the environment; the
+// Bitcoin Core node's RPC credentials load from the file and from the
+// environment over the file, and no flag maps to them; and neither config
+// show --json nor ToTOML shows any of the five. Mutants killed: flagKeyMap
+// without "esplora" (the flag is ignored); BitcoinCorePassword tagged
+// json:"bitcoin_core_password" (the password is marshalled); a flag
+// "bitcoin-core-password" mapped to verify.bitcoin_core_password.
+func TestLoad_TheVerifierSources(t *testing.T) {
+	clearTruestampEnv(t)
+	path := filepath.Join(t.TempDir(), "config.toml")
+	text := "[verify]\nhorizon = \"https://h.file.example\"\nesplora = \"https://e.file.example\"\nbitcoin_core = \"http://c.file.example:8332\"\n" +
+		"bitcoin_core_user = \"file-user\"\nbitcoin_core_password = \"file-secret-5b1e\"\n"
+	if err := os.WriteFile(path, []byte(text), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	cfg, err := Load(path, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	v := cfg.Verify
+	if v.Horizon != "https://h.file.example" || v.Esplora != "https://e.file.example" || v.BitcoinCore != "http://c.file.example:8332" ||
+		v.BitcoinCoreUser != "file-user" || v.BitcoinCorePassword != "file-secret-5b1e" {
+		t.Fatalf("from the file: %+v", v)
+	}
+	shown, err := json.Marshal(cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, leak := range []string{"file-secret-5b1e", "file-user", "h.file.example", "e.file.example", "c.file.example", "bitcoin_core", "horizon", "esplora"} {
+		if strings.Contains(string(shown), leak) || strings.Contains(cfg.ToTOML(false), leak) {
+			t.Errorf("config show shows %q", leak)
+		}
+	}
+
+	t.Setenv("TRUESTAMP_VERIFY_ESPLORA", "https://e.env.example")
+	t.Setenv("TRUESTAMP_VERIFY_BITCOIN_CORE_PASSWORD", "env-secret-5b1e")
+	flags := pflag.NewFlagSet("verify", pflag.ContinueOnError)
+	flags.String("horizon", "", "")
+	flags.String("esplora", "", "")
+	flags.String("bitcoin-core", "", "")
+	flags.String("bitcoin-core-password", "", "")
+	flags.String("bitcoin-core-user", "", "")
+	if err := flags.Parse([]string{"--bitcoin-core", "http://127.0.0.1:8332", "--bitcoin-core-password", "flag-secret", "--bitcoin-core-user", "flag-user"}); err != nil {
+		t.Fatal(err)
+	}
+	cfg, err = Load(path, flags)
+	if err != nil {
+		t.Fatal(err)
+	}
+	v = cfg.Verify
+	if v.Horizon != "https://h.file.example" || v.Esplora != "https://e.env.example" || v.BitcoinCore != "http://127.0.0.1:8332" ||
+		v.BitcoinCoreUser != "file-user" || v.BitcoinCorePassword != "env-secret-5b1e" {
+		t.Fatalf("the environment over the file, a flag over both: %+v", v)
+	}
+	if err := flags.Parse([]string{"--esplora", "https://e.flag.example"}); err != nil {
+		t.Fatal(err)
+	}
+	if cfg, err = Load(path, flags); err != nil || cfg.Verify.Esplora != "https://e.flag.example" {
+		t.Fatalf("--esplora over the environment: %+v, %v", cfg.Verify, err)
+	}
+	for name, key := range flagKeyMap {
+		if strings.Contains(name, "user") || strings.Contains(name, "password") || strings.HasPrefix(key, "verify.bitcoin_core_") {
+			t.Errorf("flagKeyMap maps --%s to %s", name, key)
+		}
+	}
+}
