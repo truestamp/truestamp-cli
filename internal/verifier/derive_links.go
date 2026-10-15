@@ -1,18 +1,21 @@
 // Copyright (c) 2019-2026 Truestamp, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-// This file ports LINK_INCLUSION of the reference verifier's
-// Truestamp.Verifier.Derive.Links (elixir/lib/truestamp/verifier/derive/links.ex
-// in truestamp-verification), checked against the Truestamp application's
-// port, Truestamp.Proof.Verifier.Derive.Links
-// (lib/truestamp/proof/verifier/derive/links.ex in truestamp-v2): the first
-// link of DERIVE (SPEC.md section 10.2, step 9 (e), and section 10.3).
-// LINK_WITNESS, LINK_HEAD, LINK_KEY_EVENT and LINK_CHAIN_ORDER join it
-// after, in that order, with the key-event checks.
+// This file ports the reference verifier's Truestamp.Verifier.Derive.Links
+// (elixir/lib/truestamp/verifier/derive/links.ex in truestamp-verification),
+// checked against the Truestamp application's port,
+// Truestamp.Proof.Verifier.Derive.Links
+// (lib/truestamp/proof/verifier/derive/links.ex in truestamp-v2): the links
+// of DERIVE (SPEC.md section 10.2, step 9 (e), and section 10.3), in this
+// order:
 //
-//	| Link           | Rule | Part | Failure | Row of 7.3 | Traced |
-//	|----------------|------|------|---------|------------|--------|
-//	| LINK_INCLUSION | each inclusion proof walks from its recomputed leaf to its record's merkle_root, and its tree_size equals the record's leaf_count | the record's merkle_root; the proof's tree_size | derivation_mismatch | inclusion | yes |
+//	| Link             | Rule | Part | Failure | Row of 7.3 | Traced |
+//	|------------------|------|------|---------|------------|--------|
+//	| LINK_INCLUSION   | each inclusion proof walks from its recomputed leaf to its record's merkle_root, and its tree_size equals the record's leaf_count | the record's merkle_root; the proof's tree_size | derivation_mismatch | inclusion | yes |
+//	| LINK_WITNESS     | each witness_hashes entry equals the recomputed hash of its witness | /subject/record/witness_hashes/W | derivation_mismatch | witnesses | yes |
+//	| LINK_HEAD        | /witnesses/block/record/height is below /block/record/height | /witnesses/block/record/height | ordering_violation | height | no |
+//	| LINK_KEY_EVENT   | the key event at /signing_key_event/block introduces K | that event's public_key | key_event_mismatch | key_event | no |
+//	| LINK_CHAIN_ORDER | a Stellar entropy sequence is below the top-level Stellar ledger, and a Bitcoin entropy height at most the top-level Bitcoin height, on the same network | that sequence or height | ordering_violation | chain_order | no |
 //
 // LINK_INCLUSION covers every inclusion proof Q, at both tree levels
 // (SPEC.md section 5.4), in the document order of Q, and gives two checks
@@ -41,16 +44,52 @@
 // registry constant this file names at its call, the hash each record's
 // own check makes.
 //
+// LINK_WITNESS, in an item, for each name W of
+// /subject/record/witness_hashes, from this file's compiled list of names
+// (witnessNames), never the names the object holds: the entry equals
+// H(0x31, /witnesses/block/record) when W is block, and H(0x20,
+// /witnesses/entropy_X) when W is entropy_X.
+//
+// LINK_HEAD, in an item. A block record that carries metadata.genesis
+// counts as height 0 here, whatever it declares, /block included
+// (recordHeight, SPEC.md section 10.3 and section 10.6, rule 4). A failing
+// row's declared is the height the witness block carries, and its
+// recomputed the height, so counted, of /block, which the witness block's
+// had to be below.
+//
+// LINK_KEY_EVENT, when P carries signing_key_event: the 32 octets the
+// event's public_key decodes to must equal K's. It fails when they differ,
+// in every run; otherwise it is pass when the run's attribution is
+// truestamp, and info not_attributable when it is not (section 10.3;
+// section 10.6, rule 7). The info row is neither a pass nor a failure: it
+// never fails the run, so it never closes the external gate nor makes a
+// later row skip prior_failure. Its recomputed is K, as B64U32.
+//
+// LINK_CHAIN_ORDER pairs each Stellar or Bitcoin entropy object with the
+// top-level entry of its chain when their network values are equal; every
+// other pair, a /signing_key_event/commitments entry's included, reports no
+// row. A failing row's recomputed is the ledger or height it was held to.
+// The link compares chain positions only and uses no clock (section 11).
+//
 // Adapted from the reference: the carried MERKLE_PROOF is read by
 // internal/registry's ReadInclusionProof, and a proof it refuses, which
-// SHAPE has held to the schema, gives no root, as a walk that fails does.
+// SHAPE has held to the schema, gives no root, as a walk that fails does;
+// each witness hash is read through valueAt by its compiled name; and a
+// value SHAPE has held to its class that is not of it (a key that does not
+// decode, a height, sequence or ledger that is not a number) is a fault of
+// the verifier, returned as an error, which [Derive] reports as
+// internal_error.
 
 package verifier
 
 import (
 	"encoding/hex"
+	"fmt"
+	"slices"
 
 	"github.com/truestamp/truestamp-cli/internal/registry"
+	"github.com/truestamp/truestamp-cli/internal/specdata"
+	"github.com/truestamp/truestamp-cli/internal/strictjson"
 )
 
 // inclusionWalk is one inclusion proof Q, the record whose hash is its
@@ -61,9 +100,24 @@ type inclusionWalk struct {
 }
 
 // linkChecks are the link checks, in the order of SPEC.md section 10.3's
-// table: LINK_INCLUSION, so far.
-func linkChecks(proof map[string]any) ([]deriveCheck, error) {
-	return inclusionChecks(proof)
+// table. publicKey is the 32 octets of K, and attribution the run's
+// (section 10.5).
+func linkChecks(proof map[string]any, publicKey [32]byte, attribution string) ([]deriveCheck, error) {
+	var out []deriveCheck
+	for _, link := range []func() ([]deriveCheck, error){
+		func() ([]deriveCheck, error) { return inclusionChecks(proof) },
+		func() ([]deriveCheck, error) { return witnessChecks(proof) },
+		func() ([]deriveCheck, error) { return headChecks(proof) },
+		func() ([]deriveCheck, error) { return keyEventLink(proof, publicKey, attribution) },
+		func() ([]deriveCheck, error) { return chainOrderChecks(proof) },
+	} {
+		checks, err := link()
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, checks...)
+	}
+	return out, nil
 }
 
 // inclusionChecks are LINK_INCLUSION's two checks of each inclusion proof,
@@ -174,4 +228,165 @@ func walkRoot(leaf [32]byte, inclusion map[string]any) any {
 		return nil
 	}
 	return hex.EncodeToString(root[:])
+}
+
+// LINK_WITNESS
+
+// witnessNames are the names witness_hashes may hold (SPEC.md section
+// 3.6): block, and entropy_X for each entropy source, in JCS order.
+var witnessNames = func() []string {
+	names := []string{"block"}
+	for _, source := range layoutSources {
+		names = append(names, "entropy_"+source)
+	}
+	return names
+}()
+
+// witnessChecks are LINK_WITNESS's checks, one for each name of
+// witnessNames the item record's witness_hashes holds; none outside an
+// item.
+func witnessChecks(proof map[string]any) ([]deriveCheck, error) {
+	if proof["type"] != "item" {
+		return nil, nil
+	}
+	hashesAt := Pointer{Name("subject"), Name("record"), Name("witness_hashes")}
+	var out []deriveCheck
+	for _, name := range witnessNames {
+		part := under(hashesAt, name)
+		declared := valueAt(proof, part)
+		if declared == nil {
+			continue
+		}
+		var at Pointer
+		var recomputed string
+		var err error
+		if name == "block" {
+			at = Pointer{Name("witnesses"), Name("block"), Name("record")}
+			recomputed, err = recordHashAt(proof, registry.BlockHash, at)
+		} else {
+			at = Pointer{Name("witnesses"), Name(name)}
+			recomputed, err = recordHashAt(proof, registry.EntropyHash, at)
+		}
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, equalCheck(part, "witnesses", []Pointer{at}, declared, recomputed, "The witness hash"))
+	}
+	return out, nil
+}
+
+// LINK_HEAD
+
+// headChecks is LINK_HEAD's check, in an item: the witness block's height
+// is below that of /block, each counted by recordHeight.
+func headChecks(proof map[string]any) ([]deriveCheck, error) {
+	if proof["type"] != "item" {
+		return nil, nil
+	}
+	part := Pointer{Name("witnesses"), Name("block"), Name("record"), Name("height")}
+	blockHeightAt := Pointer{Name("block"), Name("record"), Name("height")}
+	witness, err := recordHeight(proof, Pointer{Name("witnesses"), Name("block"), Name("record")})
+	if err != nil {
+		return nil, err
+	}
+	block, err := recordHeight(proof, Pointer{Name("block"), Name("record")})
+	if err != nil {
+		return nil, err
+	}
+	return []deriveCheck{orderCheck(part, "height", []Pointer{part, blockHeightAt}, valueAt(proof, part), block, witness < block,
+		"The witness block's height is below the height of the block.",
+		"The witness block, the head of the chain when the item was submitted, is not below the block that includes the item.")}, nil
+}
+
+// LINK_KEY_EVENT
+
+// signingKeyEventKeyAt is the part of LINK_KEY_EVENT, the public_key of the
+// key event at /signing_key_event/block.
+var signingKeyEventKeyAt = Pointer{Name("signing_key_event"), Name("block"), Name("record"), Name("metadata"), Name("key_event"), Name("public_key")}
+
+// keyEventLink is LINK_KEY_EVENT's check, when P carries
+// signing_key_event: the event's key is K, and the row's status is set by
+// attribution.
+func keyEventLink(proof map[string]any, publicKey [32]byte, attribution string) ([]deriveCheck, error) {
+	declared := valueAt(proof, signingKeyEventKeyAt)
+	if declared == nil {
+		return nil, nil
+	}
+	text, _ := declared.(string)
+	key, err := registry.DecodeB64U32(text)
+	if err != nil {
+		return nil, fmt.Errorf("the key at %s: %w", signingKeyEventKeyAt.Encode(), err)
+	}
+	c := newCheck(signingKeyEventKeyAt, "key_event", []Pointer{signingKeyEventKeyAt}, text, registry.EncodeB64U(publicKey[:]),
+		"The key event at /signing_key_event/block introduced the key that signed this proof.")
+	switch {
+	case key != publicKey:
+		c.code = specdata.ReasonKeyEventMismatch
+		c.message = "The key event at /signing_key_event/block does not introduce the key that signed this proof."
+	case attribution != AttributionTruestamp:
+		c.code = specdata.ReasonNotAttributable
+		c.message = "The key event at /signing_key_event/block introduces the key that signed this proof, but this run " +
+			"does not attribute the proof to Truestamp, so it shows no Truestamp key history."
+	}
+	return []deriveCheck{c}, nil
+}
+
+// LINK_CHAIN_ORDER
+
+// chainOrderChecks are LINK_CHAIN_ORDER's checks: each Stellar or Bitcoin
+// entropy object P carries, in the layout's order, held to the top-level
+// entry of its chain on its network.
+func chainOrderChecks(proof map[string]any) ([]deriveCheck, error) {
+	var out []deriveCheck
+	for _, object := range entropyObjects(proof) {
+		if !slices.Contains(chains, object.name) {
+			continue
+		}
+		entryAt := Pointer{Name("commitments"), Name(object.name)}
+		entry, ok := valueAt(proof, entryAt).(map[string]any)
+		if !ok || !sameValue(entry["network"], object.node["network"]) {
+			continue
+		}
+		var c deriveCheck
+		var err error
+		if object.name == ChainStellar {
+			c, err = chainOrderCheck(proof, under(object.at, "payload", "sequence"), under(entryAt, "ledger"), entry["ledger"],
+				func(position, limit strictjson.Number) bool { return position < limit },
+				"The Stellar entropy's sequence is below the committed ledger.",
+				"The Stellar entropy's sequence is not below the ledger of the top-level Stellar commitment.")
+		} else {
+			c, err = chainOrderCheck(proof, under(object.at, "payload", "height"), under(entryAt, "height"), entry["height"],
+				func(position, limit strictjson.Number) bool { return position <= limit },
+				"The Bitcoin entropy's height is at most the committed height.",
+				"The Bitcoin entropy's height is above the height of the top-level Bitcoin commitment.")
+		}
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, c)
+	}
+	return out, nil
+}
+
+// chainOrderCheck is one LINK_CHAIN_ORDER check: the entropy's position at
+// part held by holds to bound, the top-level entry's value at boundAt.
+func chainOrderCheck(proof map[string]any, part, boundAt Pointer, bound any, holds func(position, limit strictjson.Number) bool,
+	passing, failing string) (deriveCheck, error) {
+	position, ok := valueAt(proof, part).(strictjson.Number)
+	limit, okLimit := bound.(strictjson.Number)
+	if !ok || !okLimit {
+		return deriveCheck{}, fmt.Errorf("the chain positions at %s and %s are not numbers", part.Encode(), boundAt.Encode())
+	}
+	return orderCheck(part, "chain_order", []Pointer{part, boundAt}, position, limit, holds(position, limit), passing, failing), nil
+}
+
+// orderCheck is an untraced order link at part: a pass with passing when
+// holds, and otherwise ordering_violation with failing, its declared the
+// value at part and its recomputed the bound it was held to.
+func orderCheck(part Pointer, construction string, inputs []Pointer, declared, bound any, holds bool, passing, failing string) deriveCheck {
+	c := newCheck(part, construction, inputs, declared, bound, passing)
+	if !holds {
+		c.code, c.message = specdata.ReasonOrderingViolation, failing
+	}
+	return c
 }

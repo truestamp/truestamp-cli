@@ -40,12 +40,16 @@
 // caller gives a registry constant (SPEC.md section 10.6, rule 2). Every
 // check is traced: each part above is a CHECKED value (section 3.7).
 //
+// Each block node's checks are followed by those of the key event its
+// record carries (section 10.3), which derive_key_events.go makes, so that
+// in (b) a block's checks come in the table's order, then its key event's.
+// recordHeight is the reference's height/1: the height a block record
+// counts as, which the genesis check fixes at 0 and LINK_HEAD compares.
+//
 // Adapted from the reference: SHAPE has held every preimage to the schema,
 // so the registry refuses none in a run; a refusal (a preimage that is not
 // an object) is a fault of the verifier, which these functions return as an
-// error and [Derive] reports as internal_error. The checks of each key
-// event a block node carries (section 10.3) join (b) with the key-event
-// checks.
+// error and [Derive] reports as internal_error.
 
 package verifier
 
@@ -162,9 +166,31 @@ func blockNodeChecks(proof map[string]any) ([]deriveCheck, error) {
 		if err != nil {
 			return nil, err
 		}
-		out = append(out, genesis...)
+		keyEvent, err := keyEventChecks(block.at, recordAtOf(proof, recordAt))
+		if err != nil {
+			return nil, err
+		}
+		out = append(append(out, genesis...), keyEvent...)
 	}
 	return out, nil
+}
+
+// recordHeight is the height the block record at at counts as where a
+// check compares it (SPEC.md section 10.2, step 9 (b), and section 10.3):
+// 0 for a record that carries metadata.genesis, whatever it declares, and
+// otherwise the height it carries. A record with neither, which SHAPE has
+// made impossible, is a fault of the verifier.
+func recordHeight(proof map[string]any, at Pointer) (strictjson.Number, error) {
+	record := recordAtOf(proof, at)
+	metadata, _ := record["metadata"].(map[string]any)
+	if _, genesis := metadata["genesis"]; genesis {
+		return 0, nil
+	}
+	height, ok := record["height"].(strictjson.Number)
+	if !ok {
+		return 0, fmt.Errorf("the block record at %s carries no height", at.Encode())
+	}
+	return height, nil
 }
 
 // genesisChecks are the two checks of a block record at recordAt that

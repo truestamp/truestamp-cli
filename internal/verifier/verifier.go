@@ -28,11 +28,15 @@
 // its type and subject id. Then step 8, POLICY: every network member of the
 // proof against the run's network pins, one row each; a failure there
 // does not end the run. Then step 9, DERIVE: every record hash of the
-// subject, the block nodes and the epochs recomputed and compared, and
+// subject, the block nodes and the epochs recomputed and compared, each key
+// event a block node carries checked as the table of section 3.3 requires,
 // every inclusion proof walked from its recomputed leaf, its tree_size held
-// to its record's committed leaf_count, through one engine that gives the
-// step's rows and the run's trace (SPEC.md section 10.6); a failure there
-// does not end the run either.
+// to its record's committed leaf_count, and the other links of section
+// 10.3, LINK_WITNESS, LINK_HEAD, LINK_KEY_EVENT and LINK_CHAIN_ORDER,
+// through one engine that gives the step's rows and the run's trace
+// (SPEC.md section 10.6); a failure there does not end the run either, and
+// LINK_KEY_EVENT's info row under an attribution other than truestamp is
+// no failure.
 //
 //   - config.go: a run's [Config] (the reference's config.ex);
 //   - options.go: the options of `truestamp verify` that set a Config,
@@ -50,7 +54,8 @@
 //   - policy.go: step 8, POLICY (policy.ex);
 //   - derive.go: step 9, DERIVE, and its engine (derive.ex), whose checks
 //     are derive_check.go's (check.ex): the record hashes of
-//     derive_records.go (derive/records.ex) and the links of
+//     derive_records.go (derive/records.ex), the key events of
+//     derive_key_events.go (derive/key_events.ex) and the links of
 //     derive_links.go (derive/links.ex);
 //   - schema.go: the checker of spec/schema.json, SHAPE's check 3, which
 //     refuses a schema outside SPEC.md section 9's subset when it loads
