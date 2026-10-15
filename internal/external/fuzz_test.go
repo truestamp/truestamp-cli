@@ -11,6 +11,7 @@ import (
 	"sync"
 	"testing"
 
+	"github.com/truestamp/truestamp-cli/internal/strictjson"
 	"github.com/truestamp/truestamp-cli/internal/tscrypto"
 )
 
@@ -90,12 +91,17 @@ func (b *bodyServer) serve(body []byte) {
 // keyring document, a JSON object carrying a `keys` array. Anything
 // else is an answer this client cannot read, and E.22 forbids it from
 // failing a sound proof. Before the `keys` gate, every JSON object
-// reached the per-key loop and returned "not found in keyring".
+// reached the per-key loop and returned "not found in keyring". A keyring
+// document is one the strict reader reads (SPEC.md section 10.1), so a
+// body that repeats `keys` is none. Mutant killed, by the seed that
+// repeats `keys`: VerifyKeyring decoding with encoding/json, which keeps
+// the second, empty list.
 func FuzzVerifyKeyringBody(f *testing.F) {
 	for _, s := range []string{
 		`{}`, `null`, `{"version":"1"}`, `{"keys":null}`, `{"keys":[]}`,
 		`{"keys":"x"}`, `[]`, `not json`,
 		`{"keys":[{"key_id":"aa","public_key":"bb"}]}`,
+		`{"keys":null,"keys":[]}`,
 	} {
 		f.Add(s)
 	}
@@ -107,11 +113,11 @@ func FuzzVerifyKeyringBody(f *testing.F) {
 		if Classify(err) != OutcomeMismatch {
 			return
 		}
-		// The only bodies allowed to reach a verdict are real keyrings.
-		var doc struct {
-			Keys *[]KeyringKey `json:"keys"`
-		}
-		if json.Unmarshal([]byte(body), &doc) != nil || doc.Keys == nil {
+		// The only bodies allowed to reach a verdict are real keyrings:
+		// an object the strict reader reads, with a keys list.
+		value, parseErr := strictjson.Decode([]byte(body))
+		object, isObject := value.(map[string]any)
+		if _, isList := object["keys"].([]any); parseErr != nil || !isObject || !isList {
 			t.Fatalf("body %q is not a keyring document but graded mismatch: %v", body, err)
 		}
 	})

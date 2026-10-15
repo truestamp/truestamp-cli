@@ -5,6 +5,7 @@ package verifier
 
 import (
 	"crypto/sha256"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"os"
@@ -315,6 +316,23 @@ func writeKeyring(t *testing.T, keys ...[32]byte) string {
 // testKey is a key no environment uses, made from seed.
 func testKey(seed string) [32]byte { return sha256.Sum256([]byte("verifier test key " + seed)) }
 
+// digestOf is the lowercase hex SHA-256 of data, made here apart from
+// keyring.Digest: trust_root's digest d of a keyring read as data.
+func digestOf(data []byte) string {
+	sum := sha256.Sum256(data)
+	return hex.EncodeToString(sum[:])
+}
+
+// fileDigest is [digestOf] the bytes of the file at path.
+func fileDigest(t *testing.T, path string) string {
+	t.Helper()
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return digestOf(data)
+}
+
 func configure(t *testing.T, cfg Config) (*Run, *Rejection) {
 	t.Helper()
 	run, rejection, err := Configure(cfg)
@@ -332,7 +350,8 @@ func configure(t *testing.T, cfg Config) (*Run, *Rejection) {
 // loaded under test whatever E_v is (the non-production key binds under
 // prod); a keyring file over the limit given as input_too_large, the
 // document's rejection; that failure built without the reader's rejection
-// (its message no longer says the keyring is larger than the limit).
+// (its message no longer says the keyring is larger than the limit); the
+// keyring file's digest left out of trust_root.
 func TestConfigure_AKeyringFile(t *testing.T) {
 	prod, err := NewConfig("prod")
 	if err != nil {
@@ -347,7 +366,7 @@ func TestConfigure_AKeyringFile(t *testing.T) {
 
 	prod.Keyring.Path = writeKeyring(t, testKey("a"))
 	run, rejection := configure(t, prod)
-	if rejection != nil || run.TrustRoot != (TrustRoot{Kind: KindSuppliedKeyring, Location: prod.Keyring.Path}) {
+	if rejection != nil || run.TrustRoot != (TrustRoot{Digest: fileDigest(t, prod.Keyring.Path), Kind: KindSuppliedKeyring, Location: prod.Keyring.Path}) {
 		t.Fatalf("a sound keyring under prod: %v, %+v", rejection, run)
 	}
 
@@ -408,7 +427,8 @@ func TestConfigure_WithoutAKeyringSource(t *testing.T) {
 // test: the shared client's refusals do not move. Mutants killed: a failed
 // online read given as configuration_error; a failed online read falling
 // back to the compiled pin (the run holds a keyring); the online keyring
-// loaded under a fixed "staging" (the non-production key binds).
+// loaded under a fixed "staging" (the non-production key binds); the
+// digest of the bytes read left out of trust_root.
 func TestConfigure_TheOnlineKeyringRead(t *testing.T) {
 	before := refusals.Load()
 	good, err := os.ReadFile(writeKeyring(t, testKey("a")))
@@ -454,8 +474,11 @@ func TestConfigure_TheOnlineKeyringRead(t *testing.T) {
 		if c.reader != nil && (len(read) != 1 || read[0] != CurrentKeyringURL) {
 			t.Errorf("%s: read %q", c.name, read)
 		}
-		if run.TrustRoot != (TrustRoot{Kind: KindCurrentKeyring, Location: CurrentKeyringURL}) ||
-			(run.Keyring != nil) != c.bound || run.KeyringUnavailable == c.bound {
+		want := TrustRoot{Kind: KindCurrentKeyring, Location: CurrentKeyringURL}
+		if c.bound {
+			want.Digest = digestOf(good)
+		}
+		if run.TrustRoot != want || (run.Keyring != nil) != c.bound || run.KeyringUnavailable == c.bound {
 			t.Errorf("%s: %+v, keyring %v, unavailable %v", c.name, run.TrustRoot, run.Keyring != nil, run.KeyringUnavailable)
 		}
 	}

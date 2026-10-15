@@ -39,9 +39,9 @@
 // of the list above. The application names the first key that fails and
 // the first check it fails; both refuse exactly the same keyrings, and
 // SPEC.md fixes no order. Adapted from the reference: a key's public key is
-// a [32]byte, a failure also names the index of the key that fails, and a
-// loaded keyring holds no digest: trust_root's digest d (section 8.3) is
-// made from the bytes as read where the report's trust_root is.
+// a [32]byte, and a failure also names the index of the key that fails. A
+// loaded keyring holds its digest d (section 8.3), made by [Digest] from
+// the bytes as read (digest.go).
 package keyring
 
 import (
@@ -69,10 +69,12 @@ type Key struct {
 }
 
 // Keyring is a keyring that passed the load checks: its keys in the
-// file's order, and Location, the file or URL it came from, or "" when it
-// came from neither.
+// file's order; Digest, d, the lowercase hex SHA-256 of the bytes it was
+// loaded from as read (SPEC.md section 8.3); and Location, the file or URL
+// it came from, or "" when it came from neither.
 type Keyring struct {
 	Keys     []Key
+	Digest   string
 	Location string
 }
 
@@ -202,7 +204,7 @@ func Load(data []byte, environment string, location string) (*Keyring, error) {
 	if failure := each(keys, func(key Key) Check { return nonproductionKey(key, environment) }); failure != nil {
 		return nil, failure
 	}
-	return &Keyring{Keys: keys, Location: location}, nil
+	return &Keyring{Keys: keys, Digest: Digest(data), Location: location}, nil
 }
 
 // each makes check over every key, in order: the failure of the first key

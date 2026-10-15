@@ -198,14 +198,15 @@ func TestOptions_TheConfiguredBaseURLNeverMovesTheKeyringRead(t *testing.T) {
 // its raw scheme and Host (https://www.truestamp.com:443, the trailing dot
 // and http are read as another origin); the origin's keyring loaded under
 // a fixed "prod" (the staging origin's non-production key is refused); the
-// origin's source put before --keyring FILE.
+// origin's source put before --keyring FILE; trust_root given the digest
+// of the keyring file's path rather than of its bytes.
 func TestOptions_AnExplicitBaseURLMovesTheKeyringRead(t *testing.T) {
 	clearTruestampEnv(t)
 	before := refusals.Load()
 	_, options := loadOptions(t, "", "--base-url", "https://staging.truestamp.example/some/path")
 	run, rejection, reader := configureOptions(t, options)
 	origin := "https://staging.truestamp.example/.well-known/keyring.json"
-	if rejection != nil || run.TrustRoot != (TrustRoot{Kind: KindSuppliedKeyring, Location: origin}) ||
+	if rejection != nil || run.TrustRoot != (TrustRoot{Digest: digestOf(reader.data), Kind: KindSuppliedKeyring, Location: origin}) ||
 		len(reader.urls) != 1 || reader.urls[0] != origin || run.Keyring == nil {
 		t.Fatalf("explicit origin: %v, %+v, read %q", rejection, run.TrustRoot, reader.urls)
 	}
@@ -240,7 +241,7 @@ func TestOptions_AnExplicitBaseURLMovesTheKeyringRead(t *testing.T) {
 	} {
 		_, options = loadOptions(t, "", "--base-url", www)
 		if run, rejection, reader := configureOptions(t, options); rejection != nil ||
-			run.TrustRoot != (TrustRoot{Kind: KindCurrentKeyring, Location: CurrentKeyringURL}) ||
+			run.TrustRoot != (TrustRoot{Digest: digestOf(reader.data), Kind: KindCurrentKeyring, Location: CurrentKeyringURL}) ||
 			len(reader.urls) != 1 || reader.urls[0] != CurrentKeyringURL {
 			t.Errorf("%s under prod: %v, %+v, read %q", www, rejection, run, reader.urls)
 		}
@@ -254,7 +255,7 @@ func TestOptions_AnExplicitBaseURLMovesTheKeyringRead(t *testing.T) {
 	_, options = loadOptions(t, "[verify.keyrings]\nstaging = \""+staging+"\"\n",
 		"--base-url", "https://www.truestamp.com:443", "--environment", "staging")
 	if run, rejection, reader := configureOptions(t, options); rejection != nil ||
-		run.TrustRoot != (TrustRoot{Kind: KindSuppliedKeyring, Location: staging}) || len(reader.urls) != 0 {
+		run.TrustRoot != (TrustRoot{Digest: fileDigest(t, staging), Kind: KindSuppliedKeyring, Location: staging}) || len(reader.urls) != 0 {
 		t.Errorf("www.truestamp.com:443 beside a configured staging keyring: %v, %+v, read %q", rejection, run, reader.urls)
 	}
 
@@ -265,7 +266,7 @@ func TestOptions_AnExplicitBaseURLMovesTheKeyringRead(t *testing.T) {
 	}
 	_, options = loadOptions(t, "", "--base-url", "https://staging.truestamp.example", "--environment", "staging")
 	run, rejection, reader = configureOptionsWith(t, options, data)
-	if rejection != nil || run.TrustRoot != (TrustRoot{Kind: KindSuppliedKeyring, Location: origin}) ||
+	if rejection != nil || run.TrustRoot != (TrustRoot{Digest: digestOf(data), Kind: KindSuppliedKeyring, Location: origin}) ||
 		len(reader.urls) != 1 || run.Keyring == nil || run.KeyringUnavailable {
 		t.Fatalf("a staging origin's non-production key under staging: %v, %+v, read %q", rejection, run, reader.urls)
 	}
@@ -278,7 +279,7 @@ func TestOptions_AnExplicitBaseURLMovesTheKeyringRead(t *testing.T) {
 		_, options = loadOptions(t, "", "--keyring", file, "--base-url", "https://staging.truestamp.example",
 			"--environment", environment)
 		if run, rejection, reader := configureOptions(t, options); rejection != nil ||
-			run.TrustRoot != (TrustRoot{Kind: KindSuppliedKeyring, Location: file}) || len(reader.urls) != 0 {
+			run.TrustRoot != (TrustRoot{Digest: fileDigest(t, file), Kind: KindSuppliedKeyring, Location: file}) || len(reader.urls) != 0 {
 			t.Errorf("--keyring FILE and --base-url under %s: %v, %+v, read %q", environment, rejection, run, reader.urls)
 		}
 	}
@@ -291,8 +292,9 @@ func TestOptions_AnExplicitBaseURLMovesTheKeyringRead(t *testing.T) {
 // names it for: a run under --environment staging loads the staging
 // keyring, and a run under prod, offline or online, ignores it. --keyring
 // FILE and --no-keyring given for the run come first, and a configured
-// keyring that fails a load check is configuration_error. Mutant killed:
-// the configured staging keyring used whatever E_v is.
+// keyring that fails a load check is configuration_error. Mutants killed:
+// the configured staging keyring used whatever E_v is; the configured
+// keyring's digest left out of trust_root.
 func TestOptions_AConfiguredKeyringServesOnlyItsEnvironment(t *testing.T) {
 	clearTruestampEnv(t)
 	staging := writeKeyring(t, testKey("staging"))
@@ -303,7 +305,7 @@ func TestOptions_AConfiguredKeyringServesOnlyItsEnvironment(t *testing.T) {
 		t.Fatalf("the configured keyring did not load: %+v", cfg.Verify.Keyrings)
 	}
 	run, rejection, _ := configureOptions(t, options)
-	if rejection != nil || run.TrustRoot != (TrustRoot{Kind: KindSuppliedKeyring, Location: staging}) {
+	if rejection != nil || run.TrustRoot != (TrustRoot{Digest: fileDigest(t, staging), Kind: KindSuppliedKeyring, Location: staging}) {
 		t.Fatalf("under staging: %v, %+v", rejection, run)
 	}
 	if _, ok := run.Keyring.Find(testKey("staging")); !ok {

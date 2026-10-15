@@ -1,12 +1,34 @@
 // Copyright (c) 2019-2026 Truestamp, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+// This file reads Truestamp's keyring, /.well-known/keyring.json, for the
+// keys commands and the verifier of internal/verify. A keyring's bytes are
+// read through internal/strictjson, the reader of SPEC.md section 10.1
+// (Parsing) that every keyring a verifier loads goes through (section
+// 10.2, step 0), so a body that breaks any of its rules is not a keyring:
+//
+//   - J1: a body over MAX_READ_OCTETS octets;
+//   - J2: a body that begins with a byte order mark, or has content after
+//     its value;
+//   - J3: invalid UTF-8 anywhere in the body, or an escaped lone surrogate;
+//   - J4: an object, at any depth, that repeats a member name;
+//   - J5: a number that overflows binary64, or whose value is an integer
+//     of magnitude above MAX_INTEGER and below 10^21, in any member, read
+//     or not;
+//   - J6: nesting deeper than MAX_DEPTH.
+//
+// Member names match exactly, case included: only keys and version name
+// the keyring's members, and only key_id, public_key, sequence and active a
+// key's, so a member named in another case (KEYS, KEY_ID, Active) is a
+// member of no keyring and is ignored. A sequence is read by its value, so
+// an integral spelling of it (1.0, 1e0) is that integer. The new verifier
+// loads keyrings, with the load checks, in internal/verifier/keyring.
+
 package external
 
 import (
 	"context"
 	"crypto/tls"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"net"
@@ -14,6 +36,7 @@ import (
 	"strings"
 
 	"github.com/truestamp/truestamp-cli/internal/httpclient"
+	"github.com/truestamp/truestamp-cli/internal/strictjson"
 )
 
 // KeyringResponse is the shape of /.well-known/keyring.json.
@@ -23,16 +46,102 @@ type KeyringResponse struct {
 }
 
 // keyringDocument mirrors [KeyringResponse] with `keys` behind a pointer
-// so an absent list is distinguishable from an empty one. Decoding
-// straight into KeyringResponse cannot tell them apart: `{}`, `null`,
-// `{"version":"1"}` and every other JSON object unmarshal without error
-// and leave Keys nil, which reads identically to a keyring that
-// published zero keys. Those are opposite facts, nothing was published
-// versus Truestamp published nothing that vouches for this key, and
-// only the second may fail a proof (E.22).
+// so an absent list is distinguishable from an empty one: `{}`, `null`,
+// `{"version":"1"}` and every other such object leave Keys nil, which must
+// not read as a keyring that published zero keys. Those are opposite
+// facts, nothing was published versus Truestamp published nothing that
+// vouches for this key, and only the second may fail a proof (E.22).
 type keyringDocument struct {
-	Version string        `json:"version"`
-	Keys    *[]KeyringKey `json:"keys"`
+	Version string
+	Keys    *[]KeyringKey
+}
+
+// errNotKeyringShape marks a body the strict reader reads whose value does
+// not have a keyring's shape: not an object or null, or a member of the
+// wrong type.
+var errNotKeyringShape = errors.New("not the shape of a keyring")
+
+// decodeKeyring reads body through the strict reader and takes the members
+// of a keyring from the value it gives: a member that is absent or null is
+// its zero value, a member of no keyring is ignored, an integral spelling
+// of sequence (1.0, 1e0) is that integer, a null element of keys is a zero
+// key, and only the exact name keys is the list. A member of the wrong
+// type, an element of keys that is neither an object nor null, and a
+// sequence that is not an integer of magnitude at most MAX_INTEGER are
+// errors.
+func decodeKeyring(body []byte) (keyringDocument, error) {
+	value, err := strictjson.Decode(body)
+	if err != nil {
+		return keyringDocument{}, err
+	}
+	if value == nil {
+		return keyringDocument{}, nil
+	}
+	object, ok := value.(map[string]any)
+	if !ok {
+		return keyringDocument{}, errNotKeyringShape
+	}
+	var doc keyringDocument
+	if !optional(object["version"], &doc.Version) {
+		return keyringDocument{}, errNotKeyringShape
+	}
+	if object["keys"] == nil {
+		return doc, nil
+	}
+	elements, ok := object["keys"].([]any)
+	if !ok {
+		return keyringDocument{}, errNotKeyringShape
+	}
+	keys := make([]KeyringKey, 0, len(elements))
+	for _, element := range elements {
+		key, ok := keyringKeyOf(element)
+		if !ok {
+			return keyringDocument{}, errNotKeyringShape
+		}
+		keys = append(keys, key)
+	}
+	doc.Keys = &keys
+	return doc, nil
+}
+
+// keyringKeyOf reads one element of keys: null, or an object whose
+// members key_id, public_key, sequence and active, each when present and
+// not null, are of their types.
+func keyringKeyOf(element any) (KeyringKey, bool) {
+	if element == nil {
+		return KeyringKey{}, true
+	}
+	object, ok := element.(map[string]any)
+	if !ok {
+		return KeyringKey{}, false
+	}
+	var key KeyringKey
+	if !optional(object["key_id"], &key.KeyID) || !optional(object["public_key"], &key.PublicKey) ||
+		!optional(object["active"], &key.Active) {
+		return KeyringKey{}, false
+	}
+	if sequence := object["sequence"]; sequence != nil {
+		number, isNumber := sequence.(strictjson.Number)
+		n, isInteger := number.Int64()
+		if !isNumber || !isInteger {
+			return KeyringKey{}, false
+		}
+		key.Sequence = int(n)
+	}
+	return key, true
+}
+
+// optional sets *into to value when value is of its type, leaves it when
+// value is absent or null, and reports whether value was either.
+func optional[T any](value any, into *T) bool {
+	if value == nil {
+		return true
+	}
+	typed, ok := value.(T)
+	if ok {
+		*into = typed
+	}
+	return ok
 }
 
 // KeyringKey is a single entry in the keyring.
@@ -152,8 +261,8 @@ func VerifyKeyring(signingKeys map[string]string, keyringURL string) error {
 		return &keyringNetError{friendly: classifyNetworkError(err), inner: err}
 	}
 
-	var doc keyringDocument
-	if err := json.Unmarshal(resp, &doc); err != nil {
+	doc, err := decodeKeyring(resp)
+	if err != nil {
 		return &MalformedResponseError{Source: "keyring", Detail: "response is not a JSON keyring document", Err: err}
 	}
 
@@ -200,13 +309,13 @@ func FetchKeyring(keyringURL string) (*KeyringResponse, error) {
 	return ParseKeyring(resp)
 }
 
-// ParseKeyring decodes a keyring document. A body without a `keys` list is
-// not a keyring at all (a captive portal, a CDN stub) and is graded
-// malformed, so it can never manufacture "not found in keyring" out of a
-// document that never had a keys list.
+// ParseKeyring decodes a keyring document through the strict reader. A
+// body without a `keys` list is not a keyring at all (a captive portal, a
+// CDN stub) and is graded malformed, so it can never manufacture "not
+// found in keyring" out of a document that never had a keys list.
 func ParseKeyring(body []byte) (*KeyringResponse, error) {
-	var doc keyringDocument
-	if err := json.Unmarshal(body, &doc); err != nil {
+	doc, err := decodeKeyring(body)
+	if err != nil {
 		return nil, &MalformedResponseError{Source: "keyring", Detail: "response is not a JSON keyring document", Err: err}
 	}
 	if doc.Keys == nil {

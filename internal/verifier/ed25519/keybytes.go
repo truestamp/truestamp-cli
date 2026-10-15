@@ -2,14 +2,17 @@
 // SPDX-License-Identifier: Apache-2.0
 
 // Package ed25519 holds the strict Ed25519 rule of SPEC.md section 6.2
-// (Strict verification) for the new verifier. This file ports the checks of
-// a key's bytes of the reference verifier's Truestamp.Verifier.Ed25519
-// (elixir/lib/truestamp/verifier/ed25519.ex in truestamp-verification),
-// check_key_bytes/1: steps 2 and 3 of Verify(A, msg, S), which a verifier
-// also makes outside Verify, on K at ENVELOPE (SPEC.md section 10.2, step
-// 3), on each key of a keyring it loads (step 0), and on each key event's
-// public_key at DERIVE. Go's crypto/ed25519 makes neither step, so they are
-// made here, before any library is called.
+// (Strict verification) for the new verifier: [CheckKeyBytes], the checks
+// of a key's bytes (this file), and [Verify], Verify(A, msg, S), which makes
+// them and then calls Go's crypto/ed25519 (verify.go).
+//
+// This file ports the checks of a key's bytes of the reference verifier's
+// Truestamp.Verifier.Ed25519 (elixir/lib/truestamp/verifier/ed25519.ex in
+// truestamp-verification), check_key_bytes/1: steps 2 and 3 of Verify(A,
+// msg, S), which a verifier also makes outside Verify, on K at ENVELOPE
+// (SPEC.md section 10.2, step 3), on each key of a keyring it loads (step
+// 0), and on each key event's public_key at DERIVE. Go's crypto/ed25519
+// makes neither step, so they are made here, before any library is called.
 //
 // Adapted from the reference: a key is a [32]byte, so a key of any other
 // length cannot be passed; y is compared with p through math/big; and
