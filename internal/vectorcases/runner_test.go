@@ -2,14 +2,17 @@
 // SPDX-License-Identifier: Apache-2.0
 
 // The per-step runner over the conformance cases of SPEC.md section 13.2,
-// as the reference verifier's elixir/test/verifier/gate_cases_test.exs runs
-// them, here through steps CONFIGURATION to SIGNATURE (SPEC.md section
-// 10.2), the gate, with internal/verifier.
+// through steps CONFIGURATION to SHAPE (SPEC.md section 10.2), the gate and
+// checks 1 to 3 of SHAPE, with internal/verifier. It ports two of the
+// reference verifier's tests: elixir/test/verifier/gate_cases_test.exs for
+// steps 0 to 6, and elixir/test/verifier/shape_policy_cases_test.exs for
+// SHAPE.
 
 package vectorcases_test
 
 import (
 	"errors"
+	"fmt"
 	"os"
 	"slices"
 	"strings"
@@ -28,9 +31,12 @@ import (
 // built so far and compares what SPEC.md section 13.1 compares, cut at the
 // last of them: a case decided at a later step is held only to passing
 // these. lastBuilt names that last step, and run runs the steps from
-// firstBuilt to it. A run whose gate fails has ended, and every row it
-// will report is made, so all of its rows are compared, the skip
-// prior_failure rows of the later steps included.
+// firstBuilt to it. A run whose gate or SHAPE fails has ended, and every
+// row it will report is made, so all of its rows are compared, the skip
+// prior_failure rows of the later steps included. SHAPE makes checks 1 to
+// 3 of its six, so a case that fails one of checks 4 to 6
+// (laterShapeChecks) passes SHAPE and is held to its rows through
+// SIGNATURE, and to a SHAPE that passes.
 //
 // An online case runs online, every read it makes answered from its replay
 // file by the replay adapter (vectorcases.Replay, SPEC.md section 13.2), so
@@ -43,20 +49,42 @@ import (
 // under the pins its networks give, never the defaults of its E_v.
 
 // lastBuilt is the last step the runner runs.
-const lastBuilt = "SIGNATURE"
+const lastBuilt = "SHAPE"
 
 // firstBuilt is the first.
 const firstBuilt = "CONFIGURATION"
 
+// laterShapeChecks are the cases a check of SHAPE after check 3 decides,
+// by that check: 4, the witnesses of an item; 5, the TIME and NISTTIME
+// round trips; 6, the constructions digest. Each passes checks 1 to 3.
+var laterShapeChecks = map[string]int{
+	"shape-witnesses-missing":                 4,
+	"shape-witnesses-extra":                   4,
+	"shape-time-hour_24":                      5,
+	"shape-time-february_30":                  5,
+	"shape-time-second_60":                    5,
+	"shape-time-february_29-1900":             5,
+	"shape-time-february_29-2100":             5,
+	"shape-first_of_two-times":                5,
+	"shape-first_of_two-times-mirror":         5,
+	"shape-constructions-byte_changed":        6,
+	"shape-constructions-row_missing":         6,
+	"shape-constructions-merkle_path_swapped": 6,
+	"shape-reference-not_accepted":            6,
+}
+
 // outcome is what the built steps give for a case: a bare rejection, or
-// the rows of the steps that passed, whether the gate ended the run, its
-// attribution, and the first row whose values JCS cannot write.
+// the rows of the steps that passed, whether the gate or SHAPE ended the
+// run, its attribution, the type and subject id it took at SHAPE, and the
+// first row whose values JCS cannot write.
 type outcome struct {
 	code        string
 	subReason   string
 	rows        []vectorcases.Row
 	ended       bool
 	attribution string
+	typ         string
+	subjectID   string
 	badValues   error
 }
 
@@ -121,7 +149,7 @@ func bareOf(rejection *verifier.Rejection) outcome {
 // reportOf is the outcome of a run that passed steps 0 to 3, its rows from
 // the one at index from.
 func reportOf(run *verifier.Run, from int) outcome {
-	o := outcome{rows: rowsOf(run)[from:], ended: run.Ended, attribution: run.Attribution}
+	o := outcome{rows: rowsOf(run)[from:], ended: run.Ended, attribution: run.Attribution, typ: run.Type, subjectID: run.SubjectID}
 	for _, row := range run.Rows {
 		if _, err := jcs.Encode(row.Values); err != nil && o.badValues == nil {
 			o.badValues = err
@@ -210,9 +238,9 @@ func (a *caseReplay) reads() []string {
 	return slices.Sorted(slices.Values(a.identityReads))
 }
 
-// run runs the built steps over the case's proof file, from CONFIGURATION,
-// an online case's keyring and identity reads answered by the replay
-// adapter. Each online case under prod with no keyring option reads the
+// run runs the built steps over the case's proof file, from CONFIGURATION
+// to SHAPE, an online case's keyring and identity reads answered by the
+// replay adapter. Each online case under prod with no keyring option reads the
 // keyring of www.truestamp.com once, and no other case reads one. Each
 // online case that passes CONFIGURATION has a source for every pin,
 // confirmed unless its file's identity read of that network is
@@ -248,6 +276,7 @@ func runCase(t *testing.T, c vectorcases.Case) (outcome, *caseReplay) {
 		return bareOf(rejection), replay
 	}
 	checkSources(t, c, r, replay)
+	verifier.Shape(r)
 	return reportOf(r, 0), replay
 }
 
@@ -342,12 +371,61 @@ func attributionFits(attribution, label string) bool {
 	return false
 }
 
+// gateFails reports whether rows, a case's expected rows, fail at the gate.
+func gateFails(rows []vectorcases.Row) bool {
+	return slices.ContainsFunc(rowsBetween("ENVIRONMENT", "SIGNATURE", rows), func(row vectorcases.Row) bool {
+		return row.Status == "fail"
+	})
+}
+
+// shapeRow returns a case's expected SHAPE row.
+func shapeRow(t *testing.T, c vectorcases.Case) vectorcases.Row {
+	t.Helper()
+	rows := rowsBetween("SHAPE", "SHAPE", c.Expected.Rows)
+	if len(rows) != 1 {
+		t.Fatalf("%s: SHAPE rows %v", c.ID, rows)
+	}
+	return rows[0]
+}
+
+// proofOf returns P of a case's proof, read by the strict reader.
+func proofOf(t *testing.T, c vectorcases.Case) map[string]any {
+	t.Helper()
+	value, err := strictjson.ReadFile(c.ProofPath())
+	if err == nil {
+		var parsed any
+		if parsed, err = strictjson.Parse(value); err == nil {
+			return parsed.(map[string]any)["proof"].(map[string]any)
+		}
+	}
+	t.Fatalf("%s: %v", c.ID, err)
+	return nil
+}
+
+// typeAndSubject returns the type and subject id P carries (SPEC.md
+// section 10.5), read here without the verifier.
+func typeAndSubject(proof map[string]any) (string, string) {
+	typ, _ := proof["type"].(string)
+	holder := "subject"
+	if typ == "block" || typ == "beacon" {
+		holder = "block"
+	}
+	node, _ := proof[holder].(map[string]any)
+	record, _ := node["record"].(map[string]any)
+	id, _ := record["id"].(string)
+	return typ, id
+}
+
 // Every case of cases.json through the built steps: a case they decide
 // gives exactly its code and sub_reason; every other case passes steps 0
 // to 3, and a report's rows of the built steps are exactly its expected
-// rows, all of them when the gate ends the run, whose label is then failed
-// and whose attribution is none; a run the gate opens has the attribution
-// its label needs; every row's values write with JCS; the five online
+// rows, all of them when the gate or SHAPE ends the run, whose label is
+// then failed, with the attribution none when the gate ended it and the
+// attribution SIGNATURE gave it when SHAPE did; a run the gate opens has
+// the attribution its label needs; a run SHAPE passes takes the type and
+// subject id its proof carries, and any other run neither; a case one of
+// SHAPE's checks 4 to 6 decides passes SHAPE, its rows through SIGNATURE
+// exactly as expected; every row's values write with JCS; the five online
 // cases CONFIGURATION decides give configuration_error through the replay
 // adapter; every other online case has a source for each pin and reads
 // each pinned network's identity once; and the two online cases whose keyring
@@ -371,8 +449,12 @@ func attributionFits(attribution, label string) bool {
 // the proof_hash prefix 0x50 replaced by 0x31 (every sound case fails
 // SIGNATURE); EndRun leaving out the skip rows (every gate failure's rows
 // differ); Configure without its source confirmation (the five
-// configuration-online cases pass CONFIGURATION).
-func TestCases_ThroughSignature(t *testing.T) {
+// configuration-online cases pass CONFIGURATION); the runner without its
+// call to Shape (every SHAPE row is missing); Shape giving the subject id
+// of /subject/record/id to every type (the block and beacon cases take
+// none, and panic); a SHAPE failure setting the attribution none (the 50
+// that fail at SHAPE).
+func TestCases_ThroughShape(t *testing.T) {
 	cases, err := vectorcases.Load()
 	if err != nil {
 		t.Fatal(err)
@@ -402,15 +484,28 @@ func TestCases_ThroughSignature(t *testing.T) {
 			if got.badValues != nil {
 				t.Fatalf("a row's values: %v", got.badValues)
 			}
+			on := map[bool]string{false: "", true: "online "}[online]
 			want := c.Expected.Rows
-			switch {
-			case got.ended:
-				tally[map[bool]string{false: "report, the gate fails", true: "online report, the gate fails"}[online]]++
+			switch _, later := laterShapeChecks[c.ID]; {
+			case later:
+				tally[on+"report, SHAPE checks 4 to 6 decide it"]++
+				shape := rowsBetween("SHAPE", "SHAPE", got.rows)
+				if got.ended || len(shape) != 1 || shape[0].String() != passRow("SHAPE").String() || shapeRow(t, c).Status != "fail" {
+					t.Fatalf("SHAPE rows %v, ended %v; checks 1 to 3 pass and a later check fails", shape, got.ended)
+				}
+				got.rows, want = rowsBetween(firstBuilt, "SIGNATURE", got.rows), rowsBetween(firstBuilt, "SIGNATURE", want)
+			case got.ended && gateFails(want):
+				tally[on+"report, the gate fails"]++
 				if c.Expected.Label != "failed" || got.attribution != verifier.AttributionNone {
 					t.Fatalf("the gate ended the run with attribution %q; the case's label is %s", got.attribution, c.Expected.Label)
 				}
+			case got.ended:
+				tally[on+"report, SHAPE fails"]++
+				if c.Expected.Label != "failed" || got.attribution == verifier.AttributionNone || !attributionFits(got.attribution, "failed") {
+					t.Fatalf("SHAPE ended the run with attribution %q; the case's label is %s", got.attribution, c.Expected.Label)
+				}
 			default:
-				tally[map[bool]string{false: "report, the gate passes", true: "online report, the gate passes"}[online]]++
+				tally[on+"report, SHAPE passes"]++
 				want = rowsThrough(want)
 				if !attributionFits(got.attribution, c.Expected.Label) {
 					t.Fatalf("attribution %q, label %s", got.attribution, c.Expected.Label)
@@ -419,19 +514,29 @@ func TestCases_ThroughSignature(t *testing.T) {
 			if !rowsEqual(got.rows, want) {
 				t.Fatalf("rows = %v, want %v", got.rows, want)
 			}
+			passed := !got.ended
+			typ, subject := typeAndSubject(proofOf(t, c))
+			if passed && (got.typ != typ || got.subjectID != subject || subject == "") {
+				t.Fatalf("type %q, subject id %q; the proof carries %q, %q", got.typ, got.subjectID, typ, subject)
+			}
+			if !passed && (got.typ != "" || got.subjectID != "") {
+				t.Fatalf("an ended run took the type %q and subject id %q", got.typ, got.subjectID)
+			}
 		})
 	}
 
 	want := map[string]int{
-		"rejected at CONFIGURATION":         11,
-		"online, rejected at CONFIGURATION": 5,
-		"rejected at READ":                  1,
-		"rejected at PARSE":                 15,
-		"rejected at ENVELOPE":              32,
-		"report, the gate fails":            30,
-		"report, the gate passes":           285,
-		"online report, the gate passes":    62,
-		"online report, the gate fails":     2,
+		"rejected at CONFIGURATION":             11,
+		"online, rejected at CONFIGURATION":     5,
+		"rejected at READ":                      1,
+		"rejected at PARSE":                     15,
+		"rejected at ENVELOPE":                  32,
+		"report, the gate fails":                30,
+		"report, SHAPE fails":                   50,
+		"report, SHAPE checks 4 to 6 decide it": 13,
+		"report, SHAPE passes":                  222,
+		"online report, SHAPE passes":           62,
+		"online report, the gate fails":         2,
 	}
 	if len(tally) != len(want) {
 		t.Fatalf("tally = %v, want %v", tally, want)
@@ -440,6 +545,130 @@ func TestCases_ThroughSignature(t *testing.T) {
 		if tally[k] != n {
 			t.Fatalf("tally = %v, want %v", tally, want)
 		}
+	}
+}
+
+// The families cut at SHAPE are SPEC.md section 13.3's, past a gate each
+// passes: the 57 shape-* cases, three unsupported_format, two
+// unsupported_version, 38 shape_invalid at check 3, the 13 of checks 4 to 6
+// (laterShapeChecks), each passing checks 1 to 3 here, and
+// shape-time-february_29-0000, which passes; the 6 empty_root-* cases, one
+// with leaves under the empty root and one with no leaves under another
+// root at each of /block, /witnesses/block and /signing_key_event/block,
+// each shape_invalid at that record's merkle_root by the schema's
+// empty-root rule; and gates-shape, unsupported_version. Each case decided
+// by checks 1 to 3 gives its row, and check 3's row is the first in
+// document order of the schema's failures; the two shape-first_of_two-schema
+// cases each carry two failures of check 3 and give the first. Mutants
+// killed: checks 1 and 2 made after the schema (shape-format-absent and
+// shape-version-absent fail shape_invalid); the schema's if applying then
+// whatever its schema gives (the empty_root-*-leaves cases pass); the
+// failures left in the order the checker meets them
+// (shape-first_of_two-schema-mirror fails at previous_block_hash); not
+// passing what its schema fails (every proof fails at a not).
+func TestCases_FamiliesCutAtShape(t *testing.T) {
+	cases, err := vectorcases.Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	const emptyRoot = "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+	checks := map[string]map[string]int{}
+	positions := map[string]bool{}
+	for _, c := range cases {
+		family := c.Family()
+		if family != "shape" && family != "empty_root" && c.ID != "gates-shape" {
+			continue
+		}
+		if c.Config.Online != nil || c.Expected.Bare() || gateFails(c.Expected.Rows) {
+			t.Fatalf("%s is not an offline report past the gate", c.ID)
+		}
+		if checks[family] == nil {
+			checks[family] = map[string]int{}
+		}
+		row := shapeRow(t, c)
+		proof := proofOf(t, c)
+		failures := verifier.ProofFailures(proof)
+		code := "pass"
+		if row.Code != nil {
+			code = *row.Code
+		}
+		if check, later := laterShapeChecks[c.ID]; later {
+			checks[family][fmt.Sprintf("check %d", check)]++
+			part := *row.Part
+			ok := len(failures) == 0 && map[int]bool{
+				4: part == "/witnesses" && code == "shape_invalid",
+				5: code == "shape_invalid" && (strings.HasSuffix(part, "/closed_at") || strings.HasSuffix(part, "/timeStamp") || strings.HasSuffix(part, "/header_time")),
+				6: part == "/constructions" && code == "construction_mismatch",
+			}[check]
+			if !ok {
+				t.Errorf("%s: %v, schema failures %v; not a case of check %d", c.ID, row, failures, check)
+			}
+			continue
+		}
+		checks[family][code]++
+		got := run(t, c)
+		if gotShape := rowsBetween("SHAPE", "SHAPE", got.rows); len(gotShape) != 1 || gotShape[0].String() != row.String() {
+			t.Errorf("%s: SHAPE rows %v, want %v", c.ID, gotShape, row)
+		}
+		switch code {
+		case "pass":
+			if len(failures) != 0 {
+				t.Errorf("%s: schema failures %v", c.ID, failures)
+			}
+		case "shape_invalid":
+			if len(failures) == 0 || failures[0].Part.Encode() != *row.Part {
+				t.Errorf("%s: schema failures %v, want the first at %s", c.ID, failures, *row.Part)
+			}
+		}
+		if strings.HasPrefix(c.ID, "shape-first_of_two-schema") {
+			parts := map[string]bool{}
+			for _, f := range failures {
+				parts[f.Part.Encode()] = true
+			}
+			if len(parts) < 2 {
+				t.Errorf("%s: schema failures %v, want two parts", c.ID, failures)
+			}
+		}
+		if family == "empty_root" {
+			position, kind, _ := strings.Cut(strings.TrimPrefix(c.ID, "empty_root-"), "-")
+			at := map[string][]string{
+				"block":                   {"block"},
+				"witnesses_block":         {"witnesses", "block"},
+				"signing_key_event_block": {"signing_key_event", "block"},
+			}[position]
+			record := proof
+			for _, name := range append(slices.Clone(at), "record") {
+				record, _ = record[name].(map[string]any)
+			}
+			count, _ := record["leaf_count"].(strictjson.Number)
+			root, _ := record["merkle_root"].(string)
+			wantPart := "/" + strings.Join(at, "/") + "/record/merkle_root"
+			holds := map[string]bool{"leaves": count >= 1 && root == emptyRoot, "root": count == 0 && root != emptyRoot && len(root) == 64}[kind]
+			if !holds || *row.Part != wantPart || code != "shape_invalid" ||
+				!strings.HasPrefix(failures[0].Schema, "#/$defs/BLOCK_RECORD/allOf/0/") {
+				t.Errorf("%s: leaf_count %v, merkle_root %q, row %v, failures %v", c.ID, count, root, row, failures)
+			}
+			positions[position+" "+kind] = true
+		}
+	}
+	want := map[string]map[string]int{
+		"shape": {"unsupported_format": 3, "unsupported_version": 2, "shape_invalid": 38, "pass": 1,
+			"check 4": 2, "check 5": 7, "check 6": 4},
+		"empty_root": {"shape_invalid": 6},
+		"gates":      {"unsupported_version": 1},
+	}
+	for family, codes := range want {
+		if len(checks[family]) != len(codes) {
+			t.Fatalf("%s: %v, want %v", family, checks[family], codes)
+		}
+		for code, n := range codes {
+			if checks[family][code] != n {
+				t.Fatalf("%s: %v, want %v", family, checks[family], codes)
+			}
+		}
+	}
+	if len(positions) != 6 {
+		t.Fatalf("empty_root positions and kinds: %v", positions)
 	}
 }
 

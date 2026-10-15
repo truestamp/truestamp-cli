@@ -9,9 +9,10 @@
 // far and what the later steps read. CONFIGURATION ([Configure]) creates
 // the run from a [Config]; READ, PARSE and ENVELOPE each take it, add their
 // row and give nil, or give a bare rejection. So a run that reaches the
-// caller has passed steps 0 to 3. ENVIRONMENT, KEY_BINDING and SIGNATURE
-// each take it and add their row; a failure at any of them ends it
-// ([Run.EndRun]).
+// caller has passed steps 0 to 3. ENVIRONMENT, KEY_BINDING, SIGNATURE and
+// SHAPE each take it and add their row; a failure at any of them ends it
+// ([Run.EndRun]), and a SHAPE that passes gives the run its type and
+// subject id.
 //
 // Adapted from the reference: the CLI runs online, so the run says when
 // the keyring that would govern could not be read (KEY_BINDING then fails
@@ -19,9 +20,8 @@
 // takes the kind current_keyring, which the always-offline reference never
 // gives, and the run holds the outcome of each source's identity read
 // (SPEC.md section 10.2, step 0), as the Truestamp application's run holds
-// its sources. The members the later steps set (the type and subject id, the
-// trace, the external gate, the label and the edges) join with the steps
-// that set them.
+// its sources. Its members are those steps 0 to 7 set; it holds no trace,
+// external gate, label or edges.
 
 package verifier
 
@@ -90,6 +90,8 @@ const (
 //	| BoundKey            | the key of the keyring whose 32 octets equal K's, or nil     | KEY_BINDING   |
 //	| ProofHash           | proof_hash, computed from P as parsed                       | SIGNATURE     |
 //	| Attribution         | attribution (SPEC.md section 10.5): truestamp, keyring:<d> or unattributed when SIGNATURE passes, none when the gate fails, "" before | SIGNATURE, or a failure at steps 4 to 6 |
+//	| Type                | the proof's type, which SHAPE has held to the type registry; "" until SHAPE passes, which a report writes as null | SHAPE |
+//	| SubjectID           | the subject's id: /subject/record/id, or /block/record/id for block and beacon (SPEC.md section 10.5); "" until SHAPE passes, which a report writes as null | SHAPE |
 //	| Rows                | the rows so far, in step order                              | every step    |
 //	| Ended               | whether a failure ended the run                             | a failure at steps 4 to 7, or a caught fault from ENVIRONMENT on |
 type Run struct {
@@ -105,6 +107,8 @@ type Run struct {
 	BoundKey           *keyring.Key
 	ProofHash          [32]byte
 	Attribution        string
+	Type               string
+	SubjectID          string
 	Rows               []Row
 	Ended              bool
 }
