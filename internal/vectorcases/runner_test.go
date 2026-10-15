@@ -2,21 +2,27 @@
 // SPDX-License-Identifier: Apache-2.0
 
 // The per-step runner over the conformance cases of SPEC.md section 13.2,
-// through steps CONFIGURATION to POLICY (SPEC.md section 10.2), the gate,
-// SHAPE and POLICY, with internal/verifier. It ports two of the reference
-// verifier's tests: elixir/test/verifier/gate_cases_test.exs for steps 0
-// to 6, and elixir/test/verifier/shape_policy_cases_test.exs for SHAPE and
-// POLICY, the check of where each value of their rows comes from included.
+// through steps CONFIGURATION to DERIVE (SPEC.md section 10.2), the gate,
+// SHAPE, POLICY and DERIVE, with internal/verifier. It ports three of the
+// reference verifier's tests: elixir/test/verifier/gate_cases_test.exs for
+// steps 0 to 6, elixir/test/verifier/shape_policy_cases_test.exs for SHAPE
+// and POLICY, the check of where each value of their rows comes from
+// included, and elixir/test/verifier/derive_cases_test.exs for DERIVE, its
+// rows, their values and the trace, checked against the application's
+// derive_cases_test.exs, which cuts DERIVE at the checks built so far as
+// this runner does.
 
 package vectorcases_test
 
 import (
 	"crypto/sha256"
 	"encoding/hex"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"maps"
 	"os"
+	"path/filepath"
 	"slices"
 	"strings"
 	"sync"
@@ -36,9 +42,17 @@ import (
 // these. lastBuilt names that last step, and run runs the steps from
 // firstBuilt to it. A run whose gate or SHAPE fails has ended, and every
 // row it will report is made, so all of its rows are compared, the skip
-// prior_failure rows of the later steps included. A failure at POLICY does
-// not end the run, so a case POLICY fails is held, as any other open run
-// is, to its rows through POLICY.
+// prior_failure rows of the later steps included. A failure at POLICY or
+// DERIVE does not end the run, so a case either fails is held, as any
+// other open run is, to its rows through DERIVE.
+//
+// DERIVE is cut at the checks built so far (derive_model_test.go): parts
+// (a) to (c) of step 9 and LINK_INCLUSION. Its expected rows are those of
+// these checks' parts, in order (expectedThrough); the rows of the key
+// events, the Bitcoin evidence and the other links are left out by their
+// parts, and LINK_HEAD's, which shares /witnesses/block/record/height with
+// the genesis check and comes after it, as the last row at that part in an
+// item.
 //
 // An online case runs online, every read it makes answered from its replay
 // file by the replay adapter (vectorcases.Replay, SPEC.md section 13.2), so
@@ -51,7 +65,7 @@ import (
 // under the pins its networks give, never the defaults of its E_v.
 
 // lastBuilt is the last step the runner runs.
-const lastBuilt = "POLICY"
+const lastBuilt = "DERIVE"
 
 // firstBuilt is the first.
 const firstBuilt = "CONFIGURATION"
@@ -82,6 +96,7 @@ var laterShapeChecks = map[string]int{
 // its attribution, the type and subject id it took at SHAPE, and the first
 // row whose values JCS cannot write.
 type outcome struct {
+	run         *verifier.Run
 	code        string
 	subReason   string
 	rows        []vectorcases.Row
@@ -162,7 +177,7 @@ func bareOf(rejection *verifier.Rejection) outcome {
 // the one at index from.
 func reportOf(run *verifier.Run, from int) outcome {
 	rows := rowsOf(run)
-	o := outcome{rows: rows[from:], ended: run.Ended, failed: run.Failed(), attribution: run.Attribution, typ: run.Type, subjectID: run.SubjectID}
+	o := outcome{run: run, rows: rows[from:], ended: run.Ended, failed: run.Failed(), attribution: run.Attribution, typ: run.Type, subjectID: run.SubjectID}
 	for i, row := range run.Rows {
 		if _, err := jcs.Encode(row.Values); err != nil && o.badValues == nil {
 			o.badValues = err
@@ -255,7 +270,7 @@ func (a *caseReplay) reads() []string {
 }
 
 // run runs the built steps over the case's proof file, from CONFIGURATION
-// to POLICY, an online case's keyring and identity reads answered by the
+// to DERIVE, an online case's keyring and identity reads answered by the
 // replay adapter. Each online case under prod with no keyring option reads the
 // keyring of www.truestamp.com once, and no other case reads one. Each
 // online case that passes CONFIGURATION has a source for every pin,
@@ -294,6 +309,7 @@ func runCase(t *testing.T, c vectorcases.Case) (outcome, *caseReplay) {
 	checkSources(t, c, r, replay)
 	verifier.Shape(r)
 	verifier.Policy(r)
+	verifier.Derive(r)
 	return reportOf(r, 0), replay
 }
 
@@ -367,6 +383,36 @@ func rowsFrom(first string, rows []vectorcases.Row) []vectorcases.Row {
 // rowsThrough returns the rows of the steps from firstBuilt to lastBuilt.
 func rowsThrough(rows []vectorcases.Row) []vectorcases.Row {
 	return rowsFrom(firstBuilt, rows)
+}
+
+// expectedThrough returns a case's expected rows from firstBuilt to
+// lastBuilt, its DERIVE rows cut at the checks built so far: a part-null
+// row, and each row at a part of these checks (builtPart), but LINK_HEAD's,
+// the last row at /witnesses/block/record/height in an item that reaches
+// DERIVE.
+func expectedThrough(t *testing.T, c vectorcases.Case, proof map[string]any) []vectorcases.Row {
+	t.Helper()
+	rows := rowsThrough(c.Expected.Rows)
+	head := -1
+	if proof["type"] == "item" {
+		for i, row := range rows {
+			if row.Step == "DERIVE" && row.Part != nil && *row.Part == linkHeadPart {
+				head = i
+			}
+		}
+		reaches := slices.ContainsFunc(rows, func(row vectorcases.Row) bool { return row.Step == "DERIVE" && row.Part != nil })
+		if reaches && head < 0 {
+			t.Fatalf("%s: an item that reaches DERIVE gives no LINK_HEAD row", c.ID)
+		}
+	}
+	var out []vectorcases.Row
+	for i, row := range rows {
+		if row.Step == "DERIVE" && row.Part != nil && (i == head || !builtPart(*row.Part)) {
+			continue
+		}
+		out = append(out, row)
+	}
+	return out
 }
 
 func rowsEqual(a, b []vectorcases.Row) bool {
@@ -545,10 +591,13 @@ func unsourced(t *testing.T, c vectorcases.Case, o outcome) []string {
 // then failed, with the attribution none when the gate ended it and the
 // attribution SIGNATURE gave it when SHAPE did; a run the gate opens has
 // the attribution its label needs; a run SHAPE passes takes the type and
-// subject id its proof carries, stays open through POLICY, and has a
-// failing row exactly when its expected POLICY rows do, and any other run
-// takes neither; every row's values write with JCS, and each value of a
-// row of SHAPE or POLICY is one the run computed or holds (valueSourced),
+// subject id its proof carries, stays open through DERIVE, and has a
+// failing row exactly when its expected rows of POLICY and of DERIVE's
+// built checks do, and any other run takes neither; a run that reaches
+// DERIVE has exactly the rows and trace of DERIVE's built checks that the
+// model of derive_model_test.go gives (checkDerive), and a run that ended
+// before it has no trace; every row's values write with JCS, and each
+// value of a row of SHAPE or POLICY is one the run computed or holds (valueSourced),
 // every SHAPE row's keyword "false" or one of verifier.SchemaKeywords()
 // among them; the five online cases CONFIGURATION decides give
 // configuration_error through the replay adapter; every other online case
@@ -585,8 +634,11 @@ func unsourced(t *testing.T, c vectorcases.Case, o outcome) []string {
 // proof's network as the pin (each POLICY failure's pin is unsourced);
 // policyComparisons comparing genesis.bitcoin with the entropy pin (each
 // genesis row's pin_kind is unsourced, though every case with a genesis
-// row pins one Bitcoin network for both kinds).
-func TestCases_ThroughPolicy(t *testing.T) {
+// row pins one Bitcoin network for both kinds); the runner without its
+// call to Derive (every DERIVE row of a built check is missing); Derive
+// ending the run at a failing row (the 68 cases that fail at DERIVE get
+// skip rows).
+func TestCases_ThroughDerive(t *testing.T) {
 	cases, err := vectorcases.Load()
 	if err != nil {
 		t.Fatal(err)
@@ -639,11 +691,20 @@ func TestCases_ThroughPolicy(t *testing.T) {
 					t.Fatalf("SHAPE ended the run with attribution %q; the case's label is %s", got.attribution, c.Expected.Label)
 				}
 			default:
-				want = rowsThrough(want)
-				policyFails := slices.ContainsFunc(want, func(row vectorcases.Row) bool { return row.Status == "fail" })
-				tally[on+map[bool]string{false: "report, POLICY passes", true: "report, POLICY fails"}[policyFails]]++
-				if got.failed != policyFails {
-					t.Fatalf("the run failed %v; its expected rows through POLICY fail %v", got.failed, policyFails)
+				want = expectedThrough(t, c, proofOf(t, c))
+				fails := func(step string) bool {
+					return slices.ContainsFunc(rowsBetween(step, step, want), func(row vectorcases.Row) bool { return row.Status == "fail" })
+				}
+				switch {
+				case fails("POLICY"):
+					tally[on+"report, POLICY fails"]++
+				case fails("DERIVE"):
+					tally[on+"report, DERIVE fails"]++
+				default:
+					tally[on+"report, passes through DERIVE"]++
+				}
+				if got.failed != (fails("POLICY") || fails("DERIVE")) {
+					t.Fatalf("the run failed %v; its expected rows through DERIVE fail %v", got.failed, fails("POLICY") || fails("DERIVE"))
 				}
 				if !attributionFits(got.attribution, c.Expected.Label) {
 					t.Fatalf("attribution %q, label %s", got.attribution, c.Expected.Label)
@@ -660,22 +721,29 @@ func TestCases_ThroughPolicy(t *testing.T) {
 			if !passed && (got.typ != "" || got.subjectID != "") {
 				t.Fatalf("an ended run took the type %q and subject id %q", got.typ, got.subjectID)
 			}
+			if passed {
+				checkDerive(t, c, got.run)
+			} else if got.run.Trace != nil {
+				t.Fatalf("a run that ended before DERIVE has a trace %v", got.run.Trace)
+			}
 		})
 	}
 
 	want := map[string]int{
-		"rejected at CONFIGURATION":         11,
-		"online, rejected at CONFIGURATION": 5,
-		"rejected at READ":                  1,
-		"rejected at PARSE":                 15,
-		"rejected at ENVELOPE":              32,
-		"report, the gate fails":            30,
-		"report, SHAPE fails":               63,
-		"report, POLICY fails":              14,
-		"report, POLICY passes":             208,
-		"online report, POLICY passes":      61,
-		"online report, POLICY fails":       1,
-		"online report, the gate fails":     2,
+		"rejected at CONFIGURATION":            11,
+		"online, rejected at CONFIGURATION":    5,
+		"rejected at READ":                     1,
+		"rejected at PARSE":                    15,
+		"rejected at ENVELOPE":                 32,
+		"report, the gate fails":               30,
+		"report, SHAPE fails":                  63,
+		"report, POLICY fails":                 14,
+		"report, DERIVE fails":                 67,
+		"report, passes through DERIVE":        141,
+		"online report, passes through DERIVE": 60,
+		"online report, POLICY fails":          1,
+		"online report, DERIVE fails":          1,
+		"online report, the gate fails":        2,
 	}
 	if len(tally) != len(want) {
 		t.Fatalf("tally = %v, want %v", tally, want)
@@ -866,7 +934,7 @@ func TestCases_FamiliesCutAtShape(t *testing.T) {
 // it: 11 sameness-format-* and the five other spellings in full mode, 11
 // sameness-reference-* in reference mode and 11 sameness-none-* with none.
 // Every one of them passes SHAPE and POLICY whole, so its rows through
-// POLICY are those of TestCases_ThroughPolicy. Mutants killed: check 6
+// POLICY are those of TestCases_ThroughDerive. Mutants killed: check 6
 // giving the full mode's values for a reference (each
 // sameness-reference-* row names full); the pass row with no values (each
 // row names no mode); d computed over encoding/json's Marshal of the text
@@ -1316,5 +1384,263 @@ func TestCases_TheOnlineConfigurationCases(t *testing.T) {
 	}
 	if seen != len(want) {
 		t.Fatalf("%d configuration-online cases, want %d", seen, len(want))
+	}
+}
+
+// failingDerive returns a run's failing DERIVE rows.
+func failingDerive(run *verifier.Run) []verifier.Row {
+	var out []verifier.Row
+	for _, row := range run.Rows {
+		if row.Step == "DERIVE" && row.Status == verifier.StatusFail {
+			out = append(out, row)
+		}
+	}
+	return out
+}
+
+// derivePartsOf writes rows' parts.
+func derivePartsOf(rows []verifier.Row) []string {
+	var out []string
+	for _, row := range rows {
+		out = append(out, *row.Part)
+	}
+	return out
+}
+
+// The families cut at DERIVE are SPEC.md section 13.3's: the 42 declared-*
+// cases, the 20 paths-*, the 18 offline leaf_count-* and the 2 graft-*,
+// and gates-derive, each run through TestCases_ThroughDerive's comparison
+// (its rows through DERIVE's built checks and its values against the
+// model); each family fails these checks in some case, and only with
+// derivation_mismatch; gates-derive fails at /subject/item_hash alone. And
+// the cases of the committed leaf count (SPEC.md section 5.4) and of
+// the graft (section 10.3), at their parts:
+//
+//   - graft-genuine_block_hash fails at /block/block_hash, recomputed as
+//     the model's block_hash, and at its Stellar epoch root, whose walk
+//     starts from that recomputation, while the carried block_hash walks
+//     to the root;
+//   - graft-forged_block_hash fails at its Stellar epoch root alone;
+//   - leaf_count-record-subject and -observation, whose block records lie
+//     about their leaf count, fail at both epoch roots;
+//   - the six leaf_count-tree_size-* cases each fail one row, at an
+//     inclusion proof's tree_size, recomputed as its record's leaf_count;
+//   - the six leaf_count-moved_index-* cases each fail only at a
+//     tree_size, while the walk from the recomputed leaf reaches the
+//     record's root, and the same index and path under the committed leaf
+//     count reach none (section 5.3).
+//
+// Mutants killed: the epoch walks starting from the block_hash P carries
+// (graft-genuine_block_hash's epoch root passes); the size compared with
+// the walk's own size (the tree_size cases pass); the size row left out
+// (the moved_index and tree_size cases pass).
+func TestCases_FamiliesCutAtDerive(t *testing.T) {
+	cases, err := vectorcases.Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	families := map[string]int{}
+	codes := map[string]map[string]bool{}
+	byID := map[string]vectorcases.Case{}
+	for _, c := range cases {
+		byID[c.ID] = c
+		family := c.Family()
+		if c.ID == "gates-derive" {
+			family = c.ID
+		}
+		switch family {
+		case "declared", "paths", "leaf_count", "graft", "gates-derive":
+		default:
+			continue
+		}
+		if c.Config.Online != nil {
+			continue
+		}
+		families[family]++
+		got := run(t, c)
+		if got.bare() || got.ended || !rowsEqual(got.rows, expectedThrough(t, c, proofOf(t, c))) {
+			t.Fatalf("%s: rows %v, want %v", c.ID, got.rows, expectedThrough(t, c, proofOf(t, c)))
+		}
+		checkDerive(t, c, got.run)
+		if codes[family] == nil {
+			codes[family] = map[string]bool{}
+		}
+		for _, row := range failingDerive(got.run) {
+			codes[family][string(row.Code)] = true
+		}
+	}
+	if fmt.Sprint(families) != fmt.Sprint(map[string]int{"declared": 42, "paths": 20, "leaf_count": 18, "graft": 2, "gates-derive": 1}) {
+		t.Fatalf("families %v", families)
+	}
+	for family, found := range codes {
+		if fmt.Sprint(found) != "map[derivation_mismatch:true]" {
+			t.Errorf("%s fails these checks with %v", family, found)
+		}
+	}
+	single := func(id string) verifier.Row {
+		failing := failingDerive(run(t, byID[id]).run)
+		if len(failing) != 1 {
+			t.Fatalf("%s: failing %q", id, derivePartsOf(failing))
+		}
+		return failing[0]
+	}
+	if row := single("gates-derive"); *row.Part != "/subject/item_hash" {
+		t.Errorf("gates-derive fails at %s", *row.Part)
+	}
+
+	genuine := byID["graft-genuine_block_hash"]
+	proof := proofOf(t, genuine)
+	failing := failingDerive(run(t, genuine).run)
+	stellarRoot := "/commitments/stellar/epoch/record/merkle_root"
+	if parts := derivePartsOf(failing); !slices.Equal(parts, []string{"/block/block_hash", stellarRoot}) {
+		t.Fatalf("graft-genuine_block_hash fails at %q", parts)
+	}
+	recomputed := modelHash(t, "block_hash", get(proof, "/block/record"))
+	inclusion := get(proof, "/commitments/stellar/inclusion_proof")
+	if failing[0].Values["recomputed"] != recomputed || failing[0].Values["declared"] != get(proof, "/block/block_hash") ||
+		failing[1].Values["recomputed"] != modelWalk(recomputed, inclusion, 32) ||
+		modelWalk(get(proof, "/block/block_hash").(string), inclusion, 32) != failing[1].Values["declared"] {
+		t.Fatalf("graft-genuine_block_hash: %v, %v", failing[0].Values, failing[1].Values)
+	}
+	if row := single("graft-forged_block_hash"); *row.Part != stellarRoot {
+		t.Errorf("graft-forged_block_hash fails at %s", *row.Part)
+	}
+
+	for _, id := range []string{"leaf_count-record-subject", "leaf_count-record-observation"} {
+		if parts := derivePartsOf(failingDerive(run(t, byID[id]).run)); !slices.Equal(parts,
+			[]string{"/commitments/bitcoin/epoch/record/merkle_root", stellarRoot}) {
+			t.Errorf("%s fails at %q", id, parts)
+		}
+	}
+
+	// recordOf is the record R an inclusion proof Q walks into.
+	recordOf := func(q string) string {
+		base, chain, isCommitment := strings.Cut(q, "/commitments/")
+		if !isCommitment {
+			return "/block/record"
+		}
+		return base + "/commitments/" + strings.TrimSuffix(chain, "/inclusion_proof") + "/epoch/record"
+	}
+	sizes, moved := 0, 0
+	for _, c := range cases {
+		kind := ""
+		switch {
+		case strings.HasPrefix(c.ID, "leaf_count-tree_size-"):
+			kind, sizes = "tree_size", sizes+1
+		case strings.HasPrefix(c.ID, "leaf_count-moved_index-"):
+			kind, moved = "moved_index", moved+1
+		default:
+			continue
+		}
+		proof := proofOf(t, c)
+		r := run(t, c).run
+		row := single(c.ID)
+		q, isSize := strings.CutSuffix(*row.Part, "/tree_size")
+		if !isSize || row.Values["declared"] != get(proof, *row.Part) || row.Values["recomputed"] != get(proof, recordOf(q)+"/leaf_count") ||
+			row.Values["declared"] == row.Values["recomputed"] {
+			t.Errorf("%s: %s %v", c.ID, *row.Part, row.Values)
+			continue
+		}
+		if kind != "moved_index" {
+			continue
+		}
+		rootPart := recordOf(q) + "/merkle_root"
+		passes := 0
+		for _, trace := range r.Trace {
+			if trace.Part == rootPart && slices.Contains(trace.Inputs, q) && trace.Status == verifier.StatusPass {
+				passes++
+			}
+		}
+		leafAt := strings.TrimSuffix(q, "/inclusion_proof") + "/record"
+		leafName := "observation_hash"
+		switch {
+		case strings.Contains(q, "/commitments/"):
+			leafAt, leafName = strings.Split(q, "/commitments/")[0]+"/block/record", "block_hash"
+		case proof["type"] == "item":
+			leafName = "item_hash"
+		}
+		leaf := modelHash(t, leafName, get(proof, leafAt))
+		inclusion := get(proof, q).(map[string]any)
+		committed := map[string]any{"leaf_index": inclusion["leaf_index"], "path": inclusion["path"], "tree_size": get(proof, recordOf(q)+"/leaf_count")}
+		if passes != 1 || modelWalk(leaf, inclusion, 32) != get(proof, rootPart) || modelWalk(leaf, committed, 32) != nil {
+			t.Errorf("%s: %d passing walks to %s; under the committed leaf count the walk gives %v", c.ID, passes, rootPart, modelWalk(leaf, committed, 32))
+		}
+	}
+	if sizes != 6 || moved != 6 {
+		t.Fatalf("%d tree_size and %d moved_index cases, want 6 of each", sizes, moved)
+	}
+}
+
+// The 11 sound traces (SPEC.md sections 10.6 and 13.3): each case that
+// names a trace file, one for each of vectors/positive/*.trace.json, gives
+// exactly the rows of that file whose construction a built check names,
+// each compared whole, all six members written as JCS, inputs included,
+// and in order; every row of these passes; and the rows the file holds of
+// the checks not yet built are those of the key events, the Bitcoin
+// evidence and LINK_WITNESS. Across the 11 the built checks give every one
+// of their constructions. Mutants killed: the trace's inputs left unsorted
+// (the epoch roots' inputs, /commitments/C/inclusion_proof before
+// /block/record, are out of document order); the trace's recomputed root
+// given as the leaf (every inclusion root row differs); the genesis
+// height's trace row left out (item-genesis-witness's and block's differ).
+func TestCases_TheSoundTraces(t *testing.T) {
+	cases, err := vectorcases.Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	files, err := filepath.Glob(filepath.Join(vectorcases.Dir(), "positive", "*.trace.json"))
+	if err != nil || len(files) != 11 {
+		t.Fatalf("trace files %q, %v", files, err)
+	}
+	traced := map[string]bool{}
+	constructions := map[string]bool{}
+	for _, c := range cases {
+		if c.Expected.Trace == "" {
+			continue
+		}
+		traced[c.Expected.Trace] = true
+		got := run(t, c)
+		var rows []string
+		for _, row := range got.run.Trace {
+			encoded, err := jcs.Encode(row.Value())
+			if err != nil {
+				t.Fatal(err)
+			}
+			rows = append(rows, string(encoded))
+			constructions[row.Construction] = true
+			if row.Status != verifier.StatusPass {
+				t.Errorf("%s: a trace row %s fails", c.ID, row.Part)
+			}
+		}
+		var want []string
+		for _, row := range traceFile(t, c.Expected.Trace) {
+			var parsed struct {
+				Construction string `json:"construction"`
+			}
+			if err := json.Unmarshal([]byte(row), &parsed); err != nil {
+				t.Fatal(err)
+			}
+			switch {
+			case slices.Contains(builtConstructions, parsed.Construction):
+				want = append(want, row)
+			case !slices.Contains([]string{"key_event", "handover", "bitcoin", "witnesses"}, parsed.Construction):
+				t.Errorf("%s: a trace row of %s, which no check names", c.Expected.Trace, parsed.Construction)
+			}
+		}
+		if len(want) == 0 || !slices.Equal(rows, want) {
+			t.Errorf("%s: trace\n  %s\nwant\n  %s", c.ID, strings.Join(rows, "\n  "), strings.Join(want, "\n  "))
+		}
+	}
+	if len(traced) != 11 {
+		t.Fatalf("%d trace files named by the cases, want 11", len(traced))
+	}
+	for _, file := range files {
+		relative, _ := filepath.Rel(vectorcases.Dir(), file)
+		if !traced[filepath.ToSlash(relative)] {
+			t.Errorf("no case names %s", relative)
+		}
+	}
+	if got := slices.Sorted(maps.Keys(constructions)); !slices.Equal(got, builtConstructions) {
+		t.Fatalf("the sound traces reach %q, want %q", got, builtConstructions)
 	}
 }

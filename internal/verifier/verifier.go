@@ -27,7 +27,12 @@
 // constructions digest; a failure ends the run, and a pass gives the run
 // its type and subject id. Then step 8, POLICY: every network member of the
 // proof against the run's network pins, one row each; a failure there
-// does not end the run.
+// does not end the run. Then step 9, DERIVE: every record hash of the
+// subject, the block nodes and the epochs recomputed and compared, and
+// every inclusion proof walked from its recomputed leaf, its tree_size held
+// to its record's committed leaf_count, through one engine that gives the
+// step's rows and the run's trace (SPEC.md section 10.6); a failure there
+// does not end the run either.
 //
 //   - config.go: a run's [Config] (the reference's config.ex);
 //   - options.go: the options of `truestamp verify` that set a Config,
@@ -43,6 +48,10 @@
 //   - shape.go: step 7, SHAPE (shape.ex), whose check 5 parses each time
 //     through time.go, the classes TIME and NISTTIME (time.ex);
 //   - policy.go: step 8, POLICY (policy.ex);
+//   - derive.go: step 9, DERIVE, and its engine (derive.ex), whose checks
+//     are derive_check.go's (check.ex): the record hashes of
+//     derive_records.go (derive/records.ex) and the links of
+//     derive_links.go (derive/links.ex);
 //   - schema.go: the checker of spec/schema.json, SHAPE's check 3, which
 //     refuses a schema outside SPEC.md section 9's subset when it loads
 //     (schema.ex);
