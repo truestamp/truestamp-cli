@@ -2,17 +2,20 @@
 // SPDX-License-Identifier: Apache-2.0
 
 // The per-step runner over the conformance cases of SPEC.md section 13.2,
-// through steps CONFIGURATION to SHAPE (SPEC.md section 10.2), the gate and
-// checks 1 to 3 of SHAPE, with internal/verifier. It ports two of the
-// reference verifier's tests: elixir/test/verifier/gate_cases_test.exs for
-// steps 0 to 6, and elixir/test/verifier/shape_policy_cases_test.exs for
-// SHAPE.
+// through steps CONFIGURATION to POLICY (SPEC.md section 10.2), the gate,
+// SHAPE and POLICY, with internal/verifier. It ports two of the reference
+// verifier's tests: elixir/test/verifier/gate_cases_test.exs for steps 0
+// to 6, and elixir/test/verifier/shape_policy_cases_test.exs for SHAPE and
+// POLICY, the check of where each value of their rows comes from included.
 
 package vectorcases_test
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"errors"
 	"fmt"
+	"maps"
 	"os"
 	"slices"
 	"strings"
@@ -33,10 +36,9 @@ import (
 // these. lastBuilt names that last step, and run runs the steps from
 // firstBuilt to it. A run whose gate or SHAPE fails has ended, and every
 // row it will report is made, so all of its rows are compared, the skip
-// prior_failure rows of the later steps included. SHAPE makes checks 1 to
-// 3 of its six, so a case that fails one of checks 4 to 6
-// (laterShapeChecks) passes SHAPE and is held to its rows through
-// SIGNATURE, and to a SHAPE that passes.
+// prior_failure rows of the later steps included. A failure at POLICY does
+// not end the run, so a case POLICY fails is held, as any other open run
+// is, to its rows through POLICY.
 //
 // An online case runs online, every read it makes answered from its replay
 // file by the replay adapter (vectorcases.Replay, SPEC.md section 13.2), so
@@ -49,14 +51,15 @@ import (
 // under the pins its networks give, never the defaults of its E_v.
 
 // lastBuilt is the last step the runner runs.
-const lastBuilt = "SHAPE"
+const lastBuilt = "POLICY"
 
 // firstBuilt is the first.
 const firstBuilt = "CONFIGURATION"
 
 // laterShapeChecks are the cases a check of SHAPE after check 3 decides,
 // by that check: 4, the witnesses of an item; 5, the TIME and NISTTIME
-// round trips; 6, the constructions digest. Each passes checks 1 to 3.
+// round trips; 6, the constructions digest. Each passes checks 1 to 3, so
+// the schema finds nothing in it.
 var laterShapeChecks = map[string]int{
 	"shape-witnesses-missing":                 4,
 	"shape-witnesses-extra":                   4,
@@ -74,18 +77,27 @@ var laterShapeChecks = map[string]int{
 }
 
 // outcome is what the built steps give for a case: a bare rejection, or
-// the rows of the steps that passed, whether the gate or SHAPE ended the
-// run, its attribution, the type and subject id it took at SHAPE, and the
-// first row whose values JCS cannot write.
+// the rows of the steps that passed, the values of each row of SHAPE and
+// POLICY, whether the gate or SHAPE ended the run, whether a row failed,
+// its attribution, the type and subject id it took at SHAPE, and the first
+// row whose values JCS cannot write.
 type outcome struct {
 	code        string
 	subReason   string
 	rows        []vectorcases.Row
+	values      []stepValues
 	ended       bool
+	failed      bool
 	attribution string
 	typ         string
 	subjectID   string
 	badValues   error
+}
+
+// stepValues are one row of SHAPE or POLICY, reduced, with its values.
+type stepValues struct {
+	row    vectorcases.Row
+	values map[string]any
 }
 
 func (o outcome) bare() bool { return o.code != "" }
@@ -149,10 +161,14 @@ func bareOf(rejection *verifier.Rejection) outcome {
 // reportOf is the outcome of a run that passed steps 0 to 3, its rows from
 // the one at index from.
 func reportOf(run *verifier.Run, from int) outcome {
-	o := outcome{rows: rowsOf(run)[from:], ended: run.Ended, attribution: run.Attribution, typ: run.Type, subjectID: run.SubjectID}
-	for _, row := range run.Rows {
+	rows := rowsOf(run)
+	o := outcome{rows: rows[from:], ended: run.Ended, failed: run.Failed(), attribution: run.Attribution, typ: run.Type, subjectID: run.SubjectID}
+	for i, row := range run.Rows {
 		if _, err := jcs.Encode(row.Values); err != nil && o.badValues == nil {
 			o.badValues = err
+		}
+		if row.Step == "SHAPE" || row.Step == "POLICY" {
+			o.values = append(o.values, stepValues{rows[i], row.Values})
 		}
 	}
 	return o
@@ -239,7 +255,7 @@ func (a *caseReplay) reads() []string {
 }
 
 // run runs the built steps over the case's proof file, from CONFIGURATION
-// to SHAPE, an online case's keyring and identity reads answered by the
+// to POLICY, an online case's keyring and identity reads answered by the
 // replay adapter. Each online case under prod with no keyring option reads the
 // keyring of www.truestamp.com once, and no other case reads one. Each
 // online case that passes CONFIGURATION has a source for every pin,
@@ -277,6 +293,7 @@ func runCase(t *testing.T, c vectorcases.Case) (outcome, *caseReplay) {
 	}
 	checkSources(t, c, r, replay)
 	verifier.Shape(r)
+	verifier.Policy(r)
 	return reportOf(r, 0), replay
 }
 
@@ -416,6 +433,111 @@ func typeAndSubject(proof map[string]any) (string, string) {
 	return typ, id
 }
 
+// constructionsMode is the mode of P's constructions (SPEC.md section 7.2),
+// read here without the verifier: full for an object, reference for a
+// string, none when absent.
+func constructionsMode(proof map[string]any) string {
+	switch proof["constructions"].(type) {
+	case map[string]any:
+		return "full"
+	case string:
+		return "reference"
+	case nil:
+		if _, present := proof["constructions"]; !present {
+			return "none"
+		}
+	}
+	return "other"
+}
+
+// constructionsDigestOf is d of P's full constructions text, SHA-256 of
+// its JCS, computed here without the verifier or specdata, or "".
+func constructionsDigestOf(t *testing.T, proof map[string]any) string {
+	t.Helper()
+	text, ok := proof["constructions"].(map[string]any)
+	if !ok {
+		return ""
+	}
+	encoded, err := jcs.Encode(text)
+	if err != nil {
+		t.Fatal(err)
+	}
+	sum := sha256.Sum256(encoded)
+	return hex.EncodeToString(sum[:])
+}
+
+// valueSourced reports whether one value of a row of SHAPE or POLICY,
+// named name, is one the run computed or holds (SPEC.md section 10.5), by
+// its name, as the reference's shape_policy_cases_test.exs checks it: each
+// is recomputed here from the case's configuration and proof, or is one of
+// the verifier's own words, and a value the proof carries appears only
+// under declared, in a failing row. A name not listed is not sourced, so a
+// value added to a row must say where it comes from. A keyword is "false",
+// the boolean schema's, or one of the keywords of SPEC.md section 9's
+// subset, and a pin_kind is the kind of pin its row's position takes
+// (pinKindAt).
+func valueSourced(t *testing.T, c vectorcases.Case, proof map[string]any, row stepValues, name string, value any) bool {
+	t.Helper()
+	text, isText := value.(string)
+	switch name {
+	case "keyword":
+		return isText && (text == "false" || slices.Contains(verifier.SchemaKeywords(), text))
+	case "schema":
+		return isText && strings.HasPrefix(text, "#/")
+	case "rule":
+		return text == "witnesses_named_by_witness_hashes"
+	case "class":
+		return text == "TIME" || text == "NISTTIME"
+	case "declared":
+		return row.row.Status == "fail"
+	case "constructions":
+		return text == constructionsMode(proof)
+	case "constructions_digest":
+		return isText && text == constructionsDigestOf(t, proof) && text != ""
+	case "chain":
+		return text == "bitcoin" || text == "stellar"
+	case "pin_kind":
+		return isText && text == pinKindAt(row.row.Part)
+	case "pin":
+		pins := map[any]map[string]string{"commitment": c.Config.Networks.Commitment, "entropy": c.Config.Networks.Entropy}
+		chain, _ := row.values["chain"].(string)
+		return isText && text == pins[row.values["pin_kind"]][chain] && text != ""
+	}
+	return false
+}
+
+// pinKindAt is the kind of pin that governs the network at part, read from
+// the pointer without the layout (SPEC.md section 9): a commitment entry's,
+// under commitments, and a genesis.bitcoin's, under genesis, take the
+// commitment pin, and an entropy object's the entropy pin.
+func pinKindAt(part *string) string {
+	if part == nil {
+		return ""
+	}
+	segments := strings.Split(*part, "/")
+	if slices.Contains(segments, "commitments") || slices.Contains(segments, "genesis") {
+		return "commitment"
+	}
+	return "entropy"
+}
+
+// unsourced returns each value of a row of SHAPE or POLICY that
+// valueSourced does not find computed, as step, part, name and value.
+func unsourced(t *testing.T, c vectorcases.Case, o outcome) []string {
+	t.Helper()
+	proof := proofOf(t, c)
+	var out []string
+	for _, row := range o.values {
+		for name, value := range row.values {
+			if !valueSourced(t, c, proof, row, name, value) {
+				out = append(out, fmt.Sprintf("%s %s: %s = %v", row.row.Step, row.row, name, value))
+			}
+		}
+	}
+	slices.Sort(out)
+	return out
+}
+
 // Every case of cases.json through the built steps: a case they decide
 // gives exactly its code and sub_reason; every other case passes steps 0
 // to 3, and a report's rows of the built steps are exactly its expected
@@ -423,13 +545,16 @@ func typeAndSubject(proof map[string]any) (string, string) {
 // then failed, with the attribution none when the gate ended it and the
 // attribution SIGNATURE gave it when SHAPE did; a run the gate opens has
 // the attribution its label needs; a run SHAPE passes takes the type and
-// subject id its proof carries, and any other run neither; a case one of
-// SHAPE's checks 4 to 6 decides passes SHAPE, its rows through SIGNATURE
-// exactly as expected; every row's values write with JCS; the five online
-// cases CONFIGURATION decides give configuration_error through the replay
-// adapter; every other online case has a source for each pin and reads
-// each pinned network's identity once; and the two online cases whose keyring
-// is unavailable, key_binding-unavailable-unreachable and
+// subject id its proof carries, stays open through POLICY, and has a
+// failing row exactly when its expected POLICY rows do, and any other run
+// takes neither; every row's values write with JCS, and each value of a
+// row of SHAPE or POLICY is one the run computed or holds (valueSourced),
+// every SHAPE row's keyword "false" or one of verifier.SchemaKeywords()
+// among them; the five online cases CONFIGURATION decides give
+// configuration_error through the replay adapter; every other online case
+// has a source for each pin and reads each pinned network's identity once;
+// and the two online cases whose keyring is unavailable,
+// key_binding-unavailable-unreachable and
 // key_binding-unavailable-load_check, read the keyring of
 // www.truestamp.com through the replay adapter and fail KEY_BINDING
 // keyring_unavailable. Mutants killed: a failed online keyring read
@@ -450,11 +575,18 @@ func typeAndSubject(proof map[string]any) (string, string) {
 // SIGNATURE); EndRun leaving out the skip rows (every gate failure's rows
 // differ); Configure without its source confirmation (the five
 // configuration-online cases pass CONFIGURATION); the runner without its
-// call to Shape (every SHAPE row is missing); Shape giving the subject id
-// of /subject/record/id to every type (the block and beacon cases take
-// none, and panic); a SHAPE failure setting the attribution none (the 50
-// that fail at SHAPE).
-func TestCases_ThroughShape(t *testing.T) {
+// call to Shape (every SHAPE row is missing) or to Policy (every POLICY
+// row is missing); Shape giving the subject id of /subject/record/id to
+// every type (the block and beacon cases take none, and panic); a SHAPE
+// failure setting the attribution none (the 63 that fail at SHAPE); Policy
+// ending the run at a failure (the 15 POLICY failures get skip rows);
+// shapeSchema giving the failure's schema location as its keyword (every
+// check-3 row's keyword is unsourced); policyRow's values giving the
+// proof's network as the pin (each POLICY failure's pin is unsourced);
+// policyComparisons comparing genesis.bitcoin with the entropy pin (each
+// genesis row's pin_kind is unsourced, though every case with a genesis
+// row pins one Bitcoin network for both kinds).
+func TestCases_ThroughPolicy(t *testing.T) {
 	cases, err := vectorcases.Load()
 	if err != nil {
 		t.Fatal(err)
@@ -463,6 +595,7 @@ func TestCases_ThroughShape(t *testing.T) {
 		t.Fatalf("cases.json holds %d cases, want 443", len(cases))
 	}
 	tally := map[string]int{}
+	names := map[string]bool{}
 	for _, c := range cases {
 		step := decidedAt(t, c)
 		online := c.Config.Online != nil
@@ -484,16 +617,17 @@ func TestCases_ThroughShape(t *testing.T) {
 			if got.badValues != nil {
 				t.Fatalf("a row's values: %v", got.badValues)
 			}
+			if bad := unsourced(t, c, got); len(bad) != 0 {
+				t.Fatalf("values the run did not compute: %q", bad)
+			}
+			for _, row := range got.values {
+				for name := range row.values {
+					names[name] = true
+				}
+			}
 			on := map[bool]string{false: "", true: "online "}[online]
 			want := c.Expected.Rows
-			switch _, later := laterShapeChecks[c.ID]; {
-			case later:
-				tally[on+"report, SHAPE checks 4 to 6 decide it"]++
-				shape := rowsBetween("SHAPE", "SHAPE", got.rows)
-				if got.ended || len(shape) != 1 || shape[0].String() != passRow("SHAPE").String() || shapeRow(t, c).Status != "fail" {
-					t.Fatalf("SHAPE rows %v, ended %v; checks 1 to 3 pass and a later check fails", shape, got.ended)
-				}
-				got.rows, want = rowsBetween(firstBuilt, "SIGNATURE", got.rows), rowsBetween(firstBuilt, "SIGNATURE", want)
+			switch {
 			case got.ended && gateFails(want):
 				tally[on+"report, the gate fails"]++
 				if c.Expected.Label != "failed" || got.attribution != verifier.AttributionNone {
@@ -505,8 +639,12 @@ func TestCases_ThroughShape(t *testing.T) {
 					t.Fatalf("SHAPE ended the run with attribution %q; the case's label is %s", got.attribution, c.Expected.Label)
 				}
 			default:
-				tally[on+"report, SHAPE passes"]++
 				want = rowsThrough(want)
+				policyFails := slices.ContainsFunc(want, func(row vectorcases.Row) bool { return row.Status == "fail" })
+				tally[on+map[bool]string{false: "report, POLICY passes", true: "report, POLICY fails"}[policyFails]]++
+				if got.failed != policyFails {
+					t.Fatalf("the run failed %v; its expected rows through POLICY fail %v", got.failed, policyFails)
+				}
 				if !attributionFits(got.attribution, c.Expected.Label) {
 					t.Fatalf("attribution %q, label %s", got.attribution, c.Expected.Label)
 				}
@@ -526,17 +664,18 @@ func TestCases_ThroughShape(t *testing.T) {
 	}
 
 	want := map[string]int{
-		"rejected at CONFIGURATION":             11,
-		"online, rejected at CONFIGURATION":     5,
-		"rejected at READ":                      1,
-		"rejected at PARSE":                     15,
-		"rejected at ENVELOPE":                  32,
-		"report, the gate fails":                30,
-		"report, SHAPE fails":                   50,
-		"report, SHAPE checks 4 to 6 decide it": 13,
-		"report, SHAPE passes":                  222,
-		"online report, SHAPE passes":           62,
-		"online report, the gate fails":         2,
+		"rejected at CONFIGURATION":         11,
+		"online, rejected at CONFIGURATION": 5,
+		"rejected at READ":                  1,
+		"rejected at PARSE":                 15,
+		"rejected at ENVELOPE":              32,
+		"report, the gate fails":            30,
+		"report, SHAPE fails":               63,
+		"report, POLICY fails":              14,
+		"report, POLICY passes":             208,
+		"online report, POLICY passes":      61,
+		"online report, POLICY fails":       1,
+		"online report, the gate fails":     2,
 	}
 	if len(tally) != len(want) {
 		t.Fatalf("tally = %v, want %v", tally, want)
@@ -546,26 +685,67 @@ func TestCases_ThroughShape(t *testing.T) {
 			t.Fatalf("tally = %v, want %v", tally, want)
 		}
 	}
+	reached := slices.Sorted(maps.Keys(names))
+	if wantNames := []string{"chain", "class", "constructions", "constructions_digest", "declared", "keyword",
+		"pin", "pin_kind", "rule", "schema"}; !slices.Equal(reached, wantNames) {
+		t.Fatalf("the cases reach the value names %q of SHAPE and POLICY, want %q", reached, wantNames)
+	}
+}
+
+// failingTimes returns each header_time, closed_at and timeStamp of P,
+// found here by a walk of P's members, whose class's round trip
+// verifier.ParseTime refuses.
+func failingTimes(proof map[string]any) []string {
+	var out []string
+	var walk func(value any)
+	walk = func(value any) {
+		switch v := value.(type) {
+		case map[string]any:
+			for name, x := range v {
+				class, timed := map[string]verifier.TimeClass{"header_time": verifier.ClassTIME, "closed_at": verifier.ClassTIME,
+					"timeStamp": verifier.ClassNISTTIME}[name]
+				if _, err := verifier.ParseTime(class, x); timed && err != nil {
+					out = append(out, name)
+				}
+				walk(x)
+			}
+		case []any:
+			for _, x := range v {
+				walk(x)
+			}
+		}
+	}
+	walk(proof)
+	return out
 }
 
 // The families cut at SHAPE are SPEC.md section 13.3's, past a gate each
 // passes: the 57 shape-* cases, three unsupported_format, two
 // unsupported_version, 38 shape_invalid at check 3, the 13 of checks 4 to 6
-// (laterShapeChecks), each passing checks 1 to 3 here, and
-// shape-time-february_29-0000, which passes; the 6 empty_root-* cases, one
+// (laterShapeChecks), whose proofs the schema finds nothing in, two of
+// check 4 at /witnesses, seven of check 5 at a header_time, closed_at or
+// timeStamp, and four of check 6, construction_mismatch at /constructions,
+// and shape-time-february_29-0000, which passes; the 6 empty_root-* cases, one
 // with leaves under the empty root and one with no leaves under another
 // root at each of /block, /witnesses/block and /signing_key_event/block,
 // each shape_invalid at that record's merkle_root by the schema's
 // empty-root rule; and gates-shape, unsupported_version. Each case decided
 // by checks 1 to 3 gives its row, and check 3's row is the first in
 // document order of the schema's failures; the two shape-first_of_two-schema
-// cases each carry two failures of check 3 and give the first. Mutants
-// killed: checks 1 and 2 made after the schema (shape-format-absent and
+// cases each carry two failures of check 3 and give the first; every case
+// gives its SHAPE row, checks 4 to 6 included, and the two
+// shape-first_of_two-times cases each carry two failures of check 5 and
+// give the first in document order. Mutants killed: checks 1 and 2 made after the schema (shape-format-absent and
 // shape-version-absent fail shape_invalid); the schema's if applying then
 // whatever its schema gives (the empty_root-*-leaves cases pass); the
 // failures left in the order the checker meets them
 // (shape-first_of_two-schema-mirror fails at previous_block_hash); not
-// passing what its schema fails (every proof fails at a not).
+// passing what its schema fails (every proof fails at a not); check 5
+// taking the first failing time in the layout's order
+// (shape-first_of_two-times-mirror fails at its other time); the leap-year
+// rule without its century clause (shape-time-february_29-1900 and -2100
+// pass); check 6 accepting every reference
+// (shape-reference-not_accepted passes).
 func TestCases_FamiliesCutAtShape(t *testing.T) {
 	cases, err := vectorcases.Load()
 	if err != nil {
@@ -592,6 +772,7 @@ func TestCases_FamiliesCutAtShape(t *testing.T) {
 		if row.Code != nil {
 			code = *row.Code
 		}
+		got := run(t, c)
 		if check, later := laterShapeChecks[c.ID]; later {
 			checks[family][fmt.Sprintf("check %d", check)]++
 			part := *row.Part
@@ -603,12 +784,19 @@ func TestCases_FamiliesCutAtShape(t *testing.T) {
 			if !ok {
 				t.Errorf("%s: %v, schema failures %v; not a case of check %d", c.ID, row, failures, check)
 			}
-			continue
+		} else {
+			checks[family][code]++
 		}
-		checks[family][code]++
-		got := run(t, c)
 		if gotShape := rowsBetween("SHAPE", "SHAPE", got.rows); len(gotShape) != 1 || gotShape[0].String() != row.String() {
 			t.Errorf("%s: SHAPE rows %v, want %v", c.ID, gotShape, row)
+		}
+		if strings.HasPrefix(c.ID, "shape-first_of_two-times") {
+			if n := len(failingTimes(proof)); n != 2 {
+				t.Errorf("%s: %d times fail their round trip, want 2", c.ID, n)
+			}
+		}
+		if _, later := laterShapeChecks[c.ID]; later {
+			continue
 		}
 		switch code {
 		case "pass":
@@ -670,6 +858,153 @@ func TestCases_FamiliesCutAtShape(t *testing.T) {
 	if len(positions) != 6 {
 		t.Fatalf("empty_root positions and kinds: %v", positions)
 	}
+}
+
+// The 38 sameness-* cases (SPEC.md section 13.3) are cut at SHAPE: each
+// passes it, and its SHAPE row's values name its constructions mode, full
+// with the digest of its text, reference, or none, as its proof carries
+// it: 11 sameness-format-* and the five other spellings in full mode, 11
+// sameness-reference-* in reference mode and 11 sameness-none-* with none.
+// Every one of them passes SHAPE and POLICY whole, so its rows through
+// POLICY are those of TestCases_ThroughPolicy. Mutants killed: check 6
+// giving the full mode's values for a reference (each
+// sameness-reference-* row names full); the pass row with no values (each
+// row names no mode); d computed over encoding/json's Marshal of the text
+// rather than its JCS (every full-mode case fails construction_mismatch,
+// since Marshal escapes the text's < and >).
+func TestCases_SamenessCutAtShape(t *testing.T) {
+	cases, err := vectorcases.Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	modes := map[string]int{}
+	for _, c := range cases {
+		if c.Family() != "sameness" {
+			continue
+		}
+		got := run(t, c)
+		proof := proofOf(t, c)
+		var shape []stepValues
+		for _, row := range got.values {
+			if row.row.Step == "SHAPE" {
+				shape = append(shape, row)
+			}
+		}
+		mode := constructionsMode(proof)
+		want := map[string]any{"constructions": mode}
+		if mode == "full" {
+			want["constructions_digest"] = constructionsDigestOf(t, proof)
+		}
+		if len(shape) != 1 || shape[0].row.String() != passRow("SHAPE").String() || fmt.Sprint(shape[0].values) != fmt.Sprint(want) {
+			t.Errorf("%s: SHAPE %v, want a pass with %v", c.ID, shape, want)
+		}
+		if got.ended || got.failed {
+			t.Errorf("%s: the run ended %v, failed %v", c.ID, got.ended, got.failed)
+		}
+		switch _, kind, _ := strings.Cut(c.ID, "-"); {
+		case strings.HasPrefix(kind, "reference-") && mode != "reference",
+			strings.HasPrefix(kind, "none-") && mode != "none",
+			strings.HasPrefix(kind, "format-") && mode != "full":
+			t.Errorf("%s: mode %s", c.ID, mode)
+		}
+		modes[mode]++
+	}
+	if want := map[string]int{"full": 16, "reference": 11, "none": 11}; fmt.Sprint(modes) != fmt.Sprint(want) {
+		t.Fatalf("sameness modes %v, want %v", modes, want)
+	}
+}
+
+// The families cut at POLICY are SPEC.md section 13.3's: the 13 policy-*
+// cases, one network_mismatch at each network member position, 12 in all,
+// at /commitments and /signing_key_event/commitments for each chain, at
+// /witnesses/entropy_X and /observations/entropy_X/entropy for Stellar and
+// Bitcoin and at /subject/entropy in an entropy_stellar and an
+// entropy_bitcoin proof, and at genesis.bitcoin in each of the three
+// block positions; and gates-policy and gates-online-policy, the second
+// through the replay adapter, each network_mismatch at
+// /commitments/bitcoin/network. Each is held to its POLICY rows whole, the
+// passes beside its one failure in document order, with the run open after
+// POLICY; its failing row's part is the position its id names, and its
+// values give the case's pin for that position and the proof's network as
+// declared. Six of the policy cases pin an entropy network that differs
+// from their E_v's default, as 25 cases of the file do. Mutants killed:
+// caseConfig taking the pins from the case's E_v, test, instead of its
+// networks (the six entropy cases' POLICY rows differ); pinNetwork giving the
+// commitment pin for every kind (the same six cases' rows differ);
+// genesisBitcoin left out of policyComparisons (the three genesis cases
+// lose their rows); Policy leaving its rows in the layout's order (in
+// policy-observations-* /observations sorts before /signing_key_event,
+// and in the genesis cases a block position's genesis row sorts among the
+// commitments); Policy taking the default pins of the run's E_v (the six
+// entropy cases' rows differ).
+func TestCases_FamiliesCutAtPolicy(t *testing.T) {
+	cases, err := vectorcases.Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	differ := 0
+	positions := map[string]bool{}
+	seen := 0
+	for _, c := range cases {
+		defaults, _ := specdata.DefaultNetworkPins(c.Config.Environment)
+		if c.Config.Networks.Commitment["bitcoin"] != defaults.Commitment.Bitcoin || c.Config.Networks.Commitment["stellar"] != defaults.Commitment.Stellar ||
+			c.Config.Networks.Entropy["bitcoin"] != defaults.Entropy.Bitcoin || c.Config.Networks.Entropy["stellar"] != defaults.Entropy.Stellar {
+			differ++
+		}
+		if c.Family() != "policy" && c.ID != "gates-policy" && c.ID != "gates-online-policy" {
+			continue
+		}
+		seen++
+		got := run(t, c)
+		want := rowsBetween("POLICY", "POLICY", c.Expected.Rows)
+		if !rowsEqual(rowsBetween("POLICY", "POLICY", got.rows), want) || got.ended || !got.failed {
+			t.Errorf("%s: POLICY rows %v, ended %v, failed %v; want %v", c.ID, rowsBetween("POLICY", "POLICY", got.rows), got.ended, got.failed, want)
+			continue
+		}
+		var failing []stepValues
+		for _, row := range got.values {
+			if row.row.Step == "POLICY" && row.row.Status == "fail" {
+				failing = append(failing, row)
+			}
+		}
+		if len(failing) != 1 || *failing[0].row.Code != "network_mismatch" {
+			t.Errorf("%s: failing rows %v", c.ID, failing)
+			continue
+		}
+		part := *failing[0].row.Part
+		positions[part] = true
+		named := strings.ReplaceAll(strings.TrimPrefix(c.ID, "policy-"), "-", "/")
+		named = strings.NewReplacer("witnesses_block", "witnesses/block", "signing_key_event_block", "signing_key_event/block",
+			"genesis", "record/metadata/genesis/bitcoin", "observations/entropy_bitcoin", "observations/entropy_bitcoin/entropy",
+			"observations/entropy_stellar", "observations/entropy_stellar/entropy", "subject/entropy_stellar", "subject/entropy",
+			"subject/entropy_bitcoin", "subject/entropy").Replace(named)
+		if c.Family() == "gates" {
+			named = "commitments/bitcoin"
+		}
+		if part != "/"+named+"/network" {
+			t.Errorf("%s: fails at %s, its id names /%s/network", c.ID, part, named)
+		}
+		values := failing[0].values
+		declared, _ := values["declared"].(string)
+		if valueAt := proofValue(proofOf(t, c), part); declared == "" || declared != valueAt || declared == values["pin"] {
+			t.Errorf("%s: values %v, the proof's network %q", c.ID, values, valueAt)
+		}
+	}
+	if seen != 15 || len(positions) != 12 || differ != 25 {
+		t.Fatalf("%d cases, %d positions %v, %d cases with pins other than their E_v's", seen, len(positions), positions, differ)
+	}
+}
+
+// proofValue returns the string at the JSON Pointer part in P, read here
+// without the verifier; part holds no escaped name.
+func proofValue(proof map[string]any, part string) string {
+	var value any = proof
+	for _, name := range strings.Split(strings.TrimPrefix(part, "/"), "/") {
+		object, _ := value.(map[string]any)
+		value = object[name]
+	}
+	text, _ := value.(string)
+	return text
 }
 
 // The families cut at SIGNATURE are SPEC.md section 13.3's: the 11

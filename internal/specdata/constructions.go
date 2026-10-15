@@ -9,9 +9,10 @@
 // SHA-256 of those bytes; the program stops on a file whose name is not the
 // digest of its bytes, as the reference's build does.
 //
-// This file holds the digests only. It never reads a proof: SHAPE's check 6
-// (SPEC.md section 10.2, step 7) computes a full text's digest, or takes a
-// reference's from its URL, and asks IsAccepted.
+// This file holds the digests only, and exports no hash. It never reads a
+// proof: SHAPE's check 6 (SPEC.md section 10.2, step 7) computes a full
+// text's digest itself, as the reference's Truestamp.Verifier.Shape does,
+// or takes a reference's from its URL, and asks [IsAccepted].
 
 package specdata
 

@@ -12,10 +12,11 @@
 //
 // d is a content digest, which SPEC.md section 4.1 puts outside the
 // byte-prefix registry: it hashes the bytes as read, with no prefix byte,
-// so two spellings of one keyring have two digests. [Digest] is the one
-// function of the new verifier outside internal/registry that may hash,
-// and internal/registry/rule2_test.go names it as the one exemption from
-// its check that crypto/sha256 is used only in the registry's digest.
+// so two spellings of one keyring have two digests. [Digest] is one of the
+// two functions of the new verifier outside internal/registry that may
+// hash, beside SHAPE's check 6, and internal/registry/rule2_test.go names
+// each as an exemption from its check that crypto/sha256 is used only in
+// the registry's digest.
 
 package keyring
 

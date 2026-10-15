@@ -396,15 +396,18 @@ func TestShape_ChecksOneAndTwoComeFirst(t *testing.T) {
 	}
 }
 
-// A pass gives one row, part null, with no values and a message naming
-// the type, and the run takes the type and subject id: /subject/record/id,
+// A pass gives one row, part null, whose values name the constructions
+// mode (each positive proof is in full mode, so with the digest it
+// computed) and nothing else, with a message naming the type, and the run
+// takes the type and subject id: /subject/record/id,
 // or /block/record/id for block and beacon. A failure ends the run, its
 // later steps skip prior_failure, part null, up to EXPECTED_HASH, and
 // leaves the attribution, trust_root, type and subject id as they were.
 // An ended run passes through. Mutants killed: Shape not ending the run
 // (no skip rows); the subject id read from /subject/record/id for every
 // type (the block and beacon proofs panic); a failure setting the
-// attribution none; Shape running over an ended run (a second SHAPE row).
+// attribution none; Shape running over an ended run (a second SHAPE row);
+// the pass row with no values (no mode named).
 func TestShape_TheRunAndItsRows(t *testing.T) {
 	proofs := positiveProofs(t)
 	for _, name := range sortedProofs(proofs) {
@@ -417,8 +420,10 @@ func TestShape_TheRunAndItsRows(t *testing.T) {
 		}
 		id := valueAt(proof, Pointer{Name(holder), Name("record"), Name("id")})
 		row := run.Rows[len(run.Rows)-1]
+		values := string(encode(t, row.Values))
+		wantValues := `{"constructions":"full","constructions_digest":"` + specdata.Accepted()[0] + `"}`
 		if run.Ended || run.Type != typ || run.SubjectID != id || row.Step != "SHAPE" || row.Status != StatusPass ||
-			row.Part != nil || row.Code != "" || len(row.Values) != 0 || !strings.Contains(row.Message, ", "+typ+",") {
+			row.Part != nil || row.Code != "" || values != wantValues || !strings.Contains(row.Message, ", "+typ+",") {
 			t.Errorf("%s: type %q, subject id %q, ended %v, row %+v", name, run.Type, run.SubjectID, run.Ended, row)
 		}
 	}
