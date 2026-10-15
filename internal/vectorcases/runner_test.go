@@ -3,8 +3,8 @@
 
 // The per-step runner over the conformance cases of SPEC.md section 13.2,
 // as the reference verifier's elixir/test/verifier/gate_cases_test.exs runs
-// them, here through steps CONFIGURATION, READ, PARSE and ENVELOPE (SPEC.md
-// section 10.2), with internal/verifier.
+// them, here through steps CONFIGURATION to SIGNATURE (SPEC.md section
+// 10.2), the gate, with internal/verifier.
 
 package vectorcases_test
 
@@ -15,6 +15,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/truestamp/truestamp-cli/internal/jcs"
 	"github.com/truestamp/truestamp-cli/internal/specdata"
 	"github.com/truestamp/truestamp-cli/internal/strictjson"
 	"github.com/truestamp/truestamp-cli/internal/vectorcases"
@@ -25,32 +26,45 @@ import (
 // built so far and compares what SPEC.md section 13.1 compares, cut at the
 // last of them: a case decided at a later step is held only to passing
 // these. lastBuilt names that last step, and run runs the steps from
-// firstBuilt to it.
+// firstBuilt to it. A run whose gate fails has ended, and every row it
+// will report is made, so all of its rows are compared, the skip
+// prior_failure rows of the later steps included.
 //
 // An online case's step 0 also confirms each pinned source's identity,
 // which is not built, so an online case that CONFIGURATION decides is not
 // run, and every other online case runs from READ, its rows compared from
 // there, after a CONFIGURATION made offline under its environment and
-// keyring.
+// keyring. An online case whose keyring is unavailable, a failed online
+// read of the keyring, is compared through ENVELOPE: its KEY_BINDING row
+// needs its replay file's keyring read, which the replay adapter answers.
 
 // lastBuilt is the last step the runner runs.
-const lastBuilt = "ENVELOPE"
+const lastBuilt = "SIGNATURE"
 
 // firstBuilt is the first.
 const firstBuilt = "CONFIGURATION"
 
-// outcome is what the built steps give for a case: a bare rejection, or the
-// rows of the steps that passed.
+// outcome is what the built steps give for a case: a bare rejection, or
+// the rows of the steps that passed, whether the gate ended the run, its
+// attribution, and the first row whose values JCS cannot write.
 type outcome struct {
-	code      string
-	subReason string
-	rows      []vectorcases.Row
+	code        string
+	subReason   string
+	rows        []vectorcases.Row
+	ended       bool
+	attribution string
+	badValues   error
 }
 
 func (o outcome) bare() bool { return o.code != "" }
 
 func passRow(step string) vectorcases.Row {
 	return vectorcases.Row{Status: "pass", Step: step}
+}
+
+// keyringUnavailable reports whether the case's keyring is unavailable.
+func keyringUnavailable(c vectorcases.Case) bool {
+	return c.Config.Keyring != nil && *c.Config.Keyring == "unavailable"
 }
 
 // caseConfig is the configuration a case gives (SPEC.md section 13.2): its
@@ -94,20 +108,32 @@ func bareOf(rejection *verifier.Rejection) outcome {
 	return outcome{code: string(rejection.Code), subReason: string(rejection.SubReason)}
 }
 
+// reportOf is the outcome of a run that passed steps 0 to 3, its rows from
+// the one at index from.
+func reportOf(run *verifier.Run, from int) outcome {
+	o := outcome{rows: rowsOf(run)[from:], ended: run.Ended, attribution: run.Attribution}
+	for _, row := range run.Rows {
+		if _, err := jcs.Encode(row.Values); err != nil && o.badValues == nil {
+			o.badValues = err
+		}
+	}
+	return o
+}
+
 // run runs the built steps over the case's proof file: an offline case
 // from CONFIGURATION, and an online case from READ.
 func run(t *testing.T, c vectorcases.Case) outcome {
 	t.Helper()
 	cfg := caseConfig(t, c)
 	if c.Config.Online == nil {
-		r, rejection, err := verifier.AdmitFile(cfg, c.ProofPath())
+		r, rejection, err := verifier.GateFile(cfg, c.ProofPath())
 		if err != nil {
 			t.Fatalf("%s: %v", c.ID, err)
 		}
 		if rejection != nil {
 			return bareOf(rejection)
 		}
-		return outcome{rows: rowsOf(r)}
+		return reportOf(r, 0)
 	}
 	r, rejection, err := verifier.Configure(cfg)
 	if err != nil || rejection != nil {
@@ -130,7 +156,12 @@ func run(t *testing.T, c vectorcases.Case) outcome {
 			return bareOf(rejection)
 		}
 	}
-	return outcome{rows: rowsOf(r)[1:]}
+	if !keyringUnavailable(c) {
+		verifier.Environment(r)
+		verifier.KeyBinding(r)
+		verifier.Signature(r)
+	}
+	return reportOf(r, 1)
 }
 
 // decidedAt returns the step at which a case ends in a bare rejection, or
@@ -147,16 +178,21 @@ func decidedAt(t *testing.T, c vectorcases.Case) string {
 	return entry.Step
 }
 
-// rowsFrom returns the rows of the steps from first to lastBuilt.
-func rowsFrom(first string, rows []vectorcases.Row) []vectorcases.Row {
-	from, last := vectorcases.StepIndex(first), vectorcases.StepIndex(lastBuilt)
+// rowsBetween returns the rows of the steps from first to last.
+func rowsBetween(first, last string, rows []vectorcases.Row) []vectorcases.Row {
+	from, to := vectorcases.StepIndex(first), vectorcases.StepIndex(last)
 	var out []vectorcases.Row
 	for _, row := range rows {
-		if i := vectorcases.StepIndex(row.Step); from <= i && i <= last {
+		if i := vectorcases.StepIndex(row.Step); from <= i && i <= to {
 			out = append(out, row)
 		}
 	}
 	return out
+}
+
+// rowsFrom returns the rows of the steps from first to lastBuilt.
+func rowsFrom(first string, rows []vectorcases.Row) []vectorcases.Row {
+	return rowsBetween(first, lastBuilt, rows)
 }
 
 // rowsThrough returns the rows of the steps from firstBuilt to lastBuilt.
@@ -168,19 +204,42 @@ func rowsEqual(a, b []vectorcases.Row) bool {
 	return slices.EqualFunc(a, b, func(x, y vectorcases.Row) bool { return x.String() == y.String() })
 }
 
+// attributionFits reports whether a run's attribution after a gate that
+// passed fits the label its case expects (SPEC.md section 10.5): a label
+// that names the attribution needs it, and failed fits any.
+func attributionFits(attribution, label string) bool {
+	switch {
+	case attribution == verifier.AttributionUnattributed:
+		return label == "unattributed" || label == "failed"
+	case strings.HasPrefix(attribution, "keyring:") && len(attribution) == len("keyring:")+64:
+		return label == "supplied-keyring" || label == "failed"
+	case attribution == verifier.AttributionTruestamp:
+		return label == "verified" || label == "internally-consistent" || label == "failed"
+	}
+	return false
+}
+
 // Every case of cases.json through the built steps: a case they decide
-// gives exactly its code and sub_reason; every other case passes them, and
-// a report's rows of those steps are exactly its expected rows; an online
-// case CONFIGURATION decides is not run. Mutants killed: parseNumber
-// without its call to profileNumber (the parse-integer-* and parse-number-*
-// cases are accepted); skipWhitespace without the carriage return (the
+// gives exactly its code and sub_reason; every other case passes steps 0
+// to 3, and a report's rows of the built steps are exactly its expected
+// rows, all of them when the gate ends the run, whose label is then failed
+// and whose attribution is none; a run the gate opens has the attribution
+// its label needs; every row's values write with JCS; an online case
+// CONFIGURATION decides is not run. Mutants killed: parseNumber without
+// its call to profileNumber (the parse-integer-* and parse-number-* cases
+// are accepted); skipWhitespace without the carriage return (the
 // sameness-format-* cases, which end their lines in CRLF, are refused);
 // Envelope without the signature's member count (the
 // envelope-signature-extra-key_id case passes); the keyring's VECTOR_KEY
 // check left out (configuration-vector_key-under-staging passes); a
 // non-production run with no keyring source governed by the compiled pin
-// (configuration-no_keyring_source passes).
-func TestCases_ThroughEnvelope(t *testing.T) {
+// (configuration-no_keyring_source passes); ENVIRONMENT passing any marker
+// under a non-production E_v (environment-absent-under-staging passes);
+// keyless mode skipping SIGNATURE (signature-other_key-keyless passes);
+// the proof_hash prefix 0x50 replaced by 0x31 (every sound case fails
+// SIGNATURE); EndRun leaving out the skip rows (every gate failure's rows
+// differ).
+func TestCases_ThroughSignature(t *testing.T) {
 	cases, err := vectorcases.Load()
 	if err != nil {
 		t.Fatal(err)
@@ -192,37 +251,50 @@ func TestCases_ThroughEnvelope(t *testing.T) {
 	for _, c := range cases {
 		step := decidedAt(t, c)
 		online := c.Config.Online != nil
-		switch {
-		case online && step == "CONFIGURATION":
+		if online && step == "CONFIGURATION" {
 			tally["not run, online and decided at CONFIGURATION"]++
 			continue
-		case step != "" && vectorcases.StepIndex(step) <= vectorcases.StepIndex(lastBuilt):
-			tally["rejected at "+step]++
-		case step != "":
-			tally["passes, then rejected at "+step]++
-		case online:
-			tally["online report, from READ"]++
-		default:
-			tally["report"]++
 		}
 
 		t.Run(c.ID, func(t *testing.T) {
 			got := run(t, c)
 			switch {
 			case step != "" && vectorcases.StepIndex(step) <= vectorcases.StepIndex(lastBuilt):
+				tally["rejected at "+step]++
 				if got.code != c.Expected.Code || got.subReason != c.Expected.SubReason {
 					t.Fatalf("got %s (%s), want %s (%s)", got.code, got.subReason, c.Expected.Code, c.Expected.SubReason)
 				}
+				return
 			case got.bare():
 				t.Fatalf("rejected %s (%s) at a built step; the case is decided later", got.code, got.subReason)
-			case step == "" && online:
-				if want := rowsFrom("READ", c.Expected.Rows); !rowsEqual(got.rows, want) {
-					t.Fatalf("rows = %v, want %v", got.rows, want)
+			case step != "":
+				t.Fatalf("no case is decided by a bare rejection after %s", lastBuilt)
+			}
+			if got.badValues != nil {
+				t.Fatalf("a row's values: %v", got.badValues)
+			}
+			want := c.Expected.Rows
+			if online {
+				want = rowsBetween("READ", "VERDICT", want)
+			}
+			switch {
+			case online && keyringUnavailable(c):
+				tally["online report, from READ through ENVELOPE"]++
+				want = rowsBetween("READ", "ENVELOPE", want)
+			case got.ended:
+				tally[map[bool]string{false: "report, the gate fails", true: "online report, from READ, the gate fails"}[online]]++
+				if c.Expected.Label != "failed" || got.attribution != verifier.AttributionNone {
+					t.Fatalf("the gate ended the run with attribution %q; the case's label is %s", got.attribution, c.Expected.Label)
 				}
-			case step == "":
-				if want := rowsThrough(c.Expected.Rows); !rowsEqual(got.rows, want) {
-					t.Fatalf("rows = %v, want %v", got.rows, want)
+			default:
+				tally[map[bool]string{false: "report, the gate passes", true: "online report, from READ, the gate passes"}[online]]++
+				want = rowsThrough(want)
+				if !attributionFits(got.attribution, c.Expected.Label) {
+					t.Fatalf("attribution %q, label %s", got.attribution, c.Expected.Label)
 				}
+			}
+			if !rowsEqual(got.rows, want) {
+				t.Fatalf("rows = %v, want %v", got.rows, want)
 			}
 		})
 	}
@@ -233,8 +305,10 @@ func TestCases_ThroughEnvelope(t *testing.T) {
 		"rejected at READ":                             1,
 		"rejected at PARSE":                            15,
 		"rejected at ENVELOPE":                         32,
-		"report":                                       315,
-		"online report, from READ":                     64,
+		"report, the gate fails":                       30,
+		"report, the gate passes":                      285,
+		"online report, from READ, the gate passes":    62,
+		"online report, from READ through ENVELOPE":    2,
 	}
 	if len(tally) != len(want) {
 		t.Fatalf("tally = %v, want %v", tally, want)
@@ -243,6 +317,71 @@ func TestCases_ThroughEnvelope(t *testing.T) {
 		if tally[k] != n {
 			t.Fatalf("tally = %v, want %v", tally, want)
 		}
+	}
+}
+
+// The families cut at SIGNATURE are SPEC.md section 13.3's: the 11
+// environment-* cases, each environment_mismatch; the 12 signature-*
+// cases, each signature_invalid; the 2 mixed_order-* cases, one passing
+// and one signature_invalid, both keyless; the 5 offline key_binding-*
+// cases, three key_binding_failed, the inactive key passing and the
+// keyless skip; and the 9 gates-* cases, three of them failing at the gate
+// and six passing it, three of those online. Each offline one runs to its
+// expected rows of the gate. Mutant killed: keyless mode skipping
+// SIGNATURE (the four keyless signature-* cases and
+// mixed_order-k_not_multiple_of_8 pass).
+func TestCases_FamiliesCutAtSignature(t *testing.T) {
+	cases, err := vectorcases.Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	gateCode := func(c vectorcases.Case) string {
+		var codes []string
+		for _, row := range rowsBetween("ENVIRONMENT", "SIGNATURE", c.Expected.Rows) {
+			if row.Code != nil && *row.Code != "prior_failure" {
+				codes = append(codes, *row.Code)
+			}
+		}
+		return strings.Join(codes, " ")
+	}
+	got := map[string]map[string]int{}
+	for _, c := range cases {
+		family := c.Family()
+		if family == "key_binding" && c.Config.Online != nil {
+			family = "key_binding online"
+		}
+		switch family {
+		case "environment", "signature", "mixed_order", "key_binding", "key_binding online", "gates":
+		default:
+			continue
+		}
+		if got[family] == nil {
+			got[family] = map[string]int{}
+		}
+		got[family][gateCode(c)]++
+		if c.Config.Online == nil {
+			o := run(t, c)
+			if want := rowsBetween("ENVIRONMENT", "SIGNATURE", c.Expected.Rows); !rowsEqual(rowsBetween("ENVIRONMENT", "SIGNATURE", o.rows), want) {
+				t.Errorf("%s: gate rows %v, want %v", c.ID, o.rows, want)
+			}
+		}
+	}
+	want := map[string]map[string]int{
+		"environment": {"environment_mismatch": 11},
+		"signature":   {"signature_invalid": 8, "key_binding_not_performed signature_invalid": 4},
+		"mixed_order": {"key_binding_not_performed": 1, "key_binding_not_performed signature_invalid": 1},
+		"key_binding": {"key_binding_failed": 3, "": 1, "key_binding_not_performed": 1},
+		"gates":       {"environment_mismatch": 1, "key_binding_failed": 1, "signature_invalid": 1, "": 6},
+	}
+	for family, codes := range want {
+		for code, n := range codes {
+			if got[family][code] != n || len(got[family]) != len(codes) {
+				t.Fatalf("%s: %v, want %v", family, got[family], codes)
+			}
+		}
+	}
+	if got["key_binding online"]["keyring_unavailable"] != 2 {
+		t.Fatalf("online key_binding: %v", got["key_binding online"])
 	}
 }
 
@@ -282,7 +421,7 @@ func TestCases_FamiliesCutAtEnvelope(t *testing.T) {
 		}
 		if !c.Expected.Bare() {
 			want := []vectorcases.Row{passRow("CONFIGURATION"), passRow("READ"), passRow("PARSE"), passRow("ENVELOPE")}
-			if got := rowsThrough(c.Expected.Rows); !rowsEqual(got, want) {
+			if got := rowsBetween("CONFIGURATION", "ENVELOPE", c.Expected.Rows); !rowsEqual(got, want) {
 				t.Fatalf("%s: rows of steps 0 to 3 = %v", c.ID, got)
 			}
 		}
@@ -336,7 +475,7 @@ func TestCases_FamiliesCutAtParse(t *testing.T) {
 		}
 		if !c.Expected.Bare() {
 			want := []vectorcases.Row{passRow("READ"), passRow("PARSE")}
-			got := slices.DeleteFunc(rowsFrom("READ", c.Expected.Rows), func(row vectorcases.Row) bool { return row.Step == "ENVELOPE" })
+			got := rowsBetween("READ", "PARSE", c.Expected.Rows)
 			if !rowsEqual(got, want) {
 				t.Fatalf("%s: rows of READ and PARSE = %v", c.ID, got)
 			}

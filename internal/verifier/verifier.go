@@ -8,13 +8,18 @@
 // and checked against the Truestamp application's port of it
 // (lib/truestamp/proof/verifier/ in truestamp-v2).
 //
-// It holds steps 0 to 3 of SPEC.md section 10.2 (Steps), the part of the
-// gate that decides whether a run gives a report at all: CONFIGURATION,
-// which fixes E_v, the network pins and the keyring that governs key
-// binding before the file is read; READ (J1); PARSE (J2 to J6); and
-// ENVELOPE, the envelope of section 3.1. A failure at any of them is a
-// bare rejection, a [*Rejection]; a run that passes them is a [*Run] with
-// one pass row of each step, part null.
+// It holds steps 0 to 6 of SPEC.md section 10.2 (Steps), the gate. Steps 0
+// to 3 decide whether a run gives a report at all: CONFIGURATION, which
+// fixes E_v, the network pins and the keyring that governs key binding
+// before the file is read; READ (J1); PARSE (J2 to J6); and ENVELOPE, the
+// envelope of section 3.1. A failure at any of them is a bare rejection, a
+// [*Rejection]; a run that passes them is a [*Run] with one pass row of
+// each step, part null. Steps 4 to 6 add one row each: ENVIRONMENT, the
+// marker of section 6.4 against E_v; KEY_BINDING, K against the keyring
+// that governs, all 32 octets compared (section 6.1); and SIGNATURE, V
+// under K over proof_hash by the strict rule of section 6.2. A failure at
+// any of them ends the run with the attribution none; a run that passes
+// them carries its attribution and trust_root (section 10.5).
 //
 //   - config.go: a run's [Config] (the reference's config.ex);
 //   - options.go: the options of `truestamp verify` that set a Config,
@@ -24,8 +29,9 @@
 //     rows, the bare rejection and JSON Pointers into the proof (run.ex,
 //     row.ex, rejection.ex and pointer.ex).
 //
-// The keyring and its load checks are internal/verifier/keyring, and the
-// checks of a key's bytes are internal/verifier/ed25519.
+// The keyring, its load checks and its digest are internal/verifier/keyring,
+// and the checks of a key's bytes and strict Ed25519 are
+// internal/verifier/ed25519.
 //
 // The CLI is an external verifier (SPEC.md section 8.3). Online, under E_v
 // prod and with no supplied keyring, the keyring read from

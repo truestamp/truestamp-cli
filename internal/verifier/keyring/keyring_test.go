@@ -19,6 +19,7 @@ import (
 	"github.com/truestamp/truestamp-cli/internal/specdata"
 	"github.com/truestamp/truestamp-cli/internal/strictjson"
 	"github.com/truestamp/truestamp-cli/internal/vectorcases"
+	"github.com/truestamp/truestamp-cli/internal/verifier/ed25519"
 )
 
 // entry is one key as a test writes it into a keyring.
@@ -158,6 +159,24 @@ func TestCompiledPin_PassesTheLoadChecksUnderProd(t *testing.T) {
 	}
 	if _, err := specdata.File("keyring.production.json"); err != nil {
 		t.Fatal(err)
+	}
+}
+
+// Check 5 checks a key's bytes and no more, so a key off the curve loads
+// under every E_v, and SIGNATURE refuses it later (SPEC.md section 6.2,
+// step 4): 0x02 followed by 31 zero octets, whose y is 2, is below p and
+// not one of SMALL_ORDER_KEYS, and ed25519's Verify names it not_on_curve.
+// Mutant killed: the load checks refusing a key off the curve.
+func TestLoad_AKeyOffTheCurveLoads(t *testing.T) {
+	offCurve := [32]byte{2}
+	if err := ed25519.Verify(offCurve, nil, [64]byte{}); !errors.Is(err, ed25519.ErrNotOnCurve) {
+		t.Fatalf("Verify: %v, want not_on_curve", err)
+	}
+	for _, environment := range specdata.Environments() {
+		keyring, err := Load(keyringOf(sound(offCurve, 0)), environment, "")
+		if err != nil || len(keyring.Keys) != 1 || keyring.Keys[0].PublicKey != offCurve {
+			t.Errorf("under %s: %v", environment, err)
+		}
 	}
 }
 
@@ -436,5 +455,37 @@ func TestLoad_UnknownEnvironmentAndDescriptions(t *testing.T) {
 			t.Errorf("check %d: %q", check, text)
 		}
 		seen[text] = true
+	}
+}
+
+// A loaded keyring's digest d is the lowercase hex SHA-256 of the bytes it
+// was loaded from as read (SPEC.md section 8.3), a content digest with no
+// prefix byte: two spellings of one keyring, compact and indented with CRLF
+// line ends and its members reordered, load to the same keys and two
+// digests, each the SHA-256 of its own bytes. Mutants killed: the digest
+// made over JCS of the parsed keyring (the two spellings give one digest);
+// the digest written in upper case; Load leaving the digest out.
+func TestLoad_TheDigestIsOfTheBytesAsRead(t *testing.T) {
+	key := testKey("a")
+	compact := keyringOf(sound(key, 0))
+	indented := []byte(fmt.Sprintf("{\r\n  \"version\": \"1.0\",\r\n  \"keys\": [\r\n    {\"sequence\": 0, \"public_key\": %q, \"key_id\": %q, \"active\": true}\r\n  ]\r\n}\r\n",
+		registry.EncodeB64U(key[:]), registry.KeyIDOf(key)))
+	digests := map[string]bool{}
+	for _, data := range [][]byte{compact, indented} {
+		keyring, err := Load(data, "test", "")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(keyring.Keys) != 1 || keyring.Keys[0].PublicKey != key {
+			t.Fatalf("keys %+v", keyring.Keys)
+		}
+		sum := sha256.Sum256(data)
+		if want := hex.EncodeToString(sum[:]); keyring.Digest != want || Digest(data) != want {
+			t.Errorf("digest %q, Digest %q, want %q", keyring.Digest, Digest(data), want)
+		}
+		digests[keyring.Digest] = true
+	}
+	if len(digests) != 2 {
+		t.Fatalf("two spellings of one keyring give %d digests", len(digests))
 	}
 }
