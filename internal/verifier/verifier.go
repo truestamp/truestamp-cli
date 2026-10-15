@@ -1,0 +1,36 @@
+// Copyright (c) 2019-2026 Truestamp, Inc.
+// SPDX-License-Identifier: Apache-2.0
+
+// Package verifier is the CLI's verifier of SPEC.md section 10 (The
+// verification algorithm), built beside internal/verify and ported module
+// by module from the reference verifier in truestamp-verification
+// (elixir/lib/truestamp/verifier/), each file naming the module it ports
+// and checked against the Truestamp application's port of it
+// (lib/truestamp/proof/verifier/ in truestamp-v2).
+//
+// It holds steps 0 to 3 of SPEC.md section 10.2 (Steps), the part of the
+// gate that decides whether a run gives a report at all: CONFIGURATION,
+// which fixes E_v, the network pins and the keyring that governs key
+// binding before the file is read; READ (J1); PARSE (J2 to J6); and
+// ENVELOPE, the envelope of section 3.1. A failure at any of them is a
+// bare rejection, a [*Rejection]; a run that passes them is a [*Run] with
+// one pass row of each step, part null.
+//
+//   - config.go: a run's [Config] (the reference's config.ex);
+//   - options.go: the options of `truestamp verify` that set a Config,
+//     which only the run's own options may set (sections 6.4 and 8.3);
+//   - gate.go: the steps (gate.ex);
+//   - run.go, row.go, rejection.go and pointer.go: the run's state, its
+//     rows, the bare rejection and JSON Pointers into the proof (run.ex,
+//     row.ex, rejection.ex and pointer.ex).
+//
+// The keyring and its load checks are internal/verifier/keyring, and the
+// checks of a key's bytes are internal/verifier/ed25519.
+//
+// The CLI is an external verifier (SPEC.md section 8.3). Online, under E_v
+// prod and with no supplied keyring, the keyring read from
+// www.truestamp.com governs; such a read, and the read of a keyring from
+// the origin an explicit --base-url names, go through [Config.ReadKeyring],
+// and a read that does not give a keyring passing the load checks binds no
+// key. Offline, under prod, the compiled pin governs.
+package verifier

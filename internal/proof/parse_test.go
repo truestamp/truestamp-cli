@@ -300,7 +300,6 @@ func rejectionOf(t *testing.T, data []byte) (string, error) {
 
 func TestRejection_Fixtures(t *testing.T) {
 	cases := map[string]string{
-		"old-layout.json":  CodeUnsupportedLayout,
 		"tamper-type.json": CodeUnexpectedSubjectFieldsForBlockLike,
 	}
 	for file, want := range cases {
@@ -330,15 +329,26 @@ func mutate(t *testing.T, edit func(top map[string]any)) []byte {
 	return out
 }
 
+// No member's name selects a layout: a sound bundle that also carries
+// top-level v and t keys parses like any other, and a document in an
+// earlier layout is graded by the gates every document meets, here the
+// missing subject. Mutant killed: a rejection keyed on a top-level v or t.
+func TestParse_TopLevelVAndTSelectNothing(t *testing.T) {
+	data := mutate(t, func(m map[string]any) { m["v"] = nil; m["t"] = 20 })
+	if _, err := ParseBytes(data); err != nil {
+		t.Fatalf("a sound bundle with v and t: %v", err)
+	}
+	if code, err := rejectionOf(t, testfixtures.Read(t, testfixtures.TamperDir, "old-layout.json")); code != CodeMissingSubject {
+		t.Fatalf("old-layout.json: %q (%v), want missing_subject", code, err)
+	}
+}
+
 func TestRejection_Order(t *testing.T) {
 	cases := []struct {
 		name string
 		edit func(top map[string]any)
 		want string
 	}{
-		{"draft v key even when null", func(m map[string]any) { m["v"] = nil }, CodeUnsupportedLayout},
-		{"draft t key", func(m map[string]any) { m["t"] = 20 }, CodeUnsupportedLayout},
-		{"draft key outranks a bad type", func(m map[string]any) { m["t"] = 20; m["type"] = "nope" }, CodeUnsupportedLayout},
 		{"type absent", func(m map[string]any) { delete(m, "type") }, CodeInvalidSubjectType},
 		{"type unknown", func(m map[string]any) { m["type"] = "commitment_stellar" }, CodeInvalidSubjectType},
 		{"type not a string", func(m map[string]any) { m["type"] = 20 }, CodeInvalidSubjectType},
@@ -510,21 +520,6 @@ func TestParseCBOR_NonTextKeyInHashedMap(t *testing.T) {
 	}
 }
 
-func TestParseCBOR_ValueSpaceOutranksLayout(t *testing.T) {
-	// E.6 places invalid_subject_data before unsupported_layout.
-	data := cborWith(t, func(m map[string]any) {
-		m["t"] = 20
-		m["subject"].(map[string]any)["claims"].(map[string]any)["blob"] = []byte{1}
-	})
-	if code, _ := rejectionOf(t, data); code != CodeInvalidSubjectData {
-		t.Errorf("rejection %q, want invalid_subject_data first", code)
-	}
-	data = cborWith(t, func(m map[string]any) { m["t"] = 20 })
-	if code, _ := rejectionOf(t, data); code != CodeUnsupportedLayout {
-		t.Errorf("rejection %q, want unsupported_layout", code)
-	}
-}
-
 func TestParseCBOR_GenericPositionsAreLenient(t *testing.T) {
 	// A byte string in an unnamed slot renders as hex and a tag outside a
 	// hashed map is unwrapped, so an unknown optional field is carried
@@ -653,7 +648,7 @@ func TestObjectHelpers(t *testing.T) {
 	if !ok {
 		t.Fatal("parseObject failed")
 	}
-	if !o.HasKey("nul") || o.Has("nul") || o.Has("missing") || !o.Has("s") {
+	if o.Has("nul") || o.Has("missing") || !o.Has("s") {
 		t.Error("presence helpers")
 	}
 	if o.Str("s") != "x" || o.Str("n") != "" || o.IsString("n") || o.IsString("nul") {

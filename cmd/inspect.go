@@ -28,9 +28,8 @@ commitments, and whether a signing key event rides along.
 
 Nothing is verified: no hash is recomputed and no signature is checked.
 Use 'truestamp verify' for that. The structural gates of whitepaper
-Appendix E.6 still apply, so a malformed bundle, or one in the
-pre-publication draft layout, is rejected with the same identifier
-'verify' would report.
+Appendix E.6 still apply, so a malformed bundle is rejected with the
+same identifier 'verify' would report.
 
 Examples:
   truestamp inspect proof.json

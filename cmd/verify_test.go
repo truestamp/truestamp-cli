@@ -483,7 +483,7 @@ func TestCLI_Verify_Rejection_Text(t *testing.T) {
 	if code != 1 {
 		t.Errorf("exit %d, want 1", code)
 	}
-	for _, want := range []string{"REJECTED: unsupported_layout", "pre-publication draft layout", "regenerate the proof"} {
+	for _, want := range []string{"REJECTED: missing_subject", "subject is not a map", "not a well-formed proof bundle"} {
 		if !strings.Contains(out, want) {
 			t.Errorf("output lacks %q\n%s", want, out)
 		}
@@ -499,13 +499,13 @@ func TestCLI_Verify_Rejection_Text(t *testing.T) {
 
 func TestCLI_Verify_Rejection_JSON(t *testing.T) {
 	out, code := runVerifyJSON(t, binaryPath, tamperPath("old-layout.json"), "--offline")
-	if code != 1 || out.Passed || out.Rejection == nil || out.Rejection.Code != "unsupported_layout" {
+	if code != 1 || out.Passed || out.Rejection == nil || out.Rejection.Code != "missing_subject" {
 		t.Errorf("exit %d passed %v rejection %+v", code, out.Passed, out.Rejection)
 	}
 	if len(out.Steps) != 0 {
 		t.Errorf("a rejection carries no steps, got %d", len(out.Steps))
 	}
-	if !strings.Contains(out.Rejection.Advice, "regenerate") {
+	if !strings.Contains(out.Rejection.Advice, "not a well-formed proof bundle") {
 		t.Errorf("advice = %q", out.Rejection.Advice)
 	}
 }
@@ -762,7 +762,7 @@ func TestCLI_Verify_Remote(t *testing.T) {
 	// A local rejection never reaches the server; a server rejection is
 	// rendered like a local one.
 	text, code := runCLIText(t, "verify", tamperPath("old-layout.json"), "--remote", "--base-url", srv.URL, "--api-key", "test-key")
-	if code != 1 || !strings.Contains(text, "REJECTED: unsupported_layout") {
+	if code != 1 || !strings.Contains(text, "REJECTED: missing_subject") {
 		t.Errorf("remote local rejection: exit %d\n%s", code, text)
 	}
 	text, code = runCLIText(t, "verify", tamperPath("tamper-type.json"), "--remote", "--base-url", srv.URL, "--api-key", "test-key")

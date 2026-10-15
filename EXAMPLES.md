@@ -1034,29 +1034,22 @@ Without `--json` the same refusal prints as three lines:
 ```
 
 Exit code `1`. The identifiers, in the order the gates apply, are
-`not_a_json_object`, `invalid_subject_data` (CBOR only), `unsupported_layout`,
+`not_a_json_object`, `invalid_subject_data` (CBOR only),
 `invalid_subject_type`, `missing_block`,
 `unexpected_subject_fields_for_block_like`, `missing_subject`,
 `missing_inclusion_proof`, `missing_metadata`, `no_external_commitments`
 and `invalid_commitment_entry`, plus the CLI-side `subject_type_mismatch`
 for a `--type` that disagrees with the bundle.
 
-`unsupported_layout` is the one to know: a bundle carrying a top-level `v`
-or `t` key is in the pre-publication draft layout that version 1 replaced.
-No verifier reads it. Ask the holder to regenerate the proof.
+No identifier names a layout: a document is graded by the same gates
+whatever it resembles, so a file in any other layout is refused by the
+first gate it fails.
 
 ```sh
-truestamp verify old-layout.json
-#   REJECTED: unsupported_layout
-#   a top-level v or t key is present: this is the pre-publication draft layout,
-#   which version 1 replaced
-#   This file uses the pre-publication draft layout, which version 1 replaced.
-#   Ask the holder to regenerate the proof; no verifier reads that layout.
-
 # Branch on the reason in a script
 code=$(truestamp verify proof.json --json 2>/dev/null | jq -r '.rejection.code // empty')
 [ -n "$code" ] && echo "bundle refused: $code"
-#   bundle refused: unsupported_layout
+#   bundle refused: missing_subject
 ```
 
 ---
@@ -1067,8 +1060,8 @@ Print what a bundle carries without verifying anything: the format,
 version and type, the ids, the witnesses the subject metadata commits to
 and the details carried, the block, the commitments, and the signing key
 event. No hash is recomputed and no signature is checked; the structural
-gates still apply, so a malformed or draft-layout bundle is rejected with
-the same identifier `verify` would report.
+gates still apply, so a malformed bundle is rejected with the same
+identifier `verify` would report.
 
 ```sh
 truestamp inspect proof.json
@@ -1146,19 +1139,17 @@ reports `"format": "cbor"` and its own byte count. A compact bundle
 carries no signing key event, so the `has("signing_key_event")` probe
 prints `false` there and `true` on a complete one.
 
-The structural gates run before anything is printed, so a bundle in the
-pre-publication draft layout is refused here exactly as `verify` refuses
-it:
+The structural gates run before anything is printed, so a malformed
+bundle is refused here exactly as `verify` refuses it:
 
 ```sh
-truestamp inspect draft-layout.json
+truestamp inspect no-subject.json
 ```
 
 ```text
-  REJECTED: unsupported_layout
-  a top-level v or t key is present: this is the pre-publication draft layout, which version 1 replaced
-  This file uses the pre-publication draft layout, which version 1 replaced.
-  Ask the holder to regenerate the proof; no verifier reads that layout.
+  REJECTED: missing_subject
+  subject is not a map (absent)
+  This input is not a well-formed proof bundle, so no steps were run.
 ```
 
 Exit code `0` when the bundle parses, `1` when it is rejected.
@@ -2752,8 +2743,8 @@ truestamp inspect proof.json --json | jq '.subject.carried_witnesses'
 # ]
 
 # A refused bundle carries a rejection object and an empty steps array
-truestamp verify draft.json --json | jq -r '.rejection.code // "accepted"'
-# unsupported_layout
+truestamp verify no-subject.json --json | jq -r '.rejection.code // "accepted"'
+# missing_subject
 ```
 
 ---

@@ -161,7 +161,7 @@ func TestCLI_Inspect(t *testing.T) {
 	}
 
 	out, code = runCLIText(t, "inspect", tamperPath("old-layout.json"))
-	if code != 1 || !strings.Contains(out, "REJECTED: unsupported_layout") {
+	if code != 1 || !strings.Contains(out, "REJECTED: missing_subject") {
 		t.Errorf("inspect rejection: exit %d\n%s", code, out)
 	}
 	out, code = runCLIText(t, "inspect", prodPath(testfixtures.ProdCompact))

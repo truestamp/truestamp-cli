@@ -64,9 +64,6 @@ you expected: a mismatch is the hard rejection subject_type_mismatch.
 Values: item | entropy_nist | entropy_stellar | entropy_bitcoin |
 block | beacon.
 
-A bundle in the pre-publication draft layout (top-level 'v' or 't' keys)
-is refused with unsupported_layout; ask the holder to regenerate it.
-
 Use --remote to also ask the Truestamp server to verify the bundle. This
 CLI's own verifier never depends on it. Requires authentication: run
 'truestamp auth login', or set TRUESTAMP_API_KEY / --api-key.

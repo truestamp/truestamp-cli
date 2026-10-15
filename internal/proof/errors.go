@@ -16,7 +16,6 @@ import (
 const (
 	CodeNotAJSONObject                      = "not_a_json_object"
 	CodeInvalidSubjectData                  = "invalid_subject_data"
-	CodeUnsupportedLayout                   = "unsupported_layout"
 	CodeInvalidSubjectType                  = "invalid_subject_type"
 	CodeMissingBlock                        = "missing_block"
 	CodeMissingMetadata                     = "missing_metadata"
@@ -54,9 +53,6 @@ func (e *RejectionError) Advice() string { return RejectionAdvice(e.Code) }
 // matching the reference verifier's wording.
 func RejectionAdvice(code string) string {
 	switch code {
-	case CodeUnsupportedLayout:
-		return "This file uses the pre-publication draft layout, which version 1 replaced.\n" +
-			"Ask the holder to regenerate the proof; no verifier reads that layout."
 	case CodeMissingMetadata:
 		return "A bundle carries its metadata maps, never their hashes, so a verifier can\n" +
 			"recompute every digest. This one omits a metadata map, so no steps were run."

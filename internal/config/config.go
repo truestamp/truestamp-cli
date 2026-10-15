@@ -135,6 +135,38 @@ type VerifyConfig struct {
 	// fetches the live keyring from BaseURL and an offline run reports the
 	// binding as not checked.
 	Keyring string `koanf:"keyring" json:"keyring"`
+
+	// Keyrings are the configured keyrings of SPEC.md section 8.3, one
+	// keyring file for each non-production environment. The verifier of
+	// internal/verifier uses one only in a run whose --environment names
+	// its environment; no configured keyring serves E_v prod. They are read
+	// from the configuration file alone: Load drops every environment
+	// variable that would reach the verify.keyrings table or a key under
+	// it. config show --json leaves them out while the verify command does
+	// not read them.
+	Keyrings KeyringsConfig `koanf:"keyrings" json:"-"`
+}
+
+// KeyringsConfig holds a configured keyring file for each non-production
+// environment, the ENV values of SPEC.md section 2.4; empty means none.
+type KeyringsConfig struct {
+	Dev     string `koanf:"dev" json:"dev"`
+	Staging string `koanf:"staging" json:"staging"`
+	Test    string `koanf:"test" json:"test"`
+}
+
+// For returns the configured keyring file of environment, or "" when there
+// is none, as there never is for prod.
+func (k KeyringsConfig) For(environment string) string {
+	switch environment {
+	case "dev":
+		return k.Dev
+	case "staging":
+		return k.Staging
+	case "test":
+		return k.Test
+	}
+	return ""
 }
 
 // HashConfig holds hash-subcommand-specific configuration.
@@ -155,6 +187,12 @@ var sectionPrefixes = []string{"verify", "hash", "convert", "logging"}
 // flagKeyMap maps CLI flag names to their koanf key paths.
 // Verify-subcommand flags are scoped under "verify."; hash under "hash.";
 // convert under "convert."; logging under "logging.".
+//
+// --environment and --no-keyring are not here, and never may be: the
+// verifier's environment and keyless mode are set only by options given
+// for the run, never by the configuration file or an environment variable
+// (SPEC.md sections 6.4 and 8.3), and a flag listed here is also a config
+// key.
 var flagKeyMap = map[string]string{
 	// Root persistent flags
 	"base-url":     "base_url",
@@ -186,25 +224,28 @@ func Load(configPath string, flags *pflag.FlagSet) (*Config, error) {
 
 	// 1. Compiled defaults
 	defaults := map[string]interface{}{
-		"base_url":             "https://www.truestamp.com",
-		"api_key":              "",
-		"team":                 "",
-		"http_timeout":         "10s",
-		"cosign_path":          "",
-		"silent":               false,
-		"json":                 false,
-		"verify.offline":       false,
-		"verify.remote":        false,
-		"verify.keyring":       "",
-		"hash.algorithm":       "sha256",
-		"hash.encoding":        "hex",
-		"hash.style":           "gnu",
-		"convert.time_zone":    "UTC",
-		"logging.file":         "",
-		"logging.level":        "info",
-		"logging.max_size_mb":  10,
-		"logging.max_backups":  5,
-		"logging.max_age_days": 14,
+		"base_url":                "https://www.truestamp.com",
+		"api_key":                 "",
+		"team":                    "",
+		"http_timeout":            "10s",
+		"cosign_path":             "",
+		"silent":                  false,
+		"json":                    false,
+		"verify.offline":          false,
+		"verify.remote":           false,
+		"verify.keyring":          "",
+		"verify.keyrings.dev":     "",
+		"verify.keyrings.staging": "",
+		"verify.keyrings.test":    "",
+		"hash.algorithm":          "sha256",
+		"hash.encoding":           "hex",
+		"hash.style":              "gnu",
+		"convert.time_zone":       "UTC",
+		"logging.file":            "",
+		"logging.level":           "info",
+		"logging.max_size_mb":     10,
+		"logging.max_backups":     5,
+		"logging.max_age_days":    14,
 	}
 	if err := k.Load(confmap.Provider(defaults, "."), nil); err != nil {
 		return nil, fmt.Errorf("loading defaults: %w", err)
@@ -236,6 +277,13 @@ func Load(configPath string, flags *pflag.FlagSet) (*Config, error) {
 					key = prefix + "." + strings.TrimPrefix(key, prefix+"_")
 					break
 				}
+			}
+			// The configured keyrings come from the configuration file
+			// alone: TRUESTAMP_VERIFY_KEYRINGS, set or empty, and a name
+			// with a dot in it such as TRUESTAMP_VERIFY_KEYRINGS.STAGING
+			// reach nothing (koanf skips a key returned empty).
+			if key == "verify.keyrings" || strings.HasPrefix(key, "verify.keyrings.") {
+				return "", nil
 			}
 			return key, v
 		},
