@@ -14,6 +14,7 @@ import (
 	"testing"
 
 	"github.com/truestamp/truestamp-cli/internal/httpclient"
+	"github.com/truestamp/truestamp-cli/internal/verifier/source"
 )
 
 // TestMain refuses the network on both of the transports this package's
@@ -23,7 +24,8 @@ import (
 //   - the shared HTTP client's, through httpclient.SetTransport, which
 //     refuses every request;
 //   - http.DefaultTransport, which a SingleRead built with no transport of
-//     its own reads through, DefaultKeyringReader's included: it is
+//     its own reads through, DefaultKeyringReader's and
+//     DefaultIdentityReader's included: it is
 //     replaced by loopbackOnly, which sends a request on to the transport
 //     saved at package init only when its host is a loopback IP literal,
 //     such as an httptest server's, and refuses every other one before any
@@ -116,5 +118,38 @@ func TestMain_RefusesNetworkOnTheDefaultTransport(t *testing.T) {
 	}
 	if got := refusals.Load() - before; got != 1 {
 		t.Fatalf("DefaultKeyringReader's read was refused %d times, want 1", got)
+	}
+}
+
+// The control of every reader of a source's identity: DefaultIdentityReader,
+// over each compiled-in default and over a Bitcoin Core node, builds its
+// read when it is made, after TestMain, so each read goes through
+// http.DefaultTransport and is refused in process, once, with no usable
+// answer. Mutant killed: TestMain without the DefaultTransport swap (the
+// test stops before any read). A reader built at package init, which would
+// hold the real transport, is what sources_test.go's
+// TestSources_TheDefaultReaderBuildsEachReadWithItsDeadline refuses.
+func TestMain_RefusesNetworkOnEverySourceReader(t *testing.T) {
+	if _, ok := http.DefaultTransport.(loopbackOnly); !ok {
+		t.Fatalf("http.DefaultTransport is %T, not the loopback-only refusal", http.DefaultTransport)
+	}
+	sources := []Source{{Chain: ChainBitcoin, Provider: source.BitcoinCore, URL: "https://core.invalid"}}
+	for _, key := range [][2]string{{ChainStellar, "public"}, {ChainStellar, "testnet"}, {ChainBitcoin, "mainnet"}, {ChainBitcoin, "testnet"}} {
+		s, ok := DefaultSource(key[0], key[1])
+		if !ok {
+			t.Fatalf("no default for %v", key)
+		}
+		sources = append(sources, s)
+	}
+	for _, s := range sources {
+		before := refusals.Load()
+		value, err := DefaultIdentityReader()(s)
+		var unreachable *source.Unreachable
+		if !errors.Is(err, errRefused) || !errors.As(err, &unreachable) || value != "" {
+			t.Fatalf("%s: %q, %v; want the test transport's refusal, unreachable", s.URL, value, err)
+		}
+		if got := refusals.Load() - before; got != 1 {
+			t.Fatalf("%s: %d requests refused, want 1", s.URL, got)
+		}
 	}
 }

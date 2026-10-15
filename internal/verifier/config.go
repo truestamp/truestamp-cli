@@ -10,21 +10,26 @@
 //
 // Adapted from the reference, which is offline and takes its members from
 // its command's options and from a conformance case: the CLI also runs
-// online, so a Config says whether the run is online and holds the seam an
-// online keyring read goes through; its keyring sources add a configured
-// keyring read from a file the configuration file names (SPEC.md section
-// 8.3), and the keyring read from the origin an explicit --base-url names;
-// and it holds no expected hash yet, which joins with step EXPECTED_HASH.
-// options.go sets a Config from the command's options.
+// online, so a Config says whether the run is online and holds the seams
+// an online keyring read and a source's identity read go through, and the
+// Stellar and Bitcoin sources the operator pins (SPEC.md section 9); its
+// keyring sources add a configured keyring read from a file the
+// configuration file names (SPEC.md section 8.3), and the keyring read
+// from the origin an explicit --base-url names; and it holds no expected
+// hash yet, which joins with step EXPECTED_HASH. options.go sets a Config
+// from the command's options, and sources.go confirms its sources.
 
 package verifier
 
 import (
 	"errors"
 	"fmt"
+	"net"
+	"net/url"
 	"slices"
 
 	"github.com/truestamp/truestamp-cli/internal/specdata"
+	"github.com/truestamp/truestamp-cli/internal/verifier/source"
 )
 
 // CurrentKeyringURL is where an external verifier reads Truestamp's
@@ -89,9 +94,12 @@ type KeyringReader func(url string) (KeyringRead, error)
 // keyless mode and --keyring FILE come only from the run's options
 // (sections 6.4 and 8.3). A configured keyring comes from the
 // configuration file, one for each non-production environment, and is
-// used only when --environment names it. Whether the run is offline may
-// also come from the configuration file or an environment variable. The
-// network pins are the defaults of E_v (section 9). No document sets any
+// used only when --environment names it. Whether the run is offline, and
+// the sources the operator pins, may also come from the configuration
+// file or an environment variable, and a Bitcoin Core node's RPC
+// credentials come only from one of those two (section 9). The network
+// pins are the defaults of E_v (section 9); no option sets them, and only
+// a conformance test replaces them with a case's. No document sets any
 // member.
 type Config struct {
 	// Environment is E_v (SPEC.md section 6.4): prod, or an ENV value.
@@ -106,6 +114,13 @@ type Config struct {
 	// ReadKeyring reads a keyring online. A nil reader reads nothing, so an
 	// online keyring read through it fails and binds no key.
 	ReadKeyring KeyringReader
+	// Sources are the Stellar and Bitcoin sources the operator pins, at
+	// most one of each provider, each in place of the compiled-in default
+	// of the networks it serves (SPEC.md section 9).
+	Sources []Source
+	// ReadIdentity reads a source's identity in an online run. A nil
+	// reader reads nothing, so each source gives no usable answer.
+	ReadIdentity IdentityReader
 }
 
 // ErrInvalidConfig marks a configuration no run can take, such as an
@@ -127,8 +142,12 @@ func NewConfig(environment string) (Config, error) {
 
 // Validate reports a configuration no run can take, wrapping
 // [ErrInvalidConfig]: an environment that is not an E_v, a pin that names
-// no network of its chain, a keyring source without its file or URL, or a
-// keyring read online in an offline run.
+// no network of its chain, a keyring source without its file or URL, a
+// keyring read online in an offline run, or a source whose provider is not
+// one of its chain's, whose URL [source.CheckURL] refuses or whose host is
+// neither an IP address nor a valid DNS name, that names a network not of
+// its chain, or that carries credentials and is not a Bitcoin Core node.
+// No error quotes a source's URL.
 func (c Config) Validate() error {
 	if !slices.Contains(specdata.Environments(), c.Environment) {
 		return fmt.Errorf("%w: %q is not an environment a verifier knows (one of %v)", ErrInvalidConfig, c.Environment, specdata.Environments())
@@ -162,6 +181,42 @@ func (c Config) Validate() error {
 		}
 	default:
 		return fmt.Errorf("%w: an unknown keyring source", ErrInvalidConfig)
+	}
+	for _, s := range c.Sources {
+		if err := checkSource(s); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// checkSource refuses a source no run can read; see [Config.Validate].
+func checkSource(s Source) error {
+	if s.Chain == "" || s.Provider.Chain() != s.Chain {
+		return fmt.Errorf("%w: a source of the chain %q has the provider %q, which does not serve it", ErrInvalidConfig, s.Chain, s.Provider)
+	}
+	if s.Network != "" && !slices.Contains(specdata.Networks()[s.Chain], s.Network) {
+		return fmt.Errorf("%w: a %s source names %q, which is not one of its networks", ErrInvalidConfig, chainName(s.Chain), s.Network)
+	}
+	if err := checkSourceURL(s.URL); err != nil {
+		return fmt.Errorf("%w: the %s URL: %w", ErrInvalidConfig, s.Provider, err)
+	}
+	if !s.Credentials.Empty() && s.Provider != source.BitcoinCore {
+		return fmt.Errorf("%w: only a Bitcoin Core node takes RPC credentials", ErrInvalidConfig)
+	}
+	return nil
+}
+
+// checkSourceURL refuses a source URL as [source.CheckURL] does, and one
+// whose host is neither an IP address nor a valid DNS name. Its error
+// never quotes the URL.
+func checkSourceURL(raw string) error {
+	if err := source.CheckURL(raw); err != nil {
+		return err
+	}
+	u, _ := url.Parse(raw)
+	if host := u.Hostname(); net.ParseIP(host) == nil && !validDNSName(host) {
+		return errors.New("the URL's host is not a valid DNS name")
 	}
 	return nil
 }

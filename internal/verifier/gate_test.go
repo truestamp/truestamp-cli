@@ -11,6 +11,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"testing"
 
 	"github.com/truestamp/truestamp-cli/internal/jcs"
@@ -297,6 +298,47 @@ func TestAdmitFile_ReadsTheProofAfterConfiguration(t *testing.T) {
 	}
 }
 
+// An online AdmitFile confirms the sources at CONFIGURATION, before it
+// reads the proof (SPEC.md section 10.2, step 0): a compiled-in default
+// whose identity contradicts its pin, under prod, is configuration_error,
+// and no error, when the proof's path names no file; and a proof that an
+// identity reader writes during its read is read after it and admitted,
+// with the four rows of steps 0 to 3. Mutants killed: the sources
+// confirmed after the file is read (the missing proof gives an error where
+// step 0 gives configuration_error); the file opened before
+// CONFIGURATION, its error kept for after it (the proof written during the
+// reads is not found).
+func TestAdmitFile_ConfirmsTheSourcesBeforeTheFileIsRead(t *testing.T) {
+	mismatched := func(s Source) (string, error) {
+		if s.URL == "https://horizon.stellar.org" {
+			return testnetPassphrase, nil
+		}
+		return honestIdentities(s)
+	}
+	missing := filepath.Join(t.TempDir(), "missing.proof.json")
+	if _, rejection, err := AdmitFile(online(t, "prod", mismatched), missing); err != nil || rejection == nil ||
+		rejection.Code != specdata.ReasonConfigurationError {
+		t.Fatalf("a mismatched default and a missing proof: %v, %v", rejection, err)
+	}
+	data, err := os.ReadFile(vectorcases.Path("positive/item.proof.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	late := filepath.Join(t.TempDir(), "late.proof.json")
+	var once sync.Once
+	writer := func(s Source) (string, error) {
+		once.Do(func() {
+			if err := os.WriteFile(late, data, 0o600); err != nil {
+				t.Error(err)
+			}
+		})
+		return honestIdentities(s)
+	}
+	if run, rejection, err := AdmitFile(online(t, "prod", writer), late); err != nil || rejection != nil || len(run.Rows) != 4 {
+		t.Fatalf("a proof written during the identity reads: %v, %v", rejection, err)
+	}
+}
+
 // writeKeyring writes a keyring of keys to a file of its own and returns
 // its path.
 func writeKeyring(t *testing.T, keys ...[32]byte) string {
@@ -398,6 +440,7 @@ func TestConfigure_WithoutAKeyringSource(t *testing.T) {
 		for _, online := range []bool{false, true} {
 			cfg, _ := NewConfig(environment)
 			cfg.Online = online
+			cfg = withRegtestSource(cfg)
 			cfg.ReadKeyring = byteReader(func(string) ([]byte, error) { t.Fatal("a keyring was read"); return nil, nil })
 			if _, rejection := configure(t, cfg); rejection == nil || rejection.Code != specdata.ReasonConfigurationError {
 				t.Errorf("%s, online %v: %v", environment, online, rejection)
@@ -526,6 +569,7 @@ func TestConfigure_ANonproductionKeyLoadsOutsideProd(t *testing.T) {
 		for name, source := range sources {
 			cfg, _ := NewConfig(environment)
 			cfg.Keyring, cfg.Online = source, source.Kind == SourceOrigin
+			cfg = withRegtestSource(cfg)
 			cfg.ReadKeyring = byteReader(func(string) ([]byte, error) { return data, nil })
 			run, rejection := configure(t, cfg)
 			switch {
@@ -554,6 +598,7 @@ func TestConfigure_ANonproductionKeyLoadsOutsideProd(t *testing.T) {
 	}
 	cfg, _ := NewConfig("test")
 	cfg.Keyring, cfg.Online = KeyringSource{Kind: SourceOrigin, URL: url}, true
+	cfg = withRegtestSource(cfg)
 	cfg.ReadKeyring = byteReader(func(string) ([]byte, error) { return vector, nil })
 	run, rejection := configure(t, cfg)
 	if rejection != nil || run.Keyring == nil || run.KeyringUnavailable {

@@ -47,8 +47,8 @@ import (
 //     its first commit.
 //
 // Checks 6 and 8 read only the packages of scannedPackages, the new
-// verifier's, and check 7 only those of them it marks: older code, such as
-// internal/tscrypto's walk, still applies 0x00 and 0x01 itself.
+// verifier's, and checks 7 and 10 only those of them it marks: older code,
+// such as internal/tscrypto's walk, still applies 0x00 and 0x01 itself.
 //
 //  6. crypto/sha256 used outside the registry's digest, the one function
 //     that applies a prefix byte, and outside contentDigest, the one
@@ -77,7 +77,12 @@ import (
 //     other checks do not see. Another crypto/ package, such as
 //     crypto/ed25519, may be listed, and so may crypto/sha256 on the list
 //     of contentDigest's package, which check 6 confines to that one
-//     function.
+//     function;
+// 10. in a package marked to print nothing (internal/verifier/source, which
+//     sends a Bitcoin Core node's RPC credentials and reads what the node
+//     answers), a call of fmt's Print, Printf, Println, Fprint, Fprintf or
+//     Fprintln, or of the print or println builtins; its import list,
+//     which holds neither log, log/slog nor os, closes the other ways out.
 //
 // go/ast sees syntax, not data flow, so it cannot see a byte or a name that
 // reaches these sites through a variable or a call; a planted file of each
@@ -103,6 +108,8 @@ type scannedPackage struct {
 	imports []string
 	// memberSets says check 7 reads it.
 	memberSets bool
+	// printsNothing says check 10 reads it.
+	printsNothing bool
 }
 
 // scannedPackages are the packages of the new verifier that checks 6 to 8
@@ -112,14 +119,20 @@ type scannedPackage struct {
 var scannedPackages = map[string]scannedPackage{
 	registryDir: {imports: registryImports, memberSets: true},
 	"internal/verifier": {imports: []string{
-		"cmp", "context", "encoding/hex", "errors", "fmt", "net", "net/url", "slices", "strconv", "strings", "time", "unicode/utf16",
+		"cmp", "context", "encoding/hex", "errors", "fmt", "net", "net/url", "slices", "strconv", "strings", "sync", "time", "unicode/utf16",
 		"github.com/spf13/pflag",
 		"github.com/truestamp/truestamp-cli/internal/config",
 		"github.com/truestamp/truestamp-cli/internal/httpclient",
 		registryPath, specdataPath, strictjsonPath,
 		"github.com/truestamp/truestamp-cli/internal/verifier/ed25519",
 		"github.com/truestamp/truestamp-cli/internal/verifier/keyring",
+		"github.com/truestamp/truestamp-cli/internal/verifier/source",
 	}},
+	"internal/verifier/source": {imports: []string{
+		"bytes", "context", "encoding/base64", "errors", "fmt", "io", "net/http", "net/url", "strings",
+		"github.com/truestamp/truestamp-cli/internal/httpclient",
+		strictjsonPath,
+	}, printsNothing: true},
 	"internal/verifier/keyring": {imports: []string{
 		"crypto/sha256", "encoding/hex", "errors", "fmt", "regexp", "slices",
 		registryPath, specdataPath, strictjsonPath,
@@ -242,6 +255,25 @@ func importName(file *ast.File, importPath string) string {
 	return ""
 }
 
+// importNames are the names file refers to the package at importPath by,
+// one for each import of it.
+func importNames(file *ast.File, importPath string) []string {
+	var names []string
+	for _, spec := range file.Imports {
+		if p, _ := strconv.Unquote(spec.Path.Value); p == importPath {
+			if spec.Name != nil {
+				names = append(names, spec.Name.Name)
+			} else {
+				names = append(names, path.Base(p))
+			}
+		}
+	}
+	return names
+}
+
+// printFuncs are fmt's functions that write to an output (check 10).
+var printFuncs = []string{"Print", "Printf", "Println", "Fprint", "Fprintf", "Fprintln"}
+
 // constructionNames are the constants of the const block whose first
 // constant has the type Construction, from the registry's files.
 func constructionNames(files []goFile) map[string]bool {
@@ -340,6 +372,8 @@ func rule2Findings(fset *token.FileSet, files []goFile, scanned map[string]scann
 		inRegistry := dir == registryDir
 		pkg, inScanned := scanned[dir]
 		memberSets := inScanned && pkg.memberSets
+		printsNothing := inScanned && pkg.printsNothing
+		fmtNames := importNames(f.file, "fmt")
 		for _, spec := range f.file.Imports {
 			p, _ := strconv.Unquote(spec.Path.Value)
 			switch {
@@ -375,6 +409,9 @@ func rule2Findings(fset *token.FileSet, files []goFile, scanned map[string]scann
 						report(f, n.Pos(), "converts a value to registry.%s", fun.Sel.Name)
 					}
 				case *ast.Ident:
+					if printsNothing && (fun.Name == "print" || fun.Name == "println") {
+						report(f, n.Pos(), "prints with the builtin %s, in a package that prints nothing", fun.Name)
+					}
 					if inRegistry && (fun.Name == "Construction" || fun.Name == "B64UClass") {
 						report(f, n.Pos(), "converts a value to %s", fun.Name)
 					}
@@ -391,6 +428,9 @@ func rule2Findings(fset *token.FileSet, files []goFile, scanned map[string]scann
 				x, ok := n.X.(*ast.Ident)
 				if !ok {
 					break
+				}
+				if printsNothing && slices.Contains(fmtNames, x.Name) && slices.Contains(printFuncs, n.Sel.Name) {
+					report(f, n.Pos(), "prints with fmt.%s, in a package that prints nothing", n.Sel.Name)
 				}
 				if x.Name == specdataName && n.Sel.Name == "PrefixByte" {
 					report(f, n.Pos(), "refers to specdata.PrefixByte, which reads a prefix byte, outside a test")
@@ -962,6 +1002,54 @@ func TestRule2_HoldsEachScannedPackageToItsImports(t *testing.T) {
 		t.Fatalf("%d planted lines, want 8", len(want))
 	}
 	assertFindings(t, rule2Findings(fset, files, scannedPackages), want)
+}
+
+// sourcePlanted is a file of internal/verifier/source that prints what a
+// Bitcoin Core node is sent and answers, each way fmt and the builtins
+// can, beside the formatting calls that print nothing.
+const sourcePlanted = `package source
+
+import (
+	"fmt"
+	out "fmt"
+)
+
+func planted(header string) error {
+	fmt.Print(header) // want "prints with fmt.Print,"
+	fmt.Printf("%s", header) // want "prints with fmt.Printf"
+	fmt.Println(header) // want "prints with fmt.Println"
+	fmt.Fprint(nil, header) // want "prints with fmt.Fprint,"
+	fmt.Fprintf(nil, "%s", header) // want "prints with fmt.Fprintf"
+	fmt.Fprintln(nil, header) // want "prints with fmt.Fprintln"
+	out.Println(header) // want "prints with fmt.Println"
+	print(header) // want "prints with the builtin print"
+	println(header) // want "prints with the builtin println"
+	p := fmt.Fprintln // want "prints with fmt.Fprintln"
+	p(nil, header)
+	_ = fmt.Sprintf("%s", header)
+	return fmt.Errorf("%s", header)
+}
+`
+
+// Check 10: internal/verifier/source prints nothing, by fmt, by fmt under
+// another name or by a builtin, while it may format; a package not marked
+// to print nothing, internal/verifier, may print. With the check, the scan
+// of the module fails a fmt.Printf or a println of the Authorization
+// header added to CoreIdentity. Mutants killed: check 10 left out, or the
+// source package's printsNothing mark dropped (each planted print gives
+// no finding); check 10 without the builtins (print and println pass);
+// check 10 reading only the name fmt (out.Println passes); check 10
+// reading only a call's function (fmt.Fprintln taken as a value and then
+// called passes); check 10 read in every scanned package (the
+// internal/verifier copy gives findings).
+func TestRule2_TheSourcePackagePrintsNothing(t *testing.T) {
+	fset, files, want := parsePlanted(t, map[string]string{"internal/verifier/source/planted.go": sourcePlanted}, "want")
+	if len(want) != 10 {
+		t.Fatalf("%d planted lines, want 10", len(want))
+	}
+	assertFindings(t, rule2Findings(fset, files, scannedPackages), want)
+	fset, files, _ = parsePlanted(t, map[string]string{"internal/verifier/planted.go": strings.Replace(sourcePlanted, "package source", "package verifier", 1)}, "want")
+	assertFindings(t, rule2Findings(fset, files, scannedPackages), nil)
 }
 
 // hasherPackages are the hash packages no package of the new verifier but

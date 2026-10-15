@@ -23,16 +23,17 @@ import (
 //
 //   - the shared HTTP client's, through httpclient.SetTransport, which
 //     refuses every request;
-//   - http.DefaultTransport, which internal/verifier's real keyring reader,
-//     DefaultKeyringReader, reads through, and which these tests can reach
-//     since they import internal/verifier: it is replaced by loopbackOnly,
+//   - http.DefaultTransport, which internal/verifier's real readers,
+//     DefaultKeyringReader and DefaultIdentityReader, read through, and
+//     which these tests can reach since they import internal/verifier: it
+//     is replaced by loopbackOnly,
 //     which sends a request on to the transport saved at package init only
 //     when its host is a loopback IP literal and refuses every other one
 //     before any lookup.
 //
 // The package's tests read only bytes in memory and files of this
-// repository, and every online case's keyring read is answered by the
-// replay adapter.
+// repository, and every online case's keyring and identity reads are
+// answered by the replay adapter.
 func TestMain(m *testing.M) {
 	httpclient.SetTransport(refusingTransport{})
 	http.DefaultTransport = loopbackOnly{}
@@ -116,5 +117,28 @@ func TestMain_RefusesNetworkOnTheDefaultTransport(t *testing.T) {
 	}
 	if got := refusals.Load() - before; got != 1 {
 		t.Fatalf("DefaultKeyringReader's read was refused %d times, want 1", got)
+	}
+}
+
+// The control of internal/verifier's identity reader: DefaultIdentityReader
+// over the compiled-in default of each network that has one is refused in
+// process, once each, with no usable answer. Mutant killed: TestMain
+// without the DefaultTransport swap (the test stops before any read).
+func TestMain_RefusesNetworkOnTheIdentityReader(t *testing.T) {
+	if _, ok := http.DefaultTransport.(loopbackOnly); !ok {
+		t.Fatalf("http.DefaultTransport is %T, not the loopback-only refusal", http.DefaultTransport)
+	}
+	for _, key := range [][2]string{{"stellar", "public"}, {"stellar", "testnet"}, {"bitcoin", "mainnet"}, {"bitcoin", "testnet"}} {
+		s, ok := verifier.DefaultSource(key[0], key[1])
+		if !ok {
+			t.Fatalf("no default for %v", key)
+		}
+		before := refusals.Load()
+		if value, err := verifier.DefaultIdentityReader()(s); !errors.Is(err, errRefused) || value != "" {
+			t.Fatalf("%s: %q, %v; want the test transport's refusal", s.URL, value, err)
+		}
+		if got := refusals.Load() - before; got != 1 {
+			t.Fatalf("%s: %d requests refused, want 1", s.URL, got)
+		}
 	}
 }

@@ -6,9 +6,12 @@
 // in place of the network (SPEC.md section 13.2 (The vectors), "Replay
 // files"). It ports the Truestamp application's test reader,
 // Truestamp.ProofReplayReader (test/support/proof_replay_reader.ex in
-// truestamp-v2), so far for the one kind a verifier's step 0 reads before
-// its sources are built, keyring; the reads of the sources' identities,
-// the chains and the entropy sources join with the steps that make them.
+// truestamp-v2), so far for the kinds a verifier's step 0 reads: keyring,
+// and the sources' identities, stellar_identity and bitcoin_identity; the
+// reads of the chains and the entropy sources join with the steps that
+// make them. The file stands as the operator-pinned source of each Stellar
+// and Bitcoin network whose identity read it holds ([Replay.Sources]), so
+// a case that pins such a network, regtest included, has a source for it.
 //
 // Adapted from the application: a file is read with the strict reader
 // (internal/strictjson), so a found answer's value is in the values every
@@ -17,8 +20,8 @@
 // found by building the same object the file holds, compared as its
 // encoding/json form with its members sorted, so the order of a read's
 // members carries no meaning. Where the application's reader raises on a
-// read the file does not hold, [Replay.Keyring] gives [ErrNoAnswer], which
-// the test that makes the read fails on.
+// read the file does not hold, [Replay.Keyring] and [Replay.Identity] give
+// [ErrNoAnswer], which the test that makes the read fails on.
 //
 // A known limit: a replayed keyring is a found answer the verifier loads
 // only as the keyring of www.truestamp.com. As the answer to a read of the
@@ -37,7 +40,10 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"regexp"
+	"slices"
 
+	"github.com/truestamp/truestamp-cli/internal/specdata"
 	"github.com/truestamp/truestamp-cli/internal/strictjson"
 )
 
@@ -59,7 +65,22 @@ type Answer struct {
 // Replay is a replay file's reads, by read.
 type Replay struct {
 	answers map[string]Answer
+	sources []Source
 }
+
+// Source is a Stellar or Bitcoin network whose identity read a replay file
+// holds, found or unreachable: the file stands as that network's
+// operator-pinned source (SPEC.md section 13.2).
+type Source struct {
+	Chain   string
+	Network string
+}
+
+// identityChain is the chain of each identity kind.
+var identityChain = map[string]string{"stellar_identity": "stellar", "bitcoin_identity": "bitcoin"}
+
+// identityField is the one field of each chain's found identity value.
+var identityField = map[string]string{"stellar": "network_passphrase", "bitcoin": "hash"}
 
 // ErrNoAnswer marks a read the replay file does not hold: under an online
 // case it has no answer, and the test that makes it fails (SPEC.md section
@@ -80,7 +101,10 @@ var neverNotFound = map[string]bool{
 // reads, is an array of {answer, read} records, no two with the same read;
 // each answer is {outcome: found, value}, {outcome: not_found} or
 // {outcome: unreachable, reason}, and a kind that is never not_found has
-// no such answer; a keyring read's found value is exactly {keyring}.
+// no such answer; a keyring read's found value is exactly {keyring}; and an
+// identity read is exactly {kind, network}, a network of its chain, whose
+// found value is exactly {network_passphrase}, an ASCII128, for Stellar,
+// and {hash}, a HEX64, for Bitcoin (SPEC.md section 13.2's table).
 func LoadReplay(relative string) (*Replay, error) {
 	data, err := os.ReadFile(Path(relative))
 	if err != nil {
@@ -119,6 +143,13 @@ func ParseReplay(data []byte) (*Replay, error) {
 		parsed, err := answerOf(answer, kind)
 		if err != nil {
 			return fail("record %d: %v", i, err)
+		}
+		if chain, isIdentity := identityChain[kind]; isIdentity {
+			network, err := identityRead(read, chain, parsed)
+			if err != nil {
+				return fail("record %d: %v", i, err)
+			}
+			replay.sources = append(replay.sources, Source{Chain: chain, Network: network})
 		}
 		key, err := readKey(read)
 		if err != nil {
@@ -194,4 +225,46 @@ func (r *Replay) Keyring(url string) (any, error) {
 		return nil, fmt.Errorf("%w: %s", ErrUnreachable, answer.Reason)
 	}
 	return answer.Value["keyring"], nil
+}
+
+// identityRead checks an identity read of chain and its answer, and
+// returns the read's network.
+func identityRead(read map[string]any, chain string, answer Answer) (string, error) {
+	network, _ := read["network"].(string)
+	if len(read) != 2 || !slices.Contains(specdata.Networks()[chain], network) {
+		return "", fmt.Errorf("an identity read is not {kind, network} with a network of %s", chain)
+	}
+	if answer.Outcome != OutcomeFound {
+		return network, nil
+	}
+	field := identityField[chain]
+	value, isString := answer.Value[field].(string)
+	class := map[string]string{"stellar": "ASCII128", "bitcoin": "HEX64"}[chain]
+	pattern := regexp.MustCompile(`^` + specdata.Encodings()[class].Pattern + `$`)
+	if len(answer.Value) != 1 || !isString || !pattern.MatchString(value) {
+		return "", fmt.Errorf("a %s identity's value is not exactly {%s}, a %s", chain, field, class)
+	}
+	return network, nil
+}
+
+// Sources returns the networks whose identity read the file holds, in the
+// file's order: the file stands as the operator-pinned source of each.
+func (r *Replay) Sources() []Source { return slices.Clone(r.sources) }
+
+// Identity answers the identity read of network of chain (SPEC.md section
+// 13.2's kinds stellar_identity and bitcoin_identity): the value read,
+// Stellar's network_passphrase or the hash of Bitcoin's block at height 0,
+// for a found answer; an error wrapping [ErrUnreachable], with the reason,
+// for an unreachable one; and [ErrNoAnswer] when the file holds no such
+// read.
+func (r *Replay) Identity(chain, network string) (string, error) {
+	answer, ok := r.Answer(map[string]any{"kind": chain + "_identity", "network": network})
+	switch {
+	case !ok:
+		return "", fmt.Errorf("%w: the identity of %s %s", ErrNoAnswer, chain, network)
+	case answer.Outcome == OutcomeUnreachable:
+		return "", fmt.Errorf("%w: %s", ErrUnreachable, answer.Reason)
+	}
+	value, _ := answer.Value[identityField[chain]].(string)
+	return value, nil
 }

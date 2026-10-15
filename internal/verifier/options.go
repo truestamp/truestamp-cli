@@ -24,7 +24,23 @@
 //     points the CLI's API commands, and never moves the keyring read, so
 //     a run under E_v prod reads it from www.truestamp.com;
 //   - whether the run is offline may come from the configuration file or an
-//     environment variable as well as --offline (verify.offline).
+//     environment variable as well as --offline (verify.offline);
+//   - the Stellar and Bitcoin sources the operator pins (SPEC.md section 9
+//     (What a verifier pins), "Sources") may come from a flag, the
+//     configuration file or an environment variable: --horizon,
+//     --esplora and --bitcoin-core, verify.horizon, verify.esplora and
+//     verify.bitcoin_core, TRUESTAMP_VERIFY_HORIZON,
+//     TRUESTAMP_VERIFY_ESPLORA and TRUESTAMP_VERIFY_BITCOIN_CORE, a flag
+//     over a variable over the file, as internal/config resolves them;
+//   - a Bitcoin Core node's RPC credentials come from the configuration
+//     file or the environment only (verify.bitcoin_core_user and
+//     verify.bitcoin_core_password, TRUESTAMP_VERIFY_BITCOIN_CORE_USER and
+//     TRUESTAMP_VERIFY_BITCOIN_CORE_PASSWORD), never from the command
+//     line: no flag of theirs exists, a source URL that carries user
+//     information is refused wherever it comes from, no error quotes a
+//     source URL, and a report prints one as its scheme, host and port
+//     alone, never its path;
+//   - no option sets a network pin: the pins are E_v's defaults.
 //
 // The reference's repeated-option refusal has no counterpart: a flag set
 // holds one value for each flag.
@@ -39,25 +55,39 @@ import (
 	"github.com/spf13/pflag"
 
 	"github.com/truestamp/truestamp-cli/internal/config"
+	"github.com/truestamp/truestamp-cli/internal/verifier/source"
 )
 
-// The flags of `truestamp verify` that set a run's keyring and
-// environment, and the root flag whose explicit use moves the keyring read.
+// The flags of `truestamp verify` that set a run's keyring, environment
+// and sources, and the root flag whose explicit use moves the keyring read.
 const (
 	FlagEnvironment = "environment"
 	FlagKeyring     = "keyring"
 	FlagNoKeyring   = "no-keyring"
 	FlagBaseURL     = "base-url"
+	FlagHorizon     = "horizon"
+	FlagEsplora     = "esplora"
+	FlagBitcoinCore = "bitcoin-core"
 )
 
-// RegisterFlags adds --environment and --no-keyring to flags, the two run
-// options only a run may set (SPEC.md sections 6.4 and 8.3). Neither is a
-// config key: internal/config maps no flag of these names.
+// RegisterFlags adds to flags --environment and --no-keyring, the two run
+// options only a run may set (SPEC.md sections 6.4 and 8.3), neither of
+// them a config key, and --horizon, --esplora and --bitcoin-core, the
+// sources the operator pins (section 9), which internal/config also reads
+// from the configuration file and the environment. No flag takes a Bitcoin
+// Core node's RPC credentials.
 func RegisterFlags(flags *pflag.FlagSet) {
 	flags.String(FlagEnvironment, "prod",
 		"Check proofs of this Truestamp environment, for this run only: prod, dev, staging or test")
 	flags.Bool(FlagNoKeyring, false,
 		"Keyless mode, for this run only: check the signature only against the key the proof carries")
+	flags.String(FlagHorizon, "",
+		"Read Stellar from this Horizon server, in place of the built-in one for the network it serves")
+	flags.String(FlagEsplora, "",
+		"Read Bitcoin from this Esplora server, in place of the built-in one for the network it serves")
+	flags.String(FlagBitcoinCore, "",
+		"Read Bitcoin from the Bitcoin Core node at this JSON-RPC URL; "+
+			"its RPC credentials come only from the configuration file or the environment")
 }
 
 // Options are the options of one run of `truestamp verify` that decide its
@@ -76,19 +106,32 @@ type Options struct {
 	Offline bool
 	// Configured are the configured keyrings, by environment.
 	Configured config.KeyringsConfig
+	// Horizon, Esplora and BitcoinCore are the URLs of the sources the
+	// operator pins, each "" when none is given.
+	Horizon, Esplora, BitcoinCore string
+	// BitcoinCoreCredentials are the Bitcoin Core node's RPC credentials,
+	// from the configuration file or the environment; they print masked.
+	BitcoinCoreCredentials source.Credentials
 }
 
 // OptionsFromCommand reads a run's options from the flags of the command
-// that runs it and from the resolved configuration. Only the flags given
-// for the run are read for E_v, the keyring file, keyless mode and the
-// keyring's origin; cfg gives only the configured keyrings, the offline
-// flag, and the keyring URL an explicit --base-url composes. A flag the
-// command does not register is read as not given.
+// that runs it and from the resolved configuration, which config.Load
+// resolved with those flags. Only the flags given for the run are read for
+// E_v, the keyring file, keyless mode and the keyring's origin; cfg gives
+// the configured keyrings, the offline flag, the keyring URL an explicit
+// --base-url composes, the sources' URLs (a flag over an environment
+// variable over the configuration file) and the Bitcoin Core node's RPC
+// credentials (an environment variable over the configuration file). A
+// flag the command does not register is read as not given.
 func OptionsFromCommand(flags *pflag.FlagSet, cfg *config.Config) (Options, error) {
 	options := Options{
-		Environment: "prod",
-		Offline:     cfg.Verify.Offline,
-		Configured:  cfg.Verify.Keyrings,
+		Environment:            "prod",
+		Offline:                cfg.Verify.Offline,
+		Configured:             cfg.Verify.Keyrings,
+		Horizon:                cfg.Verify.Horizon,
+		Esplora:                cfg.Verify.Esplora,
+		BitcoinCore:            cfg.Verify.BitcoinCore,
+		BitcoinCoreCredentials: source.NewCredentials(cfg.Verify.BitcoinCoreUser, cfg.Verify.BitcoinCorePassword),
 	}
 	if flag := flags.Lookup(FlagEnvironment); flag != nil && flag.Changed {
 		options.Environment = flag.Value.String()
@@ -115,10 +158,14 @@ func OptionsFromCommand(flags *pflag.FlagSet, cfg *config.Config) (Options, erro
 	return options, nil
 }
 
-// Config returns the run's configuration, with reader for its online
-// keyring reads, or an error wrapping [ErrInvalidConfig] for an
-// environment that is not an E_v or for --keyring with --no-keyring. The
-// keyring source is the first of these the options give:
+// Config returns the run's configuration, with keyrings for its online
+// keyring reads and identities for its sources' identity reads, or an
+// error wrapping [ErrInvalidConfig] for an environment that is not an E_v,
+// for --keyring with --no-keyring, or for a source URL [Config.Validate]
+// refuses, one carrying user information among them, whose error names
+// the option and never quotes the URL. Each source the options give is
+// one the operator pins, serving whichever pins of its chain its identity
+// read shows. The keyring source is the first of these the options give:
 //
 //  1. --no-keyring: keyless mode;
 //  2. --keyring FILE;
@@ -135,7 +182,7 @@ func OptionsFromCommand(flags *pflag.FlagSet, cfg *config.Config) (Options, erro
 // www.truestamp.com, under any scheme or port: its keyring is Truestamp's,
 // which a run under E_v prod reads as the default and a run under a
 // non-production E_v must not use (SPEC.md section 6.4).
-func (o Options) Config(reader KeyringReader) (Config, error) {
+func (o Options) Config(keyrings KeyringReader, identities IdentityReader) (Config, error) {
 	cfg, err := NewConfig(o.Environment)
 	if err != nil {
 		return Config{}, err
@@ -144,7 +191,25 @@ func (o Options) Config(reader KeyringReader) (Config, error) {
 		return Config{}, fmt.Errorf("%w: --keyring and --no-keyring cannot be given together", ErrInvalidConfig)
 	}
 	cfg.Online = !o.Offline
-	cfg.ReadKeyring = reader
+	cfg.ReadKeyring, cfg.ReadIdentity = keyrings, identities
+	for _, pinned := range []struct {
+		raw, option string
+		s           Source
+	}{
+		{o.Horizon, "--horizon (verify.horizon, TRUESTAMP_VERIFY_HORIZON)", Source{Chain: ChainStellar, Provider: source.Horizon}},
+		{o.Esplora, "--esplora (verify.esplora, TRUESTAMP_VERIFY_ESPLORA)", Source{Chain: ChainBitcoin, Provider: source.Esplora}},
+		{o.BitcoinCore, "--bitcoin-core (verify.bitcoin_core, TRUESTAMP_VERIFY_BITCOIN_CORE)",
+			Source{Chain: ChainBitcoin, Provider: source.BitcoinCore, Credentials: o.BitcoinCoreCredentials}},
+	} {
+		if pinned.raw == "" {
+			continue
+		}
+		if err := checkSourceURL(pinned.raw); err != nil {
+			return Config{}, fmt.Errorf("%w: the URL of %s: %w%s", ErrInvalidConfig, pinned.option, err, credentialsHint(pinned.s.Provider))
+		}
+		pinned.s.URL = pinned.raw
+		cfg.Sources = append(cfg.Sources, pinned.s)
+	}
 	switch configured := o.Configured.For(o.Environment); {
 	case o.NoKeyring:
 		cfg.Keyring = KeyringSource{Kind: SourceKeyless}
@@ -178,4 +243,15 @@ func hostOf(raw string) (string, bool) {
 		return "", false
 	}
 	return strings.TrimSuffix(strings.ToLower(u.Hostname()), "."), true
+}
+
+// credentialsHint is where a refused source URL's error says credentials
+// go: for a Bitcoin Core node, the configuration file or the environment.
+func credentialsHint(provider source.Provider) string {
+	if provider != source.BitcoinCore {
+		return ""
+	}
+	return "; give a Bitcoin Core node's RPC credentials in the configuration file " +
+		"(verify.bitcoin_core_user and verify.bitcoin_core_password) or the environment " +
+		"(TRUESTAMP_VERIFY_BITCOIN_CORE_USER and TRUESTAMP_VERIFY_BITCOIN_CORE_PASSWORD), never in the URL or on the command line"
 }

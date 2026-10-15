@@ -15,9 +15,11 @@
 //
 // Adapted from the reference: the CLI runs online, so the run says when
 // the keyring that would govern could not be read (KEY_BINDING then fails
-// keyring_unavailable whatever K is, SPEC.md section 8.3), and trust_root
+// keyring_unavailable whatever K is, SPEC.md section 8.3), trust_root
 // takes the kind current_keyring, which the always-offline reference never
-// gives. The members the later steps set (the type and subject id, the
+// gives, and the run holds the outcome of each source's identity read
+// (SPEC.md section 10.2, step 0), as the Truestamp application's run holds
+// its sources. The members the later steps set (the type and subject id, the
 // trace, the external gate, the label and the edges) join with the steps
 // that set them.
 
@@ -81,6 +83,7 @@ const (
 //	| Keyring             | the keyring that governs key binding; nil in keyless mode, and when it could not be read | CONFIGURATION |
 //	| KeyringUnavailable  | an online read of the keyring that would govern failed, so no key binds | CONFIGURATION |
 //	| TrustRoot           | trust_root, {digest, kind, location} (SPEC.md section 10.5) | CONFIGURATION |
+//	| Sources             | in an online run, each Stellar and Bitcoin source, confirmed or unreachable, with the pins it serves (sources.go); empty in an offline run | CONFIGURATION |
 //	| Document            | the parsed document                                         | PARSE         |
 //	| Proof               | P, the parsed value of proof                                | ENVELOPE      |
 //	| PublicKey, Signature| the 32 octets of K and the 64 of V                          | ENVELOPE      |
@@ -94,6 +97,7 @@ type Run struct {
 	Keyring            *keyring.Keyring
 	KeyringUnavailable bool
 	TrustRoot          TrustRoot
+	Sources            []SourceRecord
 	Document           any
 	Proof              map[string]any
 	PublicKey          [32]byte

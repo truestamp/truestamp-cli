@@ -96,11 +96,12 @@ func configureOptions(t *testing.T, options Options) (*Run, *Rejection, *recorde
 }
 
 // configureOptionsWith makes CONFIGURATION from options with a recorder
-// that answers every read with data.
+// that answers every keyring read with data, and [honestIdentities] for
+// the sources' identity reads.
 func configureOptionsWith(t *testing.T, options Options, data []byte) (*Run, *Rejection, *recorder) {
 	t.Helper()
 	reader := &recorder{data: data}
-	cfg, err := options.Config(reader.read)
+	cfg, err := options.Config(reader.read, honestIdentities)
 	if err != nil {
 		t.Fatalf("Config: %v", err)
 	}
@@ -211,7 +212,7 @@ func TestOptions_AnExplicitBaseURLMovesTheKeyringRead(t *testing.T) {
 		t.Fatalf("explicit origin: %v, %+v, read %q", rejection, run.TrustRoot, reader.urls)
 	}
 
-	cfg, err := options.Config((&recorder{err: errors.New("HTTP 503")}).read)
+	cfg, err := options.Config((&recorder{err: errors.New("HTTP 503")}).read, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -253,7 +254,7 @@ func TestOptions_AnExplicitBaseURLMovesTheKeyringRead(t *testing.T) {
 	}
 	staging := writeKeyring(t, testKey("staging"))
 	_, options = loadOptions(t, "[verify.keyrings]\nstaging = \""+staging+"\"\n",
-		"--base-url", "https://www.truestamp.com:443", "--environment", "staging")
+		"--base-url", "https://www.truestamp.com:443", "--environment", "staging", "--esplora", regtestEsplora)
 	if run, rejection, reader := configureOptions(t, options); rejection != nil ||
 		run.TrustRoot != (TrustRoot{Digest: fileDigest(t, staging), Kind: KindSuppliedKeyring, Location: staging}) || len(reader.urls) != 0 {
 		t.Errorf("www.truestamp.com:443 beside a configured staging keyring: %v, %+v, read %q", rejection, run, reader.urls)
@@ -264,7 +265,7 @@ func TestOptions_AnExplicitBaseURLMovesTheKeyringRead(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	_, options = loadOptions(t, "", "--base-url", "https://staging.truestamp.example", "--environment", "staging")
+	_, options = loadOptions(t, "", "--base-url", "https://staging.truestamp.example", "--environment", "staging", "--esplora", regtestEsplora)
 	run, rejection, reader = configureOptionsWith(t, options, data)
 	if rejection != nil || run.TrustRoot != (TrustRoot{Digest: digestOf(data), Kind: KindSuppliedKeyring, Location: origin}) ||
 		len(reader.urls) != 1 || run.Keyring == nil || run.KeyringUnavailable {
@@ -277,7 +278,7 @@ func TestOptions_AnExplicitBaseURLMovesTheKeyringRead(t *testing.T) {
 	file := writeKeyring(t, testKey("file"))
 	for _, environment := range []string{"prod", "staging"} {
 		_, options = loadOptions(t, "", "--keyring", file, "--base-url", "https://staging.truestamp.example",
-			"--environment", environment)
+			"--environment", environment, "--esplora", esploraFor(environment))
 		if run, rejection, reader := configureOptions(t, options); rejection != nil ||
 			run.TrustRoot != (TrustRoot{Digest: fileDigest(t, file), Kind: KindSuppliedKeyring, Location: file}) || len(reader.urls) != 0 {
 			t.Errorf("--keyring FILE and --base-url under %s: %v, %+v, read %q", environment, rejection, run, reader.urls)
@@ -326,11 +327,11 @@ func TestOptions_AConfiguredKeyringServesOnlyItsEnvironment(t *testing.T) {
 	}
 
 	other := writeKeyring(t, testKey("other"))
-	_, options = loadOptions(t, toml, "--environment", "staging", "--keyring", other)
+	_, options = loadOptions(t, toml, "--environment", "staging", "--keyring", other, "--esplora", regtestEsplora)
 	if run, _, _ := configureOptions(t, options); run.TrustRoot.Location != other {
 		t.Fatalf("--keyring FILE: %+v", run.TrustRoot)
 	}
-	_, options = loadOptions(t, toml, "--environment", "staging", "--no-keyring")
+	_, options = loadOptions(t, toml, "--environment", "staging", "--no-keyring", "--esplora", regtestEsplora)
 	if run, _, _ := configureOptions(t, options); run.TrustRoot.Kind != KindNone {
 		t.Fatalf("--no-keyring: %+v", run.TrustRoot)
 	}
@@ -342,7 +343,7 @@ func TestOptions_AConfiguredKeyringServesOnlyItsEnvironment(t *testing.T) {
 	}
 	missing := "[verify.keyrings]\nstaging = \"" + filepath.Join(t.TempDir(), "missing.json") + "\"\n"
 	_, options = loadOptions(t, missing, "--environment", "staging")
-	cfg2, err := options.Config(nil)
+	cfg2, err := options.Config(nil, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -368,7 +369,7 @@ func TestOptions_Refusals(t *testing.T) {
 		}
 		options, err := OptionsFromCommand(flags, cfg)
 		if err == nil {
-			_, err = options.Config(nil)
+			_, err = options.Config(nil, nil)
 		}
 		if !errors.Is(err, ErrInvalidConfig) {
 			t.Errorf("%s: %v", name, err)

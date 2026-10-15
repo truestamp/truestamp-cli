@@ -27,6 +27,11 @@
 //   - gate.go: the steps (gate.ex);
 //   - keyring_read.go: the online keyring read of step 0, which no
 //     reference module ports (the reference is offline);
+//   - sources.go: the rest of step 0 in an online run, which no reference
+//     module ports either: which Stellar and Bitcoin source serves each
+//     network pin, and each source's identity, confirmed both ways before
+//     the file is read (sections 9 and 10.2, step 0), through the readers
+//     of internal/verifier/source;
 //   - run.go, row.go, rejection.go and pointer.go: the run's state, its
 //     rows, the bare rejection and JSON Pointers into the proof (run.ex,
 //     row.ex, rejection.ex and pointer.ex).
@@ -34,6 +39,12 @@
 // The keyring, its load checks and its digest are internal/verifier/keyring,
 // and the checks of a key's bytes and strict Ed25519 are
 // internal/verifier/ed25519.
+//
+// An online run's sources are the compiled-in defaults of its pinned
+// networks (none for regtest) and the Horizon, Esplora and Bitcoin Core
+// servers the operator pins; the document never chooses one. Each source's
+// identity read goes through [Config.ReadIdentity], and one with no usable
+// answer is recorded unreachable, so nothing else is read from it.
 //
 // The CLI is an external verifier (SPEC.md section 8.3). Online, under E_v
 // prod and with no supplied keyring, the keyring read from

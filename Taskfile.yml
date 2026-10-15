@@ -226,9 +226,11 @@ tasks:
       #         emits a stderr warning when either is used.
       #   G204: subprocess invocations (xattr, cosign) use hard-coded binary
       #         names resolved via PATH LookPath — no user-controlled command.
-      #   G704: URL-from-variable used only for known upstream services
-      #         (Horizon, Blockstream, keyring); not user-controlled.
-      - gosec -quiet -exclude-dir=testdata -exclude=G104,G115,G301,G302,G306,G304,G401,G501,G505,G204,G704 ./...
+      # G704 (SSRF) is enabled: URLs are user- and operator-supplied by design
+      # (the configured base URL, the verifier's --horizon, --esplora and
+      # --bitcoin-core), so each site it reports is settled in the code with a
+      # #nosec G704 that says why, and a new one fails the lint.
+      - gosec -quiet -exclude-dir=testdata -exclude=G104,G115,G301,G302,G306,G304,G401,G501,G505,G204 ./...
 
   lint:
     desc: "All quality checks: vet + fmt-check + staticcheck + gosec. Every tool is pinned in .tool-versions (mise); CI runs these same tasks, so nothing drifts between local and CI."

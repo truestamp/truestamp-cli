@@ -7,6 +7,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 
@@ -137,6 +138,78 @@ func TestReplay_ParseRefusals(t *testing.T) {
 		"an unknown outcome":         `{"reads": [{"answer": {"outcome": "timeout", "reason": "x"}, ` + keyringRead + `}]}`,
 	}
 	for name, text := range refused {
+		if _, err := vectorcases.ParseReplay([]byte(text)); err == nil {
+			t.Errorf("%s: read", name)
+		}
+	}
+}
+
+// The replay adapter answers an identity read (SPEC.md section 13.2's
+// kinds stellar_identity and bitcoin_identity) from the case's file, by its
+// chain and network: found, the value's one field; unreachable, with its
+// reason; a network the file holds no identity read of, no answer. Sources
+// lists each network whose identity read the file holds, found or
+// unreachable. Mutants killed: Identity answering by kind alone (regtest
+// is answered for mainnet); Identity giving an unreachable answer as found;
+// Sources leaving out an unreachable identity read.
+func TestReplay_IdentityReads(t *testing.T) {
+	mismatch, err := vectorcases.LoadReplay("corpus/replay/configuration-online-regtest-mainnet_block0.json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if value, err := mismatch.Identity("bitcoin", "regtest"); err != nil || value != verifier.ProductionGenesisHash {
+		t.Errorf("bitcoin regtest: %q, %v", value, err)
+	}
+	if value, err := mismatch.Identity("stellar", "testnet"); err != nil || value != "Test SDF Network ; September 2015" {
+		t.Errorf("stellar testnet: %q, %v", value, err)
+	}
+	if _, err := mismatch.Identity("bitcoin", "mainnet"); !errors.Is(err, vectorcases.ErrNoAnswer) {
+		t.Errorf("bitcoin mainnet: %v, want no answer", err)
+	}
+	unreachable, err := vectorcases.LoadReplay("corpus/replay/reads-identity-bitcoin-unreachable.json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if value, err := unreachable.Identity("bitcoin", "regtest"); !errors.Is(err, vectorcases.ErrUnreachable) || value != "" || !strings.Contains(err.Error(), "timeout") {
+		t.Errorf("unreachable: %q, %v", value, err)
+	}
+	if got := unreachable.Sources(); len(got) != 2 || !slices.Contains(got, vectorcases.Source{Chain: "bitcoin", Network: "regtest"}) ||
+		!slices.Contains(got, vectorcases.Source{Chain: "stellar", Network: "testnet"}) {
+		t.Errorf("sources = %+v", got)
+	}
+	none, err := vectorcases.LoadReplay("corpus/replay/configuration-online-no_source-regtest.json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := none.Sources(); len(got) != 1 || got[0] != (vectorcases.Source{Chain: "stellar", Network: "testnet"}) {
+		t.Errorf("no_source-regtest's sources = %+v", got)
+	}
+}
+
+// ParseReplay refuses an identity read SPEC.md section 13.2 does not
+// allow: one not_found, one with a parameter beside its network, one whose
+// network is not of its chain, and a found value that is not exactly its
+// one field in its class (a passphrase that is not an ASCII128, a hash that
+// is not a HEX64, a field beside it). Mutants killed: identityRead without
+// its member count; without its network check; without its value check.
+func TestReplay_IdentityRefusals(t *testing.T) {
+	record := func(answer, read string) string {
+		return `{"reads": [{"answer": ` + answer + `, "read": ` + read + `}]}`
+	}
+	const bitcoinRead = `{"kind": "bitcoin_identity", "network": "regtest"}`
+	const hash = `"0f9188f13cb7b2c71f2a335e3a4fc328bf5beb436012afca590b1a11466e2206"`
+	if _, err := vectorcases.ParseReplay([]byte(record(`{"outcome": "found", "value": {"hash": `+hash+`}}`, bitcoinRead))); err != nil {
+		t.Fatalf("a well-formed identity read: %v", err)
+	}
+	for name, text := range map[string]string{
+		"not_found":                  record(`{"outcome": "not_found"}`, bitcoinRead),
+		"a parameter beside":         record(`{"outcome": "found", "value": {"hash": `+hash+`}}`, `{"kind": "bitcoin_identity", "network": "regtest", "height": 0}`),
+		"a network of another chain": record(`{"outcome": "found", "value": {"hash": `+hash+`}}`, `{"kind": "bitcoin_identity", "network": "public"}`),
+		"a hash in uppercase":        record(`{"outcome": "found", "value": {"hash": "0F9188F13CB7B2C71F2A335E3A4FC328BF5BEB436012AFCA590B1A11466E2206"}}`, bitcoinRead),
+		"a field beside":             record(`{"outcome": "found", "value": {"hash": `+hash+`, "height": 0}}`, bitcoinRead),
+		"a passphrase with a quote":  record(`{"outcome": "found", "value": {"network_passphrase": "a\"b"}}`, `{"kind": "stellar_identity", "network": "testnet"}`),
+		"a passphrase as a hash":     record(`{"outcome": "found", "value": {"hash": `+hash+`}}`, `{"kind": "stellar_identity", "network": "testnet"}`),
+	} {
 		if _, err := vectorcases.ParseReplay([]byte(text)); err == nil {
 			t.Errorf("%s: read", name)
 		}
