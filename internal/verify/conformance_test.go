@@ -401,7 +401,7 @@ func TestTamper(t *testing.T) {
 		}
 	})
 
-	for file, code := range map[string]string{"old-layout.json": proof.CodeUnsupportedLayout, "tamper-type.json": proof.CodeUnexpectedSubjectFieldsForBlockLike} {
+	for file, code := range map[string]string{"old-layout.json": proof.CodeMissingSubject, "tamper-type.json": proof.CodeUnexpectedSubjectFieldsForBlockLike} {
 		t.Run(file, func(t *testing.T) {
 			_, err := RunFromBytes(testfixtures.Read(t, testfixtures.TamperDir, file), file, offlineWithKeyring())
 			if proof.RejectionCode(err) != code {

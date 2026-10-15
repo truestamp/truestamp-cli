@@ -9,6 +9,7 @@ import (
 	"go/parser"
 	"go/token"
 	"io/fs"
+	"maps"
 	"os"
 	"path"
 	"path/filepath"
@@ -45,9 +46,9 @@ import (
 //     scannedPackages, so each package of the new verifier is scanned from
 //     its first commit.
 //
-// Checks 6 to 8 read only the packages of scannedPackages, the new
-// verifier's: older code, such as internal/tscrypto's walk, still applies
-// 0x00 and 0x01 itself.
+// Checks 6 and 8 read only the packages of scannedPackages, the new
+// verifier's, and check 7 only those of them it marks: older code, such as
+// internal/tscrypto's walk, still applies 0x00 and 0x01 itself.
 //
 //  6. crypto/sha256 used outside the registry's digest, the one function
 //     that applies a prefix byte; in internal/registry, digest given a
@@ -55,13 +56,23 @@ import (
 //     checked kind), or the leaf or node; a hex integer literal, or a byte
 //     slice or array literal holding a literal, outside the table; and an
 //     import by ".", which hides its uses from these checks;
-//  7. a member set read from a value: the maps or reflect packages, a range
+//  7. in the registry, and in DERIVE and its layout once they are built,
+//     as the reference's derive_test.exs scans them (never SHAPE, the gate,
+//     strictjson or jcs, which read a document's members by design), a
+//     member set read from a value: the maps or reflect packages, a range
 //     over a map parameter or over a map a type assertion gives, such a map
 //     indexed by a name that is not a string literal, and a string literal
 //     named like a registry member ("byte", "prefix", "prefixes",
 //     "members", "fields"), as part 5 of the app's rule bans;
-//  8. in internal/registry, an import that is not one of registryImports,
-//     so that nothing there hashes but digest and the walk.
+//  8. an import that is not on the package's list in scannedPackages, so
+//     that nothing in internal/registry hashes but digest and the walk, and
+//     nothing in another package of the new verifier hashes at all: no
+//     list but the registry's holds crypto/sha256, and none holds a hash
+//     package (crypto, crypto/sha1, crypto/sha512, crypto/md5,
+//     crypto/hmac, crypto/sha3, hash or a hash/ package), internal/tscrypto
+//     or internal/hashing, whose generic hashers and prefix tables the
+//     other checks do not see. Another crypto/ package, such as
+//     crypto/ed25519, may be listed.
 //
 // go/ast sees syntax, not data flow, so it cannot see a byte or a name that
 // reaches these sites through a variable or a call; a planted file of each
@@ -80,11 +91,36 @@ const (
 	tableFile      = "internal/registry/prefixes.go"
 )
 
-// scannedPackages are the packages of the new verifier that checks 6 and 7
+// scannedPackage is how the scan reads one package of the new verifier.
+type scannedPackage struct {
+	// imports are the only packages its non-test files may import (check
+	// 8).
+	imports []string
+	// memberSets says check 7 reads it.
+	memberSets bool
+}
+
+// scannedPackages are the packages of the new verifier that checks 6 to 8
 // read, by their slash path from the module root. A package of the new
 // verifier joins the list in the commit that adds it; check 9 fails one
 // that imports internal/registry without being on it.
-var scannedPackages = []string{registryDir}
+var scannedPackages = map[string]scannedPackage{
+	registryDir: {imports: registryImports, memberSets: true},
+	"internal/verifier": {imports: []string{
+		"cmp", "errors", "fmt", "net/url", "slices", "strconv", "strings", "unicode/utf16",
+		"github.com/spf13/pflag",
+		"github.com/truestamp/truestamp-cli/internal/config",
+		registryPath, specdataPath, strictjsonPath,
+		"github.com/truestamp/truestamp-cli/internal/verifier/ed25519",
+		"github.com/truestamp/truestamp-cli/internal/verifier/keyring",
+	}},
+	"internal/verifier/keyring": {imports: []string{
+		"encoding/hex", "errors", "fmt", "regexp", "slices",
+		registryPath, specdataPath, strictjsonPath,
+		"github.com/truestamp/truestamp-cli/internal/verifier/ed25519",
+	}},
+	"internal/verifier/ed25519": {imports: []string{"errors", "math/big", specdataPath}},
+}
 
 // registryImports are the only packages internal/registry's non-test files
 // may import (check 8). crypto/sha256 is used only in digest (check 6), and
@@ -273,7 +309,7 @@ func isMapAssertion(expr ast.Expr) bool {
 
 // rule2Findings reports every site of files the rule refuses, sorted, with
 // scanned the packages checks 6 and 7 read.
-func rule2Findings(fset *token.FileSet, files []goFile, scanned []string) []finding {
+func rule2Findings(fset *token.FileSet, files []goFile, scanned map[string]scannedPackage) []finding {
 	var out []finding
 	report := func(f goFile, pos token.Pos, format string, args ...any) {
 		out = append(out, finding{rel: f.rel, line: fset.Position(pos).Line, what: fmt.Sprintf(format, args...)})
@@ -283,7 +319,8 @@ func rule2Findings(fset *token.FileSet, files []goFile, scanned []string) []find
 	for _, f := range files {
 		dir := path.Dir(f.rel)
 		inRegistry := dir == registryDir
-		inScanned := slices.Contains(scanned, dir)
+		pkg, inScanned := scanned[dir]
+		memberSets := inScanned && pkg.memberSets
 		for _, spec := range f.file.Imports {
 			p, _ := strconv.Unquote(spec.Path.Value)
 			switch {
@@ -293,12 +330,12 @@ func rule2Findings(fset *token.FileSet, files []goFile, scanned []string) []find
 				report(f, spec.Pos(), "imports %s, the walk's cross-check, outside a test", p)
 			case p == registryPath && !inScanned:
 				report(f, spec.Pos(), "imports %s, but %s is not among the scanned packages", p, dir)
-			case inScanned && (p == "maps" || p == "reflect"):
+			case memberSets && (p == "maps" || p == "reflect"):
 				report(f, spec.Pos(), "imports %s, which reads member names from a value", p)
 			case inScanned && spec.Name != nil && spec.Name.Name == ".":
 				report(f, spec.Pos(), "imports %s by \".\", which hides its uses from the scan", p)
-			case inRegistry && !slices.Contains(registryImports, p):
-				report(f, spec.Pos(), "imports %s, which is not among the registry's imports", p)
+			case inScanned && !slices.Contains(pkg.imports, p):
+				report(f, spec.Pos(), "imports %s, which is not among the imports of %s", p, dir)
 			}
 		}
 		specdataName := importName(f.file, specdataPath)
@@ -362,7 +399,7 @@ func rule2Findings(fset *token.FileSet, files []goFile, scanned []string) []find
 				if n.Kind == token.INT && strings.HasPrefix(strings.ToLower(n.Value), "0x") {
 					report(f, n.Pos(), "writes the byte literal %s outside the table", n.Value)
 				}
-				if text, err := strconv.Unquote(n.Value); n.Kind == token.STRING && err == nil && slices.Contains(memberNames, text) {
+				if text, err := strconv.Unquote(n.Value); memberSets && n.Kind == token.STRING && err == nil && slices.Contains(memberNames, text) {
 					report(f, n.Pos(), "names a registry member, %q, which only a compiled constant may name", text)
 				}
 			case *ast.CompositeLit:
@@ -385,7 +422,7 @@ func rule2Findings(fset *token.FileSet, files []goFile, scanned []string) []find
 			}
 			return true
 		})
-		if inScanned {
+		if memberSets {
 			out = append(out, memberSetFindings(fset, f)...)
 		}
 	}
@@ -491,7 +528,7 @@ func TestRule2_TheModuleAndTheScannedPackagesTakeNoByteOrMemberSetFromADocument(
 			t.Errorf("the scan did not read %s", want)
 		}
 	}
-	for _, dir := range scannedPackages {
+	for dir := range scannedPackages {
 		if !dirs[dir] {
 			t.Errorf("the scanned package %s has no file the scan read", dir)
 		}
@@ -518,7 +555,7 @@ var plantedFiles = map[string]string{
 	"internal/registry/planted.go": `package registry
 
 import (
-	"crypto" // want "imports crypto, which is not among the registry's imports"
+	"crypto" // want "imports crypto, which is not among the imports of internal/registry"
 	"crypto/sha256"
 	"maps" // want "imports maps"
 	"reflect" // want "imports reflect"
@@ -526,7 +563,7 @@ import (
 	. "strings" // want "imports strings by"
 
 	"github.com/transparency-dev/merkle/rfc6962" // want "imports github.com/transparency-dev/merkle/rfc6962"
-	"github.com/truestamp/truestamp-cli/internal/tscrypto" // want "imports github.com/truestamp/truestamp-cli/internal/tscrypto, which is not among"
+	"github.com/truestamp/truestamp-cli/internal/tscrypto" // want "imports github.com/truestamp/truestamp-cli/internal/tscrypto, which is not among the imports of internal/registry"
 )
 
 func planted(doc map[string]any, name string, n int, v []byte) {
@@ -805,7 +842,9 @@ func TestRule2_ScansEachNewPackageThatImportsTheRegistry(t *testing.T) {
 	if len(want) != 6 {
 		t.Fatalf("%d planted lines, want 6", len(want))
 	}
-	assertFindings(t, rule2Findings(fset, files, append(slices.Clone(scannedPackages), "internal/derive")), want)
+	listed := maps.Clone(scannedPackages)
+	listed["internal/derive"] = scannedPackage{imports: []string{"crypto/sha256", registryPath}, memberSets: true}
+	assertFindings(t, rule2Findings(fset, files, listed), want)
 }
 
 // The directories skipped at the module root are read below it, while a
@@ -850,5 +889,129 @@ func TestRule2_SkipsTheRootsOwnDirectoriesOnly(t *testing.T) {
 	}
 	if !slices.Equal(got, want) {
 		t.Fatalf("the scan read %q, want %q", got, want)
+	}
+}
+
+// verifierPlanted is a file of a package of the new verifier other than the
+// registry that hashes through what the scan's other checks do not see:
+// the generic crypto package, another hash, the old prefix tables and the
+// CLI's hash command's registry. Each import is off the package's list.
+const verifierPlanted = `package verifier
+
+import (
+	"crypto" // want "imports crypto, which is not among the imports of internal/verifier"
+	"crypto/sha256" // want "imports crypto/sha256, which is not among the imports of internal/verifier"
+	"crypto/sha512" // want "imports crypto/sha512, which is not among"
+	"hash/fnv" // want "imports hash/fnv, which is not among"
+
+	"github.com/truestamp/truestamp-cli/internal/hashing" // want "imports github.com/truestamp/truestamp-cli/internal/hashing, which is not among"
+	"github.com/truestamp/truestamp-cli/internal/specdata"
+	"github.com/truestamp/truestamp-cli/internal/tscrypto" // want "imports github.com/truestamp/truestamp-cli/internal/tscrypto, which is not among"
+)
+
+func planted(v []byte) {
+	h := crypto.SHA256.New()
+	h.Write(v)
+	_ = sha256.New // want "uses crypto/sha256 outside the registry's digest"
+	_, _ = sha512.New, fnv.New32
+	_, _ = hashing.Names, tscrypto.DomainHash
+	_ = specdata.MaxDepth
+	_ = 0x50 // want "writes the byte literal 0x50"
+}
+
+// The gate reads a document's members by design, so check 7 does not
+// read this package.
+func members(document map[string]any, name string) {
+	for member := range document {
+		_ = document[member]
+	}
+	_, _ = document[name], "members"
+}
+`
+
+// Each package of the new verifier is held to its own list of imports, not
+// the registry alone, and a package's list allows exactly what it names;
+// check 6 reads it, and check 7 does not, since the gate reads a
+// document's members. Mutants killed: check 8 made in internal/registry
+// alone (the planted verifier file's hashers give no finding); check 7
+// made in every scanned package (the gate's range over the document's
+// members gives a finding).
+func TestRule2_HoldsEachScannedPackageToItsImports(t *testing.T) {
+	sources := map[string]string{"internal/verifier/planted.go": verifierPlanted}
+	fset, files, want := parsePlanted(t, sources, "want")
+	if len(want) != 8 {
+		t.Fatalf("%d planted lines, want 8", len(want))
+	}
+	assertFindings(t, rule2Findings(fset, files, scannedPackages), want)
+}
+
+// hasherPackages are the hash packages no package of the new verifier but
+// the registry may import (check 8): the generic crypto package, each
+// hash of the standard library, and the CLI's own hashers.
+var hasherPackages = []string{
+	"crypto", "crypto/sha256", "crypto/sha1", "crypto/sha512", "crypto/md5", "crypto/hmac", "crypto/sha3",
+	"github.com/truestamp/truestamp-cli/internal/tscrypto", "github.com/truestamp/truestamp-cli/internal/hashing",
+}
+
+// hasher reports whether p is a hash package: one of hasherPackages, hash
+// or a hash/ package.
+func hasher(p string) bool {
+	return slices.Contains(hasherPackages, p) || p == "hash" || strings.HasPrefix(p, "hash/")
+}
+
+// hasherImports names each hash package a list of packages other than the
+// registry's allows.
+func hasherImports(packages map[string]scannedPackage) []string {
+	var found []string
+	for dir, pkg := range packages {
+		if dir == registryDir {
+			continue
+		}
+		for _, p := range pkg.imports {
+			if hasher(p) {
+				found = append(found, dir+" may import "+p)
+			}
+		}
+	}
+	sort.Strings(found)
+	return found
+}
+
+// No list of a package of the new verifier but the registry's names a
+// hash package: crypto/sha256 is the registry's alone, and crypto, the
+// other hashes of crypto/, hash and the hash/ packages, internal/tscrypto
+// and internal/hashing are no one's; another crypto/ package, such as
+// crypto/ed25519, may be listed; and every package under internal/verifier
+// is on the list. Mutants killed: crypto/sha256 added to
+// internal/verifier's list; hasher banning every crypto/ package (the
+// planted list's crypto/ed25519 is named).
+func TestRule2_NoOtherPackageOfTheNewVerifierMayImportAHasher(t *testing.T) {
+	if found := hasherImports(scannedPackages); len(found) != 0 {
+		t.Errorf("hash packages listed: %q", found)
+	}
+	planted := map[string]scannedPackage{
+		registryDir:                 {imports: []string{"crypto/sha256"}},
+		"internal/verifier/ed25519": {imports: []string{"crypto/ed25519", "crypto/subtle", "errors", "math/big"}},
+		"internal/verifier/x": {imports: []string{
+			"crypto", "crypto/sha256", "crypto/sha1", "crypto/sha512", "crypto/md5", "crypto/hmac", "crypto/sha3",
+			"hash", "hash/fnv", "github.com/truestamp/truestamp-cli/internal/tscrypto",
+			"github.com/truestamp/truestamp-cli/internal/hashing",
+		}},
+	}
+	var want []string
+	for _, p := range planted["internal/verifier/x"].imports {
+		want = append(want, "internal/verifier/x may import "+p)
+	}
+	sort.Strings(want)
+	if found := hasherImports(planted); !slices.Equal(found, want) {
+		t.Errorf("the planted lists give %q, want %q", found, want)
+	}
+	_, files := parseModule(t, repoRoot)
+	for _, f := range files {
+		if dir := path.Dir(f.rel); strings.HasPrefix(dir+"/", "internal/verifier/") {
+			if _, ok := scannedPackages[dir]; !ok {
+				t.Errorf("%s is under internal/verifier and not among the scanned packages", dir)
+			}
+		}
 	}
 }

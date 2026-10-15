@@ -66,15 +66,6 @@ func parseDocument(doc []byte, fromCBOR bool) (*Bundle, error) {
 	}
 	fields := Object(top)
 
-	// Version 1 is the first published format. A top-level `v` or `t` is
-	// the signature of a pre-publication draft, and no verifier keeps a
-	// second code path for it: the holder is told to regenerate the proof.
-	// The gate is on key presence, null included, matching the reference.
-	if fields.HasKey("v") || fields.HasKey("t") {
-		return nil, Rejectf(CodeUnsupportedLayout,
-			"a top-level v or t key is present: this is the pre-publication draft layout, which version 1 replaced")
-	}
-
 	typeName, isString := fields.String("type")
 	if !isString || !ptype.IsSubjectName(typeName) {
 		return nil, Rejectf(CodeInvalidSubjectType,

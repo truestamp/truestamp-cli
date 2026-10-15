@@ -264,15 +264,8 @@ func (e *SigningKeyEvent) KeyEvent() (KeyEvent, bool) {
 // values collapse them.
 type Object map[string]json.RawMessage
 
-// HasKey reports whether the key is present at all, null included. The
-// `unsupported_layout` gate is keyed on presence, not on value.
-func (o Object) HasKey(key string) bool {
-	_, ok := o[key]
-	return ok
-}
-
 // Has reports whether the key is present with a non-null value, which is
-// E.6's presence rule for every other gate.
+// E.6's presence rule for its gates.
 func (o Object) Has(key string) bool {
 	return fieldCarried(o[key])
 }

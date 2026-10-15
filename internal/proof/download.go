@@ -45,8 +45,7 @@ func DownloadCtx(ctx context.Context, rawURL string) ([]byte, error) {
 	// Quick-validate: the response should look like a bundle. `version`
 	// is deliberately not part of the test: E.6 exempts it from structural
 	// gating, and a wrong or absent one belongs in the report as a failing
-	// step, not in a download error. The draft layout is refused by the
-	// parser with `unsupported_layout`, so it is not pre-empted here.
+	// step, not in a download error.
 	var shape struct {
 		PublicKey string          `json:"public_key"`
 		Signature string          `json:"signature"`

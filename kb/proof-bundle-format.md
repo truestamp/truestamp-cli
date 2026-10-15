@@ -7,9 +7,9 @@ SPDX-License-Identifier: Apache-2.0
 
 Version 1 is the first published Truestamp proof bundle format. Normative reference: **Appendix E of `truestamp-v2/whitepaper/whitepaper.typ`** (E.3 serializations, E.5 the wire key reference, E.6 hard rejections, E.24 the type registry), with the field reference and a full example in `truestamp-v2/kb/verification/proof-bundle-format.md` and the CBOR schema in `truestamp-v2/priv/cddl/proof.cddl`. The model lives in [`internal/proof/types.go`](../internal/proof/types.go); the parsers in `parse.go` (JSON), `cbor_decode.go` and `cbor_encode.go`.
 
-## The draft layout is refused
+## No layout is recognized
 
-Version 1 replaced the pre-publication draft layout (short keys `v`, `t`, `s`, `b`, `cx`, `ip`, carried `metadata_hash` and block-hash fields) in place, under the same `version: 1`. A bundle carrying a top-level `v` or `t` key is the hard rejection `unsupported_layout` and the holder is told to regenerate the proof. No verifier keeps a second code path for the old layout, and neither does this CLI: nothing it downloads, inspects or verifies can be trusted unless it speaks the published layout.
+A document is graded by the gates below whatever it resembles. No member's name selects a layout, no identifier names one, and no code path exists for an earlier one: a file in another layout is refused by the first gate it fails, like any other malformed document.
 
 ## Nothing is opaque
 
@@ -119,16 +119,15 @@ A hard rejection aborts before any step result exists and produces an error, not
 
 1. input does not decode, or is not a map: `not_a_json_object`
 2. (CBOR only) a value outside the JSON value space inside any hashed map: `invalid_subject_data`
-3. a top-level `v` or `t` key is present (even null): `unsupported_layout`
-4. `type` absent, not a string, or not a registry name: `invalid_subject_type`
-5. `block` is not a map: `missing_block`
-6. a block-like type carries `subject` or `inclusion_proof`: `unexpected_subject_fields_for_block_like`
-7. a non-block-like type is missing `subject`: `missing_subject`
-8. a non-block-like type is missing `inclusion_proof` (or it is not a string): `missing_inclusion_proof`
-9. `block.metadata` is not a map: `missing_metadata`
-10. a non-block-like type whose `subject.metadata` is not a map: `missing_metadata`
-11. `commitments` is not a list, or is empty: `no_external_commitments`
-12. an entry is not a map, or its `chain` is not `"stellar"` or `"bitcoin"`, or it lacks `epoch_proof` (as a string), or it lacks `epoch_merkle_root`: `invalid_commitment_entry`
+3. `type` absent, not a string, or not a registry name: `invalid_subject_type`
+4. `block` is not a map: `missing_block`
+5. a block-like type carries `subject` or `inclusion_proof`: `unexpected_subject_fields_for_block_like`
+6. a non-block-like type is missing `subject`: `missing_subject`
+7. a non-block-like type is missing `inclusion_proof` (or it is not a string): `missing_inclusion_proof`
+8. `block.metadata` is not a map: `missing_metadata`
+9. a non-block-like type whose `subject.metadata` is not a map: `missing_metadata`
+10. `commitments` is not a list, or is empty: `no_external_commitments`
+11. an entry is not a map, or its `chain` is not `"stellar"` or `"bitcoin"`, or it lacks `epoch_proof` (as a string), or it lacks `epoch_merkle_root`: `invalid_commitment_entry`
 
 One CLI-side rejection sits outside E.6: `verify --type X` on a bundle whose signed `type` differs is `subject_type_mismatch`, the name the server uses for the same condition on `/proof/verify`. It is a rejection rather than a graded row because E.25 forbids adding a `fail` row for a step Appendix D.4 does not report.
 

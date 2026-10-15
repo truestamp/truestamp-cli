@@ -4,6 +4,7 @@
 package config
 
 import (
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"strings"
@@ -552,4 +553,115 @@ func runtimeIsWindows() bool {
 	// Avoid importing runtime in this test file's public surface; inline
 	// the check via the goos file-separator heuristic.
 	return os.PathSeparator == '\\'
+}
+
+// --- Run-only options and configured keyrings ---------------------------
+
+// The verifier's environment and keyless mode are options of the run only
+// (SPEC.md sections 6.4 and 8.3): no flag of theirs maps to a config key,
+// so neither the configuration file nor an environment variable can set
+// one, and a run's --environment or --no-keyring leaves the loaded
+// configuration as it was. Mutant killed: "environment" mapped to
+// "verify.environment" in flagKeyMap.
+func TestFlagKeyMap_LeavesTheRunOnlyOptionsOut(t *testing.T) {
+	clearTruestampEnv(t)
+	for _, name := range []string{"environment", "no-keyring"} {
+		if key, ok := flagKeyMap[name]; ok {
+			t.Errorf("flagKeyMap maps --%s to %q", name, key)
+		}
+	}
+	flags := pflag.NewFlagSet("verify", pflag.ContinueOnError)
+	flags.String("environment", "prod", "")
+	flags.Bool("no-keyring", false, "")
+	if err := flags.Parse([]string{"--environment", "staging", "--no-keyring"}); err != nil {
+		t.Fatal(err)
+	}
+	plain, err := Load(filepath.Join(t.TempDir(), "none.toml"), nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	cfg, err := Load(filepath.Join(t.TempDir(), "none.toml"), flags)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.ToTOML(false) != plain.ToTOML(false) || cfg.Verify != plain.Verify {
+		t.Errorf("the run's options changed the configuration:\n%s", cfg.ToTOML(false))
+	}
+}
+
+// clearTruestampEnv removes every TRUESTAMP_* variable for the test, so
+// the developer's own settings neither break nor steer it; t.Setenv
+// restores each when the test ends. A test calls it first, before it sets
+// any variable of its own.
+func clearTruestampEnv(t *testing.T) {
+	t.Helper()
+	for _, entry := range os.Environ() {
+		name, _, _ := strings.Cut(entry, "=")
+		if strings.HasPrefix(name, "TRUESTAMP_") {
+			t.Setenv(name, "")
+			_ = os.Unsetenv(name)
+		}
+	}
+}
+
+// A configured keyring is read from the configuration file, one for each
+// non-production environment, and For gives none for prod; an environment
+// variable does not reach it, and config show --json does not show the
+// table. Mutants killed: For giving the staging keyring for prod; the
+// Keyrings field tagged json:"keyrings" (the table is marshalled).
+func TestLoad_ConfiguredKeyringsComeFromTheFile(t *testing.T) {
+	clearTruestampEnv(t)
+	path := filepath.Join(t.TempDir(), "config.toml")
+	text := "[verify.keyrings]\ndev = \"/k/dev.json\"\nstaging = \"/k/staging.json\"\ntest = \"/k/test.json\"\n"
+	if err := os.WriteFile(path, []byte(text), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("TRUESTAMP_VERIFY_KEYRINGS_STAGING", "/k/from-env.json")
+	cfg, err := Load(path, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	k := cfg.Verify.Keyrings
+	if k.For("dev") != "/k/dev.json" || k.For("staging") != "/k/staging.json" || k.For("test") != "/k/test.json" {
+		t.Errorf("keyrings = %+v", k)
+	}
+	if k.For("prod") != "" || k.For("production") != "" {
+		t.Errorf("a keyring for prod: %q", k.For("prod"))
+	}
+	shown, err := json.Marshal(cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(string(shown), "keyrings") || strings.Contains(string(shown), "/k/staging.json") {
+		t.Errorf("the configured keyrings are marshalled: %s", shown)
+	}
+}
+
+// No environment variable reaches the configured keyrings: neither
+// TRUESTAMP_VERIFY_KEYRINGS, set or empty, which would otherwise make the
+// table a string and fail every Load, nor a name with a dot in it,
+// TRUESTAMP_VERIFY_KEYRINGS.STAGING, which would otherwise set the staging
+// keyring. Mutant killed: the env TransformFunc without its drop of
+// verify.keyrings and the keys under it.
+func TestLoad_NoEnvironmentVariableReachesTheConfiguredKeyrings(t *testing.T) {
+	for _, table := range []string{"/k/keyring.json", ""} {
+		t.Run("TRUESTAMP_VERIFY_KEYRINGS="+table, func(t *testing.T) {
+			clearTruestampEnv(t)
+			t.Setenv("TRUESTAMP_VERIFY_KEYRINGS", table)
+			t.Setenv("TRUESTAMP_VERIFY_KEYRINGS.STAGING", "/k/dotted.json")
+			cfg, err := Load(filepath.Join(t.TempDir(), "none.toml"), nil)
+			if err != nil {
+				t.Fatalf("Load: %v", err)
+			}
+			if cfg.Verify.Keyrings != (KeyringsConfig{}) {
+				t.Errorf("keyrings = %+v", cfg.Verify.Keyrings)
+			}
+		})
+	}
+	clearTruestampEnv(t)
+	t.Setenv("TRUESTAMP_VERIFY_KEYRINGS.STAGING", "/k/dotted.json")
+	cfg, err := Load(filepath.Join(t.TempDir(), "none.toml"), nil)
+	if err != nil || cfg.Verify.Keyrings != (KeyringsConfig{}) {
+		t.Errorf("the dotted name alone: %+v, %v", cfg, err)
+	}
 }
