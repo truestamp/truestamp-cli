@@ -46,13 +46,11 @@ import (
 // DERIVE does not end the run, so a case either fails is held, as any
 // other open run is, to its rows through DERIVE.
 //
-// DERIVE is cut at the checks built so far (derive_model_test.go): parts
-// (a) to (c) of step 9 and LINK_INCLUSION. Its expected rows are those of
-// these checks' parts, in order (expectedThrough); the rows of the key
-// events, the Bitcoin evidence and the other links are left out by their
-// parts, and LINK_HEAD's, which shares /witnesses/block/record/height with
-// the genesis check and comes after it, as the last row at that part in an
-// item.
+// DERIVE is cut at the checks built so far (derive_model_test.go): every
+// check of step 9 but the Bitcoin evidence of (d), the key events and every
+// link included. Its expected rows are those of these checks' parts, in
+// order (expectedThrough); the rows of the Bitcoin evidence are left out by
+// their parts, none of which another check shares.
 //
 // An online case runs online, every read it makes answered from its replay
 // file by the replay adapter (vectorcases.Replay, SPEC.md section 13.2), so
@@ -387,27 +385,12 @@ func rowsThrough(rows []vectorcases.Row) []vectorcases.Row {
 
 // expectedThrough returns a case's expected rows from firstBuilt to
 // lastBuilt, its DERIVE rows cut at the checks built so far: a part-null
-// row, and each row at a part of these checks (builtPart), but LINK_HEAD's,
-// the last row at /witnesses/block/record/height in an item that reaches
-// DERIVE.
+// row, and each row at a part of these checks (builtPart).
 func expectedThrough(t *testing.T, c vectorcases.Case, proof map[string]any) []vectorcases.Row {
 	t.Helper()
-	rows := rowsThrough(c.Expected.Rows)
-	head := -1
-	if proof["type"] == "item" {
-		for i, row := range rows {
-			if row.Step == "DERIVE" && row.Part != nil && *row.Part == linkHeadPart {
-				head = i
-			}
-		}
-		reaches := slices.ContainsFunc(rows, func(row vectorcases.Row) bool { return row.Step == "DERIVE" && row.Part != nil })
-		if reaches && head < 0 {
-			t.Fatalf("%s: an item that reaches DERIVE gives no LINK_HEAD row", c.ID)
-		}
-	}
 	var out []vectorcases.Row
-	for i, row := range rows {
-		if row.Step == "DERIVE" && row.Part != nil && (i == head || !builtPart(*row.Part)) {
+	for _, row := range rowsThrough(c.Expected.Rows) {
+		if row.Step == "DERIVE" && row.Part != nil && !builtPart(*row.Part) {
 			continue
 		}
 		out = append(out, row)
@@ -636,8 +619,12 @@ func unsourced(t *testing.T, c vectorcases.Case, o outcome) []string {
 // genesis row's pin_kind is unsourced, though every case with a genesis
 // row pins one Bitcoin network for both kinds); the runner without its
 // call to Derive (every DERIVE row of a built check is missing); Derive
-// ending the run at a failing row (the 68 cases that fail at DERIVE get
-// skip rows).
+// ending the run at a failing row (the 111 cases that fail at DERIVE get
+// skip rows); deriveChecks giving the links before the records (in
+// declared-genesis_height-witnesses LINK_HEAD's pass comes before the
+// genesis height's failure at /witnesses/block/record/height, and in every
+// case with a signing key event LINK_KEY_EVENT's row before the check of
+// its key's bytes).
 func TestCases_ThroughDerive(t *testing.T) {
 	cases, err := vectorcases.Load()
 	if err != nil {
@@ -738,8 +725,8 @@ func TestCases_ThroughDerive(t *testing.T) {
 		"report, the gate fails":               30,
 		"report, SHAPE fails":                  63,
 		"report, POLICY fails":                 14,
-		"report, DERIVE fails":                 67,
-		"report, passes through DERIVE":        141,
+		"report, DERIVE fails":                 110,
+		"report, passes through DERIVE":        98,
 		"online report, passes through DERIVE": 60,
 		"online report, POLICY fails":          1,
 		"online report, DERIVE fails":          1,
@@ -1576,13 +1563,18 @@ func TestCases_FamiliesCutAtDerive(t *testing.T) {
 // exactly the rows of that file whose construction a built check names,
 // each compared whole, all six members written as JCS, inputs included,
 // and in order; every row of these passes; and the rows the file holds of
-// the checks not yet built are those of the key events, the Bitcoin
-// evidence and LINK_WITNESS. Across the 11 the built checks give every one
-// of their constructions. Mutants killed: the trace's inputs left unsorted
-// (the epoch roots' inputs, /commitments/C/inclusion_proof before
-// /block/record, are out of document order); the trace's recomputed root
-// given as the leaf (every inclusion root row differs); the genesis
-// height's trace row left out (item-genesis-witness's and block's differ).
+// the checks not yet built are the Bitcoin evidence's, 76 in all, each at
+// a part of it (bitcoinEvidencePart), and no other row is at such a part.
+// Across the 11 the built checks give every one of their constructions.
+// Mutants killed: the trace's inputs left unsorted (the epoch roots'
+// inputs, /commitments/C/inclusion_proof before /block/record, are out of
+// document order); the trace's recomputed root given as the leaf (every
+// inclusion root row differs); the genesis height's trace row left out
+// (item-genesis-witness's and block's differ); a handover signature's
+// recomputed given as the signature or its inputs without the event (every
+// handover_signature row differs); the key bytes check traced (a row at
+// each key event's public_key that no trace holds); LINK_WITNESS untraced
+// (the witness_hashes rows are missing).
 func TestCases_TheSoundTraces(t *testing.T) {
 	cases, err := vectorcases.Load()
 	if err != nil {
@@ -1594,11 +1586,11 @@ func TestCases_TheSoundTraces(t *testing.T) {
 	}
 	traced := map[string]bool{}
 	constructions := map[string]bool{}
+	leftOut := map[string]int{}
 	for _, c := range cases {
 		if c.Expected.Trace == "" {
 			continue
 		}
-		traced[c.Expected.Trace] = true
 		got := run(t, c)
 		var rows []string
 		for _, row := range got.run.Trace {
@@ -1613,23 +1605,31 @@ func TestCases_TheSoundTraces(t *testing.T) {
 			}
 		}
 		var want []string
+		bitcoin := 0
 		for _, row := range traceFile(t, c.Expected.Trace) {
 			var parsed struct {
 				Construction string `json:"construction"`
+				Part         string `json:"part"`
 			}
 			if err := json.Unmarshal([]byte(row), &parsed); err != nil {
 				t.Fatal(err)
 			}
 			switch {
-			case slices.Contains(builtConstructions, parsed.Construction):
+			case slices.Contains(builtConstructions, parsed.Construction) && builtPart(parsed.Part):
 				want = append(want, row)
-			case !slices.Contains([]string{"key_event", "handover", "bitcoin", "witnesses"}, parsed.Construction):
-				t.Errorf("%s: a trace row of %s, which no check names", c.Expected.Trace, parsed.Construction)
+			case parsed.Construction == "bitcoin" && !builtPart(parsed.Part):
+				bitcoin++
+			default:
+				t.Errorf("%s: a trace row of %s at %s, which no check names there", c.Expected.Trace, parsed.Construction, parsed.Part)
 			}
 		}
 		if len(want) == 0 || !slices.Equal(rows, want) {
 			t.Errorf("%s: trace\n  %s\nwant\n  %s", c.ID, strings.Join(rows, "\n  "), strings.Join(want, "\n  "))
 		}
+		if !traced[c.Expected.Trace] {
+			leftOut[c.Expected.Trace] = bitcoin
+		}
+		traced[c.Expected.Trace] = true
 	}
 	if len(traced) != 11 {
 		t.Fatalf("%d trace files named by the cases, want 11", len(traced))
@@ -1640,7 +1640,150 @@ func TestCases_TheSoundTraces(t *testing.T) {
 			t.Errorf("no case names %s", relative)
 		}
 	}
+	total := 0
+	for _, n := range leftOut {
+		total += n
+	}
+	if total != 76 {
+		t.Fatalf("the sound traces leave out %d Bitcoin rows, want 76: %v", total, leftOut)
+	}
 	if got := slices.Sorted(maps.Keys(constructions)); !slices.Equal(got, builtConstructions) {
 		t.Fatalf("the sound traces reach %q, want %q", got, builtConstructions)
+	}
+}
+
+// keyEventFamilies are the families of the key events and the links after
+// LINK_INCLUSION (SPEC.md section 13.3), with their sizes.
+var keyEventFamilies = map[string]int{"key_events": 26, "handover_position": 4, "order": 12, "self_signed": 1}
+
+// keyEventPositions name a case's block position, and keyEventMembers the
+// part its member names under that block node.
+var (
+	keyEventPositions = map[string]string{"block": "/block", "witnesses": "/witnesses/block", "signing_key_event": "/signing_key_event/block"}
+	keyEventMembers   = map[string]string{
+		"handover_signature":           "/record/metadata/key_event/handover_signature",
+		"identity_previous_public_key": "/record/metadata/key_event/handover_signature",
+		"key_id":                       "/record/metadata/key_event/key_id",
+		"previous_key_id":              "/record/metadata/key_event/previous_key_id",
+		"signing_key_id":               "/record/signing_key_id",
+		"public_key_small_order":       "/record/metadata/key_event/public_key",
+		"prerotation_active_key_id":    "/record/signing_key_id",
+	}
+	orderPositions = map[string]string{"subject": "/subject/entropy", "witness": "/witnesses/entropy_%s", "observation": "/observations/entropy_%s/entropy"}
+)
+
+// signingKeyEventKey is LINK_KEY_EVENT's part.
+const signingKeyEventKey = "/signing_key_event/block/record/metadata/key_event/public_key"
+
+// expectedFailure is the code and part a key-event family case's name
+// gives its one failing row, or "" for a case that fails nothing.
+func expectedFailure(t *testing.T, id string) string {
+	t.Helper()
+	family, rest, _ := strings.Cut(id, "-")
+	switch {
+	case id == "key_events-link_key_event":
+		return "key_event_mismatch " + signingKeyEventKey
+	case family == "key_events":
+		parts := strings.Split(rest, "-")
+		return "key_event_mismatch " + keyEventPositions[parts[len(parts)-1]] + keyEventMembers[parts[0]]
+	case family == "handover_position":
+		member, position, _ := strings.Cut(rest, "-")
+		return "key_event_mismatch " + keyEventPositions[position] + "/record/metadata/key_event/" + member
+	case strings.HasPrefix(id, "order-head-"):
+		return "ordering_violation /witnesses/block/record/height"
+	case strings.HasPrefix(id, "order-bitcoin_height_equal-"), id == "self_signed-genesis":
+		return ""
+	case family == "order":
+		what, where, _ := strings.Cut(rest, "-")
+		source, member := "bitcoin", "height"
+		if strings.Contains(what, "stellar") {
+			source, member = "stellar", "sequence"
+		}
+		object := orderPositions[where]
+		if strings.Contains(object, "%s") {
+			object = fmt.Sprintf(object, source)
+		}
+		return "ordering_violation " + object + "/payload/" + member
+	}
+	t.Fatalf("%s is not a case of the key-event families", id)
+	return ""
+}
+
+// The key_events (26), handover_position (4), order (12) and self_signed
+// (1) cases, cut at DERIVE, each run through TestCases_ThroughDerive's
+// comparison (its rows through DERIVE's built checks, and its values and
+// trace against the model): each fails only at the part and with the code
+// its name gives (none for the equal Bitcoin heights and self_signed); each
+// has LINK_KEY_EVENT's row info not_attributable, since every one runs
+// under a supplied keyring or keyless, but key_events-link_key_event, whose
+// event introduces another key and fails; no run ends or takes the
+// attribution truestamp, and the info row fails no run; and the refusals
+// name the step of SPEC.md section 6.2 that refused the key or the
+// signature: small_order_key for the identity outgoing key and the
+// small-order genesis key, equation for a changed handover signature.
+// Mutants killed: LINK_KEY_EVENT passing under a supplied keyring (no info
+// row); the info row counted as a failure (self_signed-genesis and the
+// equal heights fail); the handover's height compared with the event's
+// own (the handover_position height cases pass); a refused handover named
+// not_verified, as one step (the changed signature's refusal is not
+// equation).
+func TestCases_KeyEventFamiliesCutAtDerive(t *testing.T) {
+	cases, err := vectorcases.Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	families := map[string]int{}
+	refusals := map[string]string{}
+	for _, c := range cases {
+		if _, ok := keyEventFamilies[c.Family()]; !ok {
+			continue
+		}
+		families[c.Family()]++
+		got := run(t, c)
+		if got.bare() || got.ended || !rowsEqual(got.rows, expectedThrough(t, c, proofOf(t, c))) {
+			t.Fatalf("%s: rows %v, want %v", c.ID, got.rows, expectedThrough(t, c, proofOf(t, c)))
+		}
+		checkDerive(t, c, got.run)
+		var failures, infos []string
+		for _, row := range got.run.Rows {
+			if row.Step != "DERIVE" {
+				continue
+			}
+			switch row.Status {
+			case verifier.StatusFail:
+				failures = append(failures, string(row.Code)+" "+*row.Part)
+				if refused, ok := row.Values["refused"].(string); ok {
+					refusals[c.ID] = refused
+				}
+			case verifier.StatusInfo:
+				infos = append(infos, string(row.Code)+" "+*row.Part)
+			}
+		}
+		var want []string
+		if failure := expectedFailure(t, c.ID); failure != "" {
+			want = []string{failure}
+		}
+		if !slices.Equal(failures, want) || got.failed != (len(want) > 0) {
+			t.Errorf("%s: failing %q, failed %v; want %q", c.ID, failures, got.failed, want)
+		}
+		wantInfos := []string{"not_attributable " + signingKeyEventKey}
+		if c.ID == "key_events-link_key_event" {
+			wantInfos = nil
+		}
+		if !slices.Equal(infos, wantInfos) || got.attribution == verifier.AttributionTruestamp {
+			t.Errorf("%s: info rows %q under %s", c.ID, infos, got.attribution)
+		}
+	}
+	if fmt.Sprint(families) != fmt.Sprint(keyEventFamilies) {
+		t.Fatalf("families %v, want %v", families, keyEventFamilies)
+	}
+	for id, refused := range map[string]string{
+		"key_events-identity_previous_public_key-block":   "small_order_key",
+		"key_events-public_key_small_order-witnesses":     "small_order_key",
+		"key_events-handover_signature-signing_key_event": "equation",
+	} {
+		if refusals[id] != refused {
+			t.Errorf("%s: refused %q, want %q", id, refusals[id], refused)
+		}
 	}
 }

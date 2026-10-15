@@ -13,8 +13,10 @@
 // SHAPE each take it and add their row; a failure at any of them ends it
 // ([Run.EndRun]), and a SHAPE that passes gives the run its type and
 // subject id. POLICY takes it and adds a row for each network of the
-// proof; a failure there does not end it. DERIVE takes it, adds its rows
-// and sets its trace; a failure there does not end it either.
+// proof; a failure there does not end it. DERIVE takes it, reads K and the
+// attribution for LINK_KEY_EVENT, adds its rows and sets its trace; a
+// failure there does not end it either, and its info row is no failure
+// ([Run.Failed]).
 //
 // Adapted from the reference: the CLI runs online, so the run says when
 // the keyring that would govern could not be read (KEY_BINDING then fails

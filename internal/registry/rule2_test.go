@@ -1201,8 +1201,8 @@ func TestRule2_TheModuleAndTheScannedPackagesTakeNoByteOrMemberSetFromADocument(
 		}
 	}
 	sort.Strings(memberSetFiles)
-	if want := []string{"internal/verifier/derive.go", "internal/verifier/derive_check.go", "internal/verifier/derive_links.go",
-		"internal/verifier/derive_records.go", "internal/verifier/layout.go"}; !slices.Equal(memberSetFiles, want) {
+	if want := []string{"internal/verifier/derive.go", "internal/verifier/derive_check.go", "internal/verifier/derive_key_events.go",
+		"internal/verifier/derive_links.go", "internal/verifier/derive_records.go", "internal/verifier/layout.go"}; !slices.Equal(memberSetFiles, want) {
 		t.Errorf("check 7 reads %q of the verifier, want %q", memberSetFiles, want)
 	}
 	if len(files) < 150 || len(constructionNames(files)) != 13 {

@@ -16,15 +16,22 @@
 //	| inputs       | the pointers of the values the check reads, for reading only, in document order                    |
 //	| declared     | the carried value the check compares: the value at part                                            |
 //	| recomputed   | what the check compares declared with, as its table defines it (section 10.6), or nil where a walk gives no root |
-//	| code         | "" for a pass, and the failure's reason code otherwise                                             |
+//	| code         | "" for a pass, and otherwise the row's reason code: a failure's, or not_attributable for LINK_KEY_EVENT's info row |
 //	| traced       | whether the check gives a trace row: its part is a CHECKED value (section 3.7), and it is not a row of LINK_HEAD, LINK_KEY_EVENT or LINK_CHAIN_ORDER (section 10.6) |
+//	| refused      | for a check of a key's bytes or a handover signature that fails, the step of SPEC.md section 6.2 that refused the key or the signature: y_not_below_p, small_order_key, not_on_curve, s_not_below_l or equation |
+//	| uncompared   | whether the check compares no recomputed value: the check of a key's bytes                       |
 //	| message      | the row's message, for display only                                                                |
 //
-// A row's values (SPEC.md section 10.5). A pass row holds construction. A
-// failing row holds construction, declared, the carried value the check
-// found wrong, and recomputed, what it was compared with as section 10.6
-// defines it, even when the proof carries that value, such as the record's
-// leaf_count a tree_size is compared with (section 10.2, step 9).
+// A row's values (SPEC.md section 10.5). A pass row holds construction,
+// and so does an info row, LINK_KEY_EVENT's not_attributable. A failing
+// row holds construction, declared, the carried value the check found
+// wrong, and recomputed, what it was compared with as section 10.6 defines
+// it, even when the proof carries that value, such as the record's
+// leaf_count a tree_size is compared with, a handover's record height, an
+// order link's bound, or K for LINK_KEY_EVENT (section 10.2, step 9); the
+// check of a key's bytes, which compares no values, holds declared and
+// refused in place of recomputed, and a handover signature that does not
+// verify also holds refused.
 //
 // A trace row (SPEC.md section 10.6) is {construction, declared, inputs,
 // part, recomputed, status}, with part and each input written as an RFC
@@ -36,9 +43,11 @@
 // the reference's === compares them; and, as the application's port does,
 // a check may name only one of the 14 rows the "Row of 7.3" columns of
 // SPEC.md sections 10.2, step 9, and 10.3 give, so no check names a row
-// the engine does not know. The info outcome and a failure's other values
-// (a refusal's name, the rule a structure breaks) belong to the checks that
-// give them: the key events, the other links and the Bitcoin evidence.
+// the engine does not know; a row's status is the one the reason table
+// gives its code (NewRow), so not_attributable is info and every other code
+// a check gives is fail; and a failure's other values are the members
+// refused and uncompared, where the reference holds a map of them. The rule
+// a structure breaks belongs to the Bitcoin evidence, which gives it.
 
 package verifier
 
@@ -73,6 +82,8 @@ type deriveCheck struct {
 	recomputed   any
 	code         specdata.Reason
 	traced       bool
+	refused      string
+	uncompared   bool
 	message      string
 }
 
@@ -82,20 +93,35 @@ type deriveCheck struct {
 // message. It panics for a construction that is not one of
 // deriveConstructions: a defect in the caller.
 func equalCheck(part Pointer, construction string, inputs []Pointer, declared, recomputed any, noun string) deriveCheck {
+	c := newCheck(part, construction, inputs, declared, recomputed,
+		fmt.Sprintf("%s at %s equals the value this run recomputed for it.", noun, part.Encode()))
+	c.traced = true
+	if !sameValue(declared, recomputed) {
+		c.code = specdata.ReasonDerivationMismatch
+		c.message = fmt.Sprintf("%s at %s is not the value this run recomputed for it, by the constructions row %s.",
+			noun, part.Encode(), construction)
+	}
+	return c
+}
+
+// newCheck is an untraced check that passes, at part, of the constructions
+// row construction, reading inputs, which it sorts into document order. It
+// panics for a construction that is not one of deriveConstructions: a
+// defect in the caller.
+func newCheck(part Pointer, construction string, inputs []Pointer, declared, recomputed any, message string) deriveCheck {
 	if !slices.Contains(deriveConstructions, construction) {
 		panic(fmt.Sprintf("verifier: %q is not a row DERIVE names", construction))
 	}
 	inputs = slices.Clone(inputs)
 	SortBy(inputs, func(p Pointer) Pointer { return p })
-	c := deriveCheck{
-		part: part, construction: construction, inputs: inputs,
-		declared: declared, recomputed: recomputed, traced: true,
-		message: fmt.Sprintf("%s at %s equals the value this run recomputed for it.", noun, part.Encode()),
-	}
-	if !sameValue(declared, recomputed) {
-		c.code = specdata.ReasonDerivationMismatch
-		c.message = fmt.Sprintf("%s at %s is not the value this run recomputed for it, by the constructions row %s.",
-			noun, part.Encode(), construction)
+	return deriveCheck{part: part, construction: construction, inputs: inputs, declared: declared, recomputed: recomputed, message: message}
+}
+
+// failingWith returns c with code in place of derivation_mismatch when it
+// fails, and c unchanged when it passes.
+func (c deriveCheck) failingWith(code specdata.Reason) deriveCheck {
+	if c.code != "" {
+		c.code = code
 	}
 	return c
 }
@@ -119,13 +145,18 @@ func sameValue(a, b any) bool {
 
 // row is the check's report row (SPEC.md section 10.5).
 func (c deriveCheck) row() Row {
-	part := Part(c.part.Encode())
-	values := map[string]any{"construction": c.construction}
-	if c.code == "" {
-		return PassRow(deriveStep, part, c.message, values)
+	row := NewRow(deriveStep, c.code, Part(c.part.Encode()), c.message, map[string]any{"construction": c.construction})
+	if row.Status != StatusFail {
+		return row
 	}
-	values["declared"], values["recomputed"] = c.declared, c.recomputed
-	return NewRow(deriveStep, c.code, part, c.message, values)
+	row.Values["declared"] = c.declared
+	if !c.uncompared {
+		row.Values["recomputed"] = c.recomputed
+	}
+	if c.refused != "" {
+		row.Values["refused"] = c.refused
+	}
+	return row
 }
 
 // TraceRow is one row of a run's trace (SPEC.md section 10.6): the
@@ -157,7 +188,9 @@ func (r TraceRow) Value() map[string]any {
 	}
 }
 
-// traceRow is the check's trace row. Only a traced check has one.
+// traceRow is the check's trace row. Only a traced check has one, and
+// every traced check passes or fails: the one info row, LINK_KEY_EVENT's,
+// is untraced.
 func (c deriveCheck) traceRow() TraceRow {
 	inputs := make([]string, len(c.inputs))
 	for i, input := range c.inputs {

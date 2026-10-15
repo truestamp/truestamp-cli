@@ -5,6 +5,7 @@ package verifier
 
 import (
 	"crypto/sha256"
+	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
@@ -17,6 +18,7 @@ import (
 	"testing"
 
 	"github.com/truestamp/truestamp-cli/internal/jcs"
+	"github.com/truestamp/truestamp-cli/internal/registry"
 	"github.com/truestamp/truestamp-cli/internal/specdata"
 	"github.com/truestamp/truestamp-cli/internal/strictjson"
 	"github.com/truestamp/truestamp-cli/internal/vectorcases"
@@ -24,7 +26,8 @@ import (
 
 // Step 9, DERIVE (SPEC.md section 10.2), parts (a) to (c) and
 // LINK_INCLUSION, on the 11 positive proofs and mutants of them, beside the
-// vector cases of internal/vectorcases' runner. It ports the parts of the
+// vector cases of internal/vectorcases' runner; the key events and the
+// other links are derive_key_events_test.go's. It ports the parts of the
 // reference's elixir/test/verifier/derive_test.exs these checks reach,
 // checked against the application's derive_test.exs:
 //
@@ -37,22 +40,28 @@ import (
 //     recomputed null where a walk gives no root;
 //   - the engine, and what DERIVE does to the run.
 //
-// DERIVE reads P alone, so these runs hold a P past POLICY with no
-// signature over it; every mutant is otherwise its positive proof
-// unchanged.
+// DERIVE reads P, K and the attribution, so these runs hold a P past
+// POLICY with no signature over it and K, VECTOR_KEY, the key every
+// positive proof is signed by; every mutant is otherwise its positive
+// proof unchanged.
 
 // deriveAttribution is the attribution of these runs: a supplied keyring's.
 const deriveAttribution = "keyring:0000000000000000000000000000000000000000000000000000000000000000"
 
-// deriveRun is a run past POLICY holding proof, with the attribution
-// attribution.
+// deriveRun is a run past POLICY holding proof, signed (as far as DERIVE
+// reads) by VECTOR_KEY, with the attribution attribution.
 func deriveRun(proof map[string]any, attribution string) *Run {
+	return deriveRunBy(proof, publicOf(vectorSigner), attribution)
+}
+
+// deriveRunBy is deriveRun with K the 32 octets key.
+func deriveRunBy(proof map[string]any, key [32]byte, attribution string) *Run {
 	var rows []Row
 	for _, step := range []string{"CONFIGURATION", "READ", "PARSE", "ENVELOPE", "ENVIRONMENT", "KEY_BINDING", "SIGNATURE", "SHAPE"} {
 		rows = append(rows, PassRow(step, nil, "held", nil))
 	}
 	typ, _ := proof["type"].(string)
-	return &Run{Proof: proof, Attribution: attribution, Type: typ, Rows: rows}
+	return &Run{Proof: proof, PublicKey: key, Attribution: attribution, Type: typ, Rows: rows}
 }
 
 // derived is the run of proof after DERIVE.
@@ -159,15 +168,37 @@ func levels(positions []inclusionAt) []string {
 	return out
 }
 
-// Every positive proof passes DERIVE: each of its rows passes, each row has
-// its trace row, and the run does not end. Mutant killed: block_hash
-// recomputed under the epoch_hash byte (every block_hash row fails).
+// untracedRow reports whether a DERIVE row gives no trace row (SPEC.md
+// section 10.6): a check of a key's bytes, whose part is PREIMAGE, or a row
+// of LINK_HEAD, LINK_KEY_EVENT or LINK_CHAIN_ORDER.
+func untracedRow(row Row) bool {
+	construction := row.Values["construction"]
+	return construction == "height" || construction == "chain_order" || strings.HasSuffix(*row.Part, "/key_event/public_key")
+}
+
+// Every positive proof passes DERIVE: no row fails, the one info row is
+// LINK_KEY_EVENT's not_attributable under this supplied keyring, every
+// other row passes, each traced row has its trace row, and the run does
+// not end. Mutant killed: block_hash recomputed under the epoch_hash byte
+// (every block_hash row fails).
 func TestDerive_EveryPositiveProofPasses(t *testing.T) {
 	for name, proof := range positiveProofs(t) {
 		run := derived(proof)
 		rows := deriveRows(run)
-		if len(rows) == 0 || len(failing(run)) != 0 || run.Ended || len(run.Trace) != len(rows) {
-			t.Errorf("%s: failing %q, %d rows, %d trace rows, ended %v", name, failing(run), len(rows), len(run.Trace), run.Ended)
+		traced, infos := 0, 0
+		for _, row := range rows {
+			if !untracedRow(row) {
+				traced++
+			}
+			if row.Status == StatusInfo {
+				infos++
+				if *row.Part != signingKeyEventKeyAt.Encode() || row.Code != specdata.ReasonNotAttributable {
+					t.Errorf("%s: an info row %s %s", name, row.Code, *row.Part)
+				}
+			}
+		}
+		if len(rows) == 0 || len(failing(run)) != 0 || run.Ended || len(run.Trace) != traced || infos != 1 || run.Failed() {
+			t.Errorf("%s: failing %q, %d rows, %d traced, %d trace rows, %d info rows, ended %v", name, failing(run), len(rows), traced, len(run.Trace), infos, run.Ended)
 		}
 	}
 }
@@ -259,6 +290,17 @@ func longPath(leaf [32]byte, n int) (map[string]any, string) {
 // spec/prefixes.json gives the row name, computed here.
 func modelHash(t *testing.T, name string, record any) string {
 	t.Helper()
+	encoded, err := jcs.Encode(record)
+	if err != nil {
+		t.Fatal(err)
+	}
+	sum := sha256.Sum256(append([]byte{prefixByte(t, name)}, encoded...))
+	return hex.EncodeToString(sum[:])
+}
+
+// prefixByte is the byte spec/prefixes.json gives the row name, read here.
+func prefixByte(t *testing.T, name string) byte {
+	t.Helper()
 	data, err := os.ReadFile(filepath.Join(vectorcases.Dir(), "..", "spec", "prefixes.json"))
 	if err != nil {
 		t.Fatal(err)
@@ -273,12 +315,7 @@ func modelHash(t *testing.T, name string, record any) string {
 	if err != nil {
 		t.Fatalf("%s: %v", name, err)
 	}
-	encoded, err := jcs.Encode(record)
-	if err != nil {
-		t.Fatal(err)
-	}
-	sum := sha256.Sum256(append([]byte{byte(b)}, encoded...))
-	return hex.EncodeToString(sum[:])
+	return byte(b)
 }
 
 // A subject's 33-node path that reaches its root under no cap fails at the
@@ -333,7 +370,7 @@ func TestDerive_AWalkThatGivesNoRootIsRecomputedNull(t *testing.T) {
 
 // The genesis checks of SPEC.md section 10.2, step 9 (b), each give a
 // trace row: a genesis /witnesses/block's height row, recomputed 0, is in
-// the trace though LINK_HEAD's row at the same part will not be (section
+// the trace though LINK_HEAD's row at the same part is not (section
 // 10.6), and a genesis height other than 0 fails, recomputed 0. Mutants
 // killed: the genesis rows untraced (no trace row at the height); the
 // height compared with the value it declares (the mutant passes).
@@ -382,37 +419,78 @@ func TestDerive_Rule1_TheSameWhateverConstructionsHolds(t *testing.T) {
 }
 
 // Rule 2: prefix bytes come only from the compiled registry. Each record
-// hash DERIVE recomputes is H(p, R) under the byte spec/prefixes.json gives
-// its construction, computed here from the file; the static checks of
-// internal/registry/rule2_test.go hold DERIVE to registry constants at
-// each call and to no member set read from a document. Mutant killed: the
-// subject's item_hash recomputed under the claims_hash byte (the trace's
-// recomputed differs from the model's).
+// hash and key id DERIVE recomputes is H(p, R), or the key id of SPEC.md
+// section 3.3, under the byte spec/prefixes.json gives its construction,
+// computed here from the file: a handover's over the event without its
+// handover_signature, deleted here from the event as carried; the static
+// checks of internal/registry/rule2_test.go hold DERIVE to registry
+// constants at each call and to no member set read from a document.
+// Mutants killed: the subject's item_hash recomputed under the claims_hash
+// byte (the trace's recomputed differs from the model's); the handover
+// recomputed under the block_hash byte (every handover signature's
+// recomputed differs); unsignedHandover leaving out reason (the same).
 func TestDerive_Rule2_EachHashIsUnderItsRowsByte(t *testing.T) {
 	seen := map[string]bool{}
 	for name, proof := range positiveProofs(t) {
 		run := derived(proof)
 		for _, row := range run.Trace {
 			kind := row.Construction
+			input := ""
+			if len(row.Inputs) > 0 {
+				input = row.Inputs[0]
+			}
 			switch {
 			case kind == "inclusion" || (kind == "genesis" && strings.HasSuffix(row.Part, "/height")):
 				continue
 			case kind == "genesis":
 				kind = "genesis_previous_block_hash"
+			case kind == "handover" && strings.HasSuffix(row.Part, "/handover_signature"):
+				event := clone(valueAt(proof, pointerOf(t, input))).(map[string]any)
+				delete(event, "handover_signature")
+				if want := modelHash(t, "handover", event); row.Recomputed != want {
+					t.Errorf("%s %s: recomputed %v, the model %s", name, row.Part, row.Recomputed, want)
+				}
+				seen["handover"] = true
+				continue
+			case strings.HasSuffix(input, "_public_key") || strings.HasSuffix(input, "/public_key"):
+				if want := modelKeyID(t, valueAt(proof, pointerOf(t, input))); row.Recomputed != want {
+					t.Errorf("%s %s: recomputed %v, the model's key id %s", name, row.Part, row.Recomputed, want)
+				}
+				seen["key_id"] = true
+				continue
+			case kind == "handover" || kind == "key_event":
+				continue
+			case kind == "witnesses" && input == "/witnesses/block/record":
+				kind = "block_hash"
+			case kind == "witnesses":
+				kind = "entropy_hash"
 			}
 			if len(row.Inputs) != 1 {
 				t.Fatalf("%s %s: inputs %q", name, row.Part, row.Inputs)
 			}
-			preimage := valueAt(proof, pointerOf(t, row.Inputs[0]))
+			preimage := valueAt(proof, pointerOf(t, input))
 			if want := modelHash(t, kind, preimage); row.Recomputed != want {
 				t.Errorf("%s %s: recomputed %v, the model %s", name, row.Part, row.Recomputed, want)
 			}
 			seen[kind] = true
 		}
 	}
-	if len(seen) != 7 {
+	if len(seen) != 9 {
 		t.Fatalf("the model checked %d kinds: %v", len(seen), seen)
 	}
+}
+
+// modelKeyID is the key id of SPEC.md section 3.3 of the B64U32 text,
+// computed here: the hex of the first 4 bytes of SHA-256 over the byte
+// spec/prefixes.json gives key_id and the 32 key bytes.
+func modelKeyID(t *testing.T, text any) string {
+	t.Helper()
+	key, err := base64.RawURLEncoding.DecodeString(text.(string))
+	if err != nil || len(key) != 32 {
+		t.Fatalf("%v is not a B64U32: %v", text, err)
+	}
+	sum := sha256.Sum256(append([]byte{prefixByte(t, "key_id")}, key...))
+	return hex.EncodeToString(sum[:4])
 }
 
 // pointerOf reads an RFC 6901 pointer that holds no escaped name and no
@@ -535,25 +613,69 @@ func TestDerive_Rule6_DeriveSetsOnlyItsRowsAndTrace(t *testing.T) {
 }
 
 // Rule 7: a key-history row passes only when the attribution is truestamp.
-// None of these checks is one: their rows and trace are the same under
-// every attribution, and none is at LINK_KEY_EVENT's part. Mutant killed:
-// Derive leaving out the trace when the attribution is not truestamp.
-func TestDerive_Rule7_NoRowOfTheseReadsTheAttribution(t *testing.T) {
+// LINK_KEY_EVENT is the one DERIVE makes: pass under truestamp, info
+// not_attributable under a supplied keyring and keyless, and every other
+// row and the trace the same under each; an event that introduces another
+// key fails under each, its values {construction, declared, recomputed K},
+// and the row is never in the trace. derive_key_events_test.go holds the
+// row to all 32 octets of K. Mutants killed: LINK_KEY_EVENT passing under
+// any attribution (the supplied keyring's row passes); LINK_KEY_EVENT info
+// under every attribution (truestamp's row is info); the attribution read
+// before the keys are compared (another key is info, not fail); the row
+// traced (a trace row at its part); its recomputed given as the event's
+// key (another key's recomputed is not K).
+func TestDerive_Rule7_LinkKeyEventPassesOnlyUnderTruestamp(t *testing.T) {
+	link := signingKeyEventKeyAt.Encode()
+	at := func(run *Run) []Row {
+		var out []Row
+		for _, row := range deriveRows(run) {
+			if *row.Part == link && row.Values["construction"] == "key_event" {
+				out = append(out, row)
+			}
+		}
+		return out
+	}
 	proof := positiveProofs(t)["item"]
-	var runs []*Run
+	want := map[string]string{
+		AttributionTruestamp:    "[null " + link + " pass DERIVE]",
+		deriveAttribution:       "[not_attributable " + link + " info DERIVE]",
+		AttributionUnattributed: "[not_attributable " + link + " info DERIVE]",
+	}
+	base := deriveRun(proof, AttributionTruestamp)
+	Derive(base)
 	for _, attribution := range []string{AttributionTruestamp, deriveAttribution, AttributionUnattributed} {
 		run := deriveRun(proof, attribution)
 		Derive(run)
-		runs = append(runs, run)
-	}
-	for _, run := range runs[1:] {
-		if !reflect.DeepEqual(run.Rows, runs[0].Rows) || !reflect.DeepEqual(run.Trace, runs[0].Trace) {
-			t.Fatalf("under %s: %s, under truestamp %s", run.Attribution, rowSummary(deriveRows(run)), rowSummary(deriveRows(runs[0])))
+		rows := at(run)
+		// The key bytes check, then LINK_KEY_EVENT.
+		if len(rows) != 2 || rows[0].Status != StatusPass || rowSummary(rows[1:]) != want[attribution] {
+			t.Fatalf("under %s: %s", attribution, rowSummary(rows))
 		}
-	}
-	for _, row := range deriveRows(runs[0]) {
-		if strings.HasSuffix(*row.Part, "/key_event/public_key") {
-			t.Fatalf("a row at %s", *row.Part)
+		if rows[1].Status != StatusFail && !reflect.DeepEqual(rows[1].Values, map[string]any{"construction": "key_event"}) {
+			t.Fatalf("under %s: values %v", attribution, rows[1].Values)
+		}
+		if run.Failed() || run.Ended || !reflect.DeepEqual(run.Trace, base.Trace) {
+			t.Fatalf("under %s: failed %v, ended %v, the trace differs %v", attribution, run.Failed(), run.Ended, !reflect.DeepEqual(run.Trace, base.Trace))
+		}
+		for i, row := range deriveRows(run) {
+			if *row.Part != link && !reflect.DeepEqual(row, deriveRows(base)[i]) {
+				t.Fatalf("under %s: the row %s differs", attribution, rowSummary([]Row{row}))
+			}
+		}
+		for _, trace := range run.Trace {
+			if trace.Part == link {
+				t.Fatalf("a trace row at %s", link)
+			}
+		}
+		anotherKey := publicOf(signerOf("another key"))
+		another := registry.EncodeB64U(anotherKey[:])
+		other := deriveRun(put(proof, signingKeyEventKeyAt, another), attribution)
+		Derive(other)
+		rows = at(other)
+		k := registry.EncodeB64U(other.PublicKey[:])
+		if len(rows) != 2 || rowSummary(rows[1:]) != "[key_event_mismatch "+link+" fail DERIVE]" ||
+			!reflect.DeepEqual(rows[1].Values, map[string]any{"construction": "key_event", "declared": another, "recomputed": k}) {
+			t.Fatalf("another key under %s: %s %v", attribution, rowSummary(rows), rows[len(rows)-1].Values)
 		}
 	}
 }
@@ -654,14 +776,21 @@ func TestDerive_ComparisonsAndConstructionNames(t *testing.T) {
 	}
 }
 
-// A preimage the registry refuses, which SHAPE makes impossible, is a fault
-// of the verifier: one DERIVE row fail internal_error, part null, then one
-// skip prior_failure row of each later step up to EXPECTED_HASH, no trace,
-// and the run ends (SPEC.md section 10.5). The claims and the epoch record
-// are hashed only by their own checks, a block record by its check and by
-// the epoch walks, and a genesis object by its genesis check. Mutants
-// killed: the refusal dropped (a check of an empty preimage is made, or a
-// row passes); the run not ended (no skip rows).
+// A preimage the registry refuses, or a value that is not of the class
+// SHAPE holds it to, which SHAPE makes impossible, is a fault of the
+// verifier: one DERIVE row fail internal_error, part null, then one skip
+// prior_failure row of each later step up to EXPECTED_HASH, no trace, and
+// the run ends (SPEC.md section 10.5). The claims and the epoch record are
+// hashed only by their own checks, a block record by its check and by the
+// epoch walks, a genesis object by its genesis check, and a witness entropy
+// object by LINK_WITNESS; a key event's public_key, previous_public_key and
+// handover_signature that do not decode, a key event type the schema does
+// not list, the signing key event's public_key that does not decode for
+// LINK_KEY_EVENT, a witness block height and the chain positions of
+// LINK_CHAIN_ORDER that are not numbers. Mutants killed: the refusal
+// dropped (a check of an empty preimage is made, or a row passes); the run
+// not ended (no skip rows); an unknown key event type checked as none (a
+// revocation's no rows, and no fault).
 func TestDerive_ARefusedPreimageIsAFault(t *testing.T) {
 	proofs := positiveProofs(t)
 	for _, c := range []struct {
@@ -674,6 +803,15 @@ func TestDerive_ARefusedPreimageIsAFault(t *testing.T) {
 		{"item", Pointer{Name("subject"), Name("record")}},
 		{"item-genesis-witness", Pointer{Name("witnesses"), Name("block"), Name("record"), Name("metadata"), Name("genesis")}},
 		{"beacon", Pointer{Name("observations"), Name("entropy_nist"), Name("entropy")}},
+		{"item", Pointer{Name("witnesses"), Name("entropy_nist")}},
+		{"block-rotation", Pointer{Name("block"), Name("record"), Name("metadata"), Name("key_event"), Name("public_key")}},
+		{"block-rotation", Pointer{Name("block"), Name("record"), Name("metadata"), Name("key_event"), Name("previous_public_key")}},
+		{"block-rotation", Pointer{Name("block"), Name("record"), Name("metadata"), Name("key_event"), Name("handover_signature")}},
+		{"block-rotation", Pointer{Name("block"), Name("record"), Name("metadata"), Name("key_event"), Name("type")}},
+		{"item", Pointer{Name("signing_key_event"), Name("block"), Name("record"), Name("metadata"), Name("key_event"), Name("public_key")}},
+		{"item", Pointer{Name("witnesses"), Name("block"), Name("record"), Name("height")}},
+		{"entropy_stellar", Pointer{Name("subject"), Name("entropy"), Name("payload"), Name("sequence")}},
+		{"entropy_bitcoin", Pointer{Name("commitments"), Name("bitcoin"), Name("height")}},
 	} {
 		run := derived(put(proofs[c.name], c.at, "not an object"))
 		want := "[internal_error null fail DERIVE] [prior_failure null skip CHAIN] [prior_failure null skip SOURCES] " +
