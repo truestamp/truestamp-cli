@@ -15,6 +15,7 @@ import (
 	"path/filepath"
 	"slices"
 	"sort"
+	"strconv"
 	"strings"
 	"sync"
 	"testing"
@@ -40,7 +41,8 @@ const modulePath = "github.com/truestamp/truestamp-cli"
 var moduleRoot = filepath.Join("..", "..")
 
 // moduleSkippedDirs are the directories at the module root that hold no
-// package of the module, as rule2_test.go's skippedDirs names them.
+// package of the module, as rule2_test.go's skippedDirs names them;
+// TestModuleStatic_SkipsWhatRule2Skips holds the two equal.
 var moduleSkippedDirs = map[string]bool{"build": true, "dist": true, "tmp": true, "coverage": true, "testdata": true, "vendor": true}
 
 // moduleFile is one parsed non-test Go file, by its slash path from the
@@ -226,4 +228,109 @@ func enclosingFunction(file *ast.File, pos token.Pos) string {
 		}
 	}
 	return ""
+}
+
+// rule2Source is internal/registry/rule2_test.go, whose parseModule this
+// file's walk skips as, and whose skippedDirs moduleSkippedDirs names.
+var rule2Source = filepath.Join(moduleRoot, "internal", "registry", "rule2_test.go")
+
+// skippedDirsOf returns the names of the map literal declared as the
+// package-level var name in file, each with its value, read with go/ast.
+func skippedDirsOf(t *testing.T, file, name string) map[string]string {
+	t.Helper()
+	parsed, err := parser.ParseFile(token.NewFileSet(), file, nil, parser.SkipObjectResolution)
+	if err != nil {
+		t.Fatal(err)
+	}
+	out := map[string]string{}
+	found := false
+	for _, decl := range parsed.Decls {
+		gen, ok := decl.(*ast.GenDecl)
+		if !ok || gen.Tok != token.VAR {
+			continue
+		}
+		for _, spec := range gen.Specs {
+			value := spec.(*ast.ValueSpec)
+			if len(value.Names) != 1 || value.Names[0].Name != name || len(value.Values) != 1 {
+				continue
+			}
+			literal, ok := value.Values[0].(*ast.CompositeLit)
+			if !ok {
+				t.Fatalf("%s's %s is not a map literal", file, name)
+			}
+			found = true
+			for _, element := range literal.Elts {
+				kv := element.(*ast.KeyValueExpr)
+				key, err := strconv.Unquote(kv.Key.(*ast.BasicLit).Value)
+				if err != nil {
+					t.Fatal(err)
+				}
+				out[key] = fmt.Sprint(kv.Value)
+			}
+		}
+	}
+	if !found {
+		t.Fatalf("%s declares no var %s", file, name)
+	}
+	return out
+}
+
+// The two walks of the module skip the same directories: this file's
+// moduleSkippedDirs and rule2_test.go's skippedDirs name the same
+// directories with the same values, and each is matched at the root only,
+// so a tree of both kinds of directory reads to the files rule2_test.go's
+// TestRule2_SkipsTheRootsOwnDirectoriesOnly expects of its own walk.
+// Mutants killed: a directory added to moduleSkippedDirs, or dropped from
+// it (the two maps differ); moduleSkippedDirs matched against each
+// directory's own name, at any depth (internal/v/tmp/a.go and its kind are
+// not read).
+func TestModuleStatic_SkipsWhatRule2Skips(t *testing.T) {
+	theirs := skippedDirsOf(t, rule2Source, "skippedDirs")
+	ours := map[string]string{}
+	for dir, skipped := range moduleSkippedDirs {
+		ours[dir] = fmt.Sprint(skipped)
+	}
+	if fmt.Sprint(theirs) != fmt.Sprint(ours) {
+		t.Fatalf("rule2_test.go skips %v, this file %v", theirs, ours)
+	}
+	root := t.TempDir()
+	for _, rel := range []string{
+		"go.mod",
+		"main.go",
+		"build/a.go", "dist/a.go", "tmp/a.go", "coverage/a.go", "testdata/a.go", "vendor/a.go",
+		".hidden/a.go", "internal/v/.hidden/a.go",
+		"internal/v/a.go", "internal/v/a_test.go",
+		"internal/v/build/a.go", "internal/v/dist/a.go", "internal/v/tmp/a.go",
+		"internal/v/coverage/a.go", "internal/v/testdata/a.go", "internal/v/vendor/a.go",
+		"internal/nested/go.mod", "internal/nested/a.go",
+	} {
+		name := filepath.Join(root, filepath.FromSlash(rel))
+		if err := os.MkdirAll(filepath.Dir(name), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		text := "package a\n"
+		if strings.HasSuffix(rel, "go.mod") {
+			text = "module example.com/a\n"
+		}
+		if err := os.WriteFile(name, []byte(text), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	_, files, err := parseModuleFiles(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var got []string
+	for _, f := range files {
+		got = append(got, f.rel)
+	}
+	want := []string{
+		"internal/v/a.go",
+		"internal/v/build/a.go", "internal/v/coverage/a.go", "internal/v/dist/a.go",
+		"internal/v/testdata/a.go", "internal/v/tmp/a.go", "internal/v/vendor/a.go",
+		"main.go",
+	}
+	if !slices.Equal(got, want) {
+		t.Fatalf("the walk read %q, want %q", got, want)
+	}
 }

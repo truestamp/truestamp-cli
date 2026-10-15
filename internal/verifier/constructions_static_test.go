@@ -30,18 +30,22 @@ import (
 // module is seen. The one exemption is the counterpart of the reference's
 // SpecFile.path("constructions"): internal/specdata/constructions.go's
 // constant constructionsDir, the directory of the texts under spec/, its
-// declaration and its uses in that file other than as a key, matched by
-// the file and the constant's name. A name built at run time, from values
+// declaration and its one use, as an argument of the call of
+// acceptedDigests in mustAcceptedDigests, matched by the file, the
+// constant's name and that call. A name built at run time, from values
 // that are not constants, is out of the test's sight; planted files show
 // each shape it refuses.
 
 // constructionsMember is the member's name.
 const constructionsMember = "constructions"
 
-// The exemption: the constant constructionsDir of its file.
+// The exemption: the constant constructionsDir of its file, and its one
+// use, an argument of the call of acceptedDigests in mustAcceptedDigests.
 const (
-	constructionsDirFile = "internal/specdata/constructions.go"
-	constructionsDirName = "constructionsDir"
+	constructionsDirFile   = "internal/specdata/constructions.go"
+	constructionsDirName   = "constructionsDir"
+	constructionsDirCaller = "mustAcceptedDigests"
+	constructionsDirCallee = "acceptedDigests"
 )
 
 // memberUses sorts the uses of the member's name in one file:
@@ -52,8 +56,8 @@ const (
 //     "full"};
 //   - parts: the argument of Name in a Pointer literal given as a field
 //     part, as a failure's part Pointer{Name("constructions")};
-//   - exempt: the declaration of constructionsDir in its file, and its uses
-//     there other than as a key;
+//   - exempt: the declaration of constructionsDir in its file, and its one
+//     use there, as an argument of acceptedDigests in mustAcceptedDigests;
 //   - unclassified: any other place, such as a constant, a comparison, a
 //     case, or a Name given to valueAt, each a read this test cannot
 //     classify, and so refuses.
@@ -99,6 +103,25 @@ func classifyMemberUses(m *typedModule, f moduleFile) memberUses {
 				}
 			}
 		}
+	}
+	use := map[*ast.Ident]bool{}
+	for _, decl := range f.file.Decls {
+		fn, ok := decl.(*ast.FuncDecl)
+		if dir == nil || !ok || fn.Name.Name != constructionsDirCaller || fn.Recv != nil {
+			continue
+		}
+		ast.Inspect(fn.Body, func(n ast.Node) bool {
+			if call, ok := n.(*ast.CallExpr); ok {
+				if callee, ok := call.Fun.(*ast.Ident); ok && callee.Name == constructionsDirCallee {
+					for _, arg := range call.Args {
+						if ident, ok := arg.(*ast.Ident); ok && m.info.Uses[ident] == dir {
+							use[ident] = true
+						}
+					}
+				}
+			}
+			return true
+		})
 	}
 	for _, decl := range f.file.Decls {
 		function := ""
@@ -148,7 +171,7 @@ func classifyMemberUses(m *typedModule, f moduleFile) memberUses {
 		ident, isIdent := e.(*ast.Ident)
 		switch {
 		case classified[e]:
-		case exempt[e] || dir != nil && isIdent && m.info.Uses[ident] == dir:
+		case exempt[e] || isIdent && use[ident]:
 			uses.exempt++
 		default:
 			uses.other++
@@ -159,10 +182,13 @@ func classifyMemberUses(m *typedModule, f moduleFile) memberUses {
 }
 
 // No non-test file of the module but internal/verifier/shape.go uses the
-// member's name, beside constructionsDir's exemption, which is in use; and
-// shape.go reads the member exactly once, at check 6 (shapeConstructions),
-// every other use there being a key of a row's values or the part of a
-// failure. Mutants killed: Policy reading the member (policy.go holds the
+// member's name, beside constructionsDir's exemption, whose declaration and
+// one use are both in place; and shape.go reads the member exactly once,
+// at check 6 (shapeConstructions), every other use there being a key of a
+// row's values or the part of a failure. Mutants killed: a second use of
+// constructionsDir in specdata (its file's uses are not the two); a
+// specdata use of constructionsDir outside mustAcceptedDigests's call (an
+// unclassified use); Policy reading the member (policy.go holds the
 // name), by a literal, a concatenation ("construct"+"ions") or a constant
 // of internal/specdata naming constructionsDir; a second read in Shape,
 // by a literal or a parenthesized one (two reads); a read through valueAt
@@ -188,8 +214,8 @@ func TestConstructions_ReadOnlyAtShape(t *testing.T) {
 		if len(uses.reads)+uses.keys+uses.parts+uses.other > 0 {
 			holders = append(holders, f.rel)
 		}
-		if f.rel == constructionsDirFile && (uses.exempt == 0 || len(uses.reads)+uses.keys+uses.parts+uses.other > 0) {
-			t.Errorf("%s: %+v, want the uses of %s alone", f.rel, uses, constructionsDirName)
+		if f.rel == constructionsDirFile && (uses.exempt != 2 || len(uses.reads)+uses.keys+uses.parts+uses.other > 0) {
+			t.Errorf("%s: %+v, want the declaration of %s and its one use alone", f.rel, uses, constructionsDirName)
 		}
 	}
 	if !slices.Equal(holders, []string{"internal/verifier/shape.go"}) {
@@ -265,16 +291,23 @@ func a(proof map[string]any) { _ = proof["construct"+"ions"] }`,
 		"internal/p/p_windows.go": `package p
 func a(proof map[string]any) { _ = proof["construct"+"ions"] }`,
 	}, map[string]memberUses{"internal/p/p_unix.go": {reads: []string{"a"}}, "internal/p/p_windows.go": {reads: []string{"a"}}}},
-	{"constructionsDir and its uses in its file", map[string]string{
+	{"constructionsDir and its one use", map[string]string{constructionsDirFile: `package specdata
+const constructionsDir = "constructions"
+func acceptedDigests(fsys any, dir string) {}
+func mustAcceptedDigests() { acceptedDigests(nil, constructionsDir) }`}, map[string]memberUses{constructionsDirFile: {exempt: 2}}},
+	{"constructionsDir's other uses in its file", map[string]string{
 		constructionsDirFile: `package specdata
 const constructionsDir = "constructions"
 const Member = constructionsDir
 func open(dir string) {}
-func load() { open(constructionsDir) }`,
+func acceptedDigests(fsys any, dir string) {}
+func load() { open(constructionsDir) }
+func mustAcceptedDigests() { open(constructionsDir); acceptedDigests(nil, constructionsDir) }
+func other() { acceptedDigests(nil, constructionsDir) }`,
 		"internal/p/p.go": `package p
 ` + specdataImport + `
 func a(proof map[string]any) { _ = proof[specdata.Member] }`,
-	}, map[string]memberUses{constructionsDirFile: {exempt: 3}, "internal/p/p.go": {reads: []string{"a"}}}},
+	}, map[string]memberUses{constructionsDirFile: {exempt: 2, other: 4}, "internal/p/p.go": {reads: []string{"a"}}}},
 	{"a read through constructionsDir in its file", map[string]string{constructionsDirFile: `package specdata
 const constructionsDir = "constructions"
 func a(proof map[string]any) { _ = proof[constructionsDir] }`}, map[string]memberUses{constructionsDirFile: {reads: []string{"a"}, exempt: 1}}},
@@ -291,17 +324,20 @@ func load() { open(constructionsDir) }`}, map[string]memberUses{"internal/regist
 // read in each of two functions, five reads it cannot classify, and a key
 // built by concatenation, in parentheses or from a constant of its file or
 // of another package, each a read, even in a function declared twice;
-// constructionsDir's uses in its own file alone are exempt, never as a
-// key; and a string that only holds the word is no use of the member.
+// constructionsDir's declaration and its one use, as acceptedDigests's
+// argument in mustAcceptedDigests, alone are exempt, never as a key; and a
+// string that only holds the word is no use of the member.
 // Mutants killed: classifyMemberUses counting a Name argument as a part
 // whatever field it is given to (the planted at passes); the walk counting
 // only index reads (the constant passes); isMemberName reading string
 // literals alone (each built key passes); the importer giving every
 // package an empty one, the module's included (specdata.Member passes);
 // the exemption matched by the constant's name alone (the registry's
-// constructionsDir passes), by the file alone (member passes) or covering
-// a key (the read through constructionsDir passes); a use counted again
-// inside a concatenation (member's literals count).
+// constructionsDir passes), by the file alone (member passes), covering
+// a key (the read through constructionsDir passes) or covering every use in
+// its file (Member's, load's and other's pass, and mustAcceptedDigests's
+// open); a use counted again inside a concatenation (member's literals
+// count).
 func TestConstructions_TheClassifierSortsEachPlantedShape(t *testing.T) {
 	for _, c := range constructionsPlanted {
 		m := typedSources(t, c.sources)
