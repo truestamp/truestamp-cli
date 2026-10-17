@@ -693,7 +693,7 @@ tasks:
         echo "$fixtures and $pins match truestamp-verification $commit."
 
   # Copies the Merkle library's known answers, vectors/merkle.json of
-  # truestamp-merkle-elixir, into testdata/merkle/ from one commit, with
+  # truestamp-merkle-ex, into testdata/merkle/ from one commit, with
   # SOURCE, one line holding the full id of the commit and a newline.
   # internal/registry's walk tests read the copy, and its copy test holds
   # the file to the SHA-256 of the file at the commit SOURCE names, so a sync
@@ -716,14 +716,14 @@ tasks:
   # Run it by hand before landing a sync. It stays out of CI, which has no
   # copy of the library to read.
   #
-  #   task merkle-vectors-sync                         # ../truestamp-merkle-elixir at the commit the spec pins
+  #   task merkle-vectors-sync                         # ../truestamp-merkle-ex at the commit the spec pins
   #   task merkle-vectors-sync MERKLE_REV=<commit> MERKLE_REPO=<absolute path>
   #   task merkle-vectors-check [MERKLE_REPO=<absolute path>]
   merkle-vectors-sync:
-    desc: "Copy vectors/merkle.json of truestamp-merkle-elixir at one commit on its main into testdata/merkle/ with SOURCE (MERKLE_REPO=../truestamp-merkle-elixir, MERKLE_REV=0862f3e96f670ef605bdfa4077c96039040e585f, the commit the spec's elixir/mix.lock pins; from a worktree MERKLE_REPO must be absolute; MERKLE_ALLOW_OFF_MAIN=1 takes a commit not on main)."
+    desc: "Copy vectors/merkle.json of truestamp-merkle-ex at one commit on its main into testdata/merkle/ with SOURCE (MERKLE_REPO=../truestamp-merkle-ex, MERKLE_REV=0862f3e96f670ef605bdfa4077c96039040e585f, the commit the spec's elixir/mix.lock pins; from a worktree MERKLE_REPO must be absolute; MERKLE_ALLOW_OFF_MAIN=1 takes a commit not on main)."
     silent: true
     env:
-      MERKLE_REPO: '{{.MERKLE_REPO | default "../truestamp-merkle-elixir"}}'
+      MERKLE_REPO: '{{.MERKLE_REPO | default "../truestamp-merkle-ex"}}'
       MERKLE_REV: '{{.MERKLE_REV | default "0862f3e96f670ef605bdfa4077c96039040e585f"}}'
       MERKLE_ALLOW_OFF_MAIN: '{{.MERKLE_ALLOW_OFF_MAIN}}'
     cmds:
@@ -824,13 +824,13 @@ tasks:
           fail "could not move $commit into $target; its previous copy is back in place."
         fi
         rm -rf "$old"
-        echo "Synced vectors/merkle.json of truestamp-merkle-elixir $commit into $target."
+        echo "Synced vectors/merkle.json of truestamp-merkle-ex $commit into $target."
 
   merkle-vectors-check:
-    desc: "Compare testdata/merkle/ with vectors/merkle.json at the commit its SOURCE names, read again from MERKLE_REPO (default ../truestamp-merkle-elixir; from a worktree it must be absolute; MERKLE_ALLOW_OFF_MAIN=1 checks a commit not on main). By hand before landing a sync; not in CI."
+    desc: "Compare testdata/merkle/ with vectors/merkle.json at the commit its SOURCE names, read again from MERKLE_REPO (default ../truestamp-merkle-ex; from a worktree it must be absolute; MERKLE_ALLOW_OFF_MAIN=1 checks a commit not on main). By hand before landing a sync; not in CI."
     silent: true
     env:
-      MERKLE_REPO: '{{.MERKLE_REPO | default "../truestamp-merkle-elixir"}}'
+      MERKLE_REPO: '{{.MERKLE_REPO | default "../truestamp-merkle-ex"}}'
       MERKLE_ALLOW_OFF_MAIN: '{{.MERKLE_ALLOW_OFF_MAIN}}'
     cmds:
       - |
@@ -927,7 +927,7 @@ tasks:
         if ! diff -rq "$stage/merkle" "$target"; then
           fail "$target differs from vectors/merkle.json at $commit, which its SOURCE names. Run task merkle-vectors-sync to replace it."
         fi
-        echo "$target matches vectors/merkle.json of truestamp-merkle-elixir $commit."
+        echo "$target matches vectors/merkle.json of truestamp-merkle-ex $commit."
 
   # =============================================================================
   # Release (GoReleaser)

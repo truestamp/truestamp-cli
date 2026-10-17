@@ -14,7 +14,7 @@ import (
 	"testing"
 )
 
-// merkleCommit is the commit of truestamp-merkle-elixir the copy is taken
+// merkleCommit is the commit of truestamp-merkle-ex the copy is taken
 // from: the one the reference verifier's elixir/mix.lock pins, so the
 // known answers are those of the library the reference walks with.
 const merkleCommit = "0862f3e96f670ef605bdfa4077c96039040e585f"
