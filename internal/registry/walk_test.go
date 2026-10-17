@@ -49,7 +49,7 @@ func TestWalk_TheLibraryHashesUnderTheRegistrysBytes(t *testing.T) {
 }
 
 // The Merkle known answers, testdata/merkle/merkle.json, as
-// truestamp-merkle-elixir's README defines its members. Integers above
+// truestamp-merkle-ex's README defines its members. Integers above
 // 2^53 stay exact as json.Number.
 type merkleVectors struct {
 	Description string `json:"description"`

@@ -5,7 +5,7 @@
 // the verification of RFC 9162 section 2.1.3.2 over the tree of section 5.1,
 // and the reading of a carried MERKLE_PROOF (section 5.2) it walks. It ports
 // the walk the reference verifier calls, Truestamp.Merkle.walk/3 of
-// truestamp-merkle-elixir (lib/truestamp/merkle.ex and
+// truestamp-merkle-ex (lib/truestamp/merkle.ex and
 // lib/truestamp/merkle/paths.ex, at the commit the reference's
 // elixir/mix.lock pins), as Truestamp.Verifier.Derive.Links
 // (elixir/lib/truestamp/verifier/derive/links.ex in truestamp-verification)
