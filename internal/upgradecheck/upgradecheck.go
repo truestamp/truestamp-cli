@@ -82,10 +82,16 @@ func isTerminal(f *os.File) bool {
 //
 // The flow:
 //  1. If cache is fresh (<24h), use the cached result, no network.
-//  2. Otherwise, spawn a goroutine with a 2-second deadline to refresh
-//     the cache. Wait up to 500ms for it to complete; if it doesn't, we
-//     skip emitting a notice this invocation. The cache write is still
-//     committed when the goroutine finishes, so the next run picks it up.
+//  2. Otherwise, record the attempt in the cache first, keeping the
+//     latest version an earlier check found, so the attempt counts for
+//     the TTL however it ends. Then spawn a goroutine with a 2-second
+//     deadline to refresh the cache, and wait up to waitBudget for it.
+//  3. A refresh that succeeds in time overwrites the record with what it
+//     found. One that fails ends the wait at once, and the record stands.
+//     One still running when the wait runs out is abandoned when the
+//     command exits, and the record stands too. A run that cannot reach
+//     GitHub (offline, rate limited, the releases gone, packets dropped)
+//     therefore pays for one check per TTL, not the wait on every command.
 //
 // All errors are swallowed, upgrade checks must never interfere with
 // the primary command's output.
@@ -100,13 +106,29 @@ func MaybeNotify(w io.Writer, flagDisabled bool, currentVersion string) {
 		return
 	}
 
+	known := ""
+	if cache != nil {
+		known = cache.LatestVersion
+	}
+	// Record the attempt before making it: the command exits when the wait
+	// below ends, so a check still running then never gets to write.
+	_ = WriteCache(Cache{
+		LastChecked:        time.Now().UTC(),
+		LatestVersion:      known,
+		CheckedFromVersion: currentVersion,
+	})
+
 	// Cache stale or missing: refresh asynchronously with a short wait.
+	// The goroutine sends exactly once: the version to notify about, which
+	// for a failed check is the one an earlier check found, or "" when
+	// there is none to show (no earlier check, or a pre-release latest).
 	result := make(chan string, 1)
 	go func() {
 		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 		defer cancel()
-		rel, err := selfupgrade.FetchLatest(ctx)
+		rel, err := fetchLatest(ctx)
 		if err != nil || rel == nil {
+			result <- known
 			return
 		}
 		_ = WriteCache(Cache{
@@ -117,21 +139,29 @@ func MaybeNotify(w io.Writer, flagDisabled bool, currentVersion string) {
 		// If the latest is a pre-release, we still cache the version
 		// string (so we don't re-fetch for 24h), but we never notify.
 		if isPreReleaseTagName(rel.TagName) || rel.Prerelease {
+			result <- ""
 			return
 		}
-		select {
-		case result <- rel.TagName:
-		default:
-		}
+		result <- rel.TagName
 	}()
 
 	select {
 	case latest := <-result:
 		emitIfNewer(w, currentVersion, latest)
-	case <-time.After(500 * time.Millisecond):
-		// Refresh didn't complete in time; next invocation will see it.
+	case <-time.After(waitBudget):
+		// Refresh didn't complete in time. The command exits and abandons
+		// it; the attempt recorded above stands for the TTL.
 	}
 }
+
+// fetchLatest is the hook MaybeNotify resolves the latest release with.
+// Tests replace it to hold a check open past the wait.
+var fetchLatest = selfupgrade.FetchLatest
+
+// waitBudget is how long MaybeNotify waits for a refresh before the
+// command exits without a notice. Tests lengthen it to tell a wait that
+// ended because the check finished from one that ran out.
+var waitBudget = 500 * time.Millisecond
 
 func emitIfNewer(w io.Writer, current, latest string) {
 	if latest == "" || current == "" {

@@ -5,11 +5,14 @@ package upgradecheck
 
 import (
 	"bytes"
+	"context"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -319,6 +322,125 @@ func TestMaybeNotify_StaleCacheRefreshes(t *testing.T) {
 	// emit depending on timing. Either outcome exercises the branch.
 	time.Sleep(200 * time.Millisecond)
 	_ = buf.String()
+}
+
+// A check that fails is recorded like one that succeeds: the wait ends as
+// soon as the check does, the latest version an earlier check found is kept
+// and still shown, and the next command within the TTL makes no request.
+// This is a run that cannot reach GitHub, offline or with the releases
+// gone, which before paid the whole wait on every command.
+// Mutants killed: recording the attempt only when it succeeds, and sending
+// nothing on a failure, so the whole wait runs out.
+func TestMaybeNotify_FailedCheckIsCachedAndEndsTheWait(t *testing.T) {
+	tmp := t.TempDir()
+	t.Setenv("XDG_CACHE_HOME", tmp)
+	t.Setenv("TRUESTAMP_NO_UPGRADE_CHECK", "")
+	for _, v := range ciEnvVars {
+		t.Setenv(v, "")
+	}
+	orig := terminalCheck
+	terminalCheck = func(*os.File) bool { return true }
+	t.Cleanup(func() { terminalCheck = orig })
+	// A budget far longer than the check takes, so a wait that ends only
+	// when the budget runs out is told apart from one the check ended.
+	origWait := waitBudget
+	waitBudget = time.Minute
+	t.Cleanup(func() { waitBudget = origWait })
+
+	var calls atomic.Int32
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		calls.Add(1)
+		w.WriteHeader(http.StatusNotFound)
+	}))
+	t.Cleanup(srv.Close)
+	origURL := selfupgrade.LatestReleaseURL
+	selfupgrade.LatestReleaseURL = srv.URL
+	t.Cleanup(func() { selfupgrade.LatestReleaseURL = origURL })
+
+	if err := WriteCache(Cache{LastChecked: time.Now().Add(-48 * time.Hour), LatestVersion: "v0.9.0"}); err != nil {
+		t.Fatal(err)
+	}
+
+	var buf bytes.Buffer
+	start := time.Now()
+	MaybeNotify(&buf, false, "v0.3.0")
+	if elapsed := time.Since(start); elapsed > 30*time.Second {
+		t.Errorf("MaybeNotify waited %v after the check failed; want it to return when the check did", elapsed)
+	}
+	if !strings.Contains(buf.String(), "0.9.0") {
+		t.Errorf("notice = %q, want the version the earlier check found", buf.String())
+	}
+	got, _ := ReadCache()
+	if got == nil || got.LatestVersion != "v0.9.0" || !got.IsFresh(DefaultTTL) {
+		t.Fatalf("cache after the failed check = %+v, want a fresh entry keeping v0.9.0", got)
+	}
+
+	buf.Reset()
+	MaybeNotify(&buf, false, "v0.3.0")
+	if n := calls.Load(); n != 1 {
+		t.Errorf("GitHub saw %d requests, want 1: the failed check must count for the TTL", n)
+	}
+	if !strings.Contains(buf.String(), "0.9.0") {
+		t.Errorf("second notice = %q, want the cached version", buf.String())
+	}
+}
+
+// A check that hangs past the wait, on a network that drops packets or
+// times DNS out, is abandoned when the command exits, yet still counts for
+// the TTL, because the attempt is recorded before it is made.
+// Mutant killed: recording the attempt only when the check finishes.
+func TestMaybeNotify_HangingCheckStillCountsForTheTTL(t *testing.T) {
+	tmp := t.TempDir()
+	t.Setenv("XDG_CACHE_HOME", tmp)
+	t.Setenv("TRUESTAMP_NO_UPGRADE_CHECK", "")
+	for _, v := range ciEnvVars {
+		t.Setenv(v, "")
+	}
+	orig := terminalCheck
+	terminalCheck = func(*os.File) bool { return true }
+	t.Cleanup(func() { terminalCheck = orig })
+	origWait := waitBudget
+	waitBudget = 50 * time.Millisecond
+	t.Cleanup(func() { waitBudget = origWait })
+
+	// The check answers only once the test is over. done orders the
+	// hook's last use before the cleanup that restores it.
+	var calls atomic.Int32
+	release, done := make(chan struct{}), make(chan struct{})
+	origFetch := fetchLatest
+	fetchLatest = func(context.Context) (*selfupgrade.Release, error) {
+		defer close(done)
+		calls.Add(1)
+		<-release
+		return nil, errors.New("no answer")
+	}
+	t.Cleanup(func() {
+		close(release)
+		<-done
+		fetchLatest = origFetch
+	})
+
+	if err := WriteCache(Cache{LastChecked: time.Now().Add(-48 * time.Hour), LatestVersion: "v0.9.0"}); err != nil {
+		t.Fatal(err)
+	}
+
+	var buf bytes.Buffer
+	MaybeNotify(&buf, false, "v0.3.0")
+	if buf.Len() != 0 {
+		t.Errorf("notice = %q, want none: the check had not answered", buf.String())
+	}
+	got, _ := ReadCache()
+	if got == nil || got.LatestVersion != "v0.9.0" || !got.IsFresh(DefaultTTL) {
+		t.Fatalf("cache while the check hangs = %+v, want a fresh entry keeping v0.9.0", got)
+	}
+
+	MaybeNotify(&buf, false, "v0.3.0")
+	if n := calls.Load(); n > 1 {
+		t.Errorf("%d checks started, want at most 1: the hanging check must count for the TTL", n)
+	}
+	if !strings.Contains(buf.String(), "0.9.0") {
+		t.Errorf("second notice = %q, want the cached version", buf.String())
+	}
 }
 
 func TestMaybeNotify_Disabled(t *testing.T) {

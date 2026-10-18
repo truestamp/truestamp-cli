@@ -23,6 +23,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `Authorization` value the session set, so a 401 from any other service
   is returned as it is.
 
+### Fixed
+
+- **An upgrade check that cannot reach GitHub no longer slows every
+  command.** When the passive upgrade notice could not reach GitHub
+  (offline, rate limited, packets dropped, or the releases unreachable),
+  nothing was cached, so once the 24-hour cache expired every
+  interactive command made the request again and waited the full
+  500 ms. The attempt is now recorded before it is made, keeping the
+  latest version an earlier check found, so it counts for the 24 hours
+  however it ends, and a check that fails ends the wait at once.
+
 ## [0.16.1] - 2026-09-18
 
 ### Changed
