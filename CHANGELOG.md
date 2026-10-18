@@ -12,6 +12,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **get.truestamp.com names the license as Apache-2.0.** The installer
+  page still listed MIT, a line the 0.14.0 relicense missed; `LICENSE` has
+  been the Apache License 2.0 since that release.
+
 ## [0.18.0] - 2026-11-23
 
 ### Changed
