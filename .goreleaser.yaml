@@ -130,6 +130,10 @@ release:
 
 homebrew_casks:
   - name: truestamp-cli
+    # A pre-release tag (vX.Y.Z-rc.N) must not reach Homebrew users: with
+    # `auto`, GoReleaser opens no tap PR for it, and release.yml's merge
+    # step, which is continue-on-error, finds no PR to merge.
+    skip_upload: auto
     binaries:
       - truestamp
     repository:
