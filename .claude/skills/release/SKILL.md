@@ -17,7 +17,7 @@ The user wants to publish a new version to users. Phrasings that should trigger 
 
 - The user is just pushing a code change to `main` (that's a regular PR, not a release).
 - A prior release failed and the tag is already on origin — use `references/failure-recovery.md` directly; don't run the whole playbook again.
-- The user wants to cut a pre-release / release candidate (`vX.Y.Z-rc.N`, `vX.Y.Z-beta`, etc.). Nothing in CI blocks such a tag — `release.yml` triggers on any `v*` tag and `.goreleaser.yaml`'s `prerelease: auto` would publish it as a GitHub pre-release. The two-layer defence (GitHub `/releases/latest` filter + local semver-suffix check) lives in the CLI's upgrade path (`internal/selfupgrade` + `internal/upgradecheck`), which refuses to auto-upgrade existing users onto it. So this skill pauses by policy, not because CI would refuse: discuss with the user before proceeding.
+- The user wants to cut a pre-release / release candidate (`vX.Y.Z-rc.N`, `vX.Y.Z-beta`, etc.). Nothing in CI blocks such a tag — `release.yml` triggers on any `v*` tag and `.goreleaser.yaml`'s `prerelease: auto` would publish it as a GitHub pre-release (its `skip_upload: auto` keeps it out of the Homebrew tap: no cask PR is opened). The two-layer defence (GitHub `/releases/latest` filter + local semver-suffix check) lives in the CLI's upgrade path (`internal/selfupgrade` + `internal/upgradecheck`), which refuses to auto-upgrade existing users onto it. So this skill pauses by policy, not because CI would refuse: discuss with the user before proceeding.
 - The user wants to cut a MAJOR version bump (X.0.0). Pause and confirm — a major break needs a migration story, not just a tag push.
 
 ## Context this skill assumes
@@ -478,7 +478,7 @@ See [references/failure-recovery.md](references/failure-recovery.md) for:
 ## What this skill deliberately doesn't do
 
 - **Major version bumps** — pause for user input; a major requires migration docs, not just a tag.
-- **Pre-release tags** — release.yml would publish one (`v*` trigger + `prerelease: auto`); it's this skill that pauses. The two layers of defence live in the CLI's upgrade path, and only stop existing users auto-upgrading onto it.
+- **Pre-release tags** — release.yml would publish one (`v*` trigger + `prerelease: auto`), though never to the Homebrew tap (`skip_upload: auto` on the cask); it's this skill that pauses. The two layers of defence live in the CLI's upgrade path, and only stop existing users auto-upgrading onto it.
 - **Backporting** — if a hotfix needs to go to an older release line, that's a separate manual process.
 - **Windows in-place upgrade** — upgrade.go stub-errors on Windows; users there must go through `go install`.
 - **Manual tap cask edits** — GoReleaser owns the cask. Never hand-edit `truestamp/homebrew-tap/Casks/truestamp-cli.rb`.
