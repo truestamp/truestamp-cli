@@ -17,7 +17,7 @@ func TestExtractBinary(t *testing.T) {
 	t.Parallel()
 	archive := makeTarGz(t, []tarEntry{
 		{name: "truestamp", content: []byte("#!/bin/sh\necho ok\n"), mode: 0755},
-		{name: "LICENSE", content: []byte("MIT"), mode: 0644},
+		{name: "LICENSE", content: []byte("Apache-2.0"), mode: 0644},
 	})
 	archivePath := writeToTemp(t, "sample_0.3.0.tar.gz", archive)
 
