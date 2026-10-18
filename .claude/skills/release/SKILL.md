@@ -235,7 +235,7 @@ makes a *failed* check end the loop instead of spinning forever — an
 `until gh pr checks …; do sleep 30; done` looks correct and hangs indefinitely
 the moment a check goes red, because failure is also non-zero.
 
-Required green checks: `Test (ubuntu-latest)`, `Test (macos-latest)`. Other checks (`CodeQL`, `Analyze (Go)`, `Socket Security: Project Report`, `Socket Security: Pull Request Alerts`) will also run — CodeQL and the two Test jobs are ruleset-enforced.
+Required green checks: `Test (ubuntu-latest)`, `Test (macos-latest)`. Other checks (`CodeQL`, `Analyze (Go)`, `Socket Security: Project Report`, `Socket Security: Pull Request Alerts`) will also run, but only the two Test jobs are required by the `protect-main` ruleset; read a red CodeQL or Socket check before merging all the same.
 
 **On CI failure on the release PR:** don't merge. Options:
 1. Fix-forward: push more commits to `release-vX.Y.Z`.
