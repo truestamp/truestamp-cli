@@ -5,6 +5,7 @@ package auth
 
 import (
 	"context"
+	"crypto/subtle"
 	"errors"
 	"fmt"
 	"io"
@@ -104,7 +105,16 @@ type oauthAuthorizer struct {
 	mu   sync.Mutex
 	tok  *oauth2.Token
 	sess Session
+	// sent holds the last few distinct Authorization values Authorize set,
+	// newest last, so the 401 retry can tell a request this authorizer
+	// authenticated from one that carries another service's credential.
+	sent []string
 }
+
+// maxSent bounds the Authorization values an authorizer remembers. A value
+// leaves the list only after this many newer ones were set, long after a
+// request that carried it, sent before a concurrent refresh, has had its 401.
+const maxSent = 4
 
 func newOAuthAuthorizer(sess Session, store Store) Authorizer {
 	return &oauthAuthorizer{
@@ -128,7 +138,46 @@ func (a *oauthAuthorizer) Authorize(ctx context.Context, req *http.Request) erro
 		return err
 	}
 	tok.SetAuthHeader(req)
+	a.remember(req.Header.Get("Authorization"))
 	return nil
+}
+
+// remember records h as an Authorization value this authorizer set.
+func (a *oauthAuthorizer) remember(h string) {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	if n := len(a.sent); n > 0 && a.sent[n-1] == h {
+		return
+	}
+	a.sent = append(a.sent, h)
+	if len(a.sent) > maxSent {
+		a.sent = a.sent[len(a.sent)-maxSent:]
+	}
+}
+
+// issued reports whether h is an Authorization value this authorizer set,
+// or the one its current access token makes. The second covers a request
+// authorized by another authorizer over the same stored session, such as
+// the identity probe `auth login` runs beside the process default.
+func (a *oauthAuthorizer) issued(h string) bool {
+	if h == "" {
+		return false
+	}
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	if a.tok != nil && a.tok.AccessToken != "" && sameValue(a.tok.Type()+" "+a.tok.AccessToken, h) {
+		return true
+	}
+	for _, s := range a.sent {
+		if sameValue(s, h) {
+			return true
+		}
+	}
+	return false
+}
+
+func sameValue(a, b string) bool {
+	return subtle.ConstantTimeCompare([]byte(a), []byte(b)) == 1
 }
 
 func (a *oauthAuthorizer) BearerToken(ctx context.Context) (string, error) {
@@ -234,11 +283,14 @@ func (t retryTransport) RoundTrip(req *http.Request) (*http.Response, error) {
 	if err != nil || resp.StatusCode != http.StatusUnauthorized {
 		return resp, err
 	}
-	// Only retry requests WE authenticated (they carry a Bearer header) in
-	// OAuth mode, never an unrelated 401 from an external API or an
-	// API-key request (which can't be refreshed).
+	// Only retry requests WE authenticated in OAuth mode, never an API-key
+	// request (which can't be refreshed) and never a request to another
+	// service, even one that carries a credential of its own, such as the
+	// GITHUB_TOKEN the upgrade check sends: refreshing on its 401 would
+	// spend a refresh rotation, and the retry would send the Truestamp
+	// access token to that service.
 	azr := Default()
-	if azr.Mode() != ModeOAuth || req.Header.Get("Authorization") == "" {
+	if azr.Mode() != ModeOAuth || !authenticatedBy(azr, req) {
 		return resp, err
 	}
 	// Force a refresh; if the session is dead (or the body can't be
@@ -270,6 +322,14 @@ func (t retryTransport) RoundTrip(req *http.Request) (*http.Response, error) {
 	}
 	drainAndClose(resp)
 	return t.base.RoundTrip(req)
+}
+
+// authenticatedBy reports whether req carries an Authorization value azr
+// set. Only the OAuth authorizer records what it set; any other reports
+// false, so its requests are never retried.
+func authenticatedBy(azr Authorizer, req *http.Request) bool {
+	o, ok := azr.(*oauthAuthorizer)
+	return ok && o.issued(req.Header.Get("Authorization"))
 }
 
 func drainAndClose(resp *http.Response) {

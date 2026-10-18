@@ -12,6 +12,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Security
+
+- **An OAuth session's access token is no longer sent to GitHub.** Since
+  0.9.0, with an OAuth session signed in and a stale `GITHUB_TOKEN` set,
+  GitHub's 401 to the upgrade check (the passive notice or `truestamp
+  upgrade`) made the shared 401 retry refresh the session, spending a
+  refresh rotation, and send the request again to api.github.com carrying
+  the Truestamp access token. The retry now runs only for a request whose
+  `Authorization` value the session set, so a 401 from any other service
+  is returned as it is.
+
 ## [0.16.1] - 2026-09-18
 
 ### Changed
