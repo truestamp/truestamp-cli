@@ -19,12 +19,12 @@ The project is pre-1.0. Version numbers follow semantic versioning, but the supp
 
 ## Reporting a vulnerability
 
-**Do not open a public GitHub issue for security reports.**
+<!-- Shared with the SECURITY.md files in truestamp/.github and truestamp-merkle-ex. Keep this section the same in all three, apart from the repository name and the list of what to include, and in line with https://www.truestamp.com/security#reporting. -->
 
-Use one of these private channels instead:
+Do not open a public issue, discussion, or pull request for a security report. Report it privately instead:
 
-1. **GitHub private vulnerability report** (preferred). Open one at <https://github.com/truestamp/truestamp-cli/security/advisories/new>. Private vulnerability reporting is enabled on this repository. This keeps the conversation threaded with the repository and lets us assign a CVE if the issue warrants one.
-2. **Email** to <security@truestamp.com>. Please include "truestamp-cli" in the subject line.
+1. **GitHub private vulnerability reporting** (preferred), at <https://github.com/truestamp/truestamp-cli/security/advisories/new>.
+2. **Email** to <security@truestamp.com>, with "truestamp-cli" in the subject line.
 
 Include, where possible:
 
@@ -32,12 +32,9 @@ Include, where possible:
 - A minimal proof of concept or reproduction steps.
 - The impact you believe a successful exploit would have.
 
-## What to expect
+We aim to acknowledge your report within three business days, and to tell you whether we could reproduce it and what we plan to do. Please give us 90 days before publishing details, or a shorter window if we agree on one.
 
-- **Acknowledgement** within 3 business days.
-- **Triage and preliminary assessment** within 10 business days.
-- **Coordinated disclosure window** of up to 90 days from the first acknowledgement. We may ship a fix sooner and request an earlier public disclosure; we will not extend beyond 90 days without your agreement.
-- **Credit** in the release notes and, if you want, in a published advisory. Let us know how you would like to be named, or if you prefer to remain anonymous.
+Scope, safe harbor, and the rest of the terms are in [Reporting Security Issues](https://www.truestamp.com/security#reporting) on truestamp.com. If anything here disagrees with that page, that page applies.
 
 ## Scope
 

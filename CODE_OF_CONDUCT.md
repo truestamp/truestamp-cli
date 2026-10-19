@@ -11,7 +11,7 @@ By participating in this project, through issues, pull requests, discussions, or
 
 ## Reporting
 
-Report unacceptable behaviour to <conduct@truestamp.com>. Reports are handled confidentially. For security-sensitive issues, see [`SECURITY.md`](./SECURITY.md) instead.
+Report unacceptable behaviour to <support@truestamp.com>. Reports are handled confidentially. For security-sensitive issues, see [`SECURITY.md`](./SECURITY.md) instead.
 
 ## Enforcement
 
