@@ -5,14 +5,16 @@ SPDX-License-Identifier: Apache-2.0
 
 # Code of Conduct
 
-This project adopts the [Contributor Covenant, version 2.1](https://www.contributor-covenant.org/version/2/1/code_of_conduct/).
+<!-- Shared with CODE_OF_CONDUCT.md in truestamp/.github. Keep the two the same, apart from the paragraph saying where it applies and the link to the security policy. -->
 
-By participating in this project, through issues, pull requests, discussions, or any other channel associated with the repository, you agree to abide by its terms.
+Truestamp adopts the [Contributor Covenant, version 3.0](https://www.contributor-covenant.org/version/3/0/code_of_conduct/).
+
+It applies to this repository. By participating in this project, through issues, pull requests, discussions, or any other channel associated with the repository, you agree to abide by its terms.
 
 ## Reporting
 
-Report unacceptable behaviour to <support@truestamp.com>. Reports are handled confidentially. For security-sensitive issues, see [`SECURITY.md`](./SECURITY.md) instead.
+Report a possible violation to <support@truestamp.com>. Reports are handled confidentially. For security-sensitive issues, follow [`SECURITY.md`](./SECURITY.md) instead.
 
 ## Enforcement
 
-The project maintainers are responsible for clarifying and enforcing standards of acceptable behaviour and will take appropriate and fair corrective action in response to any reported violation, following the Community Impact Guidelines in the Contributor Covenant.
+The Truestamp maintainers act as the Community Moderators the Covenant describes. They investigate every report and decide on any action using the enforcement ladder in its "Addressing and Repairing Harm" section.

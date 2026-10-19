@@ -1,8 +1,16 @@
 # Copyright (c) 2019-2026 Truestamp, Inc.
 # SPDX-License-Identifier: Apache-2.0
 
+# Same links as the default issue chooser in truestamp/.github, apart from the
+# security URL, which points at this repository's private reporting form. Keep
+# the two in step.
+
 blank_issues_enabled: true
 contact_links:
+  - name: Question or discussion
+    url: https://github.com/orgs/truestamp/discussions
+    about: Ask questions and talk with the Truestamp team and community.
+
   - name: Feature idea or product feedback
     url: https://truestamp.userjot.com/board/features
     about: Suggest and vote on ideas, and see what's already been asked for. To post without a UserJot account, use the Feedback popup at truestamp.com/support.
