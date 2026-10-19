@@ -1,9 +1,12 @@
 # Copyright (c) 2019-2026 Truestamp, Inc.
 # SPDX-License-Identifier: Apache-2.0
 
-# Same links as the default issue chooser in truestamp/.github, apart from the
-# security URL, which points at this repository's private reporting form. Keep
-# the two in step.
+# Same links as the default issue chooser in truestamp/.github: keep the two in
+# step.
+#
+# There is no security link here. Private vulnerability reporting is on for
+# this repository, and GitHub then adds its own "Report a security
+# vulnerability" entry to the chooser.
 
 blank_issues_enabled: true
 contact_links:
@@ -18,10 +21,6 @@ contact_links:
   - name: Roadmap and release updates
     url: https://truestamp.userjot.com/roadmap
     about: What's planned, in progress, and recently shipped.
-
-  - name: Security vulnerability
-    url: https://github.com/truestamp/truestamp-cli/security/advisories/new
-    about: Please report security issues privately, not as a public issue. See SECURITY.md.
 
   - name: Help using Truestamp
     url: https://www.truestamp.com/support
