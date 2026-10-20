@@ -980,7 +980,11 @@ Under any environment but `prod` the verdict line carries it, as in
 a keyless run says so on a line of its own. A run labelled `failed` shows no
 window. An edge names each source it was read from: "read from <source> in
 this run", or, for an answer from a cache, "read from <source> at
-<fetched_at>"; this CLI caches nothing.
+<fetched_at>"; this CLI caches nothing. When that source's network has
+several sources, <source> also names its place in the network's order, as
+in `read from https://btc.example, source 2 of the 2 sources of its network,
+in this run`, since the CLI shows a source by its scheme, host and port
+alone and two sources on one host would read alike.
 
 `--expected-hash` takes the hex digest of the file you hold, lowercased and
 never trimmed, and compares it with `claims.hash` (SPEC.md section 10.2,

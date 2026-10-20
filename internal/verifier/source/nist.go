@@ -32,9 +32,14 @@
 //     and a read whose chainIndex or pulseIndex is not an INT, which is
 //     made to no server. Its reason is a fixed text, as the identity
 //     reads' are ([fromRead]), quoting nothing the server sent. A pulse that
-//     names another index is no answer about the pulse asked for: it is
-//     neither that pulse, which is what found needs, nor an answer that the
-//     beacon holds no such pulse.
+//     names another index, or names none, is the answer that does not name
+//     the object asked for that SPEC.md section 10.4 ("Answers") lets a
+//     verifier treat as unreachable: it is neither that pulse, which is
+//     what found needs, nor an answer that the beacon holds no such pulse.
+//
+// The answer is read whole by the strict reader (internal/strictjson), so
+// a body that breaks J2 to J6 of SPEC.md section 10.1 in any member, one no
+// read uses included, is unreachable (SPEC.md section 10.4, "Answers").
 //
 // The read's parameters name only the pulse asked for, never a URL: the
 // document chooses no source.

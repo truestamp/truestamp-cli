@@ -5,6 +5,7 @@ package vectorcases_test
 
 import (
 	"encoding/json"
+	"slices"
 	"strings"
 	"testing"
 
@@ -148,6 +149,61 @@ func TestLoad_RefusesACaseSources(t *testing.T) {
 	}
 	if !strings.Contains(err.Error(), "sources-refused") {
 		t.Errorf("the error %q does not name the case", err)
+	}
+}
+
+// Bare is true exactly for an expected output with a code and no label
+// (SPEC.md section 13.2): a bare rejection, with or without its
+// sub_reason, is bare, and a report is not, whether or not it gives the
+// report's code. In cases.json every case is one or the other, and exactly
+// one report gives its code: two_steps-policy-derive, failed with
+// network_mismatch, the code of its first failing row, of the two its rows
+// fail with. Mutants killed: Bare as a code alone (the report that gives
+// network_mismatch is bare); Bare as no label alone (an expected output
+// with neither is bare).
+func TestExpected_Bare(t *testing.T) {
+	for text, want := range map[string]bool{
+		`{"code": "configuration_error"}`:                             true,
+		`{"code": "malformed_json", "sub_reason": "duplicate_name"}`:  true,
+		`{"code": "network_mismatch", "label": "failed", "rows": []}`: false,
+		`{"label": "verified", "rows": []}`:                           false,
+		`{}`:                                                          false,
+	} {
+		var expected vectorcases.Expected
+		if err := json.Unmarshal([]byte(text), &expected); err != nil {
+			t.Fatal(err)
+		}
+		if expected.Bare() != want {
+			t.Errorf("%s: Bare() = %v, want %v", text, expected.Bare(), want)
+		}
+	}
+
+	cases, err := vectorcases.Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	var coded []string
+	for _, c := range cases {
+		e := c.Expected
+		if e.Bare() == (e.Label != "") || e.Bare() != (e.Code != "" && e.Rows == nil) {
+			t.Errorf("%s: code %q, label %q, %d rows: neither a bare rejection nor a report", c.ID, e.Code, e.Label, len(e.Rows))
+		}
+		if e.Bare() || e.Code == "" {
+			continue
+		}
+		coded = append(coded, c.ID)
+		var failing []string
+		for _, row := range e.Rows {
+			if row.Status == "fail" {
+				failing = append(failing, *row.Code)
+			}
+		}
+		if e.Label != "failed" || e.Code != "network_mismatch" || !slices.Equal(failing, []string{"network_mismatch", "derivation_mismatch"}) {
+			t.Errorf("%s: label %q, code %q, failing rows %q", c.ID, e.Label, e.Code, failing)
+		}
+	}
+	if !slices.Equal(coded, []string{"two_steps-policy-derive"}) {
+		t.Fatalf("the reports that give their code: %q, want two_steps-policy-derive alone", coded)
 	}
 }
 

@@ -43,7 +43,11 @@
 //     values, as its scheme, host and port alone ([printedURL]), and no
 //     unreachable reason names it, since a hosted node's provider may
 //     carry an API key in the path and a report is made to be shared; the
-//     reads use the whole URL. No source takes credentials from the
+//     reads use the whole URL. SPEC.md section 10.4 ("What a row read")
+//     lets a verifier name a source by its scheme, host and port alone,
+//     leaving out its path, query and credentials, and tell several
+//     sources of one network apart by their place in the network's order,
+//     as [sourceAt] does in a message. No source takes credentials from the
 //     command line: a Bitcoin Core node's credentials are a
 //     source.Credentials, which prints masked.
 //
@@ -89,8 +93,12 @@
 //     serves, allow serves nothing and is recorded with no pins, whatever
 //     other networks are open, and one whose answer no pinned network of
 //     its chain allows is configuration_error; SPEC.md section 10.2, step
-//     0, lists no other case, and the first is the CLI's own reading of
-//     section 9; then each source configured for no network with no
+//     0, lists no other case. Section 9, "Which pin a source serves",
+//     gives the case of a source before it ("of two sources configured for
+//     no network whose identity reads show the same network, likewise only
+//     the first serves that network's pins"), and serving nothing when only
+//     networks with a configuration allow its answer is the CLI's own
+//     reading of section 9; then each source configured for no network with no
 //     usable answer, in that order, serves every such network it may
 //     serve that no source before it serves, so under dev
 //     or staging, of an Esplora server and a Bitcoin Core node that both
@@ -747,10 +755,11 @@ func sourceAt(s Source, place, count int) string {
 }
 
 // printedURL is a source's URL as a message or a report prints it:
-// scheme://host, with the port when the URL names one. Its path, which may
-// hold a provider's API key, is never printed; [Config.Validate] has
-// refused user information, a query and a fragment before any source is
-// read.
+// scheme://host, with the port when the URL names one, the form SPEC.md
+// section 10.4 ("What a row read") and section 11.5 let a verifier give.
+// Its path, which may hold a provider's API key, is never printed;
+// [Config.Validate] has refused user information, a query and a fragment
+// before any source is read.
 func printedURL(raw string) string {
 	u, err := url.Parse(raw)
 	if err != nil || u.Host == "" {

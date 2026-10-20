@@ -43,8 +43,15 @@
 // median_time_past alone, its hash and transaction count unread. A field
 // that contradicts the proof fails the outcome even when another is
 // unusable, and an answer with an unusable field and no contradiction is
-// skip source_unreachable, its notes naming the fields. An unreachable
-// read is skip source_unreachable. A read that answers not found where the
+// skip source_unreachable, its notes naming the fields. The block at a
+// height is one read of two calls, its hash and then the block with that
+// hash (source/bitcoin.go), and when the second call answers not found or
+// gives no usable answer the read is found with the hash alone (section
+// 10.4, "Answers", a read made of several calls): genesis.bitcoin's row is
+// judged on that hash, which fails it when it differs, and a commitment
+// entry's row whose hash matches is skip source_unreachable, since the
+// transaction count is not given. An unreachable read is skip
+// source_unreachable. A read that answers not found where the
 // rule gives no outcome for that answer, the block at h or at h +
 // BITCOIN_FINALITY, which the tip covers, is skip not_held_by_source, its
 // notes naming the height read; so is a tip that answers not found, which

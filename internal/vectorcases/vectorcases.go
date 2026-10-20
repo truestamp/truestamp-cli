@@ -102,8 +102,10 @@ type Networks struct {
 	Entropy    map[string]string `json:"entropy"`
 }
 
-// Expected is a case's expected output: a bare rejection's Code and
-// SubReason, or a report's Label and Rows.
+// Expected is a case's expected output (SPEC.md section 13.2): a bare
+// rejection's Code and SubReason, with no Label; or a report's Label and
+// Rows, with Code, the report's code, for a case whose point is which
+// failing row decides it, and the empty string otherwise.
 type Expected struct {
 	Code      string `json:"code"`
 	SubReason string `json:"sub_reason"`
@@ -118,8 +120,9 @@ type Expected struct {
 	SubmittedBefore json.RawMessage `json:"submitted_before"`
 }
 
-// Bare reports whether the case expects a bare rejection.
-func (e Expected) Bare() bool { return e.Code != "" }
+// Bare reports whether the case expects a bare rejection: a code and no
+// label (SPEC.md section 13.2), since a report case may give its code too.
+func (e Expected) Bare() bool { return e.Code != "" && e.Label == "" }
 
 // Row is a report row reduced as SPEC.md section 13.1 compares it:
 // (code, part, status, step), where a nil Code or Part is null.

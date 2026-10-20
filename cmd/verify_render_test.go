@@ -32,7 +32,10 @@ func rendered(report *verifier.Report) string {
 // Each source an edge rests on is named "read from <source> in this run"
 // when its answer did not come from a cache, and "read from <source> at
 // <fetched_at>" when it did, in the order of the edge's sources, after the
-// edge's instant and basis. Mutant killed: the two wordings swapped.
+// edge's instant and basis, each with its place in its network's order,
+// since its network has several sources. Mutants killed: the two wordings
+// swapped; the place written as the source's index among the edge's
+// sources.
 func TestRenderReport_EachSourceAnEdgeRestsOn(t *testing.T) {
 	fetched := time.Date(2026, 9, 26, 2, 0, 0, 123*int(time.Millisecond), time.UTC)
 	edge := &verifier.Edge{
@@ -40,8 +43,8 @@ func TestRenderReport_EachSourceAnEdgeRestsOn(t *testing.T) {
 		Candidate:  verifier.Candidate{Basis: "stellar_ledger_close_read", Class: verifier.ClassTIME, Instant: 1790387835, FetchedAt: fetched},
 		Part:       "/commitments/stellar",
 		Sources: []verifier.EdgeSource{
-			{Source: "https://horizon-one.example", FetchedAt: fetched},
-			{Source: "https://horizon-two.example", Cached: true, FetchedAt: fetched.Add(-time.Hour)},
+			{Source: "https://horizon-one.example", FetchedAt: fetched, Place: 1, Count: 3},
+			{Source: "https://horizon-two.example", Cached: true, FetchedAt: fetched.Add(-time.Hour), Place: 3, Count: 3},
 		},
 	}
 	report := &verifier.Report{
@@ -50,9 +53,75 @@ func TestRenderReport_EachSourceAnEdgeRestsOn(t *testing.T) {
 		Type: "item", SubjectID: "01a0db6d-2b80-7928-9225-f8760ae1a795", Window: verifier.WindowEstablished,
 	}
 	want := "Submitted before: 2026-09-26T01:57:15Z (stellar_ledger_close_read, " +
-		"read from https://horizon-one.example in this run; read from https://horizon-two.example at 2026-09-26T01:00:00.123Z)\n"
+		"read from https://horizon-one.example, source 1 of the 3 sources of its network, in this run; " +
+		"read from https://horizon-two.example, source 3 of the 3 sources of its network, at 2026-09-26T01:00:00.123Z)\n"
 	if text := rendered(report); !strings.Contains(text, want) {
 		t.Errorf("the edge's line is not %q:\n%s", want, text)
+	}
+}
+
+// Two sources of one network on one scheme, host and port, which a report
+// shows alike, are told apart in the edge's text by their places in the
+// network's order (SPEC.md section 11.5), and a source that is its
+// network's only one is named with no place. Mutants killed: edgeText
+// dropping the place (the two sources read alike); the place named for a
+// network with one source.
+func TestRenderReport_TwoSourcesOnOneHostToldApart(t *testing.T) {
+	fetched := time.Date(2026, 9, 26, 2, 0, 0, 0, time.UTC)
+	before := &verifier.Edge{
+		Assumption: "at least 6 of blocks height + 1 to height + 10 carry honest times",
+		Candidate:  verifier.Candidate{Basis: "bitcoin_median_time_read", Class: verifier.ClassTIME, Instant: 1790387835, FetchedAt: fetched},
+		Part:       "/commitments/bitcoin",
+		Sources: []verifier.EdgeSource{
+			{Source: "https://btc.example", FetchedAt: fetched, Place: 1, Count: 2},
+			{Source: "https://btc.example", FetchedAt: fetched.Add(time.Millisecond), Place: 2, Count: 2},
+		},
+	}
+	after := &verifier.Edge{
+		Assumption: "NIST does not release outputValue before timeStamp",
+		Candidate:  verifier.Candidate{Basis: "nist_pulse_time_read", Class: verifier.ClassNISTTIME, Instant: 1790380800000, FetchedAt: fetched},
+		Part:       "/entropy/nist",
+		Sources:    []verifier.EdgeSource{{Source: "https://beacon.example", FetchedAt: fetched, Place: 1, Count: 1}},
+	}
+	report := &verifier.Report{
+		Attribution: "keyring:" + strings.Repeat("ab", 32), Environment: "test", Label: verifier.LabelSuppliedKeyring,
+		SubmittedAfter: after, SubmittedBefore: before, TrustRoot: verifier.TrustRoot{Kind: verifier.KindSuppliedKeyring, Location: "/k.json"},
+		Type: "item", SubjectID: "01a0db6d-2b80-7928-9225-f8760ae1a795", Window: verifier.WindowEstablished,
+	}
+	text := rendered(report)
+	for _, want := range []string{
+		"Submitted before: 2026-09-26T01:57:15Z (bitcoin_median_time_read, " +
+			"read from https://btc.example, source 1 of the 2 sources of its network, in this run; " +
+			"read from https://btc.example, source 2 of the 2 sources of its network, in this run)\n",
+		"(nist_pulse_time_read, read from https://beacon.example in this run)\n",
+	} {
+		if !strings.Contains(text, want) {
+			t.Errorf("the text has no line ending %q:\n%s", want, text)
+		}
+	}
+}
+
+// An edge that rests on one source of a network that has several, as under
+// the policy first, still names that source's place (SPEC.md section
+// 11.5). Mutant killed: the place named only when the edge rests on more
+// than one source (len(edge.Sources) > 1).
+func TestRenderReport_OneOfSeveralSourcesNamesItsPlace(t *testing.T) {
+	fetched := time.Date(2026, 9, 26, 2, 0, 0, 0, time.UTC)
+	before := &verifier.Edge{
+		Assumption: "at least 6 of blocks height + 1 to height + 10 carry honest times",
+		Candidate:  verifier.Candidate{Basis: "bitcoin_median_time_read", Class: verifier.ClassTIME, Instant: 1790387835, FetchedAt: fetched},
+		Part:       "/commitments/bitcoin",
+		Sources:    []verifier.EdgeSource{{Source: "https://btc.example", FetchedAt: fetched, Place: 2, Count: 2}},
+	}
+	report := &verifier.Report{
+		Attribution: "keyring:" + strings.Repeat("ab", 32), Environment: "test", Label: verifier.LabelSuppliedKeyring,
+		SubmittedBefore: before, TrustRoot: verifier.TrustRoot{Kind: verifier.KindSuppliedKeyring, Location: "/k.json"},
+		Type: "item", SubjectID: "01a0db6d-2b80-7928-9225-f8760ae1a795", Window: verifier.WindowEstablished,
+	}
+	want := "Submitted before: 2026-09-26T01:57:15Z (bitcoin_median_time_read, " +
+		"read from https://btc.example, source 2 of the 2 sources of its network, in this run)\n"
+	if text := rendered(report); !strings.Contains(text, want) {
+		t.Errorf("the text has no line ending %q:\n%s", want, text)
 	}
 }
 

@@ -560,7 +560,8 @@ func attributionFits(attribution, label string) bool {
 // checkLabel holds a run's label to its case's (SPEC.md section 10.5), and
 // its code, when the label is failed, to the code of the case's first
 // failing row in step order, which is its first failing step's (section
-// 10.2); a run that is not failed has no code.
+// 10.2), and to the code the case gives, when it gives one (section 13.1);
+// a run that is not failed has no code.
 func checkLabel(t *testing.T, c vectorcases.Case, r *verifier.Run) {
 	t.Helper()
 	code := ""
@@ -569,6 +570,9 @@ func checkLabel(t *testing.T, c vectorcases.Case, r *verifier.Run) {
 	}
 	if r.Label != c.Expected.Label || string(r.Code) != code || (code == "") != (r.Label != verifier.LabelFailed) {
 		t.Fatalf("label %q, code %q; want %q, %q", r.Label, r.Code, c.Expected.Label, code)
+	}
+	if c.Expected.Code != "" && string(r.Code) != c.Expected.Code {
+		t.Fatalf("code %q; the case gives the code %q", r.Code, c.Expected.Code)
 	}
 }
 
@@ -734,11 +738,14 @@ func unsourced(t *testing.T, c vectorcases.Case, o outcome) []string {
 // failing row exactly when its expected rows do, and any other run takes
 // neither; a run that reaches DERIVE decides the external gate gateOf
 // gives (open in the 77 online cases that fail no row before CHAIN), and
-// every case whose gate does not open, the 335 offline reports and four
+// every case whose gate does not open, the 336 offline reports and four
 // online ones (gates-online-policy, gates-online-derive and the two
 // key_binding-unavailable-* cases), matches in full, every row, CHAIN's,
 // SOURCES' and WINDOW's under the closed gate and EXPECTED_HASH's
-// included, with its label and its code (checkLabel); each of the 77
+// included, with its label and its code (checkLabel), the code also the
+// one the case gives in the one case that gives it,
+// two_steps-policy-derive, whose first failing row, network_mismatch at
+// POLICY, decides it over its derivation_mismatch at DERIVE; each of the 77
 // open cases matches in full too, every CHAIN row, Stellar's, Bitcoin's,
 // genesis.bitcoin's and KEY_EVENT_COMMITMENT's, every SOURCES row, NIST's,
 // Stellar's and Bitcoin's, and every WINDOW row, with its label and its
@@ -765,12 +772,13 @@ func unsourced(t *testing.T, c vectorcases.Case, o outcome) []string {
 // keyring is unavailable, key_binding-unavailable-unreachable and
 // key_binding-unavailable-load_check, read the keyring of www.truestamp.com
 // through the replay adapter and fail KEY_BINDING keyring_unavailable.
-// Each of the 416 reports, the 335 offline and the 81 online, matches as
+// Each of the 417 reports, the 336 offline and the 81 online, matches as
 // a whole report too (checkReport): written by the verifier with JCS and
 // read back, its members exactly SPEC.md section 10.5's in their order,
-// every row, its label and code, its edges, window, verified, environment,
-// type, subject id, attribution and trust_root, the expected_hash-*,
-// sound-*, gates-* and sources-* cases among them.
+// every row, its label and code, the code the case gives included, its
+// edges, window, verified, environment, type, subject id, attribution and
+// trust_root, the expected_hash-*, sound-*, gates-* and sources-* cases
+// among them.
 // Mutants killed: a failed online keyring read binding against the compiled
 // pin (both online key_binding-* cases fail key_binding_failed); a replayed
 // keyring loaded under a fixed "test" (key_binding-unavailable-load_check's
@@ -792,7 +800,7 @@ func unsourced(t *testing.T, c vectorcases.Case, o outcome) []string {
 // missing) or to Policy (every POLICY row is missing); Shape giving the
 // subject id of /subject/record/id to every type (the block and beacon
 // cases take none, and panic); a SHAPE failure setting the attribution none
-// (the 67 that fail at SHAPE); Policy ending the run at a failure (the 16
+// (the 67 that fail at SHAPE); Policy ending the run at a failure (the 17
 // POLICY failures get skip rows); shapeSchema giving the failure's schema
 // location as its keyword (every check-3 row's keyword is unsourced);
 // policyRow's values giving the proof's network as the pin (each POLICY
@@ -800,7 +808,7 @@ func unsourced(t *testing.T, c vectorcases.Case, o outcome) []string {
 // with the entropy pin (each genesis row's pin_kind is unsourced, and under
 // staging's pins policy-block-genesis-staging_pins-regtest fails); the
 // runner without its call to Derive (every DERIVE row is missing); Derive
-// ending the run at a failing row (the 153 cases that fail at DERIVE get
+// ending the run at a failing row (the 154 cases that fail at DERIVE get
 // skip rows); deriveChecks giving the links before the records (in
 // declared-genesis_height-witnesses LINK_HEAD's pass comes before the
 // genesis height's failure at /witnesses/block/record/height, and in every
@@ -812,7 +820,7 @@ func unsourced(t *testing.T, c vectorcases.Case, o outcome) []string {
 // wrong); confirmSources reading a configured network's sources after the
 // first only (sources-configuration-regtest-mainnet_block0's second source,
 // which gives the mainnet hash for regtest, is never read, and the run
-// passes CONFIGURATION); decideExternalGate ignoring a failure (the 167
+// passes CONFIGURATION); decideExternalGate ignoring a failure (the 168
 // cases that fail at POLICY or DERIVE give skip offline rows); ignoring
 // Config.Online (the 77 open online cases give skip offline rows);
 // closedRow giving skip offline whatever the gate (the cases failing
@@ -832,8 +840,11 @@ func unsourced(t *testing.T, c vectorcases.Case, o outcome) []string {
 // expected_hash-* and four gates-* cases give expected_hash_not_checked);
 // ExpectedHash not lowercasing (expected_hash-capitals fails); Verdict
 // taking the label from the attribution alone (every failed supplied-keyring
-// case is supplied-keyring); the report writing the edges of a failed run
-// (window-inverted and gates-online-chain_failure, whose WINDOW drew both,
+// case is supplied-keyring); Verdict giving the code of the last failing
+// row (two_steps-policy-derive gives derivation_mismatch, and does so too
+// with checkLabel's and checkReport's comparisons with the first failing
+// row's code left out, at their comparisons with the code the case gives);
+// the report writing the edges of a failed run (window-inverted and gates-online-chain_failure, whose WINDOW drew both,
 // have edges); the report's verified true for an established window (every
 // supplied-keyring case with a submitted-before edge is verified); the
 // report's code written on every report (each case not failed has one);
@@ -847,8 +858,8 @@ func TestCases_ThroughEveryStep(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(cases) != 481 {
-		t.Fatalf("cases.json holds %d cases, want 481", len(cases))
+	if len(cases) != 482 {
+		t.Fatalf("cases.json holds %d cases, want 482", len(cases))
 	}
 	tally := map[string]int{}
 	names := map[string]bool{}
@@ -934,6 +945,9 @@ func TestCases_ThroughEveryStep(t *testing.T) {
 				tally[on+"the external gate opens"]++
 			}
 			checkLabel(t, c, got.run)
+			if c.Expected.Code != "" {
+				tally[on+"report, the case gives its code"]++
+			}
 			if online {
 				tally[checkEdges(t, c, got.run)]++
 			}
@@ -963,7 +977,7 @@ func TestCases_ThroughEveryStep(t *testing.T) {
 		"rejected at ENVELOPE":                 32,
 		"report, the gate fails":               30,
 		"report, SHAPE fails":                  67,
-		"report, POLICY fails":                 15,
+		"report, POLICY fails":                 16,
 		"report, DERIVE fails":                 152,
 		"report, passes through DERIVE":        71,
 		"online report, passes through DERIVE": 77,
@@ -971,7 +985,8 @@ func TestCases_ThroughEveryStep(t *testing.T) {
 		"online report, DERIVE fails":          1,
 		"online report, the gate fails":        2,
 		"bare rejection, its members":          65,
-		"matched in full":                      335,
+		"report, the case gives its code":      1,
+		"matched in full":                      336,
 		"online matched in full":               81,
 		"online the external gate opens":       77,
 		"edges: none, label failed":            29,

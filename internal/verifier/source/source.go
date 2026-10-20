@@ -44,6 +44,11 @@
 //     internal/registry's rule 2 scan refuses fmt's Print and Fprint
 //     functions and the print builtins here, and its import list holds
 //     neither log, log/slog nor os;
+//   - every answer in JSON, an identity read's included, is read whole by
+//     the strict reader (internal/strictjson), so one that breaks J2 to J6
+//     of SPEC.md section 10.1 in any member, a member no read uses
+//     included, is no usable answer (SPEC.md section 10.4, "Answers": an
+//     answer in JSON parses only when it meets J2 to J6 in every member);
 //   - Bitcoin Core's RPC credentials are a [Credentials], which prints
 //     masked whatever verb formats it and is sent only in the request's
 //     Authorization header, never in the URL; the application reaches its
