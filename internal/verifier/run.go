@@ -16,7 +16,8 @@
 // (SPEC.md section 10.2, the external gate), which CHAIN and SOURCES read
 // (external.go). WINDOW, EXPECTED_HASH and VERDICT follow (window.go,
 // expected_hash.go and verdict.go): VERDICT gives the run its label and,
-// for a failed run, its code (SPEC.md section 10.5).
+// for a failed run, its code (SPEC.md section 10.5), and the run then
+// gives its report (report.go).
 //
 // The CLI runs online, so the run says when the keyring that would govern
 // could not be read (KEY_BINDING then fails keyring_unavailable whatever K
@@ -103,7 +104,7 @@ const (
 //	| Trace               | the trace (SPEC.md section 10.6): one row for each DERIVE row whose part is a CHECKED value, other than a row of LINK_HEAD, LINK_KEY_EVENT or LINK_CHAIN_ORDER, in DERIVE's order; nil until DERIVE, for a run that ends before it, and after a fault in it | DERIVE |
 //	| ExternalGate        | the external gate (SPEC.md section 10.2): open, offline or prior_failure; "" before DERIVE ends, and in a run that ended before it or in it | DERIVE |
 //	| Candidates          | the candidate of each CHAIN and SOURCES row that passed with one, in row order, and the sources it rests on (chain.go) | CHAIN, SOURCES |
-//	| SubmittedAfter, SubmittedBefore | the edges WINDOW drew under an open gate (window.go), each nil where it has none; nil under a closed gate | WINDOW |
+//	| SubmittedAfter, SubmittedBefore | the edges WINDOW drew under an open gate (window.go), each nil where it has none; nil under a closed gate; kept on a failed run, so never output or shown: a report's edges are read only from [NewReport] | WINDOW |
 //	| Label               | the report's label (SPEC.md section 10.5); "" before VERDICT | VERDICT |
 //	| Code                | the run's code, the code of its first failing row, when Label is failed; "" otherwise | VERDICT |
 //	| Rows                | the rows so far, in step order                              | every step    |

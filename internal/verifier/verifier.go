@@ -51,7 +51,9 @@
 // submitted-after edges from those candidates and gives its rows of
 // section 11.3, and which a closed gate leaves not established; step 13,
 // EXPECTED_HASH; and step 14, VERDICT, the label and the run's code of
-// section 10.5.
+// section 10.5. A run that passes steps 0 to 3 then gives its report, with
+// exactly the members of section 10.5, and a bare rejection gives only
+// {code, message, sub_reason}.
 //
 //   - config.go: a run's [Config], what step 0 fixes (section 10.2);
 //   - options.go: the options of `truestamp verify` that set a Config,
@@ -90,6 +92,8 @@
 //   - expected_hash.go: step 13, EXPECTED_HASH;
 //   - verdict.go: step 14, VERDICT's label and the run's code (section
 //     10.5);
+//   - report.go: the report of section 10.5, with exactly its members,
+//     both edges null when the label is failed (section 10.2, step 14);
 //   - schema.go: the checker of spec/schema.json, SHAPE's check 3, which
 //     refuses a schema outside SPEC.md section 9's subset when it loads;
 //   - layout.go: where the proof holds its block nodes, commitment

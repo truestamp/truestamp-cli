@@ -68,17 +68,20 @@ func expectedHashRow(t *testing.T, proof map[string]any, attribution string, giv
 // otherwise fail expected_hash_mismatch with its reason: no_listed_hash
 // for a proof that is not an item, an item with no hash, a hash that is
 // not a string and a hash_type the table does not list; not_hex_of_length,
-// with the length, for a value too long, too short, with a newline on its
-// end (never trimmed) or with a letter past f; and differs, with the
-// proof's hash as declared. The values hold the caller's value lowercased.
+// with the length, for a value too long, too short, empty, with a newline
+// on its end or a space before it (never trimmed) or with a letter past
+// f; and differs, with the proof's hash as declared. The values hold the
+// caller's value lowercased.
 // Mutants killed: the caller's value not lowercased (the capitals
-// mismatch); trimmed (the newline matches); the length unchecked (the
+// mismatch); trimmed (the newline matches), or trimmed of leading space
+// (the value with a space before it matches); the length unchecked (the
 // value one character long is a mismatch named differs); the hex check
 // taking every lowercase letter (the "g" value is differs); md5 not weak
 // (a pass); the type unchecked (a run of type block over an item's claims,
 // which SHAPE never lets through, matches); a hash_type not in the table
 // taken (crc32 fails at its length, not as no_listed_hash); a hash that is
-// not a string compared (differs).
+// not a string compared (differs); an empty value taken as none given (the
+// empty value skips as not checked).
 func TestExpectedHash_Rows(t *testing.T) {
 	item := positiveProofs(t)["item"]
 	md5 := "69e3941192b086bfdc0e4e120c18ff12"
@@ -108,6 +111,10 @@ func TestExpectedHash_Rows(t *testing.T) {
 			`{"expected_hash":"6","hex_characters":32,"reason":"not_hex_of_length"}`},
 		{"a newline on its end", item, text(md5 + "\n"), "[expected_hash_mismatch " + at + " fail EXPECTED_HASH]",
 			`{"expected_hash":"` + md5 + `\n","hex_characters":32,"reason":"not_hex_of_length"}`},
+		{"a space before it", item, text(" " + md5), "[expected_hash_mismatch " + at + " fail EXPECTED_HASH]",
+			`{"expected_hash":" ` + md5 + `","hex_characters":32,"reason":"not_hex_of_length"}`},
+		{"given empty", item, text(""), "[expected_hash_mismatch " + at + " fail EXPECTED_HASH]",
+			`{"expected_hash":"","hex_characters":32,"reason":"not_hex_of_length"}`},
 		{"a letter past f", item, text("g" + md5[1:]), "[expected_hash_mismatch " + at + " fail EXPECTED_HASH]",
 			`{"expected_hash":"g` + md5[1:] + `","hex_characters":32,"reason":"not_hex_of_length"}`},
 		{"not an item", positiveProofs(t)["block"], text(md5), "[expected_hash_mismatch " + at + " fail EXPECTED_HASH]",
