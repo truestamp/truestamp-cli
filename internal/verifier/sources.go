@@ -315,6 +315,11 @@ type SourceRecord struct {
 	// Pins are the network pins the source serves, none for a source that
 	// serves nothing.
 	Pins []ServedPin
+	// FetchedAt is when the identity read's answer, or its failure, came
+	// back, by the verifier's clock (SPEC.md section 10.4, "What a row
+	// read"): a row whose source was asked nothing else gives it. The read
+	// is always live, so it is never cached.
+	FetchedAt time.Time
 }
 
 // SourceSet is one pinned network's sources, in their order, each with its
@@ -401,15 +406,17 @@ func allows(chain, network, value string) bool {
 	return (network == productionNetwork[chain]) == (value == productionIdentity[chain])
 }
 
-// identityAnswer is one identity read's outcome.
+// identityAnswer is one identity read's outcome, and when it came back.
 type identityAnswer struct {
 	value string
 	err   error
+	at    time.Time
 }
 
 // readIdentities makes the identity read of each source through reader,
-// all at once, and returns their answers in the sources' order. A nil
-// reader reads nothing, so each source gives no usable answer.
+// all at once, and returns their answers in the sources' order, each
+// stamped by the verifier's clock when it came back. A nil reader reads
+// nothing, so each source gives no usable answer.
 func readIdentities(reader IdentityReader, sources []Source) []identityAnswer {
 	answers := make([]identityAnswer, len(sources))
 	var wg sync.WaitGroup
@@ -418,11 +425,11 @@ func readIdentities(reader IdentityReader, sources []Source) []identityAnswer {
 		go func() {
 			defer wg.Done()
 			if reader == nil {
-				answers[i] = identityAnswer{err: fmt.Errorf("no identity reader")}
+				answers[i] = identityAnswer{err: fmt.Errorf("no identity reader"), at: stamp()}
 				return
 			}
 			value, err := reader(s)
-			answers[i] = identityAnswer{value: value, err: err}
+			answers[i] = identityAnswer{value: value, err: err, at: stamp()}
 		}()
 	}
 	wg.Wait()
@@ -526,7 +533,7 @@ func confirmSources(cfg Config) ([]SourceRecord, []SourceSet, *Rejection) {
 
 	for i, answer := range readIdentities(cfg.ReadIdentity, defaults) {
 		s := defaults[i]
-		record := SourceRecord{Source: s, From: FromDefault, Pins: cfg.pinsFor(s.Chain, []string{s.Network})}
+		record := SourceRecord{Source: s, From: FromDefault, Pins: cfg.pinsFor(s.Chain, []string{s.Network}), FetchedAt: answer.at}
 		switch {
 		case answer.err != nil:
 			record.Status, record.Reason = SourceUnreachable, answer.err.Error()
@@ -607,7 +614,7 @@ func assign(cfg Config, plan chainPlan, answers []identityAnswer) ([]SourceRecor
 		for place, s := range n.Sources {
 			answer := answers[0]
 			answers = answers[1:]
-			record := SourceRecord{Source: s, From: FromOperator, Pins: cfg.pinsFor(plan.chain, []string{n.Network})}
+			record := SourceRecord{Source: s, From: FromOperator, Pins: cfg.pinsFor(plan.chain, []string{n.Network}), FetchedAt: answer.at}
 			switch {
 			case answer.err != nil:
 				record.Status, record.Reason = SourceUnreachable, answer.err.Error()
@@ -625,7 +632,7 @@ func assign(cfg Config, plan chainPlan, answers []identityAnswer) ([]SourceRecor
 	floating := make([]SourceRecord, len(plan.floating))
 	var serves [][]string
 	for i, s := range plan.floating {
-		floating[i] = SourceRecord{Source: s, From: FromOperator}
+		floating[i] = SourceRecord{Source: s, From: FromOperator, FetchedAt: answers[i].at}
 		var networks []string
 		if err := answers[i].err; err != nil {
 			floating[i].Status, floating[i].Reason = SourceUnreachable, err.Error()
@@ -751,7 +758,9 @@ func operatorOptions(chain string) string {
 }
 
 // sourceValues are the run's sources as CONFIGURATION's row holds them, in
-// the order of [Run.Sources], each URL as [printedURL] prints it. Two
+// the order of [Run.Sources], each URL as [printedURL] prints it, and each
+// with its identity read's fetched_at and cached, always false, since the
+// read is a value this run read (SPEC.md section 10.5). Two
 // sources of one provider and host that serve one network print alike,
 // since no path is printed, and only their places in that order tell them
 // apart.
@@ -763,7 +772,7 @@ func sourceValues(records []SourceRecord) []any {
 			pins = append(pins, map[string]any{"network": p.Network, "pin": p.Pin})
 		}
 		value := map[string]any{
-			"chain": r.Source.Chain, "from": string(r.From), "pins": pins,
+			"cached": false, "chain": r.Source.Chain, "fetched_at": fetchedAt(r.FetchedAt), "from": string(r.From), "pins": pins,
 			"provider": string(r.Source.Provider), "status": string(r.Status), "url": printedURL(r.Source.URL),
 		}
 		if r.Status == SourceConfirmed {

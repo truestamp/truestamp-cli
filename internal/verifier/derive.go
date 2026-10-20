@@ -52,8 +52,10 @@
 // rule 1), and no network or pin. The run holds its trace (Run.Trace),
 // which a report gives on request (section 10.6).
 //
-// The external gate, which SPEC.md section 10.2 decides once, when DERIVE
-// ends, is decided with the online frame, not in this file.
+// When DERIVE ends, the run takes its external gate, which SPEC.md section
+// 10.2 decides once, there ([decideExternalGate], external.go). A run that
+// ended before DERIVE, or in it, takes none: its CHAIN and SOURCES rows are
+// already skip prior_failure, part null.
 
 package verifier
 
@@ -82,6 +84,7 @@ func Derive(run *Run) {
 		run.AddRow(row)
 	}
 	run.Trace = trace
+	run.ExternalGate = decideExternalGate(run)
 }
 
 // deriveChecks are every check of DERIVE for P, in the order of step 9's

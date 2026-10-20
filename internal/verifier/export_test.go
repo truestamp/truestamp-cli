@@ -5,6 +5,7 @@ package verifier
 
 import (
 	"net/http"
+	"sync"
 	"testing"
 	"time"
 
@@ -72,4 +73,24 @@ func defaultReadsOf(t *testing.T) (http.RoundTripper, time.Duration) {
 		t.Fatalf("DefaultKeyringReader built %d reads", built)
 	}
 	return transport, deadline
+}
+
+// useClock replaces the verifier's clock, which stamps each read's
+// fetched_at, until the test ends: its readings are times, in order, and
+// then the last of them again. A test that calls it must not run in
+// parallel.
+func useClock(t *testing.T, times ...time.Time) {
+	t.Helper()
+	var mu sync.Mutex
+	saved := readClock
+	readClock = func() time.Time {
+		mu.Lock()
+		defer mu.Unlock()
+		next := times[0]
+		if len(times) > 1 {
+			times = times[1:]
+		}
+		return next
+	}
+	t.Cleanup(func() { readClock = saved })
 }

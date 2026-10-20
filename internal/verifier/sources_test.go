@@ -740,10 +740,20 @@ func TestSources_AnUnreachableOperatorSourceServesWhatNoOtherSourceServes(t *tes
 
 // The run's record of its sources is in CONFIGURATION's values, each
 // source with its chain, provider, URL, where it came from, its status,
-// the pins it serves and its identity or reason, as values JCS writes; an
-// offline run reads no source and records none. Mutant killed:
-// sourceValues leaving out the pins.
+// the pins it serves, its identity or reason, and its identity read's
+// fetched_at, by the verifier's clock when that read came back, and
+// cached, always false (SPEC.md sections 10.4, "What a row read", and
+// 10.5), as values JCS writes; each record holds its fetched_at too; an
+// offline run reads no source and records none. Here the operator's
+// Bitcoin source is read first and the default Stellar source after it, so
+// the clock's two readings fall to them in that order. Mutants killed:
+// sourceValues leaving out the pins; readIdentities stamping no time (both
+// fetched_at are the zero time's); one reading taken when step 0 starts
+// for every record (the Stellar source's fetched_at is the Bitcoin
+// source's); cached written true.
 func TestSources_TheRunRecordsEachSource(t *testing.T) {
+	first, second := time.Date(2026, 10, 20, 9, 30, 1, 250e6, time.UTC), time.Date(2026, 10, 20, 9, 30, 2, 500e6, time.UTC)
+	useClock(t, first, second)
 	run, rejection := configure(t, online(t, "test", func(s Source) (string, error) {
 		if s.Chain == ChainStellar {
 			return "", errors.New("HTTP 429")
@@ -757,10 +767,13 @@ func TestSources_TheRunRecordsEachSource(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	want := `[{"chain":"bitcoin","from":"operator","identity":"` + regtestGenesisHash + `","pins":[{"network":"regtest","pin":"commitment"},{"network":"regtest","pin":"entropy"}],"provider":"esplora","status":"confirmed","url":"` + regtestEsplora + `"},` +
-		`{"chain":"stellar","from":"default","pins":[{"network":"testnet","pin":"commitment"},{"network":"testnet","pin":"entropy"}],"provider":"horizon","reason":"HTTP 429","status":"unreachable","url":"https://horizon-testnet.stellar.org"}]`
+	want := `[{"cached":false,"chain":"bitcoin","fetched_at":"2026-10-20T09:30:01.250Z","from":"operator","identity":"` + regtestGenesisHash + `","pins":[{"network":"regtest","pin":"commitment"},{"network":"regtest","pin":"entropy"}],"provider":"esplora","status":"confirmed","url":"` + regtestEsplora + `"},` +
+		`{"cached":false,"chain":"stellar","fetched_at":"2026-10-20T09:30:02.500Z","from":"default","pins":[{"network":"testnet","pin":"commitment"},{"network":"testnet","pin":"entropy"}],"provider":"horizon","reason":"HTTP 429","status":"unreachable","url":"https://horizon-testnet.stellar.org"}]`
 	if string(data) != want {
 		t.Fatalf("sources = %s\nwant      %s", data, want)
+	}
+	if len(run.Sources) != 2 || !run.Sources[0].FetchedAt.Equal(first) || !run.Sources[1].FetchedAt.Equal(second) {
+		t.Fatalf("the records' fetched_at: %+v", run.Sources)
 	}
 }
 

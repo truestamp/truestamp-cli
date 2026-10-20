@@ -591,10 +591,12 @@ func TestDerive_Rule5_AnEndedRunIsPassedThrough(t *testing.T) {
 }
 
 // Rule 6: no value the proof carries is ever an edge. DERIVE draws none: a
-// run past it differs from the run before only by its DERIVE rows and its
-// trace, even when a check fails, and it does not end. Mutants killed:
-// Derive ending the run at a failing row (the run ends, with skip rows);
-// Derive giving the run its type from P (a run that held none takes one).
+// run past it differs from the run before only by its DERIVE rows, its
+// trace and the external gate it decides when it ends (SPEC.md section
+// 10.2), here prior_failure, since a check fails, and it does not end.
+// Mutants killed: Derive ending the run at a failing row (the run ends,
+// with skip rows); Derive giving the run its type from P (a run that held
+// none takes one); Derive leaving the gate undecided (the gate is "").
 func TestDerive_Rule6_DeriveSetsOnlyItsRowsAndTrace(t *testing.T) {
 	proof := put(positiveProofs(t)["item"], Pointer{Name("commitments"), Name("stellar"), Name("epoch"), Name("epoch_hash")}, strings.Repeat("cd", 32))
 	run := deriveRun(proof, deriveAttribution)
@@ -606,8 +608,8 @@ func TestDerive_Rule6_DeriveSetsOnlyItsRowsAndTrace(t *testing.T) {
 		t.Fatalf("failing %q", failing(run))
 	}
 	after := *run
-	after.Rows, after.Trace = after.Rows[:len(before.Rows)], nil
-	if !reflect.DeepEqual(after, before) || run.Ended {
+	after.Rows, after.Trace, after.ExternalGate = after.Rows[:len(before.Rows)], nil, ""
+	if !reflect.DeepEqual(after, before) || run.Ended || run.ExternalGate != ExternalGatePriorFailure {
 		t.Fatalf("DERIVE changed more than its rows and trace: ended %v, %+v", run.Ended, after)
 	}
 	for _, row := range run.Rows[len(before.Rows):] {
