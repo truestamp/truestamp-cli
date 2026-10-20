@@ -10,10 +10,14 @@
 //	testdata/prod-2026-09-03/  a real production item, end to end: the
 //	                           complete, compact and partial bundles (JSON),
 //	                           the complete bundle as CBOR, the production
-//	                           keyring, the reference verifier's offline
-//	                           reports and the server's online reports
+//	                           keyring, the offline reports (standalone-*.txt)
+//	                           of the Appendix E verifier
+//	                           whitepaper/verify_proof.exs in truestamp-v2,
+//	                           which is not the reference verifier of
+//	                           SPEC.md section 13.1, and the server's online
+//	                           reports
 //	testdata/tamper/           mutations of the complete bundle with the
-//	                           server's and the reference verifier's reports;
+//	                           server's and that Appendix E verifier's reports;
 //	                           one mutation of the complete bundle with no
 //	                           reports, carrying the production key and a
 //	                           signature that does not verify; and one

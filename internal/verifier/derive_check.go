@@ -1,12 +1,8 @@
 // Copyright (c) 2019-2026 Truestamp, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-// This file ports the reference verifier's Truestamp.Verifier.Check
-// (elixir/lib/truestamp/verifier/check.ex in truestamp-verification),
-// checked against the Truestamp application's port,
-// Truestamp.Proof.Verifier.Check (lib/truestamp/proof/verifier/check.ex in
-// truestamp-v2): one check of DERIVE (SPEC.md section 10.2, step 9), as the
-// one engine of section 10.6 takes it. [Derive]'s engine turns each check
+// This file holds one check of DERIVE (SPEC.md section 10.2, step 9), as
+// the one engine of section 10.6 takes it. [Derive]'s engine turns each check
 // into its report row and, when the check is traced, its trace row.
 //
 //	| Member       | Holds                                                                                              |
@@ -40,16 +36,14 @@
 // part, recomputed, status}, with part and each input written as an RFC
 // 6901 string, and status the status of its row, pass or fail.
 //
-// Adapted from the reference: a check is a struct with the code of its
-// failure where the reference has an outcome; the comparison is
-// [sameValue], which compares a string, a strictjson.Number and null as
-// the reference's === compares them; and, as the application's port does,
-// a check may name only one of the 14 rows the "Row of 7.3" columns of
-// SPEC.md sections 10.2, step 9, and 10.3 give, so no check names a row
-// the engine does not know; a row's status is the one the reason table
-// gives its code (NewRow), so not_attributable is info and every other code
-// a check gives is fail; and a failure's other values are the members
-// refused, uncompared and rule, where the reference holds a map of them.
+// A check is a struct with the code of its failure; the comparison is
+// [sameValue], which holds only between two equal strings, two equal
+// strictjson.Numbers or two nulls; a check may name only one of the 14 rows
+// the "Row of 7.3" columns of SPEC.md sections 10.2, step 9, and 10.3 give,
+// so no check names a row the engine does not know; a row's status is the
+// one the reason table (section 12.1) gives its code (NewRow), so
+// not_attributable is info and every other code a check gives is fail; and
+// a failure's other values are the members refused, uncompared and rule.
 
 package verifier
 

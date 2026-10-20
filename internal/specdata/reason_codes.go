@@ -1,16 +1,13 @@
 // Copyright (c) 2019-2026 Truestamp, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-// This file ports the reference verifier's Truestamp.Verifier.ReasonCodes
-// (elixir/lib/truestamp/verifier/reason_codes.ex in truestamp-verification):
-// the reason codes of SPEC.md section 12.1, transcribed from
-// spec/reason-codes.json in its order, which is step order, with the
+// This file holds the reason codes of SPEC.md section 12.1, transcribed
+// from spec/reason-codes.json in its order, which is step order, with the
 // sub_reason values the rows of malformed_json and invalid_envelope list
 // (SPEC.md sections 10.1 and 10.2, step 3), and held equal to the file by
-// TestAgreement_ReasonCodesWithTheirSubReasons. No other code is valid. Code
-// that names a code writes its constant, such as ReasonMalformedJSON, so a
-// name the table lacks does not compile, as the reference's code/1 macro
-// stops its build.
+// TestAgreement_ReasonCodesWithTheirSubReasons. No other code is valid
+// (section 12.1). Code that names a code writes its constant, such as
+// ReasonMalformedJSON, so a name the table lacks does not compile.
 
 package specdata
 
@@ -322,7 +319,7 @@ var reasonTable = []ReasonEntry{
 var reasonIndex = indexReasons(reasonTable)
 
 // indexReasons maps each code to its row, and stops the program on a code
-// listed twice, as the reference stops its build.
+// listed twice, since each code of SPEC.md section 12.1's table has one row.
 func indexReasons(table []ReasonEntry) map[Reason]int {
 	index := make(map[Reason]int, len(table))
 	for i, entry := range table {

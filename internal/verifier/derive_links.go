@@ -1,13 +1,8 @@
 // Copyright (c) 2019-2026 Truestamp, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-// This file ports the reference verifier's Truestamp.Verifier.Derive.Links
-// (elixir/lib/truestamp/verifier/derive/links.ex in truestamp-verification),
-// checked against the Truestamp application's port,
-// Truestamp.Proof.Verifier.Derive.Links
-// (lib/truestamp/proof/verifier/derive/links.ex in truestamp-v2): the links
-// of DERIVE (SPEC.md section 10.2, step 9 (e), and section 10.3), in this
-// order:
+// This file holds the links of DERIVE (SPEC.md section 10.2, step 9 (e),
+// and section 10.3), in this order:
 //
 //	| Link             | Rule | Part | Failure | Row of 7.3 | Traced |
 //	|------------------|------|------|---------|------------|--------|
@@ -71,9 +66,9 @@
 // row. A failing row's recomputed is the ledger or height it was held to.
 // The link compares chain positions only and uses no clock (section 11).
 //
-// Adapted from the reference: the carried MERKLE_PROOF is read by
-// internal/registry's ReadInclusionProof, and a proof it refuses, which
-// SHAPE has held to the schema, gives no root, as a walk that fails does;
+// The carried MERKLE_PROOF is read by internal/registry's
+// ReadInclusionProof, and a proof it refuses, which SHAPE has held to the
+// schema, gives no root, as a walk that fails does (SPEC.md section 5.3);
 // each witness hash is read through valueAt by its compiled name; and a
 // value SHAPE has held to its class that is not of it (a key that does not
 // decode, a height, sequence or ledger that is not a number) is a fault of

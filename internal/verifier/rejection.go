@@ -1,15 +1,10 @@
 // Copyright (c) 2019-2026 Truestamp, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-// This file ports the reference verifier's Truestamp.Verifier.Rejection
-// (elixir/lib/truestamp/verifier/rejection.ex in truestamp-verification),
-// checked against the Truestamp application's port,
-// Truestamp.Proof.Verifier.Rejection
-// (lib/truestamp/proof/verifier/rejection.ex in truestamp-v2): a bare
-// rejection (SPEC.md section 10.2, the gate), a failure at steps 0 to 3,
-// which gives only {code, message, sub_reason}, with no report and no
-// verdict. Adapted from the reference: the codes are internal/specdata's,
-// and a rejection of steps READ and PARSE is built from the
+// This file holds a bare rejection (SPEC.md section 10.2, the gate), a
+// failure at steps 0 to 3, which gives only {code, message, sub_reason},
+// with no report and no verdict. The codes are internal/specdata's (SPEC.md
+// section 12.1), and a rejection of steps READ and PARSE is built from the
 // strictjson.Rejection the strict reader gives.
 
 package verifier

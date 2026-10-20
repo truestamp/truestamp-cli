@@ -1,8 +1,7 @@
 // Copyright (c) 2019-2026 Truestamp, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-// Tests of step READ, J1 of SPEC.md section 10.1, as the reference
-// verifier's elixir/test/verifier/parser_test.exs tests it ("J1, step READ").
+// Tests of step READ (SPEC.md section 10.2, step 1), J1 of section 10.1.
 
 package strictjson
 

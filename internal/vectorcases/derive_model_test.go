@@ -12,11 +12,10 @@
 // and 3 of section 6.2, finds each position from SPEC.md's tables and the
 // proof's own members, and walks each inclusion proof by the steps of
 // section 5.3 as written, so a defect in the verifier's layout, registry,
-// walk or key checks cannot hide in the values it is compared with. It
-// ports the reference's test support elixir/test/support/value_classes.ex
-// and the application's test/support/proof_derive_model.ex and
-// proof_value_classes.ex, and the failure values of the application's
-// derive_key_events_test.exs.
+// walk or key checks cannot hide in the values it is compared with. Each
+// check's row values are those SPEC.md section 10.5 gives a DERIVE row, and
+// each part's value class is read from spec/value-classes.json (section 9,
+// "Value classes").
 
 package vectorcases_test
 

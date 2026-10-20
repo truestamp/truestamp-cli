@@ -19,17 +19,16 @@ import (
 
 // SPEC.md section 10.6, rule 1: constructions is read once, at SHAPE, and
 // only compared with CONSTRUCTIONS_ACCEPTED (section 7.2). This static
-// test ports the reference's shape_test.exs test that no module of the
-// program but Shape names the member, and the application's test that
-// Shape reads it once. Its scope is the reference's, the whole program:
-// every non-test Go file of the module, the commands, the shared packages
-// and the verifier's own, each type-checked (module_static_test.go). It
-// finds every use of the member's name: a string literal "constructions",
-// or any expression whose constant value is that string, so a key built by
-// concatenation, in parentheses or from a constant of any package of the
-// module is seen. The one exemption is the counterpart of the reference's
-// SpecFile.path("constructions"): internal/specdata/constructions.go's
-// constant constructionsDir, the directory of the texts under spec/, its
+// test is the test that section 7.2, item 2, asks of each of Truestamp's
+// verifiers: no file of the program but SHAPE's names the member, and SHAPE
+// reads it once. Its scope is the whole program: every non-test Go file of
+// the module, the commands, the shared packages and the verifier's own,
+// each type-checked (module_static_test.go). It finds every use of the
+// member's name: a string literal "constructions", or any expression whose
+// constant value is that string, so a key built by concatenation, in
+// parentheses or from a constant of any package of the module is seen. The
+// one exemption is internal/specdata/constructions.go's constant
+// constructionsDir, the directory of the texts under spec/ (section 9), its
 // declaration and its one use, as an argument of the call of
 // acceptedDigests in mustAcceptedDigests, matched by the file, the
 // constant's name and that call. A name built at run time, from values

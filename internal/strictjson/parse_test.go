@@ -1,8 +1,8 @@
 // Copyright (c) 2019-2026 Truestamp, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-// Tests of step PARSE, J2 to J6 of SPEC.md section 10.1, rule by rule, as the
-// reference verifier's elixir/test/verifier/parser_test.exs tests them.
+// Tests of step PARSE (SPEC.md section 10.2, step 2), J2 to J6 of section
+// 10.1, rule by rule.
 
 package strictjson
 
@@ -330,8 +330,9 @@ func TestParse_J6_Depth(t *testing.T) {
 	refuses(t, strings.Repeat("[", MaxDepth), specdata.SubReasonSyntax)
 }
 
-// Number.Int64 is an integer exactly when the reference reads one. Mutant
-// killed: Int64 accepting a fraction.
+// Number.Int64 is an integer exactly when the number is an integer of
+// magnitude at most MAX_INTEGER (SPEC.md section 9). Mutant killed: Int64
+// accepting a fraction.
 func TestNumber_Int64(t *testing.T) {
 	for _, tc := range []struct {
 		n    Number

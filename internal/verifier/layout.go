@@ -1,13 +1,9 @@
 // Copyright (c) 2019-2026 Truestamp, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-// This file ports the reference verifier's Truestamp.Verifier.Layout
-// (elixir/lib/truestamp/verifier/layout.ex in truestamp-verification),
-// checked against the Truestamp application's port,
-// Truestamp.Proof.Verifier.Layout (lib/truestamp/proof/verifier/layout.ex
-// in truestamp-v2): where P, the parsed value of proof, holds each kind of
+// This file says where P, the parsed value of proof, holds each kind of
 // node (SPEC.md sections 3.3 to 3.6), each with its pointer ([Pointer]),
-// and the value at a pointer.
+// and reads the value at a pointer.
 //
 // The positions come from this file's compiled lists and from type, never
 // from the names a document happens to hold: type is the only member that
@@ -28,10 +24,9 @@
 // TIME and NISTTIME values of the commitment entries and entropy objects at
 // check 5; POLICY (step 8) reads their networks and those of genesis.bitcoin.
 //
-// Adapted from the reference: a node is a [layoutNode], with the chain or
-// source its position names, since Go has no tuple; and the reference's
-// sources/0 and chains/0 are the lists layoutSources and chains
-// (sources.go).
+// A node is a [layoutNode], with the chain or source its position names;
+// the entropy sources are the list layoutSources (SPEC.md section 3.5), and
+// the chains the list chains (sources.go).
 
 package verifier
 

@@ -74,9 +74,9 @@ func TestKeyIDOf_TheKeysOfTheSpecAndTheVectors(t *testing.T) {
 }
 
 // keyIDRow says whether a trace row of the sound proofs recomputes a key
-// id from one key, as the reference's record_hash_test.exs reads them: a
-// key event's key_id, its signing_key_id when that is taken from its own
-// public_key, and a handover's previous_key_id.
+// id from one key (SPEC.md section 10.3, "Key events"): a key event's
+// key_id, its signing_key_id when that is taken from its own public_key,
+// and a handover's previous_key_id.
 func keyIDRow(construction, part, input string) bool {
 	switch {
 	case construction == "key_event" && lastSegment(part) == "key_id":

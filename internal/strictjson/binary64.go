@@ -1,10 +1,9 @@
 // Copyright (c) 2019-2026 Truestamp, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-// This file ports the reference verifier's Truestamp.Verifier.Binary64
-// (elixir/lib/truestamp/verifier/binary64.ex in truestamp-verification):
-// the nearest binary64 value of a JSON number, rounding to nearest with ties
-// to even (SPEC.md section 10.1, J5), computed with integer arithmetic only.
+// This file holds the nearest binary64 value of a JSON number, rounding to
+// nearest with ties to even (SPEC.md section 10.1, J5), computed with
+// integer arithmetic only.
 //
 // Go's strconv.ParseFloat is correctly rounded for a spelling of a few dozen
 // digits, but its decimal fallback keeps only the first 800 digits and
@@ -18,13 +17,14 @@
 // MAX_READ_OCTETS (SPEC.md section 9) admits such spellings, so this file
 // does not call ParseFloat.
 //
-// Adapted from the reference: the same four steps and constants, with
-// math/big in place of Elixir's integers; once the division of step 4 is
-// made, the quotient has at most 57 bits, so the rounding works on uint64;
-// and a spelling of at most 15 significant digits and a power of ten of at
-// most 22 is read by Clinger's fast path, one correctly rounded IEEE 754
-// multiplication or division of two exact values, which gives the same bits
-// as the exact path.
+// It reads a number in four steps, each named at its function (split is
+// step 1, and round makes step 2 and then steps 3 and 4), with exact
+// integers in math/big; once the division of step 4 is made, the quotient
+// has at most 57 bits, so the rounding works on uint64; and a spelling of
+// at most 15 significant digits and a power of ten of at most 22 is read by
+// Clinger's fast path, one correctly rounded IEEE 754 multiplication or
+// division of two exact values, which gives the same bits as the exact
+// path.
 
 package strictjson
 
@@ -34,7 +34,7 @@ import (
 	"math/bits"
 )
 
-// The constants of the reference's steps 2 to 4.
+// The constants of steps 2 to 4.
 const (
 	// keptDigits is how many significant digits step 3 keeps before the
 	// sticky digit.

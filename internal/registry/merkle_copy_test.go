@@ -14,9 +14,9 @@ import (
 	"testing"
 )
 
-// merkleCommit is the commit of truestamp-merkle-ex the copy is taken
-// from: the one the reference verifier's elixir/mix.lock pins, so the
-// known answers are those of the library the reference walks with.
+// merkleCommit is the commit of truestamp-merkle-ex, the Merkle library
+// whose vectors/merkle.json holds the tree's known answers (SPEC.md
+// section 5.1 (The tree)), that the copy is taken from.
 const merkleCommit = "0862f3e96f670ef605bdfa4077c96039040e585f"
 
 // merkleDigest is the SHA-256 of vectors/merkle.json at merkleCommit. A sync

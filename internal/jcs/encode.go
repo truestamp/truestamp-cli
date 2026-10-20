@@ -1,21 +1,18 @@
 // Copyright (c) 2019-2026 Truestamp, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-// This file ports the reference verifier's Truestamp.Verifier.JCS
-// (elixir/lib/truestamp/verifier/jcs.ex in truestamp-verification): JCS(x),
-// the JSON Canonicalization Scheme of RFC 8785 (SPEC.md sections 2.2 and
-// 2.5), of a value the strict reader (internal/strictjson, SPEC.md section
-// 10.1) gives. JCS is injective over the value profile of section 10.1, and
-// for every value v in it JCS(v) parses back to v, so JCS of the parsed
-// proof is the M its signature covers (section 6.1).
+// This file holds JCS(x), the JSON Canonicalization Scheme of RFC 8785
+// (SPEC.md sections 2.2 and 2.5), of a value the strict reader
+// (internal/strictjson, SPEC.md section 10.1) gives. JCS is injective over
+// the value profile of section 10.1, and for every value v in it JCS(v)
+// parses back to v, so JCS of the parsed proof is the M its signature
+// covers (section 6.1).
 //
-// Adapted from the reference: a number is written by gowebpki's
-// NumberToJSON, ECMAScript's Number::toString for a binary64 value, in place
-// of the reference's own formatting of OTP's shortest digits; and, since Go
-// has one number type where Elixir has an integer and a float, the
-// reference's refusal of an integer term above MAX_INTEGER becomes a
-// refusal of any Number that is integral, of magnitude above MAX_INTEGER and
-// below 10^21, which no parse gives.
+// A number is written by gowebpki's NumberToJSON, ECMAScript's
+// Number::toString for a binary64 value, as RFC 8785 writes one; and any
+// Number that is integral, of magnitude above MAX_INTEGER and below 10^21,
+// which no parse gives (J5), is refused, since it is outside the value
+// profile.
 
 package jcs
 

@@ -187,8 +187,9 @@ func TestRecordHash_WorkedExampleProofHash(t *testing.T) {
 }
 
 // recordKindOfRow is the kind a trace row of the sound proofs recomputes as
-// a record hash from its one input, or 0 for a row that is not one, as the
-// reference's record_hash_test.exs reads them.
+// a record hash from its one input, or 0 for a row that is not one, by the
+// row of the constructions text the trace row names (SPEC.md section 10.6,
+// "One engine and its trace").
 func recordKindOfRow(construction, part string) Construction {
 	switch construction {
 	case "witnesses":

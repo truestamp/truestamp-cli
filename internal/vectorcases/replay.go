@@ -4,24 +4,22 @@
 // This file is the replay adapter of the online cases: it answers each
 // read a verifier makes in an online case from the case's replay file,
 // in place of the network (SPEC.md section 13.2 (The vectors), "Replay
-// files"). It ports the Truestamp application's test reader,
-// Truestamp.ProofReplayReader (test/support/proof_replay_reader.ex in
-// truestamp-v2), so far for the kinds a verifier's step 0 reads: keyring,
-// and the sources' identities, stellar_identity and bitcoin_identity; the
+// files"), so far for the kinds a verifier's step 0 reads: keyring, and
+// the sources' identities, stellar_identity and bitcoin_identity; the
 // reads of the chains and the entropy sources join with the steps that
 // make them. The file stands as the operator-pinned source of each Stellar
 // and Bitcoin network whose identity read it holds ([Replay.Sources]), so
 // a case that pins such a network, regtest included, has a source for it.
 //
-// Adapted from the application: a file is read with the strict reader
-// (internal/strictjson), so a found answer's value is in the values every
-// later step reads, and a keyring answered from it is a value with no bytes
-// of its own, whose digest is never compared (section 13.2). A read is
-// found by building the same object the file holds, compared as its
-// encoding/json form with its members sorted, so the order of a read's
-// members carries no meaning. Where the application's reader raises on a
-// read the file does not hold, [Replay.Keyring] and [Replay.Identity] give
-// [ErrNoAnswer], which the test that makes the read fails on.
+// A file is read with the strict reader (internal/strictjson), so a found
+// answer's value is in the values every later step reads, and a keyring
+// answered from it is a value with no bytes of its own, whose digest is
+// never compared (section 13.2). A read is found by building the same
+// object the file holds, compared as its encoding/json form with its
+// members sorted, so the order of a read's members carries no meaning. A
+// read the file does not hold has no answer (section 13.2):
+// [Replay.Keyring] and [Replay.Identity] give [ErrNoAnswer], which the test
+// that makes the read fails on.
 //
 // A known limit: a replayed keyring is a found answer the verifier loads
 // only as the keyring of www.truestamp.com. As the answer to a read of the

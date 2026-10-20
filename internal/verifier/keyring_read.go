@@ -1,12 +1,14 @@
 // Copyright (c) 2019-2026 Truestamp, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-// This file is the CLI's online keyring read, which no reference module
-// ports, since the reference verifier is offline (SPEC.md section 8.3
+// This file is the CLI's online keyring read, which every external
+// verifier makes by default in an online run (SPEC.md section 8.3
 // (External verifiers)): the read of step 0 (CONFIGURATION, SPEC.md
 // section 10.2) of the keyring that governs an online run, from
 // www.truestamp.com under E_v prod with no supplied keyring, or from the
-// origin an explicit --base-url names. Its rules are SPEC.md's:
+// origin an explicit --base-url names. SPEC.md's rules apply where a rule
+// below names a section; the read's bounds (no redirect, one deadline, a
+// status of 200 OK) and its host check are the CLI's own:
 //
 //   - the keyring read replaces the compiled pin, and a read that does not
 //     give a keyring passing the load checks, for any reason, binds no key

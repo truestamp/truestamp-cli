@@ -8,10 +8,7 @@
 // document through, and a keyring (section 10.2, step 0) is read through it
 // too.
 //
-// It ports the reference verifier's Truestamp.Verifier.Parser and
-// Truestamp.Verifier.Binary64 (elixir/lib/truestamp/verifier/parser.ex and
-// binary64.ex in truestamp-verification), and is named after the
-// Truestamp application's Truestamp.StrictJSON.
+// It is named after the Truestamp application's Truestamp.StrictJSON.
 //
 // [Read] and [ReadFile] make J1, reading at most MAX_READ_OCTETS + 1 octets,
 // which decides it; [CheckSize] makes J1 on bytes already in memory.
@@ -92,8 +89,8 @@ type Number float64
 func (n Number) Float64() float64 { return float64(n) }
 
 // Int64 returns n as an int64 and true when n is an integer of magnitude at
-// most MAX_INTEGER, which is when the reference verifier reads it as an
-// integer; otherwise 0 and false.
+// most MAX_INTEGER (SPEC.md section 9), the bound of the pattern class INT
+// (section 2.4); otherwise 0 and false.
 func (n Number) Int64() (int64, bool) {
 	f := float64(n)
 	if f != math.Trunc(f) || math.Abs(f) > MaxInteger {

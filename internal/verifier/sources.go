@@ -5,21 +5,18 @@
 // that only an online run makes: which Stellar and Bitcoin source serves
 // each network pin, and each source's identity, confirmed both ways
 // before the file is read (SPEC.md sections 9 (What a verifier pins), 10.2,
-// step 0, and 10.4 (Chain and source reads)). No reference module ports
-// it, since the reference verifier is offline. It follows the Truestamp
-// application's step 0, Truestamp.Proof.Verifier.Frame.confirm/1
-// (lib/truestamp/proof/verifier/frame.ex in truestamp-v2, as committed with
-// its online frame), with Truestamp.SourceCache.Sources and
-// Truestamp.SourceCache.Identity (lib/truestamp/source_cache/sources.ex and
-// identity.ex), adapted to an external verifier's sources:
+// step 0, and 10.4 (Chain and source reads)). Step 0 requires it of every
+// verifier in an online run, the reference verifier of SPEC.md section
+// 13.1 among them, which reads chains and sources online when it is given
+// a reader (section 8.3). For the CLI's sources:
 //
-//   - the application configures a source for each pin; the CLI has a
-//     compiled-in default for each network but regtest ([DefaultSource]),
-//     and the operator may pin a Horizon server, an Esplora server and a
-//     Bitcoin Core node ([Config.Sources]), each serving the pins of its
-//     chain whose network its identity read shows (SPEC.md section 9,
-//     "Which pin a source serves"); a source a conformance case's replay
-//     file stands for names its one network instead ([Source.Network]);
+//   - the CLI has a compiled-in default for each network but regtest
+//     ([DefaultSource]), and the operator may pin a Horizon server, an
+//     Esplora server and a Bitcoin Core node ([Config.Sources]), each
+//     serving the pins of its chain whose network its identity read shows
+//     (SPEC.md section 9, "Which pin a source serves"); a source a
+//     conformance case's replay file stands for names its one network
+//     instead ([Source.Network]);
 //   - an identity read with no usable answer records the source
 //     unreachable, and the run reads nothing else from it; the rows it
 //     serves are made by CHAIN and SOURCES, so this file records only the

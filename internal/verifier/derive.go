@@ -1,13 +1,9 @@
 // Copyright (c) 2019-2026 Truestamp, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-// This file ports the reference verifier's Truestamp.Verifier.Derive
-// (elixir/lib/truestamp/verifier/derive.ex in truestamp-verification),
-// checked against the Truestamp application's port,
-// Truestamp.Proof.Verifier.Derive (lib/truestamp/proof/verifier/derive.ex in
-// truestamp-v2): step 9 of SPEC.md section 10.2, DERIVE, offline, in every
-// run that reaches it, and the one engine of section 10.6 that every DERIVE
-// check goes through.
+// This file holds step 9 of SPEC.md section 10.2, DERIVE, offline, in
+// every run that reaches it, and the one engine of section 10.6 that every
+// DERIVE check goes through.
 //
 // DERIVE recomputes each value that the constructions text (section 7.3)
 // defines from the preimage P carries, compares it with the value P carries
@@ -56,8 +52,8 @@
 // rule 1), and no network or pin. The run holds its trace (Run.Trace),
 // which a report gives on request (section 10.6).
 //
-// Adapted from the reference: the external gate that the reference decides
-// when DERIVE ends is decided with the online frame.
+// The external gate, which SPEC.md section 10.2 decides once, when DERIVE
+// ends, is decided with the online frame, not in this file.
 
 package verifier
 

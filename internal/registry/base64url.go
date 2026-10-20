@@ -1,20 +1,17 @@
 // Copyright (c) 2019-2026 Truestamp, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-// This file ports the reference verifier's Truestamp.Verifier.Base64url
-// (elixir/lib/truestamp/verifier/base64url.ex in truestamp-verification):
-// the base64url pattern classes B64U32 and B64U64 of SPEC.md section 2.4,
-// unpadded base64url (RFC 4648 section 5) of 32 and of 64 octets, in the
-// one canonical spelling each value has.
+// This file holds the base64url pattern classes B64U32 and B64U64 of
+// SPEC.md section 2.4, unpadded base64url (RFC 4648 section 5) of 32 and of
+// 64 octets, in the one canonical spelling each value has.
 //
 // The class of the last character forces the unused bits to zero, so a
 // string that matches its class is exactly a canonical encoding. Stock
 // decoders are not canonical: Go's base64.RawURLEncoding.Strict() skips CR
 // and LF. So a string is matched against its class, as \A...\z matches,
-// before it is decoded, as section 2.4 requires. Adapted from the
-// reference: the patterns are internal/specdata's transcription of
-// spec/encodings.json, compiled once, and the decoded octets come back as
-// a [32]byte or a [64]byte.
+// before it is decoded, as section 2.4 requires. The patterns are
+// internal/specdata's transcription of spec/encodings.json, compiled once,
+// and the decoded octets come back as a [32]byte or a [64]byte.
 
 package registry
 

@@ -1,11 +1,7 @@
 // Copyright (c) 2019-2026 Truestamp, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-// This file ports the reference verifier's Truestamp.Verifier.TIME
-// (elixir/lib/truestamp/verifier/time.ex in truestamp-verification),
-// checked against the Truestamp application's port,
-// Truestamp.Proof.Verifier.TIME (lib/truestamp/proof/verifier/time.ex in
-// truestamp-v2): the pattern classes TIME and NISTTIME of SPEC.md section
+// This file holds the pattern classes TIME and NISTTIME of SPEC.md section
 // 2.4 (Pattern classes), RFC 3339 in UTC:
 //
 //   - TIME is [0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z, and
@@ -35,12 +31,11 @@
 // SHAPE's check 5 (SPEC.md section 10.2, step 7) uses this file, and so
 // does DERIVE's header_time row (step 9 (d)).
 //
-// Adapted from the reference: the calendar arithmetic is this file's own
-// (Howard Hinnant's day count from a civil date and back, with floor
-// division), never Go's time package, whose Format writes a year outside
-// 0000 to 9999 in more or fewer digits and whose Parse takes a layout, not
-// a pattern; and a regular expression is Go's RE2, whose [0-9] is ASCII
-// digits only, as PCRE's is.
+// The calendar arithmetic is this file's own (Howard Hinnant's day count
+// from a civil date and back, with floor division), never Go's time
+// package, whose Format writes a year outside 0000 to 9999 in more or fewer
+// digits and whose Parse takes a layout, not a pattern; and a regular
+// expression is Go's RE2, whose [0-9] is ASCII digits only, as PCRE's is.
 
 package verifier
 

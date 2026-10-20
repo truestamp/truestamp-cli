@@ -15,12 +15,11 @@ import (
 
 // Step 8, POLICY (SPEC.md sections 9 and 10.2), on every network member of
 // the 11 positive proofs, beside the vectors' own cases in
-// internal/vectorcases' runner, as the reference's policy_test.exs holds
-// it: one row for each network member, in document order; each network
-// changed fails at exactly its own row, and each pin changed fails exactly
-// the rows it governs; a failure does not end the run; and the pins are the
-// run's, which nothing but the conformance seam, Config.Networks, sets
-// apart from E_v's defaults.
+// internal/vectorcases' runner: one row for each network member, in
+// document order; each network changed fails at exactly its own row, and
+// each pin changed fails exactly the rows it governs; a failure does not
+// end the run; and the pins are the run's, which nothing but the
+// conformance seam, Config.Networks, sets apart from E_v's defaults.
 
 // policyNetwork is a network member of P, by the test's own walk: its
 // pointer, the kind of pin that governs it and its chain or source.

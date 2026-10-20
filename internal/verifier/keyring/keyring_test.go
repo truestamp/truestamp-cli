@@ -277,11 +277,11 @@ func TestLoad_TwoKeysThatShareOnlyAKeyID(t *testing.T) {
 	}
 }
 
-// Each check is made over every key before the next, as the reference
-// makes them: a keyring whose first key is small-order and whose second
-// has the wrong key id fails check 3, not check 5. The application's
-// order, the first key's first failing check, names check 5. Mutant
-// killed: check 5 made before check 3.
+// Each check is made over every key before the next, the order keyring.go
+// gives them (SPEC.md section 10.2, step 0, fixes none): a keyring whose
+// first key is small-order and whose second has the wrong key id fails
+// check 3, not check 5. The order of the first key's first failing check
+// names check 5. Mutant killed: check 5 made before check 3.
 func TestLoad_ChecksInTheReferencesOrder(t *testing.T) {
 	small := sound(specdata.SmallOrderKeys()[0].Key, 0)
 	wrongID := sound(testKey("b"), 1)

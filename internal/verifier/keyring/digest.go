@@ -1,14 +1,10 @@
 // Copyright (c) 2019-2026 Truestamp, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-// This file ports digest/1 of the reference verifier's
-// Truestamp.Verifier.Keyring (elixir/lib/truestamp/verifier/keyring.ex in
-// truestamp-verification), checked against the Truestamp application's
-// test seam, whose digest/1 makes the same hash
-// (test/support/proof_verifier_seam.ex in truestamp-v2): a keyring's digest
-// d, the lowercase hex SHA-256 of its bytes as read (SPEC.md section 8.3
-// (External verifiers)), which trust_root carries and a supplied keyring's
-// attribution keyring:<d> names (section 10.5 (Verdict and report)).
+// This file holds a keyring's digest d, the lowercase hex SHA-256 of its
+// bytes as read (SPEC.md section 8.3 (External verifiers)), which
+// trust_root carries and a supplied keyring's attribution keyring:<d> names
+// (section 10.5 (Verdict and report)).
 //
 // d is a content digest, which SPEC.md section 4.1 puts outside the
 // byte-prefix registry: it hashes the bytes as read, with no prefix byte,

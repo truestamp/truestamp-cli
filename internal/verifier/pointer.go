@@ -1,11 +1,7 @@
 // Copyright (c) 2019-2026 Truestamp, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-// This file ports the reference verifier's Truestamp.Verifier.Pointer
-// (elixir/lib/truestamp/verifier/pointer.ex in truestamp-verification),
-// checked against the Truestamp application's port,
-// Truestamp.Proof.Verifier.Pointer (lib/truestamp/proof/verifier/pointer.ex
-// in truestamp-v2): JSON Pointers (RFC 6901) into P, the parsed value of
+// This file holds JSON Pointers (RFC 6901) into P, the parsed value of
 // proof, and the document order that orders a step's rows (SPEC.md section
 // 10.2).
 //
@@ -21,8 +17,8 @@
 // which they differ decides: two names by JCS order, the order of their
 // UTF-16 code units (RFC 8785 section 3.2.3), and two indices by value. A
 // pointer can name a member that P lacks, and it takes the place that
-// member would take. Adapted from the reference: a segment is a struct,
-// since Go has no union of a string and an integer.
+// member would take. A segment is a struct, since Go has no union of a
+// string and an integer.
 
 package verifier
 

@@ -13,11 +13,10 @@ import (
 	"github.com/truestamp/truestamp-cli/internal/specdata"
 )
 
-// TIME and NISTTIME (SPEC.md section 2.4), as the reference's
-// time_test.exs holds them: the pattern, each field's range at its limit
-// and one past it, the round trip against a lenient parse made with Go's
-// time.Date, formatting against Go's time package, and the times the
-// sound proofs carry.
+// TIME and NISTTIME (SPEC.md section 2.4): the pattern, each field's range
+// at its limit and one past it, the round trip against a lenient parse made
+// with Go's time.Date, formatting against Go's time package, and the times
+// the sound proofs carry.
 
 // parseOutcome writes what ParseTime gives for value.
 func parseOutcome(class TimeClass, value any) string {

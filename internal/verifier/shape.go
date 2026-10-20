@@ -1,11 +1,7 @@
 // Copyright (c) 2019-2026 Truestamp, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-// This file ports the reference verifier's Truestamp.Verifier.Shape
-// (elixir/lib/truestamp/verifier/shape.ex in truestamp-verification),
-// checked against the Truestamp application's port,
-// Truestamp.Proof.Verifier.Shape (lib/truestamp/proof/verifier/shape.ex in
-// truestamp-v2): step 7 of SPEC.md section 10.2, SHAPE, on P, the parsed
+// This file holds step 7 of SPEC.md section 10.2, SHAPE, on P, the parsed
 // value of proof. Its checks run in this order, and the first that fails
 // is the step's one failing row:
 //
@@ -51,9 +47,8 @@
 // reads constructions (SPEC.md section 10.6, rule 1), and
 // constructions_static_test.go (TestConstructions_ReadOnlyAtShape) holds
 // the module to that one read. Its JSON type tells the mode: an object is
-// the full text, whose d is SHA-256(JCS(value)), computed here as the
-// reference's shape.ex and the application's port compute it; a string is a
-// reference, whose d is the 64 hex characters of its URL, and check 3 has
+// the full text, whose d is SHA-256(JCS(value)), computed here; a string is
+// a reference, whose d is the 64 hex characters of its URL, and check 3 has
 // already failed a string off the reference pattern, and a value of any
 // other type, with shape_invalid; absent is mode none, which checks
 // nothing. d is compared with CONSTRUCTIONS_ACCEPTED
@@ -85,10 +80,9 @@
 // the part already says where the failure is. The pass row's message names
 // the proof's type, which check 3 has held to the type registry.
 //
-// Adapted from the reference: check 3's message leaves out the pointer, as
-// the application's port does, since a pointer can hold a member name P
-// carries; check 5's keeps it, since its pointer is one of layout.go's
-// positions and holds no name P chose.
+// Check 3's message leaves out the pointer, since a pointer can hold a
+// member name P carries; check 5's keeps it, since its pointer is one of
+// layout.go's positions and holds no name P chose.
 
 package verifier
 

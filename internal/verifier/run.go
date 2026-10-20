@@ -1,11 +1,7 @@
 // Copyright (c) 2019-2026 Truestamp, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-// This file ports the reference verifier's Truestamp.Verifier.Run
-// (elixir/lib/truestamp/verifier/run.ex in truestamp-verification),
-// checked against the Truestamp application's port,
-// Truestamp.Proof.Verifier.Run (lib/truestamp/proof/verifier/run.ex in
-// truestamp-v2): the state of a run (SPEC.md section 10.2), the rows so
+// This file holds the state of a run (SPEC.md section 10.2), the rows so
 // far and what the later steps read. CONFIGURATION ([Configure]) creates
 // the run from a [Config]; READ, PARSE and ENVELOPE each take it, add their
 // row and give nil, or give a bare rejection. So a run that reaches the
@@ -18,14 +14,13 @@
 // failure there does not end it either, and its info row is no failure
 // ([Run.Failed]).
 //
-// Adapted from the reference: the CLI runs online, so the run says when
-// the keyring that would govern could not be read (KEY_BINDING then fails
-// keyring_unavailable whatever K is, SPEC.md section 8.3), trust_root
-// takes the kind current_keyring, which the always-offline reference never
-// gives, and the run holds the outcome of each source's identity read
-// (SPEC.md section 10.2, step 0), as the Truestamp application's run holds
-// its sources. Its members are those steps 0 to 9 set; it holds no
-// external gate, label or edges.
+// The CLI runs online, so the run says when the keyring that would govern
+// could not be read (KEY_BINDING then fails keyring_unavailable whatever K
+// is, SPEC.md section 8.3), trust_root takes the kind current_keyring under
+// the keyring read from www.truestamp.com (section 10.5), and the run holds
+// the outcome of each source's identity read (SPEC.md section 10.2, step
+// 0). Its members are those steps 0 to 9 set; it holds no external gate,
+// label or edges.
 
 package verifier
 

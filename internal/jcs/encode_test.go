@@ -2,9 +2,9 @@
 // SPDX-License-Identifier: Apache-2.0
 
 // Tests of JCS and the canonical form of a parsed value (SPEC.md sections
-// 2.2, 9 and 10.1), as the reference verifier's elixir/test/verifier/
-// jcs_test.exs tests JCS, over the corpus, the worked example of section 6.3
-// and every case and data file of the vectors (section 13.2).
+// 2.2, 9 and 10.1), over the corpus's known answers for JCS, the worked
+// example of section 6.3 and every case and data file of the vectors
+// (section 13.2).
 
 package jcs
 

@@ -1,11 +1,7 @@
 // Copyright (c) 2019-2026 Truestamp, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-// This file ports the reference verifier's Truestamp.Verifier.Gate
-// (elixir/lib/truestamp/verifier/gate.ex in truestamp-verification),
-// checked against the Truestamp application's port,
-// Truestamp.Proof.Verifier.Gate (lib/truestamp/proof/verifier/gate.ex in
-// truestamp-v2): steps 0 to 6 of SPEC.md section 10.2, the gate, one
+// This file holds steps 0 to 6 of SPEC.md section 10.2, the gate, one
 // function per step in the spec's order.
 //
 //	| Step            | Function      | On failure                                            |
@@ -35,20 +31,20 @@
 // keyring, and unattributed in keyless mode. [Gate] and [GateFile] make
 // the seven steps.
 //
-// Adapted from the reference, which is offline: an online run under E_v
-// prod with no supplied keyring reads the keyring from www.truestamp.com at
-// CONFIGURATION, and an online run given an explicit --base-url reads it
-// from that origin, both through [Config.ReadKeyring], the seam that
+// An online run under E_v prod with no supplied keyring reads the keyring
+// from www.truestamp.com at CONFIGURATION, and an online run given an
+// explicit --base-url reads it from that origin (SPEC.md sections 8.3 and
+// 10.2, step 0), both through [Config.ReadKeyring], the seam that
 // [NewKeyringReader] (keyring_read.go) fills over HTTP and a conformance
 // test from a case's replay file; a read that does not
 // give a keyring passing the load checks is no rejection, and leaves the
 // run with no keyring that can bind, so KEY_BINDING fails
 // keyring_unavailable whatever K is (SPEC.md section 8.3). The
 // environment_mismatch hint is SPEC.md section 6.4's, which names an
-// offline run, and appears only for a marker of dev, staging or test: the
-// reference also gives one for a proof with no marker. SIGNATURE checks V
-// with internal/verifier/ed25519's Verify, which makes steps 2 and 3 of
-// SPEC.md section 6.2 and then calls Go's crypto/ed25519.
+// offline run, and appears only for a marker of dev, staging or test, as
+// that section says. SIGNATURE checks V with internal/verifier/ed25519's
+// Verify, which makes steps 2 and 3 of SPEC.md section 6.2 and then calls
+// Go's crypto/ed25519.
 
 package verifier
 

@@ -5,20 +5,18 @@
 // (The vectors), testdata/verification/vectors/cases.json, for the tests that
 // run them. It is test support: no command imports it.
 //
-// It ports the reference verifier's test support Truestamp.Verifier.Test.Cases
-// (elixir/test/support/cases.ex in truestamp-verification), adapted to Go: a
-// case decodes into typed structs, and the per-step runner that compares
-// each case's rejection or rows through the last step built is this
-// package's runner_test.go, which runs every step built so far.
+// A case decodes into typed structs, the members of a case that section
+// 13.2 lists, and the per-step runner that compares each case's rejection
+// or rows through the last step built, as section 13.1 compares them, is
+// this package's runner_test.go, which runs every step built so far.
 //
-// The reference reads cases.json with a test reader of its own; here
-// encoding/json decodes it, which shares no code with the strict reader the
-// runner tests, so a defect in that reader cannot hide in the cases it is
-// compared with. The decode refuses unknown members, and the runner also
-// parses cases.json with the strict reader, which refuses a repeated member
-// name that encoding/json would keep the last of. cases.json is larger than
-// MAX_READ_OCTETS, which binds a document and not a data file (SPEC.md
-// section 9), so that parse does not make J1.
+// cases.json is decoded by encoding/json, which shares no code with the
+// strict reader the runner tests, so a defect in that reader cannot hide in
+// the cases it is compared with. The decode refuses unknown members, and
+// the runner also parses cases.json with the strict reader, which refuses a
+// repeated member name that encoding/json would keep the last of.
+// cases.json is larger than MAX_READ_OCTETS, which binds a document and not
+// a data file (SPEC.md section 9), so that parse does not make J1.
 package vectorcases
 
 import (

@@ -27,9 +27,7 @@ import (
 // Step 9, DERIVE (SPEC.md section 10.2), parts (a) to (c) and
 // LINK_INCLUSION, on the 11 positive proofs and mutants of them, beside the
 // vector cases of internal/vectorcases' runner; the key events and the
-// other links are derive_key_events_test.go's. It ports the parts of the
-// reference's elixir/test/verifier/derive_test.exs these checks reach,
-// checked against the application's derive_test.exs:
+// other links are derive_key_events_test.go's. It tests:
 //
 //   - the committed leaf count (SPEC.md section 5.4) at the block and the
 //     epoch level: a tree_size that is not the record's leaf_count, and a
@@ -733,7 +731,7 @@ func TestDerive_TheEngine(t *testing.T) {
 }
 
 // A comparison holds only between two equal strings, two equal numbers or
-// two nulls, as the reference's === holds; a check may name only the 14
+// two nulls (SPEC.md section 10.2, step 9); a check may name only the 14
 // rows of SPEC.md sections 10.2, step 9, and 10.3, each a row of every
 // accepted constructions text. Mutants killed: sameValue holding for the
 // number 0 and the string "0" (fmt.Sprint equality); equalCheck accepting

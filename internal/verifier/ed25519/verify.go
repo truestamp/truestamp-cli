@@ -1,13 +1,9 @@
 // Copyright (c) 2019-2026 Truestamp, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-// This file ports verify/3 of the reference verifier's
-// Truestamp.Verifier.Ed25519 (elixir/lib/truestamp/verifier/ed25519.ex in
-// truestamp-verification), checked against the Truestamp application's
-// port, verify_signature/3 of Truestamp.Proof.Verifier.Gate
-// (lib/truestamp/proof/verifier/gate.ex in truestamp-v2): Verify(A, msg, S)
-// of SPEC.md section 6.2 (Strict verification), the rule SIGNATURE (section
-// 10.2, step 6) checks V under K by.
+// This file holds Verify(A, msg, S) of SPEC.md section 6.2 (Strict
+// verification), the rule SIGNATURE (section 10.2, step 6) checks V under K
+// by.
 //
 //	| Step                                                          | Refusal            |
 //	|---------------------------------------------------------------|--------------------|
@@ -22,16 +18,14 @@
 // ENVELOPE decodes K and V through internal/registry, which matches B64U32
 // and B64U64 before it decodes.
 //
-// Adapted from the reference, which makes every step with RFC 8032's own
-// arithmetic: here steps 2 and 3 are [CheckKeyBytes], and Go's
-// crypto/ed25519 then makes steps 4 to 7, as SPEC.md section 6.2
-// (informative) says it does for every key that passes steps 2 and 3,
-// cofactorless and with R compared as its encoding. The library alone
-// decides whether a signature that passes steps 2 and 3 verifies. When it
-// refuses one, the refusal is named by the first of steps 4, 5 and 7 that
-// fails, as the reference names it, from a check of the point's decoding
-// and of s made here with math/big; that check names the refusal and
-// never turns a refusal into a pass.
+// Steps 2 and 3 are [CheckKeyBytes], and Go's crypto/ed25519 then makes
+// steps 4 to 7, as SPEC.md section 6.2 (informative) says it does for every
+// key that passes steps 2 and 3, cofactorless and with R compared as its
+// encoding. The library alone decides whether a signature that passes steps
+// 2 and 3 verifies. When it refuses one, the refusal is named by the first
+// of steps 4, 5 and 7 that fails, from a check of the point's decoding and
+// of s made here with math/big; that check names the refusal and never
+// turns a refusal into a pass.
 
 package ed25519
 

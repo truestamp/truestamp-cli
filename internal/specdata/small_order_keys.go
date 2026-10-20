@@ -1,11 +1,10 @@
 // Copyright (c) 2019-2026 Truestamp, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-// This file ports the SMALL_ORDER_KEYS table of the reference verifier's
-// Truestamp.Verifier.Ed25519 (elixir/lib/truestamp/verifier/ed25519.ex in
-// truestamp-verification), which compiles spec/small-order-keys.json. The
-// rest of that module, strict Ed25519 verification (SPEC.md section 6.2), is
-// ported with the signature step and reads this table.
+// This file holds SMALL_ORDER_KEYS (SPEC.md sections 6.2 and 9),
+// transcribed from spec/small-order-keys.json and held equal to it by
+// TestAgreement_SmallOrderKeys. Strict Ed25519 verification (section 6.2),
+// which internal/verifier/ed25519 makes, reads this table.
 
 package specdata
 
