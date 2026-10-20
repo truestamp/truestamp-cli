@@ -47,10 +47,11 @@
 // each entropy object whose entropy_hash matched at DERIVE by its source's
 // rule of section 10.4, from the sources of the run's entropy pin, through
 // the same frame, and keeps each passing row's candidate for WINDOW.
-// WINDOW's rule is not in the package yet, so its row is not given under
-// an open gate. Then step 12, WINDOW, which a closed gate leaves not
-// established; step 13, EXPECTED_HASH; and step 14, VERDICT, the label and
-// the run's code of section 10.5.
+// Then step 12, WINDOW, which draws the submitted-before and
+// submitted-after edges from those candidates and gives its rows of
+// section 11.3, and which a closed gate leaves not established; step 13,
+// EXPECTED_HASH; and step 14, VERDICT, the label and the run's code of
+// section 10.5.
 //
 //   - config.go: a run's [Config], what step 0 fixes (section 10.2);
 //   - options.go: the options of `truestamp verify` that set a Config,
@@ -84,7 +85,8 @@
 //   - source_outcomes.go: the frame a CHAIN or SOURCES row read under an
 //     open gate runs through: each source's outcome, their combination
 //     under the source policy, and the row's values (section 10.4);
-//   - window.go: step 12, WINDOW, under a closed gate (section 11.3);
+//   - window.go: step 12, WINDOW, its rows and its two edge objects
+//     (sections 11.1 to 11.3 and 11.5);
 //   - expected_hash.go: step 13, EXPECTED_HASH;
 //   - verdict.go: step 14, VERDICT's label and the run's code (section
 //     10.5);
