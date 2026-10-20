@@ -12,16 +12,19 @@
 // proof; a failure there does not end it. DERIVE takes it, reads K and the
 // attribution for LINK_KEY_EVENT, adds its rows and sets its trace; a
 // failure there does not end it either, and its info row is no failure
-// ([Run.Failed]).
+// ([Run.Failed]). When DERIVE ends, the run takes its external gate
+// (SPEC.md section 10.2, the external gate), which CHAIN and SOURCES read
+// (external.go). WINDOW, EXPECTED_HASH and VERDICT follow (window.go,
+// expected_hash.go and verdict.go): VERDICT gives the run its label and,
+// for a failed run, its code (SPEC.md section 10.5).
 //
 // The CLI runs online, so the run says when the keyring that would govern
 // could not be read (KEY_BINDING then fails keyring_unavailable whatever K
 // is, SPEC.md section 8.3), trust_root takes the kind current_keyring under
 // the keyring read from www.truestamp.com (section 10.5), and the run holds
 // the outcome of each source's identity read and each pinned network's
-// sources and source policy (SPEC.md sections 9 and 10.2, step 0). Its
-// members are those steps 0 to 9 set; it holds no external gate, label or
-// edges.
+// sources and source policy (SPEC.md sections 9 and 10.2, step 0). It
+// holds no edge objects of SPEC.md section 11.5.
 
 package verifier
 
@@ -94,6 +97,9 @@ const (
 //	| Type                | the proof's type, which SHAPE has held to the type registry; "" until SHAPE passes, which a report writes as null | SHAPE |
 //	| SubjectID           | the subject's id: /subject/record/id, or /block/record/id for block and beacon (SPEC.md section 10.5); "" until SHAPE passes, which a report writes as null | SHAPE |
 //	| Trace               | the trace (SPEC.md section 10.6): one row for each DERIVE row whose part is a CHECKED value, other than a row of LINK_HEAD, LINK_KEY_EVENT or LINK_CHAIN_ORDER, in DERIVE's order; nil until DERIVE, for a run that ends before it, and after a fault in it | DERIVE |
+//	| ExternalGate        | the external gate (SPEC.md section 10.2): open, offline or prior_failure; "" before DERIVE ends, and in a run that ended before it or in it | DERIVE |
+//	| Label               | the report's label (SPEC.md section 10.5); "" before VERDICT | VERDICT |
+//	| Code                | the run's code, the code of its first failing row, when Label is failed; "" otherwise | VERDICT |
 //	| Rows                | the rows so far, in step order                              | every step    |
 //	| Ended               | whether a failure ended the run                             | a failure at steps 4 to 7, or a caught fault from ENVIRONMENT on |
 type Run struct {
@@ -113,8 +119,14 @@ type Run struct {
 	Type               string
 	SubjectID          string
 	Trace              []TraceRow
+	ExternalGate       ExternalGate
+	Label              string
+	Code               specdata.Reason
 	Rows               []Row
 	Ended              bool
+	// answers are the answers of the reads CHAIN and SOURCES made of each
+	// source, found or not found, which [Run.ReadSource] gives again.
+	answers map[sourceReadKey]SourceRead
 }
 
 // AddRow adds row after the run's rows.

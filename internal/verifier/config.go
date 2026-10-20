@@ -15,9 +15,10 @@
 // "Sources" and "Several sources for one network"); its keyring
 // sources include a configured keyring read from a file the configuration
 // file names (SPEC.md section 8.3), and the keyring read from the origin an
-// explicit --base-url names; and it holds no expected hash yet, which joins
-// with step EXPECTED_HASH. options.go sets a Config from the command's
-// options, and sources.go confirms its sources.
+// explicit --base-url names; and it holds the caller's expected hash, which
+// step EXPECTED_HASH compares (SPEC.md section 10.2, step 13). options.go
+// sets a Config from the command's options, and sources.go confirms its
+// sources.
 
 package verifier
 
@@ -138,6 +139,12 @@ type Config struct {
 	// ReadIdentity reads a source's identity in an online run. A nil
 	// reader reads nothing, so each source gives no usable answer.
 	ReadIdentity IdentityReader
+	// ExpectedHash is the caller's hash for step EXPECTED_HASH (SPEC.md
+	// section 10.2, step 13), as the caller gave it, or nil when none is
+	// given. Any string is taken: one that is not hex of the claims'
+	// hash_type's length is that step's failing row, not an invalid
+	// configuration.
+	ExpectedHash *string
 }
 
 // ErrInvalidConfig marks a configuration no run can take, such as an

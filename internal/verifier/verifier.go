@@ -34,7 +34,18 @@
 // through one engine that gives the step's rows and the run's trace
 // (SPEC.md section 10.6); a failure there does not end the run either, and
 // LINK_KEY_EVENT's info row under an attribution other than truestamp is
-// no failure.
+// no failure. When DERIVE ends, the run takes its external gate, open only
+// when the caller did not ask for an offline run and no row has failed.
+// Then step 10, CHAIN, and step 11, SOURCES: under a closed gate, each
+// commitment entry, genesis.bitcoin and entropy object gets its row skip
+// offline or skip prior_failure, and KEY_EVENT_COMMITMENT ends CHAIN.
+// Under an open gate no chain or source rule of section 10.4 is in the
+// package yet, so CHAIN, SOURCES and WINDOW give no row; source_outcomes.go
+// is the frame those rules will run through, each made once for each
+// source of its network and combined under the network's source policy.
+// Then step 12, WINDOW, which a closed gate leaves not established; step
+// 13, EXPECTED_HASH; and step 14, VERDICT, the label and the run's code of
+// section 10.5.
 //
 //   - config.go: a run's [Config], what step 0 fixes (section 10.2);
 //   - options.go: the options of `truestamp verify` that set a Config,
@@ -56,6 +67,15 @@
 //     checks are derive_check.go's: the record hashes of derive_records.go
 //     (step 9 (a) to (c)), the key events of derive_key_events.go and the
 //     links of derive_links.go (section 10.3);
+//   - external.go: the external gate, and steps 10 and 11, CHAIN and
+//     SOURCES, under a closed gate (sections 10.2, 10.3 and 10.4);
+//   - source_outcomes.go: the frame a CHAIN or SOURCES row read under an
+//     open gate runs through: each source's outcome, their combination
+//     under the source policy, and the row's values (section 10.4);
+//   - window.go: step 12, WINDOW, under a closed gate (section 11.3);
+//   - expected_hash.go: step 13, EXPECTED_HASH;
+//   - verdict.go: step 14, VERDICT's label and the run's code (section
+//     10.5);
 //   - schema.go: the checker of spec/schema.json, SHAPE's check 3, which
 //     refuses a schema outside SPEC.md section 9's subset when it loads;
 //   - layout.go: where the proof holds its block nodes, commitment

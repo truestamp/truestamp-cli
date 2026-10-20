@@ -12,6 +12,7 @@ import (
 	"slices"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/truestamp/truestamp-cli/internal/specdata"
 	"github.com/truestamp/truestamp-cli/internal/verifier/source"
@@ -468,13 +469,16 @@ func TestSources_ANetworkSourceWithNoUsableAnswerStaysAmongItsSources(t *testing
 // section 10.4, "Several sources"): with Bitcoin regtest and Stellar
 // testnet each configured with one source, confirmed or giving no usable
 // answer, under first, at_least 1 and all, CONFIGURATION's row, its message
-// and its values, and every record equal those of the same source given
-// for no network, and each set's required is 1. Mutants killed:
-// checkPolicies refusing an n equal to the number of sources (at_least 1
-// of 1 is refused); a configured source with no usable answer recorded
-// differently from one given for no network (its values differ); Required
-// under all giving the count plus one.
+// and its values, each source's fetched_at among them under a fixed clock,
+// and every record equal those of the same source given for no network,
+// and each set's required is 1. Mutants killed: checkPolicies refusing an
+// n equal to the number of sources (at_least 1 of 1 is refused); a
+// configured source with no usable answer recorded differently from one
+// given for no network (its values differ); Required under all giving the
+// count plus one; assign leaving a configured source's record without its
+// identity read's FetchedAt (its fetched_at is 0001-01-01T00:00:00.000Z).
 func TestSources_OneSourceUnderEveryPolicyIsTheSingleSourceRun(t *testing.T) {
+	useClock(t, time.Date(2026, 10, 20, 9, 30, 1, 250e6, time.UTC))
 	for _, stellarValue := range []string{testnetPassphrase, ""} {
 		values := map[string]string{e1: regtestGenesisHash, h1: stellarValue}
 		single := online(t, "test", valuesReader(values),
