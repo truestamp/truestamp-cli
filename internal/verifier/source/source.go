@@ -4,11 +4,13 @@
 // Package source holds the CLI verifier's readers of a Stellar or Bitcoin
 // source, the servers SPEC.md section 9 (What a verifier pins) names under
 // "Sources": a Horizon server for Stellar, and an Esplora server or a
-// Bitcoin Core node for Bitcoin. Each read is a call of SPEC.md section
-// 10.4's informative table (Common sources), made through
-// internal/httpclient's SingleRead: one attempt, no redirect followed, one
-// deadline over the whole read and a bound on the body. The reads are
-// built by their caller for each read, never at package init.
+// Bitcoin Core node for Bitcoin; and of NIST's Randomness Beacon, which
+// section 9 makes one source, read at its one compiled-in address. Each
+// read is a call of SPEC.md section 10.4's informative table (Common
+// sources), made through internal/httpclient's SingleRead: one attempt, no
+// redirect followed, one deadline over the whole read and a bound on the
+// body. The reads are built by their caller for each read, never at
+// package init.
 //
 // They are the reads SPEC.md sections 10.2, step 0, and 10.4 give every
 // verifier in an online run, the reference verifier of section 13.1 among
@@ -25,9 +27,11 @@
 //     Stellar commitment entry, its root, a transaction and a ledger
 //     (stellar.go), and Esplora's and Bitcoin Core's reads of CHAIN for a
 //     Bitcoin commitment entry and genesis.bitcoin, the tip and the
-//     best-chain block at a height (bitcoin.go, SPEC.md section 10.4),
-//     each an [Answer] in the form of a replay record (section 13.2); the
-//     reads of SOURCES join with the rules that make them;
+//     best-chain block at a height (bitcoin.go, SPEC.md section 10.4); and
+//     the reads of SOURCES for an entropy object, Horizon's ledger and
+//     root (stellar.go), Esplora's and Bitcoin Core's block by its hash
+//     (bitcoin.go) and the NIST beacon's pulse (nist.go); each an [Answer]
+//     in the form of a replay record (section 13.2);
 //   - an identity read is found or unreachable, never not found (SPEC.md
 //     section 13.2 (The vectors)): every answer but a value in its form,
 //     a 404 and a Bitcoin Core error included, is an [*Unreachable],
@@ -74,8 +78,9 @@ const (
 	BitcoinCore Provider = "bitcoin_core"
 )
 
-// Chain is the chain a provider serves: stellar or bitcoin, or "" for a
-// provider this package does not know.
+// Chain is the chain a provider serves: stellar or bitcoin, or "" for
+// NISTBeacon, which serves no chain, and for a provider this package does
+// not know.
 func (p Provider) Chain() string {
 	switch p {
 	case Horizon:

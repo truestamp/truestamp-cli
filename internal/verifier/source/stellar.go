@@ -2,7 +2,8 @@
 // SPDX-License-Identifier: Apache-2.0
 
 // This file holds the reads CHAIN makes of a Horizon server for a Stellar
-// commitment entry (SPEC.md section 10.4, "Stellar commitment entries",
+// commitment entry, and those SOURCES makes for a Stellar entropy object
+// (SPEC.md section 10.4, "Stellar commitment entries", "Entropy objects"
 // and its informative table, "Common sources"), each giving its answer in
 // the form of a replay record (SPEC.md section 13.2, "Replay files"):
 //
@@ -92,11 +93,12 @@ const (
 	TransactionOctets = 1 << 20
 )
 
-// Read makes the chain read named read, {kind, network, ...} as a replay
-// record names it, of the source of provider at base, through reads, and
-// gives its answer: Horizon's reads here, and Esplora's and Bitcoin
-// Core's in bitcoin.go. creds are sent only to a Bitcoin Core node. A kind
-// this provider does not serve is unreachable, with no request made.
+// Read makes the chain read named read, {kind, network for a Stellar or
+// Bitcoin read, ...} as a replay record names it, of the source of
+// provider at base, through reads, and gives its answer: Horizon's reads
+// here, Esplora's and Bitcoin Core's in bitcoin.go, and the NIST beacon's
+// in nist.go. creds are sent only to a Bitcoin Core node. A kind this
+// provider does not serve is unreachable, with no request made.
 func Read(ctx context.Context, reads *httpclient.SingleRead, provider Provider, base string, creds Credentials, read map[string]any) Answer {
 	kind, _ := read["kind"].(string)
 	switch provider {
@@ -115,6 +117,8 @@ func Read(ctx context.Context, reads *httpclient.SingleRead, provider Provider, 
 			return EsploraTip(ctx, reads, base)
 		case KindBitcoinBlockAtHeight:
 			return EsploraBlockAtHeight(ctx, reads, base, read["height"])
+		case KindBitcoinBlock:
+			return EsploraBlock(ctx, reads, base, read["hash"])
 		}
 	case BitcoinCore:
 		switch kind {
@@ -122,6 +126,12 @@ func Read(ctx context.Context, reads *httpclient.SingleRead, provider Provider, 
 			return CoreTip(ctx, reads, base, creds)
 		case KindBitcoinBlockAtHeight:
 			return CoreBlockAtHeight(ctx, reads, base, creds, read["height"])
+		case KindBitcoinBlock:
+			return CoreBlock(ctx, reads, base, creds, read["hash"])
+		}
+	case NISTBeacon:
+		if kind == KindNISTPulse {
+			return NISTPulse(ctx, reads, base, read["chainIndex"], read["pulseIndex"])
 		}
 	}
 	return unreachableAnswer("no read of this kind from this provider")

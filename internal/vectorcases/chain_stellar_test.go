@@ -41,12 +41,20 @@ type chainRead struct {
 	source string
 }
 
-// chainReadsOf returns the chain reads the adapter answered, in the order
-// made.
+// chainReadsOf returns the reads of CHAIN the adapter answered, in the
+// order made: those made before SOURCES began.
 func chainReadsOf(replay *caseReplay) []chainRead {
 	replay.mu.Lock()
 	defer replay.mu.Unlock()
-	return slices.Clone(replay.chainReads)
+	return slices.Clone(replay.chainReads[:replay.chainEnd])
+}
+
+// sourcesReadsOf returns the reads of SOURCES the adapter answered, in the
+// order made: those made after CHAIN ended.
+func sourcesReadsOf(replay *caseReplay) []chainRead {
+	replay.mu.Lock()
+	defer replay.mu.Unlock()
+	return slices.Clone(replay.chainReads[replay.chainEnd:])
 }
 
 // Each Stellar case's rows of its Stellar commitment entries are exactly
@@ -160,6 +168,9 @@ func checkStellarCandidate(t *testing.T, c vectorcases.Case, r *verifier.Run, fi
 	}
 	var kept []verifier.RowCandidate
 	for _, candidate := range r.Candidates {
+		if candidate.Step == "SOURCES" {
+			continue
+		}
 		if candidate.Step != "CHAIN" || (candidate.Part != "/commitments/stellar" && candidate.Part != "/commitments/bitcoin") {
 			t.Errorf("a candidate at %s %s", candidate.Step, candidate.Part)
 		}

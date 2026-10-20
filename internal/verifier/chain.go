@@ -56,13 +56,13 @@ import (
 )
 
 // ChainReader makes one read of CHAIN or SOURCES of a source, live (SPEC.md
-// section 10.4): read names it as a replay record does, {kind, network,
-// ...} (section 13.2), and the reader gives its Outcome, with Value, the
-// fields of a found answer, and Reason, for an unreachable one, which
-// never names the source's URL. It is the seam every such read goes
-// through: [DefaultChainReader] reads over HTTP, and a conformance test
-// answers from a case's replay file. [Run.ReadSource] sets the answer's
-// Read and FetchedAt.
+// section 10.4): read names it as a replay record does, {kind, network
+// for a Stellar or Bitcoin read, ...} (section 13.2), and the reader gives
+// its Outcome, with Value, the fields of a found answer, and Reason, for
+// an unreachable one, which never names the source's URL. It is the seam
+// every such read goes through: [DefaultChainReader] reads over HTTP, and
+// a conformance test answers from a case's replay file. [Run.ReadSource]
+// sets the answer's Read and FetchedAt.
 type ChainReader func(source Source, read map[string]any) SourceRead
 
 // DefaultChainReader returns the reader of each chain read over HTTP,
@@ -222,8 +222,13 @@ type chainSource struct {
 }
 
 // read makes the read of kind with params of the source, and records it.
+// The read names its network, unless the source has none, as NIST's
+// beacon has not (SPEC.md section 13.2's table).
 func (s *chainSource) read(kind string, params map[string]any) SourceRead {
-	read := map[string]any{"kind": kind, "network": s.network}
+	read := map[string]any{"kind": kind}
+	if s.network != "" {
+		read["network"] = s.network
+	}
 	for name, value := range params {
 		read[name] = value
 	}
@@ -253,13 +258,13 @@ func asWhole(network string, combined CombinedOutcome) string {
 	return "each source of " + network
 }
 
-// sourcesOf is the run's sources of pin of chain. It panics for a run with
-// none, which no online run has once CONFIGURATION passes: a defect in the
-// caller.
+// sourcesOf is the run's sources of pin of chain, for CHAIN or SOURCES. It
+// panics for a run with none, which no online run has once CONFIGURATION
+// passes: a defect in the caller.
 func sourcesOf(run *Run, pin, chain string) SourceSet {
 	set, ok := run.SourcesFor(pin, chain)
 	if !ok {
-		panic(fmt.Sprintf("verifier: CHAIN found no source of the %s pin of %s", pin, chainName(chain)))
+		panic(fmt.Sprintf("verifier: the run has no source of the %s pin of %s", pin, chainName(chain)))
 	}
 	return set
 }

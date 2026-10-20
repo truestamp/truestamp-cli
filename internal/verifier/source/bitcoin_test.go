@@ -97,6 +97,9 @@ func heightRead(h float64) map[string]any {
 
 var tipRead = map[string]any{"kind": KindBitcoinTip, "network": "regtest"}
 
+// hashRead is the read of the block blockHash by its hash.
+var hashRead = map[string]any{"kind": KindBitcoinBlock, "network": "regtest", "hash": blockHash}
+
 // Each read makes its calls of SPEC.md section 10.4's table and gives its
 // found answer in the form of a replay record: Esplora's tip text as
 // height, and for the block at a height the hash GET
@@ -420,26 +423,33 @@ func TestBitcoinReads_NothingANodeEchoesReachesAReasonOrValue(t *testing.T) {
 }
 
 // A block read is made to no server when its height is not an INT (a
-// negative, a fraction, a string, none), nor a Bitcoin read of a provider
-// that does not serve it (Horizon): each is unreachable, with a fixed
-// reason. Mutants killed: heightOf taking a negative; Read sending a
-// Bitcoin read to Horizon.
+// negative, a fraction, a string, none), nor a block by its hash whose
+// hash is not a HEX64 (uppercase, short, a number, with a path, none), nor
+// a Bitcoin read of a provider that does not serve it (Horizon): each is
+// unreachable, with a fixed reason. Mutants killed: intParam taking a
+// negative; hashParam without its HEX64 check (an uppercase hash, or one
+// with a path, is requested); Read sending a Bitcoin read to Horizon.
 func TestBitcoinReads_NothingIsReadForARefusedParameter(t *testing.T) {
 	srv, seen := recording(t, text(`{}`))
 	for name, tc := range map[string]struct {
 		provider Provider
 		read     map[string]any
 	}{
-		"a negative height, Esplora":     {Esplora, heightRead(-1)},
-		"a fractional height, Esplora":   {Esplora, heightRead(1.5)},
-		"a height string, Esplora":       {Esplora, map[string]any{"kind": KindBitcoinBlockAtHeight, "height": "5"}},
-		"no height, Esplora":             {Esplora, map[string]any{"kind": KindBitcoinBlockAtHeight}},
-		"a negative height, Core":        {BitcoinCore, heightRead(-1)},
-		"no height, Core":                {BitcoinCore, map[string]any{"kind": KindBitcoinBlockAtHeight}},
-		"a Bitcoin kind, Horizon":        {Horizon, tipRead},
-		"a Bitcoin block kind, Horizon":  {Horizon, heightRead(1)},
-		"a Stellar kind, Bitcoin Core":   {BitcoinCore, map[string]any{"kind": KindStellarRoot}},
-		"the block by its hash, Esplora": {Esplora, map[string]any{"kind": "bitcoin_block", "hash": blockHash}},
+		"a negative height, Esplora":    {Esplora, heightRead(-1)},
+		"a fractional height, Esplora":  {Esplora, heightRead(1.5)},
+		"a height string, Esplora":      {Esplora, map[string]any{"kind": KindBitcoinBlockAtHeight, "height": "5"}},
+		"no height, Esplora":            {Esplora, map[string]any{"kind": KindBitcoinBlockAtHeight}},
+		"a negative height, Core":       {BitcoinCore, heightRead(-1)},
+		"no height, Core":               {BitcoinCore, map[string]any{"kind": KindBitcoinBlockAtHeight}},
+		"a Bitcoin kind, Horizon":       {Horizon, tipRead},
+		"a Bitcoin block kind, Horizon": {Horizon, heightRead(1)},
+		"a Stellar kind, Bitcoin Core":  {BitcoinCore, map[string]any{"kind": KindStellarRoot}},
+		"an uppercase hash, Esplora":    {Esplora, map[string]any{"kind": KindBitcoinBlock, "hash": strings.ToUpper(blockHash)}},
+		"a short hash, Esplora":         {Esplora, map[string]any{"kind": KindBitcoinBlock, "hash": blockHash[1:]}},
+		"a hash with a path, Esplora":   {Esplora, map[string]any{"kind": KindBitcoinBlock, "hash": blockHash[:62] + "/x"}},
+		"a hash number, Core":           {BitcoinCore, map[string]any{"kind": KindBitcoinBlock, "hash": num(5)}},
+		"no hash, Core":                 {BitcoinCore, map[string]any{"kind": KindBitcoinBlock}},
+		"the block by hash, Horizon":    {Horizon, map[string]any{"kind": KindBitcoinBlock, "hash": blockHash}},
 	} {
 		got := Read(context.Background(), reads(), tc.provider, srv.URL, coreCreds, tc.read)
 		if got.Outcome != OutcomeUnreachable || got.Reason == "" || got.Value != nil {
@@ -452,7 +462,8 @@ func TestBitcoinReads_NothingIsReadForARefusedParameter(t *testing.T) {
 }
 
 // The control of the chain reads on http.DefaultTransport: each Bitcoin
-// read of CHAIN and each Stellar one, through a SingleRead built with no
+// read of CHAIN and of SOURCES, each Stellar one and the NIST beacon's
+// pulse, through a SingleRead built with no
 // transport of its own, of a host under .invalid, is refused in process,
 // once, and is unreachable. Mutants killed: TestMain without the
 // DefaultTransport swap (the test stops before any read); Read reading
@@ -466,6 +477,7 @@ func TestMain_RefusesNetworkOnEveryChainRead(t *testing.T) {
 		read     map[string]any
 	}{
 		{Esplora, tipRead}, {Esplora, heightRead(232)}, {BitcoinCore, tipRead}, {BitcoinCore, heightRead(232)},
+		{Esplora, hashRead}, {BitcoinCore, hashRead}, {NISTBeacon, pulseRead},
 		{Horizon, map[string]any{"kind": KindStellarRoot}},
 		{Horizon, map[string]any{"kind": KindStellarTransaction, "hash": txHash}},
 		{Horizon, map[string]any{"kind": KindStellarLedger, "sequence": num(5)}},
@@ -503,6 +515,187 @@ func TestBitcoinReads_AReadEndsAtItsDeadline(t *testing.T) {
 			case <-time.After(5 * time.Second):
 				t.Fatalf("%s %s: the read was not cut at its deadline", provider, read["kind"])
 			}
+		}
+	}
+}
+
+// The block by its hash is one call of SPEC.md section 10.4's table, and
+// its found answer is in the form of a replay record: Esplora's GET
+// <base>/block/<hash>, with no credential, its height, timestamp and
+// mediantime as height, time and median_time_past; Bitcoin Core's
+// getblockheader "<hash>", a JSON-RPC 1.0 POST with the credentials as
+// HTTP Basic, its height, time and mediantime, a header off the best
+// chain (confirmations -1) found like any other; every other field left
+// out. A block that lacks a field, or gives one in another form, is found
+// with the fields it gives as INTs, so the rule judges it (section 10.4,
+// "Answers"). Mutants killed: Esplora's timestamp not renamed (the value
+// holds timestamp, not time); Bitcoin Core's nTx read in place of time;
+// a field copied that the read does not use (the value holds tx_count);
+// EsploraBlock calling /block-height (the path is wrong and the read is
+// not found); CoreBlock giving getblockheader the hash unquoted (its
+// params are not a string); Read giving a by-hash read the block at a
+// height (two calls). A password that holds %, /, #, ?, @ and : reaches
+// Bitcoin Core as HTTP Basic alone, in one call that finds the block, and
+// no request's URL carries userinfo. Mutants killed: the credentials
+// written into the URL's userinfo unescaped, with strings.Replace on
+// "://" (the URL no longer names the node, and the read is unreachable);
+// the credentials set as url.UserPassword userinfo, which net/http sends
+// as the same Basic header (the request's URL carries userinfo).
+func TestBitcoinReads_TheBlockByItsHash(t *testing.T) {
+	block := `{"id":"` + blockHash + `","height":232,"timestamp":1790387300,"tx_count":5,"mediantime":1790387220,"size":900}`
+	es, esSeen := recording(t, esplora("", nil, map[string]string{blockHash: block}))
+	header := result(`{"hash":"` + blockHash + `","height":232,"time":1790387300,"nTx":5,"mediantime":1790387220,"confirmations":-1}`)
+	node, nodeSeen := recording(t, core(map[string]string{"getblockheader": header}))
+	full := Answer{Outcome: OutcomeFound, Value: map[string]any{"height": num(232), "median_time_past": num(1790387220), "time": num(1790387300)}}
+	for provider, base := range map[Provider]string{Esplora: es.URL + "/api/", BitcoinCore: node.URL} {
+		if got := Read(context.Background(), reads(), provider, base, coreCreds, hashRead); !reflect.DeepEqual(got, full) {
+			t.Errorf("%s: %+v, want %+v", provider, got, full)
+		}
+	}
+	if got := esSeen(); !reflect.DeepEqual(got, []request{{"GET", "/api/block/" + blockHash, "", "", ""}}) {
+		t.Errorf("Esplora saw %+v", got)
+	}
+	call := request{"POST", "/", "application/json", coreBasic, `{"jsonrpc":"1.0","id":"truestamp-verify","method":"getblockheader","params":["` + blockHash + `"]}`}
+	if got := nodeSeen(); !reflect.DeepEqual(got, []request{call}) {
+		t.Errorf("Bitcoin Core saw %+v", got)
+	}
+	for name, tc := range map[string]struct {
+		block, header string
+		want          map[string]any
+	}{
+		"no median":         {`{"height":232,"timestamp":1790387300}`, `{"height":232,"time":1790387300}`, map[string]any{"height": num(232), "time": num(1790387300)}},
+		"a time string":     {`{"height":232,"timestamp":"1790387300","mediantime":1790387220}`, `{"height":232,"time":"1790387300","mediantime":1790387220}`, map[string]any{"height": num(232), "median_time_past": num(1790387220)}},
+		"a negative height": {`{"height":-1,"timestamp":1790387300,"mediantime":1790387220}`, `{"height":-1,"time":1790387300,"mediantime":1790387220}`, map[string]any{"median_time_past": num(1790387220), "time": num(1790387300)}},
+		"no field":          {`{}`, `{}`, map[string]any{}},
+	} {
+		es, _ := recording(t, esplora("", nil, map[string]string{blockHash: tc.block}))
+		node, _ := recording(t, core(map[string]string{"getblockheader": result(tc.header)}))
+		want := Answer{Outcome: OutcomeFound, Value: tc.want}
+		for provider, base := range map[Provider]string{Esplora: es.URL, BitcoinCore: node.URL} {
+			if got := Read(context.Background(), reads(), provider, base, coreCreds, hashRead); !reflect.DeepEqual(got, want) {
+				t.Errorf("%s, %s: %+v, want %+v", provider, name, got, want)
+			}
+		}
+	}
+	const awkward = "p%41ss/w#o?r@d:77c1"
+	awkwardNode, awkwardSeen := recording(t, core(map[string]string{"getblockheader": header}))
+	var userinfo []bool
+	transport := roundTripFunc(func(r *http.Request) (*http.Response, error) {
+		userinfo = append(userinfo, r.URL.User != nil)
+		return http.DefaultTransport.RoundTrip(r)
+	})
+	got := Read(context.Background(), httpclient.NewSingleRead(transport, 5*time.Second), BitcoinCore, awkwardNode.URL, NewCredentials(coreUser, awkward), hashRead)
+	if !reflect.DeepEqual(got, full) {
+		t.Errorf("a password URLs mangle: %+v, want %+v", got, full)
+	}
+	basic := "Basic " + base64.StdEncoding.EncodeToString([]byte(coreUser+":"+awkward))
+	if seen := awkwardSeen(); len(seen) != 1 || seen[0].auth != basic {
+		t.Errorf("a password URLs mangle: Bitcoin Core saw %+v, want one call with Authorization %q", seen, basic)
+	}
+	if !reflect.DeepEqual(userinfo, []bool{false}) {
+		t.Errorf("a password URLs mangle: whether each request's URL carried userinfo: %v, want [false]", userinfo)
+	}
+}
+
+// roundTripFunc is an [http.RoundTripper] that is a function.
+type roundTripFunc func(*http.Request) (*http.Response, error)
+
+// RoundTrip calls f.
+func (f roundTripFunc) RoundTrip(r *http.Request) (*http.Response, error) { return f(r) }
+
+// A block the source does not hold by that hash is not found, with no
+// value, in one call: Esplora's 404, and Bitcoin Core's error -5 (no such
+// block), or -8, to getblockheader. Every other answer is unreachable, with
+// a fixed reason that quotes no body, in one call: a 3xx, a 429, a 503 and
+// a challenge page at 403 and at 200 from each provider; a body over
+// BitcoinOctets; Esplora's answer that is not a JSON object, or that holds
+// a number the strict reader refuses (2^53, in a member the read does not
+// use, which SPEC.md section 10.1's profile refuses); Bitcoin Core's
+// result that is not an object and any other error of it. Mutants killed:
+// EsploraBlock reading a 404 as unreachable; EsploraBlock reading any
+// status as not found (a 503 is not found); CoreBlock taking a result that
+// is not an object as a block (it is found, empty); EsploraBlock taking a
+// body that parses but is not an object (the array is found, empty).
+func TestBitcoinReads_ABlockByItsHashNotFoundAndUnreachable(t *testing.T) {
+	status := func(code int) http.HandlerFunc {
+		return func(w http.ResponseWriter, _ *http.Request) { http.Error(w, "quoted-body", code) }
+	}
+	challenge := func(code int) http.HandlerFunc {
+		return func(w http.ResponseWriter, _ *http.Request) {
+			w.Header().Set("Content-Type", "text/html")
+			w.WriteHeader(code)
+			_, _ = w.Write([]byte("<html><title>Just a moment...</title>quoted-body</html>"))
+		}
+	}
+	redirect := func(w http.ResponseWriter, r *http.Request) { http.Redirect(w, r, "/elsewhere", http.StatusFound) }
+	for name, tc := range map[string]struct {
+		provider Provider
+		answer   http.HandlerFunc
+		want     Outcome
+	}{
+		"Esplora's 404":               {Esplora, esplora("", nil, nil), OutcomeNotFound},
+		"Core's -5":                   {BitcoinCore, core(map[string]string{"getblockheader": rpcError(-5)}), OutcomeNotFound},
+		"Core's -8":                   {BitcoinCore, core(map[string]string{"getblockheader": rpcError(-8)}), OutcomeNotFound},
+		"Core's -28":                  {BitcoinCore, core(map[string]string{"getblockheader": rpcError(-28)}), OutcomeUnreachable},
+		"Core's result a string":      {BitcoinCore, core(map[string]string{"getblockheader": result(`"quoted-body"`)}), OutcomeUnreachable},
+		"Esplora's array":             {Esplora, esplora("", nil, map[string]string{blockHash: `[232]`}), OutcomeUnreachable},
+		"Esplora's 2^53":              {Esplora, esplora("", nil, map[string]string{blockHash: `{"height":232,"timestamp":1790387300,"mediantime":1790387220,"difficulty":9007199254740992}`}), OutcomeUnreachable},
+		"Esplora's 3xx":               {Esplora, redirect, OutcomeUnreachable},
+		"Core's 3xx":                  {BitcoinCore, redirect, OutcomeUnreachable},
+		"Esplora's 429":               {Esplora, status(429), OutcomeUnreachable},
+		"Core's 429":                  {BitcoinCore, status(429), OutcomeUnreachable},
+		"Esplora's 503":               {Esplora, status(503), OutcomeUnreachable},
+		"Core's 503":                  {BitcoinCore, status(503), OutcomeUnreachable},
+		"Esplora's 403 challenge":     {Esplora, challenge(403), OutcomeUnreachable},
+		"Core's 200 challenge":        {BitcoinCore, challenge(200), OutcomeUnreachable},
+		"Esplora's 200 challenge":     {Esplora, challenge(200), OutcomeUnreachable},
+		"Esplora's body over a bound": {Esplora, text(`{}` + strings.Repeat(" ", BitcoinOctets)), OutcomeUnreachable},
+	} {
+		srv, seen := recording(t, tc.answer)
+		got := Read(context.Background(), reads(), tc.provider, srv.URL, coreCreds, hashRead)
+		if got.Outcome != tc.want || got.Value != nil || strings.Contains(got.Reason, "quoted-body") || (tc.want == OutcomeUnreachable) != (got.Reason != "") || len(seen()) != 1 {
+			t.Errorf("%s: %+v after %d calls; want %s, no value, no body quoted", name, got, len(seen()), tc.want)
+		}
+	}
+}
+
+// A Bitcoin Core node that echoes the Authorization header it was sent
+// into getblockheader's fields, its error's message or the call's id,
+// gives an answer to the block by its hash whose reason and value hold
+// neither the planted user, the planted password nor their Basic
+// encoding, each read in one call with the credentials: the fields' echo
+// found with no field, the message's unreachable with Core's fixed reason
+// and the id's unreachable as an answer to another call. Mutant killed:
+// blockByHash copying a field as it is (the echo is in the value).
+func TestBitcoinReads_NothingANodeEchoesReachesABlockByItsHash(t *testing.T) {
+	echo := func(rewrite func(auth string) string) http.HandlerFunc {
+		return func(w http.ResponseWriter, r *http.Request) {
+			_, _ = w.Write([]byte(rewrite(r.Header.Get("Authorization"))))
+		}
+	}
+	for name, tc := range map[string]struct {
+		node http.HandlerFunc
+		want Answer
+	}{
+		"the fields": {echo(func(auth string) string {
+			return result(fmt.Sprintf(`{"height":%q,"time":%q,"mediantime":%q}`, auth, auth, auth))
+		}), Answer{Outcome: OutcomeFound, Value: map[string]any{}}},
+		"error.message": {echo(func(auth string) string {
+			return fmt.Sprintf(`{"result":null,"error":{"code":-1,"message":%q},"id":"truestamp-verify"}`, auth)
+		}), Answer{Outcome: OutcomeUnreachable, Reason: "Bitcoin Core answered with an error"}},
+		"the id": {echo(func(auth string) string { return fmt.Sprintf(`{"result":{},"error":null,"id":%q}`, auth) }),
+			Answer{Outcome: OutcomeUnreachable, Reason: "Bitcoin Core's answer is not to this call"}},
+	} {
+		srv, seen := recording(t, tc.node)
+		got := Read(context.Background(), reads(), BitcoinCore, srv.URL, coreCreds, hashRead)
+		printed, _ := json.Marshal(got)
+		for _, planted := range []string{coreUser, corePasswd, coreBasic} {
+			if strings.Contains(string(printed)+fmt.Sprintf("%+v", got), planted) {
+				t.Errorf("%s: %q is printed: %s", name, planted, printed)
+			}
+		}
+		if !reflect.DeepEqual(got, tc.want) || len(seen()) != 1 || seen()[0].auth != coreBasic {
+			t.Errorf("%s: %+v after %+v, want %+v", name, got, seen(), tc.want)
 		}
 	}
 }
