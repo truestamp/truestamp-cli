@@ -51,8 +51,9 @@ func chainReadsOf(replay *caseReplay) []chainRead {
 
 // Each Stellar case's rows of its Stellar commitment entries are exactly
 // its expected ones, through the replay adapter; every chain read the run
-// makes is a Stellar read the case's replay file holds, of a source whose
-// identity it confirmed, and the root of a source is read only after a
+// makes is a Stellar read the case's replay file holds, or one of the two
+// Bitcoin reads of CHAIN, of a source whose identity it confirmed, and the
+// root of a source is read only after a
 // transaction that source does not hold, and read at most once in the run
 // when it answered, so two rows whose transactions a source does not hold
 // take one root answer (sources-first-past_not_held's source a; an
@@ -104,7 +105,10 @@ func TestCases_TheStellarCommitmentCases(t *testing.T) {
 			for _, r := range chainReadsOf(replay) {
 				kind, _ := r.read["kind"].(string)
 				if !strings.HasPrefix(kind, "stellar_") {
-					t.Errorf("a read of kind %s", kind)
+					if kind != "bitcoin_tip" && kind != "bitcoin_block_at_height" {
+						t.Errorf("a read of kind %s", kind)
+					}
+					continue
 				}
 				if answer, _ := file.Answer(r.read, r.source); kind == "stellar_transaction" && answer.Outcome == vectorcases.OutcomeNotFound {
 					missing[r.source] = true
@@ -156,10 +160,12 @@ func checkStellarCandidate(t *testing.T, c vectorcases.Case, r *verifier.Run, fi
 	}
 	var kept []verifier.RowCandidate
 	for _, candidate := range r.Candidates {
-		if candidate.Step != "CHAIN" || candidate.Part != "/commitments/stellar" {
+		if candidate.Step != "CHAIN" || (candidate.Part != "/commitments/stellar" && candidate.Part != "/commitments/bitcoin") {
 			t.Errorf("a candidate at %s %s", candidate.Step, candidate.Part)
 		}
-		kept = append(kept, candidate)
+		if candidate.Part == "/commitments/stellar" {
+			kept = append(kept, candidate)
+		}
 	}
 	if top == nil || top.Status != "pass" {
 		if len(kept) != 0 {

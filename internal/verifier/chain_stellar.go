@@ -93,41 +93,13 @@ func stellarEntryOf(proof map[string]any, entry layoutNode) (stellarEntry, error
 // stellarRule is the rule of e against one source of network.
 func stellarRule(run *Run, network string, e stellarEntry) RowRule {
 	return func(record SourceRecord) SourceOutcome {
-		s := &stellarSource{run: run, record: record, network: network}
+		s := &stellarSource{chainSource{run: run, record: record, network: network}}
 		return s.commitment(e)
 	}
 }
 
-// stellarSource is one source the rule reads, and the reads it made of
-// it, in order.
-type stellarSource struct {
-	run     *Run
-	record  SourceRecord
-	network string
-	reads   []SourceRead
-}
-
-// read makes the read of kind with params of the source, and records it.
-func (s *stellarSource) read(kind string, params map[string]any) SourceRead {
-	read := map[string]any{"kind": kind, "network": s.network}
-	for name, value := range params {
-		read[name] = value
-	}
-	answer := s.run.readChain(s.record, read)
-	s.reads = append(s.reads, answer)
-	return answer
-}
-
-// outcome is the source's outcome with code, "" for a pass, its candidate
-// and its notes, holding every read made.
-func (s *stellarSource) outcome(code specdata.Reason, candidate *Candidate, notes map[string]any) SourceOutcome {
-	status := StatusPass
-	if code != "" {
-		entry, _ := specdata.LookupReason(code)
-		status = Status(entry.Status)
-	}
-	return SourceOutcome{Status: status, Code: code, Candidate: candidate, Reads: s.reads, Notes: notes}
-}
+// stellarSource is one Stellar source the rule reads.
+type stellarSource struct{ chainSource }
 
 // commitment is the rule (see the file's doc).
 func (s *stellarSource) commitment(e stellarEntry) SourceOutcome {
@@ -219,7 +191,7 @@ func (s *stellarSource) missingTransaction(e stellarEntry) SourceOutcome {
 
 // stellarMessage is the message of e's row, from its combined outcome and,
 // for not_held_by_source and source_unreachable, the reads that settled
-// each source's outcome ([settledOf]).
+// each source's outcome ([stellarSettled]).
 func stellarMessage(e stellarEntry, set SourceSet, combined CombinedOutcome) string {
 	network := fmt.Sprintf("the pinned Stellar %s network", set.Network)
 	switch combined.Code {
@@ -235,56 +207,83 @@ func stellarMessage(e stellarEntry, set SourceSet, combined CombinedOutcome) str
 	case specdata.ReasonNotYetIndexed:
 		return fmt.Sprintf("Not confirmed: %s does not hold the transaction %s yet, and ledger %d is beyond, or within %d ledgers of, the latest ledger its source holds.", network, e.hash, e.ledger, specdata.StellarIndexMargin)
 	case specdata.ReasonNotHeldBySource:
-		switch settledOf(combined) {
-		case settledByLedger:
-			return fmt.Sprintf("Not confirmed: %s's source holds the transaction %s, which matches this proof, but not ledger %d. Absence is no contradiction.", network, e.hash, e.ledger)
-		case settledByTransaction:
-			return fmt.Sprintf("Not confirmed: the history %s's source keeps does not hold the transaction %s or ledger %d. Absence is no contradiction.", network, e.hash, e.ledger)
+		byLedger := func(how stellarSettle) stellarSettle {
+			if how == settledByLedgerAfterFound {
+				return how
+			}
+			return settledByTransaction
 		}
-		return fmt.Sprintf("Not confirmed: %s's sources do not hold both the transaction %s and ledger %d. Absence is no contradiction.", network, e.hash, e.ledger)
+		how, alike := stellarSettled(combined, byLedger)
+		switch {
+		case !alike:
+			return fmt.Sprintf("Not confirmed: %s's sources do not hold both the transaction %s and ledger %d. Absence is no contradiction.", network, e.hash, e.ledger)
+		case how == settledByLedgerAfterFound:
+			return fmt.Sprintf("Not confirmed: %s holds the transaction %s, which matches this proof, but not ledger %d. Absence is no contradiction.", asWhole(network, combined), e.hash, e.ledger)
+		}
+		return fmt.Sprintf("Not confirmed: the history %s keeps does not hold the transaction %s or ledger %d. Absence is no contradiction.", asWhole(network, combined), e.hash, e.ledger)
 	case specdata.ReasonSourcesDisagree:
 		return fmt.Sprintf("Not confirmed: the sources of %s disagree on the transaction %s. A disagreement is no failure.", network, e.hash)
 	case specdata.ReasonSourcesIncomplete:
 		return fmt.Sprintf("Not confirmed: fewer sources of %s than its policy %s asks for reached an outcome on the transaction %s.", network, set.Policy, e.hash)
 	}
-	switch settledOf(combined) {
-	case settledByLedger:
+	how, alike := stellarSettled(combined, func(how stellarSettle) stellarSettle { return how })
+	switch {
+	case !alike:
+		return fmt.Sprintf("Not confirmed: no source of %s gave usable answers about both the transaction %s and ledger %d.", network, e.hash, e.ledger)
+	case how == settledByNothing:
+		return fmt.Sprintf("Not confirmed: no source of %s had its identity confirmed, so none was read.", network)
+	case how == settledByLedgerAfterFound:
 		return fmt.Sprintf("Not confirmed: the transaction %s matches this proof, but no source of %s gave a usable answer about ledger %d.", e.hash, network, e.ledger)
-	case settledByTransaction:
-		return fmt.Sprintf("Not confirmed: no source of %s gave a usable answer about the transaction %s.", network, e.hash)
+	case how == settledByRoot:
+		return fmt.Sprintf("Not confirmed: no source of %s holds the transaction %s, and none gave a usable answer about the ledgers it holds.", network, e.hash)
+	case how == settledByLedgerAfterMissing:
+		return fmt.Sprintf("Not confirmed: no source of %s holds the transaction %s, and none gave a usable answer about ledger %d.", network, e.hash, e.ledger)
 	}
-	return fmt.Sprintf("Not confirmed: no source of %s gave usable answers about both the transaction %s and ledger %d.", network, e.hash, e.ledger)
+	return fmt.Sprintf("Not confirmed: no source of %s gave a usable answer about the transaction %s.", network, e.hash)
 }
 
-// settledBy is what settled the outcomes of a row's sources: for none of
-// them the read of ledger L after a transaction the source held that
-// matched the proof, for every one, or for some and not others.
-type settledBy int
+// stellarSettle is the read that settled a source's outcome on a Stellar
+// row: no read at all, for a source whose identity was unreachable and
+// that was asked nothing; its transaction read; ledger L's read after a
+// transaction the source held that matched the proof, which the rule
+// reads only after a found transaction passes every check; the root's
+// read after a transaction the source does not hold; or ledger L's read
+// after the root's.
+type stellarSettle int
 
 const (
-	settledByTransaction settledBy = iota
-	settledByLedger
-	settledBySome
+	settledByNothing stellarSettle = iota
+	settledByTransaction
+	settledByLedgerAfterFound
+	settledByRoot
+	settledByLedgerAfterMissing
 )
 
-// settledOf is what settled the outcomes of the sources combined asked: a
-// source's outcome was settled by its read of ledger L when its first
-// read, of the transaction, was found and it read again, which the rule
-// does only after a found transaction passes every check.
-func settledOf(combined CombinedOutcome) settledBy {
-	byLedger := 0
-	for _, asked := range combined.Asked {
-		if reads := asked.Outcome.Reads; len(reads) > 1 && reads[0].Outcome == ReadFound {
-			byLedger++
+// stellarSettleOf is the read that settled o.
+func stellarSettleOf(o SourceOutcome) stellarSettle {
+	switch n := len(o.Reads); {
+	case n == 0:
+		return settledByNothing
+	case n == 1:
+		return settledByTransaction
+	case o.Reads[0].Outcome == ReadFound:
+		return settledByLedgerAfterFound
+	case n == 2:
+		return settledByRoot
+	}
+	return settledByLedgerAfterMissing
+}
+
+// stellarSettled is how every source combined asked was settled, as group
+// counts two ways alike, and whether they were all settled alike.
+func stellarSettled(combined CombinedOutcome, group func(stellarSettle) stellarSettle) (stellarSettle, bool) {
+	how := group(stellarSettleOf(combined.Asked[0].Outcome))
+	for _, asked := range combined.Asked[1:] {
+		if group(stellarSettleOf(asked.Outcome)) != how {
+			return how, false
 		}
 	}
-	switch byLedger {
-	case 0:
-		return settledByTransaction
-	case len(combined.Asked):
-		return settledByLedger
-	}
-	return settledBySome
+	return how, true
 }
 
 // intValue is n as a read's parameters and a row's values hold it.

@@ -6,23 +6,24 @@
 // rows, and 10.4, "Sources", "Several sources", "Rows" and "What a row
 // read"), and the seam its reads go through.
 //
-// Each commitment entry whose chain's rule is in this package gets one
-// row, at the pointer of its entry: its rule of section 10.4, made once
-// for each source of the run's commitment pin of that chain
-// ([Run.SourcesFor]), every read through [Run.ReadSource] and the run's
-// [ChainReader], and the sources' outcomes combined under the network's
-// source policy ([CombineSources]); its values are what the row read
-// ([CombinedOutcome.Values]). The rows are in document order, and a row
-// that passed with a candidate keeps it on the run ([Run.Candidates]), in
-// row order, with the sources it rests on, for WINDOW (SPEC.md sections
-// 11.1 and 11.5). The proof chooses neither a source nor a network: every
-// read goes to a source of the run's pin, which POLICY has already held
-// every network member to (section 10.4, "Sources").
+// Each commitment entry and each genesis.bitcoin gets one row, at the
+// pointer of its entry or object: its rule of section 10.4, made once for
+// each source of the run's commitment pin of its chain, Bitcoin's for
+// genesis.bitcoin ([Run.SourcesFor]), every read through
+// [Run.ReadSource] and the run's [ChainReader], and the sources' outcomes
+// combined under the network's source policy ([CombineSources]); its
+// values are what the row read ([CombinedOutcome.Values]). The rows are
+// made, and their reads made, in document order, and a row that passed
+// with a candidate keeps it on the run ([Run.Candidates]), in row order,
+// with the sources it rests on, for WINDOW (SPEC.md sections 11.1 and
+// 11.5). The proof chooses neither a source nor a network: every read goes
+// to a source of the run's pin, which POLICY has already held every
+// network member to (section 10.4, "Sources").
 //
-// The rules here are Stellar's (chain_stellar.go). The Bitcoin rule of
-// section 10.4, for a Bitcoin commitment entry and for genesis.bitcoin, is
-// not in this package yet, so under an open gate those rows are not
-// given.
+// The rules are Stellar's (chain_stellar.go) and Bitcoin's, for a Bitcoin
+// commitment entry and for genesis.bitcoin (chain_bitcoin.go). Each row's
+// message is worded from the reads that settled its sources' outcomes,
+// for display only (SPEC.md section 10.5, "Rows").
 //
 // KEY_EVENT_COMMITMENT is the last row of CHAIN, at /signing_key_event,
 // when P carries signing_key_event (SPEC.md section 10.3). Its inputs are
@@ -33,12 +34,13 @@
 // fail with the code of the first failing input in document order; an
 // input was skipped, skip with the code of the first skipped input in
 // document order; otherwise pass when the attribution is truestamp, else
-// info not_attributable. It is given only when every input has its row, so
-// a key event with a Bitcoin input gets it once the Bitcoin rule is here.
+// info not_attributable. Every input has its row, since CHAIN gives one
+// for each entry and genesis.bitcoin.
 //
 // A fault while reading what a rule compares, an entry SHAPE should have
-// refused or an epoch record that cannot be hashed, is internal_error at
-// CHAIN, part null, and ends the run, as a fault at DERIVE does.
+// refused, an epoch record that cannot be hashed or a txoutproof DERIVE
+// has held well formed that is not, is internal_error at CHAIN, part null,
+// and ends the run before any read, as a fault at DERIVE does.
 
 package verifier
 
@@ -46,6 +48,7 @@ import (
 	"context"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/truestamp/truestamp-cli/internal/specdata"
 	"github.com/truestamp/truestamp-cli/internal/strictjson"
@@ -65,11 +68,21 @@ type ChainReader func(source Source, read map[string]any) SourceRead
 // DefaultChainReader returns the reader of each chain read over HTTP,
 // through the default transport and internal/verifier/source's readers:
 // each read builds its own SingleRead, within [SourceReadDeadline], when
-// it is made.
-func DefaultChainReader() ChainReader {
+// it is made, and the whole read ends within that deadline, every call it
+// makes included (a best-chain block at a height takes two calls); a
+// Bitcoin Core node's reads send the source's credentials, which reach no
+// reason and no value.
+func DefaultChainReader() ChainReader { return chainReaderWithin(SourceReadDeadline) }
+
+// chainReaderWithin is [DefaultChainReader] with deadline in place of
+// [SourceReadDeadline], bounding each call a read makes and the whole
+// read.
+func chainReaderWithin(deadline time.Duration) ChainReader {
 	return func(s Source, read map[string]any) SourceRead {
-		reads := newSingleRead(nil, SourceReadDeadline)
-		answer := source.Read(context.Background(), reads, s.Provider, s.URL, read)
+		ctx, cancel := context.WithTimeout(context.Background(), deadline)
+		defer cancel()
+		reads := newSingleRead(nil, deadline)
+		answer := source.Read(ctx, reads, s.Provider, s.URL, s.Credentials, read)
 		return SourceRead{Outcome: ReadOutcome(answer.Outcome), Value: answer.Value, Reason: answer.Reason}
 	}
 }
@@ -123,33 +136,37 @@ type chainRow struct {
 	candidate *RowCandidate
 }
 
+// chainEntry is a row CHAIN gives under an open gate, before it is read:
+// its pointer; the chain whose commitment pin's sources it reads; its
+// rule against one source of network; and its message from the set it
+// read and the combined outcome.
+type chainEntry struct {
+	at      Pointer
+	chain   string
+	rule    func(run *Run, network string) RowRule
+	message func(set SourceSet, combined CombinedOutcome) string
+}
+
 // chainOpen is CHAIN under an open gate (see the file's doc).
 func chainOpen(run *Run) {
-	var entries []stellarEntry
-	for _, entry := range commitmentEntries(run.Proof) {
-		if entry.name != ChainStellar {
-			continue
-		}
-		e, err := stellarEntryOf(run.Proof, entry)
-		if err != nil {
-			run.AddRow(NewRow("CHAIN", specdata.ReasonInternalError, nil,
-				"The verifier could not read a value this proof's commitment entry carries.", map[string]any{"error": err.Error()}))
-			run.EndRun()
-			return
-		}
-		entries = append(entries, e)
+	entries, err := chainEntries(run.Proof)
+	if err != nil {
+		run.AddRow(NewRow("CHAIN", specdata.ReasonInternalError, nil,
+			"The verifier could not read a value this proof's commitment entry carries.", map[string]any{"error": err.Error()}))
+		run.EndRun()
+		return
 	}
+	SortBy(entries, func(e chainEntry) Pointer { return e.at })
 	var rows []chainRow
 	for _, e := range entries {
-		set := sourcesOf(run, PinCommitment, ChainStellar)
-		combined := CombineSources(set, stellarRule(run, set.Network, e))
-		made := chainRow{at: e.at, row: combined.Row("CHAIN", e.at, stellarMessage(e, set, combined))}
+		set := sourcesOf(run, PinCommitment, e.chain)
+		combined := CombineSources(set, e.rule(run, set.Network))
+		made := chainRow{at: e.at, row: combined.Row("CHAIN", e.at, e.message(set, combined))}
 		if combined.Candidate != nil {
 			made.candidate = &RowCandidate{Step: "CHAIN", Part: e.at.Encode(), Candidate: *combined.Candidate, Counted: combined.Counted}
 		}
 		rows = append(rows, made)
 	}
-	SortBy(rows, func(r chainRow) Pointer { return r.at })
 	for _, r := range rows {
 		run.AddRow(r.row)
 		if r.candidate != nil {
@@ -159,6 +176,81 @@ func chainOpen(run *Run) {
 	if row, ok := keyEventCommitment(run, rows); ok {
 		run.AddRow(row)
 	}
+}
+
+// chainEntries are the rows CHAIN gives under an open gate: one for each
+// commitment entry and each genesis.bitcoin P carries, read before any
+// read is made, or an error for one SHAPE should have refused, or that
+// DERIVE has held well formed.
+func chainEntries(proof map[string]any) ([]chainEntry, error) {
+	var out []chainEntry
+	for _, entry := range commitmentEntries(proof) {
+		switch entry.name {
+		case ChainStellar:
+			e, err := stellarEntryOf(proof, entry)
+			if err != nil {
+				return nil, err
+			}
+			out = append(out, chainEntry{at: e.at, chain: ChainStellar,
+				rule:    func(run *Run, network string) RowRule { return stellarRule(run, network, e) },
+				message: func(set SourceSet, c CombinedOutcome) string { return stellarMessage(e, set, c) }})
+		case ChainBitcoin:
+			e, err := bitcoinEntryOf(proof, entry)
+			if err != nil {
+				return nil, err
+			}
+			out = append(out, bitcoinChainEntry(e))
+		}
+	}
+	for _, genesis := range genesisBitcoin(proof) {
+		e, err := bitcoinGenesisOf(genesis)
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, bitcoinChainEntry(e))
+	}
+	return out, nil
+}
+
+// chainSource is one source a rule reads, and the reads it made of it, in
+// order.
+type chainSource struct {
+	run     *Run
+	record  SourceRecord
+	network string
+	reads   []SourceRead
+}
+
+// read makes the read of kind with params of the source, and records it.
+func (s *chainSource) read(kind string, params map[string]any) SourceRead {
+	read := map[string]any{"kind": kind, "network": s.network}
+	for name, value := range params {
+		read[name] = value
+	}
+	answer := s.run.readChain(s.record, read)
+	s.reads = append(s.reads, answer)
+	return answer
+}
+
+// outcome is the source's outcome with code, "" for a pass, its candidate
+// and its notes, holding every read made.
+func (s *chainSource) outcome(code specdata.Reason, candidate *Candidate, notes map[string]any) SourceOutcome {
+	status := StatusPass
+	if code != "" {
+		entry, _ := specdata.LookupReason(code)
+		status = Status(entry.Status)
+	}
+	return SourceOutcome{Status: status, Code: code, Candidate: candidate, Reads: s.reads, Notes: notes}
+}
+
+// asWhole names the sources of network a combined outcome asked, as the
+// subject of a message: "the source of" network when it asked one, and
+// "each source of" it when it asked several.
+func asWhole(network string, combined CombinedOutcome) string {
+	if len(combined.Asked) == 1 {
+		return "the source of " + network
+	}
+	return "each source of " + network
 }
 
 // sourcesOf is the run's sources of pin of chain. It panics for a run with
@@ -193,7 +285,8 @@ func keyEventInputs(proof map[string]any) []Pointer {
 
 // keyEventCommitment is KEY_EVENT_COMMITMENT under an open gate, from the
 // rows CHAIN made (see the file's doc), and whether it is given: it is not
-// when P carries no signing_key_event, or when an input has no row.
+// when P carries no signing_key_event. It panics when an input has no
+// row, which CHAIN always makes: a defect in the caller.
 func keyEventCommitment(run *Run, rows []chainRow) (Row, bool) {
 	if _, ok := run.Proof["signing_key_event"].(map[string]any); !ok {
 		return Row{}, false
@@ -207,7 +300,7 @@ func keyEventCommitment(run *Run, rows []chainRow) (Row, bool) {
 			}
 		}
 		if i < 0 {
-			return Row{}, false
+			panic(fmt.Sprintf("verifier: CHAIN made no row for %s, an input of KEY_EVENT_COMMITMENT", part.Encode()))
 		}
 		inputs = append(inputs, rows[i].row)
 	}

@@ -94,11 +94,13 @@ const (
 
 // Read makes the chain read named read, {kind, network, ...} as a replay
 // record names it, of the source of provider at base, through reads, and
-// gives its answer. A kind this provider does not serve is unreachable,
-// with no request made.
-func Read(ctx context.Context, reads *httpclient.SingleRead, provider Provider, base string, read map[string]any) Answer {
+// gives its answer: Horizon's reads here, and Esplora's and Bitcoin
+// Core's in bitcoin.go. creds are sent only to a Bitcoin Core node. A kind
+// this provider does not serve is unreachable, with no request made.
+func Read(ctx context.Context, reads *httpclient.SingleRead, provider Provider, base string, creds Credentials, read map[string]any) Answer {
 	kind, _ := read["kind"].(string)
-	if provider == Horizon {
+	switch provider {
+	case Horizon:
 		switch kind {
 		case KindStellarRoot:
 			return StellarRoot(ctx, reads, base)
@@ -106,6 +108,20 @@ func Read(ctx context.Context, reads *httpclient.SingleRead, provider Provider, 
 			return StellarTransaction(ctx, reads, base, read["hash"])
 		case KindStellarLedger:
 			return StellarLedger(ctx, reads, base, read["sequence"])
+		}
+	case Esplora:
+		switch kind {
+		case KindBitcoinTip:
+			return EsploraTip(ctx, reads, base)
+		case KindBitcoinBlockAtHeight:
+			return EsploraBlockAtHeight(ctx, reads, base, read["height"])
+		}
+	case BitcoinCore:
+		switch kind {
+		case KindBitcoinTip:
+			return CoreTip(ctx, reads, base, creds)
+		case KindBitcoinBlockAtHeight:
+			return CoreBlockAtHeight(ctx, reads, base, creds, read["height"])
 		}
 	}
 	return unreachableAnswer("no read of this kind from this provider")

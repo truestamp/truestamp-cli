@@ -4,6 +4,7 @@
 package source
 
 import (
+	"bytes"
 	"context"
 	"encoding/base64"
 	"encoding/json"
@@ -34,8 +35,8 @@ type request struct {
 	method, path, contentType, auth, body string
 }
 
-// recording is an httptest server that answers every request with answer
-// and records what it saw of each.
+// recording is an httptest server that answers every request with answer,
+// which reads the request's body again, and records what it saw of each.
 func recording(t *testing.T, answer http.HandlerFunc) (*httptest.Server, func() []request) {
 	t.Helper()
 	var seen atomic.Value
@@ -43,6 +44,7 @@ func recording(t *testing.T, answer http.HandlerFunc) (*httptest.Server, func() 
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		body, _ := io.ReadAll(r.Body)
 		seen.Store(append(seen.Load().([]request), request{r.Method, r.URL.Path, r.Header.Get("Content-Type"), r.Header.Get("Authorization"), string(body)}))
+		r.Body = io.NopCloser(bytes.NewReader(body))
 		answer(w, r)
 	}))
 	t.Cleanup(srv.Close)

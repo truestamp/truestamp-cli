@@ -46,12 +46,11 @@ import (
 // online case whose gate does not open, is held to all of its rows and its
 // label. Under an open gate, the rows of CHAIN, SOURCES and WINDOW are the
 // rules of each chain and source (SPEC.md sections 10.4 and 11), of which
-// the verifier makes Stellar's commitment rule so far, so such a case is
-// held to every other row and to its rows of Stellar commitment entries
-// and, when each of its inputs is one of those, KEY_EVENT_COMMITMENT
-// (builtOpen), and to its label when each of its failing rows is one it is
-// held to and its label is failed or names its attribution
-// (labelDecided).
+// the verifier makes the chains' so far, Stellar's and Bitcoin's, so such
+// a case is held to every row but those of SOURCES and WINDOW (builtOpen),
+// CHAIN's whole, KEY_EVENT_COMMITMENT included, and to its label when
+// each of its failing rows is one it is held to and its label is failed
+// or names its attribution (labelDecided).
 //
 // DERIVE makes every check of step 9, parts (a) to (e), and its rows are
 // compared whole, each with the values and trace rows of
@@ -74,9 +73,8 @@ import (
 const lastBuilt = "EXPECTED_HASH"
 
 // unbuiltOpen are the steps whose rows under an open external gate the
-// verifier does not make yet, but for CHAIN's rows of Stellar commitment
-// entries (builtOpen).
-var unbuiltOpen = []string{"CHAIN", "SOURCES", "WINDOW"}
+// verifier does not make yet (builtOpen).
+var unbuiltOpen = []string{"SOURCES", "WINDOW"}
 
 // stellarEntry reports whether part is a Stellar commitment entry's,
 // /commitments/stellar or /signing_key_event/commitments/stellar.
@@ -84,26 +82,12 @@ func stellarEntry(part *string) bool {
 	return part != nil && (*part == "/commitments/stellar" || *part == "/signing_key_event/commitments/stellar")
 }
 
-// builtOpen reports whether the verifier makes row, one of rows, a case's
-// expected rows, under an open external gate: every row of a step outside
-// unbuiltOpen; a CHAIN row of a Stellar commitment entry; and
-// KEY_EVENT_COMMITMENT, at /signing_key_event, when every CHAIN row under
-// /signing_key_event, its inputs (SPEC.md section 10.3), is a Stellar
-// entry's.
-func builtOpen(row vectorcases.Row, rows []vectorcases.Row) bool {
-	switch {
-	case !slices.Contains(unbuiltOpen, row.Step):
-		return true
-	case row.Step != "CHAIN":
-		return false
-	case stellarEntry(row.Part):
-		return true
-	case row.Part == nil || *row.Part != "/signing_key_event":
-		return false
-	}
-	return !slices.ContainsFunc(rows, func(input vectorcases.Row) bool {
-		return input.Step == "CHAIN" && input.Part != nil && strings.HasPrefix(*input.Part, "/signing_key_event/") && !stellarEntry(input.Part)
-	})
+// builtOpen reports whether the verifier makes row, a case's expected
+// row, under an open external gate: every row of a step outside
+// unbuiltOpen, CHAIN's included, each commitment entry's, each
+// genesis.bitcoin's and KEY_EVENT_COMMITMENT.
+func builtOpen(row vectorcases.Row) bool {
+	return !slices.Contains(unbuiltOpen, row.Step)
 }
 
 // firstBuilt is the first.
@@ -533,7 +517,7 @@ func expectedThrough(c vectorcases.Case) []vectorcases.Row {
 	if gateOf(c) != verifier.ExternalGateOpen {
 		return rows
 	}
-	return slices.DeleteFunc(rows, func(row vectorcases.Row) bool { return !builtOpen(row, c.Expected.Rows) })
+	return slices.DeleteFunc(rows, func(row vectorcases.Row) bool { return !builtOpen(row) })
 }
 
 // labelDecided reports whether the rows a case's run is held to decide its
@@ -776,12 +760,15 @@ func unsourced(t *testing.T, c vectorcases.Case, o outcome) []string {
 // key_binding-unavailable-* cases), matches in full, every row, CHAIN's,
 // SOURCES' and WINDOW's under the closed gate and EXPECTED_HASH's
 // included, with its label and its code (checkLabel); each of the 77
-// open cases matches every row but those builtOpen leaves out, the 154
-// rows of their Stellar commitment entries among them, and none in full, since
-// each has a WINDOW row and a row of the Bitcoin or the sources' rules; 63
-// of them, whose failing rows are all among those and whose label is failed
-// or supplied-keyring, also match their label and code, and the other 14
-// wait for those rules; a run that reaches DERIVE has exactly
+// open cases matches every row but those builtOpen leaves out, every CHAIN
+// row among them, Stellar's, Bitcoin's, genesis.bitcoin's and
+// KEY_EVENT_COMMITMENT's, and none in full, since each has a WINDOW row:
+// 13 of them have no SOURCES row, so every row but WINDOW's matches, and
+// the other 64 wait for SOURCES' rows too; 70 of the 77, whose failing
+// rows are all among those and whose label is failed or
+// supplied-keyring, also match their label and code, and the other 7,
+// six reads-entropy-* cases failing at SOURCES and window-inverted
+// failing at WINDOW, wait for those rules; a run that reaches DERIVE has exactly
 // the rows and trace of DERIVE that the model of derive_model_test.go gives
 // (checkDerive), and a run that ended before it has no trace; every row's
 // values write with JCS, and each value of a row of SHAPE or POLICY is one
@@ -850,6 +837,8 @@ func unsourced(t *testing.T, c vectorcases.Case, o outcome) []string {
 // window_not_established after a failure (every case failing before WINDOW
 // differs); the Stellar rule's memo left uncompared (both
 // leaf_count-record-*-stellar-online cases pass their Stellar row); the
+// Bitcoin rule's transaction_count left uncompared
+// (reads-bitcoin-transaction_count_differs passes its row); the
 // runner not passing a case's expected_hash (the
 // expected_hash-* and four gates-* cases give expected_hash_not_checked);
 // ExpectedHash not lowercasing (expected_hash-capitals fails); Verdict
@@ -943,6 +932,9 @@ func TestCases_ThroughEveryStep(t *testing.T) {
 			}
 			if gate == verifier.ExternalGateOpen {
 				tally[on+"the external gate opens"]++
+				if len(rowsBetween("SOURCES", "SOURCES", c.Expected.Rows)) == 0 {
+					tally[on+"open, its rows but WINDOW's matched"]++
+				}
 			}
 			switch {
 			case gate != verifier.ExternalGateOpen || rowsEqual(want, rowsThrough(c.Expected.Rows)):
@@ -971,25 +963,26 @@ func TestCases_ThroughEveryStep(t *testing.T) {
 	}
 
 	want := map[string]int{
-		"rejected at CONFIGURATION":            11,
-		"online, rejected at CONFIGURATION":    6,
-		"rejected at READ":                     1,
-		"rejected at PARSE":                    15,
-		"rejected at ENVELOPE":                 32,
-		"report, the gate fails":               30,
-		"report, SHAPE fails":                  67,
-		"report, POLICY fails":                 15,
-		"report, DERIVE fails":                 152,
-		"report, passes through DERIVE":        71,
-		"online report, passes through DERIVE": 77,
-		"online report, POLICY fails":          1,
-		"online report, DERIVE fails":          1,
-		"online report, the gate fails":        2,
-		"matched in full":                      335,
-		"online matched in full":               4,
-		"online the external gate opens":       77,
-		"online open, its label decided":       63,
-		"online open, its label waits":         14,
+		"rejected at CONFIGURATION":                  11,
+		"online, rejected at CONFIGURATION":          6,
+		"rejected at READ":                           1,
+		"rejected at PARSE":                          15,
+		"rejected at ENVELOPE":                       32,
+		"report, the gate fails":                     30,
+		"report, SHAPE fails":                        67,
+		"report, POLICY fails":                       15,
+		"report, DERIVE fails":                       152,
+		"report, passes through DERIVE":              71,
+		"online report, passes through DERIVE":       77,
+		"online report, POLICY fails":                1,
+		"online report, DERIVE fails":                1,
+		"online report, the gate fails":              2,
+		"matched in full":                            335,
+		"online matched in full":                     4,
+		"online the external gate opens":             77,
+		"online open, its label decided":             70,
+		"online open, its label waits":               7,
+		"online open, its rows but WINDOW's matched": 13,
 	}
 	if len(tally) != len(want) {
 		t.Fatalf("tally = %v, want %v", tally, want)
@@ -2331,15 +2324,15 @@ func totalTxs(t *testing.T, txoutproof any) int {
 // SOURCES row skip prior_failure, with its label failed and no edge; and
 // gates-online-chain_failure and the eight reads-unreachable-* cases fail
 // no row before CHAIN, so their gate opens, every source of every pinned
-// network confirmed, and they give every row but CHAIN's, SOURCES' and
-// WINDOW's, whose reads are each chain's and source's rules, and CHAIN's
-// rows of their Stellar commitment entries, one or more each, and no other
-// row of those steps. Mutants killed: the gate deciding offline for an
-// online run (the open cases give skip offline rows); prior_failure
-// deciding open (gates-online-policy and -derive give no CHAIN or SOURCES
-// row); Chain making closed rows under an open gate (the open cases give
-// skip offline CHAIN rows); Chain making no row under an open gate (the
-// open cases give no Stellar row).
+// network confirmed, and they give every row but SOURCES' and WINDOW's,
+// whose reads are each source's rule and the window's, and CHAIN's rows
+// whole, those of their commitment entries, genesis.bitcoin and
+// KEY_EVENT_COMMITMENT, and no row of SOURCES or WINDOW. Mutants killed:
+// the gate deciding offline for an online run (the open cases give skip
+// offline rows); prior_failure deciding open (gates-online-policy and
+// -derive give no CHAIN or SOURCES row); Chain making closed rows under an
+// open gate (the open cases give skip offline CHAIN rows); Chain making no
+// row under an open gate (the open cases give no CHAIN row).
 func TestCases_TheOnlineGateCases(t *testing.T) {
 	cases, err := vectorcases.Load()
 	if err != nil {
@@ -2360,7 +2353,7 @@ func TestCases_TheOnlineGateCases(t *testing.T) {
 		reached := rowsBetween("CHAIN", "WINDOW", got.rows)
 		switch got.run.ExternalGate {
 		case verifier.ExternalGateOpen:
-			if len(reached) == 0 || slices.ContainsFunc(reached, func(row vectorcases.Row) bool { return row.Step != "CHAIN" || !stellarEntry(row.Part) }) {
+			if len(reached) == 0 || slices.ContainsFunc(reached, func(row vectorcases.Row) bool { return row.Step != "CHAIN" }) {
 				t.Errorf("%s: under an open gate, rows %v", id, reached)
 			}
 			for _, set := range got.run.SourceSets {

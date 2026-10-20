@@ -39,12 +39,13 @@
 // Then step 10, CHAIN, and step 11, SOURCES: under a closed gate, each
 // commitment entry, genesis.bitcoin and entropy object gets its row skip
 // offline or skip prior_failure, and KEY_EVENT_COMMITMENT ends CHAIN.
-// Under an open gate CHAIN reads each Stellar commitment entry by the rule
-// of section 10.4, through source_outcomes.go's frame, made once for each
-// source of its network and combined under the network's source policy,
-// and keeps each passing row's candidate for WINDOW; the Bitcoin rule and
-// the sources' rules are not in the package yet, so their rows, and
-// WINDOW's, are not given under an open gate. Then step 12, WINDOW, which
+// Under an open gate CHAIN reads each Stellar and Bitcoin commitment entry
+// and each genesis.bitcoin by its rule of section 10.4, through
+// source_outcomes.go's frame, made once for each source of its network and
+// combined under the network's source policy, keeps each passing row's
+// candidate for WINDOW and ends with KEY_EVENT_COMMITMENT; the sources'
+// rules are not in the package yet, so their rows, and WINDOW's, are not
+// given under an open gate. Then step 12, WINDOW, which
 // a closed gate leaves not established; step
 // 13, EXPECTED_HASH; and step 14, VERDICT, the label and the run's code of
 // section 10.5.
@@ -74,7 +75,8 @@
 //   - chain.go: CHAIN under an open gate, KEY_EVENT_COMMITMENT's statuses
 //     from its inputs, and the [ChainReader] its reads go through
 //     (sections 10.3 and 10.4); chain_stellar.go: the rule of a Stellar
-//     commitment entry (sections 10.4 and 11.1);
+//     commitment entry, and chain_bitcoin.go: the rule of a Bitcoin
+//     commitment entry and of genesis.bitcoin (sections 10.4 and 11.1);
 //   - source_outcomes.go: the frame a CHAIN or SOURCES row read under an
 //     open gate runs through: each source's outcome, their combination
 //     under the source policy, and the row's values (section 10.4);

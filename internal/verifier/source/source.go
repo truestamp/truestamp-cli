@@ -23,8 +23,10 @@
 //     Esplora's GET /block-height/0 and Bitcoin Core's getblockhash 0 for
 //     the hash of the block at height 0; and Horizon's reads of CHAIN for a
 //     Stellar commitment entry, its root, a transaction and a ledger
-//     (stellar.go, SPEC.md section 10.4), each an [Answer] in the form of a
-//     replay record (section 13.2); the Bitcoin reads of CHAIN and the
+//     (stellar.go), and Esplora's and Bitcoin Core's reads of CHAIN for a
+//     Bitcoin commitment entry and genesis.bitcoin, the tip and the
+//     best-chain block at a height (bitcoin.go, SPEC.md section 10.4),
+//     each an [Answer] in the form of a replay record (section 13.2); the
 //     reads of SOURCES join with the rules that make them;
 //   - an identity read is found or unreachable, never not found (SPEC.md
 //     section 13.2 (The vectors)): every answer but a value in its form,
