@@ -29,11 +29,6 @@ type RemoteOptions struct {
 	Team         string // team ID, sent as the tenant header
 	ExpectedHash string
 	SkipExternal bool
-
-	// ExpectedSubjectType is asserted locally against the bundle's signed
-	// `type` before anything is posted, as the hard rejection
-	// `subject_type_mismatch`, and forwarded to the server when it holds.
-	ExpectedSubjectType string
 }
 
 // apiEnvelope wraps the top-level API response.
@@ -93,10 +88,6 @@ func RunRemoteBytesCtx(ctx context.Context, data []byte, displayName string, opt
 	if err != nil {
 		return nil, err
 	}
-	if opts.ExpectedSubjectType != "" && opts.ExpectedSubjectType != bundle.Type {
-		return nil, proof.Rejectf(proof.CodeSubjectTypeMismatch,
-			"the bundle's signed type is %s but --type %s was asserted", bundle.Type, opts.ExpectedSubjectType)
-	}
 
 	// The server takes JSON; a CBOR input is posted as its JSON conversion.
 	jsonData, err := bundle.MarshalJSON()
@@ -110,9 +101,6 @@ func RunRemoteBytesCtx(ctx context.Context, data []byte, displayName string, opt
 	}
 	if opts.ExpectedHash != "" {
 		dataFields["expected_hash"] = opts.ExpectedHash
-	}
-	if opts.ExpectedSubjectType != "" {
-		dataFields["type"] = opts.ExpectedSubjectType
 	}
 	bodyBytes, err := json.Marshal(map[string]any{"data": dataFields})
 	if err != nil {

@@ -24,15 +24,6 @@ const (
 	CodeUnexpectedSubjectFieldsForBlockLike = "unexpected_subject_fields_for_block_like"
 	CodeMissingSubject                      = "missing_subject"
 	CodeMissingInclusionProof               = "missing_inclusion_proof"
-
-	// CodeSubjectTypeMismatch is the one rejection Appendix E does not
-	// define: it is raised when the caller asserted a subject type
-	// (`verify --type`) and the bundle's own signed `type` differs. The
-	// server names the same condition the same way on /proof/verify. It
-	// is a rejection rather than a graded row because E.25 forbids a
-	// verifier adding a `fail` row for a step Appendix D.4 does not
-	// report.
-	CodeSubjectTypeMismatch = "subject_type_mismatch"
 )
 
 // RejectionError is a structural hard rejection: the bundle is malformed in
@@ -56,9 +47,6 @@ func RejectionAdvice(code string) string {
 	case CodeMissingMetadata:
 		return "A bundle carries its metadata maps, never their hashes, so a verifier can\n" +
 			"recompute every digest. This one omits a metadata map, so no steps were run."
-	case CodeSubjectTypeMismatch:
-		return "The bundle's signed type is authoritative. Drop --type, or pass the type the\n" +
-			"bundle carries; the filename is never consulted."
 	default:
 		return "This input is not a well-formed proof bundle, so no steps were run."
 	}

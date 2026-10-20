@@ -219,8 +219,12 @@ tasks:
       #   G115: wire-format integer conversions where source values are bounded
       #         by protocol constants (proof version byte, epoch-root counts).
       #   G304: reading user-specified file paths IS the point of a CLI.
-      #   G301/G302/G306: 0644/0755 are the correct Unix defaults for config
-      #         files and user-installed binaries.
+      #   G301/G302/G306: what the CLI writes for the user to read, a
+      #         downloaded proof, a verify trace, an installed binary and
+      #         their directories, takes the Unix defaults 0644/0755.
+      #         config.toml, which can hold an API key and a Bitcoin Core
+      #         node's RPC password, is created 0600 in a 0700 directory
+      #         (config init), and SetAPIKey and SetTeam keep it 0600.
       #   G401/G501/G505: MD5 and SHA-1 are supported as legacy hash_type
       #         values (mirrors the Truestamp backend registry); runtime
       #         emits a stderr warning when either is used.

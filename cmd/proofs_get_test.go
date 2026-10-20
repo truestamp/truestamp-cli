@@ -11,7 +11,6 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -405,12 +404,13 @@ func TestCLI_ProofsGet_DefaultsToStdout(t *testing.T) {
 }
 
 // TestCLI_ProofsGet_StdoutIsPipeable proves the point of the change: the
-// bytes on stdout are a bundle `verify` accepts. A test that only checked
-// for a substring would not.
+// bytes on stdout are a proof `verify` reads from stdin and labels. A test
+// that only checked for a substring would not. Mutant killed: verify's
+// stdin read as empty (the run is malformed_json, exit 4).
 func TestCLI_ProofsGet_StdoutIsPipeable(t *testing.T) {
 	// A JSON-format download returns the proof object itself, so the
 	// fixture is the response body verbatim.
-	bundle, err := os.ReadFile(testfixtures.Path(testfixtures.ProdDir, testfixtures.ProdComplete))
+	bundle, err := os.ReadFile(soundItem())
 	if err != nil {
 		t.Fatalf("reading fixture: %v", err)
 	}
@@ -424,13 +424,11 @@ func TestCLI_ProofsGet_StdoutIsPipeable(t *testing.T) {
 		t.Fatalf("download exit=%d, stderr=%q", exit, stderr)
 	}
 
-	// Feed exactly those bytes back to verify over stdin.
-	vc := exec.Command(binaryPath, "verify", "--offline",
-		"--keyring", testfixtures.Path(testfixtures.ProdDir, testfixtures.ProdKeyring), "-")
-	vc.Stdin = strings.NewReader(stdout)
-	out, vErr := vc.CombinedOutput()
-	if vErr != nil {
-		t.Errorf("piping download into verify failed: %v\n%s", vErr, out)
+	// Feed exactly those bytes back to verify over stdin: the sound
+	// vector, under its test keyring, is supplied-keyring, exit 6.
+	out, errOut, code := verifyCLI(t, binaryPath, nil, strings.NewReader(stdout), append([]string{"-"}, underTest()...)...)
+	if code != 6 {
+		t.Errorf("piping download into verify: exit %d, want 6\n%s%s", code, out, errOut)
 	}
 }
 

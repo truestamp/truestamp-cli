@@ -114,8 +114,9 @@ func configureOptionsWith(t *testing.T, options Options, data []byte) (*Run, *Re
 // configuration file and environment variables that ask for an
 // environment or for keyless mode, under any spelling, and a keyring
 // config key or environment variable, select nothing (SPEC.md sections 6.4
-// and 8.3). Mutants killed: OptionsFromCommand taking the keyring file
-// from cfg.Verify.Keyring; keyless mode taken from
+// and 8.3), the retired verify.keyring key and TRUESTAMP_VERIFY_KEYRING
+// among them. Mutants killed: OptionsFromCommand taking the keyring file
+// from a verify.keyring key; keyless mode taken from
 // TRUESTAMP_VERIFY_NO_KEYRING.
 func TestOptions_EnvironmentAndKeylessComeOnlyFromTheRun(t *testing.T) {
 	clearTruestampEnv(t)
@@ -136,10 +137,7 @@ no_keyring = true
 "no-keyring" = true
 keyring = "` + vectorcases.Path("keyring.test.json") + `"
 `
-	cfg, options := loadOptions(t, toml, "--offline")
-	if cfg.Verify.Keyring == "" {
-		t.Fatal("the keyring config key did not load, so this test shows nothing")
-	}
+	_, options := loadOptions(t, toml, "--offline")
 	if !reflect.DeepEqual(options, Options{Environment: "prod", Offline: true}) {
 		t.Fatalf("options = %+v", options)
 	}

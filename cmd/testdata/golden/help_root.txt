@@ -9,7 +9,7 @@ Usage:
 
 Verify a proof:
   inspect     Print a proof bundle's key fields without verifying it
-  verify      Verify a Truestamp proof bundle
+  verify      Verify a Truestamp proof
 
 Truestamp resources:
   beacons     Read-only: public randomness over finalized blocks

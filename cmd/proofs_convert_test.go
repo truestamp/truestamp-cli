@@ -15,8 +15,10 @@ import (
 )
 
 // TestCLI_ProofsConvert_RoundTrip confirms that json → cbor → json
-// survives verify end-to-end (the ultimate round-trip gate: the cbor
-// form must be a valid proof that verify can accept).
+// converts both ways, and that verify, which reads one JSON document
+// (SPEC.md section 10.1), refuses the CBOR form as malformed_json, exit 4.
+// Mutant killed: verify converting a CBOR input to JSON before the run
+// (the earlier layout is then invalid_envelope).
 func TestCLI_ProofsConvert_RoundTrip(t *testing.T) {
 	src := testfixtures.Path(testfixtures.ProdDir, testfixtures.ProdComplete)
 	if _, err := os.Stat(src); err != nil {
@@ -39,11 +41,17 @@ func TestCLI_ProofsConvert_RoundTrip(t *testing.T) {
 		t.Fatalf("cbor→json: %v", err)
 	}
 
-	// The ultimate test: verify accepts the CBOR form end-to-end (skip
-	// external for speed and offline friendliness).
-	vrf := exec.Command(binaryPath, "verify", cborPath, "--offline")
-	if err := vrf.Run(); err != nil {
-		t.Errorf("verify on round-tripped CBOR failed: %v", err)
+	refusedAsMalformed(t, cborPath)
+}
+
+// refusedAsMalformed runs verify over path offline and fails the test
+// unless it is the bare rejection malformed_json, exit 4.
+func refusedAsMalformed(t *testing.T, path string) {
+	t.Helper()
+	stdout, _, code := verifyCLI(t, binaryPath, nil, nil, path, "--offline", "--json")
+	var rejection map[string]string
+	if err := json.Unmarshal([]byte(stdout), &rejection); err != nil || code != 4 || rejection["code"] != "malformed_json" {
+		t.Errorf("verify %s: exit %d, %v, %s; want malformed_json, exit 4", path, code, err, stdout)
 	}
 }
 
@@ -99,9 +107,10 @@ func TestCLI_ProofsConvert_PrettyPreservesNumbers(t *testing.T) {
 
 // TestCLI_ProofsConvert_CBORRoundTripPreservesNumbers pins the cross-format
 // invariant on the value space that breaks it: integers above 2^53 must
-// survive JSON -> CBOR -> JSON exactly, and the verifier must canonicalize
-// them as carried while reporting that a strict RFC 8785 implementation
-// would not.
+// survive JSON -> CBOR -> JSON exactly; and verify refuses both forms,
+// the JSON one by rule J5 (SPEC.md section 10.1) and the CBOR one as no
+// JSON text, each malformed_json, exit 4. Mutant killed: J5 left out of
+// PARSE (the JSON form is then invalid_envelope).
 func TestCLI_ProofsConvert_CBORRoundTripPreservesNumbers(t *testing.T) {
 	src := bigIntegerBundlePath(t)
 	cborBytes, err := exec.Command(binaryPath, "proofs", "convert", "--to", "cbor", src).Output()
@@ -122,19 +131,14 @@ func TestCLI_ProofsConvert_CBORRoundTripPreservesNumbers(t *testing.T) {
 		}
 	}
 	for _, path := range []string{src, cborPath} {
-		out, _ := runVerifyJSON(t, binaryPath, path, "--offline")
-		if st := stepStatuses(out, "Subject Data"); !st["pass"] || !st["warn"] {
-			t.Errorf("%s: Subject Data = %v, want the derivations to pass and the portability warn\n%s", path, st, formatCLISteps(out.Steps))
-		}
-		if !strings.Contains(rawIssueText(out), "not portably verifiable") {
-			t.Errorf("%s: the 2^53 warn is missing", path)
-		}
+		refusedAsMalformed(t, path)
 	}
 }
 
 // TestCLI_ProofsConvert_AutoDetectsBareCBORMap: the self-describing tag
 // 55799 is a convenience, not a requirement. --from auto must recognize a
-// bare CBOR map by content, and verify must accept it directly.
+// bare CBOR map by content, and verify refuses it as malformed_json.
+// Mutant killed: verify converting a CBOR input to JSON before the run.
 func TestCLI_ProofsConvert_AutoDetectsBareCBORMap(t *testing.T) {
 	src := testfixtures.Path(testfixtures.ProdDir, testfixtures.ProdComplete)
 	tagged, err := exec.Command(binaryPath, "proofs", "convert", "--to", "cbor", src).Output()
@@ -155,7 +159,5 @@ func TestCLI_ProofsConvert_AutoDetectsBareCBORMap(t *testing.T) {
 	if !bytes.Contains(back, []byte(`"type": "item"`)) {
 		t.Errorf("round-tripped JSON is missing the subject type:\n%s", back)
 	}
-	if err := exec.Command(binaryPath, "verify", barePath, "--offline", "--silent").Run(); err != nil {
-		t.Errorf("verify rejected a bare (untagged) CBOR bundle: %v", err)
-	}
+	refusedAsMalformed(t, barePath)
 }

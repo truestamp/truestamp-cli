@@ -6,7 +6,9 @@ package cmd
 import (
 	"context"
 	"fmt"
+	"maps"
 	"os"
+	"slices"
 	"strings"
 	"time"
 
@@ -142,7 +144,76 @@ type configRecord struct {
 func newConfigRecord(cfg *config.Config) configRecord {
 	masked := *cfg
 	masked.APIKey = maskAPIKey(cfg.APIKey)
+	masked.Verify.Horizon = maskUserinfo(cfg.Verify.Horizon)
+	masked.Verify.Esplora = maskUserinfo(cfg.Verify.Esplora)
+	masked.Verify.BitcoinCore = maskUserinfo(cfg.Verify.BitcoinCore)
+	masked.Verify.Sources = map[string]map[string]config.NetworkSourcesConfig{}
+	for chain, networks := range cfg.Verify.Sources {
+		masked.Verify.Sources[chain] = map[string]config.NetworkSourcesConfig{}
+		for network, n := range networks {
+			sources := make([]map[string]string, 0, len(n.Sources))
+			for _, entry := range n.Sources {
+				shown := map[string]string{}
+				for provider, raw := range entry {
+					shown[provider] = maskUserinfo(raw)
+				}
+				sources = append(sources, shown)
+			}
+			masked.Verify.Sources[chain][network] = config.NetworkSourcesConfig{Policy: n.Policy, Sources: sources}
+		}
+	}
 	return configRecord{ConfigFile: config.ActivePath(), AuthMode: authModeDisplay(), Config: &masked}
+}
+
+// maskUserinfo is a source URL as config show shows it: whole, but for
+// anything that could be user information, which the verifier refuses in a
+// source URL and which would be a credential. Any @ after the scheme's //
+// could end user information, even one a parser reads as part of a path,
+// query or fragment (a password typed with a raw slash, as in
+// http://u:12/ss@host), so everything before the last @, but the scheme,
+// is shown as [masked]. An @ in a path masks more than it must, which
+// costs only display. A Bitcoin Core node's RPC credentials are never
+// shown at all.
+func maskUserinfo(raw string) string {
+	at := strings.LastIndex(raw, "@")
+	if at < 0 {
+		return raw
+	}
+	scheme := ""
+	if i := strings.Index(raw, "://"); i >= 0 && i < at {
+		scheme = raw[:i+3]
+	}
+	return scheme + "[masked]@" + raw[at+1:]
+}
+
+// sourceRows are the verifier's sources as config show's text shows them:
+// each source URL, and each network's several sources with their policy.
+func sourceRows(cfg *config.Config) [][2]string {
+	rows := [][2]string{
+		{"Horizon", valueOrNotSet(maskUserinfo(cfg.Verify.Horizon))},
+		{"Esplora", valueOrNotSet(maskUserinfo(cfg.Verify.Esplora))},
+		{"Bitcoin Core", valueOrNotSet(maskUserinfo(cfg.Verify.BitcoinCore))},
+	}
+	for _, chain := range slices.Sorted(maps.Keys(cfg.Verify.Sources)) {
+		for _, network := range slices.Sorted(maps.Keys(cfg.Verify.Sources[chain])) {
+			n := cfg.Verify.Sources[chain][network]
+			var listed []string
+			for _, entry := range n.Sources {
+				for _, provider := range slices.Sorted(maps.Keys(entry)) {
+					listed = append(listed, provider+" "+maskUserinfo(entry[provider]))
+				}
+			}
+			rows = append(rows, [2]string{chain + " " + network, n.Policy + ": " + strings.Join(listed, ", ")})
+		}
+	}
+	for _, k := range []struct{ name, path string }{
+		{"Keyring (dev)", cfg.Verify.Keyrings.Dev},
+		{"Keyring (staging)", cfg.Verify.Keyrings.Staging},
+		{"Keyring (test)", cfg.Verify.Keyrings.Test},
+	} {
+		rows = append(rows, [2]string{k.name, valueOrNotSet(k.path)})
+	}
+	return rows
 }
 
 func presentConfig(cfg *config.Config) {
@@ -180,6 +251,9 @@ func presentConfig(cfg *config.Config) {
 		StyleFunc(configStyleFunc).
 		Row("Offline", fmt.Sprintf("%v", cfg.Verify.Offline)).
 		Row("Remote", fmt.Sprintf("%v", cfg.Verify.Remote))
+	for _, row := range sourceRows(cfg) {
+		verify = verify.Row(row[0], row[1])
+	}
 
 	hash := ui.CompactTable().
 		StyleFunc(configStyleFunc).

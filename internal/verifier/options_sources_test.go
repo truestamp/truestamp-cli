@@ -10,6 +10,7 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 
@@ -21,7 +22,7 @@ import (
 )
 
 // The source options of SPEC.md section 9, "Sources", on a throwaway
-// command: the verify command does not register them yet.
+// command that registers them as the verify command does.
 
 // A source URL comes from a flag, the configuration file or an
 // environment variable, a flag over a variable over the file, for each of
@@ -227,5 +228,89 @@ func TestRegisterFlags_TheSourceFlagsAndNoCredential(t *testing.T) {
 				t.Errorf("--%s takes a credential", name)
 			}
 		}
+	}
+}
+
+// A network's several sources come from the configuration file's
+// verify.sources tables (SPEC.md section 9, "Several sources for one
+// network"): each table is one network's, in the order of chain and then
+// network names, its sources in the file's order with their providers,
+// each a Bitcoin Core node's carrying the node credentials, and its policy
+// first, all or at_least N. A policy of another spelling, a source that
+// names no provider or two, and a provider no chain has are each an
+// invalid configuration that names the table and never quotes a URL; an
+// environment variable reaches no table. Mutants killed:
+// networkSourcesOf leaving the credentials off a Bitcoin Core node;
+// policyOf taking "at_least" with no count; the env provider letting
+// TRUESTAMP_VERIFY_SOURCES.STELLAR.PUBLIC.POLICY reach a table.
+func TestOptions_NetworkSourcesFromTheFile(t *testing.T) {
+	clearTruestampEnv(t)
+	t.Setenv("TRUESTAMP_VERIFY_SOURCES_STELLAR_PUBLIC_POLICY", "all")
+	t.Setenv("TRUESTAMP_VERIFY_SOURCES.STELLAR.PUBLIC.POLICY", "all")
+	t.Setenv("TRUESTAMP_VERIFY_BITCOIN_CORE_PASSWORD", "planted-secret-2b")
+	toml := `[verify.sources.stellar.public]
+policy = "first"
+sources = [{ horizon = "https://h1.example" }]
+
+[verify.sources.bitcoin.mainnet]
+policy = "at_least 2"
+sources = [{ esplora = "https://e1.example" }, { bitcoin_core = "http://127.0.0.1:8332" }, { esplora = "https://e2.example/api" }]
+
+[verify.sources.bitcoin.regtest]
+policy = "all"
+sources = [{ bitcoin_core = "http://127.0.0.1:18443" }]
+`
+	for i := 0; i < 8; i++ {
+		_, options := loadOptions(t, toml)
+		var got []string
+		for _, n := range options.NetworkSources {
+			entry := n.Chain + " " + n.Network + " " + n.Policy.String() + ":"
+			for _, s := range n.Sources {
+				entry += " " + string(s.Provider) + " " + s.URL
+				if !s.Credentials.Empty() {
+					entry += " with credentials"
+				}
+			}
+			got = append(got, entry)
+		}
+		want := []string{
+			"bitcoin mainnet at_least 2: esplora https://e1.example bitcoin_core http://127.0.0.1:8332 with credentials esplora https://e2.example/api",
+			"bitcoin regtest all: bitcoin_core http://127.0.0.1:18443 with credentials",
+			"stellar public first: horizon https://h1.example",
+		}
+		if !slices.Equal(got, want) {
+			t.Fatalf("network sources %q, want %q", got, want)
+		}
+	}
+	for name, table := range map[string]string{
+		"at_least with no count": `policy = "at_least"` + "\nsources = [{ esplora = \"https://e1.example/planted\" }]",
+		"a policy misspelled":    `policy = "atleast 1"` + "\nsources = [{ esplora = \"https://e1.example/planted\" }]",
+		"two providers":          `policy = "first"` + "\nsources = [{ esplora = \"https://e1.example/planted\", bitcoin_core = \"http://127.0.0.1:8332/planted\" }]",
+		"an unknown provider":    `policy = "first"` + "\nsources = [{ electrum = \"https://e1.example/planted\" }]",
+	} {
+		path := filepath.Join(t.TempDir(), "config.toml")
+		if err := os.WriteFile(path, []byte("[verify.sources.bitcoin.mainnet]\n"+table+"\n"), 0o600); err != nil {
+			t.Fatal(err)
+		}
+		flags := commandFlags(t)
+		cfg, err := config.Load(path, flags)
+		if err != nil {
+			t.Fatal(err)
+		}
+		_, err = OptionsFromCommand(flags, cfg)
+		if !errors.Is(err, ErrInvalidConfig) || !strings.Contains(err.Error(), "verify.sources.bitcoin.mainnet") || strings.Contains(err.Error(), "planted") {
+			t.Errorf("%s: %v", name, err)
+		}
+	}
+}
+
+// Options.Config gives the run the chain reader of every online run,
+// DefaultChainReader, beside the keyring and identity readers it is
+// given, so CHAIN and SOURCES read the chains (SPEC.md section 10.4).
+// Mutant killed: Options.Config leaving ReadChain nil.
+func TestOptions_ConfigSetsTheChainReader(t *testing.T) {
+	cfg, err := Options{Environment: "prod"}.Config(nil, nil)
+	if err != nil || cfg.ReadChain == nil {
+		t.Fatalf("ReadChain set: %v, %v", cfg.ReadChain != nil, err)
 	}
 }

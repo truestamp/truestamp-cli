@@ -232,15 +232,15 @@ The id shape is checked before any network call: `--type item` requires a ULID, 
 truestamp verify proof.json
 ```
 
-Exit code `0` when the proof passes, `1` when it fails or is rejected. JSON and CBOR are both accepted.
+A proof is one JSON document. The run ends in a report labelled `verified`, `internally-consistent`, `supplied-keyring`, `unattributed` or `failed`, or in a bare rejection with no report, and exits with the code of [Exit codes](#exit-codes): `0` only for `verified`.
 
-Offline verification (no calls to Truestamp, Stellar, Bitcoin or the entropy sources; every cryptographic check still runs, and every check that needs a source is reported as skipped, never failed):
+Offline verification (no calls to Truestamp, Stellar, Bitcoin or the entropy sources; every cryptographic check still runs, and every check that needs a read is reported as skipped, never failed):
 
 ```sh
 truestamp verify proof.json --offline
 ```
 
-Compare the hash of a file you hold against the hash the item's claims commit to, and pin a local copy of Truestamp's keyring so the key binding check works offline:
+Compare the hash of a file you hold with the hash the item's claims carry, and check the signer's key against a keyring file you supply:
 
 ```sh
 curl -sO https://www.truestamp.com/.well-known/keyring.json
@@ -248,10 +248,16 @@ truestamp verify proof.json --offline --keyring keyring.json \
   --expected-hash "$(truestamp hash -a sha256 --style bare contract.pdf)"
 ```
 
+A proof from Truestamp's staging environment is checked with `--environment staging` and a staging keyring: `--keyring FILE`, or one configured under `[verify.keyrings]`. `--no-keyring` checks the signature only against the key the proof carries, and the report says so.
+
+```sh
+truestamp verify staging-proof.json --offline --environment staging --keyring staging-keyring.json
+```
+
 Silent mode for scripting:
 
 ```sh
-truestamp verify proof.json --silent && echo valid || echo invalid
+truestamp verify proof.json --silent && echo verified || echo "not verified (exit $?)"
 ```
 
 Other input sources:
@@ -274,7 +280,7 @@ truestamp inspect proof.cbor --json
 
 ```
 Verify a proof:
-  truestamp verify [proof]              Verify a proof bundle (JSON or CBOR), offline or online
+  truestamp verify [proof]              Verify a proof (one JSON document), offline or online
   truestamp inspect [proof]             Print what a bundle carries, without verifying it
 
 Truestamp resources:
@@ -337,8 +343,8 @@ truestamp hash --prefix 0x11 --jcs -a sha256 --style bare --no-filename < claims
 # equivalently, as an explicit pipeline:
 truestamp jcs < claims.json | truestamp hash --prefix 0x11 -a sha256 --style bare --no-filename
 
-# Round-trip a proof between wire formats and verify end-to-end
-truestamp proofs convert --to cbor proof.json | truestamp verify --offline
+# verify reads JSON only, and proofs convert reads only the earlier proof
+# layout, so no CBOR proof verifies until the CLI reads the new format
 
 # Derive the 4-byte kid fingerprint from an Ed25519 pubkey
 truestamp convert keyid CTwMqDZnPd/QTLSq8aTeSD3a+j2DQxKcGfhhIYJQ65Y=
@@ -442,66 +448,59 @@ Settings are resolved in this order (later overrides earlier):
 
 ### Verify-specific flags
 
-| Flag | Env var | Default |
-| ---- | ------- | ------- |
-| `--file [path]` |   |   |
-| `--url [url]` |   |   |
-| `--expected-hash` |   |   |
-| `--keyring` | `TRUESTAMP_VERIFY_KEYRING` | none |
-| `--type` |   |   |
-| `--remote` | `TRUESTAMP_VERIFY_REMOTE` | `false` |
-| `--offline` | `TRUESTAMP_VERIFY_OFFLINE` | `false` |
+| Flag | Env var | Config key | Default |
+| ---- | ------- | ---------- | ------- |
+| `--file [path]` |   |   |   |
+| `--url [url]` |   |   |   |
+| `--expected-hash` |   |   | none |
+| `--keyring FILE` |   |   | none |
+| `--environment` |   |   | `prod` |
+| `--no-keyring` |   |   | `false` |
+| `--trace FILE` |   |   | none |
+| `--horizon` | `TRUESTAMP_VERIFY_HORIZON` | `verify.horizon` | the built-in Horizon |
+| `--esplora` | `TRUESTAMP_VERIFY_ESPLORA` | `verify.esplora` | the built-in Esplora |
+| `--bitcoin-core` | `TRUESTAMP_VERIFY_BITCOIN_CORE` | `verify.bitcoin_core` | none |
+|   | `TRUESTAMP_VERIFY_BITCOIN_CORE_USER` | `verify.bitcoin_core_user` | none |
+|   | `TRUESTAMP_VERIFY_BITCOIN_CORE_PASSWORD` | `verify.bitcoin_core_password` | none |
+|   |   | `[verify.keyrings]` `dev`, `staging`, `test` | none |
+|   |   | `[verify.sources.<chain>.<network>]` | none |
+| `--remote` | `TRUESTAMP_VERIFY_REMOTE` | `verify.remote` | `false` |
+| `--offline` | `TRUESTAMP_VERIFY_OFFLINE` | `verify.offline` | `false` |
 
-`--expected-hash` is the hash of a file you hold; it is compared against `subject.claims.hash` for an item and reported under Hash Comparison. `--keyring` pins a local copy of `/.well-known/keyring.json` for the Key Binding step; without it an online run fetches the live keyring from `--base-url` and an offline run reports the binding as not checked. `--type` asserts which subject type you expected (`item | entropy_nist | entropy_stellar | entropy_bitcoin | block | beacon`); a disagreement with the bundle's own signed `type` is the hard rejection `subject_type_mismatch` and exits 1. It has no default and is never inferred: **the filename is never consulted**, so renaming a proof can never change a verdict.
+`--expected-hash` is the hash of a file you hold, compared with the proof's `claims.hash` (SPEC.md section 10.2, step 13). Given, even empty, it is a value: a proof with no `claims.hash` of a listed type, a value that is not hex of the type's length, and a hash that differs each fail the row. Without it the row is skipped.
 
-Because the verify behaviour flags (`--remote`, `--silent`, `--json`, `--offline`) are also config keys, an ambient `TRUESTAMP_VERIFY_OFFLINE` (or `[verify] offline = true` in `config.toml`) silently weakens a run that still exits 0. Scripts that need a full check should pass the flags explicitly and read the report, not just the exit code.
+The keyring that governs the signer's key is chosen for the run only, never by the configuration file or an environment variable: `--keyring FILE`, a keyring file you supply; `--no-keyring`, keyless mode, which checks the signature only against the key the proof carries and says so in every report; and otherwise, online, the keyring read from www.truestamp.com, and offline the keys built into this CLI. `--environment` (`prod`, `dev`, `staging` or `test`) names the Truestamp environment whose proofs the run checks, again for the run only. A run under another environment than `prod` needs `--keyring FILE`, `--no-keyring`, or a keyring configured for that environment under `[verify.keyrings]` in `config.toml`, which is used only when `--environment` names it.
+
+`--horizon`, `--esplora` and `--bitcoin-core` read Stellar and Bitcoin from servers you name, each in place of the built-in source of the network its identity read shows; regtest has no built-in source. A flag overrides the environment, which overrides the file. A Bitcoin Core node's RPC credentials come from the configuration file or the environment only, never the command line, and a source URL that carries a user name or password is refused. Several sources for one network, in an order and under a policy (`first`, `at_least N` or `all`), are set in `config.toml` alone:
+
+```toml
+[verify.sources.bitcoin.mainnet]
+policy = "at_least 2"
+sources = [
+  { esplora = "https://blockstream.info/api" },
+  { bitcoin_core = "http://127.0.0.1:8332" },
+]
+```
+
+`--trace FILE` writes the run's trace (SPEC.md section 10.6) to FILE: one row for each recomputed value, its declared value and what it was compared with. No option selects a NIST source or a network pin, and the filename is never consulted.
+
+Because `--offline` and `--remote` are also config keys, an ambient `TRUESTAMP_VERIFY_OFFLINE` (or `[verify] offline = true` in `config.toml`) makes every run offline, and an offline run is never `verified` (exit `7` at best). A script that needs a full check reads the exit code, which is `0` only for `verified`.
 
 ## What gets verified
 
-`truestamp verify` implements Appendix E of the Truestamp whitepaper, the normative specification for a conforming verifier, and is a port of the whitepaper's reference verifier (the whitepaper is not yet published; this README will link it when it is, and until then the report itself is the reference, since every step names what it recomputed and what it compared): on any bundle the two produce reports whose statuses match. Nothing in a bundle is opaque. It carries the subject's claims (or entropy payload), the subject and block metadata maps, and the witness details, and it carries no metadata hash and no block hash, so every value below is recomputed from bytes the bundle carries. The report is five categories in a fixed order:
+`truestamp verify` is an external verifier of SPEC.md in [truestamp/truestamp-verification](https://github.com/truestamp/truestamp-verification), and runs its steps in order (SPEC.md section 10.2):
 
-**Data Integrity**
+- Step 0, **CONFIGURATION**: the environment the run checks, the network pins, the sources and the keyring that governs, before the file is read. Online, each Stellar and Bitcoin source's network is confirmed first: a source that answers for the wrong network is `configuration_error`.
+- Steps 1 to 3, **READ**, **PARSE** and **ENVELOPE**: the file is at most 262,144 octets, is one strict JSON text, and is exactly the envelope `{proof, signature}`. A failure at these steps is a bare rejection: `{code, message, sub_reason}` and no report.
+- Steps 4 to 6, **ENVIRONMENT**, **KEY_BINDING** and **SIGNATURE**: the environment marker against the run's environment, the signer's key against the keyring, and the strict Ed25519 signature over `proof_hash`. A failure here ends the run.
+- Steps 7 to 9, **SHAPE**, **POLICY** and **DERIVE**: the schema, every network against the pins, and every hash, inclusion proof and link recomputed from the values the proof carries.
+- Steps 10 to 12, **CHAIN**, **SOURCES** and **WINDOW**: online, each Stellar and Bitcoin commitment and each entropy observation read from its source, and the submitted-after and submitted-before edges drawn from what was read. Offline, each is a skip.
+- Step 13, **EXPECTED_HASH**: `--expected-hash` against `claims.hash`.
+- Step 14, **VERDICT**: the label.
 
-1. **Hash Comparison**: does `--expected-hash` match the hash the item's claims commit to? Without the flag, an item that commits to a file hash gets a warning that the file was not checked; an item that timestamped its claims content itself (no file hash) gets a warning if you pass a hash anyway. A warning never fails a proof. Any other subject type reports the flag as not applicable.
+Each check gives one row, `pass`, `fail`, `skip`, `warn` or `info`, with a reason code. A skip is a check this run did not make, never a failure: an offline run, an unreachable source or history a source no longer holds leaves an edge absent and fails nothing. The text output names the label, the attribution, the trust root, the environment (beside the verdict when it is not `prod`), keyless mode in words, each edge with the source it was read from in this run, and every row that does not pass. No window is shown for a `failed` run. `--json` writes the report exactly as SPEC.md section 10.5 gives it (`attribution`, `code`, `environment`, `label`, `rows`, `subject_id`, `submitted_after`, `submitted_before`, `trust_root`, `type`, `verified`, `window`), or the bare rejection.
 
-**Cryptographic**
-
-2. **Signing Key**: `public_key` decodes to 32 bytes and yields the derived key id `SHA-256(0x51 || public_key)[0..3]`.
-3. **Subject Data**: the data hash (`0x11` claims / `0x21` entropy), the metadata hash (`0x12` / `0x22`, derived from the carried map) and the composite fingerprint (`0x13` / `0x23`) are recomputed. An integer beyond 2^53 in the data map is canonicalized exactly and reported as not portably verifiable.
-4. **Inclusion Proof**: the compact Merkle proof walked from the subject hash to `block.merkle_root`.
-5. **Block Hash**: the block metadata hash (`0x33`) and the block hash (`0x32`) from the five carried block fields.
-6. **Epoch Proof**: one per commitment, walking the block hash to that entry's `epoch_merkle_root`.
-7. **Proof Signature**: Ed25519 over the fixed-width payload rebuilt from the derived values.
-8. **Key Binding**: the derived key id and `public_key` cross-checked against Truestamp's keyring (`--keyring` file, or the live keyring online). Reported as skipped when no keyring is in hand: a passing signature alone says only that some key signed the bundle.
-9. **Signing Key Event**: when carried, the ledger block that introduced the signing key: its key event names this key, its hash is recomputed from the carried map, and its own commitments are walked and (online) confirmed on chain.
-
-**Structural**
-
-10. **Structure**: `version` is 1, and every hex field is lowercase (a mis-cased field is named and failed as `invalid_hex_encoding`).
-
-**Timing**
-
-11. **Witnesses**: each witness the item's metadata commits to (the head block, and the NIST, Stellar and Bitcoin observations captured at submission) is recomputed from the carried detail and compared to the committed hash; the head block's link to the containing block is checked. A committed witness whose detail was not carried is skipped, an unknown witness name is skipped, a carried detail the metadata does not commit to fails.
-12. **Submission Window**: the subject's embedded time is at or before the block's. Asserted by Truestamp, not externally verified.
-13. **Submitted After** and **Submitted Before**: the two edges of the submission window. Submitted After rests on the witnesses: it passes when the latest witness has been confirmed against its source, and is informational offline. Submitted Before rests on the commitments: it passes on the earliest commitment confirmed on chain, and is informational offline.
-14. **Temporal Info**: the submitted and committed instants, for the reader.
-
-**Blockchain**
-
-15. **Stellar Commitment**: the transaction is fetched from Horizon; its memo must equal the epoch root and its ledger must match.
-16. **Bitcoin Commitment**: the raw transaction and txoutproof are checked for internal consistency (OP_RETURN, txid, partial Merkle tree, header hash), then the header is confirmed against the chain. Only that confirmation can pass the commitment; the offline checks are informational.
-17. **Entropy Source**: an entropy subject, and every carried entropy witness, is re-fetched from its publisher (the NIST Randomness Beacon, Stellar Horizon, or Blockstream) and compared. A match establishes that the record exists, never that it was fresh.
-
-For `block` and `beacon` bundles the block is its own subject: Subject Data and Submission Window emit no rows, and Inclusion Proof, Witnesses and Submitted After report a skip.
-
-`--json` renders the same report with the field names the Truestamp API uses (`passed`, `steps` with `group`, `category`, `status` and `message`, the five counts, `hash_provided`, `expected_hash_provided`, `hash_matched`, `proof_version`, `skipped_external`, `temporal`), plus `verifier` and, for a bundle refused before any step ran, `rejection`.
-
-Two rules run through the whole report and are worth knowing before you read one:
-
-- **A step that could not run is a `skip`, never a `fail`.** An unreachable keyring, a Horizon timeout or a chain with no public API establishes nothing either way, and none of them can make a sound proof report as defective. The verdict says so: any `skip` is a check the run did not perform, not a check that failed.
-- **A `skip` never changes the verdict.** Only a step that ran and disagreed fails a proof.
-
-`--offline` skips every network step (Key Binding, Entropy Source, the commitment confirmations and the key event's). No flag skips the Signing Key step or the Ed25519 Proof Signature check: a signature that does not verify fails the run in every mode, with or without a keyring.
+`--remote` also asks the Truestamp service to verify the proof and prints its verdict on stderr, beside the report and never as a row of it; the exit code is this run's own.
 
 ## Rate limits
 
@@ -513,9 +512,25 @@ The limits themselves are server configuration and can change without a CLI rele
 
 | Code | Meaning |
 | ---- | ------- |
-| `0`  | Success. For `verify`, the proof is valid. |
-| `1`  | Error. Failed verification, network failure, invalid input, or any other runtime error. |
+| `0`  | Success. |
+| `1`  | Error. Network failure, invalid input, or any other runtime error. |
 | `2`  | An unrecovered panic (matching Go's own convention, so `[ $? -eq 2 ]` pipelines keep working). |
+
+`verify` exits with the codes of SPEC.md section 12.2, which `--silent` carries too:
+
+| Code | The run |
+| ---- | ------- |
+| `0`  | label `verified` |
+| `1`  | a runtime error outside verification, such as an invalid command line or an input that cannot be read; no report |
+| `2`  | the verifier stopped on a fault it did not catch, or caught one before steps 0 to 3 passed; no report |
+| `3`  | label `failed` |
+| `4`  | a bare rejection other than `configuration_error` |
+| `5`  | label `unattributed` |
+| `6`  | label `supplied-keyring` |
+| `7`  | label `internally-consistent` |
+| `8`  | `configuration_error` |
+
+Only `0` says that Truestamp signed the proof and that its submission window is established. A script that needs both checks for `0` alone.
 
 `upgrade --check` exits `0` whatever it finds; the answer is the line it prints. Pass `--exit-code` to encode the result in the status instead: `1` an upgrade is available, `2` a network error prevented the check, `3` the latest release is a pre-release and will not auto-install.
 

@@ -8,22 +8,29 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"os"
 	"os/exec"
 	"path/filepath"
-	"sort"
+	"slices"
 	"strings"
-	"sync"
+	"sync/atomic"
 	"testing"
 
+	"github.com/truestamp/truestamp-cli/internal/strictjson"
 	"github.com/truestamp/truestamp-cli/internal/testfixtures"
+	"github.com/truestamp/truestamp-cli/internal/vectorcases"
+	"github.com/truestamp/truestamp-cli/internal/verifier"
 )
 
 // These tests build the actual binary and run it as a subprocess to verify
 // exit codes and output. This is the idiomatic Go approach for testing CLI
-// tools that call os.Exit.
+// tools that call os.Exit. The binary is built with the verifier's two
+// compiled-in addresses, Truestamp's keyring and NIST's Randomness Beacon,
+// set at link time to deadEndpoints, so no test of this package can read
+// either (verify_online_test.go).
 
 var (
 	binaryPath         string
@@ -69,7 +76,7 @@ func runTests(m *testing.M) int {
 	// -buildvcs=false: the binary reports version "dev" in a checkout as
 	// in a copy without VCS metadata, so the once-a-day upgrade notice,
 	// which is off for "dev", never reaches api.github.com from a test.
-	buildArgs := []string{"build", "-buildvcs=false"}
+	buildArgs := []string{"build", "-buildvcs=false", "-ldflags", verifierEndpointFlags(deadEndpoints)}
 	subprocessCoverDir = os.Getenv("TRUESTAMP_COVERDIR")
 	if subprocessCoverDir != "" {
 		buildArgs = append(buildArgs, "-cover", "-coverpkg=./...")
@@ -191,15 +198,6 @@ func findModuleRoot() (string, error) {
 	}
 }
 
-func writeProofFile(t *testing.T, content string) string {
-	t.Helper()
-	path := filepath.Join(t.TempDir(), "proof.json")
-	if err := os.WriteFile(path, []byte(content), 0644); err != nil {
-		t.Fatal(err)
-	}
-	return path
-}
-
 func containsString(s, substr string) bool { return strings.Contains(s, substr) }
 
 // stripANSI removes ANSI escape sequences from output.
@@ -223,105 +221,10 @@ func stripANSI(s string) string {
 	return string(out)
 }
 
-// Fixture paths under the repository's shared testdata/.
+// Fixture paths under the repository's shared testdata/, read by the
+// commands that still parse the earlier bundle layout (inspect).
 func prodPath(name string) string   { return testfixtures.Path(testfixtures.ProdDir, name) }
 func tamperPath(name string) string { return testfixtures.Path(testfixtures.TamperDir, name) }
-func prodKeyring() string           { return prodPath(testfixtures.ProdKeyring) }
-
-// conformanceVectorPath locates the Appendix D.1 bundle.
-func conformanceVectorPath(t *testing.T) string {
-	t.Helper()
-	return testfixtures.Path(testfixtures.WhitepaperDir, testfixtures.AppendixD)
-}
-
-const appendixDClaimsHash = "b47cc0f104b62d4c7c30bcd68fd8e67613e287dc4ad8c310ef10cbadea9c4380"
-
-// cliStep is one row of `verify --json`.
-type cliStep struct {
-	Group    string `json:"group"`
-	Category string `json:"category"`
-	Status   string `json:"status"`
-	Message  string `json:"message"`
-}
-
-// conformanceOutput is the subset of `verify --json` these tests read: the
-// server's field names, plus the rejection object for a refused bundle.
-type conformanceOutput struct {
-	Passed    bool      `json:"passed"`
-	Steps     []cliStep `json:"steps"`
-	Rejection *struct {
-		Code   string `json:"code"`
-		Detail string `json:"detail"`
-		Advice string `json:"advice"`
-	} `json:"rejection"`
-	PassCount            int     `json:"pass_count"`
-	FailedCount          int     `json:"failed_count"`
-	WarnCount            int     `json:"warn_count"`
-	SkipCount            int     `json:"skip_count"`
-	InfoCount            int     `json:"info_count"`
-	HashProvided         *string `json:"hash_provided"`
-	ExpectedHashProvided bool    `json:"expected_hash_provided"`
-	HashMatched          bool    `json:"hash_matched"`
-	ProofVersion         int     `json:"proof_version"`
-	SkippedExternal      bool    `json:"skipped_external"`
-	Verifier             struct {
-		Name    string `json:"name"`
-		Version string `json:"version"`
-	} `json:"verifier"`
-}
-
-// formatCLISteps renders the --json step list for failure output.
-func formatCLISteps(steps []cliStep) string {
-	var b strings.Builder
-	for _, s := range steps {
-		fmt.Fprintf(&b, "  %-6s %-14s %-20s %s\n", s.Status, s.Category, s.Group, s.Message)
-	}
-	return b.String()
-}
-
-// runVerifyJSON runs `verify --json` and returns the parsed report plus the
-// process exit code.
-func runVerifyJSON(t *testing.T, bin, proofPath string, extra ...string) (conformanceOutput, int) {
-	t.Helper()
-	args := append([]string{"verify", proofPath, "--json"}, extra...)
-	cmd := exec.Command(bin, args...)
-	cmd.Env = cleanEnv()
-	raw, err := cmd.Output()
-	code := 0
-	if err != nil {
-		var exitErr *exec.ExitError
-		if !errors.As(err, &exitErr) {
-			t.Fatalf("running %s: %v", bin, err)
-		}
-		code = exitErr.ExitCode()
-	}
-	var out conformanceOutput
-	if jErr := json.Unmarshal(raw, &out); jErr != nil {
-		t.Fatalf("parsing --json output (exit %d): %v\n%s", code, jErr, raw)
-	}
-	return out, code
-}
-
-// stepStatuses returns the set of statuses reported under a group.
-func stepStatuses(out conformanceOutput, group string) map[string]bool {
-	got := map[string]bool{}
-	for _, s := range out.Steps {
-		if s.Group == group {
-			got[s.Status] = true
-		}
-	}
-	return got
-}
-
-// rawIssueText concatenates every step message.
-func rawIssueText(out conformanceOutput) string {
-	var b strings.Builder
-	for _, s := range out.Steps {
-		b.WriteString(s.Message)
-		b.WriteString("\n")
-	}
-	return b.String()
-}
 
 // runCLIText runs the binary and returns stdout+stderr (ANSI stripped) and
 // the exit code.
@@ -341,437 +244,611 @@ func runCLIText(t *testing.T, args ...string) (string, int) {
 	return stripANSI(string(out)), code
 }
 
+// --- the vectors these tests run ---
+
+// vectorCase is the case of the shared vectors named id.
+func vectorCase(t *testing.T, id string) vectorcases.Case {
+	t.Helper()
+	cases, err := vectorcases.Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, c := range cases {
+		if c.ID == id {
+			return c
+		}
+	}
+	t.Fatalf("no case %q", id)
+	return vectorcases.Case{}
+}
+
+// testKeyring is the keyring of the vectors' test environment, which holds
+// VECTOR_KEY (SPEC.md section 13.2).
+func testKeyring() string { return vectorcases.Path("keyring.test.json") }
+
+// soundItem is the sound item proof of the vectors, signed by VECTOR_KEY
+// and marked test.
+func soundItem() string { return vectorcases.Path("positive/item.proof.json") }
+
+// underTest are the options of an offline run of a vector under E_v test
+// with the vectors' keyring: supplied-keyring for a sound proof.
+func underTest() []string {
+	return []string{"--offline", "--environment", "test", "--keyring", testKeyring()}
+}
+
+// verifyReport is the subset of the report of SPEC.md section 10.5 these
+// tests read from --json.
+type verifyReport struct {
+	Attribution     string         `json:"attribution"`
+	Code            *string        `json:"code"`
+	Environment     string         `json:"environment"`
+	Label           string         `json:"label"`
+	Rows            []verifyRow    `json:"rows"`
+	SubjectID       *string        `json:"subject_id"`
+	SubmittedAfter  map[string]any `json:"submitted_after"`
+	SubmittedBefore map[string]any `json:"submitted_before"`
+	TrustRoot       map[string]any `json:"trust_root"`
+	Type            *string        `json:"type"`
+	Verified        bool           `json:"verified"`
+	Window          string         `json:"window"`
+}
+
+// verifyRow is one row of a report.
+type verifyRow struct {
+	Code    *string        `json:"code"`
+	Message string         `json:"message"`
+	Part    *string        `json:"part"`
+	Status  string         `json:"status"`
+	Step    string         `json:"step"`
+	Values  map[string]any `json:"values"`
+}
+
+// String writes a row as "<status> <step> <code> <part>".
+func (r verifyRow) String() string {
+	fields := []string{r.Status, r.Step}
+	if r.Code != nil {
+		fields = append(fields, *r.Code)
+	}
+	if r.Part != nil {
+		fields = append(fields, *r.Part)
+	}
+	return strings.Join(fields, " ")
+}
+
+// parseReport reads a --json report, failing the test for anything else.
+func parseReport(t *testing.T, stdout string) verifyReport {
+	t.Helper()
+	var report verifyReport
+	if err := json.Unmarshal([]byte(stdout), &report); err != nil || report.Label == "" {
+		t.Fatalf("stdout is not a report: %v\n%s", err, stdout)
+	}
+	return report
+}
+
+// rowsWith are the rows of report at step, as their String.
+func rowsWith(report verifyReport, step string) []string {
+	var out []string
+	for _, row := range report.Rows {
+		if row.Step == step {
+			out = append(out, row.String())
+		}
+	}
+	return out
+}
+
 // --- basics ---
 
-func TestCLI_MissingFile_ExitCode1(t *testing.T) {
-	out, code := runCLIText(t, "verify", "/nonexistent/proof.json", "--offline")
-	if code != 1 {
-		t.Errorf("exit %d, want 1\n%s", code, out)
-	}
-}
-
-func TestCLI_Silent_NoOutput(t *testing.T) {
-	for _, args := range [][]string{
-		{"verify", "/nonexistent/proof.json", "--silent"},
-		{"verify", tamperPath("tamper-claims.json"), "--offline", "--silent"},
-		{"verify", tamperPath("old-layout.json"), "--offline", "--silent"},
-	} {
-		out, code := runCLIText(t, args...)
-		if code != 1 || out != "" {
-			t.Errorf("%v: exit %d output %q", args, code, out)
-		}
-	}
-	out, code := runCLIText(t, "verify", prodPath(testfixtures.ProdComplete), "--offline", "--silent")
-	if code != 0 || out != "" {
-		t.Errorf("silent pass: exit %d output %q", code, out)
-	}
-}
-
+// A run of verify that names no proof, with standard input not a pipe (no
+// argument, an empty one, --file= or --url=), is a runtime error, exit 1
+// (SPEC.md section 12.2), never 0: nothing on stdout and the usage on
+// stderr, and nothing at all under --silent. verify --help is exit 0, the
+// usage on stdout. Mutant killed: runVerify returning cmd.Help() for such
+// a run (exit 0, the help on stdout, under --silent too).
 func TestCLI_NoArgs_ShowsHelp(t *testing.T) {
-	out, code := runCLIText(t, "verify")
-	if code != 0 || !strings.Contains(out, "Usage:") {
-		t.Errorf("exit %d\n%s", code, out)
+	for _, named := range [][]string{{}, {""}, {"--file="}, {"--url="}} {
+		for _, silent := range []bool{false, true} {
+			args := slices.Clone(named)
+			if silent {
+				args = append(args, "--silent")
+			}
+			stdout, stderr, code := verifyCLI(t, binaryPath, nil, nil, args...)
+			switch {
+			case code != 1 || stdout != "":
+				t.Errorf("verify %q: exit %d, stdout %q", args, code, stdout)
+			case silent && stderr != "":
+				t.Errorf("verify %q: stderr %q", args, stderr)
+			case !silent && (!strings.Contains(stderr, "no proof was given") || !strings.Contains(stderr, "Usage:")):
+				t.Errorf("verify %q: stderr %q", args, stderr)
+			}
+		}
+	}
+	stdout, _, code := verifyCLI(t, binaryPath, nil, nil, "--help")
+	if code != 0 || !strings.Contains(stdout, "Usage:") {
+		t.Errorf("verify --help: exit %d\n%s", code, stdout)
 	}
 }
 
+// A report or a bare rejection that cannot be written to standard output,
+// a descriptor open only for reading, is a runtime error, exit 1, said on
+// stderr, as JSON and as text, never the code of the label it was not
+// given. Mutant killed: writeVerification discarding the write's error
+// (exit 6 for the sound item proof, and 4 for the bare rejection).
+func TestVerify_AnUnwritableReportIsARuntimeError(t *testing.T) {
+	readOnly := filepath.Join(t.TempDir(), "read-only")
+	if err := os.WriteFile(readOnly, nil, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	empty := filepath.Join(t.TempDir(), "empty.json")
+	if err := os.WriteFile(empty, nil, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	for _, input := range []string{soundItem(), empty} {
+		for _, extra := range [][]string{{"--json"}, {}} {
+			stdout, err := os.Open(readOnly)
+			if err != nil {
+				t.Fatal(err)
+			}
+			args := append(append([]string{input}, extra...), underTest()...)
+			stderr, code := verifyCLITo(t, stdout, binaryPath, nil, nil, args...)
+			_ = stdout.Close()
+			if code != 1 || !strings.Contains(stderr, "the report cannot be written to standard output") {
+				t.Errorf("verify %q: exit %d, stderr %q", args, code, stderr)
+			}
+		}
+	}
+}
+
+// --silent and --json together are refused before anything runs, exit 1.
+// Mutant killed: config.Load without its check of the pair (the run is
+// supplied-keyring, exit 6).
 func TestCLI_SilentAndJSON_Exclusive(t *testing.T) {
-	out, code := runCLIText(t, "verify", prodPath(testfixtures.ProdComplete), "--silent", "--json")
-	if code == 0 || !strings.Contains(out, "mutually exclusive") {
-		t.Errorf("exit %d\n%s", code, out)
+	_, stderr, code := verifyCLI(t, binaryPath, nil, nil, append([]string{soundItem(), "--silent", "--json"}, underTest()...)...)
+	if code != 1 || !strings.Contains(stderr, "mutually exclusive") {
+		t.Errorf("exit %d\n%s", code, stderr)
 	}
 }
 
-// --- the production bundles, offline ---
+// --- exit codes (SPEC.md section 12.2) ---
 
-func TestCLI_Verify_ProductionOffline_ReferenceShape(t *testing.T) {
-	out, code := runCLIText(t, "verify", prodPath(testfixtures.ProdComplete), "--offline", "--keyring", prodKeyring())
-	if code != 0 {
-		t.Fatalf("exit %d\n%s", code, out)
-	}
-	for _, want := range []string{
-		"VERIFICATION REPORT",
-		"Data Integrity", "Cryptographic", "Structural", "Timing", "Blockchain",
-		"[PASS]  Signing Key          public key valid, key_id 3c19f776",
-		"[PASS]  Key Binding          key_id 3c19f776 found in the pinned keyring (sequence 0, active true)",
-		"[SKIP]  Stellar Commitment   not checked offline",
-		"21 passed   0 failed   0 warned   6 skipped   8 info",
-		"file hash provided: no",
-		"VERDICT: PASSED",
-		"Any `skip` above is a check this",
-		"keyring:      pinned ",
-		"mode:         offline",
-	} {
-		if !strings.Contains(out, want) {
-			t.Errorf("output lacks %q\n%s", want, out)
-		}
-	}
-}
-
-func TestCLI_Verify_ProductionOffline_JSONShape(t *testing.T) {
-	out, code := runVerifyJSON(t, binaryPath, prodPath(testfixtures.ProdComplete), "--offline", "--keyring", prodKeyring())
-	if code != 0 || !out.Passed {
-		t.Fatalf("exit %d passed %v\n%s", code, out.Passed, formatCLISteps(out.Steps))
-	}
-	if out.PassCount != 21 || out.FailedCount != 0 || out.WarnCount != 0 || out.SkipCount != 6 || out.InfoCount != 8 {
-		t.Errorf("counts = %d/%d/%d/%d/%d", out.PassCount, out.FailedCount, out.WarnCount, out.SkipCount, out.InfoCount)
-	}
-	if out.HashProvided != nil || out.ExpectedHashProvided || out.HashMatched {
-		t.Errorf("hash fields: %v %v %v", out.HashProvided, out.ExpectedHashProvided, out.HashMatched)
-	}
-	if out.ProofVersion != 1 || !out.SkippedExternal || out.Verifier.Name != "truestamp-cli" {
-		t.Errorf("proof_version=%d skipped_external=%v verifier=%+v", out.ProofVersion, out.SkippedExternal, out.Verifier)
-	}
-	if len(out.Steps) != 35 {
-		t.Errorf("%d steps, want 35\n%s", len(out.Steps), formatCLISteps(out.Steps))
-	}
-	// Category display order.
-	rank := map[string]int{"data_integrity": 0, "cryptographic": 1, "structural": 2, "timing": 3, "blockchain": 4}
-	last := -1
-	for _, s := range out.Steps {
-		if rank[s.Category] < last {
-			t.Errorf("steps are not in category order at %s/%s", s.Category, s.Group)
-		}
-		last = rank[s.Category]
-	}
-}
-
-func TestCLI_Verify_AllThreeVariantsAndCBOR(t *testing.T) {
-	for _, name := range []string{testfixtures.ProdComplete, testfixtures.ProdCompact, testfixtures.ProdPartial, testfixtures.ProdCBOR} {
-		out, code := runVerifyJSON(t, binaryPath, prodPath(name), "--offline", "--keyring", prodKeyring())
-		if code != 0 || !out.Passed {
-			t.Errorf("%s: exit %d passed %v\n%s", name, code, out.Passed, formatCLISteps(out.Steps))
-		}
-	}
-}
-
-func TestCLI_Verify_NoKeyring_KeyBindingSkips(t *testing.T) {
-	out, code := runVerifyJSON(t, binaryPath, prodPath(testfixtures.ProdComplete), "--offline")
-	if code != 0 {
-		t.Fatalf("exit %d", code)
-	}
-	if st := stepStatuses(out, "Key Binding"); !st["skip"] || st["pass"] {
-		t.Errorf("Key Binding = %v", st)
-	}
-	out, code = runVerifyJSON(t, binaryPath, prodPath(testfixtures.ProdComplete), "--offline", "--keyring", "/nonexistent/keyring.json")
-	if code != 0 {
-		t.Fatalf("exit %d", code)
-	}
-	if st := stepStatuses(out, "Key Binding"); !st["skip"] || !strings.Contains(rawIssueText(out), "could not read") {
-		t.Errorf("unreadable keyring: %v", st)
-	}
-}
-
-func TestCLI_Verify_Stdin(t *testing.T) {
-	data, _ := os.ReadFile(prodPath(testfixtures.ProdComplete))
-	cmd := exec.Command(binaryPath, "verify", "--offline", "--json")
-	cmd.Env = cleanEnv()
-	cmd.Stdin = bytes.NewReader(data)
-	raw, err := cmd.Output()
-	if err != nil {
-		t.Fatalf("stdin verify failed: %v\n%s", err, raw)
-	}
-	var out conformanceOutput
-	if err := json.Unmarshal(raw, &out); err != nil || !out.Passed {
-		t.Errorf("stdin: %v passed=%v", err, out.Passed)
-	}
-}
-
-// --- rejections ---
-
-func TestCLI_Verify_Rejection_Text(t *testing.T) {
-	out, code := runCLIText(t, "verify", tamperPath("old-layout.json"), "--offline")
-	if code != 1 {
-		t.Errorf("exit %d, want 1", code)
-	}
-	for _, want := range []string{"REJECTED: missing_subject", "subject is not a map", "not a well-formed proof bundle"} {
-		if !strings.Contains(out, want) {
-			t.Errorf("output lacks %q\n%s", want, out)
-		}
-	}
-	if strings.Contains(out, "VERIFICATION REPORT") {
-		t.Error("a rejection must not render a report")
-	}
-	out, code = runCLIText(t, "verify", tamperPath("tamper-type.json"), "--offline")
-	if code != 1 || !strings.Contains(out, "REJECTED: unexpected_subject_fields_for_block_like") {
-		t.Errorf("exit %d\n%s", code, out)
-	}
-}
-
-func TestCLI_Verify_Rejection_JSON(t *testing.T) {
-	out, code := runVerifyJSON(t, binaryPath, tamperPath("old-layout.json"), "--offline")
-	if code != 1 || out.Passed || out.Rejection == nil || out.Rejection.Code != "missing_subject" {
-		t.Errorf("exit %d passed %v rejection %+v", code, out.Passed, out.Rejection)
-	}
-	if len(out.Steps) != 0 {
-		t.Errorf("a rejection carries no steps, got %d", len(out.Steps))
-	}
-	if !strings.Contains(out.Rejection.Advice, "not a well-formed proof bundle") {
-		t.Errorf("advice = %q", out.Rejection.Advice)
-	}
-}
-
-func TestCLI_Verify_TypeAssertion(t *testing.T) {
-	out, code := runVerifyJSON(t, binaryPath, prodPath(testfixtures.ProdComplete), "--offline", "--type", "block")
-	if code != 1 || out.Rejection == nil || out.Rejection.Code != "subject_type_mismatch" {
-		t.Errorf("mismatch: exit %d rejection %+v", code, out.Rejection)
-	}
-	out, code = runVerifyJSON(t, binaryPath, prodPath(testfixtures.ProdComplete), "--offline", "--type", "item")
-	if code != 0 || !out.Passed {
-		t.Errorf("match: exit %d passed %v", code, out.Passed)
-	}
-	text, code := runCLIText(t, "verify", prodPath(testfixtures.ProdComplete), "--offline", "--type", "entropy")
-	if code == 0 || !strings.Contains(text, "--type must be one of") {
-		t.Errorf("bare entropy accepted: exit %d\n%s", code, text)
-	}
-}
-
-// TestCLI_Verify_FilenameNeverAffectsVerdict pins Appendix E.24: the type
-// is read from the bundle's signed `type`, never from the filename.
-func TestCLI_Verify_FilenameNeverAffectsVerdict(t *testing.T) {
-	data, _ := os.ReadFile(prodPath(testfixtures.ProdComplete))
-	path := filepath.Join(t.TempDir(), "truestamp-beacon-019db753-4188-7692-b487-9f8c5b805503.json")
-	if err := os.WriteFile(path, data, 0644); err != nil {
+// Each exit code that an offline run can give, through the built binary,
+// with --json, as text and with --silent, which carries the same code and
+// prints nothing; the online endings 0 and 7, and 2, are in
+// verify_online_test.go. Mutants killed: --silent exiting 1 for every
+// ending but verified (errSilentFail); a configuration_error taken as a
+// bare rejection (exit 4).
+func TestVerify_ExitCodes(t *testing.T) {
+	keyringDir := t.TempDir()
+	badKeyring := filepath.Join(keyringDir, "bad.json")
+	if err := os.WriteFile(badKeyring, []byte(`{"keys":[],"keys":[],"version":"1.0"}`), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	out, code := runVerifyJSON(t, binaryPath, path, "--offline")
-	if code != 0 || !out.Passed {
-		t.Errorf("renamed bundle: exit %d passed %v", code, out.Passed)
-	}
-}
-
-// --- expected hash (E.7) ---
-
-func TestCLI_Verify_ExpectedHash(t *testing.T) {
-	path := conformanceVectorPath(t)
-	out, code := runVerifyJSON(t, binaryPath, path, "--offline", "--expected-hash", strings.ToUpper(appendixDClaimsHash))
-	if code != 0 || !out.Passed || !out.HashMatched || !out.ExpectedHashProvided || out.HashProvided == nil || *out.HashProvided != appendixDClaimsHash {
-		t.Errorf("match: exit %d passed %v matched %v provided %v", code, out.Passed, out.HashMatched, out.HashProvided)
-	}
-	if out.PassCount != 22 || out.SkipCount != 7 || out.InfoCount != 9 || out.WarnCount != 0 {
-		t.Errorf("D.4 counts = %d/%d/%d/%d", out.PassCount, out.WarnCount, out.SkipCount, out.InfoCount)
-	}
-
-	// The retired --hash alias is gone (kb/command-tree.md R13: one word,
-	// one meaning, no flag aliases). It must be an unknown-flag error, not
-	// silently accepted and not silently ignored. Run it raw rather than
-	// through runVerifyJSON, which requires parseable JSON on stdout.
-	raw, rawErr := exec.Command(binaryPath, "verify", path,
-		"--offline", "--hash", appendixDClaimsHash).CombinedOutput()
-	if rawErr == nil {
-		t.Error("--hash was removed as an alias of --expected-hash but still succeeds")
-	}
-	if !strings.Contains(string(raw), "unknown flag") {
-		t.Errorf("--hash should be an unknown flag, got: %s", raw)
-	}
-
-	// A wrong hash fails only the Hash Comparison row and exits 1.
-	out, code = runVerifyJSON(t, binaryPath, path, "--offline", "--expected-hash", strings.Repeat("ab", 32))
-	if code != 1 || out.Passed || out.HashMatched || out.FailedCount != 1 {
-		t.Errorf("mismatch: exit %d passed %v matched %v failed %d", code, out.Passed, out.HashMatched, out.FailedCount)
-	}
-	if st := stepStatuses(out, "Hash Comparison"); !st["fail"] {
-		t.Errorf("Hash Comparison = %v", st)
-	}
-
-	// No hash on an item that commits to one: warn, never fail.
-	out, code = runVerifyJSON(t, binaryPath, path, "--offline")
-	if code != 0 || !out.Passed || out.WarnCount != 1 {
-		t.Errorf("no hash: exit %d passed %v warns %d", code, out.Passed, out.WarnCount)
-	}
-
-	// A hash for a hashless item warns and never fails.
-	out, code = runVerifyJSON(t, binaryPath, prodPath(testfixtures.ProdComplete), "--offline", "--expected-hash", appendixDClaimsHash)
-	if code != 0 || !out.Passed || out.HashMatched || out.HashProvided != nil {
-		t.Errorf("hashless item: exit %d passed %v matched %v provided %v", code, out.Passed, out.HashMatched, out.HashProvided)
-	}
-	if st := stepStatuses(out, "Hash Comparison"); !st["warn"] {
-		t.Errorf("Hash Comparison for a hashless item = %v", st)
-	}
-
-	// Malformed arguments are refused before anything runs.
-	for _, bad := range []string{"xyz", "abc"} {
-		text, code := runCLIText(t, "verify", path, "--offline", "--expected-hash", bad)
-		if code == 0 || !strings.Contains(text, "--expected-hash") {
-			t.Errorf("%q accepted: exit %d\n%s", bad, code, text)
-		}
-	}
-}
-
-// --- tamper and flags ---
-
-func TestCLI_Verify_Tamper_ExitCode1(t *testing.T) {
-	out, code := runCLIText(t, "verify", tamperPath("tamper-claims.json"), "--offline", "--keyring", prodKeyring())
-	if code != 1 || !strings.Contains(out, "VERDICT: FAILED") || !strings.Contains(out, "[FAIL]  Proof Signature") {
-		t.Errorf("exit %d\n%s", code, out)
-	}
-}
-
-// The flag, env var and config key that once skipped the signature check.
-// They are assembled from pieces so that no file under cmd/ or internal/
-// spells them: a grep for the old name finds nothing, and these tests
-// still hand every spelling to the binary.
-var (
-	retiredSignatureFlag   = "--skip" + "-signatures"
-	retiredSignatureEnv    = "TRUESTAMP_VERIFY_SKIP" + "_SIGNATURES"
-	retiredSignatureConfig = "skip" + "_signatures"
-)
-
-// TestCLI_CopiedKeyInvalidSignature_FailsEverywhere runs a bundle carrying
-// Truestamp's production public key, self-consistent hashes and a
-// signature that does not verify. It fails Proof Signature and exits 1
-// with and without a pinned keyring, and with the retired env var or
-// config key set: nothing skips the signature check.
-func TestCLI_CopiedKeyInvalidSignature_FailsEverywhere(t *testing.T) {
-	fixture := tamperPath(testfixtures.CopiedKeyInvalidSignature)
-	configPath := filepath.Join(t.TempDir(), "config.toml")
-	if err := os.WriteFile(configPath, []byte("[verify]\n"+retiredSignatureConfig+" = true\n"), 0o644); err != nil {
-		t.Fatal(err)
-	}
-	withKeyring := []string{"--keyring", prodKeyring()}
-	cases := []struct {
-		name    string
-		env     []string
-		args    []string
-		keyring bool
+	for _, c := range []struct {
+		name  string
+		args  []string
+		code  int
+		label string
 	}{
-		{"offline", nil, nil, false},
-		{"offline, pinned keyring", nil, withKeyring, true},
-		{"env var", []string{retiredSignatureEnv + "=true"}, nil, false},
-		{"env var, pinned keyring", []string{retiredSignatureEnv + "=true"}, withKeyring, true},
-		{"config key", nil, []string{"--config", configPath}, false},
-		{"config key, pinned keyring", nil, append([]string{"--config", configPath}, withKeyring...), true},
-	}
-	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			args := append([]string{"verify", fixture, "--offline", "--json"}, tc.args...)
-			cmd := exec.Command(binaryPath, args...)
-			cmd.Env = append(cleanEnv(), tc.env...)
-			raw, err := cmd.Output()
-			code := 0
-			var exitErr *exec.ExitError
-			if errors.As(err, &exitErr) {
-				code = exitErr.ExitCode()
-			} else if err != nil {
-				t.Fatalf("running: %v", err)
+		{"label failed", append([]string{vectorCase(t, "key_binding-failed-other_key").ProofPath()}, underTest()...), 3, "failed"},
+		{"label unattributed", []string{soundItem(), "--offline", "--environment", "test", "--no-keyring"}, 5, "unattributed"},
+		{"label supplied-keyring", append([]string{soundItem()}, underTest()...), 6, "supplied-keyring"},
+		{"a bare rejection", append([]string{vectorCase(t, "envelope-public_key-padded").ProofPath()}, underTest()...), 4, ""},
+		{"configuration_error, no keyring source", []string{soundItem(), "--offline", "--environment", "test"}, 8, ""},
+		{"configuration_error, a refused keyring", []string{soundItem(), "--offline", "--environment", "test", "--keyring", badKeyring}, 8, ""},
+		{"an input that cannot be read", []string{filepath.Join(keyringDir, "missing.json"), "--offline"}, 1, ""},
+		{"an invalid command line", []string{soundItem(), "--offline", "--environment", "production"}, 1, ""},
+		{"a keyring file that cannot be read", []string{soundItem(), "--offline", "--environment", "test", "--keyring", keyringDir}, 1, ""},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			stdout, stderr, code := verifyCLI(t, binaryPath, nil, nil, append(c.args, "--json")...)
+			if code != c.code {
+				t.Fatalf("--json: exit %d, want %d\n%s\n%s", code, c.code, stdout, stderr)
 			}
-			var out conformanceOutput
-			if jErr := json.Unmarshal(raw, &out); jErr != nil {
-				t.Fatalf("parsing --json output (exit %d): %v\n%s", code, jErr, raw)
-			}
-			if code != 1 || out.Passed || out.FailedCount != 1 {
-				t.Errorf("exit %d passed %v failed_count %d, want exit 1, not passed, one failure\n%s",
-					code, out.Passed, out.FailedCount, formatCLISteps(out.Steps))
-			}
-			for _, s := range out.Steps {
-				if s.Group == "Proof Signature" && (s.Status != "fail" || s.Message != "proof signature invalid (Ed25519)") {
-					t.Errorf("Proof Signature = %s %q, want fail \"proof signature invalid (Ed25519)\"", s.Status, s.Message)
+			switch {
+			case c.label != "":
+				if report := parseReport(t, stdout); report.Label != c.label {
+					t.Errorf("label %q, want %q", report.Label, c.label)
+				}
+			case c.code == 4 || c.code == 8:
+				var rejection map[string]any
+				if err := json.Unmarshal([]byte(stdout), &rejection); err != nil || rejection["code"] == nil || rejection["rows"] != nil {
+					t.Errorf("stdout is not a bare rejection: %v\n%s", err, stdout)
+				}
+			default:
+				if stdout != "" || stderr == "" {
+					t.Errorf("a runtime error wrote stdout %q, stderr %q", stdout, stderr)
 				}
 			}
-			if st := stepStatuses(out, "Proof Signature"); !st["fail"] {
-				t.Errorf("no failing Proof Signature row\n%s", formatCLISteps(out.Steps))
+			text, _, code := verifyCLI(t, binaryPath, nil, nil, c.args...)
+			if code != c.code || (c.code != 1 && text == "") {
+				t.Errorf("text: exit %d, want %d, stdout %q", code, c.code, text)
 			}
-			// A pinned keyring binds the copied key; the run still fails.
-			if st := stepStatuses(out, "Key Binding"); st["pass"] != tc.keyring {
-				t.Errorf("Key Binding = %v, pass wanted %v", st, tc.keyring)
+			stdout, stderr, code = verifyCLI(t, binaryPath, nil, nil, append(c.args, "--silent")...)
+			if code != c.code || stdout != "" || stderr != "" {
+				t.Errorf("--silent: exit %d, want %d, stdout %q, stderr %q", code, c.code, stdout, stderr)
 			}
 		})
 	}
+}
 
-	text, code := runCLIText(t, "verify", fixture, "--offline", "--keyring", prodKeyring())
-	if code != 1 || !strings.Contains(text, "VERDICT: FAILED") || strings.Contains(text, "PASSED") ||
-		!strings.Contains(text, "[FAIL]  Proof Signature      proof signature invalid (Ed25519)") {
-		t.Errorf("exit %d\n%s", code, text)
-	}
+// --- --json is exactly the report ---
 
-	// The flag itself is gone: cobra refuses it before anything runs.
-	text, code = runCLIText(t, "verify", fixture, "--offline", retiredSignatureFlag)
-	if code == 0 || !strings.Contains(text, "unknown flag: "+retiredSignatureFlag) {
-		t.Errorf("the retired flag was accepted: exit %d\n%s", code, text)
-	}
-	if help, _ := runCLIText(t, "verify", "--help"); strings.Contains(help, retiredSignatureFlag) {
-		t.Errorf("verify --help still offers %s\n%s", retiredSignatureFlag, help)
+// --json writes exactly the report of SPEC.md section 10.5 as
+// internal/verifier encodes it, JCS and one line feed, for a report and
+// for a bare rejection: the command's stdout equals the bytes of the same
+// run made in this process. Mutant killed: the report written through
+// encoding/json with indentation.
+func TestVerify_JSONIsExactlyTheReport(t *testing.T) {
+	for _, c := range []struct {
+		path string
+		cfg  verifier.Config
+	}{
+		{soundItem(), offlineTestConfig(t)},
+		{vectorCase(t, "envelope-public_key-padded").ProofPath(), offlineTestConfig(t)},
+	} {
+		outcome := verifier.Verify(c.cfg, func() ([]byte, error) { return strictjson.ReadFile(c.path) })
+		var want []byte
+		var err error
+		if outcome.Report != nil {
+			want, err = outcome.Report.Encode()
+		} else {
+			want, err = outcome.Rejection.Encode()
+		}
+		if err != nil {
+			t.Fatal(err)
+		}
+		stdout, _, _ := verifyCLI(t, binaryPath, nil, nil, append([]string{c.path, "--json"}, underTest()...)...)
+		if stdout != string(want)+"\n" {
+			t.Errorf("%s: --json is not exactly the report:\n got %s\nwant %s", c.path, stdout, want)
+		}
 	}
 }
 
+// offlineTestConfig is the configuration underTest gives: an offline run
+// under E_v test with the vectors' keyring.
+func offlineTestConfig(t *testing.T) verifier.Config {
+	t.Helper()
+	cfg, err := verifier.NewConfig("test")
+	if err != nil {
+		t.Fatal(err)
+	}
+	cfg.Keyring = verifier.KeyringSource{Kind: verifier.SourceFile, Path: testKeyring()}
+	return cfg
+}
+
+// --- inputs read through J1 (SPEC.md section 10.1) ---
+
+// A file, stdin and --url are each read to at most MAX_READ_OCTETS + 1
+// octets, so one over MAX_READ_OCTETS is the bare rejection
+// input_too_large (exit 4), never an error of its own (exit 1); and an
+// empty or blank input is malformed_json, sub_reason syntax (exit 4), from
+// a file and from stdin alike. Mutants killed: the URL read capped as
+// DownloadBytesCtx caps it (exit 1, "exceeded"); an empty input refused
+// as no proof to verify (exit 1).
+func TestVerify_InputsAreReadThroughJ1(t *testing.T) {
+	big := append([]byte(`{"pad":"`), bytes.Repeat([]byte("a"), strictjson.MaxReadOctets)...)
+	big = append(big, `"}`...)
+	var served atomic.Int32
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		served.Add(1)
+		_, _ = w.Write(big)
+	}))
+	defer srv.Close()
+	bigFile := filepath.Join(t.TempDir(), "big.json")
+	blankFile := filepath.Join(t.TempDir(), "blank.json")
+	if err := os.WriteFile(bigFile, big, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(blankFile, []byte(" \n\t"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	for _, c := range []struct {
+		name  string
+		stdin []byte
+		args  []string
+		code  string
+		sub   string
+	}{
+		{"a file over the bound", nil, []string{bigFile}, "input_too_large", ""},
+		{"stdin over the bound", big, []string{"-"}, "input_too_large", ""},
+		{"a URL over the bound", nil, []string{"--url", srv.URL + "/proof.json"}, "input_too_large", ""},
+		{"an empty stdin", []byte{}, []string{"-"}, "malformed_json", "syntax"},
+		{"a blank file", nil, []string{blankFile}, "malformed_json", "syntax"},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			var stdin io.Reader
+			if c.stdin != nil {
+				stdin = bytes.NewReader(c.stdin)
+			}
+			stdout, stderr, code := verifyCLI(t, binaryPath, nil, stdin, append(c.args, append(underTest(), "--json")...)...)
+			var rejection map[string]string
+			if err := json.Unmarshal([]byte(stdout), &rejection); err != nil || code != 4 || rejection["code"] != c.code || rejection["sub_reason"] != c.sub {
+				t.Errorf("exit %d, %v, stdout %s, stderr %s; want exit 4, %s %s", code, err, stdout, stderr, c.code, c.sub)
+			}
+		})
+	}
+	if served.Load() != 1 {
+		t.Errorf("the URL was read %d times, want 1", served.Load())
+	}
+}
+
+// --- --expected-hash, as given ---
+
+// --expected-hash is a value given whenever the flag is, "" included: the
+// run's EXPECTED_HASH row is then fail expected_hash_mismatch at
+// /subject/claims/hash, and with no flag it is skip
+// expected_hash_not_checked; an uppercase hash of the claims matches, and
+// a value with a space is a value that is not hex, the row's failure, not
+// exit 1 (SPEC.md section 10.2, step 13). Mutants killed: the command
+// reading the flag's value instead of its Changed state (the empty value
+// is not given, so the row skips); the value trimmed before the run (the
+// spaced hash matches).
+func TestVerify_ExpectedHashAsGiven(t *testing.T) {
+	claimsHash := "0be5be687aa93ca2f437e810631742601bd9534be176678c7750f295ecac58e2"
+	proof := vectorcases.Path("positive/item-genesis-witness.proof.json")
+	for _, c := range []struct {
+		name  string
+		extra []string
+		want  string
+		exit  int
+	}{
+		{"no flag", nil, "skip EXPECTED_HASH expected_hash_not_checked", 6},
+		{"given empty", []string{"--expected-hash", ""}, "fail EXPECTED_HASH expected_hash_mismatch /subject/claims/hash", 3},
+		{"given empty, with =", []string{"--expected-hash="}, "fail EXPECTED_HASH expected_hash_mismatch /subject/claims/hash", 3},
+		{"the claims hash in uppercase", []string{"--expected-hash", strings.ToUpper(claimsHash)}, "pass EXPECTED_HASH /subject/claims/hash", 6},
+		{"the claims hash with a space", []string{"--expected-hash", " " + claimsHash}, "fail EXPECTED_HASH expected_hash_mismatch /subject/claims/hash", 3},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			stdout, stderr, code := verifyCLI(t, binaryPath, nil, nil, append(append([]string{proof, "--json"}, underTest()...), c.extra...)...)
+			report := parseReport(t, stdout)
+			if got := rowsWith(report, "EXPECTED_HASH"); code != c.exit || len(got) != 1 || got[0] != c.want {
+				t.Errorf("exit %d, EXPECTED_HASH %q, want exit %d and %q\n%s", code, got, c.exit, c.want, stderr)
+			}
+		})
+	}
+}
+
+// --- a refused keyring file ---
+
+// A keyring file the strict reader refuses (a duplicate name, one over
+// MAX_READ_OCTETS, one past MAX_DEPTH) is configuration_error, exit 8,
+// and never lets a run pass key binding (SPEC.md section 10.2, step 0).
+// Mutant killed: an oversized keyring file taken as one that cannot be
+// read (exit 1).
+func TestVerify_ARefusedKeyringFileIsConfigurationError(t *testing.T) {
+	dir := t.TempDir()
+	files := map[string][]byte{
+		"duplicate.json": []byte(`{"keys":[],"version":"1.0","version":"1.0"}`),
+		"oversized.json": append([]byte(`{"keys":[],"version":"1.0","pad":"`), append(bytes.Repeat([]byte("a"), strictjson.MaxReadOctets), `"}`...)...),
+		"deep.json":      []byte(`{"keys":[],"version":"1.0","deep":` + strings.Repeat("[", 40) + strings.Repeat("]", 40) + `}`),
+	}
+	for name, data := range files {
+		t.Run(name, func(t *testing.T) {
+			path := filepath.Join(dir, name)
+			if err := os.WriteFile(path, data, 0o600); err != nil {
+				t.Fatal(err)
+			}
+			stdout, _, code := verifyCLI(t, binaryPath, nil, nil, soundItem(), "--offline", "--environment", "test", "--keyring", path, "--json")
+			var rejection map[string]string
+			if err := json.Unmarshal([]byte(stdout), &rejection); err != nil || code != 8 || rejection["code"] != "configuration_error" ||
+				!strings.Contains(rejection["message"], "fails a load check") {
+				t.Errorf("exit %d, %v: %s", code, err, stdout)
+			}
+		})
+	}
+}
+
+// --- --type is retired ---
+
+// verify has no --type: the flag is unknown (exit 1) and no help names
+// it. Mutant killed: --type registered again.
+func TestVerify_NoTypeFlag(t *testing.T) {
+	_, stderr, code := verifyCLI(t, binaryPath, nil, nil, append([]string{soundItem(), "--type", "item"}, underTest()...)...)
+	if code != 1 || !strings.Contains(stderr, "unknown flag: --type") {
+		t.Errorf("exit %d\n%s", code, stderr)
+	}
+	if help := helpText(t, "verify"); strings.Contains(help, "--type") {
+		t.Errorf("verify --help names --type\n%s", help)
+	}
+}
+
+// --- the human output ---
+
+// The human output of a supplied-keyring report names the label and what
+// it says, the attribution, the trust root with its digest and location,
+// the type and subject id, the absent edges with the codes of the rows
+// that could have given them, and every row that does not pass; and,
+// under a non-production E_v, the environment beside the verdict.
+// Mutant killed: the environment left off the verdict line.
+func TestVerify_HumanOutput(t *testing.T) {
+	stdout, _, code := verifyCLI(t, binaryPath, nil, nil, append([]string{soundItem()}, underTest()...)...)
+	if code != 6 {
+		t.Fatalf("exit %d\n%s", code, stdout)
+	}
+	for _, want := range []string{
+		"Verdict:      supplied-keyring (environment test, not production)\n",
+		"The proof is intact and signed by a key in the keyring the operator supplied; this says nothing about Truestamp.",
+		"Attribution:  keyring:",
+		"Trust root:   supplied_keyring, from " + testKeyring() + ", SHA-256 ",
+		"Environment:  test, not production",
+		"Type:         item\n",
+		"Submitted before: not established in this run (offline at /commitments/bitcoin, offline at /commitments/stellar)\n",
+		"  skip CHAIN offline at /commitments/bitcoin: ",
+	} {
+		if !strings.Contains(stdout, want) {
+			t.Errorf("the output lacks %q\n%s", want, stdout)
+		}
+	}
+	if strings.Contains(stdout, "\n  pass ") || strings.Contains(stdout, "Keyless") {
+		t.Errorf("the output lists a pass row or says keyless\n%s", stdout)
+	}
+}
+
+// A staging proof (SPEC.md section 6.4), marked staging and signed by
+// VECTOR_KEY: under the default E_v prod it fails environment_mismatch
+// (exit 3) with the message naming staging and the offline command that
+// works; under --environment staging with no keyring source it is
+// configuration_error (exit 8); and under --environment staging
+// --no-keyring it is unattributed (exit 5), with the environment beside
+// the verdict and keyless mode in words. Mutants killed: the keyless line
+// dropped; the environment left off the verdict line.
+func TestVerify_AStagingProof(t *testing.T) {
+	path := writeTestProof(t, testProofOptions{seed: vectorSeed, environment: "staging", stellar: "testnet", bitcoin: "regtest"})
+
+	stdout, _, code := verifyCLI(t, binaryPath, nil, nil, path, "--offline", "--json")
+	report := parseReport(t, stdout)
+	if code != 3 || report.Code == nil || *report.Code != "environment_mismatch" || report.Environment != "prod" {
+		t.Fatalf("under prod: exit %d, %+v", code, report)
+	}
+	if message := report.Rows[4].Message; !strings.Contains(message, "Truestamp's staging environment") ||
+		!strings.Contains(message, "run again offline with --environment staging and --keyring FILE") {
+		t.Errorf("the ENVIRONMENT message: %q", message)
+	}
+
+	_, _, code = verifyCLI(t, binaryPath, nil, nil, path, "--offline", "--environment", "staging")
+	if code != 8 {
+		t.Errorf("under staging with no keyring source: exit %d, want 8", code)
+	}
+
+	stdout, _, code = verifyCLI(t, binaryPath, nil, nil, path, "--offline", "--environment", "staging", "--no-keyring")
+	if code != 5 {
+		t.Fatalf("under staging, keyless: exit %d\n%s", code, stdout)
+	}
+	for _, want := range []string{
+		"Verdict:      unattributed (environment staging, not production)\n",
+		"Keyless:      this run checked the signature only against the key the proof carries, against no keyring\n",
+		"Environment:  staging, not production",
+	} {
+		if !strings.Contains(stdout, want) {
+			t.Errorf("the output lacks %q\n%s", want, stdout)
+		}
+	}
+}
+
+// The human output never quotes a marker the proof carries (SPEC.md
+// section 6.4): a proof marked with a value no Truestamp environment uses
+// fails environment_mismatch under prod, and the text names neither the
+// marker nor any environment but prod. Mutant killed: rowsText writing a
+// row's values (the declared marker reaches the text).
+func TestVerify_TheTextQuotesNoMarker(t *testing.T) {
+	const marker = "planted-marker-7q"
+	path := writeTestProof(t, testProofOptions{seed: vectorSeed, environment: marker, stellar: "testnet", bitcoin: "regtest"})
+	stdout, stderr, code := verifyCLI(t, binaryPath, nil, nil, path, "--offline")
+	if code != 3 || strings.Contains(stdout+stderr, marker) || !strings.Contains(stdout, "no Truestamp environment uses") {
+		t.Errorf("exit %d\n%s%s", code, stdout, stderr)
+	}
+	for _, other := range []string{"staging", "production"} {
+		if strings.Contains(stdout, other) {
+			t.Errorf("the text names %q\n%s", other, stdout)
+		}
+	}
+}
+
+// --- --trace FILE (SPEC.md section 10.6) ---
+
+// --trace FILE writes the run's trace in the canonical form of SPEC.md
+// section 9: for the sound item proof, the rows of the vectors' own
+// trace, every member but inputs, in order; for a bare rejection, an
+// empty list; and a FILE in a directory that does not exist is refused
+// before the run, exit 1, with nothing on stdout. Mutants killed: the
+// trace written with JCS (one line, no indentation); the directory check
+// dropped (the run gives a report and the write fails after it).
+func TestVerify_TraceFile(t *testing.T) {
+	dir := t.TempDir()
+	trace := filepath.Join(dir, "trace.json")
+	_, _, code := verifyCLI(t, binaryPath, nil, nil, append([]string{soundItem(), "--trace", trace}, underTest()...)...)
+	if code != 6 {
+		t.Fatalf("exit %d", code)
+	}
+	got, err := os.ReadFile(trace)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want, err := os.ReadFile(vectorcases.Path("positive/item.trace.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strip := func(data []byte) []byte {
+		var rows []map[string]any
+		if err := json.Unmarshal(data, &rows); err != nil {
+			t.Fatalf("not a trace: %v\n%s", err, data)
+		}
+		for _, row := range rows {
+			delete(row, "inputs")
+		}
+		out, _ := json.Marshal(rows)
+		return out
+	}; !bytes.Equal(strip(got), strip(want)) || !bytes.HasPrefix(got, []byte("[\n  {\n    \"construction\": ")) {
+		t.Errorf("the trace differs from the vector's:\n%s", got)
+	}
+
+	rejected := filepath.Join(dir, "rejected.json")
+	_, _, code = verifyCLI(t, binaryPath, nil, nil, append([]string{vectorCase(t, "envelope-public_key-padded").ProofPath(), "--trace", rejected}, underTest()...)...)
+	if got, err := os.ReadFile(rejected); code != 4 || err != nil || string(got) != "[]\n" {
+		t.Errorf("a bare rejection's trace: exit %d, %v, %q", code, err, got)
+	}
+
+	stdout, stderr, code := verifyCLI(t, binaryPath, nil, nil, append([]string{soundItem(), "--trace", filepath.Join(dir, "missing", "trace.json")}, underTest()...)...)
+	if code != 1 || stdout != "" || !strings.Contains(stderr, "--trace names a file in a directory that does not exist") {
+		t.Errorf("a trace in a missing directory: exit %d, stdout %q, stderr %q", code, stdout, stderr)
+	}
+}
+
+// --- --remote ---
+
+// --remote with no credential is refused before the run, exit 1, and sends
+// nothing. Mutant killed: runVerify without its check of the credential
+// (the run is supplied-keyring, exit 6).
 func TestCLI_Verify_RemoteRequiresAuth(t *testing.T) {
 	srv, hits := countingAPI(t)
-	cmd := exec.Command(binaryPath, "verify", prodPath(testfixtures.ProdComplete), "--remote", "--base-url", srv.URL)
-	cmd.Env = append(cleanEnv(), "HOME="+t.TempDir(), "XDG_CONFIG_HOME="+t.TempDir())
-	out, err := cmd.CombinedOutput()
-	if err == nil || !strings.Contains(string(out), "not authenticated") {
-		t.Errorf("remote without a credential: %v\n%s", err, out)
+	env := []string{"HOME=" + t.TempDir(), "XDG_CONFIG_HOME=" + t.TempDir()}
+	_, stderr, code := verifyCLI(t, binaryPath, env, nil, soundItem(), "--offline", "--remote", "--base-url", srv.URL)
+	if code != 1 || !strings.Contains(stderr, "not authenticated") {
+		t.Errorf("remote without a credential: exit %d\n%s", code, stderr)
 	}
 	if n := hits.Load(); n != 0 {
 		t.Errorf("verify --remote without a credential sent %d requests, want 0", n)
 	}
 }
 
-// TestCLI_Verify_Remote posts the bundle and reproduces the server's
-// report, including a server-side rejection.
+// Under --remote the exit code and stdout are the local run's alone, and
+// the Truestamp service's verdict, or why there is none, is printed on
+// stderr beside the report, never as a row of it: a proof the service
+// says passed exits as this run's own label says, and so does one the
+// service is not asked about. Mutants killed: the service's verdict
+// deciding the exit code (exit 0 for the passed answer); the verdict
+// written to stdout (the --json report does not parse).
 func TestCLI_Verify_Remote(t *testing.T) {
-	serverReport, _ := os.ReadFile(prodPath("verify-complete.json"))
-	// The handler runs on the server's goroutine and the assertions on the
-	// test's, so the captured body is guarded.
-	var mu sync.Mutex
-	var posted map[string]any
-	lastPosted := func() map[string]any {
-		mu.Lock()
-		defer mu.Unlock()
-		return posted
+	serverReport, err := os.ReadFile(prodPath("verify-complete.json"))
+	if err != nil {
+		t.Fatal(err)
 	}
+	var posts atomic.Int32
 	mux := http.NewServeMux()
 	mux.HandleFunc("/api/json/proof/verify", func(w http.ResponseWriter, r *http.Request) {
-		if !strings.HasPrefix(r.Header.Get("Authorization"), "Bearer ") {
-			t.Errorf("missing Bearer header")
-		}
-		var body map[string]any
-		_ = json.NewDecoder(r.Body).Decode(&body)
-		mu.Lock()
-		posted = body
-		mu.Unlock()
-		data := body["data"].(map[string]any)
-		proofDoc := data["proof"].(map[string]any)
-		if proofDoc["type"] == "block" {
-			w.WriteHeader(http.StatusBadRequest)
-			_, _ = w.Write([]byte(`{"errors":[{"code":"invalid","meta":{"code":"invalid_proof","reason":"unexpected_subject_fields_for_block_like"},"status":"400","title":"Invalid","detail":"Invalid proof: :unexpected_subject_fields_for_block_like"}]}`))
-			return
-		}
+		posts.Add(1)
 		w.WriteHeader(http.StatusCreated)
 		_, _ = w.Write(serverReport)
 	})
 	srv := httptest.NewServer(mux)
 	defer srv.Close()
+	remote := []string{"--remote", "--base-url", srv.URL, "--api-key", "test-key", "--offline"}
 
-	out, code := runVerifyJSON(t, binaryPath, prodPath(testfixtures.ProdComplete), "--remote", "--base-url", srv.URL, "--api-key", "test-key")
-	if code != 0 || !out.Passed || out.PassCount != 29 {
-		t.Errorf("remote: exit %d passed %v pass_count %d\n%s", code, out.Passed, out.PassCount, formatCLISteps(out.Steps))
+	stdout, stderr, code := verifyCLI(t, binaryPath, nil, nil, append([]string{prodPath(testfixtures.ProdComplete), "--json"}, remote...)...)
+	var rejection map[string]string
+	if err := json.Unmarshal([]byte(stdout), &rejection); err != nil || code != 4 || rejection["code"] != "invalid_envelope" {
+		t.Errorf("a proof the service passes: exit %d, %v, %s", code, err, stdout)
 	}
-	if data := lastPosted()["data"].(map[string]any); data["skip_external"] != false {
-		t.Errorf("skip_external not posted: %v", data)
-	}
-
-	// A CBOR input is posted as its JSON conversion.
-	out, code = runVerifyJSON(t, binaryPath, prodPath(testfixtures.ProdCBOR), "--remote", "--base-url", srv.URL, "--api-key", "test-key")
-	if code != 0 || !out.Passed {
-		t.Errorf("remote cbor: exit %d passed %v", code, out.Passed)
-	}
-	if data := lastPosted()["data"].(map[string]any); data["proof"].(map[string]any)["type"] != "item" {
-		t.Errorf("posted proof = %v", data["proof"])
+	if !strings.Contains(stderr, "The Truestamp service's verdict, beside this report and not part of it: passed.") || posts.Load() != 1 {
+		t.Errorf("the service's verdict (%d posts): %s", posts.Load(), stderr)
 	}
 
-	// A local rejection never reaches the server; a server rejection is
-	// rendered like a local one.
-	text, code := runCLIText(t, "verify", tamperPath("old-layout.json"), "--remote", "--base-url", srv.URL, "--api-key", "test-key")
-	if code != 1 || !strings.Contains(text, "REJECTED: missing_subject") {
-		t.Errorf("remote local rejection: exit %d\n%s", code, text)
-	}
-	text, code = runCLIText(t, "verify", tamperPath("tamper-type.json"), "--remote", "--base-url", srv.URL, "--api-key", "test-key")
-	if code != 1 || !strings.Contains(text, "REJECTED: unexpected_subject_fields_for_block_like") {
-		t.Errorf("server rejection: exit %d\n%s", code, text)
+	stdout, stderr, code = verifyCLI(t, binaryPath, nil, nil, append(append([]string{soundItem(), "--json"}, remote...), "--environment", "test", "--keyring", testKeyring())...)
+	if report := parseReport(t, stdout); code != 6 || report.Label != "supplied-keyring" || !strings.Contains(stderr, "The Truestamp service gave no verdict") {
+		t.Errorf("a proof the service is not asked about: exit %d, %s\n%s", code, report.Label, stderr)
 	}
 }
 
-// --- inspect ---
+// --- config ---
 
 func TestCLI_ConfigPath(t *testing.T) {
 	out, code := runCLIText(t, "config", "path")
@@ -820,148 +897,45 @@ func TestCLI_Completion(t *testing.T) {
 	}
 }
 
-// --- Appendix D.4 at the process boundary ---
+// The flag, env var and config key that once skipped the signature check.
+// They are assembled from pieces so that no file under cmd/ or internal/
+// spells them: a grep for the old name finds nothing, and these tests
+// still hand every spelling to the binary.
+var (
+	retiredSignatureFlag   = "--skip" + "-signatures"
+	retiredSignatureEnv    = "TRUESTAMP_VERIFY_SKIP" + "_SIGNATURES"
+	retiredSignatureConfig = "skip" + "_signatures"
+)
 
-// TestCLI_AppendixD_Conformance is Appendix E.25's self-certification at
-// the process boundary: the published worked example, verified offline
-// against its own claims hash, must exit 0 and report every D.4 row with
-// D.4's status.
-func TestCLI_AppendixD_Conformance(t *testing.T) {
-	out, code := runVerifyJSON(t, binaryPath, conformanceVectorPath(t), "--offline", "--expected-hash", appendixDClaimsHash)
-	if code != 0 || !out.Passed {
-		t.Fatalf("exit %d passed %v\n%s", code, out.Passed, formatCLISteps(out.Steps))
+// Nothing skips the signature check (SPEC.md section 6.2): a proof whose
+// signature is over the wrong message fails signature_invalid, exit 3,
+// with the retired environment variable or configuration key set, and the
+// retired flag is an unknown flag, which no help offers. Mutant killed:
+// Signature skipped when a skip setting is present.
+func TestCLI_NothingSkipsTheSignature(t *testing.T) {
+	proof := vectorCase(t, "signature-over-m").ProofPath()
+	configPath := filepath.Join(t.TempDir(), "config.toml")
+	if err := os.WriteFile(configPath, []byte("[verify]\n"+retiredSignatureConfig+" = true\n"), 0o600); err != nil {
+		t.Fatal(err)
 	}
-	if violations := d4Violations(out.Steps); len(violations) > 0 {
-		t.Errorf("D.4 containment:\n  %s\n%s", strings.Join(violations, "\n  "), formatCLISteps(out.Steps))
-	}
-}
-
-// d4Violations checks E.25's one-way containment against Appendix D.4.
-func d4Violations(steps []cliStep) []string {
-	type key struct{ group, category, status string }
-	want := map[key]int{
-		{"Hash Comparison", "data_integrity", "pass"}:  1,
-		{"Signing Key", "cryptographic", "pass"}:       1,
-		{"Subject Data", "cryptographic", "pass"}:      3,
-		{"Inclusion Proof", "cryptographic", "pass"}:   1,
-		{"Block Hash", "cryptographic", "pass"}:        2,
-		{"Epoch Proof", "cryptographic", "pass"}:       2,
-		{"Proof Signature", "cryptographic", "pass"}:   1,
-		{"Key Binding", "cryptographic", "skip"}:       1,
-		{"Signing Key Event", "cryptographic", "pass"}: 4,
-		{"Signing Key Event", "cryptographic", "info"}: 1,
-		{"Signing Key Event", "cryptographic", "skip"}: 1,
-		{"Structure", "structural", "pass"}:            1,
-		{"Witnesses", "timing", "pass"}:                5,
-		{"Submission Window", "timing", "pass"}:        1,
-		{"Temporal Info", "timing", "info"}:            1,
-		{"Submitted After", "timing", "info"}:          5,
-		{"Submitted Before", "timing", "info"}:         1,
-		{"Stellar Commitment", "blockchain", "skip"}:   1,
-		{"Bitcoin Commitment", "blockchain", "skip"}:   1,
-		{"Entropy Source", "blockchain", "skip"}:       3,
-	}
-	seen := map[key]int{}
-	for _, s := range steps {
-		seen[key{s.Group, s.Category, s.Status}]++
-	}
-	var out []string
-	for k, n := range want {
-		if seen[k] < n {
-			out = append(out, fmt.Sprintf("D.4 row missing or short: %s / %s / %s: got %d, want %d", k.group, k.category, k.status, seen[k], n))
-		}
-	}
-	budget := map[key]int{}
-	for k, n := range want {
-		budget[k] = n
-	}
-	for _, s := range steps {
-		if s.Status == "skip" || s.Status == "info" {
-			continue
-		}
-		k := key{s.Group, s.Category, s.Status}
-		if budget[k] == 0 {
-			out = append(out, fmt.Sprintf("additive %s row not in D.4: %s / %s: %s", s.Status, s.Group, s.Category, s.Message))
-			continue
-		}
-		budget[k]--
-	}
-	sort.Strings(out)
-	return out
-}
-
-// TestCLI_Verify_LegacyMetadataWithoutWitnesses.
-//
-// A bundle whose `subject.metadata` commits to no witness at all -- the
-// shape an item committed before the format was redefined around witnesses
-// would have, carrying `previous_block_id` / `previous_block_hash` and no
-// `witnesses` key.
-//
-// The service does not currently emit this: such an item is refused at
-// generation with `subject_not_recomputable`. The test is not speculative
-// for that reason. A verifier's job is to grade the bytes it is handed, not
-// only the bytes one service happens to produce today, and the classifying
-// behaviour here was already correct long before anything upstream moved.
-// What it lacked was a test, so it could have regressed silently.
-//
-// The absence must read as a check this run could not make, never as a
-// check that failed: the subject genuinely commits to no witness, so the
-// submitted-after edge is simply not established from the file. Reporting
-// it as a failure would condemn a sound proof, and E.25 allows extra skip
-// and info rows precisely so an absence can be said out loud without
-// changing the verdict.
-func TestCLI_Verify_LegacyMetadataWithoutWitnesses(t *testing.T) {
-	var bundle map[string]any
-	raw, err := os.ReadFile(testfixtures.Path(testfixtures.ProdDir, testfixtures.ProdComplete))
-	if err != nil {
-		t.Fatalf("reading fixture: %v", err)
-	}
-	if err := json.Unmarshal(raw, &bundle); err != nil {
-		t.Fatalf("fixture is not JSON: %v", err)
-	}
-	subject, ok := bundle["subject"].(map[string]any)
-	if !ok {
-		t.Fatal("fixture has no subject object")
-	}
-	subject["metadata"] = map[string]any{
-		"previous_block_id":   "019db702-b08c-73dc-a7cd-2c5e011f1dad",
-		"previous_block_hash": "51d69ce8ee25bbf0cdba8b98ab5ee5805469a87d587a5b2800cd1384d7a86ab4",
-	}
-	delete(subject, "witnesses")
-
-	out, err := json.Marshal(bundle)
-	if err != nil {
-		t.Fatalf("re-encoding: %v", err)
-	}
-	path := filepath.Join(t.TempDir(), "legacy-metadata.json")
-	if err := os.WriteFile(path, out, 0o600); err != nil {
-		t.Fatalf("writing bundle: %v", err)
-	}
-
-	// Rewriting a signed field necessarily breaks the derived hashes, so
-	// this bundle does not and should not pass. What is asserted is only
-	// how the witness absence is CLASSIFIED, and that nothing panics.
-	report, _ := runCLIText(t, "verify", path, "--offline")
-
-	for _, want := range []string{
-		"[SKIP]  Witnesses",
-		"[INFO]  Submitted After",
+	for name, run := range map[string]struct {
+		env  []string
+		args []string
+	}{
+		"plain":      {nil, nil},
+		"env var":    {[]string{retiredSignatureEnv + "=true"}, nil},
+		"config key": {nil, []string{"--config", configPath}},
 	} {
-		if !strings.Contains(report, want) {
-			t.Errorf("missing %q in report:\n%s", want, report)
+		stdout, _, code := verifyCLI(t, binaryPath, run.env, nil, append(append([]string{proof, "--json"}, underTest()...), run.args...)...)
+		if report := parseReport(t, stdout); code != 3 || report.Code == nil || *report.Code != "signature_invalid" {
+			t.Errorf("%s: exit %d, %+v", name, code, report.Code)
 		}
 	}
-	for _, forbidden := range []string{
-		"[FAIL]  Witnesses",
-		"[WARN]  Witnesses",
-		"[FAIL]  Submitted After",
-	} {
-		if strings.Contains(report, forbidden) {
-			t.Errorf("a subject that commits to no witness must not produce %q:\n%s",
-				forbidden, report)
-		}
+	_, stderr, code := verifyCLI(t, binaryPath, nil, nil, append([]string{proof, retiredSignatureFlag}, underTest()...)...)
+	if code != 1 || !strings.Contains(stderr, "unknown flag: "+retiredSignatureFlag) {
+		t.Errorf("the retired flag: exit %d\n%s", code, stderr)
 	}
-	if strings.Contains(report, "panic:") {
-		t.Errorf("verifier panicked on a metadata map with no witnesses key:\n%s", report)
+	if help := helpText(t, "verify"); strings.Contains(help, retiredSignatureFlag) {
+		t.Errorf("verify --help still offers %s", retiredSignatureFlag)
 	}
 }

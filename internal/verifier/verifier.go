@@ -94,6 +94,11 @@
 //     10.5);
 //   - report.go: the report of section 10.5, with exactly its members,
 //     both edges null when the label is failed (section 10.2, step 14);
+//   - outcome.go: [Verify], every step over one document, as `truestamp
+//     verify` runs them, and how the run ended, which decides its exit
+//     code (section 12.2), a fault caught in a step included (section
+//     10.5); fault_tag.go, built only with the tag truestamp_fault, raises
+//     a fault in a test binary;
 //   - schema.go: the checker of spec/schema.json, SHAPE's check 3, which
 //     refuses a schema outside SPEC.md section 9's subset when it loads;
 //   - layout.go: where the proof holds its block nodes, commitment
@@ -116,7 +121,10 @@
 // answer is recorded unreachable, so nothing else is read from it; every
 // other read of a source goes through [Config.ReadChain]. NIST's
 // Randomness Beacon is one source, at its compiled-in address, with no
-// identity read, and no configuration names another.
+// identity read, and no configuration names another. That address and the
+// address of Truestamp's keyring are string variables only so that the
+// cmd package's test binary can set them at link time; no option reaches
+// either.
 //
 // The CLI is an external verifier (SPEC.md section 8.3). Online, under E_v
 // prod and with no supplied keyring, the keyring read from

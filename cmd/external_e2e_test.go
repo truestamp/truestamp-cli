@@ -4,463 +4,370 @@
 package cmd
 
 import (
+	"encoding/base64"
 	"encoding/json"
-	"fmt"
-	"net/http"
-	"net/http/httptest"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"slices"
 	"strings"
-	"sync"
 	"testing"
-
-	"github.com/truestamp/truestamp-cli/internal/testfixtures"
 )
 
-// End-to-end proofs for Appendix E.18 / E.19 / E.21's availability
-// grading, run through a real `truestamp verify` process.
-//
-// WHY THIS EXISTS. The Horizon, Blockstream and NIST base URLs are package
-// vars in internal/external, so a claim about what an unreachable Horizon
-// or a 404 from Blockstream does to a report would otherwise rest on an
-// in-package httptest that calls the lookup function directly. That leaves
-// the whole chain above it unproven: cobra flag and config resolution, the
-// shared HTTP client, external.Classify, the pipeline's grading switch, the
-// exit code, and the --json projection.
-//
-// HOW THE ENDPOINTS ARE REDIRECTED, AND WHY IT IS NOT A SHIPPED FLAG. The
-// redirection is done at LINK time: this test builds its own binary with
-// `-ldflags -X internal/external.<Var>=<httptest URL>`. Nothing is added to
-// the production source, so a released binary has no way to be pointed at
-// an attacker-controlled Horizon or Blockstream. E.18/E.19/E.21 exist
-// precisely to consult a third party, and a supported override would let a
-// caller supply both the proof and the "independent" chain that confirms
-// it. TestCLI_ExternalEndpoints_NoAmbientOverride pins that property.
+// The verifier's sources and keyrings, through a real `truestamp verify`
+// process: where each option may come from (SPEC.md section 9 (What a
+// verifier pins); sections 6.4 and 8.3 for the run-only options), where a
+// Bitcoin Core node's credentials go, and that nothing the CLI prints
+// carries them. Every online run reads only the loopback stub of
+// verify_online_test.go, or a dead loopback port.
 
-// externalStub is the httptest server standing in for Horizon, Blockstream,
-// NIST and the keyring. Roles are separated by path prefix, and behaviour
-// is switched through mode.
-type externalStub struct {
-	mu   sync.Mutex
-	mode string
-	srv  *httptest.Server
-}
-
-func (s *externalStub) setMode(m string) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	s.mode = m
-}
-
-func (s *externalStub) currentMode() string {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	return s.mode
-}
-
-// The Appendix D bundle's derived key id and public_key, served by the stub
-// keyring so E.17's Key Binding row passes and the only external row in
-// play is the one under test.
+// The planted credentials of these tests: stand-in values, never a real
+// credential. The password holds %, /, #, ?, @ and :, which a URL would
+// have to escape.
 const (
-	appendixDKeyID  = "f2c39df9"
-	appendixDPubKey = "IVL40Zt5HSRFMkLhXy6rbLfP+ntqXtMAl5YOBpiB2xI="
+	plantedUser     = "planted-user-3k"
+	plantedPassword = "planted-pass-9z/#?@:%"
 )
 
-// entropyBlockHash is the entropy.hash of the fabricated entropy_bitcoin
-// bundle below: the block the E.21 lookup asks Blockstream about.
-const entropyBlockHash = "0000000000000000000123456789abcdef0123456789abcdef0123456789abcd"
-
-func (s *externalStub) handler(w http.ResponseWriter, r *http.Request) {
-	mode := s.currentMode()
-	w.Header().Set("Content-Type", "application/json")
-
-	switch {
-	case r.URL.Path == "/.well-known/keyring.json":
-		_ = json.NewEncoder(w).Encode(map[string]any{
-			"version": "1.0",
-			"keys": []map[string]any{
-				{"key_id": appendixDKeyID, "public_key": appendixDPubKey, "sequence": 0, "active": true},
-			},
-		})
-
-	case strings.HasPrefix(r.URL.Path, "/horizon/transactions/"):
-		switch mode {
-		case "stellar_mismatch":
-			// A well-formed transaction that IS the one asked for, but
-			// whose memo commits to different bytes: E.18's one failing
-			// outcome, the chain answered and disagreed.
-			hash := strings.TrimPrefix(r.URL.Path, "/horizon/transactions/")
-			_ = json.NewEncoder(w).Encode(map[string]any{
-				"hash":       hash,
-				"memo_type":  "hash",
-				"memo":       "ERERERERERERERERERERERERERERERERERERERERERE=",
-				"ledger":     51234567,
-				"created_at": "2026-07-24T12:00:12Z",
-			})
-		default:
-			http.Error(w, `{"detail":"not configured"}`, http.StatusInternalServerError)
+// noSecret fails the test when any of outputs carries a planted
+// credential.
+func noSecret(t *testing.T, what string, outputs ...string) {
+	t.Helper()
+	for _, out := range outputs {
+		for _, secret := range []string{plantedUser, plantedPassword, "planted-pass-9z"} {
+			if strings.Contains(out, secret) {
+				t.Errorf("%s carries %q:\n%s", what, secret, out)
+			}
 		}
-
-	case strings.HasPrefix(r.URL.Path, "/blockstream/block/"):
-		switch mode {
-		case "btc_404":
-			http.Error(w, `{"error":"Block not found"}`, http.StatusNotFound)
-		case "btc_height_mismatch":
-			_ = json.NewEncoder(w).Encode(map[string]any{
-				"id":          entropyBlockHash,
-				"height":      999999, // the bundle says 870000
-				"timestamp":   1750000000,
-				"merkle_root": strings.Repeat("ab", 32),
-			})
-		default:
-			http.Error(w, `{"error":"not configured"}`, http.StatusInternalServerError)
-		}
-
-	default:
-		http.NotFound(w, r)
 	}
 }
 
-// entropyBitcoinProofJSON is a fabricated entropy_bitcoin bundle. Its
-// Merkle values and signature are invented, so the run as a whole fails;
-// the assertions are on the Entropy Source ROW's status, which E.21 grades
-// independently of every other step. The Bitcoin commitment names regtest
-// deliberately: regtest has no public API, so the commitment row needs no
-// network and the only outbound lookup in the run is the E.21 one.
-var entropyBitcoinProofJSON = fmt.Sprintf(`{
-  "version": 1,
-  "type": "entropy_bitcoin",
-  "public_key": "CTwMqDZnPd/QTLSq8aTeSD3a+j2DQxKcGfhhIYJQ65Y=",
-  "signature": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==",
-  "generated_at": "2026-04-06T23:25:06Z",
-  "subject": {
-    "id": "019cf813-99b8-730a-84f1-5a711a9c355e",
-    "entropy": {"hash": "%s", "height": 870000, "time": 1750000000},
-    "metadata": {},
-    "signing_key_id": "4ceefa4a"
-  },
-  "inclusion_proof": "AA",
-  "block": {
-    "id": "019cf813-99b8-730a-84f1-5a711a9c355e",
-    "previous_block_hash": "1111111111111111111111111111111111111111111111111111111111111111",
-    "merkle_root": "2222222222222222222222222222222222222222222222222222222222222222",
-    "metadata": {},
-    "signing_key_id": "4ceefa4a"
-  },
-  "commitments": [{"chain": "bitcoin", "network": "regtest", "transaction_hash": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "epoch_merkle_root": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb", "block_height": 1, "epoch_proof": "AA"}]
-}`, entropyBlockHash)
-
-func TestCLI_ExternalEndpoints_EndToEnd(t *testing.T) {
-	stub := &externalStub{}
-	stub.srv = httptest.NewServer(http.HandlerFunc(stub.handler))
-	defer stub.srv.Close()
-
-	// A server started and immediately closed: its address refuses
-	// connections, the closest stand-in for "Horizon is unreachable" that
-	// does not depend on the host's real network.
-	dead := httptest.NewServer(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {}))
-	deadURL := dead.URL
-	dead.Close()
-
-	bin := buildWithEndpoints(t, map[string]string{
-		// The Appendix D bundle's Stellar commitment names "public", so it
-		// resolves here, at the dead address.
-		"HorizonPublicURL": deadURL,
-		// The same bundle with `network` rewritten to "testnet" resolves
-		// here instead, at the live stub.
-		"HorizonTestnetURL":     stub.srv.URL + "/horizon",
-		"BlockstreamMainnetURL": stub.srv.URL + "/blockstream",
-		"BlockstreamTestnetURL": stub.srv.URL + "/blockstream",
-		"NISTBeaconURL":         stub.srv.URL + "/nist",
-	})
-
-	// The keyring URL is derived from --base-url, so pointing the origin
-	// at the stub serves /.well-known/keyring.json from it.
-	baseURL := stub.srv.URL
-
-	// E.18: an unreachable Horizon SKIPS, and does not fail a proof that
-	// is otherwise sound. The entropy witnesses' sources are the dead
-	// address too (NIST at the stub's unconfigured path, Horizon dead,
-	// Blockstream unconfigured), so every Entropy Source row skips.
-	t.Run("unreachable Horizon skips and exits 0", func(t *testing.T) {
-		stub.setMode("unused")
-		out, code := runVerifyJSON(t, bin, conformanceVectorPath(t), "--base-url", baseURL, "--expected-hash", appendixDClaimsHash)
-		if code != 0 {
-			t.Errorf("exit code: got %d, want 0: an unreachable Horizon must not fail a sound proof\n%s",
-				code, formatCLISteps(out.Steps))
-		}
-		st := stepStatuses(out, "Stellar Commitment")
-		if !st["skip"] || st["fail"] {
-			t.Errorf("Stellar Commitment: want a skip and no fail, got %v\n%s", st, formatCLISteps(out.Steps))
-		}
-		if es := stepStatuses(out, "Entropy Source"); es["fail"] || es["pass"] {
-			t.Errorf("Entropy Source with unreachable sources: got %v\n%s", es, formatCLISteps(out.Steps))
-		}
-		// E.17 ran for real against the stub keyring.
-		if kb := stepStatuses(out, "Key Binding"); !kb["pass"] {
-			t.Errorf("Key Binding: want a pass against the stub keyring, got %v\n%s", kb, formatCLISteps(out.Steps))
-		}
-		// With nothing confirmed, both edges stay informational.
-		if sa := stepStatuses(out, "Submitted After"); sa["pass"] {
-			t.Errorf("Submitted After must not pass without a confirmed witness: %v", sa)
-		}
-		if sb := stepStatuses(out, "Submitted Before"); sb["pass"] {
-			t.Errorf("Submitted Before must not pass without a confirmed chain: %v", sb)
-		}
-	})
-
-	// E.17: unlike the chain lookups, a keyring an online run cannot read
-	// FAILS the run with keyring_unavailable. The origin is the dead
-	// address, so the keyring URL derived from it refuses connections;
-	// every other row grades as in the case above, so Key Binding is the
-	// one failure. Offline, the same origin is never contacted and the
-	// binding keeps its skip.
-	t.Run("unreachable keyring fails and exits 1, offline still skips", func(t *testing.T) {
-		stub.setMode("unused")
-		out, code := runVerifyJSON(t, bin, conformanceVectorPath(t), "--base-url", deadURL, "--expected-hash", appendixDClaimsHash)
-		if code != 1 || out.Passed || out.FailedCount != 1 {
-			t.Errorf("exit %d passed %v failed_count %d, want exit 1, not passed, one failure\n%s",
-				code, out.Passed, out.FailedCount, formatCLISteps(out.Steps))
-		}
-		for _, s := range out.Steps {
-			if s.Group == "Key Binding" && (s.Status != "fail" || !strings.HasPrefix(s.Message, "keyring_unavailable: ")) {
-				t.Errorf("Key Binding = %s %q, want a keyring_unavailable failure", s.Status, s.Message)
-			}
-		}
-		if kb := stepStatuses(out, "Key Binding"); !kb["fail"] {
-			t.Errorf("no failing Key Binding row\n%s", formatCLISteps(out.Steps))
-		}
-
-		out, code = runVerifyJSON(t, bin, conformanceVectorPath(t), "--offline", "--base-url", deadURL, "--expected-hash", appendixDClaimsHash)
-		if code != 0 || !out.Passed {
-			t.Errorf("offline: exit %d passed %v, want exit 0 and passed\n%s", code, out.Passed, formatCLISteps(out.Steps))
-		}
-		for _, s := range out.Steps {
-			if s.Group == "Key Binding" && (s.Status != "skip" || !strings.HasPrefix(s.Message, "no keyring supplied")) {
-				t.Errorf("offline Key Binding = %s %q, want the no-keyring skip", s.Status, s.Message)
-			}
-		}
-		if kb := stepStatuses(out, "Key Binding"); !kb["skip"] {
-			t.Errorf("offline: no skipped Key Binding row\n%s", formatCLISteps(out.Steps))
-		}
-	})
-
-	// E.18: a chain that answers and DISAGREES still fails. Same bundle,
-	// one field rewritten so the lookup lands on the live stub; `network`
-	// is not part of the signed payload, so every cryptographic check
-	// stays intact and the difference in outcome is the endpoint's answer.
-	t.Run("Stellar memo mismatch fails and exits 1", func(t *testing.T) {
-		stub.setMode("stellar_mismatch")
-		path := rewriteBundle(t, conformanceVectorPath(t), func(m map[string]any) {
-			m["commitments"].([]any)[0].(map[string]any)["network"] = "testnet"
-		})
-		out, code := runVerifyJSON(t, bin, path, "--base-url", baseURL)
-		if code == 0 {
-			t.Errorf("exit code 0: a chain that answered and disagreed must fail\n%s", formatCLISteps(out.Steps))
-		}
-		if st := stepStatuses(out, "Stellar Commitment"); !st["fail"] {
-			t.Errorf("Stellar Commitment: want a fail, got %v\n%s", st, formatCLISteps(out.Steps))
-		}
-		if !strings.Contains(strings.ToLower(rawIssueText(out)), "memo") {
-			t.Errorf("the failure should name the memo:\n%s", formatCLISteps(out.Steps))
-		}
-	})
-
-	// E.21 on an entropy SUBJECT: a 404 from Blockstream SKIPS. E.21 fails
-	// only on a value mismatch; a 404 yields no upstream value to compare.
-	entropyPath := writeProofFile(t, entropyBitcoinProofJSON)
-
-	t.Run("Blockstream 404 on an entropy source skips", func(t *testing.T) {
-		stub.setMode("btc_404")
-		out, _ := runVerifyJSON(t, bin, entropyPath, "--base-url", baseURL)
-		st := stepStatuses(out, "Entropy Source")
-		if !st["skip"] || st["fail"] {
-			t.Errorf("Entropy Source: want a skip and no fail, got %v\n%s", st, formatCLISteps(out.Steps))
-		}
-		if !strings.Contains(rawIssueText(out), "HTTP 404") {
-			t.Errorf("the skip should name the 404:\n%s", formatCLISteps(out.Steps))
-		}
-	})
-
-	t.Run("Blockstream height mismatch on an entropy source fails", func(t *testing.T) {
-		stub.setMode("btc_height_mismatch")
-		out, code := runVerifyJSON(t, bin, entropyPath, "--base-url", baseURL)
-		if code == 0 {
-			t.Errorf("exit code 0 for a bundle whose entropy source disagrees\n%s", formatCLISteps(out.Steps))
-		}
-		if st := stepStatuses(out, "Entropy Source"); !st["fail"] {
-			t.Errorf("Entropy Source: want a fail, got %v\n%s", st, formatCLISteps(out.Steps))
-		}
-		if !strings.Contains(strings.ToLower(rawIssueText(out)), "height mismatch") {
-			t.Errorf("the failure should name the height mismatch:\n%s", formatCLISteps(out.Steps))
-		}
-	})
+// writeConfig writes text to a configuration file of the test's.
+func writeConfig(t *testing.T, text string) string {
+	t.Helper()
+	path := filepath.Join(t.TempDir(), "config.toml")
+	if err := os.WriteFile(path, []byte(text), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	return path
 }
 
-// TestCLI_ExternalEndpoints_NoAmbientOverride pins the property that makes
-// the link-time redirection above acceptable: the SHIPPED binary offers no
-// supported way to retarget an external lookup.
-func TestCLI_ExternalEndpoints_NoAmbientOverride(t *testing.T) {
+// testIdentities makes stub give the identities of the vectors' test
+// networks, Stellar testnet and Bitcoin regtest.
+func testIdentities(stub *chainStub) {
+	stub.set(func(s *chainStub) { s.passphrase, s.genesis = testnetStellar, regtestGenesis })
+}
+
+// readBoth reports whether the stub saw an identity read of each chain:
+// of Horizon's root (which a Stellar read that finds nothing reads again)
+// and of Esplora's block at height 0.
+func readBoth(stub *chainStub) bool {
+	requests, _ := stub.seen()
+	return slices.Contains(requests, "GET /horizon/") && slices.Contains(requests, "GET /esplora/block-height/0")
+}
+
+// verify --help names the three source flags, and no flag takes a Bitcoin
+// Core node's credentials: --bitcoin-core-user and --bitcoin-core-password
+// are unknown flags (exit 1), and so are a NIST source and a network pin.
+// Mutant killed: RegisterFlags registering --bitcoin-core-password.
+func TestCLI_Verify_SourceFlagsAndNoCredentialFlag(t *testing.T) {
 	help := helpText(t, "verify")
-	for _, needle := range []string{"horizon", "blockstream", "beacon.nist", "nist-url", "stellar-url", "bitcoin-url"} {
-		if strings.Contains(strings.ToLower(help), needle) {
-			t.Errorf("`verify --help` advertises %q: external endpoints must not be caller-selectable", needle)
+	for _, want := range []string{"--horizon string", "--esplora string", "--bitcoin-core string", "--environment string", "--no-keyring", "--keyring string", "--trace string"} {
+		if !strings.Contains(help, want) {
+			t.Errorf("verify --help lacks %q\n%s", want, help)
 		}
 	}
-	for _, kv := range []string{
-		"TRUESTAMP_HORIZON_URL=http://127.0.0.1:1",
-		"TRUESTAMP_BLOCKSTREAM_URL=http://127.0.0.1:1",
-		"TRUESTAMP_NIST_URL=http://127.0.0.1:1",
+	for _, flag := range []string{"--bitcoin-core-user", "--bitcoin-core-password", "--nist", "--network", "--commitment-pin"} {
+		_, stderr, code := verifyCLI(t, binaryPath, nil, nil, append([]string{soundItem(), flag, "x"}, underTest()...)...)
+		if code != 1 || !strings.Contains(stderr, "unknown flag: "+flag) {
+			t.Errorf("%s: exit %d\n%s", flag, code, stderr)
+		}
+	}
+}
+
+// The TRUESTAMP_VERIFY_* variables and the configuration keys of the
+// sources move an online run's identity reads to the servers they name:
+// with each, the stub sees a read of Horizon's root and one of Esplora's
+// block at height 0. The legacy TRUESTAMP_HORIZON_URL,
+// TRUESTAMP_BLOCKSTREAM_URL and TRUESTAMP_NIST_URL move nothing: with them
+// naming the stub and the operator's sources dead, the stub sees no
+// request. Mutant killed: OptionsFromCommand ignoring cfg.Verify.Horizon
+// (no Horizon identity read).
+func TestCLI_Verify_SourceVariablesAndKeysMoveTheIdentityReads(t *testing.T) {
+	online := []string{soundItem(), "--environment", "test", "--keyring", testKeyring(), "--json"}
+
+	stub := newChainStub(t)
+	testIdentities(stub)
+	env := []string{"TRUESTAMP_VERIFY_HORIZON=" + stub.URL() + "/horizon", "TRUESTAMP_VERIFY_ESPLORA=" + stub.URL() + "/esplora"}
+	if _, stderr, code := verifyCLI(t, binaryPath, env, nil, online...); code == 1 || code == 8 || !readBoth(stub) {
+		t.Errorf("the variables: exit %d\n%s", code, stderr)
+	}
+
+	keys := newChainStub(t)
+	testIdentities(keys)
+	path := writeConfig(t, "[verify]\nhorizon = \""+keys.URL()+"/horizon\"\nesplora = \""+keys.URL()+"/esplora\"\n")
+	if _, stderr, code := verifyCLI(t, binaryPath, nil, nil, append(online, "--config", path)...); code == 1 || code == 8 || !readBoth(keys) {
+		t.Errorf("the configuration keys: exit %d\n%s", code, stderr)
+	}
+
+	legacy := newChainStub(t)
+	variables := []string{"TRUESTAMP_HORIZON_URL=" + legacy.URL(), "TRUESTAMP_BLOCKSTREAM_URL=" + legacy.URL(), "TRUESTAMP_NIST_URL=" + legacy.URL()}
+	dead := []string{"--horizon", "http://127.0.0.1:9", "--esplora", "http://127.0.0.1:9"}
+	if _, _, code := verifyCLI(t, binaryPath, variables, nil, append(online, dead...)...); code != 6 {
+		t.Errorf("the legacy variables: exit %d, want 6", code)
+	}
+	if requests, _ := legacy.seen(); len(requests) != 0 {
+		t.Errorf("a legacy variable moved a read: %q", requests)
+	}
+}
+
+// No flag, configuration key or environment variable sets E_v, keyless
+// mode or a network pin (SPEC.md sections 6.4, 8.3 and 9): with spellings
+// of each set to the test environment, keyless mode and the production
+// networks, a run is still under prod and keyed (the test keyring, which
+// holds VECTOR_KEY, is refused under prod: exit 8; and with no keyring
+// the test-marked proof fails environment_mismatch: exit 3, not 5), and
+// under --environment test its networks are still test's (exit 6: POLICY
+// passes). Mutant killed: OptionsFromCommand taking E_v from
+// TRUESTAMP_VERIFY_ENVIRONMENT (the first run is supplied-keyring).
+func TestCLI_Verify_NoOptionSetsTheEnvironmentKeylessOrAPin(t *testing.T) {
+	env := []string{
+		"TRUESTAMP_ENVIRONMENT=test", "TRUESTAMP_VERIFY_ENVIRONMENT=test",
+		"TRUESTAMP_NO_KEYRING=true", "TRUESTAMP_VERIFY_NO_KEYRING=true",
+		"TRUESTAMP_VERIFY_NETWORKS_BITCOIN=mainnet", "TRUESTAMP_VERIFY_COMMITMENT_BITCOIN=mainnet",
+		"TRUESTAMP_VERIFY_PINS_COMMITMENT_STELLAR=public",
+	}
+	path := writeConfig(t, "environment = \"test\"\nno_keyring = true\n\n[verify]\nenvironment = \"test\"\nno_keyring = true\n\n"+
+		"[verify.pins.commitment]\nbitcoin = \"mainnet\"\nstellar = \"public\"\n")
+	for _, c := range []struct {
+		args []string
+		code int
+	}{
+		{[]string{soundItem(), "--offline", "--keyring", testKeyring(), "--config", path}, 8},
+		{[]string{soundItem(), "--offline", "--config", path}, 3},
+		{append([]string{soundItem(), "--config", path}, underTest()...), 6},
 	} {
-		cmd := exec.Command(binaryPath, "verify", conformanceVectorPath(t), "--offline", "--json")
-		cmd.Env = append(cleanEnv(), kv)
-		if _, err := cmd.Output(); err != nil {
-			t.Errorf("%s changed the outcome of a verify run: %v", kv, err)
+		if _, stderr, code := verifyCLI(t, binaryPath, env, nil, c.args...); code != c.code {
+			t.Errorf("%q: exit %d, want %d\n%s", c.args, code, c.code, stderr)
 		}
 	}
 }
 
-// bitcoinOfflineEvidence is a real regtest Bitcoin commitment (raw
-// transaction, txoutproof, block merkle root, txid, OP_RETURN payload) as
-// the server emitted it, carried on a fabricated item bundle. The
-// signature and Merkle values around it are invented, so the epoch walk
-// and signature fail; the six E.19 offline steps read only these fields.
-const bitcoinOfflineEvidence = `{
-  "chain": "bitcoin", "network": "regtest",
-  "epoch_merkle_root": "d6d2ff0348fa867830430e7052d7603db87d582b072302b4a116105a490f9644",
-  "epoch_proof": "AA",
-  "transaction_hash": "a612b0d3f77c77471760c875a2d58b27b07db38a024ae9a5e5e28067d07e754f",
-  "block_height": 12834,
-  "timestamp": "2026-04-22T20:00:02Z",
-  "block_merkle_root": "68daa6850344036b216a37d3d8ff6a3d075319f7fd07f39c7a24d0b616f2c296",
-  "raw_transaction": "02000000000102f8623f43f7003a90e649db693d64c5032f318927c8f2c571c38a469c19d787880000000000fdfffffffae8beba326bdc8178d2b21f042b5856f6a7c5ebc3ed53285452fb1b945e1b520100000000fdffffff0258c30000000000002251204c25f8ac4a9dac64e4148e94cb5b3ec2611f8e5a508a9a4bbf74ee37101c3f8a0000000000000000226a20d6d2ff0348fa867830430e7052d7603db87d582b072302b4a116105a490f96440140cc05bafb377f446d335d9936e74d8f4e6c72e097ab1709703b876e6d0bd1b968d6f2808780441a70b7c841cfad5a4bb4b826cad84f292d3f2feebf9ea24163fe01408fee265e9f3c79dd50b0f7c84f9f04cd10e87e5119bb67d9ac460bf3fdea311b8df672cde47f8c61ab4ab732021c48cb770d1225b2c90c39bba5b1bde144be9100000000",
-  "txoutproof": "000000203c1321eb58f04f38880a4e01260e4437ff8d035db29fe417bb23a768fbc5780196c2f216b6d0247a9cf307fdf71953073d6affd8d3376a216b03440385a6da68c228e969ffff7f2001000000020000000249136ad66b7812f76ebaa01e2b571febb62266c15c6c407d08cae15e1e6661c74f757ed06780e2e5a5e94a028ab37db0278bd5a275c8601747777cf7d3b012a60105"
-}`
-
-// bitcoinEvidenceBundlePath writes a fabricated item bundle carrying the
-// real Bitcoin offline evidence.
-func bitcoinEvidenceBundlePath(t *testing.T) string {
-	t.Helper()
-	return rewriteBundle(t, conformanceVectorPath(t), func(m map[string]any) {
-		var entry map[string]any
-		if err := json.Unmarshal([]byte(bitcoinOfflineEvidence), &entry); err != nil {
-			t.Fatal(err)
+// A --bitcoin-core URL that carries user information is refused before any
+// read, exit 1, from a flag, a variable or the configuration file, and
+// neither stdout nor stderr carries the planted user or password. Mutant
+// killed: the refusal quoting the URL.
+func TestCLI_Verify_ACredentialInASourceURLIsRefused(t *testing.T) {
+	withUser := "http://" + plantedUser + ":planted-pass-9z@127.0.0.1:9"
+	sources := []string{"--horizon", "http://127.0.0.1:9", "--esplora", "http://127.0.0.1:9", "--environment", "test", "--keyring", testKeyring()}
+	for name, run := range map[string]struct {
+		env  []string
+		args []string
+	}{
+		"a flag":     {nil, append([]string{soundItem(), "--bitcoin-core", withUser}, sources...)},
+		"a variable": {[]string{"TRUESTAMP_VERIFY_BITCOIN_CORE=" + withUser}, append([]string{soundItem()}, sources...)},
+		"the file":   {nil, append([]string{soundItem(), "--config", writeConfig(t, "[verify]\nbitcoin_core = \""+withUser+"\"\n")}, sources...)},
+	} {
+		stdout, stderr, code := verifyCLI(t, binaryPath, run.env, nil, run.args...)
+		if code != 1 || !strings.Contains(stderr, "the URL carries user information") {
+			t.Errorf("%s: exit %d\n%s", name, code, stderr)
 		}
-		m["commitments"] = []any{entry}
-	})
-}
-
-// TestCLI_BitcoinOfflineEvidence pins E.19(b): the offline steps grade the
-// bundle's own bytes as internal consistency, in the server's four rows
-// and words (info on success, "Check failed: " on contradiction), never as
-// a passing commitment, and the binding step skips for a network with no
-// public API.
-func TestCLI_BitcoinOfflineEvidence(t *testing.T) {
-	out, _ := runVerifyJSON(t, binaryPath, bitcoinEvidenceBundlePath(t), "--offline")
-	rows := bitcoinRows(out)
-	st := stepStatuses(out, "Bitcoin Commitment")
-	if st["pass"] || st["fail"] || !st["info"] || !st["skip"] {
-		t.Errorf("Bitcoin Commitment statuses = %v, want info rows plus a skipped binding and no pass/fail\n%s", st, strings.Join(rows, "\n"))
-	}
-	wantInfo := []string{
-		"info | OP_RETURN in the supplied raw transaction matches the epoch root (internal consistency)",
-		"info | Transaction id a612b0d3f77c77471760c875a2d58b27b07db38a024ae9a5e5e28067d07e754f recomputed from the supplied raw transaction (internal consistency)",
-		"info | Supplied txoutproof places the transaction under the supplied block Merkle root (internal consistency)",
-		"info | Commitment block_merkle_root matches the supplied txoutproof header (internal consistency)",
-	}
-	if len(rows) < 5 || strings.Join(rows[:4], "\n") != strings.Join(wantInfo, "\n") {
-		t.Errorf("Bitcoin consistency rows:\ngot:\n%s\nwant:\n%s", strings.Join(rows, "\n"), strings.Join(wantInfo, "\n"))
-	}
-	if !strings.Contains(strings.Join(rows, "\n"), "skip | Bitcoin commitment unconfirmed") {
-		t.Errorf("binding not skipped:\n%s", strings.Join(rows, "\n"))
-	}
-	// A contradicted OP_RETURN fails.
-	bad := rewriteBundle(t, bitcoinEvidenceBundlePath(t), func(m map[string]any) {
-		m["commitments"].([]any)[0].(map[string]any)["epoch_merkle_root"] = strings.Repeat("00", 32)
-	})
-	out, _ = runVerifyJSON(t, binaryPath, bad, "--offline")
-	if st := stepStatuses(out, "Bitcoin Commitment"); !st["fail"] || !strings.Contains(strings.Join(bitcoinRows(out), "\n"), "fail | Check failed: OP_RETURN in the supplied raw transaction") {
-		t.Errorf("a contradicted OP_RETURN did not fail with the server's wording: %v\n%s", st, strings.Join(bitcoinRows(out), "\n"))
+		noSecret(t, name, stdout, stderr)
 	}
 }
 
-// TestCLI_RawTxAndTxOutProof_CaseIsNotGraded pins the one hex-valued pair
-// deliberately left OUT of E.4's lowercase-hex enforcement: raw_transaction
-// and txoutproof carry either base64url or hex, so a lowercase rule there
-// is undefined, and neither is trusted as a value (their derived txid,
-// OP_RETURN and Merkle root are compared against fields the rule does
-// cover). A case flip decodes to identical bytes and changes nothing.
-func TestCLI_RawTxAndTxOutProof_CaseIsNotGraded(t *testing.T) {
-	sample := bitcoinEvidenceBundlePath(t)
-	baseline, baseCode := runVerifyJSON(t, binaryPath, sample, "--offline")
-	wantRows := bitcoinRows(baseline)
-	if len(wantRows) == 0 {
-		t.Fatal("the bundle carries no Bitcoin Commitment rows, so this test asserts nothing")
-	}
-	for _, field := range []string{"raw_transaction", "txoutproof"} {
-		t.Run(field, func(t *testing.T) {
-			path := rewriteBundle(t, sample, func(m map[string]any) {
-				c := m["commitments"].([]any)[0].(map[string]any)
-				c[field] = strings.ToUpper(c[field].(string))
-			})
-			out, code := runVerifyJSON(t, binaryPath, path, "--offline")
-			if code != baseCode {
-				t.Errorf("uppercasing %s changed the exit code: %d -> %d", field, baseCode, code)
-			}
-			if got := bitcoinRows(out); strings.Join(got, "\n") != strings.Join(wantRows, "\n") {
-				t.Errorf("uppercasing %s changed the Bitcoin Commitment grading:\ngot:\n%s\nwant:\n%s",
-					field, strings.Join(got, "\n"), strings.Join(wantRows, "\n"))
-			}
-			if st := stepStatuses(out, "Structure"); st["fail"] {
-				t.Errorf("uppercasing %s tripped the E.4 sweep", field)
-			}
-		})
-	}
-	// The covered fields DO trip the sweep.
-	path := rewriteBundle(t, sample, func(m map[string]any) {
-		c := m["commitments"].([]any)[0].(map[string]any)
-		c["transaction_hash"] = strings.ToUpper(c["transaction_hash"].(string))
-	})
-	out, _ := runVerifyJSON(t, binaryPath, path, "--offline")
-	if st := stepStatuses(out, "Structure"); !st["fail"] || !strings.Contains(rawIssueText(out), "commitments[0].transaction_hash") {
-		t.Errorf("uppercase transaction_hash was not named by the sweep: %v\n%s", st, formatCLISteps(out.Steps))
-	}
-}
+// A Bitcoin Core node's credentials, from the environment, reach the node
+// as Basic authentication on every call, and nothing the CLI writes
+// carries them: not the --json report, the text, stderr, the --trace file,
+// nor config show as text or --json. Mutants killed: the credentials left
+// off the node's calls (no Authorization header); BitcoinCoreUser tagged
+// json:"bitcoin_core_user" (config show --json carries the user).
+func TestCLI_Verify_CoreCredentialsReachOnlyTheNode(t *testing.T) {
+	stub, bin := truestampStub(t)
+	path := writeTestProof(t, productionProof)
+	env := []string{"TRUESTAMP_VERIFY_BITCOIN_CORE_USER=" + plantedUser, "TRUESTAMP_VERIFY_BITCOIN_CORE_PASSWORD=" + plantedPassword}
+	trace := filepath.Join(t.TempDir(), "trace.json")
+	args := []string{path, "--horizon", stub.URL() + "/horizon", "--bitcoin-core", stub.URL() + "/core", "--trace", trace}
 
-// bitcoinRows renders the Bitcoin Commitment rows as comparable strings.
-func bitcoinRows(out conformanceOutput) []string {
-	var rows []string
-	for _, s := range out.Steps {
-		if strings.HasPrefix(s.Group, "Bitcoin") {
-			rows = append(rows, s.Status+" | "+s.Message)
-		}
+	stdout, stderr, code := verifyCLI(t, bin, env, nil, append(args, "--json")...)
+	if report := parseReport(t, stdout); code != 0 || report.Label != "verified" {
+		t.Fatalf("exit %d, %s\n%s", code, report.Label, stderr)
 	}
-	return rows
-}
-
-// --- helpers ---
-
-// buildWithEndpoints compiles the CLI with internal/external's endpoint
-// vars overridden through -ldflags -X, and returns the binary path.
-func buildWithEndpoints(t *testing.T, endpoints map[string]string) string {
-	t.Helper()
-	modRoot, err := findModuleRoot()
+	text, textErr, _ := verifyCLI(t, bin, env, nil, args...)
+	traced, err := os.ReadFile(trace)
 	if err != nil {
-		t.Fatalf("locating module root: %v", err)
+		t.Fatal(err)
 	}
-	const pkg = "github.com/truestamp/truestamp-cli/internal/external"
-	var ld []string
-	for name, url := range endpoints {
-		ld = append(ld, fmt.Sprintf("-X %s.%s=%s", pkg, name, url))
+	noSecret(t, "the run", stdout, stderr, text, textErr, string(traced))
+
+	_, authorizations := stub.seen()
+	want := "Basic " + base64.StdEncoding.EncodeToString([]byte(plantedUser+":"+plantedPassword))
+	if len(authorizations) < 4 || slices.ContainsFunc(authorizations, func(a string) bool { return a != want }) {
+		t.Errorf("the node's calls carried %q, want each %q", authorizations, want)
 	}
-	out := filepath.Join(t.TempDir(), "truestamp-endpoints")
-	cmd := exec.Command("go", "build", "-buildvcs=false", "-ldflags", strings.Join(ld, " "), "-o", out, "./cmd/truestamp")
-	cmd.Dir = modRoot
-	if b, err := cmd.CombinedOutput(); err != nil {
-		t.Fatalf("building endpoint-redirected binary: %v\n%s", err, b)
+
+	for _, show := range [][]string{{"config", "show"}, {"config", "show", "--json"}} {
+		cmd := exec.Command(binaryPath, show...)
+		cmd.Env = append(cleanEnv(), append(env, "TRUESTAMP_VERIFY_BITCOIN_CORE="+stub.URL()+"/core")...)
+		out, err := cmd.CombinedOutput()
+		if err != nil || !strings.Contains(string(out), stub.URL()+"/core") {
+			t.Errorf("%q: %v\n%s", show, err, out)
+		}
+		noSecret(t, strings.Join(show, " "), string(out))
 	}
-	return out
+}
+
+// config show, as text and as --json, shows the verifier's sources, each
+// network's several sources with its policy, and the configured keyrings,
+// and never a Bitcoin Core node's user or password, planted in the file,
+// nor user information in a source URL, a source key's or a
+// [verify.sources] table's, which it shows masked, a password typed with a
+// raw slash (a URL that parses with a host and a path) among them.
+// Mutants killed: the text table leaving the sources out; maskUserinfo
+// returning the URL whole; newConfigRecord copying a table's URLs without
+// maskUserinfo (--json carries the table's credentials); sourceRows
+// listing a table's URLs without it (the text does); maskUserinfo showing
+// whole a URL that parses with no user information (the slashed password
+// shows).
+func TestCLI_ConfigShow_TheVerifierSources(t *testing.T) {
+	path := writeConfig(t, `[verify]
+horizon = "https://horizon.config.example"
+esplora = "https://esplora.config.example/api"
+bitcoin_core = "http://`+plantedUser+`:planted-pass-9z@core.config.example:8332"
+bitcoin_core_user = "`+plantedUser+`"
+bitcoin_core_password = "planted-pass-9z"
+
+[verify.keyrings]
+staging = "/keyrings/staging.json"
+
+[verify.sources.bitcoin.mainnet]
+policy = "at_least 2"
+sources = [{ esplora = "https://one.config.example" }, { esplora = "https://two.config.example" }]
+
+[verify.sources.bitcoin.regtest]
+policy = "all"
+sources = [{ bitcoin_core = "http://`+plantedUser+`:planted-pass-9z@core.sources.example:8332" }, { bitcoin_core = "http://u:12/ss-planted@core.slash.example:8332" }]
+`)
+	for _, show := range [][]string{{"config", "show", "--config", path}, {"config", "show", "--config", path, "--json"}} {
+		out, code := runCLIText(t, show...)
+		for _, want := range []string{
+			"https://horizon.config.example", "https://esplora.config.example/api", "[masked]@core.config.example:8332",
+			"/keyrings/staging.json", "at_least 2", "https://one.config.example", "https://two.config.example",
+			"http://[masked]@core.sources.example:8332", "http://[masked]@core.slash.example:8332",
+		} {
+			if code != 0 || !strings.Contains(out, want) {
+				t.Errorf("%q: exit %d, lacks %q\n%s", show, code, want, out)
+			}
+		}
+		if strings.Contains(out, "12/ss-planted") {
+			t.Errorf("%q: shows the slashed password\n%s", show, out)
+		}
+		noSecret(t, strings.Join(show, " "), out)
+	}
+	out, _ := runCLIText(t, "config", "show", "--config", path, "--json")
+	var record struct {
+		Verify map[string]json.RawMessage `json:"verify"`
+	}
+	if err := json.Unmarshal([]byte(out), &record); err != nil {
+		t.Fatal(err)
+	}
+	for _, key := range []string{"horizon", "esplora", "bitcoin_core", "keyrings", "sources"} {
+		if _, ok := record.Verify[key]; !ok {
+			t.Errorf("config show --json has no verify.%s", key)
+		}
+	}
+	for _, key := range []string{"keyring", "bitcoin_core_user", "bitcoin_core_password"} {
+		if _, ok := record.Verify[key]; ok {
+			t.Errorf("config show --json has verify.%s", key)
+		}
+	}
+}
+
+// A source whose identity read gives a value its pins forbid is
+// configuration_error, exit 8: under E_v test, which pins Bitcoin to
+// regtest alone, an Esplora server that gives mainnet's block at height 0.
+// An unreachable one is not: the rows it serves skip, and the sound proof
+// is supplied-keyring, exit 6. Mutant killed: the command exiting 3 for a
+// configuration_error.
+func TestCLI_Verify_AMismatchedSourceIsConfigurationError(t *testing.T) {
+	stub := newChainStub(t)
+	stub.set(func(s *chainStub) { s.passphrase, s.genesis = testnetStellar, mainnetGenesis })
+	args := []string{soundItem(), "--json", "--horizon", stub.URL() + "/horizon", "--esplora", stub.URL() + "/esplora", "--environment", "test", "--keyring", testKeyring()}
+	stdout, _, code := verifyCLI(t, binaryPath, nil, nil, args...)
+	var rejection map[string]string
+	if err := json.Unmarshal([]byte(stdout), &rejection); err != nil || code != 8 || rejection["code"] != "configuration_error" {
+		t.Errorf("a mismatched source: exit %d, %v, %s", code, err, stdout)
+	}
+	_, _, code = verifyCLI(t, binaryPath, nil, nil, soundItem(), "--horizon", "http://127.0.0.1:9", "--esplora", "http://127.0.0.1:9", "--environment", "test", "--keyring", testKeyring())
+	if code != 6 {
+		t.Errorf("an unreachable source: exit %d, want 6", code)
+	}
+}
+
+// verify.keyring and TRUESTAMP_VERIFY_KEYRING are retired: neither gives
+// a run its keyring, so a run under E_v test with only them has no keyring
+// source (configuration_error, exit 8). A keyring configured for an
+// environment under [verify.keyrings] is used when --environment names
+// that environment: the sound proof is supplied-keyring, exit 6, with
+// that file as trust_root's location; under prod it is not used, and the
+// compiled pin governs (exit 3). Mutant killed: Options.Config taking a
+// configured keyring under prod (the test keyring, which holds VECTOR_KEY,
+// is refused there: exit 8).
+func TestCLI_Verify_TheConfiguredKeyrings(t *testing.T) {
+	retired := writeConfig(t, "[verify]\nkeyring = \""+testKeyring()+"\"\n")
+	_, stderr, code := verifyCLI(t, binaryPath, []string{"TRUESTAMP_VERIFY_KEYRING=" + testKeyring()}, nil, soundItem(), "--offline", "--environment", "test", "--config", retired)
+	if code != 8 {
+		t.Errorf("the retired key and variable: exit %d, want 8\n%s", code, stderr)
+	}
+	configured := writeConfig(t, "[verify.keyrings]\ntest = \""+testKeyring()+"\"\n")
+	stdout, _, code := verifyCLI(t, binaryPath, nil, nil, soundItem(), "--offline", "--environment", "test", "--config", configured, "--json")
+	if report := parseReport(t, stdout); code != 6 || report.TrustRoot["location"] != testKeyring() {
+		t.Errorf("a configured keyring: exit %d, %+v", code, report.TrustRoot)
+	}
+	_, _, code = verifyCLI(t, binaryPath, nil, nil, soundItem(), "--offline", "--config", configured)
+	if code != 3 {
+		t.Errorf("a configured keyring under prod: exit %d, want 3 (the compiled pin governs)", code)
+	}
+}
+
+// A network's several sources come from the configuration file, in their
+// order, under their policy (SPEC.md section 9): bitcoin's regtest under
+// at_least 3 with two sources is configuration_error, exit 8, before any
+// read; under all, both are read. Mutant killed: OptionsFromCommand leaving
+// the networks out (the at_least 3 run reads the operator's Horizon and
+// is configuration_error only for regtest's missing source, which reads
+// the stub first).
+func TestCLI_Verify_SeveralSourcesForANetwork(t *testing.T) {
+	stub := newChainStub(t)
+	testIdentities(stub)
+	table := func(policy string) string {
+		return writeConfig(t, "[verify.sources.bitcoin.regtest]\npolicy = \""+policy+"\"\nsources = [{ esplora = \""+stub.URL()+"/esplora\" }, { bitcoin_core = \""+stub.URL()+"/core\" }]\n")
+	}
+	base := []string{soundItem(), "--json", "--horizon", stub.URL() + "/horizon", "--environment", "test", "--keyring", testKeyring()}
+	stdout, _, code := verifyCLI(t, binaryPath, nil, nil, append(base, "--config", table("at_least 3"))...)
+	var rejection map[string]string
+	if err := json.Unmarshal([]byte(stdout), &rejection); err != nil || code != 8 || !strings.Contains(rejection["message"], "at_least") {
+		t.Errorf("at_least 3 of two: exit %d, %s", code, stdout)
+	}
+	if requests, _ := stub.seen(); len(requests) != 0 {
+		t.Errorf("a refused policy read %q", requests)
+	}
+	_, stderr, code := verifyCLI(t, binaryPath, nil, nil, append(base, "--config", table("all"))...)
+	if requests, _ := stub.seen(); code == 1 || code == 8 || !slices.Contains(requests, "GET /esplora/block-height/0") || !slices.Contains(requests, "POST /core") {
+		t.Errorf("all: exit %d, requests %q\n%s", code, requests, stderr)
+	}
+}
+
+// helpText returns a subcommand's --help output.
+func helpText(t *testing.T, sub string) string {
+	t.Helper()
+	cmd := exec.Command(binaryPath, sub, "--help")
+	cmd.Env = cleanEnv()
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		t.Fatalf("%s --help: %v\n%s", sub, err, out)
+	}
+	return string(out)
 }
 
 // rewriteBundle decodes a bundle, applies mutate, and writes it to a new
@@ -488,17 +395,3 @@ func rewriteBundle(t *testing.T, path string, mutate func(map[string]any)) strin
 	}
 	return out
 }
-
-// helpText returns a subcommand's --help output.
-func helpText(t *testing.T, sub string) string {
-	t.Helper()
-	cmd := exec.Command(binaryPath, sub, "--help")
-	cmd.Env = cleanEnv()
-	out, err := cmd.CombinedOutput()
-	if err != nil {
-		t.Fatalf("%s --help: %v\n%s", sub, err, out)
-	}
-	return string(out)
-}
-
-var _ = testfixtures.Root

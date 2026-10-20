@@ -25,12 +25,23 @@ Run `truestamp --help` for the full persistent-flag list. What `--help` does not
 
 There is **no `--api-url` and no `--keyring-url`**: both flags, and the `api_url` / `keyring_url` TOML keys, were retired in favour of the single `base_url`. `config.Load` warns once ("no longer recognized") when it finds the old TOML keys, and cobra rejects the old flags outright with `unknown flag`.
 
-## Verify Flags, the two that carry contracts
+## Verify options, and where each may come from
 
-`truestamp verify --help` lists all of them. The two with semantics `--help` cannot convey:
+`truestamp verify --help` lists them. Where each may come from is the contract (SPEC.md sections 6.4, 8.3 and 9; `internal/verifier/options.go`):
 
-- `--type item|entropy_nist|entropy_stellar|entropy_bitcoin|block|beacon` asserts the expected subject type. A mismatch surfaces as a "Subject Type" failure step in **both** modes. `--remote` asserts it client-side against the bytes it is about to post and forwards `data.type` only when the assertion already holds: forwarding a mismatching type makes the server answer 4xx and the caller gets a bare error string with no report at all, which is the opposite of what the flag is for. **There is no default and no inference**: the subject type is always read from the bundle's own signed `type`, and the filename is never consulted (whitepaper Appendix E.24). With `--type` unset, no Subject Type row is emitted and nothing is posted as `data.type`.
-- `--remote` delegates verification to the server's `/proof/verify` instead of computing locally, and requires authentication. The CLI still does three things itself: it parses the bundle (so an E.6 rejection never reaches the wire), it performs E.7's `--expected-hash` comparison locally and treats the server's `hash_matched` as corroboration (failing on a disagreement in either direction) and it **fails closed** on a report it cannot read (a step with no `status`, a status outside E.22's five, a `result` carrying zero steps, or a server `passed` verdict that contradicts its own step list).
+- **The run's options only**: `--environment` (E_v, `prod` by default), `--no-keyring` (keyless mode), `--keyring FILE` and `--trace FILE`. No configuration key and no environment variable sets any of them; `verify.keyring` and `TRUESTAMP_VERIFY_KEYRING` are retired and set nothing.
+- **The configuration file only**: `[verify.keyrings]` with `dev`, `staging` and `test`, a keyring file for each non-production environment, used only when `--environment` names it; and `[verify.sources.<chain>.<network>]`, a network's several sources in order with a `policy` of `first`, `at_least N` or `all`, each source a table `{ horizon = URL }`, `{ esplora = URL }` or `{ bitcoin_core = URL }`. Load drops every environment variable that would reach either table.
+- **A flag, the environment or the file**: `--horizon`, `--esplora`, `--bitcoin-core` (`TRUESTAMP_VERIFY_HORIZON`, `_ESPLORA`, `_BITCOIN_CORE`; `verify.horizon`, `verify.esplora`, `verify.bitcoin_core`), a flag over a variable over the file; and `--offline` / `TRUESTAMP_VERIFY_OFFLINE` / `verify.offline`, `--remote` / `TRUESTAMP_VERIFY_REMOTE` / `verify.remote`.
+- **The environment or the file, never the command line**: a Bitcoin Core node's RPC credentials, `verify.bitcoin_core_user` / `verify.bitcoin_core_password` and `TRUESTAMP_VERIFY_BITCOIN_CORE_USER` / `_PASSWORD`. No flag takes them, and a source URL with user information is refused from every origin with an error that never quotes it. `config show` never shows them, and shows everything before a source URL's last `@`, but its scheme, as `[masked]`, since any `@` after the `//` could end user information.
+- **Nothing**: no option sets a network pin; the pins are E_v's defaults (SPEC.md section 9). No option selects a NIST source.
+
+`config init` creates `config.toml` readable by its owner alone (0600) in a directory only its owner can enter (0700), since it can hold an API key and a node's password.
+
+The keyring that governs, for a run: `--no-keyring`, keyless; else `--keyring FILE`; else, online, the keyring read from the origin an explicit `--base-url` names, when that host is not www.truestamp.com; else, under a non-production E_v, its configured keyring; else, under `prod`, the keyring read from www.truestamp.com online and the compiled pin offline, and under any other E_v `configuration_error`. The configured base URL (`base_url`, `TRUESTAMP_BASE_URL`) points the API commands and never moves the keyring read.
+
+`--expected-hash` is read by its Changed state: `--expected-hash ""` is a value given, and fails EXPECTED_HASH. The value is lowercased and never trimmed (SPEC.md section 10.2, step 13).
+
+`--remote` also asks the server's `/proof/verify` and prints its verdict on stderr; stdout and the exit code are the local run's.
 
 ## Hash subcommand
 

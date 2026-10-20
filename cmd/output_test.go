@@ -98,13 +98,12 @@ func offlineCommands(t *testing.T, baseURL string) func(args ...string) *exec.Cm
 // that render cards, tables, banners, and reports.
 func offlineInvocations() [][]string {
 	bundle := testfixtures.Path(testfixtures.ProdDir, testfixtures.ProdComplete)
-	keyring := testfixtures.Path(testfixtures.ProdDir, testfixtures.ProdKeyring)
 	return [][]string{
 		{"version"},
 		{"config", "show"},
 		{"config", "path"},
 		{"auth", "status"},
-		{"verify", bundle, "--offline", "--keyring", keyring},
+		{"verify", soundItem(), "--offline", "--environment", "test", "--keyring", testKeyring()},
 		{"inspect", bundle},
 		{"convert", "time", "2026-09-03T12:00:00Z"},
 		{"convert", "keyid", "CTwMqDZnPd/QTLSq8aTeSD3a+j2DQxKcGfhhIYJQ65Y="},
@@ -115,7 +114,8 @@ func offlineInvocations() [][]string {
 
 // TestCLI_RedirectedOutput_HasNoANSI runs each invocation with its stdout
 // and stderr connected to pipes, i.e. exactly the shape of `truestamp ...
-// > file`, and asserts no escape byte survives.
+// > file`, and asserts no escape byte survives. Mutant killed: verify's
+// text written with an ANSI escape of its own.
 //
 // This is the regression that motivated internal/ui's Fprint helpers:
 // commands built a styled string with Style.Render and then handed it to

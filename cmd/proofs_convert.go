@@ -31,8 +31,10 @@ in both, hex strings included. Every number is preserved exactly.
 
 The CBOR output uses RFC 8949 section 4.2 core deterministic encoding
 (sorted keys, shortest-form integers, definite-length containers) and is
-prefixed with the self-describing CBOR tag 55799 so 'truestamp verify'
-auto-detects the format. JSON output preserves the input's key order.
+prefixed with the self-describing CBOR tag 55799. JSON output preserves
+the input's key order. This command reads only the earlier proof layout,
+and 'truestamp verify' reads JSON only, so no CBOR proof verifies until
+the CLI reads the new format.
 
 Examples:
   truestamp proofs convert --to cbor proof.json > proof.cbor

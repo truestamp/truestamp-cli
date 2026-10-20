@@ -129,8 +129,6 @@ A hard rejection aborts before any step result exists and produces an error, not
 10. `commitments` is not a list, or is empty: `no_external_commitments`
 11. an entry is not a map, or its `chain` is not `"stellar"` or `"bitcoin"`, or it lacks `epoch_proof` (as a string), or it lacks `epoch_merkle_root`: `invalid_commitment_entry`
 
-One CLI-side rejection sits outside E.6: `verify --type X` on a bundle whose signed `type` differs is `subject_type_mismatch`, the name the server uses for the same condition on `/proof/verify`. It is a rejection rather than a graded row because E.25 forbids adding a `fail` row for a step Appendix D.4 does not report.
-
 Everything else is graded, never rejected: a wrong or absent `version` (E.8), an undecodable `public_key` (E.9), a mis-cased hash (E.4), an undecodable proof (E.12), an unknown optional field (ignored), an unknown witness name (a visible `skip`).
 
 ## CBOR
