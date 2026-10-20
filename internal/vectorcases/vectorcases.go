@@ -22,12 +22,17 @@ package vectorcases
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"maps"
 	"os"
 	"path/filepath"
+	"regexp"
 	"runtime"
 	"slices"
 	"strings"
+
+	"github.com/truestamp/truestamp-cli/internal/specdata"
 )
 
 // Steps are the steps of SPEC.md section 10.2, in their order.
@@ -66,6 +71,29 @@ type Config struct {
 	// Online is the path of the case's replay file under corpus/replay/, or
 	// nil for an offline case.
 	Online *string `json:"online"`
+	// Sources gives, by chain and then network, the several sources of
+	// each Stellar or Bitcoin network the case pins that has them (SPEC.md
+	// section 9), only beside Online; a network it does not name has one
+	// source, under the policy first (SPEC.md section 13.2).
+	Sources map[string]map[string]NetworkSources `json:"sources"`
+}
+
+// The source policies of SPEC.md section 9.
+const (
+	PolicyFirst   = "first"
+	PolicyAtLeast = "at_least"
+	PolicyAll     = "all"
+)
+
+// NetworkSources is one network's sources in a case's Sources (SPEC.md
+// section 13.2): Sources, the names of the network's sources in their
+// order, each an ASCII16, one or more, no two the same; Policy, first,
+// at_least or all; and Required, the n of at_least n, from 1 to the number
+// of sources, present exactly when Policy is at_least.
+type NetworkSources struct {
+	Policy   string   `json:"policy"`
+	Required *int     `json:"required"`
+	Sources  []string `json:"sources"`
 }
 
 // Networks is a case's commitment pin per chain and entropy pin per source.
@@ -155,12 +183,19 @@ func Path(relative string) string {
 
 // Load reads every case of cases.json, in the file's order. A member the
 // structs above do not name, a case without an id, proof or environment,
-// and two cases with one id are errors.
+// two cases with one id, and a case's sources that SPEC.md section 13.2
+// does not allow ([checkSources]) are errors.
 func Load() ([]Case, error) {
 	data, err := os.ReadFile(Path("cases.json"))
 	if err != nil {
 		return nil, err
 	}
+	return load(data)
+}
+
+// load decodes the bytes of a cases.json and checks its cases as [Load]
+// says.
+func load(data []byte) ([]Case, error) {
 	decoder := json.NewDecoder(bytes.NewReader(data))
 	decoder.DisallowUnknownFields()
 	var cases []Case
@@ -179,6 +214,58 @@ func Load() ([]Case, error) {
 			return nil, fmt.Errorf("vectorcases: two cases are named %s", c.ID)
 		}
 		seen[c.ID] = true
+		if err := checkSources(c.Config); err != nil {
+			return nil, fmt.Errorf("vectorcases: %s: %w", c.ID, err)
+		}
 	}
 	return cases, nil
+}
+
+// checkSources checks a case's sources as SPEC.md section 13.2 writes them:
+// present only beside online; each network one of its chain's, a network of
+// stellar or bitcoin, the chains specdata.Networks gives; one or more
+// names, each an ASCII16, no two the same; the policy first, at_least or
+// all; and required present exactly when the policy is at_least, an integer
+// from 1 to the number of names. Chains and networks are checked in sorted
+// order, so the refusal returned is the first in that order. That each
+// network is one the case pins is held by the package's tests over
+// cases.json.
+func checkSources(cfg Config) error {
+	if cfg.Sources == nil {
+		return nil
+	}
+	if cfg.Online == nil {
+		return errors.New("sources without online")
+	}
+	ascii16 := regexp.MustCompile(`^` + specdata.Encodings()["ASCII16"].Pattern + `$`)
+	for _, chain := range slices.Sorted(maps.Keys(cfg.Sources)) {
+		networks := cfg.Sources[chain]
+		for _, network := range slices.Sorted(maps.Keys(networks)) {
+			named := networks[network]
+			if !slices.Contains(specdata.Networks()[chain], network) {
+				return fmt.Errorf("sources of %s %s, not a network of a Stellar or Bitcoin chain", chain, network)
+			}
+			if len(named.Sources) == 0 {
+				return fmt.Errorf("sources of %s %s name no source", chain, network)
+			}
+			for i, name := range named.Sources {
+				if !ascii16.MatchString(name) || slices.Contains(named.Sources[:i], name) {
+					return fmt.Errorf("sources of %s %s: the name %q is not an ASCII16 named once", chain, network, name)
+				}
+			}
+			switch named.Policy {
+			case PolicyFirst, PolicyAll:
+				if named.Required != nil {
+					return fmt.Errorf("sources of %s %s: required under %s", chain, network, named.Policy)
+				}
+			case PolicyAtLeast:
+				if named.Required == nil || *named.Required < 1 || *named.Required > len(named.Sources) {
+					return fmt.Errorf("sources of %s %s: at_least without a required from 1 to %d", chain, network, len(named.Sources))
+				}
+			default:
+				return fmt.Errorf("sources of %s %s: the policy %q", chain, network, named.Policy)
+			}
+		}
+	}
+	return nil
 }

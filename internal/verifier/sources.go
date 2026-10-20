@@ -30,14 +30,18 @@
 //     carry an API key in the path and a report is made to be shared; the
 //     reads use the whole URL.
 //
-// SPEC.md section 9 does not settle which pins a source with no usable
-// identity answer serves: its rule reads the network from that answer.
-// The rule of step 4 below is this CLI's own: such a source serves the
-// pins it may serve that no source that answered serves, the first of two
-// such sources in the options' order taking them and the other none, so
-// no pin is served twice, no default is read in an operator source's
-// place, and an outage stays an outage rather than a configuration_error
-// (SPEC.md section 10.2, step 0).
+// A source with no usable identity answer serves the pins SPEC.md section
+// 9, "Which pin a source serves", gives it: a source configured for one
+// network, a compiled-in default or an operator source that names that
+// network (in the CLI, only a source a conformance case's replay file
+// stands for names one), serves that network's pins, and each of their rows
+// it makes is skip source_unreachable; a source configured for no network
+// serves each pin of its chain the run pins that no other source serves,
+// and of two such sources the first in the order of the verifier's source
+// options serves it; and no compiled-in default is read in such a source's
+// place, so an outage is never configuration_error (SPEC.md section 10.2,
+// step 0). Steps 4 and 5 below make that rule, the options' order being
+// that of [Config.Sources], so no pin is served twice.
 //
 // NIST's Randomness Beacon has no network and no identity read: SOURCES
 // reads it at its one compiled-in address.

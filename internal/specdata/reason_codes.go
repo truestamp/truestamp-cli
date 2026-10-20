@@ -77,6 +77,8 @@ const (
 	ReasonNotHeldBySource           Reason = "not_held_by_source"
 	ReasonNotYetIndexed             Reason = "not_yet_indexed"
 	ReasonChainNotFinal             Reason = "chain_not_final"
+	ReasonSourcesDisagree           Reason = "sources_disagree"
+	ReasonSourcesIncomplete         Reason = "sources_incomplete"
 	ReasonEntropyMismatch           Reason = "entropy_mismatch"
 	ReasonWindowNotEstablished      Reason = "window_not_established"
 	ReasonWindowInverted            Reason = "window_inverted"
@@ -111,7 +113,7 @@ var reasonTable = []ReasonEntry{
 		Code:    ReasonConfigurationError,
 		Status:  StatusBare,
 		Step:    "CONFIGURATION",
-		Meaning: "a check of step 0 fails (section 10.2): a keyring file or configured keyring fails its load checks, a run whose environment is not prod is not keyless and has no keyring source (section 6.4), an online run pins a network it has no source for, or a source's identity read gives a value step 0 forbids",
+		Meaning: "a check of step 0 fails (section 10.2): a keyring file or configured keyring fails its load checks, a run whose environment is not prod is not keyless and has no keyring source (section 6.4), an online run pins a network it has no source for, a source's identity read gives a value step 0 forbids, or a source policy's n is 0 or above the number of its network's sources",
 	},
 	{
 		Code:    ReasonInputTooLarge,
@@ -258,6 +260,18 @@ var reasonTable = []ReasonEntry{
 		Status:  StatusSkip,
 		Step:    "CHAIN",
 		Meaning: "the Bitcoin tip is below height + BITCOIN_FINALITY",
+	},
+	{
+		Code:    ReasonSourcesDisagree,
+		Status:  StatusSkip,
+		Step:    "CHAIN, SOURCES",
+		Meaning: "sources of one network that reached a conclusive outcome conflict: one passes and another fails, or two pass with candidates at different instants (section 10.4); a source with no conclusive outcome never counts, and a disagreement is no failure",
+	},
+	{
+		Code:    ReasonSourcesIncomplete,
+		Status:  StatusSkip,
+		Step:    "CHAIN, SOURCES",
+		Meaning: "no conclusive outcomes conflict, but fewer sources reached one than the source policy asks for, and the sources did not all skip with one code (section 10.4)",
 	},
 	{
 		Code:    ReasonEntropyMismatch,

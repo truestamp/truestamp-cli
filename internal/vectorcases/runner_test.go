@@ -70,6 +70,7 @@ const firstBuilt = "CONFIGURATION"
 var laterShapeChecks = map[string]int{
 	"shape-witnesses-missing":                 4,
 	"shape-witnesses-extra":                   4,
+	"shape-witnesses-swapped":                 4,
 	"shape-time-hour_24":                      5,
 	"shape-time-february_30":                  5,
 	"shape-time-second_60":                    5,
@@ -205,13 +206,18 @@ type caseReplay struct {
 // operator-pinned source of each network whose identity read it holds: a
 // Horizon server for Stellar and an Esplora server for Bitcoin, pinned to
 // that network, at a URL under replay.invalid that no read reaches. A read
-// the file does not hold fails the test.
+// the file does not hold fails the test. The runner gives each network one
+// source, so it runs no case that names several sources of a network
+// (SPEC.md section 9, "Several sources for one network"), and refuses one.
 func replayOf(t *testing.T, c vectorcases.Case) *caseReplay {
 	t.Helper()
 	if c.Config.Online == nil {
 		return nil
 	}
-	replay, err := vectorcases.LoadReplay(*c.Config.Online)
+	if c.Config.Sources != nil {
+		t.Fatalf("%s names several sources of a network; the runner gives each network one source", c.ID)
+	}
+	replay, err := vectorcases.LoadCaseReplay(c)
 	if err != nil {
 		t.Fatalf("%s: %v", c.ID, err)
 	}
@@ -233,7 +239,7 @@ func replayOf(t *testing.T, c vectorcases.Case) *caseReplay {
 		adapter.mu.Lock()
 		adapter.identityReads = append(adapter.identityReads, s.Chain+" "+s.Network)
 		adapter.mu.Unlock()
-		value, err := replay.Identity(s.Chain, s.Network)
+		value, err := replay.Identity(s.Chain, s.Network, "")
 		if errors.Is(err, vectorcases.ErrNoAnswer) {
 			t.Errorf("%s: %v", c.ID, err)
 		}
@@ -553,76 +559,88 @@ func unsourced(t *testing.T, c vectorcases.Case, o outcome) []string {
 }
 
 // Every case of cases.json through the built steps: a case they decide
-// gives exactly its code and sub_reason; every other case passes steps 0
-// to 3, and a report's rows of the built steps are exactly its expected
-// rows, all of them when the gate or SHAPE ends the run, whose label is
-// then failed, with the attribution none when the gate ended it and the
+// gives exactly its code and sub_reason; every other case passes steps 0 to
+// 3, and a report's rows of the built steps are exactly its expected rows,
+// all of them when the gate or SHAPE ends the run, whose label is then
+// failed, with the attribution none when the gate ended it and the
 // attribution SIGNATURE gave it when SHAPE did; a run the gate opens has
 // the attribution its label needs; a run SHAPE passes takes the type and
 // subject id its proof carries, stays open through DERIVE, and has a
 // failing row exactly when its expected rows of POLICY and of DERIVE do,
 // and any other run takes neither; a run that reaches DERIVE has exactly
-// the rows and trace of DERIVE that the model of derive_model_test.go
-// gives (checkDerive), and a run that ended
-// before it has no trace; every row's values write with JCS, and each
-// value of a row of SHAPE or POLICY is one the run computed or holds (valueSourced),
-// every SHAPE row's keyword "false" or one of verifier.SchemaKeywords()
-// among them; the five online cases CONFIGURATION decides give
-// configuration_error through the replay adapter; every other online case
-// has a source for each pin and reads each pinned network's identity once;
-// and the two online cases whose keyring is unavailable,
-// key_binding-unavailable-unreachable and
-// key_binding-unavailable-load_check, read the keyring of
-// www.truestamp.com through the replay adapter and fail KEY_BINDING
-// keyring_unavailable. Mutants killed: a failed online keyring read
-// binding against the compiled pin (both online key_binding-* cases fail
-// key_binding_failed); a replayed keyring loaded under a fixed "test"
-// (key_binding-unavailable-load_check's VECTOR_KEY binds); parseNumber
-// without its call to profileNumber (the parse-integer-* and parse-number-* cases
-// are accepted); skipWhitespace without the carriage return (the
-// sameness-format-* cases, which end their lines in CRLF, are refused);
-// Envelope without the signature's member count (the
-// envelope-signature-extra-key_id case passes); the keyring's VECTOR_KEY
-// check left out (configuration-vector_key-under-staging passes); a
-// non-production run with no keyring source governed by the compiled pin
-// (configuration-no_keyring_source passes); ENVIRONMENT passing any marker
-// under a non-production E_v (environment-absent-under-staging passes);
-// keyless mode skipping SIGNATURE (signature-other_key-keyless passes);
-// the proof_hash prefix 0x50 replaced by 0x31 (every sound case fails
-// SIGNATURE); EndRun leaving out the skip rows (every gate failure's rows
-// differ); Configure without its source confirmation (the five
-// configuration-online cases pass CONFIGURATION); the runner without its
-// call to Shape (every SHAPE row is missing) or to Policy (every POLICY
-// row is missing); Shape giving the subject id of /subject/record/id to
-// every type (the block and beacon cases take none, and panic); a SHAPE
-// failure setting the attribution none (the 63 that fail at SHAPE); Policy
-// ending the run at a failure (the 15 POLICY failures get skip rows);
-// shapeSchema giving the failure's schema location as its keyword (every
-// check-3 row's keyword is unsourced); policyRow's values giving the
-// proof's network as the pin (each POLICY failure's pin is unsourced);
-// policyComparisons comparing genesis.bitcoin with the entropy pin (each
-// genesis row's pin_kind is unsourced, though every case with a genesis
-// row pins one Bitcoin network for both kinds); the runner without its
-// call to Derive (every DERIVE row is missing); Derive ending the run at
-// a failing row (the 140 cases that fail at DERIVE get skip rows);
-// deriveChecks giving the links before the records (in
+// the rows and trace of DERIVE that the model of derive_model_test.go gives
+// (checkDerive), and a run that ended before it has no trace; every row's
+// values write with JCS, and each value of a row of SHAPE or POLICY is one
+// the run computed or holds (valueSourced), every SHAPE row's keyword
+// "false" or one of verifier.SchemaKeywords() among them; the five online
+// cases CONFIGURATION decides give configuration_error through the replay
+// adapter; the 18 sources-* cases, which alone name several sources of a
+// network (SPEC.md section 9), are not run, since the runner gives each
+// network one source; every other online case has a source for each pin and
+// reads each pinned network's identity once; and the two online cases whose
+// keyring is unavailable, key_binding-unavailable-unreachable and
+// key_binding-unavailable-load_check, read the keyring of www.truestamp.com
+// through the replay adapter and fail KEY_BINDING keyring_unavailable.
+// Mutants killed: a failed online keyring read binding against the compiled
+// pin (both online key_binding-* cases fail key_binding_failed); a replayed
+// keyring loaded under a fixed "test" (key_binding-unavailable-load_check's
+// VECTOR_KEY binds); parseNumber without its call to profileNumber (the
+// parse-integer-* and parse-number-* cases are accepted); skipWhitespace
+// without the carriage return (the sameness-format-* cases, which end their
+// lines in CRLF, are refused); Envelope without the signature's member
+// count (the envelope-signature-extra-key_id case passes); the keyring's
+// VECTOR_KEY check left out (configuration-vector_key-under-staging
+// passes); a non-production run with no keyring source governed by the
+// compiled pin (configuration-no_keyring_source passes); ENVIRONMENT
+// passing any marker under a non-production E_v
+// (environment-absent-under-staging passes); keyless mode skipping
+// SIGNATURE (signature-other_key-keyless passes); the proof_hash prefix
+// 0x50 replaced by 0x31 (every sound case fails SIGNATURE); EndRun leaving
+// out the skip rows (every gate failure's rows differ); Configure without
+// its source confirmation (the five configuration-online cases pass
+// CONFIGURATION); the runner without its call to Shape (every SHAPE row is
+// missing) or to Policy (every POLICY row is missing); Shape giving the
+// subject id of /subject/record/id to every type (the block and beacon
+// cases take none, and panic); a SHAPE failure setting the attribution none
+// (the 67 that fail at SHAPE); Policy ending the run at a failure (the 16
+// POLICY failures get skip rows); shapeSchema giving the failure's schema
+// location as its keyword (every check-3 row's keyword is unsourced);
+// policyRow's values giving the proof's network as the pin (each POLICY
+// failure's pin is unsourced); policyComparisons comparing genesis.bitcoin
+// with the entropy pin (each genesis row's pin_kind is unsourced, and under
+// staging's pins policy-block-genesis-staging_pins-regtest fails); the
+// runner without its call to Derive (every DERIVE row is missing); Derive
+// ending the run at a failing row (the 153 cases that fail at DERIVE get
+// skip rows); deriveChecks giving the links before the records (in
 // declared-genesis_height-witnesses LINK_HEAD's pass comes before the
 // genesis height's failure at /witnesses/block/record/height, and in every
 // case with a signing key event LINK_KEY_EVENT's row before the check of
-// its key's bytes).
+// its key's bytes); Load dropping a case's sources (the sources-* cases are
+// run, and LoadCaseReplay refuses their records' sources).
 func TestCases_ThroughDerive(t *testing.T) {
 	cases, err := vectorcases.Load()
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(cases) != 443 {
-		t.Fatalf("cases.json holds %d cases, want 443", len(cases))
+	if len(cases) != 481 {
+		t.Fatalf("cases.json holds %d cases, want 481", len(cases))
 	}
 	tally := map[string]int{}
 	names := map[string]bool{}
+	var unrun []string
 	for _, c := range cases {
 		step := decidedAt(t, c)
 		online := c.Config.Online != nil
+		if c.Config.Sources != nil {
+			if !online || c.Family() != "sources" {
+				t.Fatalf("%s names sources; want an online sources-* case", c.ID)
+			}
+			unrun = append(unrun, c.ID)
+			continue
+		}
+		if c.Family() == "sources" {
+			t.Fatalf("%s names no sources", c.ID)
+		}
 
 		t.Run(c.ID, func(t *testing.T) {
 			got := run(t, c)
@@ -708,10 +726,10 @@ func TestCases_ThroughDerive(t *testing.T) {
 		"rejected at PARSE":                    15,
 		"rejected at ENVELOPE":                 32,
 		"report, the gate fails":               30,
-		"report, SHAPE fails":                  63,
-		"report, POLICY fails":                 14,
-		"report, DERIVE fails":                 139,
-		"report, passes through DERIVE":        69,
+		"report, SHAPE fails":                  67,
+		"report, POLICY fails":                 15,
+		"report, DERIVE fails":                 152,
+		"report, passes through DERIVE":        71,
 		"online report, passes through DERIVE": 60,
 		"online report, POLICY fails":          1,
 		"online report, DERIVE fails":          1,
@@ -724,6 +742,9 @@ func TestCases_ThroughDerive(t *testing.T) {
 		if tally[k] != n {
 			t.Fatalf("tally = %v, want %v", tally, want)
 		}
+	}
+	if len(unrun) != 18 {
+		t.Fatalf("%d cases name several sources of a network, %q; want the 18 sources-* cases", len(unrun), unrun)
 	}
 	reached := slices.Sorted(maps.Keys(names))
 	if wantNames := []string{"chain", "class", "constructions", "constructions_digest", "declared", "keyword",
@@ -760,32 +781,34 @@ func failingTimes(proof map[string]any) []string {
 }
 
 // The families cut at SHAPE are SPEC.md section 13.3's, past a gate each
-// passes: the 57 shape-* cases, three unsupported_format, two
-// unsupported_version, 38 shape_invalid at check 3, the 13 of checks 4 to 6
-// (laterShapeChecks), whose proofs the schema finds nothing in, two of
-// check 4 at /witnesses, seven of check 5 at a header_time, closed_at or
-// timeStamp, and four of check 6, construction_mismatch at /constructions,
-// and shape-time-february_29-0000, which passes; the 6 empty_root-* cases, one
+// passes: the 61 shape-* cases, three unsupported_format, two
+// unsupported_version, 41 shape_invalid at check 3, the 14 of checks 4 to 6
+// (laterShapeChecks), whose proofs the schema finds nothing in, three of
+// check 4 at /witnesses (a witness missing, one extra, and the two
+// swapped), seven of check 5 at a header_time, closed_at or timeStamp, and
+// four of check 6, construction_mismatch at /constructions, and
+// shape-time-february_29-0000, which passes; the 6 empty_root-* cases, one
 // with leaves under the empty root and one with no leaves under another
 // root at each of /block, /witnesses/block and /signing_key_event/block,
 // each shape_invalid at that record's merkle_root by the schema's
 // empty-root rule; and gates-shape, unsupported_version. Each case decided
 // by checks 1 to 3 gives its row, and check 3's row is the first in
-// document order of the schema's failures; the two shape-first_of_two-schema
-// cases each carry two failures of check 3 and give the first; every case
-// gives its SHAPE row, checks 4 to 6 included, and the two
-// shape-first_of_two-times cases each carry two failures of check 5 and
-// give the first in document order. Mutants killed: checks 1 and 2 made after the schema (shape-format-absent and
-// shape-version-absent fail shape_invalid); the schema's if applying then
-// whatever its schema gives (the empty_root-*-leaves cases pass); the
-// failures left in the order the checker meets them
-// (shape-first_of_two-schema-mirror fails at previous_block_hash); not
-// passing what its schema fails (every proof fails at a not); check 5
-// taking the first failing time in the layout's order
-// (shape-first_of_two-times-mirror fails at its other time); the leap-year
-// rule without its century clause (shape-time-february_29-1900 and -2100
-// pass); check 6 accepting every reference
-// (shape-reference-not_accepted passes).
+// document order of the schema's failures; the two
+// shape-first_of_two-schema cases each carry two failures of check 3 and
+// give the first; every case gives its SHAPE row, checks 4 to 6 included,
+// and the two shape-first_of_two-times cases each carry two failures of
+// check 5 and give the first in document order. Mutants killed: checks 1
+// and 2 made after the schema (shape-format-absent and shape-version-absent
+// fail shape_invalid); the schema's if applying then whatever its schema
+// gives (the empty_root-*-leaves cases pass); the failures left in the
+// order the checker meets them (shape-first_of_two-schema-mirror fails at
+// previous_block_hash); not passing what its schema fails (every proof
+// fails at a not); check 5 taking the first failing time in the layout's
+// order (shape-first_of_two-times-mirror fails at its other time); the
+// leap-year rule without its century clause (shape-time-february_29-1900
+// and -2100 pass); check 6 accepting every reference
+// (shape-reference-not_accepted passes); check 4 comparing the witnesses
+// with the names by their number alone (shape-witnesses-swapped passes).
 func TestCases_FamiliesCutAtShape(t *testing.T) {
 	cases, err := vectorcases.Load()
 	if err != nil {
@@ -880,8 +903,8 @@ func TestCases_FamiliesCutAtShape(t *testing.T) {
 		}
 	}
 	want := map[string]map[string]int{
-		"shape": {"unsupported_format": 3, "unsupported_version": 2, "shape_invalid": 38, "pass": 1,
-			"check 4": 2, "check 5": 7, "check 6": 4},
+		"shape": {"unsupported_format": 3, "unsupported_version": 2, "shape_invalid": 41, "pass": 1,
+			"check 4": 3, "check 5": 7, "check 6": 4},
 		"empty_root": {"shape_invalid": 6},
 		"gates":      {"unsupported_version": 1},
 	}
@@ -954,27 +977,37 @@ func TestCases_SamenessCutAtShape(t *testing.T) {
 	}
 }
 
-// The families cut at POLICY are SPEC.md section 13.3's: the 13 policy-*
-// cases, one network_mismatch at each network member position, 12 in all,
-// at /commitments and /signing_key_event/commitments for each chain, at
+// The families cut at POLICY are SPEC.md section 13.3's: 13 policy-* cases,
+// one network_mismatch at each network member position, 12 in all, at
+// /commitments and /signing_key_event/commitments for each chain, at
 // /witnesses/entropy_X and /observations/entropy_X/entropy for Stellar and
 // Bitcoin and at /subject/entropy in an entropy_stellar and an
-// entropy_bitcoin proof, and at genesis.bitcoin in each of the three
-// block positions; and gates-policy and gates-online-policy, the second
-// through the replay adapter, each network_mismatch at
-// /commitments/bitcoin/network. Each is held to its POLICY rows whole, the
-// passes beside its one failure in document order, with the run open after
-// POLICY; its failing row's part is the position its id names, and its
-// values give the case's pin for that position and the proof's network as
-// declared. Six of the policy cases pin an entropy network that differs
-// from their E_v's default, as 25 cases of the file do. Mutants killed:
+// entropy_bitcoin proof, and at genesis.bitcoin in each of the three block
+// positions; the two policy-block-genesis-staging_pins-* cases, run under
+// staging's pins, Bitcoin commitments on regtest and Bitcoin entropy on
+// mainnet (SPEC.md section 9), whose genesis.bitcoin is held to the
+// commitment pin, so the one whose genesis declares mainnet fails at
+// /block's genesis.bitcoin and the one whose genesis declares regtest, the
+// sound block, passes POLICY, the one POLICY case that passes; and
+// gates-policy and gates-online-policy, the second through the replay
+// adapter, each network_mismatch at /commitments/bitcoin/network. Each is
+// held to its POLICY rows whole, the passes beside its one failure in
+// document order, with the run open after POLICY; its failing row's part is
+// the position its id names, without its -staging_pins-<network> suffix,
+// and its values give the case's pin for that position and the proof's
+// network as declared. Eight of the policy cases pin an entropy network
+// other than their E_v's default (the six policy-*-entropy_* cases and the
+// two staging_pins cases), and 27 cases of the file pin some network other
+// than their E_v's default. Mutants killed: policyComparisons comparing
+// genesis.bitcoin with the entropy pin
+// (policy-block-genesis-staging_pins-regtest fails and -mainnet passes);
 // caseConfig taking the pins from the case's E_v, test, instead of its
-// networks (the six entropy cases' POLICY rows differ); pinNetwork giving the
-// commitment pin for every kind (the same six cases' rows differ);
-// genesisBitcoin left out of policyComparisons (the three genesis cases
-// lose their rows); Policy leaving its rows in the layout's order (in
-// policy-observations-* /observations sorts before /signing_key_event,
-// and in the genesis cases a block position's genesis row sorts among the
+// networks (the six entropy cases' POLICY rows differ); pinNetwork giving
+// the commitment pin for every kind (the same six cases' rows differ);
+// genesisBitcoin left out of policyComparisons (the three genesis cases lose
+// their rows); Policy leaving its rows in the layout's order (in
+// policy-observations-* /observations sorts before /signing_key_event, and
+// in the genesis cases a block position's genesis row sorts among the
 // commitments); Policy taking the default pins of the run's E_v (the six
 // entropy cases' rows differ).
 func TestCases_FamiliesCutAtPolicy(t *testing.T) {
@@ -984,7 +1017,7 @@ func TestCases_FamiliesCutAtPolicy(t *testing.T) {
 	}
 	differ := 0
 	positions := map[string]bool{}
-	seen := 0
+	seen, passing := 0, 0
 	for _, c := range cases {
 		defaults, _ := specdata.DefaultNetworkPins(c.Config.Environment)
 		if c.Config.Networks.Commitment["bitcoin"] != defaults.Commitment.Bitcoin || c.Config.Networks.Commitment["stellar"] != defaults.Commitment.Stellar ||
@@ -997,15 +1030,33 @@ func TestCases_FamiliesCutAtPolicy(t *testing.T) {
 		seen++
 		got := run(t, c)
 		want := rowsBetween("POLICY", "POLICY", c.Expected.Rows)
-		if !rowsEqual(rowsBetween("POLICY", "POLICY", got.rows), want) || got.ended || !got.failed {
+		passes := !slices.ContainsFunc(want, func(row vectorcases.Row) bool { return row.Status == "fail" })
+		if !rowsEqual(rowsBetween("POLICY", "POLICY", got.rows), want) || got.ended || got.failed == passes {
 			t.Errorf("%s: POLICY rows %v, ended %v, failed %v; want %v", c.ID, rowsBetween("POLICY", "POLICY", got.rows), got.ended, got.failed, want)
 			continue
 		}
 		var failing []stepValues
+		var genesis map[string]any
 		for _, row := range got.values {
 			if row.row.Step == "POLICY" && row.row.Status == "fail" {
 				failing = append(failing, row)
 			}
+			if row.row.Step == "POLICY" && *row.row.Part == "/block/record/metadata/genesis/bitcoin/network" {
+				genesis = row.values
+			}
+		}
+		id, pins, staging := strings.Cut(c.ID, "-staging_pins-")
+		if staging && (c.Config.Networks.Entropy["bitcoin"] != "mainnet" || c.Config.Networks.Commitment["bitcoin"] != "regtest" ||
+			genesis["pin"] != "regtest" || genesis["pin_kind"] != "commitment" ||
+			proofValue(proofOf(t, c), "/block/record/metadata/genesis/bitcoin/network") != pins) {
+			t.Errorf("%s: the pins %+v, the genesis row's values %v; want staging's pins, and genesis.bitcoin, %s as its id names, held to the commitment pin, regtest", c.ID, c.Config.Networks, genesis, pins)
+		}
+		if passes {
+			if c.ID != "policy-block-genesis-staging_pins-regtest" || len(failing) != 0 {
+				t.Errorf("%s: passes POLICY with failing rows %v; want only the regtest genesis under staging's pins to pass", c.ID, failing)
+			}
+			passing++
+			continue
 		}
 		if len(failing) != 1 || *failing[0].row.Code != "network_mismatch" {
 			t.Errorf("%s: failing rows %v", c.ID, failing)
@@ -1013,7 +1064,7 @@ func TestCases_FamiliesCutAtPolicy(t *testing.T) {
 		}
 		part := *failing[0].row.Part
 		positions[part] = true
-		named := strings.ReplaceAll(strings.TrimPrefix(c.ID, "policy-"), "-", "/")
+		named := strings.ReplaceAll(strings.TrimPrefix(id, "policy-"), "-", "/")
 		named = strings.NewReplacer("witnesses_block", "witnesses/block", "signing_key_event_block", "signing_key_event/block",
 			"genesis", "record/metadata/genesis/bitcoin", "observations/entropy_bitcoin", "observations/entropy_bitcoin/entropy",
 			"observations/entropy_stellar", "observations/entropy_stellar/entropy", "subject/entropy_stellar", "subject/entropy",
@@ -1030,8 +1081,8 @@ func TestCases_FamiliesCutAtPolicy(t *testing.T) {
 			t.Errorf("%s: values %v, the proof's network %q", c.ID, values, valueAt)
 		}
 	}
-	if seen != 15 || len(positions) != 12 || differ != 25 {
-		t.Fatalf("%d cases, %d positions %v, %d cases with pins other than their E_v's", seen, len(positions), positions, differ)
+	if seen != 17 || passing != 1 || len(positions) != 12 || differ != 27 {
+		t.Fatalf("%d cases, %d passing, %d positions %v, %d cases with pins other than their E_v's", seen, passing, len(positions), positions, differ)
 	}
 }
 
@@ -1643,7 +1694,7 @@ func TestCases_TheSoundTraces(t *testing.T) {
 
 // keyEventFamilies are the families of the key events and the links after
 // LINK_INCLUSION (SPEC.md section 13.3), with their sizes.
-var keyEventFamilies = map[string]int{"key_events": 26, "handover_position": 4, "order": 12, "self_signed": 1}
+var keyEventFamilies = map[string]int{"key_events": 30, "handover_position": 4, "order": 12, "self_signed": 1}
 
 // keyEventPositions name a case's block position, and keyEventMembers the
 // part its member names under that block node.
@@ -1656,6 +1707,7 @@ var (
 		"previous_key_id":              "/record/metadata/key_event/previous_key_id",
 		"signing_key_id":               "/record/signing_key_id",
 		"public_key_small_order":       "/record/metadata/key_event/public_key",
+		"public_key_y_not_below_p":     "/record/metadata/key_event/public_key",
 		"prerotation_active_key_id":    "/record/signing_key_id",
 	}
 	orderPositions = map[string]string{"subject": "/subject/entropy", "witness": "/witnesses/entropy_%s", "observation": "/observations/entropy_%s/entropy"}
@@ -1698,24 +1750,28 @@ func expectedFailure(t *testing.T, id string) string {
 	return ""
 }
 
-// The key_events (26), handover_position (4), order (12) and self_signed
+// The key_events (30), handover_position (4), order (12) and self_signed
 // (1) cases, cut at DERIVE, each run through TestCases_ThroughDerive's
-// comparison (its rows through DERIVE, and its values and
-// trace against the model): each fails only at the part and with the code
-// its name gives (none for the equal Bitcoin heights and self_signed); each
-// has LINK_KEY_EVENT's row info not_attributable, since every one runs
-// under a supplied keyring or keyless, but key_events-link_key_event, whose
-// event introduces another key and fails; no run ends or takes the
-// attribution truestamp, and the info row fails no run; and the refusals
-// name the step of SPEC.md section 6.2 that refused the key or the
-// signature: small_order_key for the identity outgoing key and the
-// small-order genesis key, equation for a changed handover signature.
-// Mutants killed: LINK_KEY_EVENT passing under a supplied keyring (no info
-// row); the info row counted as a failure (self_signed-genesis and the
-// equal heights fail); the handover's height compared with the event's
-// own (the handover_position height cases pass); a refused handover named
-// not_verified, as one step (the changed signature's refusal is not
-// equation).
+// comparison (its rows through DERIVE, and its values and trace against the
+// model): each fails only at the part and with the code its name gives
+// (none for the equal Bitcoin heights and self_signed); each has
+// LINK_KEY_EVENT's row info not_attributable, since every one runs under a
+// supplied keyring or keyless, but key_events-link_key_event, whose event
+// introduces another key and fails; no run ends or takes the attribution
+// truestamp, and the info row fails no run; and the refusals name the step
+// of SPEC.md section 6.2 that refused the key or the signature:
+// small_order_key for the identity outgoing key, the small-order genesis
+// key and the identity as a rotation's or an emergency rotation's incoming
+// key, y_not_below_p for an incoming key whose y is p + 3, and equation for
+// a changed handover signature. Mutants killed: the incoming key of a
+// rotation or an emergency rotation left without the checks of a key's
+// bytes (the rows of the rotation cases differ); the y check of a key's
+// bytes left out (the y_not_below_p cases' rows differ); LINK_KEY_EVENT
+// passing under a supplied keyring (no info row); the info row counted as a
+// failure (self_signed-genesis and the equal heights fail); the handover's
+// height compared with the event's own (the handover_position height cases
+// pass); a refused handover named not_verified, as one step (the changed
+// signature's refusal is not equation).
 func TestCases_KeyEventFamiliesCutAtDerive(t *testing.T) {
 	cases, err := vectorcases.Load()
 	if err != nil {
@@ -1767,9 +1823,13 @@ func TestCases_KeyEventFamiliesCutAtDerive(t *testing.T) {
 		t.Fatalf("families %v, want %v", families, keyEventFamilies)
 	}
 	for id, refused := range map[string]string{
-		"key_events-identity_previous_public_key-block":   "small_order_key",
-		"key_events-public_key_small_order-witnesses":     "small_order_key",
-		"key_events-handover_signature-signing_key_event": "equation",
+		"key_events-identity_previous_public_key-block":                "small_order_key",
+		"key_events-public_key_small_order-witnesses":                  "small_order_key",
+		"key_events-handover_signature-signing_key_event":              "equation",
+		"key_events-public_key_small_order-rotation-block":             "small_order_key",
+		"key_events-public_key_small_order-emergency_rotation-block":   "small_order_key",
+		"key_events-public_key_y_not_below_p-rotation-block":           "y_not_below_p",
+		"key_events-public_key_y_not_below_p-emergency_rotation-block": "y_not_below_p",
 	} {
 		if refusals[id] != refused {
 			t.Errorf("%s: refused %q, want %q", id, refusals[id], refused)
@@ -1800,37 +1860,51 @@ var bitcoinRules = map[string][2]string{
 	"bitcoin-txoutproof_nbits_overflow":                        {"/commitments/bitcoin/txoutproof", "target"},
 	"bitcoin-txoutproof_nbits_negative":                        {"/commitments/bitcoin/txoutproof", "target"},
 	"bitcoin-unmatched_transaction":                            {"/commitments/bitcoin/txoutproof", ""},
+	"bitcoin-raw_transaction_op_return_other_push":             {"/commitments/bitcoin/raw_transaction", "op_return"},
+	"bitcoin-raw_transaction_witness":                          {"/commitments/bitcoin/raw_transaction", "parse"},
+	"bitcoin-raw_transaction_compact_size_not_shortest":        {"/commitments/bitcoin/raw_transaction", "parse"},
+	"bitcoin-txoutproof_compact_size_not_shortest":             {"/commitments/bitcoin/txoutproof", "parse"},
+	"bitcoin-txoutproof_first_unused_flag_bit":                 {"/commitments/bitcoin/txoutproof", "partial_tree"},
+	"bitcoin-txoutproof_extra_flag_octet":                      {"/commitments/bitcoin/txoutproof", "partial_tree"},
+	"bitcoin-txoutproof_two_matches":                           {"/commitments/bitcoin/txoutproof", "matches"},
+	"bitcoin-txoutproof_no_match":                              {"/commitments/bitcoin/txoutproof", "matches"},
+	"bitcoin-txoutproof_nbits_negative_unsigned_target_met":    {"/commitments/bitcoin/txoutproof", "target"},
+	"bitcoin-txoutproof_total_txs_max":                         {"", ""},
 }
 
-// The 19 bitcoin cases (SPEC.md section 13.3), cut at DERIVE, each run
+// The 29 bitcoin cases (SPEC.md section 13.3), cut at DERIVE, each run
 // through TestCases_ThroughDerive's comparison (its rows through DERIVE,
-// and its values and trace against the model): each fails at DERIVE only
-// at the part bitcoinRules gives it, with bitcoin_evidence_invalid and the
+// and its values and trace against the model): each fails at DERIVE only at
+// the part bitcoinRules gives it, with bitcoin_evidence_invalid and the
 // rule named when the structure is not well formed, every rule of a
-// raw_transaction and a txoutproof among them, and with
-// derivation_mismatch otherwise; a malformed structure has one row at its
-// part, its OP_RETURN or its matched hash unread, and a malformed
-// txoutproof no header row; and no run ends. And the OP_RETURN is held to
-// the recomputed epoch_hash (SPEC.md section 5.4): in
-// leaf_count-record-commitments-bitcoin and
+// raw_transaction and a txoutproof among them, and with derivation_mismatch
+// otherwise, but bitcoin-txoutproof_total_txs_max, whose total_txs is
+// BITCOIN_MAX_TOTAL_TXS, which fails no row of DERIVE; a malformed
+// structure has one row at its part, its OP_RETURN or its matched hash
+// unread, and a malformed txoutproof no header row; and no run ends. And
+// the OP_RETURN is held to the recomputed epoch_hash (SPEC.md section 5.4):
+// in leaf_count-record-commitments-bitcoin and
 // leaf_count-record-signing_key_event-bitcoin, whose epoch records lie
 // about their leaf count with epoch_hash declared as the lying record's
 // hash, the OP_RETURN row alone fails, declared as the 32 bytes the
-// OP_RETURN pushes and recomputed as the model's hash of the record; and
-// in declared-epoch_hash-commitments-bitcoin and
+// OP_RETURN pushes and recomputed as the model's hash of the record; and in
+// declared-epoch_hash-commitments-bitcoin and
 // declared-epoch_hash-signing_key_event-bitcoin, whose epoch_hash alone is
 // changed, the OP_RETURN row passes beside the failing epoch_hash. Mutants
 // killed: the OP_RETURN compared with the carried epoch_hash (the two
-// declared-epoch_hash cases fail it); a well-formedness row's rule
-// misnamed or left out; the OP_RETURN or header rows made for a malformed
-// structure (a second row at its part, or header rows a malformed
-// txoutproof should not give).
+// declared-epoch_hash cases fail it); a well-formedness row's rule misnamed
+// or left out; the total_txs bound made exclusive
+// (bitcoin-txoutproof_total_txs_max fails total_txs); the walk's match
+// count taken as at least one (bitcoin-txoutproof_two_matches is taken as
+// well formed, and its rows differ); the OP_RETURN or header rows made for
+// a malformed structure (a second row at its part, or header rows a
+// malformed txoutproof should not give).
 func TestCases_BitcoinFamilyCutAtDerive(t *testing.T) {
 	cases, err := vectorcases.Load()
 	if err != nil {
 		t.Fatal(err)
 	}
-	seen, rules := 0, map[string]bool{}
+	seen, passes, rules := 0, 0, map[string]bool{}
 	epochCases := 0
 	for _, c := range cases {
 		id := c.ID
@@ -1884,6 +1958,13 @@ func TestCases_BitcoinFamilyCutAtDerive(t *testing.T) {
 		if !ok {
 			t.Fatalf("%s is not among bitcoinRules", id)
 		}
+		if want[0] == "" {
+			if failed != nil || totalTxs(t, get(proofOf(t, c), "/commitments/bitcoin/txoutproof")) != specdata.BitcoinMaxTotalTxs {
+				t.Errorf("%s: failing %q, total_txs %d; want a pass at BITCOIN_MAX_TOTAL_TXS", id, derivePartsOf(failed), totalTxs(t, get(proofOf(t, c), "/commitments/bitcoin/txoutproof")))
+			}
+			passes++
+			continue
+		}
 		code := "derivation_mismatch"
 		if want[1] != "" {
 			code = "bitcoin_evidence_invalid"
@@ -1910,8 +1991,21 @@ func TestCases_BitcoinFamilyCutAtDerive(t *testing.T) {
 			}
 		}
 	}
-	allRules := []string{"duplicate_pair", "length", "op_return", "parse", "partial_tree", "target", "total_txs"}
-	if seen != 19 || epochCases != 4 || !slices.Equal(slices.Sorted(maps.Keys(rules)), allRules) {
-		t.Fatalf("%d bitcoin cases, %d epoch cases, rules %v; want 19, 4, %q", seen, epochCases, rules, allRules)
+	allRules := []string{"duplicate_pair", "length", "matches", "op_return", "parse", "partial_tree", "target", "total_txs"}
+	if seen != 29 || passes != 1 || epochCases != 4 || !slices.Equal(slices.Sorted(maps.Keys(rules)), allRules) {
+		t.Fatalf("%d bitcoin cases, %d passing, %d epoch cases, rules %v; want 29, 1, 4, %q", seen, passes, epochCases, rules, allRules)
 	}
+}
+
+// totalTxs reads total_txs, the 4 octets little-endian after the 80-octet
+// header (SPEC.md section 10.2, step 9 (d)), out of a txoutproof's hex,
+// here without the verifier's parser.
+func totalTxs(t *testing.T, txoutproof any) int {
+	t.Helper()
+	text, _ := txoutproof.(string)
+	data, err := hex.DecodeString(text)
+	if err != nil || len(data) < 84 {
+		t.Fatalf("a txoutproof of %d octets: %v", len(data), err)
+	}
+	return int(data[80]) | int(data[81])<<8 | int(data[82])<<16 | int(data[83])<<24
 }
