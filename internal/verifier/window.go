@@ -100,13 +100,20 @@ type Edge struct {
 }
 
 // EdgeSource is one source an edge rests on, with its read that gave the
-// candidate: Source, the source as a report names it, scheme://host[:port];
+// candidate: Source, the source as a report names it, scheme://host[:port]
+// ([printedURL], the form SPEC.md sections 10.4 and 11.5 let it take);
 // Cached, whether that read's answer came from a cache, always false, since
-// the CLI caches nothing; and FetchedAt, when that read came back.
+// the CLI caches nothing; FetchedAt, when that read came back; and Place,
+// its place in its network's order, from 1, and Count, the number of that
+// network's sources. The edge's text names the place when Count is above
+// one, as SPEC.md section 11.5 asks of a source shown in that form; the
+// edge object has no member for it.
 type EdgeSource struct {
 	Source    string
 	Cached    bool
 	FetchedAt time.Time
+	Place     int
+	Count     int
 }
 
 // Value is the edge as a report writes it, {assumption, basis, cached,
@@ -161,7 +168,8 @@ func assumptionOf(basis, edge string) string {
 
 // edgeOf is the edge named edge that candidate gives: its sources are those
 // its row counted, in their order, each with the fetched_at of its read
-// that gave the candidate. It panics for a candidate that rests on no
+// that gave the candidate and its place among its network's sources. It
+// panics for a candidate that rests on no
 // source, which no row of SPEC.md section 10.4 gives: a defect in the
 // caller.
 func edgeOf(candidate RowCandidate, edge string) Edge {
@@ -174,7 +182,9 @@ func edgeOf(candidate RowCandidate, edge string) Edge {
 		if c := counted.Outcome.Candidate; c != nil {
 			at = c.FetchedAt
 		}
-		sources = append(sources, EdgeSource{Source: printedURL(counted.Source.Source.URL), FetchedAt: at})
+		sources = append(sources, EdgeSource{
+			Source: printedURL(counted.Source.Source.URL), FetchedAt: at, Place: counted.Place, Count: counted.Count,
+		})
 	}
 	return Edge{Assumption: assumptionOf(candidate.Candidate.Basis, edge), Candidate: candidate.Candidate, Part: candidate.Part, Sources: sources}
 }

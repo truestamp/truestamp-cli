@@ -26,7 +26,8 @@ import (
 //     failed after WINDOW shows no edge;
 //   - each source an edge rests on is named "read from <source> in this
 //     run", or, for an answer from a cache, "read from <source> at
-//     <fetched_at>" (section 11.5);
+//     <fetched_at>", <source> naming its place in its network's order
+//     when that network has several sources (section 11.5);
 //   - no time the proof carries is shown, and no marker the proof carries
 //     is quoted (section 6.4): only the rows' messages, which the verifier
 //     writes, say what a check found;
@@ -113,9 +114,11 @@ func windowText(report *verifier.Report) string {
 }
 
 // edgeText is one edge: its instant and basis, and each source it rests
-// on (SPEC.md section 11.5), all read from its edge object; or, for an
-// edge that does not exist, the codes of the rows that could have given
-// it, or that the proof carries nothing that could.
+// on (SPEC.md section 11.5), all read from its edge object, each source
+// with its place in its network's order when that network has several
+// sources, from the edge's Sources, since the edge object has no member
+// for it; or, for an edge that does not exist, the codes of the rows that
+// could have given it, or that the proof carries nothing that could.
 func edgeText(caption string, edge *verifier.Edge, reasons []string) string {
 	if edge == nil {
 		switch {
@@ -131,9 +134,12 @@ func edgeText(caption string, edge *verifier.Edge, reasons []string) string {
 	basis, _ := value["basis"].(string)
 	var reads []string
 	sources, _ := value["sources"].([]any)
-	for _, s := range sources {
+	for i, s := range sources {
 		read, _ := s.(map[string]any)
 		name, _ := read["source"].(string)
+		if src := edge.Sources[i]; src.Count > 1 {
+			name += fmt.Sprintf(", source %d of the %d sources of its network,", src.Place, src.Count)
+		}
 		if cached, _ := read["cached"].(bool); cached {
 			at, _ := read["fetched_at"].(string)
 			reads = append(reads, "read from "+name+" at "+at)

@@ -58,7 +58,10 @@
 // the form of a replay record (SPEC.md section 13.2). Its source is the
 // source as a message prints it, its scheme, host and port ([printedURL]),
 // as CONFIGURATION's values print it, since a hosted node's path may hold
-// an API key and a report is made to be shared.
+// an API key and a report is made to be shared. SPEC.md section 10.4
+// ("What a row read") lets a verifier give a source so, and then several
+// sources of one network are told apart by their place in the network's
+// order, which is the order of the outcomes.
 //
 // The CLI caches nothing: every read is made live, so every cached is
 // false, and a read's fetched_at is when its answer, or its failure, came
@@ -217,10 +220,15 @@ func (o SourceOutcome) check() {
 // each branch. It is made only for a source whose identity was confirmed.
 type RowRule func(source SourceRecord) SourceOutcome
 
-// AskedSource is one source a row asked, and its outcome.
+// AskedSource is one source a row asked, and its outcome: Place, its
+// place in its network's order, from 1, and Count, the number of that
+// network's sources, which a source shown by its scheme, host and port
+// alone is told apart by (SPEC.md sections 10.4 and 11.5).
 type AskedSource struct {
 	Source  SourceRecord
 	Outcome SourceOutcome
+	Place   int
+	Count   int
 }
 
 // CombinedOutcome is a row's outcome from its network's sources (see the
@@ -251,26 +259,26 @@ func CombineSources(set SourceSet, rule RowRule) CombinedOutcome {
 		panic(fmt.Sprintf("verifier: %s's %s network has no source", chainName(set.Chain), set.Network))
 	}
 	combined := CombinedOutcome{Policy: set.Policy, Required: set.Required()}
-	ask := func(record SourceRecord) SourceOutcome {
+	ask := func(place int, record SourceRecord) SourceOutcome {
 		outcome := SourceOutcome{Status: StatusSkip, Code: specdata.ReasonSourceUnreachable}
 		if record.Status != SourceUnreachable {
 			outcome = rule(record)
 		}
 		outcome.check()
-		combined.Asked = append(combined.Asked, AskedSource{record, outcome})
+		combined.Asked = append(combined.Asked, AskedSource{Source: record, Outcome: outcome, Place: place + 1, Count: len(set.Sources)})
 		return outcome
 	}
 	if set.Policy.Kind == SourcePolicyFirst {
-		for _, record := range set.Sources {
-			if outcome := ask(record); outcome.conclusive() {
+		for place, record := range set.Sources {
+			if outcome := ask(place, record); outcome.conclusive() {
 				return combined.taking(outcome, combined.Asked[len(combined.Asked)-1:])
 			}
 		}
 		return combined.inconclusive()
 	}
 	var passes, fails []AskedSource
-	for _, record := range set.Sources {
-		switch outcome := ask(record); outcome.Status {
+	for place, record := range set.Sources {
+		switch outcome := ask(place, record); outcome.Status {
 		case StatusPass:
 			passes = append(passes, combined.Asked[len(combined.Asked)-1])
 		case StatusFail:

@@ -224,6 +224,40 @@ func TestCombineSources_OneSourceUnderEachPolicyIsThatSource(t *testing.T) {
 	}
 }
 
+// Each source an edge rests on carries its place in its network's order,
+// from 1, and the number of that network's sources, from the source the
+// row counted (SPEC.md section 11.5): of three sources under at_least 2,
+// a first that does not hold the read and two passes, the edge rests on
+// the second and third, places 2 and 3 of 3; under first, of such a first
+// and a pass, on the second, place 2 of 2. Mutants killed: CombineSources
+// numbering places from 0; edgeOf taking the count as the number of
+// sources counted (2 and 1); edgeOf leaving the place and count unset.
+func TestEdgeOf_EachSourceItsPlaceInItsNetwork(t *testing.T) {
+	cases := []struct {
+		policy   SourcePolicy
+		names    []string
+		outcomes []SourceOutcome
+		want     string
+	}{
+		{atLeast(2), []string{"one", "two", "three"}, []SourceOutcome{skips(specdata.ReasonNotHeldBySource), passes(at(100)), passes(at(100))}, "two 2/3 three 3/3"},
+		{first, []string{"one", "two"}, []SourceOutcome{skips(specdata.ReasonNotHeldBySource), passes(at(100))}, "two 2/2"},
+	}
+	for _, c := range cases {
+		combined, _ := combine(c.policy, c.names, c.outcomes...)
+		if combined.Status != StatusPass {
+			t.Fatalf("%s: %+v", c.policy, combined)
+		}
+		edge := edgeOf(RowCandidate{Step: "CHAIN", Part: "/commitments/stellar", Candidate: *combined.Candidate, Counted: combined.Counted}, edgeSubmittedBefore)
+		var got []string
+		for _, s := range edge.Sources {
+			got = append(got, fmt.Sprintf("%s %d/%d", strings.TrimSuffix(strings.TrimPrefix(s.Source, "https://"), ".example"), s.Place, s.Count))
+		}
+		if strings.Join(got, " ") != c.want {
+			t.Errorf("%s: the edge rests on %q, want %q", c.policy, strings.Join(got, " "), c.want)
+		}
+	}
+}
+
 // What a row read (SPEC.md section 10.4): policy, required, one object
 // for each source the row asked, in the network's order, and the row's
 // candidate when it passed with one; each object {cached, candidate, code,

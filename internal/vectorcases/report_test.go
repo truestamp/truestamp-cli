@@ -119,7 +119,8 @@ func sameInstant(t *testing.T, a, b string) bool {
 // with JCS and read back, to its case whole (SPEC.md sections 10.5 and
 // 13.1): exactly the members of section 10.5, in JCS's order, code
 // present exactly when the label is failed and then the code of the
-// case's first failing row; its label; every row, in order, each exactly
+// case's first failing row, and the code the case gives when it gives one;
+// its label; every row, in order, each exactly
 // {code, message, part, status, step, values} with code absent exactly on
 // a pass, reduced to (code, part, status, step) and equal to the case's
 // rows; each edge null or {basis, instant} as the case gives it, the
@@ -151,6 +152,9 @@ func checkReport(t *testing.T, c vectorcases.Case, r *verifier.Run) {
 	}
 	if i := slices.IndexFunc(c.Expected.Rows, failing); failed && (i < 0 || report["code"] != *c.Expected.Rows[i].Code) {
 		t.Fatalf("code %v; the case's first failing row is at %d", report["code"], i)
+	}
+	if c.Expected.Code != "" && report["code"] != c.Expected.Code {
+		t.Fatalf("code %v; the case gives the code %s", report["code"], c.Expected.Code)
 	}
 
 	var rows []json.RawMessage

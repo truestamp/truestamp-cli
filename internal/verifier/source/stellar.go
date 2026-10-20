@@ -36,6 +36,14 @@
 //     server. Its reason is a fixed text, as the identity reads' are
 //     ([fromRead]), quoting nothing a server sent.
 //
+// Every answer is read whole by the strict reader (internal/strictjson),
+// so a body that breaks J2 to J6 of SPEC.md section 10.1 in any member, one
+// no read uses included, is unreachable (SPEC.md section 10.4, "Answers").
+// No answer is compared with the hash or the sequence it was asked for:
+// section 10.4 ("Answers") lets a verifier treat as unreachable an answer
+// that does not name the object asked for, and these reads take the
+// answer Horizon gives to the path they read.
+//
 // The source's URL is the operator's or a compiled-in default, never the
 // document's: a read's parameters name only the record asked for.
 

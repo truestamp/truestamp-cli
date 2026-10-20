@@ -46,8 +46,10 @@
 //     is absent from the value: the answer holds what the source gave, so
 //     the rule that reads only the hash, genesis.bitcoin's, is judged on
 //     it, and a rule that reads another field finds it unusable (section
-//     10.4: an answer is judged on the fields its rule reads at that
-//     point). A field in another form is left out rather than copied, so a
+//     10.4, "Answers": an answer is judged on the fields its rule reads at
+//     that point, and a read made of several calls whose later call
+//     answers not found or gives no usable answer, one that does not parse
+//     included, is found with the fields its earlier calls gave). A field in another form is left out rather than copied, so a
 //     value never holds what a server wrote in place of a number, such as
 //     the credentials a node echoes back, and the rule judges it unusable
 //     either way. A block by its hash whose one call gives no answer is
@@ -78,7 +80,15 @@
 //
 // Every JSON answer is read whole by the strict reader
 // (internal/strictjson), so a body it refuses, for a number past
-// MAX_INTEGER in a member no read uses too, gives its call no answer.
+// MAX_INTEGER in a member no read uses too, gives its call no answer
+// (SPEC.md section 10.4, "Answers": an answer in JSON parses only when it
+// meets J2 to J6 of section 10.1 in every member).
+//
+// No answer is compared with the height or the hash it was asked for:
+// section 10.4 ("Answers") lets a verifier treat as unreachable an answer
+// that does not name the object asked for, and these reads take the
+// answer the source gives to the call they made. A Bitcoin Core answer
+// must still be to this call, by its JSON-RPC id.
 //
 // The source's URL is the operator's or a compiled-in default, never the
 // document's: a read's parameters name only the height or the hash asked
