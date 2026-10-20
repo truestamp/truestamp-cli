@@ -26,8 +26,9 @@
 // sources and source policy (SPEC.md sections 9 and 10.2, step 0). Under
 // an open gate it holds the candidate of each CHAIN and SOURCES row that
 // passed with one, in row order, with the sources it rests on, for WINDOW
-// (SPEC.md sections 11.1, 11.2 and 11.5). It holds no edge objects of
-// SPEC.md section 11.5.
+// (SPEC.md sections 11.1, 11.2 and 11.5), and the two edges WINDOW draws
+// from them (section 11.5), which a report whose label is failed writes
+// null (section 10.5).
 
 package verifier
 
@@ -102,6 +103,7 @@ const (
 //	| Trace               | the trace (SPEC.md section 10.6): one row for each DERIVE row whose part is a CHECKED value, other than a row of LINK_HEAD, LINK_KEY_EVENT or LINK_CHAIN_ORDER, in DERIVE's order; nil until DERIVE, for a run that ends before it, and after a fault in it | DERIVE |
 //	| ExternalGate        | the external gate (SPEC.md section 10.2): open, offline or prior_failure; "" before DERIVE ends, and in a run that ended before it or in it | DERIVE |
 //	| Candidates          | the candidate of each CHAIN and SOURCES row that passed with one, in row order, and the sources it rests on (chain.go) | CHAIN, SOURCES |
+//	| SubmittedAfter, SubmittedBefore | the edges WINDOW drew under an open gate (window.go), each nil where it has none; nil under a closed gate | WINDOW |
 //	| Label               | the report's label (SPEC.md section 10.5); "" before VERDICT | VERDICT |
 //	| Code                | the run's code, the code of its first failing row, when Label is failed; "" otherwise | VERDICT |
 //	| Rows                | the rows so far, in step order                              | every step    |
@@ -125,6 +127,8 @@ type Run struct {
 	Trace              []TraceRow
 	ExternalGate       ExternalGate
 	Candidates         []RowCandidate
+	SubmittedAfter     *Edge
+	SubmittedBefore    *Edge
 	Label              string
 	Code               specdata.Reason
 	Rows               []Row

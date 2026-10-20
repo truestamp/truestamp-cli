@@ -7,8 +7,9 @@
 // more: for steps 0 to 6, each case's bare rejection or rows; for SHAPE and
 // POLICY, their rows, with the check of where each value of their rows
 // comes from (section 10.5); for DERIVE, its rows, their values and the
-// trace (section 10.6); for CHAIN, SOURCES and WINDOW under a closed
-// external gate, EXPECTED_HASH and VERDICT, their rows and the label.
+// trace (section 10.6); for CHAIN, SOURCES and WINDOW, under a closed
+// and an open external gate, EXPECTED_HASH and VERDICT, their rows, the
+// label and the two edges of the submission window (section 11.5).
 
 package vectorcases_test
 
@@ -45,13 +46,11 @@ import (
 // each row skip offline. Each such case, every offline case and every
 // online case whose gate does not open, is held to all of its rows and its
 // label. Under an open gate, the rows of CHAIN, SOURCES and WINDOW are the
-// rules of each chain and source (SPEC.md sections 10.4 and 11), of which
-// the verifier makes the chains' and the entropy sources' so far, CHAIN's
-// Stellar and Bitcoin rules and SOURCES' NIST, Stellar and Bitcoin rules,
-// so such a case is held to every row but WINDOW's (builtOpen), CHAIN's
-// whole, KEY_EVENT_COMMITMENT included, and SOURCES' whole, and to its
-// label when each of its failing rows is one it is held to and its label
-// is failed or names its attribution (labelDecided).
+// rules of each chain and source and of the window (SPEC.md sections 10.4
+// and 11): CHAIN's Stellar and Bitcoin rules, KEY_EVENT_COMMITMENT
+// included, SOURCES' NIST, Stellar and Bitcoin rules, and WINDOW's, so
+// such a case too is held to all of its rows and its label, and to its two
+// edges (checkEdges).
 //
 // DERIVE makes every check of step 9, parts (a) to (e), and its rows are
 // compared whole, each with the values and trace rows of
@@ -73,23 +72,10 @@ import (
 // lastBuilt is the last step that reports rows (SPEC.md section 10.2).
 const lastBuilt = "EXPECTED_HASH"
 
-// unbuiltOpen are the steps whose rows under an open external gate the
-// verifier does not make yet (builtOpen).
-var unbuiltOpen = []string{"WINDOW"}
-
 // stellarEntry reports whether part is a Stellar commitment entry's,
 // /commitments/stellar or /signing_key_event/commitments/stellar.
 func stellarEntry(part *string) bool {
 	return part != nil && (*part == "/commitments/stellar" || *part == "/signing_key_event/commitments/stellar")
-}
-
-// builtOpen reports whether the verifier makes row, a case's expected
-// row, under an open external gate: every row of a step outside
-// unbuiltOpen, CHAIN's included, each commitment entry's, each
-// genesis.bitcoin's and KEY_EVENT_COMMITMENT, and SOURCES', each entropy
-// object's.
-func builtOpen(row vectorcases.Row) bool {
-	return !slices.Contains(unbuiltOpen, row.Step)
 }
 
 // firstBuilt is the first.
@@ -522,32 +508,9 @@ func rowsThrough(rows []vectorcases.Row) []vectorcases.Row {
 }
 
 // expectedThrough returns a case's expected rows from firstBuilt to
-// lastBuilt, only those builtOpen holds when its external gate opens.
+// lastBuilt.
 func expectedThrough(c vectorcases.Case) []vectorcases.Row {
-	rows := rowsThrough(c.Expected.Rows)
-	if gateOf(c) != verifier.ExternalGateOpen {
-		return rows
-	}
-	return slices.DeleteFunc(rows, func(row vectorcases.Row) bool { return !builtOpen(row) })
-}
-
-// labelDecided reports whether the rows a case's run is held to decide its
-// label (SPEC.md section 10.5): every row when its gate does not open, and
-// under an open gate when each of its failing rows is one expectedThrough
-// holds and its label is failed or one the attribution alone gives, so
-// that no row the verifier does not make yet, WINDOW's among them, could
-// change it.
-func labelDecided(c vectorcases.Case) bool {
-	if gateOf(c) != verifier.ExternalGateOpen {
-		return true
-	}
-	held := expectedThrough(c)
-	for _, row := range c.Expected.Rows {
-		if failing(row) && !slices.ContainsFunc(held, func(h vectorcases.Row) bool { return h.String() == row.String() }) {
-			return false
-		}
-	}
-	return c.Expected.Label == "failed" || c.Expected.Label == "supplied-keyring" || c.Expected.Label == "unattributed"
+	return rowsThrough(c.Expected.Rows)
 }
 
 // gateOf is the external gate a case's run decides when DERIVE ends,
@@ -771,15 +734,15 @@ func unsourced(t *testing.T, c vectorcases.Case, o outcome) []string {
 // key_binding-unavailable-* cases), matches in full, every row, CHAIN's,
 // SOURCES' and WINDOW's under the closed gate and EXPECTED_HASH's
 // included, with its label and its code (checkLabel); each of the 77
-// open cases matches every row but WINDOW's, which builtOpen leaves out,
-// every CHAIN row among them, Stellar's, Bitcoin's, genesis.bitcoin's and
-// KEY_EVENT_COMMITMENT's, and every SOURCES row, NIST's, Stellar's and
-// Bitcoin's, and none in full, since each has a WINDOW row; 76 of the 77,
-// whose failing rows are all among those and whose label is failed or
-// supplied-keyring, also match their label and code, the six
-// reads-entropy-*-differs cases failing at SOURCES among them, and the
-// other one, window-inverted, failing at WINDOW, waits for that rule; a
-// run that reaches DERIVE has exactly
+// open cases matches in full too, every CHAIN row, Stellar's, Bitcoin's,
+// genesis.bitcoin's and KEY_EVENT_COMMITMENT's, every SOURCES row, NIST's,
+// Stellar's and Bitcoin's, and every WINDOW row, with its label and its
+// code, the six reads-entropy-*-differs cases failing at SOURCES and
+// window-inverted failing at WINDOW among them; each of the 81 online
+// reports has the edges its case gives (checkEdges): both null in the 29
+// labelled failed, both drawn in 34, only the submitted-before edge in 6
+// and only the submitted-after edge in 12; a run that reaches DERIVE has
+// exactly
 // the rows and trace of DERIVE that the model of derive_model_test.go gives
 // (checkDerive), and a run that ended before it has no trace; every row's
 // values write with JCS, and each value of a row of SHAPE or POLICY is one
@@ -789,8 +752,7 @@ func unsourced(t *testing.T, c vectorcases.Case, o outcome) []string {
 // adapter; the 18 sources-* cases, which alone name several sources of a
 // network (SPEC.md section 9), run with those sources in their order under
 // their policy, sources-configuration-regtest-mainnet_block0 giving
-// configuration_error and the other 17 the rows builtOpen holds, their
-// gate open; every
+// configuration_error and the other 17 every row, their gate open; every
 // other online case runs with one source configured for each network its
 // file stands for, under the policy first; each online case that passes
 // CONFIGURATION has, for each pin, the sources and policy its case gives
@@ -846,7 +808,12 @@ func unsourced(t *testing.T, c vectorcases.Case, o outcome) []string {
 // before CHAIN differ); Chain without KEY_EVENT_COMMITMENT (every proof
 // with a signing key event lacks its row); Window giving
 // window_not_established after a failure (every case failing before WINDOW
-// differs); the Stellar rule's memo left uncompared (both
+// differs); Window giving no row under an open gate (every open case lacks
+// its WINDOW row); Window leaving the edges off the run (each case with an
+// edge differs in checkEdges); an edge object's assumption shortened, its
+// source printed with the URL's path, its instant written as a TIME for
+// NIST or its cached written true (checkEdgeObject finds each); the
+// Stellar rule's memo left uncompared (both
 // leaf_count-record-*-stellar-online cases pass their Stellar row); the
 // Bitcoin rule's transaction_count left uncompared
 // (reads-bitcoin-transaction_count_differs passes its row); the
@@ -943,19 +910,11 @@ func TestCases_ThroughEveryStep(t *testing.T) {
 			}
 			if gate == verifier.ExternalGateOpen {
 				tally[on+"the external gate opens"]++
-				if rowsEqual(got.rows, rowsThrough(slices.DeleteFunc(slices.Clone(c.Expected.Rows), func(row vectorcases.Row) bool { return row.Step == "WINDOW" }))) {
-					tally[on+"open, its rows but WINDOW's matched"]++
-				}
 			}
-			switch {
-			case gate != verifier.ExternalGateOpen || rowsEqual(want, rowsThrough(c.Expected.Rows)):
-				tally[on+"matched in full"]++
-				checkLabel(t, c, got.run)
-			case labelDecided(c):
-				tally[on+"open, its label decided"]++
-				checkLabel(t, c, got.run)
-			default:
-				tally[on+"open, its label waits"]++
+			tally[on+"matched in full"]++
+			checkLabel(t, c, got.run)
+			if online {
+				tally[checkEdges(t, c, got.run)]++
 			}
 			passed := !got.ended
 			typ, subject := typeAndSubject(proofOf(t, c))
@@ -974,26 +933,27 @@ func TestCases_ThroughEveryStep(t *testing.T) {
 	}
 
 	want := map[string]int{
-		"rejected at CONFIGURATION":                  11,
-		"online, rejected at CONFIGURATION":          6,
-		"rejected at READ":                           1,
-		"rejected at PARSE":                          15,
-		"rejected at ENVELOPE":                       32,
-		"report, the gate fails":                     30,
-		"report, SHAPE fails":                        67,
-		"report, POLICY fails":                       15,
-		"report, DERIVE fails":                       152,
-		"report, passes through DERIVE":              71,
-		"online report, passes through DERIVE":       77,
-		"online report, POLICY fails":                1,
-		"online report, DERIVE fails":                1,
-		"online report, the gate fails":              2,
-		"matched in full":                            335,
-		"online matched in full":                     4,
-		"online the external gate opens":             77,
-		"online open, its label decided":             76,
-		"online open, its label waits":               1,
-		"online open, its rows but WINDOW's matched": 77,
+		"rejected at CONFIGURATION":            11,
+		"online, rejected at CONFIGURATION":    6,
+		"rejected at READ":                     1,
+		"rejected at PARSE":                    15,
+		"rejected at ENVELOPE":                 32,
+		"report, the gate fails":               30,
+		"report, SHAPE fails":                  67,
+		"report, POLICY fails":                 15,
+		"report, DERIVE fails":                 152,
+		"report, passes through DERIVE":        71,
+		"online report, passes through DERIVE": 77,
+		"online report, POLICY fails":          1,
+		"online report, DERIVE fails":          1,
+		"online report, the gate fails":        2,
+		"matched in full":                      335,
+		"online matched in full":               81,
+		"online the external gate opens":       77,
+		"edges: none, label failed":            29,
+		"edges: both":                          34,
+		"edges: submitted_before only":         6,
+		"edges: submitted_after only":          12,
 	}
 	if len(tally) != len(want) {
 		t.Fatalf("tally = %v, want %v", tally, want)
@@ -1747,8 +1707,8 @@ func derivePartsOf(rows []verifier.Row) []string {
 // The families cut at DERIVE are SPEC.md section 13.3's: the 42 declared-*
 // cases, the 20 paths-*, the 18 offline leaf_count-* and the 2 graft-*,
 // and gates-derive, each run through TestCases_ThroughEveryStep's
-// comparison (its rows through EXPECTED_HASH, without CHAIN, SOURCES and
-// WINDOW under an open gate, and its values against the model); each
+// comparison (its rows through EXPECTED_HASH, and its values against the
+// model); each
 // family fails these checks in some case, and only with
 // derivation_mismatch; gates-derive fails at /subject/item_hash alone. And
 // the cases of the committed leaf count (SPEC.md section 5.4) and of
@@ -2067,9 +2027,8 @@ func expectedFailure(t *testing.T, id string) string {
 
 // The key_events (30), handover_position (4), order (12) and self_signed
 // (1) cases, cut at DERIVE, each run through TestCases_ThroughEveryStep's
-// comparison (its rows through EXPECTED_HASH, without CHAIN, SOURCES and
-// WINDOW under an open gate, and its values and trace against the
-// model): each fails only at the part and with the code its name gives
+// comparison (its rows through EXPECTED_HASH, and its values and trace
+// against the model): each fails only at the part and with the code its name gives
 // (none for the equal Bitcoin heights and self_signed); each has
 // LINK_KEY_EVENT's row info not_attributable, since every one runs under a
 // supplied keyring or keyless, but key_events-link_key_event, whose event
@@ -2190,8 +2149,7 @@ var bitcoinRules = map[string][2]string{
 
 // The 29 bitcoin cases (SPEC.md section 13.3), cut at DERIVE, each run
 // through TestCases_ThroughEveryStep's comparison (its rows through
-// EXPECTED_HASH, without CHAIN, SOURCES and WINDOW under an open gate, and
-// its values and trace against the model): each fails at DERIVE only at
+// EXPECTED_HASH, and its values and trace against the model): each fails at DERIVE only at
 // the part bitcoinRules gives it, with bitcoin_evidence_invalid and the
 // rule named when the structure is not well formed, every rule of a
 // raw_transaction and a txoutproof among them, and with derivation_mismatch
@@ -2335,12 +2293,11 @@ func totalTxs(t *testing.T, txoutproof any) int {
 // SOURCES row skip prior_failure, with its label failed and no edge; and
 // gates-online-chain_failure and the eight reads-unreachable-* cases fail
 // no row before CHAIN, so their gate opens, every source of every pinned
-// network confirmed, and they give every row but WINDOW's, whose read is
-// the window's, CHAIN's rows whole, those of their commitment entries,
-// genesis.bitcoin and KEY_EVENT_COMMITMENT, and SOURCES' rows whole, one
-// for each entropy object, each read in this run (the block proof of
-// reads-unreachable-bitcoin_block_at_height carries none), and no row of
-// WINDOW.
+// network confirmed, and they give every row, CHAIN's rows whole, those of
+// their commitment entries, genesis.bitcoin and KEY_EVENT_COMMITMENT,
+// SOURCES' rows whole, one for each entropy object, each read in this run
+// (the block proof of reads-unreachable-bitcoin_block_at_height carries
+// none), and one WINDOW row with a null part.
 // gates-online-chain_failure's CHAIN fails, and its SOURCES still reads
 // each of its beacon's three observations and passes them, since the gate
 // is not decided again. Mutants killed: the gate deciding offline for an
@@ -2372,8 +2329,9 @@ func TestCases_TheOnlineGateCases(t *testing.T) {
 		reached := rowsBetween("CHAIN", "WINDOW", got.rows)
 		switch got.run.ExternalGate {
 		case verifier.ExternalGateOpen:
-			chain, sources := rowsBetween("CHAIN", "CHAIN", reached), rowsBetween("SOURCES", "SOURCES", reached)
-			if len(chain) == 0 || len(sources) != len(rowsBetween("SOURCES", "SOURCES", c.Expected.Rows)) || len(chain)+len(sources) != len(reached) {
+			chain, sources, window := rowsBetween("CHAIN", "CHAIN", reached), rowsBetween("SOURCES", "SOURCES", reached), rowsBetween("WINDOW", "WINDOW", reached)
+			if len(chain) == 0 || len(sources) != len(rowsBetween("SOURCES", "SOURCES", c.Expected.Rows)) || len(window) != 1 || window[0].Part != nil ||
+				len(chain)+len(sources)+len(window) != len(reached) {
 				t.Errorf("%s: under an open gate, rows %v", id, reached)
 			}
 			if read := sourcesReadsOf(replay); len(read) < len(sources) {

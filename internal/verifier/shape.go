@@ -140,12 +140,18 @@ func Shape(run *Run) {
 		return
 	}
 	run.Type = run.Proof["type"].(string)
-	idAt := Pointer{Name("subject"), Name("record"), Name("id")}
-	if run.Type == "block" || run.Type == "beacon" {
-		idAt = Pointer{Name("block"), Name("record"), Name("id")}
-	}
-	run.SubjectID = valueAt(run.Proof, idAt).(string)
+	run.SubjectID = valueAt(run.Proof, subjectIDPointer(run.Type)).(string)
 	run.AddRow(PassRow("SHAPE", nil, fmt.Sprintf("The proof has the shape its type, %s, gives it.", run.Type), constructions))
+}
+
+// subjectIDPointer is the pointer of the subject's id in a proof of typ
+// (SPEC.md section 10.5, subject_id): /subject/record/id, or
+// /block/record/id for block and beacon.
+func subjectIDPointer(typ string) Pointer {
+	if typ == "block" || typ == "beacon" {
+		return Pointer{Name("block"), Name("record"), Name("id")}
+	}
+	return Pointer{Name("subject"), Name("record"), Name("id")}
 }
 
 // shapeFail adds SHAPE's failing row f and ends the run.
