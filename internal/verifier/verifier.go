@@ -2,11 +2,9 @@
 // SPDX-License-Identifier: Apache-2.0
 
 // Package verifier is the CLI's verifier of SPEC.md section 10 (The
-// verification algorithm), built beside internal/verify and ported module
-// by module from the reference verifier in truestamp-verification
-// (elixir/lib/truestamp/verifier/), each file naming the module it ports
-// and checked against the Truestamp application's port of it
-// (lib/truestamp/proof/verifier/ in truestamp-v2).
+// verification algorithm), built beside internal/verify from SPEC.md and
+// its conformance vectors (section 13.2 (The vectors)), each file naming
+// the sections of SPEC.md it implements.
 //
 // It holds steps 0 to 6 of SPEC.md section 10.2 (Steps), the gate. Steps 0
 // to 3 decide whether a run gives a report at all: CONFIGURATION, which
@@ -38,34 +36,32 @@
 // LINK_KEY_EVENT's info row under an attribution other than truestamp is
 // no failure.
 //
-//   - config.go: a run's [Config] (the reference's config.ex);
+//   - config.go: a run's [Config], what step 0 fixes (section 10.2);
 //   - options.go: the options of `truestamp verify` that set a Config,
 //     which only the run's own options may set (sections 6.4 and 8.3);
-//   - gate.go: the steps (gate.ex);
-//   - keyring_read.go: the online keyring read of step 0, which no
-//     reference module ports (the reference is offline);
-//   - sources.go: the rest of step 0 in an online run, which no reference
-//     module ports either: which Stellar and Bitcoin source serves each
-//     network pin, and each source's identity, confirmed both ways before
-//     the file is read (sections 9 and 10.2, step 0), through the readers
-//     of internal/verifier/source;
-//   - shape.go: step 7, SHAPE (shape.ex), whose check 5 parses each time
-//     through time.go, the classes TIME and NISTTIME (time.ex);
-//   - policy.go: step 8, POLICY (policy.ex);
-//   - derive.go: step 9, DERIVE, and its engine (derive.ex), whose checks
-//     are derive_check.go's (check.ex): the record hashes of
-//     derive_records.go (derive/records.ex), the key events of
-//     derive_key_events.go (derive/key_events.ex) and the links of
-//     derive_links.go (derive/links.ex);
+//   - gate.go: the steps (section 10.2, the gate);
+//   - keyring_read.go: the online keyring read of step 0, of the keyring
+//     that governs an external verifier's online run by default (section
+//     8.3);
+//   - sources.go: the rest of step 0 in an online run: which Stellar and
+//     Bitcoin source serves each network pin, and each source's identity,
+//     confirmed both ways before the file is read (sections 9 and 10.2,
+//     step 0), through the readers of internal/verifier/source;
+//   - shape.go: step 7, SHAPE, whose check 5 parses each time through
+//     time.go, the classes TIME and NISTTIME (section 2.4);
+//   - policy.go: step 8, POLICY;
+//   - derive.go: step 9, DERIVE, and its one engine (section 10.6), whose
+//     checks are derive_check.go's: the record hashes of derive_records.go
+//     (step 9 (a) to (c)), the key events of derive_key_events.go and the
+//     links of derive_links.go (section 10.3);
 //   - schema.go: the checker of spec/schema.json, SHAPE's check 3, which
-//     refuses a schema outside SPEC.md section 9's subset when it loads
-//     (schema.ex);
+//     refuses a schema outside SPEC.md section 9's subset when it loads;
 //   - layout.go: where the proof holds its block nodes, commitment
 //     entries, entropy objects and genesis.bitcoin objects, and the value
-//     at a pointer into it (layout.ex);
+//     at a pointer into it (sections 3.3 to 3.6);
 //   - run.go, row.go, rejection.go and pointer.go: the run's state, its
-//     rows, the bare rejection and JSON Pointers into the proof (run.ex,
-//     row.ex, rejection.ex and pointer.ex).
+//     rows, the bare rejection and JSON Pointers into the proof (sections
+//     10.2 and 10.5).
 //
 // The keyring, its load checks and its digest are internal/verifier/keyring,
 // and the checks of a key's bytes and strict Ed25519 are

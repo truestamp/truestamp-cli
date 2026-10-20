@@ -1,15 +1,11 @@
 // Copyright (c) 2019-2026 Truestamp, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-// This file ports the reference verifier's Truestamp.Verifier.Row
-// (elixir/lib/truestamp/verifier/row.ex in truestamp-verification),
-// checked against the Truestamp application's port,
-// Truestamp.Proof.Verifier.Row (lib/truestamp/proof/verifier/row.ex in
-// truestamp-v2): a report row, {code, message, part, status, step, values}
-// (SPEC.md section 10.5 (Verdict and report)). Adapted from the reference:
-// the codes are internal/specdata's transcription of
-// spec/reason-codes.json, a null part is a nil *string, and a number among
-// the values is a strictjson.Number, so internal/jcs writes them.
+// This file holds a report row, {code, message, part, status, step,
+// values} (SPEC.md section 10.5 (Verdict and report)). The codes are
+// internal/specdata's transcription of spec/reason-codes.json (section
+// 12.1), a null part is a nil *string, and a number among the values is a
+// strictjson.Number, so internal/jcs writes them.
 
 package verifier
 

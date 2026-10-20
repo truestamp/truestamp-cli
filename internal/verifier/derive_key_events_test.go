@@ -22,9 +22,7 @@ import (
 // The key events of DERIVE and its links after LINK_INCLUSION (SPEC.md
 // section 10.2, step 9 (b) and (e), and section 10.3), on the positive
 // proofs and mutants of them, beside the key_events, handover_position,
-// order and self_signed cases of internal/vectorcases' runner. It ports
-// the application's derive_key_events_test.exs (the reference's
-// derive_test.exs reaches these checks through the vectors alone):
+// order and self_signed cases of internal/vectorcases' runner. It tests:
 //
 //   - proofs built here, which no case takes through DERIVE: LINK_HEAD at a
 //     genesis /block, an emergency rotation with and without a handover, a

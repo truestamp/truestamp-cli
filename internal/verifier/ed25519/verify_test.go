@@ -225,9 +225,9 @@ func TestVerify_TheWorkedExample(t *testing.T) {
 }
 
 // L and d are RFC 8032's: L = 2^252 + 27742317777372353535851937790883648493
-// and d = -121665/121666 mod p, written as RFC 8032 section 5.1 and the
-// reference write them. Mutants killed: L built with 2^253; d built with
-// +121665.
+// and d = -121665/121666 mod p, written as RFC 8032 section 5.1 writes them
+// (SPEC.md section 6.2 writes L so too). Mutants killed: L built with
+// 2^253; d built with +121665.
 func TestConstants_LAndD(t *testing.T) {
 	if got := l.Text(16); got != "1000000000000000000000000000000014def9dea2f79cd65812631a5cf5d3ed" {
 		t.Errorf("L = %s", got)

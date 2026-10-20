@@ -1,11 +1,7 @@
 // Copyright (c) 2019-2026 Truestamp, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-// This file ports the reference verifier's Truestamp.Verifier.Policy
-// (elixir/lib/truestamp/verifier/policy.ex in truestamp-verification),
-// checked against the Truestamp application's port,
-// Truestamp.Proof.Verifier.Policy (lib/truestamp/proof/verifier/policy.ex
-// in truestamp-v2): step 8 of SPEC.md section 10.2, POLICY, offline, in
+// This file holds step 8 of SPEC.md section 10.2, POLICY, offline, in
 // every run that reaches it. Each network member of P must equal the run's
 // pin, else network_mismatch at that network:
 //
@@ -32,11 +28,10 @@
 // runs, and the external gate stays closed. A run that has ended passes
 // through.
 //
-// Adapted from the reference: the pins are a [specdata.NetworkPins], a
-// struct with a member for each chain, so [Config.pinNetwork], which the
-// online run's sources also read, names the member a position's chain and
-// kind select; and a message names a chain as Bitcoin or Stellar, as the
-// application's port does.
+// The pins are a [specdata.NetworkPins], a struct with a member for each
+// chain, so [Config.pinNetwork], which the online run's sources also read,
+// names the member a position's chain and kind select; and a message names
+// a chain as Bitcoin or Stellar.
 
 package verifier
 

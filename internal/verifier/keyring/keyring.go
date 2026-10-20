@@ -9,14 +9,9 @@
 // online, a keyring read from www.truestamp.com or from the origin an
 // explicit --base-url names; a test holds the compiled pin to it too.
 //
-// It ports the reference verifier's Truestamp.Verifier.Keyring
-// (elixir/lib/truestamp/verifier/keyring.ex in truestamp-verification),
-// checked against the Truestamp application's port of its load checks,
-// Truestamp.Proof.KeyringRules and Truestamp.Proof.KeyringLoader
-// (lib/truestamp/proof/keyring_rules.ex and keyring_loader.ex in
-// truestamp-v2). [Load] reads a keyring's bytes under the parsing rules of
-// section 10.1 (J1 to J6, with internal/strictjson), then makes exactly
-// these checks, and no others (no [L]A check):
+// [Load] reads a keyring's bytes under the parsing rules of section 10.1
+// (J1 to J6, with internal/strictjson), then makes exactly the checks of
+// section 10.2, step 0, and no others (no [L]A check):
 //
 //  1. the keyring is an object with exactly two members, keys, an array,
 //     and version, the string "1.0";
@@ -34,16 +29,15 @@
 // environment marker)), so check 7 applies exactly when the environment
 // [Load] is given is prod.
 //
-// Each check is made over every key before the next check, as in the
-// reference, so a keyring with two defects is named by the earlier check
-// of the list above. The application names the first key that fails and
-// the first check it fails; both refuse exactly the same keyrings, and
-// SPEC.md fixes no order. Adapted from the reference: a key's public key is
-// a [32]byte, and a failure also names the index of the key that fails. A
-// keyring [Load] loads holds its digest d (section 8.3), made by [Digest]
-// from the bytes as read (digest.go). [LoadValue] makes the same checks
-// over a value already read, which has no bytes and so no digest: the
-// keyring a conformance case's replay file answers a keyring read with
+// Each check is made over every key before the next check, so a keyring
+// with two defects is named by the earlier check of the list above. An
+// order that names the first key that fails and the first check it fails
+// refuses exactly the same keyrings, and SPEC.md fixes no order. A key's
+// public key is a [32]byte, and a failure also names the index of the key
+// that fails. A keyring [Load] loads holds its digest d (section 8.3), made
+// by [Digest] from the bytes as read (digest.go). [LoadValue] makes the same
+// checks over a value already read, which has no bytes and so no digest:
+// the keyring a conformance case's replay file answers a keyring read with
 // (section 13.2 (The vectors)).
 package keyring
 

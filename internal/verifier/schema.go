@@ -1,11 +1,7 @@
 // Copyright (c) 2019-2026 Truestamp, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-// This file ports the reference verifier's Truestamp.Verifier.Schema
-// (elixir/lib/truestamp/verifier/schema.ex in truestamp-verification),
-// checked against the Truestamp application's port,
-// Truestamp.Proof.Verifier.Schema (lib/truestamp/proof/verifier/schema.ex
-// in truestamp-v2): the verifier's own checker for spec/schema.json
+// This file holds the verifier's own checker for spec/schema.json
 // (SPEC.md section 9 (What a verifier pins), "The schema."), check 3 of
 // SHAPE (section 10.2, step 7). It interprets a schema directly, keyword by
 // keyword, as JSON Schema draft 2020-12 defines each keyword of the subset
@@ -69,15 +65,13 @@
 // SPEC.md section 2.4 (Pattern classes) requires exactly that: each class
 // matches the whole string, as \A...\z does.
 //
-// Adapted from the reference, which interprets the one schema it compiles
-// in: a checker is built from any schema at run time, so the refusals are
-// testable, and it also refuses the forms and the $ref cycles the reference
-// leaves to the file, as the application's port does. Each pattern is
-// compiled once, when the schema loads, where the reference compiles each
-// on first use and keeps it. A schema object's keywords are applied in the
-// byte order of their names, the order in which the reference meets the
-// members of a small map, so of two failures at one part the first is the
-// reference's; the failures are then sorted, stably, into document order.
+// A checker is built from any schema at run time, so the refusals are
+// testable, and it refuses the forms and the $ref cycles above whatever
+// schema it is given, spec/schema.json included. Each pattern is compiled
+// once, when the schema loads. A schema object's keywords are applied in
+// the byte order of their names, so of two failures at one part the first
+// is always the same one; the failures are then sorted, stably, into
+// document order.
 
 package verifier
 

@@ -1,16 +1,14 @@
 // Copyright (c) 2019-2026 Truestamp, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-// This file ports the reference verifier's Truestamp.Verifier.CanonicalForm
-// (elixir/lib/truestamp/verifier/canonical_form.ex in
-// truestamp-verification): the canonical form of a data file of SPEC.md
-// section 9, the form of every file under spec/ but the constructions texts,
-// of cases.json and of the trace files under vectors/positive/ (section
-// 13.2), in which a run's trace is written (section 10.6).
+// This file holds the canonical form of a data file of SPEC.md section 9,
+// the form of every file under spec/ but the constructions texts, of
+// cases.json and of the trace files under vectors/positive/ (section 13.2),
+// in which a run's trace is written (section 10.6).
 //
-// Adapted from the reference: members are ordered by the same UTF-16 sort
-// as [Encode], and every name and scalar is written by Encode, so the form
-// refuses exactly what Encode refuses.
+// Members are ordered by the same UTF-16 sort as [Encode], and every name
+// and scalar is written by Encode, as JCS writes it (section 9), so the
+// form refuses exactly what Encode refuses.
 
 package jcs
 

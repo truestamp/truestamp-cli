@@ -25,10 +25,11 @@ import (
 // The static test of SPEC.md section 10.6, rule 2: prefix bytes and member
 // sets come only from compiled constants, never from a document, and the
 // leaf and node bytes 0x00 and 0x01 are used only inside the one walk of
-// section 5.3. It parses every Go file of the module but its tests (go/ast;
-// nothing is compiled or run), as the reference's derive_test.exs and the
-// app's ast-grep rule proof-prefixes-from-spec do. Checks 1 to 5 and 9 read
-// every file of the module:
+// section 5.3. It is the lint that rule asks of each of Truestamp's
+// verifiers, which forbids reading a prefix byte or a member set from a
+// document value, and parses every Go file of the module but its tests
+// (go/ast; nothing is compiled or run). Checks 1 to 5 and 9 read every file
+// of the module:
 //
 //  1. a file other than internal/registry/walk.go importing
 //     github.com/transparency-dev/merkle, whose RFC 6962 hasher applies
@@ -73,29 +74,25 @@ import (
 //     registry nor a hash but the crypto/sha256 of its one SHA-256d; a
 //     byte slice or array literal holding a literal is refused there too;
 //  7. in the registry, and in DERIVE and its layout, the files
-//     internal/verifier/derive*.go and internal/verifier/layout.go, as the
-//     reference's derive_test.exs scans them (never SHAPE, the schema's
-//     checker, the gate, strictjson or jcs, which read a document's members
-//     by design), a member set read from a value: the maps or reflect
-//     packages, and a string literal named like a registry member ("byte",
-//     "prefix", "prefixes", "members", "fields"), as part 5 of the app's
-//     rule bans; in the registry, which reads its own compiled tables by a
-//     key, a range over a map parameter, over a map a type assertion gives
-//     or over a type switch's binding in a map case, and such a map indexed
-//     by a name that is not a string literal; and in DERIVE and its layout,
-//     typed by go/types from the standard library (memberSetTypes), a range
-//     over a value of map type and a read of one by a key that is not a
-//     constant, whatever yields the map (a parameter, a variable however it
-//     is bound, a field, a call, a type assertion or a type switch's
-//     binding), and a range or such a read over a value the checker cannot
-//     type, which only a value from a package outside the module has until
-//     a declared type is written for it. The one index allowed is the
-//     layout's pointer read, valueAt's index of an object by its pointer
-//     segment's name (pointerReads). The reference's lint,
-//     pairs_from_document, flags a range or a read over a bound variable
-//     other than a position or a node; reading the type of every
-//     expression, this check also refuses a map a field or a call yields.
-//     Its known limit is its file scope, the reference's: a helper DERIVE
+//     internal/verifier/derive*.go and internal/verifier/layout.go (never
+//     SHAPE, the schema's checker, the gate, strictjson or jcs, which read
+//     a document's members by design), a member set read from a value: the
+//     maps or reflect packages, and a string literal named like a registry
+//     member ("byte", "prefix", "prefixes", "members", "fields"), as part 5
+//     of the app's ast-grep rule proof-prefixes-from-spec bans; in the
+//     registry, which reads its own compiled tables by a key, a range over
+//     a map parameter, over a map a type assertion gives or over a type
+//     switch's binding in a map case, and such a map indexed by a name that
+//     is not a string literal; and in DERIVE and its layout, typed by
+//     go/types from the standard library (memberSetTypes), a range over a
+//     value of map type and a read of one by a key that is not a constant,
+//     whatever yields the map (a parameter, a variable however it is bound,
+//     a field, a call, a type assertion or a type switch's binding), and a
+//     range or such a read over a value the checker cannot type, which only
+//     a value from a package outside the module has until a declared type
+//     is written for it. The one index allowed is the layout's pointer
+//     read, valueAt's index of an object by its pointer segment's name
+//     (pointerReads). Its known limit is its file scope: a helper DERIVE
 //     calls that is declared in a file of internal/verifier outside
 //     derive*.go and layout.go is not read;
 //  8. an import that is not on the package's list in scannedPackages, so

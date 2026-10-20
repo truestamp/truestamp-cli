@@ -1,18 +1,16 @@
 // Copyright (c) 2019-2026 Truestamp, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-// This file ports the reference verifier's Truestamp.Verifier.Constructions
-// (elixir/lib/truestamp/verifier/constructions.ex in truestamp-verification):
-// CONSTRUCTIONS_ACCEPTED (SPEC.md sections 7.2 and 9), the digests of the
-// constructions texts under spec/constructions/. Each file there holds a
-// text's exact JCS bytes and is named <d>.json, where d is the lowercase hex
-// SHA-256 of those bytes; the program stops on a file whose name is not the
-// digest of its bytes, as the reference's build does.
+// This file holds CONSTRUCTIONS_ACCEPTED (SPEC.md sections 7.2 and 9), the
+// digests of the constructions texts under spec/constructions/. Each file
+// there holds a text's exact JCS bytes and is named <d>.json, where d is the
+// lowercase hex SHA-256 of those bytes (section 9); the program stops on a
+// file whose name is not the digest of its bytes.
 //
 // This file holds the digests only, and exports no hash. It never reads a
 // proof: SHAPE's check 6 (SPEC.md section 10.2, step 7) computes a full
-// text's digest itself, as the reference's Truestamp.Verifier.Shape does,
-// or takes a reference's from its URL, and asks [IsAccepted].
+// text's digest itself, or takes a reference's from its URL, and asks
+// [IsAccepted].
 
 package specdata
 

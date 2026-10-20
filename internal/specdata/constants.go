@@ -1,12 +1,10 @@
 // Copyright (c) 2019-2026 Truestamp, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-// This file ports the reference verifier's Truestamp.Verifier.Constants
-// (elixir/lib/truestamp/verifier/constants.ex in truestamp-verification):
-// the constants of SPEC.md section 9, each named after its constant,
-// transcribed from spec/constants.json and held equal to it by
-// TestAgreement_Constants. SMALL_ORDER_KEYS has a file of its own,
-// small_order_keys.go.
+// This file holds the constants of SPEC.md section 9 (What a verifier
+// pins), each named after its constant, transcribed from
+// spec/constants.json and held equal to it by TestAgreement_Constants.
+// SMALL_ORDER_KEYS has a file of its own, small_order_keys.go.
 
 package specdata
 

@@ -34,15 +34,12 @@
 // package, and each package of the new verifier it lists, to that, and
 // fails a package that imports this one without being on its list.
 //
-// This file ports the reference verifier's Truestamp.Verifier.Prefixes
-// (elixir/lib/truestamp/verifier/prefixes.ex in truestamp-verification),
-// adapted to Go: the reference compiles its table from spec/prefixes.json,
-// and here the table is transcribed from that file and held equal to it,
-// and to SPEC.md section 4.3, by the tests of prefixes_test.go; a row is
-// named by a Construction constant where the reference uses an atom; and
+// This file holds the table of SPEC.md section 4.3 as compiled constants,
+// as section 4 asks of each of Truestamp's implementations: transcribed
+// from spec/prefixes.json and held equal to it, and to section 4.3, by the
+// tests of prefixes_test.go. A row is named by a Construction constant, and
 // digest, the one function that applies a row's byte, lives beside the
-// table, where the reference's RecordHash and KeyId each call :crypto.hash
-// with Prefixes.byte/1.
+// table.
 package registry
 
 import (

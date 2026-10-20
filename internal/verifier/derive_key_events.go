@@ -1,18 +1,12 @@
 // Copyright (c) 2019-2026 Truestamp, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-// This file ports the reference verifier's
-// Truestamp.Verifier.Derive.KeyEvents
-// (elixir/lib/truestamp/verifier/derive/key_events.ex in
-// truestamp-verification), checked against the Truestamp application's
-// port, Truestamp.Proof.Verifier.Derive.KeyEvents
-// (lib/truestamp/proof/verifier/derive/key_events.ex in truestamp-v2): the
-// key-event checks of DERIVE (SPEC.md section 10.3, "Key events"), made
-// inside part (b) of step 9 (section 10.2). Wherever a block record carries
-// metadata.key_event, at any of the three block positions, the event is
-// checked as the table of section 3.3 requires. With B the block node that
-// carries it and E the event's pointer B/record/metadata/key_event, every
-// failure is key_event_mismatch:
+// This file holds the key-event checks of DERIVE (SPEC.md section 10.3,
+// "Key events"), made inside part (b) of step 9 (section 10.2). Wherever a
+// block record carries metadata.key_event, at any of the three block
+// positions, the event is checked as the table of section 3.3 requires.
+// With B the block node that carries it and E the event's pointer
+// B/record/metadata/key_event, every failure is key_event_mismatch:
 //
 //	| Check                                                                   | Events                                | Part                     | Row of 7.3 | Traced |
 //	|-------------------------------------------------------------------------|---------------------------------------|--------------------------|------------|--------|
@@ -43,19 +37,18 @@
 // step of section 6.2 that refused it: y_not_below_p (step 2) or
 // small_order_key (step 3) for a key, and, for a signature under a key
 // that passes them, not_on_curve (step 4), s_not_below_l (step 5) or
-// equation (step 7), as the reference names them.
+// equation (step 7).
 //
-// Adapted from the reference: the event without handover_signature is
-// written from the members the schema lists for a rotation and an
-// emergency rotation, each read by its compiled name, where the reference
-// deletes the one member from the event as carried. SHAPE has held the
-// event to the schema, whose rotation events are closed objects, so the
-// two are the same value; the member set comes from the verifier's
-// compiled constants (SPEC.md section 10.6, rule 2), and rule 2's check 7
-// holds this file to them. A key or a signature that does not decode, and
-// an event of a type the schema does not list, which SHAPE has made
-// impossible, are a fault of the verifier, returned as an error, which
-// [Derive] reports as internal_error.
+// The event without handover_signature is written from the members the
+// schema lists for a rotation and an emergency rotation, each read by its
+// compiled name, rather than by deleting the one member from the event as
+// carried. SHAPE has held the event to the schema, whose rotation events
+// are closed objects, so the two give the same value; the member set comes
+// from the verifier's compiled constants (SPEC.md section 10.6, rule 2), and
+// rule 2's check 7 holds this file to them. A key or a signature that does
+// not decode, and an event of a type the schema does not list, which SHAPE
+// has made impossible, are a fault of the verifier, returned as an error,
+// which [Derive] reports as internal_error.
 
 package verifier
 

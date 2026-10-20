@@ -1,12 +1,9 @@
 // Copyright (c) 2019-2026 Truestamp, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-// This file ports the option handling of the reference verifier's
-// Truestamp.Verifier.Config (elixir/lib/truestamp/verifier/config.ex in
-// truestamp-verification), new/1, which takes a run's members from its
-// command's options and refuses an unknown or repeated one, adapted to the
-// options of `truestamp verify` and to what SPEC.md sections 6.4 (The
-// environment marker) and 8.3 (External verifiers) let each come from:
+// This file sets a run's [Config] from the options of `truestamp verify`,
+// each from where SPEC.md sections 6.4 (The environment marker), 8.3
+// (External verifiers) and 9 (What a verifier pins) let it come from:
 //
 //   - E_v comes only from the run's --environment, never from the
 //     configuration file, an environment variable, the base URL or the
@@ -42,8 +39,8 @@
 //     alone, never its path;
 //   - no option sets a network pin: the pins are E_v's defaults.
 //
-// The reference's repeated-option refusal has no counterpart: a flag set
-// holds one value for each flag.
+// A repeated option is not refused: a flag set holds one value for each
+// flag.
 
 package verifier
 

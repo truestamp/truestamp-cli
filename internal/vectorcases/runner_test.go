@@ -3,13 +3,11 @@
 
 // The per-step runner over the conformance cases of SPEC.md section 13.2,
 // through steps CONFIGURATION to DERIVE (SPEC.md section 10.2), the gate,
-// SHAPE, POLICY and DERIVE, with internal/verifier. It ports three of the
-// reference verifier's tests: elixir/test/verifier/gate_cases_test.exs for
-// steps 0 to 6, elixir/test/verifier/shape_policy_cases_test.exs for SHAPE
-// and POLICY, the check of where each value of their rows comes from
-// included, and elixir/test/verifier/derive_cases_test.exs for DERIVE, its
-// rows, their values and the trace, checked against the application's
-// derive_cases_test.exs.
+// SHAPE, POLICY and DERIVE, with internal/verifier, comparing what SPEC.md
+// section 13.1 compares and more: for steps 0 to 6, each case's bare
+// rejection or rows; for SHAPE and POLICY, their rows, with the check of
+// where each value of their rows comes from (section 10.5); and for DERIVE,
+// its rows, their values and the trace (section 10.6).
 
 package vectorcases_test
 
@@ -485,14 +483,13 @@ func constructionsDigestOf(t *testing.T, proof map[string]any) string {
 
 // valueSourced reports whether one value of a row of SHAPE or POLICY,
 // named name, is one the run computed or holds (SPEC.md section 10.5), by
-// its name, as the reference's shape_policy_cases_test.exs checks it: each
-// is recomputed here from the case's configuration and proof, or is one of
-// the verifier's own words, and a value the proof carries appears only
-// under declared, in a failing row. A name not listed is not sourced, so a
-// value added to a row must say where it comes from. A keyword is "false",
-// the boolean schema's, or one of the keywords of SPEC.md section 9's
-// subset, and a pin_kind is the kind of pin its row's position takes
-// (pinKindAt).
+// its name: each is recomputed here from the case's configuration and
+// proof, or is one of the verifier's own words, and a value the proof
+// carries appears only under declared, in a failing row. A name not listed
+// is not sourced, so a value added to a row must say where it comes from. A
+// keyword is "false", the boolean schema's, or one of the keywords of
+// SPEC.md section 9's subset, and a pin_kind is the kind of pin its row's
+// position takes (pinKindAt).
 func valueSourced(t *testing.T, c vectorcases.Case, proof map[string]any, row stepValues, name string, value any) bool {
 	t.Helper()
 	text, isText := value.(string)

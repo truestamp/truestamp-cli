@@ -1,23 +1,21 @@
 // Copyright (c) 2019-2026 Truestamp, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-// This file ports the reference verifier's Truestamp.Verifier.Config
-// (elixir/lib/truestamp/verifier/config.ex in truestamp-verification),
-// checked against the Truestamp application's port,
-// Truestamp.Proof.Verifier.Config (lib/truestamp/proof/verifier/config.ex
-// in truestamp-v2): a run's configuration, what step CONFIGURATION (SPEC.md
+// This file holds a run's configuration, what step CONFIGURATION (SPEC.md
 // section 10.2, step 0) fixes before the file is read.
 //
-// Adapted from the reference, which is offline and takes its members from
-// its command's options and from a conformance case: the CLI also runs
-// online, so a Config says whether the run is online and holds the seams
-// an online keyring read and a source's identity read go through, and the
-// Stellar and Bitcoin sources the operator pins (SPEC.md section 9); its
-// keyring sources add a configured keyring read from a file the
-// configuration file names (SPEC.md section 8.3), and the keyring read
-// from the origin an explicit --base-url names; and it holds no expected
-// hash yet, which joins with step EXPECTED_HASH. options.go sets a Config
-// from the command's options, and sources.go confirms its sources.
+// A Config takes its members from the command's options or, in a
+// conformance test, from a case's configuration (SPEC.md section 13.2 (The
+// vectors)). An external verifier makes its keyring read and its source
+// reads only in an online run (SPEC.md sections 8.3 and 10.4), so a
+// Config says whether the run is online and holds the seams an online
+// keyring read and a source's identity read go through, and the Stellar and
+// Bitcoin sources the operator pins (SPEC.md section 9); its keyring
+// sources include a configured keyring read from a file the configuration
+// file names (SPEC.md section 8.3), and the keyring read from the origin an
+// explicit --base-url names; and it holds no expected hash yet, which joins
+// with step EXPECTED_HASH. options.go sets a Config from the command's
+// options, and sources.go confirms its sources.
 
 package verifier
 

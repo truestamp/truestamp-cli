@@ -16,8 +16,7 @@ import (
 
 // Step 7, SHAPE, checks 4 to 6 (SPEC.md section 10.2), on mutants of the
 // 11 positive proofs, each signed again and run through the gate keyless
-// under E_v test, then SHAPE, as the reference's shape_test.exs and the
-// application's port hold them.
+// under E_v test (SPEC.md section 8.3), then SHAPE.
 
 // shapeRowOf returns SHAPE's row of proof.
 func shapeRowOf(t *testing.T, proof map[string]any) Row {

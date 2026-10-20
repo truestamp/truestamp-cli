@@ -1,9 +1,7 @@
 // Copyright (c) 2019-2026 Truestamp, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-// This file ports the reference verifier's Truestamp.Verifier.ExitCodes
-// (elixir/lib/truestamp/verifier/exit_codes.ex in truestamp-verification):
-// the exit codes of SPEC.md section 12.2, transcribed from
+// This file holds the exit codes of SPEC.md section 12.2, transcribed from
 // spec/exit-codes.json in its order and held equal to it by
 // TestAgreement_ExitCodes, and the code for each way a run of the command
 // ends. Each ending is named by the words its row begins with, so a change to

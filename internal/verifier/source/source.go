@@ -10,8 +10,10 @@
 // deadline over the whole read and a bound on the body. The reads are
 // built by their caller for each read, never at package init.
 //
-// No reference module ports these reads: the reference verifier is
-// offline. They follow the Truestamp application's source readers,
+// They are the reads SPEC.md sections 10.2, step 0, and 10.4 give every
+// verifier in an online run, the reference verifier of section 13.1 among
+// them, which reads chains and sources online when it is given a reader
+// (section 8.3). They follow the Truestamp application's source readers,
 // Truestamp.SourceCache.Identity, StellarSource and BitcoinSource
 // (lib/truestamp/source_cache/identity.ex, stellar_source.ex and
 // bitcoin_source.ex in truestamp-v2), adapted:

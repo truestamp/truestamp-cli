@@ -1,11 +1,10 @@
 // Copyright (c) 2019-2026 Truestamp, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-// This file ports the reference verifier's Truestamp.Verifier.SpecFile
-// (elixir/lib/truestamp/verifier/spec_file.ex in truestamp-verification),
-// which reads a file under spec/ for the modules that compile its contents.
-// Here the files are embedded, and File gives a file's bytes rather than its
-// parsed value: the strict reader of SPEC.md section 10.1 parses them.
+// This file reads a file under spec/, the data files of SPEC.md section 9
+// (What a verifier pins), for the tables that compile its contents. The
+// files are embedded, and File gives a file's bytes rather than its parsed
+// value: the strict reader of SPEC.md section 10.1 parses them.
 
 package specdata
 

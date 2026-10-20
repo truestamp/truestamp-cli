@@ -1,13 +1,12 @@
 // Copyright (c) 2019-2026 Truestamp, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-// This file holds, as compiled tables, the data files the reference
-// verifier's configuration and readers compile at build time: the pattern
-// classes of spec/encodings.json (read by its Truestamp.Verifier.Keyring and
-// Truestamp.Verifier.Config, elixir/lib/truestamp/verifier/keyring.ex and
-// config.ex in truestamp-verification), and spec/networks.json and
-// spec/network-pins.json with the environments (Config). Those modules are
-// ported with the steps that use them, and read these tables.
+// This file holds, as compiled tables, data files of SPEC.md section 9
+// (What a verifier pins): the pattern classes of spec/encodings.json
+// (section 2.4), which the keyring's load checks and the verifier's steps
+// read, and spec/networks.json and spec/network-pins.json with the
+// environments (sections 6.4 and 9), which a run's configuration reads
+// (section 10.2, step 0).
 
 package specdata
 

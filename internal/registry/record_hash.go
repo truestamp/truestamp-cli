@@ -1,21 +1,17 @@
 // Copyright (c) 2019-2026 Truestamp, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-// This file ports the reference verifier's Truestamp.Verifier.RecordHash
-// (elixir/lib/truestamp/verifier/record_hash.ex in truestamp-verification):
-// the rule of SPEC.md section 4.1, the record hash of section 2.2,
+// This file holds the rule of SPEC.md section 4.1, the record hash of
+// section 2.2,
 //
 //	H(p, R) = SHA-256(p || JCS(R))
 //
 // with p the one byte the registry (section 4.3) assigns to R's kind and R
 // a JSON object within the value profile of section 10.1, hashed exactly as
-// carried. Adapted from the reference: R is a parsed value of
-// internal/strictjson, a map[string]any, written by internal/jcs's Encode;
-// and where the reference raises on a kind outside the rule, RecordHash
-// returns [ErrNotRecordKind]; and where the reference's is_map guard
-// refuses a record that is not an object (raising on JSON null), RecordHash
-// refuses a nil map, which would otherwise be written as {}, with
-// [ErrNotObject].
+// carried. R is a parsed value of internal/strictjson, a map[string]any,
+// written by internal/jcs's Encode. RecordHash refuses a kind outside the
+// rule with [ErrNotRecordKind], and a nil map, which is no object and would
+// otherwise be written as {}, with [ErrNotObject].
 
 package registry
 

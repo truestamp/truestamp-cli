@@ -1,14 +1,9 @@
 // Copyright (c) 2019-2026 Truestamp, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-// This file ports the reference verifier's Truestamp.Verifier.Derive.Records
-// (elixir/lib/truestamp/verifier/derive/records.ex in
-// truestamp-verification), checked against the Truestamp application's
-// port, Truestamp.Proof.Verifier.Derive.Records
-// (lib/truestamp/proof/verifier/derive/records.ex in truestamp-v2): the
-// record hashes of DERIVE (SPEC.md section 10.2, step 9), parts (a) to (c),
-// each a check that recomputes a value from the preimage P carries and
-// compares it with the value P carries for it.
+// This file holds the record hashes of DERIVE (SPEC.md section 10.2, step
+// 9), parts (a) to (c), each a check that recomputes a value from the
+// preimage P carries and compares it with the value P carries for it.
 //
 // (a) Subject hashes, by type, the only member that selects what runs
 // (SPEC.md section 10.6, rule 3):
@@ -43,13 +38,13 @@
 // Each block node's checks are followed by those of the key event its
 // record carries (section 10.3), which derive_key_events.go makes, so that
 // in (b) a block's checks come in the table's order, then its key event's.
-// recordHeight is the reference's height/1: the height a block record
-// counts as, which the genesis check fixes at 0 and LINK_HEAD compares.
+// recordHeight is the height a block record counts as, which the genesis
+// check fixes at 0 and LINK_HEAD compares (SPEC.md section 10.3).
 //
-// Adapted from the reference: SHAPE has held every preimage to the schema,
-// so the registry refuses none in a run; a refusal (a preimage that is not
-// an object) is a fault of the verifier, which these functions return as an
-// error and [Derive] reports as internal_error.
+// SHAPE has held every preimage to the schema, so the registry refuses none
+// in a run; a refusal (a preimage that is not an object) is a fault of the
+// verifier, which these functions return as an error and [Derive] reports
+// as internal_error (SPEC.md section 10.5).
 
 package verifier
 

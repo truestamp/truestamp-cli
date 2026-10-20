@@ -1,10 +1,8 @@
 // Copyright (c) 2019-2026 Truestamp, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-// Tests of the nearest binary64 value of J5 (SPEC.md section 10.1), as the
-// reference verifier's elixir/test/verifier/binary64_test.exs tests it, with
-// exact rational arithmetic (math/big) in place of its table of answers from
-// Python's float().
+// Tests of the nearest binary64 value of J5 (SPEC.md section 10.1), with
+// exact rational arithmetic (math/big) as the answers' check.
 
 package strictjson
 
