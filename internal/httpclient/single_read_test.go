@@ -120,6 +120,47 @@ func TestSingleRead_AnyStatusBut200IsAnHTTPError(t *testing.T) {
 	}
 }
 
+// PostRPC also gives the body of a 404 and a 500, which a JSON-RPC 1.0
+// server answers an error with, within the limit, and Post does not; every
+// other status but 200 OK is a *StatusError for both, a 3xx unfollowed
+// among them, and a 500 body over the limit is a *TruncatedError.
+// Mutants killed: PostRPC reading no error body (the 500's body is a
+// *StatusError); rpcErrorStatuses holding every status (a 503's body is
+// read); the error body read without the limit (the long 500 is
+// returned).
+func TestSingleRead_PostRPCReadsAnErrorBody(t *testing.T) {
+	const answer = `{"result":null,"error":{"code":-8,"message":"Block height out of range"},"id":"truestamp-verify"}`
+	for _, code := range []int{http.StatusOK, http.StatusNotFound, http.StatusInternalServerError, http.StatusServiceUnavailable, http.StatusFound, http.StatusUnauthorized} {
+		srv, requests := countingServer(t, func(w http.ResponseWriter, _ *http.Request) {
+			if code == http.StatusFound {
+				w.Header().Set("Location", "/elsewhere")
+			}
+			w.WriteHeader(code)
+			_, _ = w.Write([]byte(answer))
+		})
+		read := NewSingleRead(nil, 5*time.Second)
+		got, err := read.PostRPC(context.Background(), srv.URL, []byte(`{}`), nil, 1<<10)
+		answered := code == http.StatusOK || code == http.StatusNotFound || code == http.StatusInternalServerError
+		if answered != (err == nil) || (answered && string(got) != answer) || (!answered && Status(err) != code) {
+			t.Errorf("PostRPC, HTTP %d: %q, %v", code, got, err)
+		}
+		plain, err := read.Post(context.Background(), srv.URL, []byte(`{}`), nil, 1<<10)
+		if (code == http.StatusOK) != (err == nil) || (code != http.StatusOK && (plain != nil || Status(err) != code)) {
+			t.Errorf("Post, HTTP %d: %q, %v", code, plain, err)
+		}
+		if n := requests.Load(); n != 2 {
+			t.Errorf("HTTP %d: %d requests, want 2", code, n)
+		}
+	}
+	srv, _ := countingServer(t, func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusInternalServerError)
+		_, _ = w.Write([]byte(strings.Repeat("x", 1<<10+1)))
+	})
+	if got, err := NewSingleRead(nil, 5*time.Second).PostRPC(context.Background(), srv.URL, nil, nil, 1<<10); !IsTruncated(err) || got != nil {
+		t.Fatalf("a 500 over the limit: %d octets, %v", len(got), err)
+	}
+}
+
 // A server that closes the connection without an answer is a
 // *TransportError. Mutant killed: the client's error returned as it is,
 // not as a *TransportError.

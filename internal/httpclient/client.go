@@ -24,6 +24,7 @@ import (
 	"io"
 	"net/http"
 	"runtime"
+	"slices"
 	"time"
 )
 
@@ -327,7 +328,25 @@ func (r *SingleRead) Post(ctx context.Context, url string, body []byte, header h
 	return r.read(ctx, http.MethodPost, url, body, header, limit)
 }
 
-func (r *SingleRead) read(ctx context.Context, method, url string, body []byte, header http.Header, limit int) ([]byte, error) {
+// rpcErrorStatuses are the statuses a JSON-RPC 1.0 server, such as a
+// Bitcoin Core node, answers an error with: 404 Not Found for a method it
+// does not have, and 500 Internal Server Error for every other error,
+// either with the error in its body.
+var rpcErrorStatuses = []int{http.StatusNotFound, http.StatusInternalServerError}
+
+// PostRPC is [SingleRead.Post] for a JSON-RPC 1.0 call, such as a Bitcoin
+// Core node's: it also returns the body of a 404 Not Found or a 500
+// Internal Server Error answer, of at most limit octets, since such a
+// server gives an error there and its body names the error, which the
+// caller reads as it reads a 200 OK's. Every other status is a
+// *StatusError, as for Post.
+func (r *SingleRead) PostRPC(ctx context.Context, url string, body []byte, header http.Header, limit int) ([]byte, error) {
+	return r.read(ctx, http.MethodPost, url, body, header, limit, rpcErrorStatuses...)
+}
+
+// read makes one read, and returns the body of a 200 OK answer, or of an
+// answer whose status is one of answered.
+func (r *SingleRead) read(ctx context.Context, method, url string, body []byte, header http.Header, limit int, answered ...int) ([]byte, error) {
 	ctx, cancel := context.WithTimeout(ctx, r.deadline)
 	defer cancel()
 	var payload io.Reader
@@ -347,7 +366,7 @@ func (r *SingleRead) read(ctx context.Context, method, url string, body []byte, 
 		return nil, &TransportError{URL: url, Err: err}
 	}
 	defer func() { _ = resp.Body.Close() }()
-	if resp.StatusCode != http.StatusOK {
+	if resp.StatusCode != http.StatusOK && !slices.Contains(answered, resp.StatusCode) {
 		head, _ := io.ReadAll(io.LimitReader(resp.Body, 81))
 		bodyStr := Truncate(string(head), 80)
 		return nil, &StatusError{

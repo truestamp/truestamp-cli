@@ -68,7 +68,7 @@ func TestStellarReads_EachCallAndItsAnswer(t *testing.T) {
 			Answer{Outcome: OutcomeFound, Value: map[string]any{"closed_at": "2026-09-26T01:52:15Z", "hash": "0e8e2010d79bb6b859b5884ee90f83092d7320e18b12740119c7b734dcab4ea7"}}},
 	} {
 		srv, seen := recording(t, func(w http.ResponseWriter, _ *http.Request) { _, _ = w.Write([]byte(tc.body)) })
-		got := Read(context.Background(), reads(), Horizon, srv.URL+"/v1/", tc.read)
+		got := Read(context.Background(), reads(), Horizon, srv.URL+"/v1/", Credentials{}, tc.read)
 		if !reflect.DeepEqual(got, tc.want) {
 			t.Errorf("%s: %+v, want %+v", tc.name, got, tc.want)
 		}
@@ -145,7 +145,7 @@ func TestStellarReads_APartialAnswerIsFound(t *testing.T) {
 		{"a root with neither", `{"core_latest_ledger":10}`, rootRead, map[string]any{}},
 	} {
 		srv, seen := recording(t, text(tc.body))
-		got := Read(context.Background(), reads(), Horizon, srv.URL, tc.read)
+		got := Read(context.Background(), reads(), Horizon, srv.URL, Credentials{}, tc.read)
 		if got.Outcome != OutcomeFound || !reflect.DeepEqual(got.Value, tc.want) || got.Reason != "" || len(seen()) != 1 {
 			t.Errorf("%s: %+v after %d requests, want found %v", tc.name, got, len(seen()), tc.want)
 		}
@@ -200,7 +200,7 @@ func TestStellarReads_NotFoundAndUnreachable(t *testing.T) {
 			}, reads404[kind]},
 		} {
 			srv, seen := recording(t, tc.answer)
-			got := Read(context.Background(), reads(), Horizon, srv.URL, read)
+			got := Read(context.Background(), reads(), Horizon, srv.URL, Credentials{}, read)
 			if got.Outcome != tc.want || got.Value != nil || strings.Contains(got.Reason, "quoted-body") || (tc.want == OutcomeUnreachable) != (got.Reason != "") || len(seen()) != 1 {
 				t.Errorf("%s, %s: %+v after %d requests; want %s, no value, no body quoted", kind, name, got, len(seen()), tc.want)
 			}
@@ -235,7 +235,7 @@ func TestStellarReads_NothingIsReadForARefusedParameter(t *testing.T) {
 		"an unknown kind":         {Horizon, map[string]any{"kind": "bitcoin_tip"}},
 		"a Stellar kind, Esplora": {Esplora, map[string]any{"kind": KindStellarRoot}},
 	} {
-		got := Read(context.Background(), reads(), tc.provider, srv.URL, tc.read)
+		got := Read(context.Background(), reads(), tc.provider, srv.URL, Credentials{}, tc.read)
 		if got.Outcome != OutcomeUnreachable || got.Reason == "" || got.Value != nil {
 			t.Errorf("%s: %+v", name, got)
 		}

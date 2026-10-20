@@ -226,8 +226,9 @@ func TestChainAndSources_OfflineMessagesNameTheRead(t *testing.T) {
 // again, so SOURCES gives no skip prior_failure row. SOURCES' and WINDOW's
 // rules are not in this package, so they give no row here. The item
 // proof's two Stellar entries name one transaction, so both fail on its
-// one answer. Mutants killed: Chain deciding the gate again when it ends
-// (SOURCES gives skip prior_failure rows after CHAIN's failure);
+// one answer, and so does KEY_EVENT_COMMITMENT; its Bitcoin entries pass.
+// Mutants killed: Chain deciding the gate again when it ends (SOURCES
+// gives skip prior_failure rows after CHAIN's failure);
 // closedGate deciding from Run.Failed (the same); Chain treating an open
 // gate as offline (CHAIN gives skip offline rows); Window drawing its row
 // under an open gate (a WINDOW row follows).
@@ -240,7 +241,8 @@ func TestExternalGate_AChainFailureLeavesItOpenForSources(t *testing.T) {
 	Chain(run)
 	Sources(run)
 	Window(run)
-	want := "[chain_mismatch /commitments/stellar fail CHAIN] [chain_mismatch /signing_key_event/commitments/stellar fail CHAIN]"
+	want := "[null /commitments/bitcoin pass CHAIN] [chain_mismatch /commitments/stellar fail CHAIN] [null /signing_key_event/commitments/bitcoin pass CHAIN] " +
+		"[chain_mismatch /signing_key_event/commitments/stellar fail CHAIN] [chain_mismatch /signing_key_event fail CHAIN]"
 	if got := rowSummary(run.Rows[before:]); got != want || run.ExternalGate != ExternalGateOpen {
 		t.Fatalf("rows after DERIVE %s, gate %q; want %s", got, run.ExternalGate, want)
 	}

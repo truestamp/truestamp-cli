@@ -77,20 +77,55 @@ func (s *chainStandIn) answer(e stellarAnswers, tx, ledger SourceRead, names ...
 }
 
 // openItemRun is the item proof's run past DERIVE, online, its gate open,
-// with attribution, its Stellar commitment pin testnet served by set, every
-// chain read answered by stand.
+// with attribution, its Stellar commitment pin testnet served by set and
+// its Bitcoin commitment pin regtest by one sound source, btc, every chain
+// read answered by stand.
 func openItemRun(t *testing.T, proof map[string]any, attribution string, set SourceSet, stand *chainStandIn) *Run {
+	t.Helper()
+	stand.answerBitcoin(soundItemBitcoin(t, proof, 233, ruleMedian), SourceRead{}, SourceRead{}, SourceRead{}, "btc")
+	return openRun(t, proof, attribution, []SourceSet{set, bitcoinSet(SourcePolicy{Kind: SourcePolicyFirst}, "regtest", "btc")}, stand)
+}
+
+// openItemRunWith is proof's run past DERIVE, online, its gate open, with
+// attribution, its Stellar commitment pin testnet served by one sound
+// source, stellar, and its Bitcoin commitment pin regtest by bitcoin,
+// every chain read answered by stand.
+func openItemRunWith(t *testing.T, proof map[string]any, attribution string, bitcoin SourceSet, stand *chainStandIn) *Run {
+	t.Helper()
+	for _, part := range []Pointer{topStellar, keyStellar} {
+		stand.answer(soundStellar(t, proof, part, itemClosed), SourceRead{}, SourceRead{}, "stellar")
+	}
+	return openRun(t, proof, attribution, []SourceSet{standInSet(SourcePolicy{Kind: SourcePolicyFirst}, "stellar"), bitcoin}, stand)
+}
+
+// openRun is proof's run past DERIVE, online, its gate open, with
+// attribution, its Stellar commitment pin testnet and its Bitcoin
+// commitment pin regtest served by sets, every chain read answered by
+// stand.
+func openRun(t *testing.T, proof map[string]any, attribution string, sets []SourceSet, stand *chainStandIn) *Run {
 	t.Helper()
 	run := deriveRun(proof, attribution)
 	run.Config.Online = true
 	run.Config.Networks.Commitment.Stellar = "testnet"
+	run.Config.Networks.Commitment.Bitcoin = "regtest"
 	run.Config.ReadChain = stand.reader
-	run.SourceSets = []SourceSet{set}
+	run.SourceSets = sets
 	Derive(run)
 	if run.ExternalGate != ExternalGateOpen {
 		t.Fatalf("the gate is %q, rows %s", run.ExternalGate, rowSummary(run.Rows))
 	}
 	return run
+}
+
+// stellarRows writes rows' CHAIN rows at the two Stellar entries.
+func stellarRows(rows []Row) string {
+	var out []Row
+	for _, r := range rows {
+		if r.Step == "CHAIN" && r.Part != nil && (*r.Part == topStellar.Encode() || *r.Part == keyStellar.Encode()) {
+			out = append(out, r)
+		}
+	}
+	return rowSummary(out)
 }
 
 // candidateText writes the run's candidates as "<part> <instant> <counted
@@ -202,10 +237,16 @@ func TestChain_AStellarRowUnderEachPolicy(t *testing.T) {
 		before := len(run.Rows)
 		Chain(run)
 		rows := run.Rows[before:]
-		if got := rowSummary(rows); got != tc.row+" "+tc.key {
+		if got := stellarRows(rows); got != tc.row+" "+tc.key {
 			t.Errorf("%s: rows %s, want %s %s", tc.name, got, tc.row, tc.key)
 		}
-		if got := candidateText(run); got != tc.candidates {
+		var stellar []RowCandidate
+		for _, c := range run.Candidates {
+			if c.Part == topStellar.Encode() {
+				stellar = append(stellar, c)
+			}
+		}
+		if got := candidateText(&Run{Candidates: stellar}); got != tc.candidates {
 			t.Errorf("%s: candidates %q, want %q", tc.name, got, tc.candidates)
 		}
 		for name, want := range tc.asked {
@@ -222,13 +263,15 @@ func TestChain_AStellarRowUnderEachPolicy(t *testing.T) {
 // A row's values are what it read (SPEC.md section 10.4, "What a row
 // read"), exactly: policy, required, one outcome for each source asked,
 // each with its reads in replay form, and the candidate; its message names
-// the transaction, ledger L and the close time whole. Mutants killed: the
-// row made without CombinedOutcome.Values (no outcomes); the candidate
-// left out of a passing row's values; a ledger read's sequence written as
-// a string.
+// the transaction, ledger L and the close time whole. The run's Bitcoin
+// reads, made first in document order, take the clock's first three
+// readings. Mutants killed: the row made without CombinedOutcome.Values
+// (no outcomes); the candidate left out of a passing row's values; a
+// ledger read's sequence written as a string.
 func TestChain_AStellarRowsValues(t *testing.T) {
 	t0 := time.Date(2026, 10, 20, 9, 0, 0, 0, time.UTC)
-	useClock(t, t0, t0.Add(time.Second), t0.Add(2*time.Second))
+	before := t0.Add(-time.Minute)
+	useClock(t, before, before, before, t0, t0.Add(time.Second), t0.Add(2*time.Second))
 	item := positiveProofs(t)["item"]
 	top := soundStellar(t, item, topStellar, itemClosed)
 	stand := &chainStandIn{answers: map[string]SourceRead{}}
@@ -311,15 +354,32 @@ func TestChain_AnUnreachableReadKeepsItsReason(t *testing.T) {
 // section 10.5, "Rows": a message is for display): a source that held the
 // transaction, matching the proof, was settled by its read of ledger L, so
 // the message says the transaction matches and names the ledger; a source
-// settled at the transaction or the root says it of the transaction; and
-// sources settled each way get a message true of both. Mutants killed:
+// settled at the transaction says it of the transaction; sources settled
+// each way get a message true of both; a source that does
+// not hold the transaction and was settled by its root's read or its
+// ledger L's says it does not hold the transaction and names the read that
+// gave no usable answer; a source whose identity was unreachable, asked
+// nothing, says no source had its identity confirmed, as a Bitcoin row
+// does, and beside a source settled at the transaction gets the mixed
+// message, in either order; and several sources are named each. Mutants
+// killed:
 // the not_held_by_source message chosen from the code alone (the ledger
 // not held says the transaction is not held); the source_unreachable
 // message chosen from the code alone (the ledger unreachable says no
-// usable answer about the transaction); settledOf counting a found
+// usable answer about the transaction); stellarSettleOf counting a found
 // transaction with no later read (a transaction with no memo names the
-// ledger); settledOf with no form for mixed sources (a source not holding
-// the transaction is said to hold it).
+// ledger); stellarSettled with no form for mixed sources (a source not holding
+// the transaction is said to hold it); a not-found transaction's
+// unreachable root or ledger said of the transaction (the transaction's
+// usable not-found answer called unusable); stellarSettleOf taking every
+// read after a not-found transaction as the root's (the unreachable ledger
+// L is said of the ledgers it holds); asWhole naming one source for
+// several (each source of the two is "the source"); stellarSettleOf
+// taking a source with no read as settled at the transaction (the
+// unreachable identity says no usable answer about the transaction, and
+// beside the unreachable transaction is said alike); stellarSettled
+// looking only at the first source with no read (the identity unreachable
+// after the unreachable transaction is said alike).
 func TestChain_AStellarRowsMessageFromItsReads(t *testing.T) {
 	item := positiveProofs(t)["item"]
 	top := soundStellar(t, item, topStellar, itemClosed)
@@ -337,13 +397,23 @@ func TestChain_AStellarRowsMessageFromItsReads(t *testing.T) {
 		want    string
 	}{
 		{"the ledger not held", first, []answers{{name: "a", ledger: notFound}},
-			"Not confirmed: " + network + "'s source holds the transaction " + hash + ", which matches this proof, but not ledger 1000255. Absence is no contradiction."},
+			"Not confirmed: the source of " + network + " holds the transaction " + hash + ", which matches this proof, but not ledger 1000255. Absence is no contradiction."},
+		{"all, neither holds the ledger", all, []answers{{name: "a", ledger: notFound}, {name: "b", ledger: notFound}},
+			"Not confirmed: each source of " + network + " holds the transaction " + hash + ", which matches this proof, but not ledger 1000255. Absence is no contradiction."},
 		{"the ledger unreachable", first, []answers{{name: "a", ledger: unreachableRead}},
 			"Not confirmed: the transaction " + hash + " matches this proof, but no source of " + network + " gave a usable answer about ledger 1000255."},
 		{"the candidate ledger without closed_at", first, []answers{{name: "a", ledger: found(map[string]any{"hash": strings.Repeat("1", 64)})}},
 			"Not confirmed: the transaction " + hash + " matches this proof, but no source of " + network + " gave a usable answer about ledger 1000255."},
 		{"the transaction and root not held", first, []answers{{name: "a", tx: notFound, root: notFound}},
-			"Not confirmed: the history " + network + "'s source keeps does not hold the transaction " + hash + " or ledger 1000255. Absence is no contradiction."},
+			"Not confirmed: the history the source of " + network + " keeps does not hold the transaction " + hash + " or ledger 1000255. Absence is no contradiction."},
+		{"all, neither holds the transaction, below elder", all, []answers{{name: "a", tx: notFound, root: root(ruleLedger+1000, ruleLedger+1)}, {name: "b", tx: notFound, root: root(ruleLedger+1000, ruleLedger+5)}},
+			"Not confirmed: the history each source of " + network + " keeps does not hold the transaction " + hash + " or ledger 1000255. Absence is no contradiction."},
+		{"the transaction not held, the root unreachable", first, []answers{{name: "a", tx: notFound, root: unreachableRead}},
+			"Not confirmed: no source of " + network + " holds the transaction " + hash + ", and none gave a usable answer about the ledgers it holds."},
+		{"the transaction not held, the root without elder", first, []answers{{name: "a", tx: notFound, root: found(map[string]any{"latest": strictjson.Number(ruleLedger + 1000)})}},
+			"Not confirmed: no source of " + network + " holds the transaction " + hash + ", and none gave a usable answer about the ledgers it holds."},
+		{"the transaction not held, its ledger unreachable", first, []answers{{name: "a", tx: notFound, root: root(ruleLedger+1000, ruleLedger-1), ledger: unreachableRead}},
+			"Not confirmed: no source of " + network + " holds the transaction " + hash + ", and none gave a usable answer about ledger 1000255."},
 		{"the transaction unreachable", first, []answers{{name: "a", tx: unreachableRead}},
 			"Not confirmed: no source of " + network + " gave a usable answer about the transaction " + hash + "."},
 		{"a transaction with no memo", first, []answers{{name: "a", tx: soundTx(map[string]any{"memo": nil, "ledger": top.txAnswer.Value["ledger"]})}},
@@ -351,6 +421,12 @@ func TestChain_AStellarRowsMessageFromItsReads(t *testing.T) {
 		{"all, one holds the transaction and not the ledger, one neither", all, []answers{{name: "a", ledger: notFound}, {name: "b", tx: notFound, root: notFound}},
 			"Not confirmed: " + network + "'s sources do not hold both the transaction " + hash + " and ledger 1000255. Absence is no contradiction."},
 		{"all, the ledger unreachable at one, the transaction at the other", all, []answers{{name: "a", ledger: unreachableRead}, {name: "b", tx: unreachableRead}},
+			"Not confirmed: no source of " + network + " gave usable answers about both the transaction " + hash + " and ledger 1000255."},
+		{"the identity unreachable", first, []answers{{name: "down"}},
+			"Not confirmed: no source of " + network + " had its identity confirmed, so none was read."},
+		{"all, the identity unreachable at one, the transaction at the other", all, []answers{{name: "down"}, {name: "b", tx: unreachableRead}},
+			"Not confirmed: no source of " + network + " gave usable answers about both the transaction " + hash + " and ledger 1000255."},
+		{"all, the transaction unreachable at one, the identity at the other", all, []answers{{name: "b", tx: unreachableRead}, {name: "down"}},
 			"Not confirmed: no source of " + network + " gave usable answers about both the transaction " + hash + " and ledger 1000255."},
 	} {
 		stand := &chainStandIn{answers: map[string]SourceRead{}}
@@ -370,41 +446,44 @@ func TestChain_AStellarRowsMessageFromItsReads(t *testing.T) {
 	}
 }
 
-// KEY_EVENT_COMMITMENT under an open gate (SPEC.md section 10.3), from a
-// key event whose one input is its Stellar entry, whose transaction is
-// the top-level entry's, so both rows take one answer: pass under the
-// attribution truestamp, info not_attributable under a supplied keyring's,
-// fail with the input's code when it failed and skip with the input's
-// code when it skipped; and no row while an input, the item proof's
-// Bitcoin entry under /signing_key_event, has no row yet. Mutants killed:
-// keyEventCommitment passing whatever the attribution (the keyring run
-// passes); taking only failures (the skip passes); giving the row whatever
-// its inputs (a row with the Bitcoin input missing); dropping the row
-// (none is given).
-func TestChain_TheKeyEventRowFromItsStellarInput(t *testing.T) {
+// KEY_EVENT_COMMITMENT under an open gate (SPEC.md section 10.3), from
+// the item proof's key event, whose inputs are its Bitcoin and its Stellar
+// entries, each read from one source whose answers the top-level entries
+// share: pass under the attribution truestamp and info not_attributable
+// under a supplied keyring's when both pass; fail with the failing
+// input's code, whichever input fails, and a failure wins over a skip
+// before it; skip with the first skipped input's code, the Bitcoin entry's
+// before the Stellar entry's in document order, chain_not_final and
+// not_yet_indexed reaching the row; and the row CHAIN's last. Mutants
+// killed: keyEventCommitment passing whatever the attribution (the keyring
+// run passes); taking only failures (each skip passes); taking the last
+// skipped input (source_unreachable in place of chain_not_final); dropping
+// the row (none is given).
+func TestChain_TheKeyEventRowFromItsInputs(t *testing.T) {
 	item := positiveProofs(t)["item"]
-	stellarOnly := clone(item).(map[string]any)
-	delete(stellarOnly["signing_key_event"].(map[string]any)["commitments"].(map[string]any), "bitcoin")
+	notFinal, early := tip(231), tip(200)
 	for _, tc := range []struct {
 		name        string
-		proof       map[string]any
 		attribution string
 		keyTx       SourceRead
+		btcTip      SourceRead
+		btcBlock    SourceRead
 		want        string
 	}{
-		{"truestamp", stellarOnly, AttributionTruestamp, SourceRead{}, "[null /signing_key_event pass CHAIN]"},
-		{"a supplied keyring", stellarOnly, deriveAttribution, SourceRead{}, "[not_attributable /signing_key_event info CHAIN]"},
-		{"the input fails", stellarOnly, AttributionTruestamp, soundTx(map[string]any{"successful": false}), "[chain_mismatch /signing_key_event fail CHAIN]"},
-		{"the input skips", stellarOnly, AttributionTruestamp, unreachableRead, "[source_unreachable /signing_key_event skip CHAIN]"},
-		{"a Bitcoin input", item, AttributionTruestamp, SourceRead{}, ""},
+		{"truestamp", AttributionTruestamp, SourceRead{}, SourceRead{}, SourceRead{}, "[null /signing_key_event pass CHAIN]"},
+		{"a supplied keyring", deriveAttribution, SourceRead{}, SourceRead{}, SourceRead{}, "[not_attributable /signing_key_event info CHAIN]"},
+		{"the Stellar input fails", AttributionTruestamp, soundTx(map[string]any{"successful": false}), SourceRead{}, SourceRead{}, "[chain_mismatch /signing_key_event fail CHAIN]"},
+		{"the Bitcoin input fails", AttributionTruestamp, SourceRead{}, SourceRead{}, soundBlock(map[string]any{"transaction_count": strictjson.Number(9)}), "[chain_mismatch /signing_key_event fail CHAIN]"},
+		{"a skip, then a failure", AttributionTruestamp, soundTx(map[string]any{"successful": false}), notFinal, SourceRead{}, "[chain_mismatch /signing_key_event fail CHAIN]"},
+		{"the Stellar input skips", AttributionTruestamp, unreachableRead, SourceRead{}, SourceRead{}, "[source_unreachable /signing_key_event skip CHAIN]"},
+		{"the Bitcoin input not final", AttributionTruestamp, SourceRead{}, notFinal, SourceRead{}, "[chain_not_final /signing_key_event skip CHAIN]"},
+		{"the Bitcoin input not indexed", deriveAttribution, SourceRead{}, early, SourceRead{}, "[not_yet_indexed /signing_key_event skip CHAIN]"},
+		{"both skip", AttributionTruestamp, unreachableRead, notFinal, SourceRead{}, "[chain_not_final /signing_key_event skip CHAIN]"},
 	} {
 		stand := &chainStandIn{answers: map[string]SourceRead{}}
 		stand.answer(soundStellar(t, item, topStellar, itemClosed), tc.keyTx, SourceRead{}, "a")
-		run := deriveRun(tc.proof, tc.attribution)
-		run.Config = Config{Online: true, ReadChain: stand.reader}
-		run.Config.Networks.Commitment.Stellar = "testnet"
-		run.SourceSets = []SourceSet{standInSet(SourcePolicy{Kind: SourcePolicyFirst}, "a")}
-		run.ExternalGate = ExternalGateOpen
+		stand.answerBitcoin(soundItemBitcoin(t, item, 233, ruleMedian), tc.btcTip, tc.btcBlock, SourceRead{}, "btc")
+		run := openRun(t, item, tc.attribution, []SourceSet{standInSet(SourcePolicy{Kind: SourcePolicyFirst}, "a"), bitcoinSet(SourcePolicy{Kind: SourcePolicyFirst}, "regtest", "btc")}, stand)
 		Chain(run)
 		var got []Row
 		for _, r := range run.Rows {
@@ -415,7 +494,7 @@ func TestChain_TheKeyEventRowFromItsStellarInput(t *testing.T) {
 		if rowSummary(got) != tc.want {
 			t.Errorf("%s: %s, want %s", tc.name, rowSummary(got), tc.want)
 		}
-		if last := run.Rows[len(run.Rows)-1]; tc.want != "" && *last.Part != keyEventCommitmentPart {
+		if last := run.Rows[len(run.Rows)-1]; *last.Part != keyEventCommitmentPart {
 			t.Errorf("%s: the key event's row is not CHAIN's last", tc.name)
 		}
 	}
@@ -427,11 +506,13 @@ func TestChain_TheKeyEventRowFromItsStellarInput(t *testing.T) {
 // 10.3), over two inputs whose rows are given: a skip of the Bitcoin
 // entry beside a failure of the Stellar entry fails; two skips take the
 // Bitcoin entry's code, its row first in document order; a genesis input
-// comes before the commitments; a key event's input with no row gives no
-// row. Mutants killed: the first non-passing input taken whatever its
+// comes before the commitments; a key event's input with no row, which
+// CHAIN never leaves, is a defect, a panic. Mutants killed: the first
+// non-passing input taken whatever its
 // status (the skip wins over the failure); the last skipped input taken
 // (not_held_by_source in place of chain_not_final); keyEventInputs
-// without its sort (the genesis input after the commitments).
+// without its sort (the genesis input after the commitments); an input
+// with no row passed over (a row is given).
 func TestChain_TheKeyEventRowsOrder(t *testing.T) {
 	bitcoinAt := Pointer{Name("signing_key_event"), Name("commitments"), Name("bitcoin")}
 	genesisAt := append(Pointer{Name("signing_key_event"), Name("block")}, genesisBitcoinAt...)
@@ -458,36 +539,74 @@ func TestChain_TheKeyEventRowsOrder(t *testing.T) {
 			"[source_unreachable /signing_key_event skip CHAIN]"},
 		{"every input passes", []chainRow{row(genesisAt, ""), row(bitcoinAt, ""), row(keyStellar, "")},
 			"[null /signing_key_event pass CHAIN]"},
-		{"an input with no row", []chainRow{row(genesisAt, ""), row(keyStellar, "")}, ""},
 	} {
 		got, ok := keyEventCommitment(&Run{Proof: proof, Attribution: AttributionTruestamp}, tc.rows)
-		text := ""
-		if ok {
-			text = rowSummary([]Row{got})
+		if text := rowSummary([]Row{got}); !ok || text != tc.want {
+			t.Errorf("%s: %s, %v, want %s", tc.name, text, ok, tc.want)
 		}
-		if text != tc.want {
-			t.Errorf("%s: %s, want %s", tc.name, text, tc.want)
+	}
+	defer func() {
+		if r := recover(); r == nil || !strings.Contains(fmt.Sprint(r), "CHAIN made no row for /signing_key_event/commitments/bitcoin") {
+			t.Errorf("an input with no row: recovered %v", r)
 		}
+	}()
+	keyEventCommitment(&Run{Proof: proof, Attribution: AttributionTruestamp}, []chainRow{row(genesisAt, ""), row(keyStellar, "")})
+}
+
+// Under an open gate, a proof that carries no signing_key_event gets no
+// KEY_EVENT_COMMITMENT row (SPEC.md section 10.3): the item proof without
+// it, its top-level Stellar and Bitcoin entries each read from one sound
+// source, gives exactly the rows of those two entries, both passing.
+// Mutant killed: keyEventCommitment giving its row whatever P carries
+// under an open gate (a /signing_key_event row follows).
+func TestChain_NoKeyEventRowUnderAnOpenGateWithoutASigningKeyEvent(t *testing.T) {
+	item := clone(positiveProofs(t)["item"]).(map[string]any)
+	delete(item, "signing_key_event")
+	stand := &chainStandIn{answers: map[string]SourceRead{}}
+	stand.answer(soundStellar(t, item, topStellar, itemClosed), SourceRead{}, SourceRead{}, "a")
+	stand.answerBitcoin(soundItemBitcoin(t, item, 233, ruleMedian), SourceRead{}, SourceRead{}, SourceRead{}, "btc")
+	first := SourcePolicy{Kind: SourcePolicyFirst}
+	run := openRun(t, item, AttributionTruestamp, []SourceSet{standInSet(first, "a"), bitcoinSet(first, "regtest", "btc")}, stand)
+	Chain(run)
+	if got := stepRows(run, "CHAIN"); got != "[null /commitments/bitcoin pass CHAIN] [null /commitments/stellar pass CHAIN]" {
+		t.Fatalf("CHAIN %s", got)
 	}
 }
 
-// A Stellar entry CHAIN cannot read, one SHAPE should have refused, is a
-// fault: internal_error at CHAIN, part null, and the run ends, its later
-// steps' rows skip prior_failure, with no read made. Mutants killed: the
-// fault not ending the run (EXPECTED_HASH gives its own row); the fault
-// ignored (the entries are read).
+// An entry CHAIN cannot read, one SHAPE should have refused or DERIVE has
+// held well formed, is a fault: internal_error at CHAIN, part null, and
+// the run ends, its later steps' rows skip prior_failure, with no read
+// made: a Stellar ledger that is a string, a Bitcoin height that is a
+// string, a txoutproof that is not hex and one that is not a well-formed
+// merkleblock, and a genesis.bitcoin header_hash that is not a HEX64.
+// Mutants killed: the fault not ending the run (EXPECTED_HASH gives its own
+// row); the fault ignored (the entries are read); bitcoinEntryOf reading a
+// txoutproof that does not parse as a merkleblock (the rule reads with a
+// zero header hash); bitcoinGenesisOf without its class checks (the
+// uppercase hash is read).
 func TestChain_AnUnreadableEntryIsAFault(t *testing.T) {
-	item := positiveProofs(t)["item"]
-	stand := &chainStandIn{answers: map[string]SourceRead{}}
-	run := openItemRun(t, item, deriveAttribution, standInSet(SourcePolicy{Kind: SourcePolicyFirst}, "a"), stand)
-	run.Proof = put(item, under(keyStellar, "ledger"), "1000255")
-	before := len(run.Rows)
-	Chain(run)
-	Sources(run)
-	Window(run)
-	ExpectedHash(run)
-	if got := rowSummary(run.Rows[before:]); got != "[internal_error null fail CHAIN] [prior_failure null skip SOURCES] [prior_failure null skip WINDOW] [prior_failure null skip EXPECTED_HASH]" || !run.Ended || len(stand.asked) != 0 {
-		t.Fatalf("rows %s, ended %v, reads %v", got, run.Ended, stand.asked)
+	item, block := positiveProofs(t)["item"], positiveProofs(t)["block"]
+	for _, tc := range []struct {
+		name  string
+		proof map[string]any
+	}{
+		{"a Stellar ledger string", put(item, under(keyStellar, "ledger"), "1000255")},
+		{"a Bitcoin height string", put(item, under(topBitcoin, "height"), "222")},
+		{"a txoutproof not hex", put(item, under(keyBitcoin, "txoutproof"), "zz")},
+		{"a txoutproof not a merkleblock", put(item, under(topBitcoin, "txoutproof"), "00")},
+		{"a genesis header_hash in uppercase", put(block, append(Pointer{Name("block")}, append(genesisBitcoinAt, Name("header_hash"))...), strings.Repeat("AB", 32))},
+	} {
+		stand := &chainStandIn{answers: map[string]SourceRead{}}
+		run := openItemRun(t, item, deriveAttribution, standInSet(SourcePolicy{Kind: SourcePolicyFirst}, "a"), stand)
+		run.Proof = tc.proof
+		before := len(run.Rows)
+		Chain(run)
+		Sources(run)
+		Window(run)
+		ExpectedHash(run)
+		if got := rowSummary(run.Rows[before:]); got != "[internal_error null fail CHAIN] [prior_failure null skip SOURCES] [prior_failure null skip WINDOW] [prior_failure null skip EXPECTED_HASH]" || !run.Ended || len(stand.asked) != 0 {
+			t.Errorf("%s: rows %s, ended %v, reads %v", tc.name, got, run.Ended, stand.asked)
+		}
 	}
 }
 

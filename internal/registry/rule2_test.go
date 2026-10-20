@@ -99,9 +99,10 @@ import (
 //     gate, SOURCES, WINDOW, EXPECTED_HASH and VERDICT (external.go,
 //     source_outcomes.go, sources.go, window.go, expected_hash.go and
 //     verdict.go): they read a commitment entry's members by literal name,
-//     and a source's answer by the field names the rule passes, and the one
-//     hash CHAIN makes is recordHashAt's, in derive_records.go, which this
-//     check reads, under a constant kind that check 11 holds;
+//     and a source's answer by the field names the rule passes, and the
+//     hashes CHAIN makes are recordHashAt's, in derive_records.go, which
+//     this check reads, under a constant kind that check 11 holds, and the
+//     named digest bitcoin.HeaderHash's, which check 12 holds to its calls;
 //  8. an import that is not on the package's list in scannedPackages, so
 //     that nothing in internal/registry hashes but digest and the walk, and
 //     nothing in another package of the new verifier hashes but the three
@@ -135,8 +136,9 @@ import (
 //     shape.go's Shape, the Bitcoin evidence's sha256d only in
 //     transaction.go's TransactionHash, header.go's HeaderHash and
 //     merkle_block.go's traverse, bitcoin.TransactionHash only in
-//     derive_bitcoin.go's bitcoinEntryChecks, bitcoin.HeaderHash only there
-//     and in header.go's MeetsTarget, specdata's acceptedDigests only in
+//     derive_bitcoin.go's bitcoinEntryChecks, bitcoin.HeaderHash only there,
+//     in chain_bitcoin.go's bitcoinEntryOf and in header.go's MeetsTarget,
+//     specdata's acceptedDigests only in
 //     constructions.go's mustAcceptedDigests and jcs's placeholderFor only
 //     in jcs.go's Canonicalize; and, in a package of the module a scanned
 //     package may import that is not itself scanned (check 6 holds those),
@@ -272,7 +274,8 @@ var namedDigests = slices.Concat(contentDigests, wrappedDigests, importedDigests
 // function each lies in (check 12): one for each but the Bitcoin
 // evidence's sha256d, which hashes a raw_transaction, a header and a node
 // of a partial Merkle tree, each in a function of its own, and HeaderHash,
-// which DERIVE calls for header_hash and MeetsTarget for the target.
+// which DERIVE calls for header_hash, CHAIN for the hash the best-chain
+// block at an entry's height must have, and MeetsTarget for the target.
 var digestCalls = map[contentDigest][]contentDigest{
 	contentDigests[0]: {{"internal/verifier/keyring/keyring.go", "Load"}},
 	contentDigests[1]: {{"internal/verifier/shape.go", "Shape"}},
@@ -284,6 +287,7 @@ var digestCalls = map[contentDigest][]contentDigest{
 	wrappedDigests[0]: {{"internal/verifier/derive_bitcoin.go", "bitcoinEntryChecks"}},
 	wrappedDigests[1]: {
 		{"internal/verifier/derive_bitcoin.go", "bitcoinEntryChecks"},
+		{"internal/verifier/chain_bitcoin.go", "bitcoinEntryOf"},
 		{"internal/verifier/bitcoin/header.go", "MeetsTarget"},
 	},
 	importedDigests[0]: {{"internal/specdata/constructions.go", "mustAcceptedDigests"}},

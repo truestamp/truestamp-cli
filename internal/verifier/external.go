@@ -32,10 +32,11 @@
 // rows are those of each chain's and each source's rule of section 10.4,
 // each made once for each source of its network and combined under the
 // network's source policy (source_outcomes.go): CHAIN's are chain.go's,
-// which so far holds Stellar's rule (chain_stellar.go), and no source's
-// rule is in the package yet, so under an open gate SOURCES gives no row
-// here. A run that has ended passes through, since its CHAIN and SOURCES
-// rows are already skip prior_failure, part null.
+// Stellar's rule (chain_stellar.go) and Bitcoin's, for a commitment entry
+// and for genesis.bitcoin (chain_bitcoin.go), and no source's rule is in
+// the package yet, so under an open gate SOURCES gives no row here. A run
+// that has ended passes through, since its CHAIN and SOURCES rows are
+// already skip prior_failure, part null.
 
 package verifier
 
