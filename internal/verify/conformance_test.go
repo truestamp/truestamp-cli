@@ -411,17 +411,6 @@ func TestTamper(t *testing.T) {
 	}
 }
 
-// TestTypeAssertion pins the --type rejection.
-func TestTypeAssertion(t *testing.T) {
-	data := prodBundle(t, testfixtures.ProdComplete)
-	if _, err := RunFromBytes(data, "x", Options{SkipExternal: true, ExpectedSubjectType: "block"}); proof.RejectionCode(err) != proof.CodeSubjectTypeMismatch {
-		t.Errorf("mismatch rejection = %v", err)
-	}
-	if _, err := RunFromBytes(data, "x", Options{SkipExternal: true, ExpectedSubjectType: "item"}); err != nil {
-		t.Errorf("matching assertion rejected: %v", err)
-	}
-}
-
 // TestConformance_ProductionOnline compares an online run against the
 // server's own reports. It needs the public Horizon, NIST and Blockstream
 // endpoints and runs only when TRUESTAMP_ONLINE_TESTS is set.

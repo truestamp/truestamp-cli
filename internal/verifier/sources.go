@@ -21,9 +21,9 @@
 //     configuration has, under the policy first, its compiled-in default
 //     or the sources configured for no network that serve it, so a run
 //     with one source per network is the run of a single source. SPEC.md
-//     section 9 gives such a network one source; that several sources
-//     configured for no network that serve it are all its sources, in the
-//     order of [Config.Sources], is the CLI's own rule (step 4 below);
+//     section 9 gives such a network one source, so of several sources
+//     configured for no network that may serve it, only the first in the
+//     order of [Config.Sources] serves it (step 4 below);
 //   - each source has its own identity read, made once, all of them at
 //     once, before anything else is read from any source;
 //   - an identity read with no usable answer records the source
@@ -82,16 +82,17 @@
 //     configured for no network that answered serves the pinned networks
 //     of its chain with no configuration that its answer allows, a
 //     production value the chain's production network and any other value
-//     its other networks. One whose answer only pinned networks with a
-//     configuration allow serves nothing and is recorded with no pins,
-//     whatever other networks are open, and one whose answer no pinned
-//     network of its chain allows is configuration_error; SPEC.md section
-//     10.2, step 0, lists no other case, and the first is the CLI's own
-//     reading of section 9. Several such sources that serve one network
-//     are its sources in the order of [Config.Sources], under the policy
-//     first, also the CLI's own rule; then each source configured for no
-//     network with no usable answer, in that order, serves every such
-//     network it may serve that no source before it serves, so under dev
+//     its other networks, but none that such a source before it in the
+//     order of [Config.Sources] serves, so that such a network has one
+//     source (SPEC.md section 9). One whose answer only pinned
+//     networks with a configuration, or networks a source before it
+//     serves, allow serves nothing and is recorded with no pins, whatever
+//     other networks are open, and one whose answer no pinned network of
+//     its chain allows is configuration_error; SPEC.md section 10.2, step
+//     0, lists no other case, and the first is the CLI's own reading of
+//     section 9; then each source configured for no network with no
+//     usable answer, in that order, serves every such network it may
+//     serve that no source before it serves, so under dev
 //     or staging, of an Esplora server and a Bitcoin Core node that both
 //     give no usable answer, the Esplora server serves regtest and mainnet
 //     and the node serves nothing;
@@ -601,12 +602,14 @@ func planChain(cfg Config, chain string) (chainPlan, *Rejection) {
 // order, then the floating sources'), and gives the sources of each
 // network it serves: each configured network's, under its policy, each
 // source held to that network alone; then each open network that floating
-// sources serve, those that answered and allow it, then any that did not
-// answer, in order, each serving the open networks no record before it
-// serves, under the policy first. Several floating sources that serve one
-// open network are all its sources, the CLI's own rule, since SPEC.md
-// section 9 gives a network with no configuration one source. A floating
-// source whose answer only configured networks allow serves nothing, and
+// sources serve: each floating source that answered, in order, serves the
+// open networks its answer allows that no floating source before it
+// serves, and then each that did not answer, in order, serves the open
+// networks no floating source before it serves, so that an open network
+// has one source, under the policy first, as SPEC.md section 9 gives a
+// network with no configuration. A floating source that answered and
+// whose answer allows only networks a configuration or an earlier
+// floating source serves serves nothing and is recorded with no pins, and
 // one whose answer no pinned network of the chain allows is
 // configuration_error.
 func assign(cfg Config, plan chainPlan, answers []identityAnswer) ([]SourceRecord, []SourceSet, *Rejection) {
@@ -641,12 +644,16 @@ func assign(cfg Config, plan chainPlan, answers []identityAnswer) ([]SourceRecor
 			floating[i].Status, floating[i].Reason = SourceUnreachable, err.Error()
 		} else {
 			value := answers[i].value
+			allowed := false
 			for _, network := range plan.open {
 				if allows(plan.chain, network, value) {
-					networks = append(networks, network)
+					allowed = true
+					if !slices.ContainsFunc(serves, func(earlier []string) bool { return slices.Contains(earlier, network) }) {
+						networks = append(networks, network)
+					}
 				}
 			}
-			if len(networks) == 0 && !slices.ContainsFunc(plan.networks, func(network string) bool { return allows(plan.chain, network, value) }) {
+			if !allowed && !slices.ContainsFunc(plan.networks, func(network string) bool { return allows(plan.chain, network, value) }) {
 				return nil, nil, mismatch(s, sourceAt(s, 1, 1), plan.networks, value)
 			}
 			floating[i].Status, floating[i].Identity = SourceConfirmed, value

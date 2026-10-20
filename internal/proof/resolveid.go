@@ -25,8 +25,7 @@ import (
 // one fewer round trip, and it keeps an id-classification service out of
 // the loop for a tool whose whole thesis is not taking the server's word
 // for things. The classification only decides which proof to ASK for; the
-// bundle that comes back is still verified against its own signed type,
-// and `verify --type` still asserts independently.
+// bundle that comes back is still verified against its own signed type.
 //
 // Resolution is visibility-gated server-side: an id you cannot see
 // returns no match rather than revealing that it exists.

@@ -39,6 +39,15 @@ import (
 // keyring online (SPEC.md section 8.3).
 const CurrentKeyringURL = "https://www.truestamp.com/.well-known/keyring.json"
 
+// currentKeyringRead is the URL [Configure] reads Truestamp's keyring
+// from: CurrentKeyringURL in every build but the test binary of the cmd
+// package, which sets it at link time (-ldflags -X) to a loopback server,
+// so that no test of the built command reads www.truestamp.com. It is a
+// string variable only so that the linker can set it. Configure's default
+// online read is its one reader; no flag, configuration key, environment
+// variable or document reaches it.
+var currentKeyringRead = CurrentKeyringURL
+
 // SourceKind is how a run's keyring is chosen.
 type SourceKind int
 

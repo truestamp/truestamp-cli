@@ -12,6 +12,7 @@ import (
 	"testing"
 
 	"github.com/truestamp/truestamp-cli/internal/introspect"
+	"github.com/truestamp/truestamp-cli/internal/specdata"
 )
 
 // runSchema returns the parsed document, failing the test if the command
@@ -131,7 +132,9 @@ func TestSchema_CommandsRoundTrip(t *testing.T) {
 
 // TestSchema_CommandsCarryFlagMetadata checks the document is actually
 // useful, not merely well-formed: a caller must be able to construct a
-// valid invocation from it without reading help text.
+// valid invocation from it without reading help text. verify has no
+// --type, and proofs get's carries its six values. Mutant killed: verify
+// registering --type again.
 func TestSchema_CommandsCarryFlagMetadata(t *testing.T) {
 	tree := schemaCommandTree(t)
 
@@ -144,15 +147,17 @@ func TestSchema_CommandsCarryFlagMetadata(t *testing.T) {
 		byName[f.Name] = f
 	}
 
-	typeFlag, ok := byName["type"]
+	if _, ok := byName["type"]; ok {
+		t.Error("verify has a --type in the schema; the flag is retired")
+	}
+	proofsGet, ok := introspect.Find(tree, "truestamp proofs get")
 	if !ok {
-		t.Fatal("verify has no --type in the schema")
+		t.Fatal("proofs get missing from the tree")
 	}
-	if len(typeFlag.Values) != 6 {
-		t.Errorf("--type should carry its six closed values, got %v", typeFlag.Values)
-	}
-	if !slices.Contains(typeFlag.Values, "entropy_nist") {
-		t.Errorf("--type values look wrong: %v", typeFlag.Values)
+	for _, f := range proofsGet.Flags {
+		if f.Name == "type" && (len(f.Values) != 6 || !slices.Contains(f.Values, "entropy_nist")) {
+			t.Errorf("proofs get --type should carry its six closed values, got %v", f.Values)
+		}
 	}
 
 	// The interactive sentinel is exactly the kind of thing an agent must
@@ -178,13 +183,13 @@ func TestSchema_CommandsCarryFlagMetadata(t *testing.T) {
 
 // TestSchema_EnumsMatchCompletion pins the reason the enum registry is
 // shared: what the schema advertises and what the shell offers must be
-// the same set. They were previously unrelated, and completion offered
-// nothing at all.
+// the same set, here for proofs get --type. Mutant killed: the enum
+// registry's proofs get|type entry removed (the schema has no values).
 func TestSchema_EnumsMatchCompletion(t *testing.T) {
 	tree := schemaCommandTree(t)
-	verify, _ := introspect.Find(tree, "truestamp verify")
+	proofsGet, _ := introspect.Find(tree, "truestamp proofs get")
 	var schemaValues []string
-	for _, f := range verify.Flags {
+	for _, f := range proofsGet.Flags {
 		if f.Name == "type" {
 			schemaValues = f.Values
 		}
@@ -193,7 +198,7 @@ func TestSchema_EnumsMatchCompletion(t *testing.T) {
 		t.Fatal("no --type values in the schema; nothing to compare")
 	}
 
-	completed := completionValues(t, "verify", "--type", "")
+	completed := completionValues(t, "proofs", "get", "--type", "")
 	if !slices.Equal(schemaValues, completed) {
 		t.Errorf("schema and completion disagree about --type\n schema:     %v\n completion: %v",
 			schemaValues, completed)
@@ -458,6 +463,31 @@ func TestSchema_ExitCodesComeFromTheConstants(t *testing.T) {
 	}
 }
 
+// schema get exit-codes carries verify's own codes, SPEC.md section
+// 12.2's table, equal to internal/specdata's in its order, and the general
+// table no longer reads 1 as a failed verification, which verify exits 3
+// for. Mutants killed: verifyExitCodes dropping or rewording a row of
+// specdata.ExitCodes(); the general row 1 naming a failed verification.
+func TestSchema_TheVerifyExitCodesAreTheSpecs(t *testing.T) {
+	doc := runSchema(t, "exit-codes")
+	raw, _ := doc["verify_exit_codes"].([]any)
+	var got []specdata.ExitEntry
+	for _, e := range raw {
+		m := e.(map[string]any)
+		got = append(got, specdata.ExitEntry{Code: int(m["code"].(float64)), Run: m["meaning"].(string)})
+	}
+	if want := specdata.ExitCodes(); !slices.Equal(got, want) {
+		t.Errorf("verify_exit_codes are %v, want %v", got, want)
+	}
+	general, _ := doc["exit_codes"].([]any)
+	for _, e := range general {
+		m := e.(map[string]any)
+		if m["code"].(float64) == 1 && strings.Contains(m["meaning"].(string), "verification") {
+			t.Errorf("the general code 1 reads %q", m["meaning"])
+		}
+	}
+}
+
 // TestSchema_NotesDescribeTheirOwnDocument.
 //
 // A note is one line of context on a schema document. It must describe
@@ -581,7 +611,8 @@ func TestSchema_NoUnscopedEnumForACollidingFlag(t *testing.T) {
 
 // TestSchema_CompletionOffersOnlyAcceptedValues is the behavioural half:
 // for the closed enums that can be checked offline, every value the shell
-// offers must be one the command's own help documents.
+// offers must be one the command's own help documents. Mutant killed: the
+// completion of proofs get --type offering a value no help names.
 func TestSchema_CompletionOffersOnlyAcceptedValues(t *testing.T) {
 	for _, tc := range []struct{ path, flag string }{
 		{"convert id", "type"},
@@ -590,7 +621,7 @@ func TestSchema_CompletionOffersOnlyAcceptedValues(t *testing.T) {
 		{"decode", "to"},
 		{"proofs get", "format"},
 		{"proofs convert", "to"},
-		{"verify", "type"},
+		{"proofs get", "type"},
 	} {
 		t.Run(tc.path+"_"+tc.flag, func(t *testing.T) {
 			args := append(strings.Fields(tc.path), "--help")

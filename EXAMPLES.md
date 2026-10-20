@@ -236,8 +236,9 @@ truestamp --config /tmp/ts.toml version --json             # JSON  (4 beats 2)
 ```
 
 Exit code convention: **`0` = success, `1` = failure**, `2` = an unrecovered
-panic (matching Go's own convention). Specialized commands add codes
-(`upgrade --check --exit-code` uses 0 through 3). The authoritative table is
+panic (matching Go's own convention). Specialized commands add codes:
+`verify` exits with the codes of SPEC.md section 12.2, 0 through 8, and
+`upgrade --check --exit-code` uses 0 through 3. The authoritative table is
 generated from the constants that produce it:
 
 ```sh
@@ -246,8 +247,21 @@ truestamp schema get exit-codes
 #
 #   CODE    MEANING
 #   0       the command did what it was asked
-#   1       it did not: failed verification, network failure, invalid input, or any other runtime error
+#   1       it did not: a network failure, invalid input, or any other runtime error
 #   2       an unrecovered panic, matching Go's own convention
+#
+#   verify (SPEC.md section 12.2)
+#
+#   CODE    MEANING
+#   0       label verified
+#   1       a runtime error outside verification, such as an invalid command line or an input that cannot be read; no report
+#   2       the verifier stopped on a fault it did not catch, or caught one before steps 0 to 3 passed; no report
+#   3       label failed
+#   4       a bare rejection other than configuration_error
+#   5       label unattributed
+#   6       label supplied-keyring
+#   7       label internally-consistent
+#   8       configuration_error
 #
 #   upgrade --check --exit-code
 #
@@ -441,7 +455,13 @@ truestamp config show --base-url https://www.truestamp.com
 
 `config show` renders a General block (Config File, API URL, Auth Mode, API
 Key, Team, Keyring URL, HTTP Timeout, Cosign Path, Silent, JSON) followed by
-the Verification, Hash and Convert sections. Two further rows, **Team Name**
+the Verification, Hash and Convert sections. Verification shows Offline and
+Remote, the verifier's Horizon, Esplora and Bitcoin Core sources, each
+network's several sources with its policy, and the keyring configured for
+each non-production environment; a Bitcoin Core node's user and password
+are never shown, and everything before a source URL's last `@`, but its
+scheme, is shown as `[masked]`, since any `@` could end user information.
+Two further rows, **Team Name**
 and **Team Role**, appear directly under Team only when a team id *and* a
 usable credential are both present; that lookup is best-effort, so `config
 show` stays useful offline. It is not dropped silently: when the API is
@@ -450,8 +470,8 @@ Team Role is omitted, and the command still exits 0.
 Config File is the file actually in effect, so it reflects `--config` when one
 was supplied.
 
-`--json` shows values the styled table does not — `base_url`, `verify.keyring`
-and a `logging` block — and nests `verify`, `hash`, `convert` and `logging` as
+`--json` shows values the styled table does not, `base_url` and a
+`logging` block among them, and nests `verify`, `hash`, `convert` and `logging` as
 objects (`truestamp config show --json | jq -r .base_url`). It is not a strict
 superset in either direction: that `logging` object carries only `level` and
 `file`, not the three rotation keys, and the best-effort **Team Name** and
@@ -878,19 +898,18 @@ If you only have a beacon hash and need its id, resolve it first with
 
 ## `truestamp verify`
 
-Verify the full cryptographic chain of a proof bundle, JSON or CBOR: every
-hash is recomputed from bytes the bundle carries (the subject's claims or
-entropy payload, the subject and block metadata maps, the witness details),
-the Merkle inclusion proof and each epoch proof are walked, the Ed25519
-signature is checked over the derived values, the witnesses that open the
-submitted-after edge are recomputed, the signing key event is checked, and
-online the Stellar and Bitcoin commitments, each entropy witness's source,
-and the keyring are consulted.
+Verify a Truestamp proof, one JSON document, as an external verifier of
+SPEC.md in truestamp/truestamp-verification: the run fixes its
+environment, network pins, sources and keyring before the file is read,
+then reads and parses the file, checks the envelope, the environment
+marker, the signer's key and the signature, the schema, every network and
+every recomputed hash, inclusion proof and link, and, online, reads each
+Stellar and Bitcoin commitment and each entropy observation from its source
+and draws the submission window from what it read (SPEC.md section 10.2).
 
 ```sh
-# Local file, JSON or CBOR (detected by content)
+# Local file
 truestamp verify contract.proof.json
-truestamp verify contract.proof.cbor
 
 # URL, auto-detected from the positional argument
 truestamp verify https://example.com/proof.json
@@ -903,153 +922,113 @@ cat contract.proof.json | truestamp verify
 # piped or redirected)")
 truestamp verify --file
 
-# Compare the hash of the file you hold against the hash the item's
-# claims commit to; a mismatch fails the run
+# Compare the hash of the file you hold with the hash the item's claims
+# carry; a mismatch fails the run
 truestamp verify contract.proof.json \
   --expected-hash e08764deac64ca9a1046901c5b23674941f1e86f0e2d0429ee07c5e311a15ce7
 
 # Offline: no calls to Truestamp, Stellar, Bitcoin or the entropy sources.
-# Every cryptographic step still runs; each check that needs a source is
-# reported as skipped, never failed.
+# Every cryptographic step still runs; each check that needs a read is
+# reported as skipped, never failed. An offline run is never verified.
 truestamp verify contract.proof.json --offline
 
-# Pin a local copy of the keyring so the key binding check works offline
+# Check the signer's key against a keyring file you supply
 curl -sO https://www.truestamp.com/.well-known/keyring.json
 truestamp verify contract.proof.json --offline --keyring keyring.json
-#   [PASS]  Key Binding          key_id 3c19f776 found in the pinned keyring (sequence 0, active true)
 
-# The subject type always comes from the bundle's own signed `type`.
-# The filename is never consulted: a file named truestamp-beacon-<id>.json
-# may legitimately carry a `type: block` bundle, and renaming a file can
-# never change a verdict.
-truestamp verify truestamp-beacon-019d....json          # reports whatever type says
-#   version=1  type=block
+# A staging proof, against a staging keyring
+truestamp verify staging.proof.json --offline --environment staging --keyring staging-keyring.json
 
-# Pass --type to assert which type you expected. A disagreement with the
-# bundle's signed type is the hard rejection subject_type_mismatch.
-truestamp verify --type beacon truestamp-beacon-019d....json
-#   REJECTED: subject_type_mismatch
-#   the bundle's signed type is block but --type beacon was asserted
-#   The bundle's signed type is authoritative. Drop --type, or pass the type the
-#   bundle carries; the filename is never consulted.
-truestamp verify --type item   truestamp-item-01K....json
+# Keyless: the signature checked only against the key the proof carries
+truestamp verify contract.proof.json --offline --no-keyring
+
+# Read Stellar and Bitcoin from servers you name
+truestamp verify contract.proof.json --horizon https://horizon.stellar.org --esplora https://blockstream.info/api
+
+# Write the run's trace (SPEC.md section 10.6)
+truestamp verify contract.proof.json --offline --trace contract.trace.json
 
 # Script-friendly modes
-truestamp verify contract.proof.json --json        # structured output
+truestamp verify contract.proof.json --json        # the report, exactly
 truestamp verify contract.proof.json --silent      # exit code only
 ```
 
-`--expected-hash` takes the hex digest of the file you hold; it is
-trimmed, lowercased, and compared in constant time against the value the
-bundle carries at `.subject.claims.hash`, reported under `Hash Comparison`.
-Its four outcomes:
+The type always comes from the proof's own signed `type`, and the filename
+is never consulted: renaming a file can never change a verdict.
+
+The text output names the label and what it says, the attribution, the
+trust root, the environment, the type and subject id, each edge of the
+submission window, and every row that does not pass. Its shape, for an item
+proof read online, with the values of one run in angle brackets where they
+vary:
 
 ```text
-[PASS]  Hash Comparison      supplied file hash matches subject.claims.hash
-[FAIL]  Hash Comparison      supplied file hash does NOT match subject.claims.hash (proof commits to b47cc0f1...)
-[WARN]  Hash Comparison      an expected hash was supplied but this proof commits to no file hash
-[SKIP]  Hash Comparison      --expected-hash ignored: only an item subject commits to a file hash
+Verdict:      verified
+              The proof is intact, signed by Truestamp, and places its subject's submission before an instant read from a public chain in this run.
+Attribution:  truestamp
+Trust root:   current_keyring, from https://www.truestamp.com/.well-known/keyring.json, SHA-256 <the 64 hex digits of the keyring's digest>
+Environment:  prod
+Type:         item
+Subject id:   01a0db6d-2b80-7928-9225-f8760ae1a795
+Submitted after:  none: this proof carries nothing that could give this edge
+Submitted before: 2026-09-26T01:57:15Z (stellar_ledger_close_read, read from https://horizon.stellar.org in this run)
+Rows:         <rows> (<passes> pass, 0 fail, 0 skip, 0 warn, <infos> info)
 ```
 
-The `WARN` is what an item that timestamped its claims content itself
-produces: a warning, never a failure. The `SKIP` is what a block, beacon or
-entropy bundle produces, since none of them commits to a file hash.
+Under any environment but `prod` the verdict line carries it, as in
+`Verdict:      supplied-keyring (environment staging, not production)`, and
+a keyless run says so on a line of its own. A run labelled `failed` shows no
+window. An edge names each source it was read from: "read from <source> in
+this run", or, for an answer from a cache, "read from <source> at
+<fetched_at>"; this CLI caches nothing.
 
-The report is the whitepaper's reference verifier's shape: a short bundle
-header, then five categories in a fixed order (Data Integrity,
-Cryptographic, Structural, Timing, Blockchain), each row a `[PASS]`,
-`[FAIL]`, `[WARN]`, `[SKIP]` or `[INFO]` badge with its group and message,
-then the counts, whether a file hash was provided, and the verdict. A
-category with no rows is not printed, so a run with no `--expected-hash`
-against a block-like bundle starts at `Cryptographic`.
-A proof passes when no row fails; warnings, skips and infos never fail
-it, and any skip is a check the run did not perform, not a check that
-failed.
+`--expected-hash` takes the hex digest of the file you hold, lowercased and
+never trimmed, and compares it with `claims.hash` (SPEC.md section 10.2,
+step 13). Given, even as `--expected-hash ""`, it is a value: a proof with
+no `claims.hash` of a listed type, a value that is not hex of the type's
+length, and a hash that differs each fail the row `expected_hash_mismatch`.
+Without it the row is `skip expected_hash_not_checked`.
 
-Under `--json` the document uses the field names the Truestamp API's
-`/proof/verify` result uses, so a CLI report and an API report are directly
-diffable: `passed`, `id`, `source`, `steps` (each with `group`, `status`,
-`category`, `message`, in category order), `temporal`, `pass_count`,
-`failed_count`, `warn_count`, `skip_count`, `info_count`, `hash_provided`,
-`expected_hash_provided`, `hash_matched`, `proof_version`,
-`skipped_external`, `generated_at`, plus `verifier` (this CLI's name and
-version).
-
-Use `--remote` to also ask the Truestamp server to verify the bundle
-(requires authentication: `truestamp auth login` or `TRUESTAMP_API_KEY`).
-The bundle header then reads `mode: remote (steps reported by the Truestamp
-server)`. Local verification is the default, needs no credentials, and never
-depends on the server: the server's verifier is not part of the proof's
-independence argument. Even in `--remote` mode the CLI still:
-
-- **Parses the bundle first**, applying the same structural gates, so a bundle it would refuse is never posted, and posts a CBOR input as its JSON conversion.
-- **Asserts `--type` locally** as the same `subject_type_mismatch` rejection, then forwards it.
-- **Performs the `--expected-hash` comparison itself**, treating the server's `hash_matched` as corroboration and failing on a disagreement in either direction.
-- **Fails closed on a report it cannot read**: a step with no `status`, a status outside the five, zero steps, or a server verdict that contradicts its own step list is reported under a `Server Verdict` row rather than scored as passing.
-- **Renders a server-side rejection** (HTTP 400 `invalid_proof` with an Appendix E.23 reason) exactly like a local one.
-
-### Structurally malformed bundles
-
-A bundle that is malformed at the structural level is refused before any
-check runs, so there is no report to render, only the identifier, the
-detail and one line of advice. Under `--json` the refusal is reported as
-the stable identifier, so two independent verifiers can be compared on it:
+Under `--json` stdout is exactly the report of SPEC.md section 10.5:
+`attribution`, `code` (for a failed run), `environment`, `label`, `rows`
+(each `{code, message, part, status, step, values}`), `subject_id`,
+`submitted_after`, `submitted_before`, `trust_root`, `type`, `verified` and
+`window`, written with JCS.
 
 ```sh
-echo '{"version":1,"type":"nope","block":{}}' | truestamp verify --json
+truestamp verify contract.proof.json --json | jq -r '.label, .window'
+```
+
+Use `--remote` to also ask the Truestamp service to verify the proof
+(requires authentication: `truestamp auth login` or `TRUESTAMP_API_KEY`). Its
+verdict is printed on stderr, beside the report and never as a row of it;
+stdout and the exit code are this CLI's own run.
+
+### Bare rejections
+
+A file that is too large, is not one strict JSON text, or is not exactly the
+envelope `{proof, signature}` is a bare rejection: no report and no verdict,
+only `{code, message, sub_reason}`, and exit code `4`. A configuration the
+run cannot take before the file is read, such as `--environment staging`
+with no keyring source, or a source that answers for the wrong network, is
+`configuration_error`, exit code `8`.
+
+```sh
+echo '{"proof":{}}' | truestamp verify --offline --json
 ```
 
 ```json
-{
-  "verifier": {
-    "name": "truestamp-cli",
-    "version": "..."
-  },
-  "passed": false,
-  "rejection": {
-    "code": "invalid_subject_type",
-    "detail": "type is \"nope\"; expected one of block, beacon, item, entropy_nist, entropy_stellar, entropy_bitcoin",
-    "advice": "This input is not a well-formed proof bundle, so no steps were run."
-  },
-  "steps": [],
-  "pass_count": 0,
-  "failed_count": 0,
-  "warn_count": 0,
-  "skip_count": 0,
-  "info_count": 0,
-  "hash_provided": null,
-  "expected_hash_provided": false,
-  "hash_matched": false,
-  "proof_version": 0,
-  "skipped_external": false
-}
+{"code":"invalid_envelope","message":"This file is not a Truestamp proof.","sub_reason":"document"}
 ```
-
-Without `--json` the same refusal prints as three lines:
-
-```text
-  REJECTED: invalid_subject_type
-  type is "nope"; expected one of block, beacon, item, entropy_nist, entropy_stellar, entropy_bitcoin
-  This input is not a well-formed proof bundle, so no steps were run.
-```
-
-Exit code `1`. The identifiers, in the order the gates apply, are
-`not_a_json_object`, `invalid_subject_data` (CBOR only),
-`invalid_subject_type`, `missing_block`,
-`unexpected_subject_fields_for_block_like`, `missing_subject`,
-`missing_inclusion_proof`, `missing_metadata`, `no_external_commitments`
-and `invalid_commitment_entry`, plus the CLI-side `subject_type_mismatch`
-for a `--type` that disagrees with the bundle.
-
-No identifier names a layout: a document is graded by the same gates
-whatever it resembles, so a file in any other layout is refused by the
-first gate it fails.
 
 ```sh
-# Branch on the reason in a script
-code=$(truestamp verify proof.json --json 2>/dev/null | jq -r '.rejection.code // empty')
-[ -n "$code" ] && echo "bundle refused: $code"
-#   bundle refused: missing_subject
+# Branch on the exit code in a script
+truestamp verify proof.json --silent; case $? in
+  0) echo verified ;;
+  3) echo failed ;;
+  4|8) echo "not checked" ;;
+  *) echo "other: see the report" ;;
+esac
 ```
 
 ---
@@ -1790,10 +1769,9 @@ truestamp proofs convert --from json --to cbor < proof.json
 truestamp proofs convert --to json --compact proof.cbor
 # {"type":"item","block":{"id":"01a0680e-42b6-712a-9137-5b59dc891f19",...
 
-# Round-trip verification (the CBOR output must verify end-to-end)
-truestamp proofs convert --to cbor proof.json | truestamp verify --offline
-# ...
-#   VERDICT: PASSED
+# `truestamp verify` reads JSON only: a CBOR proof is a bare rejection,
+# malformed_json, exit 4. `proofs convert` reads only the earlier proof
+# layout, so no CBOR proof verifies until the CLI reads the new format.
 
 # Envelope mode: metadata plus the output as a base64url string
 truestamp proofs convert --to cbor --json proof.json
@@ -2443,9 +2421,10 @@ Real-world compositions that solve a specific problem.
 
 Where a recipe below shows sample output, it was captured from one real
 complete item bundle, a claims-as-source-of-truth proof. Two blocks are
-drawn from elsewhere and say so where they appear: the `claims_hash`
-worked example and the Hash Comparison outcome table both use the
-whitepaper's Appendix D bundle, which is the one that carries a file hash.
+drawn from elsewhere: the `claims_hash` worked example uses the
+whitepaper's Appendix D bundle, which is the one that carries a file hash,
+and the EXPECTED_HASH rows come from the conformance vectors' item and
+beacon proofs.
 Your own `proof.json` will carry different values but the same shape.
 
 ### Reproduce the protocol's `claims_hash` intermediate
@@ -2499,19 +2478,12 @@ intermediate. Compare the file's plain SHA-256 against
 `subject.claims.hash`, or pass `--expected-hash <sha256-hex>` to
 `truestamp verify` (see the next two recipes).
 
-### Convert a JSON proof to CBOR and verify
+### A CBOR proof and `truestamp verify`
 
-```sh
-truestamp proofs convert --to cbor proof.json \
-  | truestamp verify --offline
-```
-
-`proofs convert` prefixes its CBOR output with the self-describing tag
-55799, and `verify` detects the format from that tag, so the pipeline needs
-no format flag on the `verify` side (`verify` has no `--from`; that flag
-belongs to `proofs convert`). The report header names the input as
-`Bundle: (stdin) (cbor, <N> bytes)`. Exit code 0 when the verdict is
-PASSED, 1 when it is FAILED.
+`truestamp verify` reads one JSON document. A CBOR proof given to it is a
+bare rejection, `malformed_json`, exit code `4`. `proofs convert` reads
+only the earlier proof layout, so converting a CBOR proof to JSON does not
+help either: no CBOR proof verifies until the CLI reads the new format.
 
 ### Derive a kid from a proof's embedded public key, without `jq`
 
@@ -2580,40 +2552,38 @@ claims-only); the verify report's Hash Comparison row reads
 truestamp verify proof.json --expected-hash "$(truestamp hash -a sha256 --style bare contract.pdf)"
 ```
 
-Three outcomes, all driven by the same Data Integrity row. The first two
-are from the whitepaper's Appendix D bundle, the only fixture here that
-carries a file hash; the third is from the claims-only item bundle. Rows
-are wrapped for width, and the `b47cc0f1...` digest is elided:
+The EXPECTED_HASH row says how the comparison went (SPEC.md section
+10.2, step 13). The text report lists every row that did not pass:
 
 ```text
-# match     [PASS]  Hash Comparison      supplied file hash matches
-#                                        subject.claims.hash
-#                                        summary: "file hash matched: yes"
-#                                        VERDICT: PASSED, exit 0
-# mismatch  [FAIL]  Hash Comparison      supplied file hash does NOT match
-#                                        subject.claims.hash (proof commits
-#                                        to b47cc0f1...)
-#                                        VERDICT: FAILED, exit 1
-# claims-only proof
-#           [WARN]  Hash Comparison      an expected hash was supplied but
-#                                        this proof commits to no file hash
-#                                        VERDICT: PASSED, exit 0
+# match: the row passes, and the run ends as it would without the flag
+# mismatch:
+#   fail EXPECTED_HASH expected_hash_mismatch at /subject/claims/hash: The expected hash differs from the claims' hash.
+#   the label is failed, exit 3
+# claims-only proof:
+#   fail EXPECTED_HASH expected_hash_mismatch at /subject/claims/hash: The expected hash was not matched: this proof's claims hold no hash of a type the comparison lists.
+#   the label is failed, exit 3
 ```
 
-A supplied hash that does not match is a hard failure; supplying one to a
-claims-as-source-of-truth proof only warns, because there is nothing for it
-to be compared against.
+A supplied hash that does not match is a failure, and so is one supplied
+for a claims-as-source-of-truth proof, which holds no hash to compare it
+with. A match against an `md5` or `sha1` claims hash warns
+`expected_hash_weak_algorithm`, since collisions are practical for both.
 
 ### Batch-verify every proof in a directory, silently
 
 ```sh
 find proofs -name '*.json' -print0 \
-  | xargs -0 -I{} sh -c 'truestamp verify --silent --offline "{}" || echo "FAIL: {}"'
-# FAIL: proofs/tamper-claims.json
+  | xargs -0 -I{} sh -c 'truestamp verify --silent --offline "{}"; code=$?; [ $code -eq 7 ] || echo "exit $code: {}"'
+# exit 3: proofs/tamper-claims.json
 ```
 
-`--silent` suppresses the report entirely, so the only output is one line
-per proof that failed.
+`--silent` suppresses the report entirely and keeps the exit code, so the
+only output is one line per proof that did not end as expected. An offline
+run reads no chain, so the best a sound production proof can end in is
+`internally-consistent`, exit code `7`; `0`, `verified`, needs an online run.
+`3` is `failed`, `4` a bare rejection and `8` a `configuration_error`
+(SPEC.md section 12.2; [Exit codes](README.md#exit-codes)).
 
 ### Hash a file with every supported algorithm in one pass
 
@@ -2680,9 +2650,10 @@ Every inspection command supports `--json`. Combined with `jq`, you can
 build sophisticated pipelines with no parsing glue code.
 
 ```sh
-# The verdict: true when no step failed
-truestamp verify proof.json --json | jq -r .passed
-# true
+# The label, and whether the submission window is established
+truestamp verify proof.json --json | jq -r '.label, .window'
+# verified
+# established
 
 # Compute a digest and pipe it into another command's --expected-hash flag.
 # --expected-hash is compared against .subject.claims.hash, so it only says
@@ -2690,32 +2661,22 @@ truestamp verify proof.json --json | jq -r .passed
 expected="$(truestamp hash -a sha256 --json contract.pdf | jq -r .digest.hex)"
 truestamp verify external-proof.json --expected-hash "$expected"
 
-# Whether an expected hash was supplied, and whether it matched. E.7 keeps
-# the two apart so "not provided" can never read as "mismatch". The output
-# below is the matching case, which assumes contract.pdf really is the file
-# external-proof.json commits to; substitute your own pair.
+# Whether the expected hash was checked: the EXPECTED_HASH row passes when
+# it matches, fails expected_hash_mismatch when it does not, and is
+# skip expected_hash_not_checked without --expected-hash.
 truestamp verify external-proof.json --json --expected-hash "$expected" \
-  | jq '{expected_hash_provided, hash_matched}'
-# {
-#   "expected_hash_provided": true,
-#   "hash_matched": true
-# }
+  | jq -r '.rows[] | select(.step=="EXPECTED_HASH") | [.status, .code // empty] | join(" ")'
+# pass
 
-# Every failing row, if any. Shown against a deliberately corrupted bundle,
-# since the passing proof.json above emits no fail rows at all.
-truestamp verify tampered.json --json --offline | jq -r '.steps[] | select(.status=="fail") | "\(.group): \(.message)"'
-# Inclusion Proof: derived root does not match block.merkle_root (derived fd796ea4...)
-# Proof Signature: proof signature invalid (Ed25519)
+# Every failing row, if any, as its step and code. Shown against a
+# deliberately corrupted bundle, since a sound proof has no fail row. A
+# failed run ends at its first failing check; .code names it.
+truestamp verify tampered.json --json --offline | jq -r '.rows[] | select(.status=="fail") | "\(.step) \(.code)"'
+# <STEP> <code>
 
-# The submission window the run established (server field names). The
-# *_commit keys are present only for the chains the bundle commits to.
-truestamp verify proof.json --json | jq .temporal
-# {
-#   "submitted_at": "2026-09-03T18:05:26Z",
-#   "committed_at": "2026-09-03T18:06:00Z",
-#   "stellar_commit": "2026-09-03T18:10:02Z",
-#   "bitcoin_commit": "2026-09-03T18:15:06Z"
-# }
+# The submitted-after edge the run established, null when it has none; the
+# submitted-before edge is .submitted_before. A failed run shows neither.
+truestamp verify proof.json --json | jq .submitted_after
 
 # Branch on submission mode at the jq layer
 jq 'if .subject.claims | has("hash") then "external-hash mode" else "claims-only mode" end' proof.json
@@ -2742,9 +2703,10 @@ truestamp inspect proof.json --json | jq '.subject.carried_witnesses'
 #   "entropy_stellar"
 # ]
 
-# A refused bundle carries a rejection object and an empty steps array
-truestamp verify no-subject.json --json | jq -r '.rejection.code // "accepted"'
-# missing_subject
+# A bare rejection is {code, message, sub_reason}, no report: it has a code
+# and no label (exit code 4, or 8 for configuration_error)
+truestamp verify not-a-proof.json --json | jq -r 'if has("label") then .label else "rejected: \(.code)" end'
+# rejected: invalid_envelope
 ```
 
 ---
@@ -2754,17 +2716,20 @@ truestamp verify no-subject.json --json | jq -r '.rejection.code // "accepted"'
 For automated pipelines, use the following conventions:
 
 ```sh
-# Silent verification: exit code 0 = pass, 1 = fail or rejected
-if truestamp verify --silent --offline proof.json; then
-  echo "valid"
+# Silent verification: exit code 0 = verified, and only that; 1 a runtime
+# error, 2 a fault, 3 failed, 4 a bare rejection, 5 unattributed, 6
+# supplied-keyring, 7 internally-consistent, 8 configuration_error (SPEC.md
+# section 12.2). An online run is the only one that can end in 0.
+if truestamp verify --silent proof.json; then
+  echo "verified"
 else
-  echo "invalid"
+  echo "not verified (exit $?)"
   exit 1
 fi
 
-# JSON-structured output for parsers
+# JSON-structured output for parsers: the report of SPEC.md section 10.5
 truestamp verify proof.json --json > verify-report.json
-jq '.passed' verify-report.json
+jq -r '.label' verify-report.json
 
 # Suppress the once-per-day passive upgrade notice in CI
 export TRUESTAMP_NO_UPGRADE_CHECK=1

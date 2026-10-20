@@ -39,11 +39,12 @@
 //     alone, never its path;
 //   - a network's several sources, in their order, and its source policy
 //     (SPEC.md section 9, "Several sources for one network") come only
-//     from the operator, through [Options.NetworkSources], which a caller
-//     of this package sets and no flag, configuration key or environment
-//     variable of this file reaches, never from the document; each
-//     source's credentials are a source.Credentials, which prints masked,
-//     and no source URL may carry user information;
+//     from the operator, through the configuration file's
+//     [verify.sources.<chain>.<network>] tables, which no flag or
+//     environment variable reaches, never from the document; each
+//     Bitcoin Core node among them takes the node credentials above, a
+//     source.Credentials, which prints masked, and no source URL may
+//     carry user information;
 //   - no option sets a network pin: the pins are E_v's defaults.
 //
 // A repeated option is not refused: a flag set holds one value for each
@@ -55,6 +56,7 @@ import (
 	"fmt"
 	"net/url"
 	"slices"
+	"strconv"
 	"strings"
 
 	"github.com/spf13/pflag"
@@ -120,7 +122,9 @@ type Options struct {
 	// NetworkSources are the operator's configurations of a network's
 	// several sources, each with its sources in order and its source
 	// policy (SPEC.md section 9), which [Options.Config] gives the run as
-	// [Config.NetworkSources]. [OptionsFromCommand] sets none.
+	// [Config.NetworkSources]. [OptionsFromCommand] reads them from the
+	// configuration file's verify.sources tables, in the order of chain
+	// and then network names.
 	NetworkSources []NetworkSources
 }
 
@@ -131,8 +135,10 @@ type Options struct {
 // the configured keyrings, the offline flag, the keyring URL an explicit
 // --base-url composes, the sources' URLs (a flag over an environment
 // variable over the configuration file) and the Bitcoin Core node's RPC
-// credentials (an environment variable over the configuration file). A
-// flag the command does not register is read as not given.
+// credentials (an environment variable over the configuration file), and
+// each network's several sources and policy (the configuration file
+// alone, [networkSourcesOf]). A flag the command does not register is read
+// as not given.
 func OptionsFromCommand(flags *pflag.FlagSet, cfg *config.Config) (Options, error) {
 	options := Options{
 		Environment:            "prod",
@@ -165,11 +171,85 @@ func OptionsFromCommand(flags *pflag.FlagSet, cfg *config.Config) (Options, erro
 		// composed is the explicit origin's.
 		options.OriginKeyringURL = cfg.KeyringURL
 	}
+	networks, err := networkSourcesOf(cfg.Verify.Sources, options.BitcoinCoreCredentials)
+	if err != nil {
+		return Options{}, err
+	}
+	options.NetworkSources = networks
 	return options, nil
 }
 
+// networkSourcesOf reads the configuration file's verify.sources tables,
+// one for each network, in the order of their chain names and then their
+// network names: each policy is first, all or at_least N, with N a
+// decimal count from 0, and each source a table with exactly one key, the
+// name of its provider (horizon, esplora or bitcoin_core), whose value is
+// its URL, and a Bitcoin Core node takes credentials. A network or chain
+// that no source of SPEC.md section 9 serves, a source of another chain's
+// provider, and an N out of range are left to [Config.Validate] and step 0
+// ([checkPolicies]). An error names the table and the source's place in
+// it, and never quotes a URL.
+func networkSourcesOf(tables map[string]map[string]config.NetworkSourcesConfig, credentials source.Credentials) ([]NetworkSources, error) {
+	var out []NetworkSources
+	for _, chain := range sortedKeys(tables) {
+		for _, network := range sortedKeys(tables[chain]) {
+			table := tables[chain][network]
+			name := "verify.sources." + chain + "." + network
+			policy, err := policyOf(table.Policy)
+			if err != nil {
+				return nil, fmt.Errorf("%w: %s: %w", ErrInvalidConfig, name, err)
+			}
+			n := NetworkSources{Chain: chain, Network: network, Policy: policy}
+			for i, entry := range table.Sources {
+				if len(entry) != 1 {
+					return nil, fmt.Errorf("%w: %s: source %d names %d providers, not one of horizon, esplora and bitcoin_core", ErrInvalidConfig, name, i+1, len(entry))
+				}
+				for key, raw := range entry {
+					provider := source.Provider(key)
+					if !slices.Contains([]source.Provider{source.Horizon, source.Esplora, source.BitcoinCore}, provider) {
+						return nil, fmt.Errorf("%w: %s: source %d names the provider %q, not horizon, esplora or bitcoin_core", ErrInvalidConfig, name, i+1, key)
+					}
+					s := Source{Chain: chain, Provider: provider, URL: raw, Network: network}
+					if provider == source.BitcoinCore {
+						s.Credentials = credentials
+					}
+					n.Sources = append(n.Sources, s)
+				}
+			}
+			out = append(out, n)
+		}
+	}
+	return out, nil
+}
+
+// sortedKeys are the keys of m, sorted.
+func sortedKeys[V any](m map[string]V) []string {
+	keys := make([]string, 0, len(m))
+	for key := range m {
+		keys = append(keys, key)
+	}
+	slices.Sort(keys)
+	return keys
+}
+
+// policyOf reads a source policy as the configuration file writes it:
+// first, all, or at_least and a decimal count, one space between.
+func policyOf(text string) (SourcePolicy, error) {
+	switch kind, count, _ := strings.Cut(text, " "); {
+	case text == string(SourcePolicyFirst):
+		return SourcePolicy{Kind: SourcePolicyFirst}, nil
+	case text == string(SourcePolicyAll):
+		return SourcePolicy{Kind: SourcePolicyAll}, nil
+	case kind == string(SourcePolicyAtLeast) && count != "" && strings.Trim(count, "0123456789") == "" && len(count) <= 9:
+		n, _ := strconv.Atoi(count)
+		return SourcePolicy{Kind: SourcePolicyAtLeast, N: n}, nil
+	}
+	return SourcePolicy{}, fmt.Errorf("the policy %q is not first, all or at_least N", text)
+}
+
 // Config returns the run's configuration, with keyrings for its online
-// keyring reads and identities for its sources' identity reads, or an
+// keyring reads, identities for its sources' identity reads and
+// [DefaultChainReader] for the reads CHAIN and SOURCES make, or an
 // error wrapping [ErrInvalidConfig] for an environment that is not an E_v,
 // for --keyring with --no-keyring, or for a source URL [Config.Validate]
 // refuses, one carrying user information among them, whose error names
@@ -206,7 +286,7 @@ func (o Options) Config(keyrings KeyringReader, identities IdentityReader) (Conf
 		return Config{}, fmt.Errorf("%w: --keyring and --no-keyring cannot be given together", ErrInvalidConfig)
 	}
 	cfg.Online = !o.Offline
-	cfg.ReadKeyring, cfg.ReadIdentity = keyrings, identities
+	cfg.ReadKeyring, cfg.ReadIdentity, cfg.ReadChain = keyrings, identities, DefaultChainReader()
 	for _, pinned := range []struct {
 		raw, option string
 		s           Source

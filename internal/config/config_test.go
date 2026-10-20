@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"testing"
 	"time"
@@ -547,6 +548,65 @@ func TestEnsureDefaultConfig_AlreadyExists(t *testing.T) {
 	}
 }
 
+// config init creates the configuration file readable by its owner alone,
+// 0600, in a directory only its owner can enter, 0700: the file can hold
+// an API key and a Bitcoin Core node's RPC password. Mutants killed: the
+// file written 0644; the directory made 0755.
+func TestEnsureDefaultConfig_OwnerOnly(t *testing.T) {
+	custom := filepath.Join(isolateConfig(t), "nested", "config.toml")
+	SetActivePath(custom)
+	if created, err := EnsureDefaultConfig(); err != nil || !created {
+		t.Fatalf("EnsureDefaultConfig: %v, %v", created, err)
+	}
+	file, err := os.Stat(custom)
+	if err != nil {
+		t.Fatal(err)
+	}
+	parent, err := os.Stat(filepath.Dir(custom))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if file.Mode().Perm() != 0o600 || parent.Mode().Perm() != 0o700 {
+		t.Errorf("the file is %v and its directory %v, want 0600 and 0700", file.Mode().Perm(), parent.Mode().Perm())
+	}
+}
+
+// verify.keyring and its flag are retired: no flag maps to a verify.keyring
+// key, and Load has none to give, so a run's keyring file comes only from
+// --keyring FILE (SPEC.md section 8.3). A network's several sources load
+// from the configuration file's verify.sources tables, and no environment
+// variable reaches a table. Mutants killed: flagKeyMap mapping keyring to
+// verify.keyring; the env TransformFunc without its drop of
+// verify.sources.
+func TestLoad_TheKeyringKeyIsRetiredAndNetworksComeFromTheFile(t *testing.T) {
+	clearTruestampEnv(t)
+	if key, ok := flagKeyMap["keyring"]; ok {
+		t.Errorf("flagKeyMap maps --keyring to %q", key)
+	}
+	path := filepath.Join(t.TempDir(), "config.toml")
+	text := "[verify]\nkeyring = \"/k/keyring.json\"\n\n[verify.sources.bitcoin.mainnet]\npolicy = \"all\"\nsources = [{ esplora = \"https://e1.example\" }]\n"
+	if err := os.WriteFile(path, []byte(text), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("TRUESTAMP_VERIFY_SOURCES", "x")
+	t.Setenv("TRUESTAMP_VERIFY_SOURCES_STELLAR_PUBLIC_POLICY", "first")
+	cfg, err := Load(path, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := map[string]map[string]NetworkSourcesConfig{"bitcoin": {"mainnet": {Policy: "all", Sources: []map[string]string{{"esplora": "https://e1.example"}}}}}
+	if !reflect.DeepEqual(cfg.Verify.Sources, want) {
+		t.Errorf("networks = %+v", cfg.Verify.Sources)
+	}
+	shown, err := json.Marshal(cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(string(shown), "/k/keyring.json") {
+		t.Errorf("the retired key reached the configuration: %s", shown)
+	}
+}
+
 // --- helper -----------------------------------------------------------
 
 func runtimeIsWindows() bool {
@@ -584,7 +644,7 @@ func TestFlagKeyMap_LeavesTheRunOnlyOptionsOut(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if cfg.ToTOML(false) != plain.ToTOML(false) || cfg.Verify != plain.Verify {
+	if cfg.ToTOML(false) != plain.ToTOML(false) || !reflect.DeepEqual(cfg.Verify, plain.Verify) {
 		t.Errorf("the run's options changed the configuration:\n%s", cfg.ToTOML(false))
 	}
 }
@@ -606,9 +666,9 @@ func clearTruestampEnv(t *testing.T) {
 
 // A configured keyring is read from the configuration file, one for each
 // non-production environment, and For gives none for prod; an environment
-// variable does not reach it, and config show --json does not show the
-// table. Mutants killed: For giving the staging keyring for prod; the
-// Keyrings field tagged json:"keyrings" (the table is marshalled).
+// variable does not reach it, and config show --json shows the table.
+// Mutants killed: For giving the staging keyring for prod; the Keyrings
+// field tagged json:"-" (the table is not marshalled).
 func TestLoad_ConfiguredKeyringsComeFromTheFile(t *testing.T) {
 	clearTruestampEnv(t)
 	path := filepath.Join(t.TempDir(), "config.toml")
@@ -632,8 +692,8 @@ func TestLoad_ConfiguredKeyringsComeFromTheFile(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if strings.Contains(string(shown), "keyrings") || strings.Contains(string(shown), "/k/staging.json") {
-		t.Errorf("the configured keyrings are marshalled: %s", shown)
+	if !strings.Contains(string(shown), `"keyrings":{"dev":"/k/dev.json","staging":"/k/staging.json","test":"/k/test.json"}`) {
+		t.Errorf("the configured keyrings are not marshalled: %s", shown)
 	}
 }
 
@@ -671,11 +731,13 @@ func TestLoad_NoEnvironmentVariableReachesTheConfiguredKeyrings(t *testing.T) {
 // The verifier's source URLs load from the configuration file, from the
 // environment over the file, and from a flag over the environment; the
 // Bitcoin Core node's RPC credentials load from the file and from the
-// environment over the file, and no flag maps to them; and neither config
-// show --json nor ToTOML shows any of the five. Mutants killed: flagKeyMap
-// without "esplora" (the flag is ignored); BitcoinCorePassword tagged
-// json:"bitcoin_core_password" (the password is marshalled); a flag
-// "bitcoin-core-password" mapped to verify.bitcoin_core_password.
+// environment over the file, and no flag maps to them; and config show
+// --json shows the three URLs and never the credentials, which ToTOML
+// leaves out too. Mutants killed: flagKeyMap without "esplora" (the flag
+// is ignored); BitcoinCorePassword tagged json:"bitcoin_core_password"
+// (the password is marshalled); a flag "bitcoin-core-password" mapped to
+// verify.bitcoin_core_password; Horizon tagged json:"-" (the URL is not
+// marshalled).
 func TestLoad_TheVerifierSources(t *testing.T) {
 	clearTruestampEnv(t)
 	path := filepath.Join(t.TempDir(), "config.toml")
@@ -697,9 +759,14 @@ func TestLoad_TheVerifierSources(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, leak := range []string{"file-secret-5b1e", "file-user", "h.file.example", "e.file.example", "c.file.example", "bitcoin_core", "horizon", "esplora"} {
+	for _, leak := range []string{"file-secret-5b1e", "file-user", "bitcoin_core_user", "bitcoin_core_password"} {
 		if strings.Contains(string(shown), leak) || strings.Contains(cfg.ToTOML(false), leak) {
 			t.Errorf("config show shows %q", leak)
+		}
+	}
+	for _, want := range []string{`"horizon":"https://h.file.example"`, `"esplora":"https://e.file.example"`, `"bitcoin_core":"http://c.file.example:8332"`} {
+		if !strings.Contains(string(shown), want) {
+			t.Errorf("config show --json lacks %s: %s", want, shown)
 		}
 	}
 

@@ -71,8 +71,9 @@ func TestCLI_ConvertMerkle_Invalid(t *testing.T) {
 
 // TestCLI_Upgrade_Check_UpgradeAvailable runs `upgrade --check --exit-code`
 // against an httptest server standing in for the GitHub Releases API. The
-// release endpoint is redirected at link time, as buildWithEndpoints does
-// for the verification sources, so the shipped binary has no override.
+// release endpoint is redirected at link time, as buildVerifyBinary does
+// for the verifier's compiled-in addresses, so the shipped binary has no
+// override.
 func TestCLI_Upgrade_Check_UpgradeAvailable(t *testing.T) {
 	const releasePath = "/repos/truestamp/truestamp-cli/releases/latest"
 	var hits atomic.Int32
@@ -690,16 +691,17 @@ func TestCLI_Hash_FileAndPositional_Conflict(t *testing.T) {
 
 // --- verify JSON output path ---
 
+// verify --json writes the report of SPEC.md section 10.5, with its
+// label and rows and no member "passed", which is internal (section 10.5).
+// Mutant killed: a "passed" member added to the report.
 func TestCLI_Verify_JSON(t *testing.T) {
-	path := testfixtures.Path(testfixtures.ProdDir, testfixtures.ProdComplete)
-	cmd := exec.Command(binaryPath, "verify", path, "--offline", "--json")
-	out, _ := cmd.Output()
+	out, _, code := verifyCLI(t, binaryPath, nil, nil, append([]string{soundItem(), "--json"}, underTest()...)...)
 	var m map[string]any
-	if err := json.Unmarshal(out, &m); err != nil {
+	if err := json.Unmarshal([]byte(out), &m); err != nil {
 		t.Fatalf("not valid JSON: %v\n%s", err, out)
 	}
-	if m["passed"] != true || m["steps"] == nil {
-		t.Errorf("passed/steps missing: %+v", m)
+	if _, passed := m["passed"]; code != 6 || m["label"] != "supplied-keyring" || m["rows"] == nil || passed {
+		t.Errorf("exit %d, label/rows missing or passed present: %+v", code, m)
 	}
 }
 

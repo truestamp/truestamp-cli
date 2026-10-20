@@ -44,21 +44,63 @@ silent = false
 json = false
 
 [verify]
-# Run with no network access: chain, source and keyring lookups are
-# reported as skipped rather than failed
+# Run with no network access: chain, source and keyring reads are not made,
+# and each row they would confirm is reported as skipped, never failed
 # Env: TRUESTAMP_VERIFY_OFFLINE
 offline = false
 
-# Verify via server API instead of local computation (requires
-# authentication: `truestamp auth login`, or an API key)
+# Also ask the Truestamp service to verify the proof (requires
+# authentication: `truestamp auth login`, or an API key). Its verdict is
+# printed beside this CLI's own report and never changes the exit code.
 # Env: TRUESTAMP_VERIFY_REMOTE
 remote = false
 
-# Path of a pinned copy of https://www.truestamp.com/.well-known/keyring.json
-# for the key binding check. Empty: an online run fetches the live keyring
-# from base_url; an offline run reports the binding as not checked.
-# Env: TRUESTAMP_VERIFY_KEYRING
-keyring = ""
+# The environment a run checks (--environment) and keyless mode
+# (--no-keyring) are options of the run only: no key in this file and no
+# environment variable sets either. A supplied keyring file is given for
+# the run with --keyring FILE.
+
+# The Stellar and Bitcoin sources the verifier reads, each in place of the
+# built-in one for the network its identity read shows it serves. Empty
+# uses the built-in sources; regtest has none. A flag (--horizon,
+# --esplora, --bitcoin-core) overrides the environment, which overrides
+# this file. A URL here carries no user name or password.
+# Env: TRUESTAMP_VERIFY_HORIZON
+horizon = ""
+# Env: TRUESTAMP_VERIFY_ESPLORA
+esplora = ""
+# A Bitcoin Core node's JSON-RPC URL, such as "http://127.0.0.1:8332".
+# Env: TRUESTAMP_VERIFY_BITCOIN_CORE
+bitcoin_core = ""
+
+# A Bitcoin Core node's RPC credentials, sent to every Bitcoin Core node
+# the verifier reads. They come from this file or the environment only,
+# never from the command line, and nothing the CLI prints shows them.
+# Env: TRUESTAMP_VERIFY_BITCOIN_CORE_USER
+bitcoin_core_user = ""
+# Env: TRUESTAMP_VERIFY_BITCOIN_CORE_PASSWORD
+bitcoin_core_password = ""
+
+# A keyring for each non-production environment, used only when a run's
+# --environment names that environment (for example `truestamp verify
+# --environment staging proof.json`). No environment variable sets them.
+# [verify.keyrings]
+# dev = "/path/to/dev-keyring.json"
+# staging = "/path/to/staging-keyring.json"
+# test = "/path/to/test-keyring.json"
+
+# Several sources for one Stellar or Bitcoin network, in their order, with
+# a source policy: "first" (the first source with a conclusive answer
+# decides), "at_least N" (N of them must agree) or "all". Each source is a
+# table with one key, horizon, esplora or bitcoin_core, whose value is its
+# URL. A network with no such table has one source. Only this file sets
+# them; no flag or environment variable does.
+# [verify.sources.bitcoin.mainnet]
+# policy = "at_least 2"
+# sources = [
+#   { esplora = "https://blockstream.info/api" },
+#   { esplora = "https://mempool.space/api" },
+# ]
 
 [hash]
 # Default algorithm for `truestamp hash`

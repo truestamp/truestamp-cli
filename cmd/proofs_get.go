@@ -18,8 +18,7 @@ import (
 	"github.com/truestamp/truestamp-cli/internal/ui"
 )
 
-// Subject-type flag values for `truestamp proofs get --type` and
-// `truestamp verify --type`. These map 1:1 to the server's /proof/generate
+// Subject-type flag values for `truestamp proofs get --type`. These map 1:1 to the server's /proof/generate
 // `type` string enum. There is no "auto" and no bare "entropy", both were
 // removed in the server's strict-type cutover. Callers that don't pass
 // --type get a default: a ULID id is an item, and a UUIDv7 id is resolved

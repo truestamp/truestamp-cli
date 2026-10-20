@@ -130,21 +130,14 @@ type VerifyConfig struct {
 	Offline bool `koanf:"offline" json:"offline"`
 	Remote  bool `koanf:"remote" json:"remote"`
 
-	// Keyring is the path of a pinned copy of /.well-known/keyring.json
-	// used for the Appendix E.17 key binding. Empty means an online run
-	// fetches the live keyring from BaseURL and an offline run reports the
-	// binding as not checked.
-	Keyring string `koanf:"keyring" json:"keyring"`
-
 	// Keyrings are the configured keyrings of SPEC.md section 8.3, one
 	// keyring file for each non-production environment. The verifier of
 	// internal/verifier uses one only in a run whose --environment names
 	// its environment; no configured keyring serves E_v prod. They are read
 	// from the configuration file alone: Load drops every environment
 	// variable that would reach the verify.keyrings table or a key under
-	// it. config show --json leaves them out while the verify command does
-	// not read them.
-	Keyrings KeyringsConfig `koanf:"keyrings" json:"-"`
+	// it.
+	Keyrings KeyringsConfig `koanf:"keyrings" json:"keyrings"`
 
 	// Horizon, Esplora and BitcoinCore are the Stellar and Bitcoin
 	// sources an operator pins for the verifier of internal/verifier
@@ -153,19 +146,36 @@ type VerifyConfig struct {
 	// configuration file, an environment variable (TRUESTAMP_VERIFY_HORIZON,
 	// TRUESTAMP_VERIFY_ESPLORA, TRUESTAMP_VERIFY_BITCOIN_CORE) or a flag
 	// (--horizon, --esplora, --bitcoin-core), a flag over a variable over
-	// the file. config show leaves them out while the verify command does
-	// not read them.
-	Horizon     string `koanf:"horizon" json:"-"`
-	Esplora     string `koanf:"esplora" json:"-"`
-	BitcoinCore string `koanf:"bitcoin_core" json:"-"`
+	// the file. config show shows them with any user information masked.
+	Horizon     string `koanf:"horizon" json:"horizon"`
+	Esplora     string `koanf:"esplora" json:"esplora"`
+	BitcoinCore string `koanf:"bitcoin_core" json:"bitcoin_core"`
+
+	// Sources are the operator's configurations of a network's several
+	// sources (SPEC.md section 9, "Several sources for one network"), by
+	// chain and then by network, each a [verify.sources.<chain>.<network>]
+	// table of the configuration file. They are read from the
+	// configuration file alone: Load drops every environment variable that
+	// would reach the verify.sources table or a key under it.
+	Sources map[string]map[string]NetworkSourcesConfig `koanf:"sources" json:"sources"`
 
 	// BitcoinCoreUser and BitcoinCorePassword are the Bitcoin Core node's
-	// RPC credentials. They come from the configuration file or the
-	// environment (TRUESTAMP_VERIFY_BITCOIN_CORE_USER,
+	// RPC credentials, sent to every Bitcoin Core node the verifier reads.
+	// They come from the configuration file or the environment
+	// (TRUESTAMP_VERIFY_BITCOIN_CORE_USER,
 	// TRUESTAMP_VERIFY_BITCOIN_CORE_PASSWORD) only: no flag maps to
 	// either. config show never shows them.
 	BitcoinCoreUser     string `koanf:"bitcoin_core_user" json:"-"`
 	BitcoinCorePassword string `koanf:"bitcoin_core_password" json:"-"`
+}
+
+// NetworkSourcesConfig is one network's several sources, as the
+// configuration file gives them: Policy, "first", "all" or "at_least N",
+// and Sources, in their order, each a table with one key naming its
+// provider, horizon, esplora or bitcoin_core, whose value is its URL.
+type NetworkSourcesConfig struct {
+	Policy  string              `koanf:"policy" json:"policy"`
+	Sources []map[string]string `koanf:"sources" json:"sources"`
 }
 
 // KeyringsConfig holds a configured keyring file for each non-production
@@ -230,7 +240,6 @@ var flagKeyMap = map[string]string{
 	// Verify subcommand flags
 	"offline": "verify.offline",
 	"remote":  "verify.remote",
-	"keyring": "verify.keyring",
 	// The verifier's source flags (internal/verifier)
 	"horizon":      "verify.horizon",
 	"esplora":      "verify.esplora",
@@ -261,7 +270,6 @@ func Load(configPath string, flags *pflag.FlagSet) (*Config, error) {
 		"json":                         false,
 		"verify.offline":               false,
 		"verify.remote":                false,
-		"verify.keyring":               "",
 		"verify.keyrings.dev":          "",
 		"verify.keyrings.staging":      "",
 		"verify.keyrings.test":         "",
@@ -315,8 +323,12 @@ func Load(configPath string, flags *pflag.FlagSet) (*Config, error) {
 			// alone: TRUESTAMP_VERIFY_KEYRINGS, set or empty, and a name
 			// with a dot in it such as TRUESTAMP_VERIFY_KEYRINGS.STAGING
 			// reach nothing (koanf skips a key returned empty).
-			if key == "verify.keyrings" || strings.HasPrefix(key, "verify.keyrings.") {
-				return "", nil
+			// So do a network's several sources: TRUESTAMP_VERIFY_SOURCES
+			// and every name under it reach nothing.
+			for _, table := range []string{"verify.keyrings", "verify.sources"} {
+				if key == table || strings.HasPrefix(key, table+".") || strings.HasPrefix(key, table+"_") {
+					return "", nil
+				}
 			}
 			return key, v
 		},
@@ -562,11 +574,14 @@ func EnsureDefaultConfig() (bool, error) {
 		return false, nil // already exists
 	}
 
-	if err := os.MkdirAll(dir, 0755); err != nil {
+	// The file can hold an API key and a Bitcoin Core node's RPC
+	// password, so it is readable by its owner alone, in a directory only
+	// its owner can enter. A directory that already exists keeps its mode.
+	if err := os.MkdirAll(dir, 0o700); err != nil {
 		return false, fmt.Errorf("creating config directory: %w", err)
 	}
 
-	if err := os.WriteFile(path, []byte(DefaultTOML), 0644); err != nil {
+	if err := os.WriteFile(path, []byte(DefaultTOML), 0o600); err != nil {
 		return false, fmt.Errorf("writing default config: %w", err)
 	}
 
@@ -596,7 +611,6 @@ json = %v
 [verify]
 offline = %v
 remote = %v
-keyring = %q
 
 [hash]
 algorithm = %q
@@ -614,7 +628,7 @@ max_backups = %d
 max_age_days = %d
 `, c.BaseURL, apiKey, c.Team, c.HTTPTimeout, c.CosignPath,
 		c.Silent, c.JSON,
-		c.Verify.Offline, c.Verify.Remote, c.Verify.Keyring,
+		c.Verify.Offline, c.Verify.Remote,
 		c.Hash.Algorithm, c.Hash.Encoding, c.Hash.Style,
 		c.Convert.TimeZone,
 		c.Logging.File, c.Logging.Level,

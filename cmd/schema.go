@@ -17,6 +17,7 @@ import (
 	"github.com/truestamp/truestamp-cli/internal/introspect"
 	"github.com/truestamp/truestamp-cli/internal/proof"
 	"github.com/truestamp/truestamp-cli/internal/proof/ptype"
+	"github.com/truestamp/truestamp-cli/internal/specdata"
 	"github.com/truestamp/truestamp-cli/internal/ui"
 )
 
@@ -257,11 +258,13 @@ var schemaDocs = map[string]schemaDoc{
 		build: func() any {
 			return map[string]any{
 				"exit_codes":               exitCodes,
+				"verify_exit_codes":        verifyExitCodes(),
 				"upgrade_check_exit_codes": upgradeCheckExitCodes,
 			}
 		},
 		render: func(w io.Writer) {
 			renderSchemaTable(w, "Exit codes", exitCodeRows(exitCodes))
+			renderSchemaTable(w, "verify (SPEC.md section 12.2)", exitCodeRows(verifyExitCodes()))
 			renderSchemaTable(w, "upgrade --check --exit-code", exitCodeRows(upgradeCheckExitCodes))
 		},
 	},
@@ -301,8 +304,20 @@ type exitCode struct {
 // than each carrying its own copy of the sentences.
 var exitCodes = []exitCode{
 	{0, "the command did what it was asked"},
-	{1, "it did not: failed verification, network failure, invalid input, or any other runtime error"},
+	{1, "it did not: a network failure, invalid input, or any other runtime error"},
 	{panicExitCode, "an unrecovered panic, matching Go's own convention"},
+}
+
+// verifyExitCodes are the codes `truestamp verify` exits with, which are
+// its own: the table of SPEC.md section 12.2, as internal/specdata
+// transcribes it from spec/exit-codes.json, in its order.
+func verifyExitCodes() []exitCode {
+	table := specdata.ExitCodes()
+	out := make([]exitCode, 0, len(table))
+	for _, e := range table {
+		out = append(out, exitCode{e.Code, e.Run})
+	}
+	return out
 }
 
 // upgradeCheckExitCodes is the opt-in encoding `upgrade --check
@@ -378,8 +393,7 @@ func cliEnums() introspect.EnumValues {
 		"truestamp entropy list|source":   entropy.Sources,
 		"truestamp entropy latest|source": entropy.Sources,
 
-		// --type: a proof subject type on two commands, an id shape on a third.
-		"truestamp verify|type":     proofTypeValues,
+		// --type: a proof subject type on one command, an id shape on another.
 		"truestamp proofs get|type": proofTypeValues,
 		"truestamp convert id|type": {"auto", "ulid", "uuid7"},
 
@@ -395,8 +409,8 @@ func cliEnums() introspect.EnumValues {
 }
 
 // registerEnumCompletions wires the same registry into shell completion,
-// so `truestamp verify --type <TAB>` offers the six subject types instead
-// of returning nothing. Sharing one registry with `schema get commands`
+// so `truestamp proofs get --type <TAB>` offers the six subject types
+// instead of returning nothing. Sharing one registry with `schema get commands`
 // means completion and the machine-readable description cannot disagree
 // about what a flag accepts.
 func registerEnumCompletions(root *cobra.Command) {

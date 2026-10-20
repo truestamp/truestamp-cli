@@ -16,6 +16,7 @@ import (
 	"github.com/truestamp/truestamp-cli/internal/proof"
 	"github.com/truestamp/truestamp-cli/internal/tscrypto"
 	"github.com/truestamp/truestamp-cli/internal/ui"
+	"github.com/truestamp/truestamp-cli/internal/verify"
 )
 
 var inspectCmd = &cobra.Command{
@@ -424,4 +425,18 @@ func init() {
 	addRecordOutputFlags(inspectCmd)
 	inspectCmd.GroupID = groupVerification
 	rootCmd.AddCommand(inspectCmd)
+}
+
+// presentRejection renders a structural rejection of the bundle reader,
+// its identifier and one line of advice, as JSON or as text, and returns
+// errSilentFail.
+func presentRejection(cmd *cobra.Command, err error, jsonOut bool) error {
+	if jsonOut {
+		if jErr := emitJSON(cmd.OutOrStdout(), verify.BuildJSONRejection(err)); jErr != nil {
+			return jErr
+		}
+	} else {
+		verify.PresentRejection(cmd.OutOrStdout(), err)
+	}
+	return errSilentFail
 }

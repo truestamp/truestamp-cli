@@ -109,6 +109,13 @@ type Options struct {
 	// File paths are streamed straight from disk and are not affected.
 	MaxBytes int64
 
+	// ReadAtMost, when above 0, makes ResolveStream give at most that many
+	// octets of stdin or of a URL's body and refuse none for its length,
+	// for a caller that bounds its input itself, as `truestamp verify`
+	// bounds a proof by J1 (SPEC.md section 10.1). MaxBytes then applies
+	// to neither.
+	ReadAtMost int64
+
 	// HTTPTimeout is currently unused, downloads go through the shared
 	// httpclient, whose process-wide timeout (set during startup) always
 	// applies. Kept for a future per-call override.
@@ -206,7 +213,13 @@ func ResolveStream(ctx context.Context, opts Options) (io.ReadCloser, Source, er
 	}
 
 	if src.Type == SourceURL {
-		data, dErr := downloadURL(ctx, src.Path, opts)
+		var data []byte
+		var dErr error
+		if opts.ReadAtMost > 0 {
+			data, dErr = downloadAtMost(ctx, src.Path, opts.ReadAtMost)
+		} else {
+			data, dErr = downloadURL(ctx, src.Path, opts)
+		}
 		if dErr != nil {
 			return nil, Source{}, dErr
 		}
@@ -215,6 +228,9 @@ func ResolveStream(ctx context.Context, opts Options) (io.ReadCloser, Source, er
 	}
 
 	if src.Type == SourceStdin {
+		if opts.ReadAtMost > 0 {
+			return io.NopCloser(io.LimitReader(os.Stdin, opts.ReadAtMost)), src, nil
+		}
 		max := opts.MaxBytes
 		if max <= 0 {
 			max = defaultMaxBytes
@@ -420,6 +436,20 @@ func validateURL(s string) error {
 		return fmt.Errorf("must start with http:// or https://")
 	}
 	return nil
+}
+
+// downloadAtMost validates the URL shape and fetches at most limit octets
+// of its body through the shared HTTP client, refusing none for its
+// length.
+func downloadAtMost(ctx context.Context, rawURL string, limit int64) ([]byte, error) {
+	if !isHTTPURL(rawURL) {
+		return nil, fmt.Errorf("URL must be http:// or https:// with a host: %q", rawURL)
+	}
+	data, err := httpclient.DownloadAtMostCtx(ctx, rawURL, limit)
+	if err != nil {
+		return nil, fmt.Errorf("downloading %s: %w", rawURL, err)
+	}
+	return data, nil
 }
 
 // downloadURL validates the URL shape and fetches bytes through the

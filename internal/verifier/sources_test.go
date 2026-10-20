@@ -355,29 +355,26 @@ func TestSources_AnOnlineRunThatPinsRegtestWithNoBitcoinSource(t *testing.T) {
 	}
 }
 
-// Sources configured for no network that show one network are its
-// sources, in the order of the options, under the policy first, and none
-// is refused: under prod, which pins Bitcoin to mainnet alone, an Esplora
-// server and a Bitcoin Core node both showing mainnet are both read and
-// both serve mainnet's two pins, the Esplora server first, Stellar public
-// keeping its one default; under staging, both showing regtest serve
-// regtest, Esplora first, and mainnet keeps its default. Each source is
-// read once. Mutants killed: planChain refusing more sources configured for
-// no network than open networks before any read (prod is
-// configuration_error and reads nothing); assign refusing a network that
-// two answering sources serve (both runs are configuration_error); assign
-// keeping only the first answering source of a network (each set has one
-// source); the sets ordered against the options (Bitcoin Core comes
-// first).
-func TestSources_SourcesForNoNetworkThatShowOneNetworkAreItsSources(t *testing.T) {
+// Of two sources configured for no network that answer and show one
+// network, only the first in the order of the options serves it, and none
+// is refused (SPEC.md section 9: a network with no configuration has one
+// source): under prod, which pins Bitcoin to mainnet alone, an Esplora
+// server and a Bitcoin Core node both showing mainnet are both read, the
+// Esplora server serves mainnet's two pins and the node serves nothing and
+// is recorded confirmed with no pins, Stellar public keeping its one
+// default; under staging, both showing regtest, the Esplora server serves
+// regtest, the node nothing, and mainnet keeps its default. Each source is
+// read once. Mutant killed: assign letting both serve (each set has two
+// sources).
+func TestSources_OfTwoSourcesForNoNetworkThatShowOneNetworkTheFirstServes(t *testing.T) {
 	esp := Source{Chain: ChainBitcoin, Provider: source.Esplora, URL: "https://esplora.truestamp.example"}
 	cor := Source{Chain: ChainBitcoin, Provider: source.BitcoinCore, URL: "https://core.truestamp.example"}
 	for _, c := range []struct {
 		environment, value, network string
-		others                      []string
+		espPins                     string
 	}{
-		{"prod", ProductionGenesisHash, "mainnet", []string{"https://blockstream.info/api"}},
-		{"staging", regtestGenesisHash, "regtest", nil},
+		{"prod", ProductionGenesisHash, "mainnet", "commitment:mainnet entropy:mainnet"},
+		{"staging", regtestGenesisHash, "regtest", "commitment:regtest"},
 	} {
 		var log readLog
 		reader := log.through(func(s Source) (string, error) {
@@ -391,17 +388,27 @@ func TestSources_SourcesForNoNetworkThatShowOneNetworkAreItsSources(t *testing.T
 			t.Fatalf("%s: %v", c.environment, rejection)
 		}
 		set, ok := run.SourcesFor(PinCommitment, ChainBitcoin)
-		if !ok || set.Network != c.network || set.Policy != (SourcePolicy{Kind: SourcePolicyFirst}) || set.Required() != 1 || len(set.Sources) != 2 ||
-			set.Sources[0].Source.URL != esp.URL || set.Sources[1].Source.URL != cor.URL ||
-			set.Sources[0].Status != SourceConfirmed || set.Sources[1].Status != SourceConfirmed {
+		if !ok || set.Network != c.network || set.Policy != (SourcePolicy{Kind: SourcePolicyFirst}) || set.Required() != 1 || len(set.Sources) != 1 ||
+			set.Sources[0].Source.URL != esp.URL || set.Sources[0].Status != SourceConfirmed {
 			t.Fatalf("%s: the Bitcoin commitment pin's sources %+v, %v", c.environment, set, ok)
 		}
-		if c.environment == "prod" {
-			if entropy, _ := run.SourcesFor(PinEntropy, ChainBitcoin); len(entropy.Sources) != 2 || entropy.Network != "mainnet" {
-				t.Fatalf("prod: the Bitcoin entropy pin's sources %+v", entropy)
-			}
-		} else if entropy, _ := run.SourcesFor(PinEntropy, ChainBitcoin); len(entropy.Sources) != 1 || entropy.Sources[0].From != FromDefault {
+		if entropy, _ := run.SourcesFor(PinEntropy, ChainBitcoin); c.environment == "prod" &&
+			(len(entropy.Sources) != 1 || entropy.Network != "mainnet" || entropy.Sources[0].Source.URL != esp.URL) {
+			t.Fatalf("prod: the Bitcoin entropy pin's sources %+v", entropy)
+		} else if c.environment != "prod" && (len(entropy.Sources) != 1 || entropy.Sources[0].From != FromDefault) {
 			t.Fatalf("staging: the Bitcoin entropy pin's sources %+v", entropy)
+		}
+		var esplora, core []string
+		for _, r := range run.Sources {
+			switch r.Source.URL {
+			case esp.URL:
+				esplora = append(esplora, string(r.Status)+" "+pinsOf(r))
+			case cor.URL:
+				core = append(core, string(r.Status)+" "+pinsOf(r))
+			}
+		}
+		if !slices.Equal(esplora, []string{"confirmed " + c.espPins}) || !slices.Equal(core, []string{"confirmed "}) {
+			t.Errorf("%s: the records of the Esplora server %q and of the Bitcoin Core node %q", c.environment, esplora, core)
 		}
 		reads := log.read()
 		for _, url := range []string{esp.URL, cor.URL} {

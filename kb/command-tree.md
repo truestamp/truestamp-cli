@@ -380,8 +380,9 @@ authoritative form of this picture; this one is the reader's overview.
 ```
 truestamp
 ├── Verify a proof
-│   ├── verify [file|url|-]      --file --url --offline --remote --keyring <path> --type <t>
-│   │                            --expected-hash --json --silent
+│   ├── verify [file|url|-]      --file --url --offline --remote --keyring <path> --no-keyring
+│   │                            --environment <e> --horizon --esplora --bitcoin-core
+│   │                            --expected-hash --trace <path> --json --silent
 │   └── inspect [file|url|-]     --file --url --json --silent
 │
 ├── Truestamp resources
@@ -541,10 +542,11 @@ how a witness named in a proof is traced to its observation. The per-block view,
 
 ### `keys` complements `verify --keyring`; neither subsumes the other
 
-`--keyring` names a **file** and is a verify input. `keys` names a **resource group**. Different
-things at different levels, no cobra conflict. `verify.keyring` stays in the `[verify]` config
-section: it configures verify's behavior, and moving it to `keys.*` would be renaming a setting to
-match a menu.
+`--keyring` names a **file** and is a verify input, given for the run only (SPEC.md section 8.3).
+`keys` names a **resource group**. Different things at different levels, no cobra conflict. The
+keyrings a configuration file may hold, one per non-production environment, stay in the
+`[verify.keyrings]` table: they configure verify's behavior, and moving them to `keys.*` would be
+renaming a setting to match a menu.
 
 `convert keyid` keeps kid derivation. It is a pipeline primitive printing one bare line of 8 hex
 characters; `keys` is a resource group rendering records. There is no `keys fingerprint`.
@@ -615,7 +617,7 @@ silently dropped:
   style.Render(...))` kept them. `internal/ui` now provides `Fprint` / `Fprintln` / `Fprintf` and
   every write to a **final output destination** goes through them. Writes into string builders
   deliberately do not: stripping there would remove colour before it ever reached a terminal.
-- The `--json` payload shapes were left alone. `verify --json` keeps the server's field names,
+- The `--json` payload shapes were left alone. `verify --json` is exactly the report of SPEC.md section 10.5,
   `hash --json` keeps its bare array, and `beacon --json` kept the raw API response until R14 gave every
   paged list one envelope. R10 mandates
   the *presence* of `--json` on record-rendering commands, not a uniform envelope around it.

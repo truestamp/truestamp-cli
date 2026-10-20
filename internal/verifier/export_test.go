@@ -5,6 +5,7 @@ package verifier
 
 import (
 	"net/http"
+	"slices"
 	"sync"
 	"testing"
 	"time"
@@ -93,4 +94,30 @@ func useClock(t *testing.T, times ...time.Time) {
 		return next
 	}
 	t.Cleanup(func() { readClock = saved })
+}
+
+// useFault makes [Verify] raise a fault before the step named step runs,
+// until the test ends. A test that calls it must not run in parallel.
+func useFault(t *testing.T, step string) {
+	t.Helper()
+	saved := faultAt
+	faultAt = func(at string) {
+		if at == step {
+			panic("a fault raised at " + at + " by the test")
+		}
+	}
+	t.Cleanup(func() { faultAt = saved })
+}
+
+// useStep runs run in place of the step of [laterSteps] named name, until
+// the test ends. A test that calls it must not run in parallel.
+func useStep(t *testing.T, name string, run func(*Run)) {
+	t.Helper()
+	saved := slices.Clone(laterSteps)
+	i := slices.IndexFunc(laterSteps, func(s step) bool { return s.name == name })
+	if i < 0 {
+		t.Fatalf("no step %s", name)
+	}
+	laterSteps[i].run = run
+	t.Cleanup(func() { laterSteps = saved })
 }

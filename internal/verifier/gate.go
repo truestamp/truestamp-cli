@@ -184,9 +184,10 @@ func afterConfiguration(run *Run, data []byte) (*Run, *Rejection, error) {
 // unreachable, with the pins it serves, and each pinned network's sources
 // in their order under its policy. A source configured for no network
 // whose answer only pinned networks with a configuration allow serves
-// nothing. Of two sources configured for no network that give no usable
-// answer and may serve one pin, the first in the options' order serves
-// it. An offline run reads no source.
+// nothing. Of two sources configured for no network that may serve one
+// pin, whether both answer and show its network or both give no usable
+// answer, the first in the options' order serves it and the other does
+// not. An offline run reads no source.
 func Configure(cfg Config) (*Run, *Rejection, error) {
 	if err := cfg.Validate(); err != nil {
 		return nil, nil, err
@@ -211,7 +212,7 @@ func Configure(cfg Config) (*Run, *Rejection, error) {
 		}
 		run.Keyring, run.TrustRoot = loaded, TrustRoot{Digest: loaded.Digest, Kind: KindCompiledPin}
 	case source.Kind == SourceDefault:
-		readOnline(run, CurrentKeyringURL, KindCurrentKeyring)
+		readOnline(run, currentKeyringRead, KindCurrentKeyring)
 	case source.Kind == SourceOrigin:
 		readOnline(run, source.URL, KindSuppliedKeyring)
 	default:

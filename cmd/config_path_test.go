@@ -266,3 +266,35 @@ func TestCLI_ConfigFlagHelp_ShowsPlatformDefault(t *testing.T) {
 			platformDefault(dir), got)
 	}
 }
+
+// maskUserinfo masks everything before a URL's last @, but its scheme,
+// since any @ after the scheme's // could end user information: a URL
+// that parses with a host and a path, such as http://u:12/ss@host, may be
+// a password typed with a raw slash. A URL with no @ is shown whole.
+// Mutants killed: showing whole a URL that parses with a host and no user
+// information (http://u:12/ss@host shows 12/ss); masking only up to the
+// first @ (a password holding an @ shows its tail); returning the URL
+// whole; the scheme taken from a :// after the last @ (a URL whose query
+// holds another URL shows its password).
+func TestMaskUserinfo(t *testing.T) {
+	for raw, want := range map[string]string{
+		"http://u:12/ss@host":                        "http://[masked]@host",
+		"http://u:12?ss@host":                        "http://[masked]@host",
+		"http://user:pass@core.example:8332":         "http://[masked]@core.example:8332",
+		"http://127.0.0.1:8332/wallet/x@y":           "http://[masked]@y",
+		"https://esplora.example/api?who=a@b":        "https://[masked]@b",
+		"http://user:pass@core.example:8332/w/x@y":   "http://[masked]@y",
+		"http://us@er:p@ss@core.example:8332":        "http://[masked]@core.example:8332",
+		"http://user:pa/ss@core.example:8332":        "http://[masked]@core.example:8332",
+		"user:pass@core.example:8332":                "[masked]@core.example:8332",
+		"user:pass@core.example:8332/?next=http://x": "[masked]@core.example:8332/?next=http://x",
+		"https://horizon.example":                    "https://horizon.example",
+		"http://127.0.0.1:8332/wallet/x":             "http://127.0.0.1:8332/wallet/x",
+		"http://user@core.example":                   "http://[masked]@core.example",
+		"http://user:secret@[::1]:8332/wallet/a@b#c": "http://[masked]@b#c",
+	} {
+		if got := maskUserinfo(raw); got != want {
+			t.Errorf("maskUserinfo(%q) = %q, want %q", raw, got, want)
+		}
+	}
+}

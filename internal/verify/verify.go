@@ -35,10 +35,6 @@ type Options struct {
 	// lowercased before use.
 	ExpectedHash string
 
-	// ExpectedSubjectType, when non-empty, asserts the bundle's signed
-	// `type`. A mismatch is the hard rejection `subject_type_mismatch`.
-	ExpectedSubjectType string
-
 	// SkipExternal runs offline: no Horizon, Blockstream, NIST or keyring
 	// lookups. Every network-dependent step reports skip.
 	SkipExternal bool
@@ -80,16 +76,6 @@ func RunBundle(bundle *proof.Bundle, displayName string, opts Options) (*Report,
 // reference verifier's emission order, so a report grouped by category
 // lines up with the reference's row for row.
 func runBundle(bundle *proof.Bundle, filename string, fileSize int64, opts Options) (*Report, error) {
-	// The --type assertion is a hard rejection, named the way the server
-	// names it, because E.25 forbids a verifier adding a `fail` row for a
-	// step Appendix D.4 does not report, and because the mismatch is a
-	// statement about the caller's expectation rather than about the
-	// bundle.
-	if opts.ExpectedSubjectType != "" && opts.ExpectedSubjectType != bundle.Type {
-		return nil, proof.Rejectf(proof.CodeSubjectTypeMismatch,
-			"the bundle's signed type is %s but --type %s was asserted", bundle.Type, opts.ExpectedSubjectType)
-	}
-
 	r := newReport(bundle, filename, fileSize, opts)
 	blockLike := bundle.IsBlockLike()
 

@@ -80,7 +80,23 @@ func DownloadBytesCtx(ctx context.Context, url string, maxBytes int64) ([]byte, 
 	if maxBytes <= 0 {
 		maxBytes = MaxResponseSize
 	}
+	body, err := DownloadAtMostCtx(ctx, url, maxBytes+1)
+	if err != nil {
+		return nil, err
+	}
+	if int64(len(body)) > maxBytes {
+		return nil, fmt.Errorf("response exceeded %d byte cap", maxBytes)
+	}
+	return body, nil
+}
 
+// DownloadAtMostCtx is [DownloadBytesCtx] for a caller that bounds its
+// input itself: it reads at most limit octets of the body and refuses
+// none for its length, so a longer body gives its first limit octets.
+// `truestamp verify` reads a proof this way, at most MAX_READ_OCTETS + 1
+// octets, so that J1 alone decides that a proof is too large (SPEC.md
+// section 10.1).
+func DownloadAtMostCtx(ctx context.Context, url string, limit int64) ([]byte, error) {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
 		return nil, err
@@ -98,12 +114,5 @@ func DownloadBytesCtx(ctx context.Context, url string, maxBytes int64) ([]byte, 
 		return nil, fmt.Errorf("HTTP %d: %s", resp.StatusCode, Truncate(string(snippet), 120))
 	}
 
-	body, err := io.ReadAll(io.LimitReader(resp.Body, maxBytes+1))
-	if err != nil {
-		return nil, err
-	}
-	if int64(len(body)) > maxBytes {
-		return nil, fmt.Errorf("response exceeded %d byte cap", maxBytes)
-	}
-	return body, nil
+	return io.ReadAll(io.LimitReader(resp.Body, limit))
 }

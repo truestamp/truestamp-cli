@@ -78,6 +78,14 @@ import (
 // address the NIST read goes to (SPEC.md section 10.4, "Common sources").
 const NISTBeaconURL = "https://beacon.nist.gov/beacon/2.0"
 
+// nistBeaconBase is the base [nistSet] reads NIST's Randomness Beacon
+// from: NISTBeaconURL in every build but the test binary of the cmd
+// package, which sets it at link time (-ldflags -X) to a loopback server,
+// so that no test of the built command reads NIST. It is a string
+// variable only so that the linker can set it. nistSet is its one reader;
+// no flag, configuration key, environment variable or document reaches it.
+var nistBeaconBase = NISTBeaconURL
+
 // SourceNIST is the name of the NIST entropy source (SPEC.md section 3.5).
 const SourceNIST = "nist"
 
@@ -88,7 +96,7 @@ const nistTimeBasis = "nist_pulse_time_read"
 // confirmed, since it has no identity read, under the policy first.
 func nistSet() SourceSet {
 	beacon := SourceRecord{
-		Source: Source{Chain: SourceNIST, Provider: source.NISTBeacon, URL: NISTBeaconURL},
+		Source: Source{Chain: SourceNIST, Provider: source.NISTBeacon, URL: nistBeaconBase},
 		From:   FromDefault,
 		Status: SourceConfirmed,
 	}

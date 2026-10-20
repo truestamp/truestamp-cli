@@ -4,42 +4,41 @@
 package cmd
 
 import (
-	"bytes"
-	"encoding/hex"
 	"errors"
 	"fmt"
+	"io"
+	"os"
+	"path/filepath"
 	"strings"
 
-	lipgloss "charm.land/lipgloss/v2"
 	"github.com/spf13/cobra"
 	"github.com/truestamp/truestamp-cli/internal/inputsrc"
-	"github.com/truestamp/truestamp-cli/internal/jsonapi"
-	"github.com/truestamp/truestamp-cli/internal/proof"
+	"github.com/truestamp/truestamp-cli/internal/jcs"
+	"github.com/truestamp/truestamp-cli/internal/specdata"
+	"github.com/truestamp/truestamp-cli/internal/strictjson"
+	"github.com/truestamp/truestamp-cli/internal/verifier"
 	"github.com/truestamp/truestamp-cli/internal/verify"
 )
 
-// errVerificationFailed is returned when the report itself fails. The
-// report has already been rendered, so only a non-nil error for exit code 1
-// is needed. Execute() prints it via its default path.
-var errVerificationFailed = errors.New("verification failed")
-
 var verifyCmd = &cobra.Command{
 	Use:   "verify [file-or-url]",
-	Short: "Verify a Truestamp proof bundle",
-	Long: `Cryptographically verify a Truestamp proof bundle, JSON or CBOR.
+	Short: "Verify a Truestamp proof",
+	Long: `Verify a Truestamp proof, one JSON document, as SPEC.md of
+truestamp/truestamp-verification defines it.
 
-Every value in the bundle is recomputed from bytes it carries and checked
-against the signature over them (whitepaper Appendix E): the subject and
-block hashes, the Merkle inclusion proof, each epoch proof to the root
-committed on a public chain, the Ed25519 proof signature, the witnesses
-that open the submitted-after edge, the signing key event, and the
-submission window. Online runs additionally confirm the Stellar and
-Bitcoin commitments on chain, re-fetch each entropy witness from its
-source, and bind the signing key to the published keyring.
+The run makes the steps of SPEC.md section 10.2 in order: it fixes the
+environment it checks, the network pins, the sources and the keyring
+before the file is read; reads and parses the file; checks the envelope,
+the environment marker, the signer's key against the keyring and the
+signature; then the schema, every network, and every hash, inclusion
+proof and link, recomputed from the values the proof carries. Online, it
+reads each Stellar and Bitcoin commitment and each entropy source, and
+draws the submitted-after and submitted-before edges of the submission
+window from what it read. --offline reads nothing: each check that needs
+a read is a skip, never a failure.
 
 Proof input can be provided as:
   truestamp verify proof.json           Local file path
-  truestamp verify proof.cbor           CBOR is detected automatically
   truestamp verify https://host/p.json  URL (auto-detected)
   truestamp verify --file proof.json    Explicit file path
   truestamp verify --file               Interactive file picker
@@ -47,195 +46,35 @@ Proof input can be provided as:
   truestamp verify --url                Interactive URL prompt
   cat proof.json | truestamp verify     Pipe from stdin
 
-Offline verification is first class: --offline runs every
-cryptographic step with no network access and reports each check
-that needs a source as skipped, never failed. A skipped check is a check
-this run did not perform, not a check that failed.
+The keyring that governs the signer's key, for this run only:
+  (none)                 online: the keyring read from www.truestamp.com;
+                         offline: the keys built into this CLI
+  --keyring FILE         a keyring file you supply
+  --no-keyring           keyless: the signature is checked only against
+                         the key the proof carries
+  --environment NAME     check proofs of Truestamp's dev, staging or test
+                         environment, with --keyring FILE, a keyring
+                         configured for it, or --no-keyring
 
---expected-hash compares the hash of a file you hold against the hash an
-item's claims commit to. --keyring pins a local copy of
-/.well-known/keyring.json for the key binding check; without it an online
-run fetches the live keyring and an offline run reports the binding as
-not checked.
+--expected-hash compares the hash of a file you hold with the hash the
+proof's claims carry. --trace FILE writes the run's trace (SPEC.md section
+10.6) to FILE. --horizon, --esplora and --bitcoin-core read Stellar and
+Bitcoin from servers you name; a Bitcoin Core node's credentials come from
+the configuration file or the environment, never the command line.
 
-The subject type is always read from the bundle's own signed 'type'
-field; the filename is never consulted. Pass --type to assert the type
-you expected: a mismatch is the hard rejection subject_type_mismatch.
-Values: item | entropy_nist | entropy_stellar | entropy_bitcoin |
-block | beacon.
+The report is labelled verified, internally-consistent, supplied-keyring,
+unattributed or failed; --json writes it exactly as SPEC.md section 10.5
+gives it. --remote also asks the Truestamp service, whose verdict is
+printed beside the report and never changes the exit code.
 
-Use --remote to also ask the Truestamp server to verify the bundle. This
-CLI's own verifier never depends on it. Requires authentication: run
-'truestamp auth login', or set TRUESTAMP_API_KEY / --api-key.
-
-Exit code 0 when the proof passes, 1 when it fails or is rejected.`,
+Exit codes (SPEC.md section 12.2): 0 verified; 1 a runtime error, such as
+an invalid command line or an input that cannot be read; 2 the verifier
+stopped on a fault; 3 failed; 4 a bare rejection other than
+configuration_error; 5 unattributed; 6 supplied-keyring; 7
+internally-consistent; 8 configuration_error. Only 0 says that Truestamp
+signed the proof and that its submission window is established.`,
 	Args: cobra.MaximumNArgs(1),
-	RunE: func(cmd *cobra.Command, args []string) error {
-		cfg := appConfig
-
-		positional := ""
-		if len(args) > 0 {
-			positional = args[0]
-		}
-		fileFlag, _ := cmd.Flags().GetString("file")
-		urlFlag, _ := cmd.Flags().GetString("url")
-
-		data, src, err := inputsrc.Resolve(cmd.Context(), inputsrc.Options{
-			PositionalArg:        positional,
-			FileFlag:             fileFlag,
-			URLFlag:              urlFlag,
-			AllowStdin:           true,
-			AutoDetectURL:        true,
-			PickerTitle:          "Select proof file",
-			PickerExts:           []string{".json", ".cbor"},
-			URLPromptTitle:       "Enter proof URL",
-			URLPromptPlaceholder: "https://example.com/proof.json",
-		})
-		if err != nil {
-			if errors.Is(err, inputsrc.ErrNoInput) {
-				_ = cmd.Help()
-				return nil
-			}
-			if cfg.Silent {
-				return errSilentFail
-			}
-			return err
-		}
-		if len(bytes.TrimSpace(data)) == 0 {
-			// The usual cause is a pipe whose left-hand command failed and
-			// printed nothing; say that rather than grading empty bytes as
-			// a malformed bundle.
-			if cfg.Silent {
-				return errSilentFail
-			}
-			return errors.New("no proof bundle to verify: the input was empty (if it came through a pipe, the command before it produced nothing)")
-		}
-
-		expectedHash, err := expectedHashFlag(cmd)
-		if err != nil {
-			return err
-		}
-
-		typeFlag, _ := cmd.Flags().GetString("type")
-		typeFlag = strings.ToLower(strings.TrimSpace(typeFlag))
-		if typeFlag != "" && !validProofType(typeFlag) {
-			return fmt.Errorf("--type must be one of %s, got %q",
-				strings.Join(proofTypeValues, " | "), typeFlag)
-		}
-
-		keyringFile := cfg.Verify.Keyring
-		if v, _ := cmd.Flags().GetString("keyring"); v != "" {
-			keyringFile = v
-		}
-
-		displayName := src.DisplayName()
-		if src.Type == inputsrc.SourceStdin {
-			displayName = "(stdin)"
-		}
-
-		var report *verify.Report
-		if cfg.Verify.Remote {
-			if !authConfigured() {
-				return fmt.Errorf("not authenticated: --remote verification needs `truestamp auth login`, or TRUESTAMP_API_KEY / --api-key for headless use")
-			}
-			report, err = verify.RunRemoteBytesCtx(cmd.Context(), data, displayName, verify.RemoteOptions{
-				APIURL:              cfg.APIURL,
-				Team:                cfg.Team,
-				ExpectedHash:        expectedHash,
-				SkipExternal:        cfg.Verify.Offline,
-				ExpectedSubjectType: typeFlag,
-			})
-		} else {
-			report, err = verify.RunFromBytes(data, displayName, verify.Options{
-				ExpectedHash:        expectedHash,
-				ExpectedSubjectType: typeFlag,
-				SkipExternal:        cfg.Verify.Offline,
-				KeyringFile:         keyringFile,
-				KeyringURL:          cfg.KeyringURL,
-			})
-		}
-
-		if err != nil {
-			// A rate-limited --remote request (already retried once) is
-			// neither a rejection nor a verdict: render it the way every
-			// other rate limit in the tree is rendered.
-			if errors.Is(err, jsonapi.ErrRateLimited) {
-				appLogger.Error("verify_failed",
-					"source", string(src.Type),
-					"display_name", displayName,
-					"remote", cfg.Verify.Remote,
-					"err", err.Error(),
-				)
-				return renderAPIError(cmd, err, "proof")
-			}
-			rejectionCode := proof.RejectionCode(err)
-			var remoteRejection *verify.RemoteRejectionError
-			if errors.As(err, &remoteRejection) {
-				rejectionCode = remoteRejection.Reason
-				err = proof.Rejectf(remoteRejection.Reason, "%s", remoteRejection.Detail)
-			}
-			appLogger.Error("verify_failed",
-				"source", string(src.Type),
-				"display_name", displayName,
-				"remote", cfg.Verify.Remote,
-				"rejection_code", rejectionCode,
-				"err", err.Error(),
-			)
-			if cfg.Silent {
-				return errSilentFail
-			}
-			// A hard rejection (Appendix E.6) aborts before any step
-			// runs, so there is no report to render: only the E.23
-			// identifier and one line of advice.
-			if rejectionCode != "" {
-				return presentRejection(cmd, err, cfg.JSON)
-			}
-			return err
-		}
-
-		appLogger.Info("verify_completed",
-			"source", string(src.Type),
-			"display_name", displayName,
-			"remote", cfg.Verify.Remote,
-			"subject_type", report.SubjectType,
-			"passed", report.Passed(),
-			"failed_step_count", report.FailedCount(),
-		)
-
-		switch {
-		case cfg.JSON:
-			if jErr := emitJSON(cmd.OutOrStdout(), verify.BuildJSONReport(report)); jErr != nil {
-				return jErr
-			}
-		case !cfg.Silent:
-			lipgloss.Print(verify.Render(report, true))
-		}
-
-		if !report.Passed() {
-			if cfg.Silent {
-				return errSilentFail
-			}
-			return errVerificationFailed
-		}
-		return nil
-	},
-}
-
-// expectedHashFlag reads --expected-hash, normalizing it the way Appendix
-// E.7 requires: trimmed and lowercased.
-func expectedHashFlag(cmd *cobra.Command) (string, error) {
-	value, _ := cmd.Flags().GetString("expected-hash")
-	value = strings.ToLower(strings.TrimSpace(value))
-	if value == "" {
-		return "", nil
-	}
-	if len(value)%2 != 0 {
-		return "", fmt.Errorf("--expected-hash must be an even-length hex string")
-	}
-	if _, err := hex.DecodeString(value); err != nil {
-		return "", fmt.Errorf("--expected-hash contains invalid hex characters: %w", err)
-	}
-	return value, nil
+	RunE: runVerify,
 }
 
 func init() {
@@ -244,29 +83,192 @@ func init() {
 	f.String("url", "", "URL to download proof from (interactive prompt if no URL given)")
 	f.Lookup("file").NoOptDefVal = inputsrc.FilePickSentinel
 	f.Lookup("url").NoOptDefVal = inputsrc.URLPromptSentinel
-	f.String("expected-hash", "", "Hash (hex) of the file you hold, compared against the item's claims.hash")
-	f.String("keyring", "", "Path of a pinned copy of /.well-known/keyring.json for the key binding check")
-	f.String("type", "",
-		fmt.Sprintf("Assert the expected subject type; a mismatch is rejected. One of: %s",
-			strings.Join(proofTypeValues, " | ")))
+	f.String("expected-hash", "", "Hash (hex) of the file you hold, compared with the hash the proof's claims carry")
+	f.String(verifier.FlagKeyring, "", "Check the signer's key against this keyring file, for this run only")
+	verifier.RegisterFlags(f)
+	f.String("trace", "", "Write the run's trace (SPEC.md section 10.6) to this file")
 	f.BoolP("silent", "s", false, "No output, exit code only")
-	f.Bool("json", false, "Output the report as JSON, in the same field names the Truestamp API uses")
-	f.Bool("offline", false, "Run with no network access: chain, source and keyring lookups are reported as skipped")
-	f.Bool("remote", false, "Also ask the Truestamp server to verify the bundle (requires authentication)")
+	f.Bool("json", false, "Output the report as JSON, exactly as SPEC.md section 10.5 gives it")
+	f.Bool("offline", false, "Read nothing outside the proof: each check that needs a read is reported as skipped")
+	f.Bool("remote", false, "Also ask the Truestamp service to verify the proof (requires authentication)")
 	verifyCmd.GroupID = groupVerification
 	rootCmd.AddCommand(verifyCmd)
 }
 
-// presentRejection renders an Appendix E.6 hard rejection, the E.23
-// identifier and one line of advice, as JSON or as text, and returns
-// errSilentFail. verify and inspect share it so the two cannot drift.
-func presentRejection(cmd *cobra.Command, err error, jsonOut bool) error {
-	if jsonOut {
-		if jErr := emitJSON(cmd.OutOrStdout(), verify.BuildJSONRejection(err)); jErr != nil {
-			return jErr
-		}
-	} else {
-		verify.PresentRejection(cmd.OutOrStdout(), err)
+// runVerify is `truestamp verify`: it builds the run from the command's
+// options, runs it through internal/verifier, writes what the run gave and
+// exits with the code of how it ended (SPEC.md section 12.2).
+func runVerify(cmd *cobra.Command, args []string) error {
+	cfg := appConfig
+	positional := ""
+	if len(args) > 0 {
+		positional = args[0]
 	}
-	return errSilentFail
+	fileFlag, _ := cmd.Flags().GetString("file")
+	urlFlag, _ := cmd.Flags().GetString("url")
+	runtimeError := func(err error) error {
+		if cfg.Silent {
+			return errSilentFail
+		}
+		return err
+	}
+	if positional == "" && fileFlag == "" && urlFlag == "" && !inputsrc.IsStdinPipe() {
+		return runtimeError(fmt.Errorf("no proof was given: name a file or a URL, or pipe the proof on standard input\n\n%s", strings.TrimRight(cmd.UsageString(), "\n")))
+	}
+	options, err := verifier.OptionsFromCommand(cmd.Flags(), cfg)
+	if err != nil {
+		return runtimeError(err)
+	}
+	run, err := options.Config(verifier.DefaultKeyringReader(), verifier.DefaultIdentityReader())
+	if err != nil {
+		return runtimeError(err)
+	}
+	if flag := cmd.Flags().Lookup("expected-hash"); flag.Changed {
+		value := flag.Value.String()
+		run.ExpectedHash = &value
+	}
+	trace, _ := cmd.Flags().GetString("trace")
+	if trace != "" {
+		if info, statErr := os.Stat(filepath.Dir(trace)); statErr != nil || !info.IsDir() {
+			return runtimeError(fmt.Errorf("--trace names a file in a directory that does not exist"))
+		}
+	}
+	if cfg.Verify.Remote && !authConfigured() {
+		return runtimeError(errors.New("not authenticated: --remote verification needs `truestamp auth login`, or TRUESTAMP_API_KEY / --api-key for headless use"))
+	}
+
+	var data []byte
+	var src inputsrc.Source
+	outcome := verifier.Verify(run, func() ([]byte, error) {
+		stream, resolved, err := inputsrc.ResolveStream(cmd.Context(), inputsrc.Options{
+			PositionalArg:        positional,
+			FileFlag:             fileFlag,
+			URLFlag:              urlFlag,
+			AllowStdin:           true,
+			AutoDetectURL:        true,
+			PickerTitle:          "Select proof file",
+			PickerExts:           []string{".json"},
+			URLPromptTitle:       "Enter proof URL",
+			URLPromptPlaceholder: "https://example.com/proof.json",
+			ReadAtMost:           strictjson.MaxReadOctets + 1,
+		})
+		if err != nil {
+			return nil, err
+		}
+		defer func() { _ = stream.Close() }()
+		src = resolved
+		data, err = strictjson.Read(stream)
+		return data, err
+	})
+	appLogger.Info("verify_completed",
+		"source", string(src.Type),
+		"ending", string(outcome.Ending),
+		"exit", outcome.ExitCode(),
+	)
+	if err := writeVerification(cmd, outcome, trace); err != nil {
+		return err
+	}
+	if cfg.Verify.Remote && data != nil {
+		askRemote(cmd, data, src, run.ExpectedHash, !run.Online)
+	}
+	return exitWith(outcome.ExitCode())
+}
+
+// writeVerification writes what the run gave: the trace to the file trace
+// names, when it names one and the run gave a report or a bare rejection;
+// then, unless --silent, the report or the bare rejection on standard
+// output, as JSON under --json and as text otherwise, or why there is
+// none on standard error. A trace that cannot be written is a runtime
+// error (exit code 1) and nothing else is written; a report or rejection
+// that cannot be encoded is a fault while the report is written (exit code
+// 2); one that is encoded but cannot be written to standard output is a
+// runtime error (exit code 1), so that a script never reads a code for a
+// report it was not given.
+func writeVerification(cmd *cobra.Command, outcome verifier.Outcome, trace string) error {
+	cfg := appConfig
+	stdout, stderr := cmd.OutOrStdout(), cmd.ErrOrStderr()
+	switch outcome.Ending {
+	case specdata.EndingRuntimeError:
+		if cfg.Silent {
+			return errSilentFail
+		}
+		return outcome.Err
+	case specdata.EndingFault:
+		if !cfg.Silent {
+			_, _ = fmt.Fprintf(stderr, "The verifier stopped on a fault before it could give a report: %v. No report.\n", outcome.Err)
+		}
+		return exitWith(outcome.ExitCode())
+	}
+	if trace != "" {
+		rows := make([]any, 0, len(outcome.Trace))
+		for _, row := range outcome.Trace {
+			rows = append(rows, row.Value())
+		}
+		text, err := jcs.CanonicalForm(rows)
+		if err == nil {
+			err = os.WriteFile(trace, text, 0o644)
+		}
+		if err != nil {
+			if cfg.Silent {
+				return errSilentFail
+			}
+			return fmt.Errorf("the trace cannot be written to %s: %w; no report", trace, err)
+		}
+	}
+	encoded, err := encodeOutcome(outcome)
+	if err != nil {
+		if !cfg.Silent {
+			_, _ = fmt.Fprintf(stderr, "The verifier stopped on a fault while it wrote the report: %v. No report.\n", err)
+		}
+		code, _ := specdata.ExitCode(specdata.EndingFault)
+		return exitWith(code)
+	}
+	var written error
+	switch {
+	case cfg.Silent:
+	case cfg.JSON:
+		_, written = stdout.Write(append(encoded, '\n'))
+	case outcome.Report != nil:
+		written = renderReport(stdout, outcome.Report)
+	default:
+		written = renderRejection(stdout, outcome.Rejection)
+	}
+	if written != nil {
+		return fmt.Errorf("the report cannot be written to standard output: %w", written)
+	}
+	return nil
+}
+
+// encodeOutcome is the report or the bare rejection written with JCS, as
+// --json writes it, made whatever the output so that a report that cannot
+// be written is found before anything is.
+func encodeOutcome(outcome verifier.Outcome) ([]byte, error) {
+	if outcome.Report != nil {
+		return outcome.Report.Encode()
+	}
+	return outcome.Rejection.Encode()
+}
+
+// askRemote asks the Truestamp service to verify the proof too, and
+// prints its verdict on standard error, beside the report and never as a
+// row of it; it never changes the exit code, which is the local run's.
+func askRemote(cmd *cobra.Command, data []byte, src inputsrc.Source, expectedHash *string, offline bool) {
+	cfg := appConfig
+	options := verify.RemoteOptions{APIURL: cfg.APIURL, Team: cfg.Team, SkipExternal: offline}
+	if expectedHash != nil {
+		options.ExpectedHash = strings.ToLower(*expectedHash)
+	}
+	report, err := verify.RunRemoteBytesCtx(cmd.Context(), data, src.DisplayName(), options)
+	if cfg.Silent {
+		return
+	}
+	var w io.Writer = cmd.ErrOrStderr()
+	switch {
+	case err != nil:
+		_, _ = fmt.Fprintf(w, "The Truestamp service gave no verdict: %v. This does not change the report or the exit code.\n", err)
+	case report.Passed():
+		_, _ = fmt.Fprintln(w, "The Truestamp service's verdict, beside this report and not part of it: passed.")
+	default:
+		_, _ = fmt.Fprintln(w, "The Truestamp service's verdict, beside this report and not part of it: failed.")
+	}
 }

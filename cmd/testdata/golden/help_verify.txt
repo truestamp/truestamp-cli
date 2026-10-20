@@ -1,17 +1,19 @@
-Cryptographically verify a Truestamp proof bundle, JSON or CBOR.
+Verify a Truestamp proof, one JSON document, as SPEC.md of
+truestamp/truestamp-verification defines it.
 
-Every value in the bundle is recomputed from bytes it carries and checked
-against the signature over them (whitepaper Appendix E): the subject and
-block hashes, the Merkle inclusion proof, each epoch proof to the root
-committed on a public chain, the Ed25519 proof signature, the witnesses
-that open the submitted-after edge, the signing key event, and the
-submission window. Online runs additionally confirm the Stellar and
-Bitcoin commitments on chain, re-fetch each entropy witness from its
-source, and bind the signing key to the published keyring.
+The run makes the steps of SPEC.md section 10.2 in order: it fixes the
+environment it checks, the network pins, the sources and the keyring
+before the file is read; reads and parses the file; checks the envelope,
+the environment marker, the signer's key against the keyring and the
+signature; then the schema, every network, and every hash, inclusion
+proof and link, recomputed from the values the proof carries. Online, it
+reads each Stellar and Bitcoin commitment and each entropy source, and
+draws the submitted-after and submitted-before edges of the submission
+window from what it read. --offline reads nothing: each check that needs
+a read is a skip, never a failure.
 
 Proof input can be provided as:
   truestamp verify proof.json           Local file path
-  truestamp verify proof.cbor           CBOR is detected automatically
   truestamp verify https://host/p.json  URL (auto-detected)
   truestamp verify --file proof.json    Explicit file path
   truestamp verify --file               Interactive file picker
@@ -19,42 +21,52 @@ Proof input can be provided as:
   truestamp verify --url                Interactive URL prompt
   cat proof.json | truestamp verify     Pipe from stdin
 
-Offline verification is first class: --offline runs every
-cryptographic step with no network access and reports each check
-that needs a source as skipped, never failed. A skipped check is a check
-this run did not perform, not a check that failed.
+The keyring that governs the signer's key, for this run only:
+  (none)                 online: the keyring read from www.truestamp.com;
+                         offline: the keys built into this CLI
+  --keyring FILE         a keyring file you supply
+  --no-keyring           keyless: the signature is checked only against
+                         the key the proof carries
+  --environment NAME     check proofs of Truestamp's dev, staging or test
+                         environment, with --keyring FILE, a keyring
+                         configured for it, or --no-keyring
 
---expected-hash compares the hash of a file you hold against the hash an
-item's claims commit to. --keyring pins a local copy of
-/.well-known/keyring.json for the key binding check; without it an online
-run fetches the live keyring and an offline run reports the binding as
-not checked.
+--expected-hash compares the hash of a file you hold with the hash the
+proof's claims carry. --trace FILE writes the run's trace (SPEC.md section
+10.6) to FILE. --horizon, --esplora and --bitcoin-core read Stellar and
+Bitcoin from servers you name; a Bitcoin Core node's credentials come from
+the configuration file or the environment, never the command line.
 
-The subject type is always read from the bundle's own signed 'type'
-field; the filename is never consulted. Pass --type to assert the type
-you expected: a mismatch is the hard rejection subject_type_mismatch.
-Values: item | entropy_nist | entropy_stellar | entropy_bitcoin |
-block | beacon.
+The report is labelled verified, internally-consistent, supplied-keyring,
+unattributed or failed; --json writes it exactly as SPEC.md section 10.5
+gives it. --remote also asks the Truestamp service, whose verdict is
+printed beside the report and never changes the exit code.
 
-Use --remote to also ask the Truestamp server to verify the bundle. This
-CLI's own verifier never depends on it. Requires authentication: run
-'truestamp auth login', or set TRUESTAMP_API_KEY / --api-key.
-
-Exit code 0 when the proof passes, 1 when it fails or is rejected.
+Exit codes (SPEC.md section 12.2): 0 verified; 1 a runtime error, such as
+an invalid command line or an input that cannot be read; 2 the verifier
+stopped on a fault; 3 failed; 4 a bare rejection other than
+configuration_error; 5 unattributed; 6 supplied-keyring; 7
+internally-consistent; 8 configuration_error. Only 0 says that Truestamp
+signed the proof and that its submission window is established.
 
 Usage:
   truestamp verify [file-or-url] [flags]
 
 Flags:
-      --expected-hash string      Hash (hex) of the file you hold, compared against the item's claims.hash
+      --bitcoin-core string       Read Bitcoin from the Bitcoin Core node at this JSON-RPC URL; its RPC credentials come only from the configuration file or the environment
+      --environment string        Check proofs of this Truestamp environment, for this run only: prod, dev, staging or test (default "prod")
+      --esplora string            Read Bitcoin from this Esplora server, in place of the built-in one for the network it serves
+      --expected-hash string      Hash (hex) of the file you hold, compared with the hash the proof's claims carry
       --file string[="(pick)"]    Path to proof file (interactive picker if no path given)
   -h, --help                      help for verify
-      --json                      Output the report as JSON, in the same field names the Truestamp API uses
-      --keyring string            Path of a pinned copy of /.well-known/keyring.json for the key binding check
-      --offline                   Run with no network access: chain, source and keyring lookups are reported as skipped
-      --remote                    Also ask the Truestamp server to verify the bundle (requires authentication)
+      --horizon string            Read Stellar from this Horizon server, in place of the built-in one for the network it serves
+      --json                      Output the report as JSON, exactly as SPEC.md section 10.5 gives it
+      --keyring string            Check the signer's key against this keyring file, for this run only
+      --no-keyring                Keyless mode, for this run only: check the signature only against the key the proof carries
+      --offline                   Read nothing outside the proof: each check that needs a read is reported as skipped
+      --remote                    Also ask the Truestamp service to verify the proof (requires authentication)
   -s, --silent                    No output, exit code only
-      --type string               Assert the expected subject type; a mismatch is rejected. One of: item | entropy_nist | entropy_stellar | entropy_bitcoin | block | beacon
+      --trace string              Write the run's trace (SPEC.md section 10.6) to this file
       --url string[="(prompt)"]   URL to download proof from (interactive prompt if no URL given)
 
 Global Flags:
