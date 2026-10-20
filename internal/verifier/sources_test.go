@@ -182,6 +182,16 @@ func core(n *node) Source {
 	return Source{Chain: ChainBitcoin, Provider: source.BitcoinCore, URL: n.srv.URL}
 }
 
+// firstSource is the first of the sources of the run's pin of chain, its
+// one source when it has one, and whether it has any.
+func firstSource(run *Run, pin, chain string) (SourceRecord, bool) {
+	set, ok := run.SourcesFor(pin, chain)
+	if !ok || len(set.Sources) == 0 {
+		return SourceRecord{}, false
+	}
+	return set.Sources[0], true
+}
+
 // pinsOf writes a record's pins as "commitment:regtest entropy:regtest".
 func pinsOf(record SourceRecord) string {
 	var out []string
@@ -289,7 +299,7 @@ func TestSources_AnIdentityReadWithNoUsableAnswerIsUnreachable(t *testing.T) {
 				if rejection != nil {
 					t.Fatalf("%v, want no rejection", rejection)
 				}
-				record, ok := run.SourceFor(PinCommitment, s.Chain)
+				record, ok := firstSource(run, PinCommitment, s.Chain)
 				if !ok || record.Status != SourceUnreachable || record.Source.URL != s.URL || record.Reason == "" ||
 					pinsOf(record) != map[string]string{ChainBitcoin: "commitment:regtest entropy:regtest", ChainStellar: "commitment:testnet entropy:testnet"}[s.Chain] {
 					t.Fatalf("record = %+v, %v", record, ok)
@@ -345,43 +355,270 @@ func TestSources_AnOnlineRunThatPinsRegtestWithNoBitcoinSource(t *testing.T) {
 	}
 }
 
-// Two sources for one pin are refused: under prod, which pins Bitcoin to
-// mainnet alone, an Esplora server and a Bitcoin Core node, before either
-// is read; under staging, which pins regtest and mainnet, an Esplora server
-// and a Bitcoin Core node that both show regtest, or both mainnet, once
-// read; and two sources a replay names for one network. Mutants killed:
-// planChain without its count of floating sources (prod reads both and
-// passes, the second serving nothing); assign without its check that a
-// network is served once (staging's two regtest nodes pass); planChain
-// without its check of two fixed sources for one network.
-func TestSources_TwoSourcesForOnePinAreRefused(t *testing.T) {
-	var log readLog
-	reader := log.through(honestIdentities)
+// Sources configured for no network that show one network are its
+// sources, in the order of the options, under the policy first, and none
+// is refused: under prod, which pins Bitcoin to mainnet alone, an Esplora
+// server and a Bitcoin Core node both showing mainnet are both read and
+// both serve mainnet's two pins, the Esplora server first, Stellar public
+// keeping its one default; under staging, both showing regtest serve
+// regtest, Esplora first, and mainnet keeps its default. Each source is
+// read once. Mutants killed: planChain refusing more sources configured for
+// no network than open networks before any read (prod is
+// configuration_error and reads nothing); assign refusing a network that
+// two answering sources serve (both runs are configuration_error); assign
+// keeping only the first answering source of a network (each set has one
+// source); the sets ordered against the options (Bitcoin Core comes
+// first).
+func TestSources_SourcesForNoNetworkThatShowOneNetworkAreItsSources(t *testing.T) {
 	esp := Source{Chain: ChainBitcoin, Provider: source.Esplora, URL: "https://esplora.truestamp.example"}
 	cor := Source{Chain: ChainBitcoin, Provider: source.BitcoinCore, URL: "https://core.truestamp.example"}
-	_, rejection := configure(t, online(t, "prod", reader, esp, cor))
-	if rejection == nil || rejection.Code != specdata.ReasonConfigurationError || !strings.Contains(rejection.Message, "Two Bitcoin sources") || len(log.read()) != 0 {
-		t.Fatalf("prod: %v, reads %q", rejection, log.read())
-	}
-	for _, value := range []string{regtestGenesisHash, ProductionGenesisHash} {
-		both := func(s Source) (string, error) {
-			if s.Chain == ChainBitcoin {
-				return value, nil
+	for _, c := range []struct {
+		environment, value, network string
+		others                      []string
+	}{
+		{"prod", ProductionGenesisHash, "mainnet", []string{"https://blockstream.info/api"}},
+		{"staging", regtestGenesisHash, "regtest", nil},
+	} {
+		var log readLog
+		reader := log.through(func(s Source) (string, error) {
+			if s.URL == esp.URL || s.URL == cor.URL {
+				return c.value, nil
 			}
 			return honestIdentities(s)
+		})
+		run, rejection := configure(t, online(t, c.environment, reader, esp, cor))
+		if rejection != nil {
+			t.Fatalf("%s: %v", c.environment, rejection)
 		}
-		if _, rejection := configure(t, online(t, "staging", both, esp, cor)); rejection == nil ||
-			rejection.Code != specdata.ReasonConfigurationError || !strings.Contains(rejection.Message, "Two Bitcoin sources") {
-			t.Errorf("staging, both nodes giving %s: %v", value, rejection)
+		set, ok := run.SourcesFor(PinCommitment, ChainBitcoin)
+		if !ok || set.Network != c.network || set.Policy != (SourcePolicy{Kind: SourcePolicyFirst}) || set.Required() != 1 || len(set.Sources) != 2 ||
+			set.Sources[0].Source.URL != esp.URL || set.Sources[1].Source.URL != cor.URL ||
+			set.Sources[0].Status != SourceConfirmed || set.Sources[1].Status != SourceConfirmed {
+			t.Fatalf("%s: the Bitcoin commitment pin's sources %+v, %v", c.environment, set, ok)
+		}
+		if c.environment == "prod" {
+			if entropy, _ := run.SourcesFor(PinEntropy, ChainBitcoin); len(entropy.Sources) != 2 || entropy.Network != "mainnet" {
+				t.Fatalf("prod: the Bitcoin entropy pin's sources %+v", entropy)
+			}
+		} else if entropy, _ := run.SourcesFor(PinEntropy, ChainBitcoin); len(entropy.Sources) != 1 || entropy.Sources[0].From != FromDefault {
+			t.Fatalf("staging: the Bitcoin entropy pin's sources %+v", entropy)
+		}
+		reads := log.read()
+		for _, url := range []string{esp.URL, cor.URL} {
+			if n := len(slices.DeleteFunc(slices.Clone(reads), func(u string) bool { return u != url })); n != 1 {
+				t.Errorf("%s: %s read %d times, reads %q", c.environment, url, n, reads)
+			}
 		}
 	}
-	fixed := []Source{
-		{Chain: ChainBitcoin, Provider: source.Esplora, URL: "https://one.truestamp.example", Network: "regtest"},
-		{Chain: ChainBitcoin, Provider: source.Esplora, URL: "https://two.truestamp.example", Network: "regtest"},
+}
+
+// recordsOf writes each of the run's records as "<url> <status> <pins>".
+func recordsOf(run *Run) []string {
+	var out []string
+	for _, r := range run.Sources {
+		out = append(out, strings.TrimSpace(r.Source.URL+" "+string(r.Status)+" "+pinsOf(r)))
 	}
-	if _, rejection := configure(t, online(t, "test", honestIdentities, fixed...)); rejection == nil ||
-		rejection.Code != specdata.ReasonConfigurationError || !strings.Contains(rejection.Message, "Two Bitcoin sources") {
-		t.Fatalf("two sources named for regtest: %v", rejection)
+	return out
+}
+
+// A source given for no network whose confirmed answer only pinned
+// networks with their own configuration allow serves nothing and is
+// recorded confirmed with no pins, whatever other networks are open, and
+// no configuration_error comes of it (SPEC.md sections 9 and 10.2, step
+// 0); the networks with no configuration keep their other sources or their
+// defaults. Under dev: mainnet configured under at_least 2, beside an
+// Esplora server showing mainnet and a Bitcoin Core node showing regtest,
+// in both orders of the options, the Esplora server serves nothing and the
+// node serves regtest; regtest configured under all, beside the same two,
+// the Esplora server serves mainnet and the node nothing; regtest
+// configured with one source, confirmed or with no usable answer, beside
+// an Esplora server showing regtest, which serves nothing, so mainnet's
+// default is read. With both networks configured under dev, or mainnet
+// configured under prod, the source is never read and has no record. A
+// source given for no network whose answer no pinned network of its chain
+// allows is still configuration_error beside a configuration: with
+// Bitcoin pinned to testnet and regtest, testnet configured, one showing
+// mainnet is refused, and the message names both pinned networks. Mutants
+// killed: assign holding such a source to the open networks alone (each
+// run with one open network is configuration_error); assign never
+// refusing such a source (the last run is configuration_error for
+// regtest's missing source instead); assign recording it unreachable (it
+// then serves mainnet, whose default is not read); assign leaving it out
+// of the records; assign giving it the pins of the configured networks it
+// fits; mismatch naming the open networks alone (the message names
+// regtest only).
+func TestSources_ASourceForNoNetworkThatOnlyConfiguredNetworksAllowServesNothing(t *testing.T) {
+	esp := Source{Chain: ChainBitcoin, Provider: source.Esplora, URL: "https://floating-esplora.truestamp.example"}
+	cor := Source{Chain: ChainBitcoin, Provider: source.BitcoinCore, URL: "https://floating-core.truestamp.example"}
+	const blockstream = "https://blockstream.info/api"
+	first := SourcePolicy{Kind: SourcePolicyFirst}
+	atLeast2 := SourcePolicy{Kind: SourcePolicyAtLeast, N: 2}
+	stellarTestnet := "https://horizon-testnet.stellar.org confirmed commitment:testnet entropy:testnet"
+	mainnetValues := map[string]string{e1: ProductionGenesisHash, e2: ProductionGenesisHash, esp.URL: ProductionGenesisHash, cor.URL: regtestGenesisHash}
+	mainnetSet := "mainnet at_least 2 2: " + e1 + " confirmed operator mainnet entropy:mainnet, " + e2 + " confirmed operator mainnet entropy:mainnet"
+	for _, c := range []struct {
+		name, environment   string
+		values              map[string]string
+		sources             []Source
+		configured          []NetworkSources
+		records             []string
+		commitment, entropy string
+		read, notRead       []string
+	}{
+		{"dev, mainnet configured, Esplora then Core", "dev", mainnetValues, []Source{esp, cor},
+			[]NetworkSources{configured(ChainBitcoin, "mainnet", atLeast2, e1, e2)},
+			[]string{e1 + " confirmed entropy:mainnet", e2 + " confirmed entropy:mainnet", esp.URL + " confirmed", cor.URL + " confirmed commitment:regtest", stellarTestnet},
+			"regtest first 1: " + cor.URL + " confirmed operator  commitment:regtest", mainnetSet,
+			[]string{esp.URL, cor.URL}, []string{blockstream}},
+		{"dev, mainnet configured, Core then Esplora", "dev", mainnetValues, []Source{cor, esp},
+			[]NetworkSources{configured(ChainBitcoin, "mainnet", atLeast2, e1, e2)},
+			[]string{e1 + " confirmed entropy:mainnet", e2 + " confirmed entropy:mainnet", cor.URL + " confirmed commitment:regtest", esp.URL + " confirmed", stellarTestnet},
+			"regtest first 1: " + cor.URL + " confirmed operator  commitment:regtest", mainnetSet,
+			[]string{esp.URL, cor.URL}, []string{blockstream}},
+		{"dev, regtest configured, Esplora then Core", "dev",
+			map[string]string{e1: regtestGenesisHash, e2: regtestGenesisHash, esp.URL: ProductionGenesisHash, cor.URL: regtestGenesisHash},
+			[]Source{esp, cor},
+			[]NetworkSources{configured(ChainBitcoin, "regtest", SourcePolicy{Kind: SourcePolicyAll}, e1, e2)},
+			[]string{e1 + " confirmed commitment:regtest", e2 + " confirmed commitment:regtest", esp.URL + " confirmed entropy:mainnet", cor.URL + " confirmed", stellarTestnet},
+			"regtest all 2: " + e1 + " confirmed operator regtest commitment:regtest, " + e2 + " confirmed operator regtest commitment:regtest",
+			"mainnet first 1: " + esp.URL + " confirmed operator  entropy:mainnet",
+			[]string{esp.URL, cor.URL}, []string{blockstream}},
+		{"dev, regtest configured, one source", "dev",
+			map[string]string{e1: regtestGenesisHash, esp.URL: regtestGenesisHash}, []Source{esp},
+			[]NetworkSources{configured(ChainBitcoin, "regtest", first, e1)},
+			[]string{e1 + " confirmed commitment:regtest", esp.URL + " confirmed", blockstream + " confirmed entropy:mainnet", stellarTestnet},
+			"regtest first 1: " + e1 + " confirmed operator regtest commitment:regtest",
+			"mainnet first 1: " + blockstream + " confirmed default mainnet entropy:mainnet",
+			[]string{esp.URL, blockstream}, nil},
+		{"dev, regtest configured, its one source unreachable", "dev",
+			map[string]string{e1: "", esp.URL: regtestGenesisHash}, []Source{esp},
+			[]NetworkSources{configured(ChainBitcoin, "regtest", first, e1)},
+			[]string{e1 + " unreachable commitment:regtest", esp.URL + " confirmed", blockstream + " confirmed entropy:mainnet", stellarTestnet},
+			"regtest first 1: " + e1 + " unreachable operator regtest commitment:regtest",
+			"mainnet first 1: " + blockstream + " confirmed default mainnet entropy:mainnet",
+			[]string{esp.URL, blockstream}, nil},
+		{"dev, both networks configured", "dev",
+			map[string]string{e1: regtestGenesisHash, e2: ProductionGenesisHash, esp.URL: regtestGenesisHash}, []Source{esp},
+			[]NetworkSources{configured(ChainBitcoin, "regtest", first, e1), configured(ChainBitcoin, "mainnet", first, e2)},
+			[]string{e1 + " confirmed commitment:regtest", e2 + " confirmed entropy:mainnet", stellarTestnet},
+			"regtest first 1: " + e1 + " confirmed operator regtest commitment:regtest",
+			"mainnet first 1: " + e2 + " confirmed operator mainnet entropy:mainnet",
+			nil, []string{esp.URL, blockstream}},
+		{"prod, mainnet configured", "prod",
+			map[string]string{e1: ProductionGenesisHash, esp.URL: ProductionGenesisHash}, []Source{esp},
+			[]NetworkSources{configured(ChainBitcoin, "mainnet", first, e1)},
+			[]string{e1 + " confirmed commitment:mainnet entropy:mainnet", "https://horizon.stellar.org confirmed commitment:public entropy:public"},
+			"mainnet first 1: " + e1 + " confirmed operator mainnet commitment:mainnet entropy:mainnet",
+			"mainnet first 1: " + e1 + " confirmed operator mainnet commitment:mainnet entropy:mainnet",
+			nil, []string{esp.URL, blockstream}},
+	} {
+		var log readLog
+		cfg := online(t, c.environment, log.through(valuesReader(c.values)), c.sources...)
+		cfg.NetworkSources = c.configured
+		run, rejection := configure(t, cfg)
+		if rejection != nil {
+			t.Errorf("%s: %v", c.name, rejection)
+			continue
+		}
+		if got := recordsOf(run); !slices.Equal(got, c.records) {
+			t.Errorf("%s: records\n got %q\nwant %q", c.name, got, c.records)
+		}
+		commitment, _ := run.SourcesFor(PinCommitment, ChainBitcoin)
+		entropy, _ := run.SourcesFor(PinEntropy, ChainBitcoin)
+		if setOf(commitment) != c.commitment || setOf(entropy) != c.entropy {
+			t.Errorf("%s: the Bitcoin pins\n got %q, %q\nwant %q, %q", c.name, setOf(commitment), setOf(entropy), c.commitment, c.entropy)
+		}
+		reads := log.read()
+		for _, u := range c.read {
+			if timesRead(reads, u) != 1 {
+				t.Errorf("%s: %s read %d times, want 1", c.name, u, timesRead(reads, u))
+			}
+		}
+		for _, u := range c.notRead {
+			if timesRead(reads, u) != 0 {
+				t.Errorf("%s: %s was read", c.name, u)
+			}
+		}
+	}
+
+	var log readLog
+	cfg := online(t, "test", log.through(valuesReader(map[string]string{e1: testnetGenesisHash, esp.URL: ProductionGenesisHash})), esp)
+	cfg.Networks.Commitment.Bitcoin, cfg.Networks.Entropy.Bitcoin = "testnet", "regtest"
+	cfg.NetworkSources = []NetworkSources{configured(ChainBitcoin, "testnet", first, e1)}
+	_, rejection := configure(t, cfg)
+	want := "The Bitcoin source at " + esp.URL + " gives the hash of the block at height 0 of Bitcoin's production network, mainnet, " +
+		"and the run pins it to testnet or regtest, so the run gives no verdict."
+	if rejection == nil || rejection.Code != specdata.ReasonConfigurationError || rejection.Message != want {
+		t.Fatalf("testnet configured, a source for no network showing mainnet: %v\nwant %s", rejection, want)
+	}
+	if reads := log.read(); len(reads) != 2 || timesRead(reads, e1) != 1 || timesRead(reads, esp.URL) != 1 {
+		t.Fatalf("reads %q", reads)
+	}
+}
+
+// A source given for no network whose answer fits only a configured
+// network serves no other network's pin, so an open network it is the
+// only candidate for is left with no source (SPEC.md sections 9 and 10.2,
+// step 0). Under dev and under staging, with mainnet configured with its
+// own source and one Esplora server given for no network alone, showing
+// mainnet, regtest has no source and the run is configuration_error for
+// it, with the exact message; the configured source and the Esplora
+// server are each read once, and nothing else is read, no default
+// either. Mutant killed: assign giving a source whose answer fits only
+// configured networks the open networks that have no default and that no
+// other source serves (the Esplora server serves regtest, and the run
+// passes).
+func TestSources_ASourceForNoNetworkThatFitsOnlyAConfiguredNetworkLeavesRegtestWithNoSource(t *testing.T) {
+	esp := Source{Chain: ChainBitcoin, Provider: source.Esplora, URL: "https://floating-esplora.truestamp.example"}
+	values := map[string]string{e1: ProductionGenesisHash, esp.URL: ProductionGenesisHash}
+	want := "The run pins Bitcoin's regtest network, and no source serves it, so the run gives no verdict: " +
+		"this verifier has no built-in source for regtest, so run again with --esplora URL or --bitcoin-core URL for it."
+	for _, environment := range []string{"dev", "staging"} {
+		var log readLog
+		cfg := online(t, environment, log.through(valuesReader(values)), esp)
+		cfg.NetworkSources = []NetworkSources{configured(ChainBitcoin, "mainnet", SourcePolicy{Kind: SourcePolicyFirst}, e1)}
+		_, rejection := configure(t, cfg)
+		if rejection == nil || rejection.Code != specdata.ReasonConfigurationError || rejection.Message != want {
+			t.Errorf("%s: %v\nwant %s", environment, rejection, want)
+		}
+		if reads := log.read(); len(reads) != 2 || timesRead(reads, e1) != 1 || timesRead(reads, esp.URL) != 1 {
+			t.Errorf("%s: reads %q", environment, reads)
+		}
+	}
+}
+
+// A forbidden source given for no network beside one of its chain that
+// answers with a value the run's pin allows is configuration_error,
+// whatever the other source gives (SPEC.md section 10.2, step 0): under
+// prod, an Esplora server confirming mainnet beside a Bitcoin Core node
+// giving regtest's hash, and under test, an Esplora server confirming
+// regtest beside a node giving the production hash, each in both orders
+// of the options. Each message is exact and names the node, and each
+// source is read once. Mutant killed: assign recording a forbidden source
+// given for no network unreachable when another such source of its chain
+// answered (every run passes).
+func TestSources_AForbiddenSourceForNoNetworkBesideAnAnsweringOne(t *testing.T) {
+	esp := Source{Chain: ChainBitcoin, Provider: source.Esplora, URL: "https://floating-esplora.truestamp.example"}
+	cor := Source{Chain: ChainBitcoin, Provider: source.BitcoinCore, URL: "https://floating-core.truestamp.example"}
+	for _, c := range []struct {
+		environment, good, forbidden, want string
+	}{
+		{"prod", ProductionGenesisHash, regtestGenesisHash, "The Bitcoin source at " + cor.URL + " gives a hash of the block at height 0 " +
+			"other than that of Bitcoin's production network, mainnet, which the run pins it to, so the run gives no verdict."},
+		{"test", regtestGenesisHash, ProductionGenesisHash, "The Bitcoin source at " + cor.URL + " gives the hash of the block at height 0 " +
+			"of Bitcoin's production network, mainnet, and the run pins it to regtest, so the run gives no verdict."},
+	} {
+		for _, sources := range [][]Source{{esp, cor}, {cor, esp}} {
+			var log readLog
+			cfg := online(t, c.environment, log.through(valuesReader(map[string]string{esp.URL: c.good, cor.URL: c.forbidden})), sources...)
+			_, rejection := configure(t, cfg)
+			if rejection == nil || rejection.Code != specdata.ReasonConfigurationError || rejection.Message != c.want {
+				t.Errorf("%s, %s first: %v\nwant %s", c.environment, sources[0].Provider, rejection, c.want)
+			}
+			if reads := log.read(); timesRead(reads, esp.URL) != 1 || timesRead(reads, cor.URL) != 1 {
+				t.Errorf("%s, %s first: reads %q", c.environment, sources[0].Provider, reads)
+			}
+		}
 	}
 }
 
@@ -392,11 +629,11 @@ func TestSources_TwoSourcesForOnePinAreRefused(t *testing.T) {
 // operator source by what its identity read shows and a default for the
 // other, whichever of Esplora and Bitcoin Core shows which; under test one
 // source serves each chain's two pins. Each record says where it came
-// from, and SourceFor finds each pin's source. Mutants killed: allows
-// inverted for floating sources (the regtest node serves mainnet); pinsFor
-// giving every pin of the chain (the regtest node serves the mainnet
-// entropy pin); SourceFor reading the commitment network for the entropy
-// pin (staging's entropy source is the regtest node).
+// from, and SourcesFor finds each pin's one source, which serves it.
+// Mutants killed: allows inverted for floating sources (the regtest node
+// serves mainnet); pinsFor giving every pin of the chain (the regtest node
+// serves the mainnet entropy pin); SourcesFor reading the commitment
+// network for every pin (staging's entropy source is the regtest node).
 func TestSources_WhichPinEachSourceServesForEveryEnvironment(t *testing.T) {
 	regtestCore := Source{Chain: ChainBitcoin, Provider: source.BitcoinCore, URL: "https://core.truestamp.example"}
 	mainnetEsplora := Source{Chain: ChainBitcoin, Provider: source.Esplora, URL: "https://esplora.truestamp.example"}
@@ -452,14 +689,16 @@ func TestSources_WhichPinEachSourceServesForEveryEnvironment(t *testing.T) {
 		}
 		for _, pin := range []string{PinCommitment, PinEntropy} {
 			for _, chain := range chains {
-				record, ok := run.SourceFor(pin, chain)
-				if !ok || !record.Serves(pin, run.Config.pinNetwork(pin, chain)) {
+				network := run.Config.pinNetwork(pin, chain)
+				set, ok := run.SourcesFor(pin, chain)
+				if !ok || set.Network != network || len(set.Sources) != 1 ||
+					!slices.Contains(set.Sources[0].Pins, ServedPin{Pin: pin, Network: network}) {
 					t.Errorf("%s: no source for the %s pin of %s", c.environment, pin, chain)
 				}
 			}
 		}
 		if c.environment == "staging" {
-			if record, _ := run.SourceFor(PinEntropy, ChainBitcoin); record.Source.URL != mainnetEsplora.URL {
+			if record, _ := firstSource(run, PinEntropy, ChainBitcoin); record.Source.URL != mainnetEsplora.URL {
 				t.Errorf("staging's Bitcoin entropy source: %+v", record)
 			}
 		}
@@ -485,7 +724,7 @@ func TestSources_AnUnreachableOperatorSourceServesWhatNoOtherSourceServes(t *tes
 	if rejection != nil {
 		t.Fatal(rejection)
 	}
-	record, _ := run.SourceFor(PinEntropy, ChainBitcoin)
+	record, _ := firstSource(run, PinEntropy, ChainBitcoin)
 	if record.Source.URL != down.URL || record.Status != SourceUnreachable || pinsOf(record) != "commitment:regtest entropy:mainnet" ||
 		slices.Contains(log.read(), "https://blockstream.info/api") {
 		t.Fatalf("record %+v, reads %q", record, log.read())
@@ -494,7 +733,7 @@ func TestSources_AnUnreachableOperatorSourceServesWhatNoOtherSourceServes(t *tes
 	if rejection != nil {
 		t.Fatal(rejection)
 	}
-	if record, _ := run.SourceFor(PinEntropy, ChainBitcoin); record.Source.URL != down.URL || pinsOf(record) != "entropy:mainnet" {
+	if record, _ := firstSource(run, PinEntropy, ChainBitcoin); record.Source.URL != down.URL || pinsOf(record) != "entropy:mainnet" {
 		t.Fatalf("beside a regtest source: %+v", record)
 	}
 }
@@ -633,7 +872,7 @@ func TestSources_CoreCredentialsNeverReachAnOutput(t *testing.T) {
 			if got, _ := n.auth.Load().(string); got != "Basic "+basic {
 				t.Fatalf("the node saw Authorization %q", got)
 			}
-			record, _ := run.SourceFor(PinCommitment, ChainBitcoin)
+			record, _ := firstSource(run, PinCommitment, ChainBitcoin)
 			if record.Status != SourceUnreachable {
 				t.Fatalf("record = %+v", record)
 			}
@@ -696,15 +935,19 @@ func TestSources_TheDefaultReaderBuildsEachReadWithItsDeadline(t *testing.T) {
 // A source no run can read is an invalid configuration, whose error never
 // quotes the source's URL: a provider of another chain, a network not of
 // its chain, a URL with user information, a query or a host that is not a
-// DNS name, and credentials on a source that is not a Bitcoin Core node.
+// DNS name, credentials on a source that is not a Bitcoin Core node, and a
+// source given for no network that names one, even one of its chain.
 // Mutants killed: checkSource without its provider check; without its
-// credentials check; checkSourceURL without its host check.
+// credentials check; checkSourceURL without its host check; Validate
+// without its refusal of a network on a source of Config.Sources (the
+// source naming testnet is allowed).
 func TestConfig_SourceRefusals(t *testing.T) {
 	const secret = "planted-secret-2e8a"
 	for name, s := range map[string]Source{
 		"Horizon for Bitcoin":        {Chain: ChainBitcoin, Provider: source.Horizon, URL: "https://h.example"},
 		"no chain":                   {Provider: source.Esplora, URL: "https://e.example"},
 		"a network of another chain": {Chain: ChainStellar, Provider: source.Horizon, URL: "https://h.example", Network: "mainnet"},
+		"a network named":            {Chain: ChainStellar, Provider: source.Horizon, URL: "https://h.example", Network: "testnet"},
 		"user information":           {Chain: ChainBitcoin, Provider: source.BitcoinCore, URL: "http://u:" + secret + "@127.0.0.1:8332"},
 		"a query":                    {Chain: ChainBitcoin, Provider: source.Esplora, URL: "https://e.example/?key=" + secret},
 		"a host that is no DNS name": {Chain: ChainBitcoin, Provider: source.Esplora, URL: "https://" + secret + "..example"},
@@ -906,7 +1149,7 @@ func TestSources_OfTwoUnreachableBitcoinSourcesTheFirstServesThePins(t *testing.
 				t.Fatalf("Bitcoin sources %q, want %q", got, want)
 			}
 			for _, pin := range []string{PinCommitment, PinEntropy} {
-				if record, ok := run.SourceFor(pin, ChainBitcoin); !ok || record.Source.Provider != source.Esplora {
+				if record, ok := firstSource(run, pin, ChainBitcoin); !ok || record.Source.Provider != source.Esplora {
 					t.Fatalf("the %s pin's source: %+v", pin, record)
 				}
 			}

@@ -54,8 +54,11 @@ import (
 // CONFIGURATION, and its failed read fails KEY_BINDING. An online case's
 // step 0 also confirms each pinned source's identity: the file stands as
 // the operator-pinned source of each network whose identity read it holds,
-// each pinned to that network, and answers each identity read. A case runs
-// under the pins its networks give, never the defaults of its E_v.
+// or as each of the sources the case's sources name for one, configured
+// for that network in their order under the case's policy, a network its
+// sources do not name having its one source under first (SPEC.md section
+// 13.2), and answers each identity read. A case runs under the pins its
+// networks give, never the defaults of its E_v.
 
 // lastBuilt is the last step the runner runs.
 const lastBuilt = "DERIVE"
@@ -126,7 +129,9 @@ func keyringUnavailable(c vectorcases.Case) bool {
 // unavailable is too. A case is offline unless it names a replay file; an
 // online one reads its keyring, when it reads one, through the replay's
 // keyring reader, and its sources' identities through its identity
-// reader, its sources the networks whose identity read the file holds.
+// reader, its sources those its replay file stands for, configured for
+// each network whose identity read the file holds, under the policy its
+// sources give.
 func caseConfig(t *testing.T, c vectorcases.Case, replay *caseReplay) verifier.Config {
 	t.Helper()
 	cfg, err := verifier.NewConfig(c.Config.Environment)
@@ -140,7 +145,7 @@ func caseConfig(t *testing.T, c vectorcases.Case, replay *caseReplay) verifier.C
 	}
 	if replay != nil {
 		cfg.Online, cfg.ReadKeyring, cfg.ReadIdentity = true, replay.keyrings, replay.identities
-		cfg.Sources = replay.sources
+		cfg.NetworkSources = replay.networks
 	}
 	switch keyring := c.Config.Keyring; {
 	case keyring == nil || *keyring == "unavailable":
@@ -184,44 +189,46 @@ func reportOf(run *verifier.Run, from int) outcome {
 }
 
 // caseReplay is the replay adapter of one online case: its keyring
-// reader, its identity reader, the sources its replay file stands for, and
-// the reads each reader made.
+// reader, its identity reader, the network configurations its replay file
+// stands for, and the reads each reader made.
 type caseReplay struct {
 	keyrings   verifier.KeyringReader
 	identities verifier.IdentityReader
-	sources    []verifier.Source
+	networks   []verifier.NetworkSources
+	// names are the name of each source the file stands for, by its URL,
+	// the empty string for a network's one source.
+	names map[string]string
 
 	mu sync.Mutex
 	// urls are the keyring reads made, and identityReads the identity
-	// reads, each "<chain> <network>".
+	// reads, each "<chain> <network>", with " <name>" for a named source.
 	urls, identityReads []string
 }
 
 // replayOf is the replay adapter of an online case, or nil for an offline
 // one. Each keyring read is answered from the case's replay file, a found
 // keyring as a value with no bytes of its own (SPEC.md section 13.2), and
-// an unreachable one as a failed read; each identity read of a network is
-// answered from the file's identity read of that network, an unreachable
-// one as a read with no usable answer. The file stands as the
-// operator-pinned source of each network whose identity read it holds: a
-// Horizon server for Stellar and an Esplora server for Bitcoin, pinned to
-// that network, at a URL under replay.invalid that no read reaches. A read
-// the file does not hold fails the test. The runner gives each network one
-// source, so it runs no case that names several sources of a network
-// (SPEC.md section 9, "Several sources for one network"), and refuses one.
+// an unreachable one as a failed read; each identity read of a source is
+// answered from the file's identity read of that network from that source,
+// an unreachable one as a read with no usable answer. The file stands as
+// the operator-pinned source of each network whose identity read it
+// holds, or as each of the sources the case's sources name for one
+// (SPEC.md section 13.2): each is a Horizon server for Stellar and an
+// Esplora server for Bitcoin, at a URL under replay.invalid that no read
+// reaches, configured for that network. A network the case's sources name
+// has those sources in their order under the case's policy, and any other
+// network one source under the policy first. A read the file does not hold
+// fails the test.
 func replayOf(t *testing.T, c vectorcases.Case) *caseReplay {
 	t.Helper()
 	if c.Config.Online == nil {
 		return nil
 	}
-	if c.Config.Sources != nil {
-		t.Fatalf("%s names several sources of a network; the runner gives each network one source", c.ID)
-	}
 	replay, err := vectorcases.LoadCaseReplay(c)
 	if err != nil {
 		t.Fatalf("%s: %v", c.ID, err)
 	}
-	adapter := &caseReplay{}
+	adapter := &caseReplay{names: map[string]string{}}
 	adapter.keyrings = func(url string) (verifier.KeyringRead, error) {
 		adapter.mu.Lock()
 		adapter.urls = append(adapter.urls, url)
@@ -236,26 +243,62 @@ func replayOf(t *testing.T, c vectorcases.Case) *caseReplay {
 		return verifier.KeyringRead{Replayed: true, Value: value}, nil
 	}
 	adapter.identities = func(s verifier.Source) (string, error) {
+		name, known := adapter.names[s.URL]
 		adapter.mu.Lock()
-		adapter.identityReads = append(adapter.identityReads, s.Chain+" "+s.Network)
+		adapter.identityReads = append(adapter.identityReads, strings.TrimSuffix(s.Chain+" "+s.Network+" "+name, " "))
 		adapter.mu.Unlock()
-		value, err := replay.Identity(s.Chain, s.Network, "")
+		if !known {
+			t.Errorf("%s: an identity read of %s, which the replay file does not stand for", c.ID, s.URL)
+		}
+		value, err := replay.Identity(s.Chain, s.Network, name)
 		if errors.Is(err, vectorcases.ErrNoAnswer) {
 			t.Errorf("%s: %v", c.ID, err)
 		}
 		return value, err
 	}
 	for _, s := range replay.Sources() {
-		provider := source.Esplora
-		if s.Chain == verifier.ChainStellar {
-			provider = source.Horizon
+		if slices.ContainsFunc(adapter.networks, func(n verifier.NetworkSources) bool { return n.Chain == s.Chain && n.Network == s.Network }) {
+			continue
 		}
-		adapter.sources = append(adapter.sources, verifier.Source{
-			Chain: s.Chain, Provider: provider, Network: s.Network,
-			URL: "https://replay.invalid/" + c.ID + "/" + s.Chain + "/" + s.Network,
-		})
+		network := verifier.NetworkSources{Chain: s.Chain, Network: s.Network, Policy: verifier.SourcePolicy{Kind: verifier.SourcePolicyFirst}}
+		names := []string{""}
+		if named, ok := c.Config.Sources[s.Chain][s.Network]; ok {
+			network.Policy = casePolicy(named)
+			names = named.Sources
+		}
+		for _, name := range names {
+			network.Sources = append(network.Sources, adapter.source(c, s.Chain, s.Network, name))
+		}
+		adapter.networks = append(adapter.networks, network)
 	}
 	return adapter
+}
+
+// source is the source the replay file stands for as name, of network of
+// chain, with its URL recorded under its name.
+func (a *caseReplay) source(c vectorcases.Case, chain, network, name string) verifier.Source {
+	provider := source.Esplora
+	if chain == verifier.ChainStellar {
+		provider = source.Horizon
+	}
+	url := "https://replay.invalid/" + c.ID + "/" + chain + "/" + network
+	if name != "" {
+		url += "/" + name
+	}
+	a.names[url] = name
+	return verifier.Source{Chain: chain, Provider: provider, URL: url}
+}
+
+// casePolicy is the source policy a case's sources give a network: first,
+// all, or at_least its required.
+func casePolicy(named vectorcases.NetworkSources) verifier.SourcePolicy {
+	switch named.Policy {
+	case vectorcases.PolicyAtLeast:
+		return verifier.SourcePolicy{Kind: verifier.SourcePolicyAtLeast, N: *named.Required}
+	case vectorcases.PolicyAll:
+		return verifier.SourcePolicy{Kind: verifier.SourcePolicyAll}
+	}
+	return verifier.SourcePolicy{Kind: verifier.SourcePolicyFirst}
 }
 
 // reads returns the identity reads the adapter made, sorted.
@@ -272,10 +315,11 @@ func (a *caseReplay) reads() []string {
 // to DERIVE, an online case's keyring and identity reads answered by the
 // replay adapter. Each online case under prod with no keyring option reads the
 // keyring of www.truestamp.com once, and no other case reads one. Each
-// online case that passes CONFIGURATION has a source for every pin,
-// confirmed unless its file's identity read of that network is
-// unreachable, and reads each pinned network's identity once; an offline
-// case reads none.
+// online case that passes CONFIGURATION has the sources of each pin its
+// file stands for, in the order and under the policy its sources give,
+// each confirmed unless its file's identity read of that source is
+// unreachable, and reads each source's identity once; an offline case
+// reads none.
 func run(t *testing.T, c vectorcases.Case) outcome {
 	t.Helper()
 	o, _ := runCase(t, c)
@@ -313,38 +357,64 @@ func runCase(t *testing.T, c vectorcases.Case) (outcome, *caseReplay) {
 }
 
 // checkSources holds a run that passed CONFIGURATION to its case's
-// sources: offline, none; online, a source for each pin, confirmed or, for
-// a network whose replayed identity read is unreachable, unreachable, and
-// one identity read of each pinned network.
+// sources: offline, none; online, for each pin, the sources of its network
+// the case gives, by name in their order (one unnamed source when its
+// sources name none), under its policy with its required, each from the
+// operator, configured for that network, and confirmed or, when the file's
+// identity read of it is unreachable, unreachable with a reason; and one
+// identity read of each source of each pinned network.
 func checkSources(t *testing.T, c vectorcases.Case, r *verifier.Run, replay *caseReplay) {
 	t.Helper()
 	if replay == nil {
-		if len(r.Sources) != 0 {
-			t.Errorf("%s: an offline run has sources %+v", c.ID, r.Sources)
+		if len(r.Sources) != 0 || len(r.SourceSets) != 0 {
+			t.Errorf("%s: an offline run has sources %+v, %+v", c.ID, r.Sources, r.SourceSets)
 		}
 		return
 	}
-	var pinned []string
+	file, err := vectorcases.LoadCaseReplay(c)
+	if err != nil {
+		t.Fatalf("%s: %v", c.ID, err)
+	}
+	var reads []string
 	for _, pin := range []struct {
 		name     string
 		networks map[string]string
 	}{{verifier.PinCommitment, c.Config.Networks.Commitment}, {verifier.PinEntropy, c.Config.Networks.Entropy}} {
 		for chain, network := range pin.networks {
-			if !slices.Contains(pinned, chain+" "+network) {
-				pinned = append(pinned, chain+" "+network)
+			names, policy, required := []string{""}, verifier.SourcePolicyFirst, 1
+			if named, ok := c.Config.Sources[chain][network]; ok {
+				names, policy = named.Sources, verifier.SourcePolicyKind(named.Policy)
+				required = len(names)
+				if named.Required != nil {
+					required = *named.Required
+				} else if named.Policy == vectorcases.PolicyFirst {
+					required = 1
+				}
 			}
-			record, ok := r.SourceFor(pin.name, chain)
-			want := verifier.SourceConfirmed
-			if strings.HasPrefix(c.ID, "reads-identity-"+chain+"-unreachable") {
-				want = verifier.SourceUnreachable
+			set, ok := r.SourcesFor(pin.name, chain)
+			if !ok || set.Chain != chain || set.Network != network || set.Policy.Kind != policy || set.Required() != required || len(set.Sources) != len(names) {
+				t.Errorf("%s: the %s pin of %s: %+v, %v; want %d sources under %s, required %d", c.ID, pin.name, chain, set, ok, len(names), policy, required)
+				continue
 			}
-			if !ok || record.Status != want || record.Source.Network != network || record.From != verifier.FromOperator {
-				t.Errorf("%s: the %s pin of %s: %+v, %v; want %s", c.ID, pin.name, chain, record, ok, want)
+			for i, name := range names {
+				record := set.Sources[i]
+				want := verifier.SourceConfirmed
+				if _, err := file.Identity(chain, network, name); errors.Is(err, vectorcases.ErrUnreachable) {
+					want = verifier.SourceUnreachable
+				}
+				if record.Status != want || replay.names[record.Source.URL] != name || record.Source.Network != network ||
+					record.From != verifier.FromOperator || (want == verifier.SourceUnreachable) != (record.Reason != "") {
+					t.Errorf("%s: the %s pin of %s, source %d: %+v; want %q, %s", c.ID, pin.name, chain, i, record, name, want)
+				}
+				read := strings.TrimSuffix(chain+" "+network+" "+name, " ")
+				if !slices.Contains(reads, read) {
+					reads = append(reads, read)
+				}
 			}
 		}
 	}
-	if got := replay.reads(); !slices.Equal(got, slices.Sorted(slices.Values(pinned))) {
-		t.Errorf("%s: identity reads %q, want one of each of %q", c.ID, got, pinned)
+	if got := replay.reads(); !slices.Equal(got, slices.Sorted(slices.Values(reads))) {
+		t.Errorf("%s: identity reads %q, want one of each of %q", c.ID, got, reads)
 	}
 }
 
@@ -575,9 +645,13 @@ func unsourced(t *testing.T, c vectorcases.Case, o outcome) []string {
 // "false" or one of verifier.SchemaKeywords() among them; the five online
 // cases CONFIGURATION decides give configuration_error through the replay
 // adapter; the 18 sources-* cases, which alone name several sources of a
-// network (SPEC.md section 9), are not run, since the runner gives each
-// network one source; every other online case has a source for each pin and
-// reads each pinned network's identity once; and the two online cases whose
+// network (SPEC.md section 9), run with those sources in their order under
+// their policy, sources-configuration-regtest-mainnet_block0 giving
+// configuration_error and the other 17 their rows through DERIVE; every
+// other online case runs with one source configured for each network its
+// file stands for, under the policy first; each online case that passes
+// CONFIGURATION has, for each pin, the sources and policy its case gives
+// and reads each source's identity once; and the two online cases whose
 // keyring is unavailable, key_binding-unavailable-unreachable and
 // key_binding-unavailable-load_check, read the keyring of www.truestamp.com
 // through the replay adapter and fail KEY_BINDING keyring_unavailable.
@@ -615,8 +689,14 @@ func unsourced(t *testing.T, c vectorcases.Case, o outcome) []string {
 // declared-genesis_height-witnesses LINK_HEAD's pass comes before the
 // genesis height's failure at /witnesses/block/record/height, and in every
 // case with a signing key event LINK_KEY_EVENT's row before the check of
-// its key's bytes); Load dropping a case's sources (the sources-* cases are
-// run, and LoadCaseReplay refuses their records' sources).
+// its key's bytes); Load dropping a case's sources (LoadCaseReplay refuses
+// the sources-* cases' records' sources); the runner giving a named
+// network's sources under first whatever the case's policy (checkSources
+// finds the policy of every sources-all-* and sources-at_least_2-* case
+// wrong); confirmSources reading a configured network's sources after the
+// first only (sources-configuration-regtest-mainnet_block0's second source,
+// which gives the mainnet hash for regtest, is never read, and the run
+// passes CONFIGURATION).
 func TestCases_ThroughDerive(t *testing.T) {
 	cases, err := vectorcases.Load()
 	if err != nil {
@@ -627,19 +707,15 @@ func TestCases_ThroughDerive(t *testing.T) {
 	}
 	tally := map[string]int{}
 	names := map[string]bool{}
-	var unrun []string
+	var several []string
 	for _, c := range cases {
 		step := decidedAt(t, c)
 		online := c.Config.Online != nil
-		if c.Config.Sources != nil {
-			if !online || c.Family() != "sources" {
-				t.Fatalf("%s names sources; want an online sources-* case", c.ID)
-			}
-			unrun = append(unrun, c.ID)
-			continue
+		if (c.Config.Sources != nil) != (c.Family() == "sources") || (c.Config.Sources != nil && !online) {
+			t.Fatalf("%s: sources %v; only the online sources-* cases name sources", c.ID, c.Config.Sources)
 		}
-		if c.Family() == "sources" {
-			t.Fatalf("%s names no sources", c.ID)
+		if c.Config.Sources != nil {
+			several = append(several, c.ID)
 		}
 
 		t.Run(c.ID, func(t *testing.T) {
@@ -721,7 +797,7 @@ func TestCases_ThroughDerive(t *testing.T) {
 
 	want := map[string]int{
 		"rejected at CONFIGURATION":            11,
-		"online, rejected at CONFIGURATION":    5,
+		"online, rejected at CONFIGURATION":    6,
 		"rejected at READ":                     1,
 		"rejected at PARSE":                    15,
 		"rejected at ENVELOPE":                 32,
@@ -730,7 +806,7 @@ func TestCases_ThroughDerive(t *testing.T) {
 		"report, POLICY fails":                 15,
 		"report, DERIVE fails":                 152,
 		"report, passes through DERIVE":        71,
-		"online report, passes through DERIVE": 60,
+		"online report, passes through DERIVE": 77,
 		"online report, POLICY fails":          1,
 		"online report, DERIVE fails":          1,
 		"online report, the gate fails":        2,
@@ -743,8 +819,8 @@ func TestCases_ThroughDerive(t *testing.T) {
 			t.Fatalf("tally = %v, want %v", tally, want)
 		}
 	}
-	if len(unrun) != 18 {
-		t.Fatalf("%d cases name several sources of a network, %q; want the 18 sources-* cases", len(unrun), unrun)
+	if len(several) != 18 {
+		t.Fatalf("%d cases name several sources of a network, %q; want the 18 sources-* cases", len(several), several)
 	}
 	reached := slices.Sorted(maps.Keys(names))
 	if wantNames := []string{"chain", "class", "constructions", "constructions_digest", "declared", "keyword",
@@ -1351,13 +1427,29 @@ func TestCasesJSON_ReadsUnderTheStrictReader(t *testing.T) {
 // network's, each read with the other chain's source; a Stellar testnet
 // source that gives the production passphrase and a Bitcoin regtest source
 // that gives the production hash; and regtest pinned with no source, which
-// is refused before any identity read. The two reads-identity-* cases pass
-// CONFIGURATION, their one unreachable source recorded with the pins it
-// serves. Mutants killed: caseConfig taking the pins from the case's E_v,
-// test, instead of its networks (public-other_passphrase reads Stellar
-// testnet's default, which its file does not hold, and
-// mainnet-other_block0 has no regtest source); allows comparing the
-// network alone (no mismatch is found).
+// is refused before any identity read. So does
+// sources-configuration-regtest-mainnet_block0, whose Bitcoin regtest has
+// the sources a and b under all, after an identity read of each: b gives
+// the production hash, and a regtest's own, so the run is
+// configuration_error whatever a gives (SPEC.md section 10.2, step 0). The
+// two reads-identity-* cases pass CONFIGURATION, each entropy pin's set
+// holding its one source, unreachable, with the pins it serves.
+// sources-first-past_identity_unreachable passes CONFIGURATION, and its
+// source map is its configuration half:
+// Stellar testnet, for both its pins, has a and then b under first,
+// required 1, a unreachable with a reason and no identity, b confirmed
+// with the testnet passphrase, and Bitcoin regtest its one source,
+// confirmed, under first; each source's identity is read once. Mutants
+// killed: caseConfig taking the pins from the case's E_v, test, instead of
+// its networks (public-other_passphrase reads Stellar testnet's default,
+// which its file does not hold, and mainnet-other_block0 has no regtest
+// source); allows comparing the network alone (no mismatch is found);
+// assign dropping a configured source whose identity read has no usable
+// answer from its network's sources (past_identity_unreachable's testnet
+// has b alone, and each reads-identity case's set is empty); assign
+// returning at the first configured source that answered
+// (sources-configuration-regtest-mainnet_block0 passes, its b never
+// judged); planChain reversing a configuration's order (b comes before a).
 func TestCases_TheOnlineConfigurationCases(t *testing.T) {
 	cases, err := vectorcases.Load()
 	if err != nil {
@@ -1376,10 +1468,13 @@ func TestCases_TheOnlineConfigurationCases(t *testing.T) {
 			[]string{"bitcoin regtest", "stellar testnet"}},
 		"configuration-online-regtest-mainnet_block0": {"gives the hash of the block at height 0 of Bitcoin's production network, mainnet, and the run pins it to regtest",
 			[]string{"bitcoin regtest", "stellar testnet"}},
+		"sources-configuration-regtest-mainnet_block0": {"gives the hash of the block at height 0 of Bitcoin's production network, mainnet, and the run pins it to regtest",
+			[]string{"bitcoin regtest a", "bitcoin regtest b", "stellar testnet"}},
 	}
-	seen := 0
+	seen, mapped := 0, false
 	for _, c := range cases {
-		if !strings.HasPrefix(c.ID, "configuration-online-") && !strings.HasPrefix(c.ID, "reads-identity-") {
+		if !strings.HasPrefix(c.ID, "configuration-online-") && !strings.HasPrefix(c.ID, "reads-identity-") &&
+			c.ID != "sources-configuration-regtest-mainnet_block0" && c.ID != "sources-first-past_identity_unreachable" {
 			continue
 		}
 		replay := replayOf(t, c)
@@ -1387,12 +1482,21 @@ func TestCases_TheOnlineConfigurationCases(t *testing.T) {
 		if err != nil {
 			t.Fatalf("%s: %v", c.ID, err)
 		}
+		if c.ID == "sources-first-past_identity_unreachable" {
+			mapped = true
+			if rejection != nil {
+				t.Fatalf("%s: %v", c.ID, rejection)
+			}
+			checkPastIdentityUnreachable(t, r, replay)
+			continue
+		}
 		expected, configurationCase := want[c.ID]
 		if !configurationCase {
 			chain := strings.TrimSuffix(strings.TrimPrefix(c.ID, "reads-identity-"), "-unreachable")
-			record, ok := r.SourceFor(verifier.PinEntropy, chain)
-			if rejection != nil || !ok || record.Status != verifier.SourceUnreachable || len(record.Pins) != 2 || record.Reason == "" {
-				t.Errorf("%s: %v, %+v", c.ID, rejection, record)
+			set, ok := r.SourcesFor(verifier.PinEntropy, chain)
+			if rejection != nil || !ok || len(set.Sources) != 1 || set.Sources[0].Status != verifier.SourceUnreachable ||
+				len(set.Sources[0].Pins) != 2 || set.Sources[0].Reason == "" {
+				t.Errorf("%s: %v, %+v", c.ID, rejection, set)
 			}
 			continue
 		}
@@ -1405,8 +1509,34 @@ func TestCases_TheOnlineConfigurationCases(t *testing.T) {
 			t.Errorf("%s: identity reads %q, want %q", c.ID, got, expected.reads)
 		}
 	}
-	if seen != len(want) {
-		t.Fatalf("%d configuration-online cases, want %d", seen, len(want))
+	if seen != len(want) || !mapped {
+		t.Fatalf("%d configuration cases, want %d; sources-first-past_identity_unreachable run %v", seen, len(want), mapped)
+	}
+}
+
+// checkPastIdentityUnreachable holds the source map of
+// sources-first-past_identity_unreachable's run, as
+// TestCases_TheOnlineConfigurationCases says.
+func checkPastIdentityUnreachable(t *testing.T, r *verifier.Run, replay *caseReplay) {
+	t.Helper()
+	for _, pin := range []string{verifier.PinCommitment, verifier.PinEntropy} {
+		set, ok := r.SourcesFor(pin, verifier.ChainStellar)
+		if !ok || set.Network != "testnet" || set.Policy != (verifier.SourcePolicy{Kind: verifier.SourcePolicyFirst}) || set.Required() != 1 || len(set.Sources) != 2 {
+			t.Fatalf("the Stellar %s pin: %+v, %v", pin, set, ok)
+		}
+		a, b := set.Sources[0], set.Sources[1]
+		if replay.names[a.Source.URL] != "a" || a.Status != verifier.SourceUnreachable || a.Reason == "" || a.Identity != "" ||
+			replay.names[b.Source.URL] != "b" || b.Status != verifier.SourceConfirmed || b.Identity != "Test SDF Network ; September 2015" {
+			t.Fatalf("the Stellar %s pin's sources: %+v", pin, set.Sources)
+		}
+		bitcoin, ok := r.SourcesFor(pin, verifier.ChainBitcoin)
+		if !ok || bitcoin.Network != "regtest" || bitcoin.Policy.Kind != verifier.SourcePolicyFirst || len(bitcoin.Sources) != 1 ||
+			bitcoin.Sources[0].Status != verifier.SourceConfirmed {
+			t.Fatalf("the Bitcoin %s pin: %+v, %v", pin, bitcoin, ok)
+		}
+	}
+	if got, want := replay.reads(), []string{"bitcoin regtest", "stellar testnet a", "stellar testnet b"}; !slices.Equal(got, want) {
+		t.Fatalf("identity reads %q, want %q", got, want)
 	}
 }
 

@@ -18,9 +18,10 @@
 // could not be read (KEY_BINDING then fails keyring_unavailable whatever K
 // is, SPEC.md section 8.3), trust_root takes the kind current_keyring under
 // the keyring read from www.truestamp.com (section 10.5), and the run holds
-// the outcome of each source's identity read (SPEC.md section 10.2, step
-// 0). Its members are those steps 0 to 9 set; it holds no external gate,
-// label or edges.
+// the outcome of each source's identity read and each pinned network's
+// sources and source policy (SPEC.md sections 9 and 10.2, step 0). Its
+// members are those steps 0 to 9 set; it holds no external gate, label or
+// edges.
 
 package verifier
 
@@ -83,6 +84,7 @@ const (
 //	| KeyringUnavailable  | an online read of the keyring that would govern failed, so no key binds | CONFIGURATION |
 //	| TrustRoot           | trust_root, {digest, kind, location} (SPEC.md section 10.5) | CONFIGURATION |
 //	| Sources             | in an online run, each Stellar and Bitcoin source, confirmed or unreachable, with the pins it serves (sources.go); empty in an offline run | CONFIGURATION |
+//	| SourceSets          | in an online run, each pinned Stellar and Bitcoin network's sources, in their order, and its source policy (sources.go); empty in an offline run | CONFIGURATION |
 //	| Document            | the parsed document                                         | PARSE         |
 //	| Proof               | P, the parsed value of proof                                | ENVELOPE      |
 //	| PublicKey, Signature| the 32 octets of K and the 64 of V                          | ENVELOPE      |
@@ -100,6 +102,7 @@ type Run struct {
 	KeyringUnavailable bool
 	TrustRoot          TrustRoot
 	Sources            []SourceRecord
+	SourceSets         []SourceSet
 	Document           any
 	Proof              map[string]any
 	PublicKey          [32]byte

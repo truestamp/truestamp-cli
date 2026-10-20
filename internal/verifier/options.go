@@ -37,6 +37,13 @@
 //     information is refused wherever it comes from, no error quotes a
 //     source URL, and a report prints one as its scheme, host and port
 //     alone, never its path;
+//   - a network's several sources, in their order, and its source policy
+//     (SPEC.md section 9, "Several sources for one network") come only
+//     from the operator, through [Options.NetworkSources], which a caller
+//     of this package sets and no flag, configuration key or environment
+//     variable of this file reaches, never from the document; each
+//     source's credentials are a source.Credentials, which prints masked,
+//     and no source URL may carry user information;
 //   - no option sets a network pin: the pins are E_v's defaults.
 //
 // A repeated option is not refused: a flag set holds one value for each
@@ -47,6 +54,7 @@ package verifier
 import (
 	"fmt"
 	"net/url"
+	"slices"
 	"strings"
 
 	"github.com/spf13/pflag"
@@ -109,6 +117,11 @@ type Options struct {
 	// BitcoinCoreCredentials are the Bitcoin Core node's RPC credentials,
 	// from the configuration file or the environment; they print masked.
 	BitcoinCoreCredentials source.Credentials
+	// NetworkSources are the operator's configurations of a network's
+	// several sources, each with its sources in order and its source
+	// policy (SPEC.md section 9), which [Options.Config] gives the run as
+	// [Config.NetworkSources]. [OptionsFromCommand] sets none.
+	NetworkSources []NetworkSources
 }
 
 // OptionsFromCommand reads a run's options from the flags of the command
@@ -160,9 +173,14 @@ func OptionsFromCommand(flags *pflag.FlagSet, cfg *config.Config) (Options, erro
 // error wrapping [ErrInvalidConfig] for an environment that is not an E_v,
 // for --keyring with --no-keyring, or for a source URL [Config.Validate]
 // refuses, one carrying user information among them, whose error names
-// the option and never quotes the URL. Each source the options give is
-// one the operator pins, serving whichever pins of its chain its identity
-// read shows. The keyring source is the first of these the options give:
+// the option and never quotes the URL, or for a network configuration
+// [Config.Validate] refuses. Each source of Horizon, Esplora and
+// BitcoinCore is one the operator pins for no network: when it answers
+// its identity read, it serves only the pins of its chain of networks
+// with no configuration that the answer shows, so one whose answer fits
+// only configured networks serves nothing. Each of NetworkSources keeps
+// its order and policy, its sources copied so that the run holds its
+// own. The keyring source is the first of these the options give:
 //
 //  1. --no-keyring: keyless mode;
 //  2. --keyring FILE;
@@ -206,6 +224,10 @@ func (o Options) Config(keyrings KeyringReader, identities IdentityReader) (Conf
 		}
 		pinned.s.URL = pinned.raw
 		cfg.Sources = append(cfg.Sources, pinned.s)
+	}
+	for _, n := range o.NetworkSources {
+		n.Sources = slices.Clone(n.Sources)
+		cfg.NetworkSources = append(cfg.NetworkSources, n)
 	}
 	switch configured := o.Configured.For(o.Environment); {
 	case o.NoKeyring:
