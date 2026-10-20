@@ -18,9 +18,9 @@
 //	|-----------------------------------------------------------------------------|----------------------|
 //	| (a) subject hashes, (b) block nodes, (c) epochs                             | derive_records.go    |
 //	| (b) each key event a block node carries (section 10.3), through the records | derive_key_events.go |
+//	| (d) the Bitcoin evidence of each Bitcoin entry                              | derive_bitcoin.go    |
 //	| (e) LINK_INCLUSION, LINK_WITNESS, LINK_HEAD, LINK_KEY_EVENT, LINK_CHAIN_ORDER | derive_links.go    |
 //
-// The Bitcoin evidence of (d) joins between the records and the links.
 // Each check (derive_check.go) names its part by section 10.2's one rule:
 // the carried value it finds wrong when it fails, which for a
 // recomputation is the declared value.
@@ -39,7 +39,8 @@
 //     reach has three trace rows (section 10.6).
 //
 // A mismatch is derivation_mismatch unless its check names another code
-// (key_event_mismatch or ordering_violation). A failure here does not end
+// (key_event_mismatch, ordering_violation, or bitcoin_evidence_invalid for
+// a Bitcoin structure that is not well formed). A failure here does not end
 // the run, and LINK_KEY_EVENT's info not_attributable row is no failure.
 // A run that has already ended passes through unchanged, since its DERIVE
 // row is already skip prior_failure, and keeps an empty trace. A preimage
@@ -62,12 +63,13 @@ package verifier
 
 import (
 	"fmt"
+	"slices"
 
 	"github.com/truestamp/truestamp-cli/internal/specdata"
 )
 
-// Derive is step 9, DERIVE: every recomputation and every link, the
-// Bitcoin evidence of (d) aside, with the run's trace (see the file's doc).
+// Derive is step 9, DERIVE: every recomputation and every link, with the
+// run's trace (see the file's doc).
 func Derive(run *Run) {
 	if run.Ended {
 		return
@@ -88,10 +90,15 @@ func Derive(run *Run) {
 
 // deriveChecks are every check of DERIVE for P, in the order of step 9's
 // parts and of each table's rows, before the engine orders them: the
-// records' checks, the key events' among them, then the links'. publicKey
-// is the 32 octets of K, and attribution the run's.
+// records' checks, the key events' among them, then the Bitcoin
+// evidence's, then the links'. publicKey is the 32 octets of K, and
+// attribution the run's.
 func deriveChecks(proof map[string]any, publicKey [32]byte, attribution string) ([]deriveCheck, error) {
 	records, err := recordChecks(proof)
+	if err != nil {
+		return nil, fmt.Errorf("DERIVE: %w", err)
+	}
+	evidence, err := bitcoinEvidenceChecks(proof)
 	if err != nil {
 		return nil, fmt.Errorf("DERIVE: %w", err)
 	}
@@ -99,7 +106,7 @@ func deriveChecks(proof map[string]any, publicKey [32]byte, attribution string) 
 	if err != nil {
 		return nil, fmt.Errorf("DERIVE: %w", err)
 	}
-	return append(records, links...), nil
+	return slices.Concat(records, evidence, links), nil
 }
 
 // deriveEngine is the one engine: the rows and the trace of checks, each

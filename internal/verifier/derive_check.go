@@ -20,6 +20,7 @@
 //	| traced       | whether the check gives a trace row: its part is a CHECKED value (section 3.7), and it is not a row of LINK_HEAD, LINK_KEY_EVENT or LINK_CHAIN_ORDER (section 10.6) |
 //	| refused      | for a check of a key's bytes or a handover signature that fails, the step of SPEC.md section 6.2 that refused the key or the signature: y_not_below_p, small_order_key, not_on_curve, s_not_below_l or equation |
 //	| uncompared   | whether the check compares no recomputed value: the check of a key's bytes                       |
+//	| rule         | for a check of a structure's well-formedness that fails, the first rule the structure breaks (SPEC.md section 10.2, step 9 (d)): a rule of internal/verifier/bitcoin's Refusal |
 //	| message      | the row's message, for display only                                                                |
 //
 // A row's values (SPEC.md section 10.5). A pass row holds construction,
@@ -31,7 +32,9 @@
 // order link's bound, or K for LINK_KEY_EVENT (section 10.2, step 9); the
 // check of a key's bytes, which compares no values, holds declared and
 // refused in place of recomputed, and a handover signature that does not
-// verify also holds refused.
+// verify also holds refused. A check of a structure's well-formedness,
+// which is no comparison and reads no value the proof carries as declared,
+// holds construction and rule alone.
 //
 // A trace row (SPEC.md section 10.6) is {construction, declared, inputs,
 // part, recomputed, status}, with part and each input written as an RFC
@@ -46,8 +49,7 @@
 // the engine does not know; a row's status is the one the reason table
 // gives its code (NewRow), so not_attributable is info and every other code
 // a check gives is fail; and a failure's other values are the members
-// refused and uncompared, where the reference holds a map of them. The rule
-// a structure breaks belongs to the Bitcoin evidence, which gives it.
+// refused, uncompared and rule, where the reference holds a map of them.
 
 package verifier
 
@@ -84,6 +86,7 @@ type deriveCheck struct {
 	traced       bool
 	refused      string
 	uncompared   bool
+	rule         string
 	message      string
 }
 
@@ -147,6 +150,10 @@ func sameValue(a, b any) bool {
 func (c deriveCheck) row() Row {
 	row := NewRow(deriveStep, c.code, Part(c.part.Encode()), c.message, map[string]any{"construction": c.construction})
 	if row.Status != StatusFail {
+		return row
+	}
+	if c.rule != "" {
+		row.Values["rule"] = c.rule
 		return row
 	}
 	row.Values["declared"] = c.declared
