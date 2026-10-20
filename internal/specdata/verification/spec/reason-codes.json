@@ -1,7 +1,7 @@
 [
   {
     "code": "configuration_error",
-    "meaning": "a check of step 0 fails (section 10.2): a keyring file or configured keyring fails its load checks, a run whose environment is not prod is not keyless and has no keyring source (section 6.4), an online run pins a network it has no source for, or a source's identity read gives a value step 0 forbids",
+    "meaning": "a check of step 0 fails (section 10.2): a keyring file or configured keyring fails its load checks, a run whose environment is not prod is not keyless and has no keyring source (section 6.4), an online run pins a network it has no source for, a source's identity read gives a value step 0 forbids, or a source policy's n is 0 or above the number of its network's sources",
     "status": "bare",
     "step": "CONFIGURATION"
   },
@@ -164,6 +164,18 @@
     "meaning": "the Bitcoin tip is below height + BITCOIN_FINALITY",
     "status": "skip",
     "step": "CHAIN"
+  },
+  {
+    "code": "sources_disagree",
+    "meaning": "sources of one network that reached a conclusive outcome conflict: one passes and another fails, or two pass with candidates at different instants (section 10.4); a source with no conclusive outcome never counts, and a disagreement is no failure",
+    "status": "skip",
+    "step": "CHAIN, SOURCES"
+  },
+  {
+    "code": "sources_incomplete",
+    "meaning": "no conclusive outcomes conflict, but fewer sources reached one than the source policy asks for, and the sources did not all skip with one code (section 10.4)",
+    "status": "skip",
+    "step": "CHAIN, SOURCES"
   },
   {
     "code": "entropy_mismatch",

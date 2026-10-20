@@ -437,8 +437,8 @@ func TestAgreement_ReasonCodesWithTheirSubReasons(t *testing.T) {
 	if !slices.Equal(bare, []Reason{ReasonConfigurationError, ReasonInputTooLarge, ReasonMalformedJSON, ReasonInvalidEnvelope}) {
 		t.Errorf("the bare codes are %v, want SPEC.md section 12.1's four", bare)
 	}
-	if len(want) != 34 {
-		t.Errorf("the table has %d codes, want SPEC.md section 12.1's 34", len(want))
+	if len(want) != 36 {
+		t.Errorf("the table has %d codes, want SPEC.md section 12.1's 36", len(want))
 	}
 }
 

@@ -1,0 +1,298 @@
+{
+  "reads": [
+    {
+      "answer": {
+        "outcome": "found",
+        "value": {
+          "height": 215,
+          "median_time_past": 1790386800,
+          "time": 1790387100
+        }
+      },
+      "read": {
+        "hash": "4688b3b0f3274af83aeb59fe154f7eeda0091fd9d746dca9bd3f05863d50f16d",
+        "kind": "bitcoin_block",
+        "network": "regtest"
+      }
+    },
+    {
+      "answer": {
+        "outcome": "found",
+        "value": {
+          "hash": "066ee8ed37e3b69aaef26bca28f2818674e61412e1be5bc8f17b0e4cc5971386",
+          "median_time_past": 1790387220,
+          "transaction_count": 5
+        }
+      },
+      "read": {
+        "height": 222,
+        "kind": "bitcoin_block_at_height",
+        "network": "regtest"
+      }
+    },
+    {
+      "answer": {
+        "outcome": "found",
+        "value": {
+          "hash": "0f9188f13cb7b2c71f2a335e3a4fc328bf5beb436012afca590b1a11466e2206"
+        }
+      },
+      "read": {
+        "kind": "bitcoin_identity",
+        "network": "regtest"
+      }
+    },
+    {
+      "answer": {
+        "outcome": "found",
+        "value": {
+          "height": 233
+        }
+      },
+      "read": {
+        "kind": "bitcoin_tip",
+        "network": "regtest"
+      }
+    },
+    {
+      "answer": {
+        "outcome": "found",
+        "value": {
+          "outputValue": "FDBA0E7DA81C11481C72F9B01CBAE7C364C53270C8EDFFB34537C8F7028D75163D70C142873DD560A6E985101A99E02BD7C7EA6ABA8BD36F3C581CB65C2F6216",
+          "timeStamp": "2026-09-26T01:48:00.000Z"
+        }
+      },
+      "read": {
+        "chainIndex": 2,
+        "kind": "nist_pulse",
+        "pulseIndex": 1200018
+      }
+    },
+    {
+      "answer": {
+        "outcome": "found",
+        "value": {
+          "network_passphrase": "Test SDF Network ; September 2015"
+        }
+      },
+      "read": {
+        "kind": "stellar_identity",
+        "network": "testnet"
+      },
+      "source": "a"
+    },
+    {
+      "answer": {
+        "outcome": "found",
+        "value": {
+          "network_passphrase": "Test SDF Network ; September 2015"
+        }
+      },
+      "read": {
+        "kind": "stellar_identity",
+        "network": "testnet"
+      },
+      "source": "b"
+    },
+    {
+      "answer": {
+        "outcome": "found",
+        "value": {
+          "network_passphrase": "Test SDF Network ; September 2015"
+        }
+      },
+      "read": {
+        "kind": "stellar_identity",
+        "network": "testnet"
+      },
+      "source": "c"
+    },
+    {
+      "answer": {
+        "outcome": "found",
+        "value": {
+          "closed_at": "2026-09-26T01:48:30Z",
+          "hash": "84e52c6a9487098304fe1c3ccd550a0c323e330db2e8854c17145b217a94c6e7"
+        }
+      },
+      "read": {
+        "kind": "stellar_ledger",
+        "network": "testnet",
+        "sequence": 1000222
+      },
+      "source": "a"
+    },
+    {
+      "answer": {
+        "outcome": "found",
+        "value": {
+          "closed_at": "2026-09-26T01:48:30Z",
+          "hash": "84e52c6a9487098304fe1c3ccd550a0c323e330db2e8854c17145b217a94c6e7"
+        }
+      },
+      "read": {
+        "kind": "stellar_ledger",
+        "network": "testnet",
+        "sequence": 1000222
+      },
+      "source": "b"
+    },
+    {
+      "answer": {
+        "outcome": "found",
+        "value": {
+          "closed_at": "2026-09-26T01:48:30Z",
+          "hash": "84e52c6a9487098304fe1c3ccd550a0c323e330db2e8854c17145b217a94c6e7"
+        }
+      },
+      "read": {
+        "kind": "stellar_ledger",
+        "network": "testnet",
+        "sequence": 1000222
+      },
+      "source": "c"
+    },
+    {
+      "answer": {
+        "outcome": "found",
+        "value": {
+          "closed_at": "2026-09-26T01:52:15Z",
+          "hash": "0e8e2010d79bb6b859b5884ee90f83092d7320e18b12740119c7b734dcab4ea7"
+        }
+      },
+      "read": {
+        "kind": "stellar_ledger",
+        "network": "testnet",
+        "sequence": 1000267
+      },
+      "source": "a"
+    },
+    {
+      "answer": {
+        "outcome": "found",
+        "value": {
+          "closed_at": "2026-09-26T01:52:15Z",
+          "hash": "0e8e2010d79bb6b859b5884ee90f83092d7320e18b12740119c7b734dcab4ea7"
+        }
+      },
+      "read": {
+        "kind": "stellar_ledger",
+        "network": "testnet",
+        "sequence": 1000267
+      },
+      "source": "b"
+    },
+    {
+      "answer": {
+        "outcome": "found",
+        "value": {
+          "closed_at": "2026-09-26T01:52:15Z",
+          "hash": "0e8e2010d79bb6b859b5884ee90f83092d7320e18b12740119c7b734dcab4ea7"
+        }
+      },
+      "read": {
+        "kind": "stellar_ledger",
+        "network": "testnet",
+        "sequence": 1000267
+      },
+      "source": "c"
+    },
+    {
+      "answer": {
+        "outcome": "found",
+        "value": {
+          "ledger": 1000267,
+          "memo": "8b7321853d1a03182226116459c42b9176c90d50765a4b939766b9e37a006263",
+          "memo_type": "hash",
+          "successful": true
+        }
+      },
+      "read": {
+        "hash": "480e1d5338f71f361eed6232484c6ed9698add3f5d2c85bff41b9c4049060e6a",
+        "kind": "stellar_transaction",
+        "network": "testnet"
+      },
+      "source": "a"
+    },
+    {
+      "answer": {
+        "outcome": "found",
+        "value": {
+          "ledger": 1000267,
+          "memo": "8b7321853d1a03182226116459c42b9176c90d50765a4b939766b9e37a006263",
+          "memo_type": "hash",
+          "successful": true
+        }
+      },
+      "read": {
+        "hash": "480e1d5338f71f361eed6232484c6ed9698add3f5d2c85bff41b9c4049060e6a",
+        "kind": "stellar_transaction",
+        "network": "testnet"
+      },
+      "source": "b"
+    },
+    {
+      "answer": {
+        "outcome": "unreachable",
+        "reason": "HTTP 503"
+      },
+      "read": {
+        "hash": "480e1d5338f71f361eed6232484c6ed9698add3f5d2c85bff41b9c4049060e6a",
+        "kind": "stellar_transaction",
+        "network": "testnet"
+      },
+      "source": "c"
+    },
+    {
+      "answer": {
+        "outcome": "found",
+        "value": {
+          "ledger": 1000255,
+          "memo": "488e6583a192071810724dd392b551c4ca119ca6688deb9034683eb42eba1364",
+          "memo_type": "hash",
+          "successful": true
+        }
+      },
+      "read": {
+        "hash": "860d4085c0af0b5f8cadff2bb0647cf75bbd16901817684dc4e180c200c70681",
+        "kind": "stellar_transaction",
+        "network": "testnet"
+      },
+      "source": "a"
+    },
+    {
+      "answer": {
+        "outcome": "found",
+        "value": {
+          "ledger": 1000255,
+          "memo": "488e6583a192071810724dd392b551c4ca119ca6688deb9034683eb42eba1364",
+          "memo_type": "hash",
+          "successful": true
+        }
+      },
+      "read": {
+        "hash": "860d4085c0af0b5f8cadff2bb0647cf75bbd16901817684dc4e180c200c70681",
+        "kind": "stellar_transaction",
+        "network": "testnet"
+      },
+      "source": "b"
+    },
+    {
+      "answer": {
+        "outcome": "found",
+        "value": {
+          "ledger": 1000255,
+          "memo": "488e6583a192071810724dd392b551c4ca119ca6688deb9034683eb42eba1364",
+          "memo_type": "hash",
+          "successful": true
+        }
+      },
+      "read": {
+        "hash": "860d4085c0af0b5f8cadff2bb0647cf75bbd16901817684dc4e180c200c70681",
+        "kind": "stellar_transaction",
+        "network": "testnet"
+      },
+      "source": "c"
+    }
+  ]
+}
