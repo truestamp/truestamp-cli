@@ -9,7 +9,8 @@
 // vectors)). An external verifier makes its keyring read and its source
 // reads only in an online run (SPEC.md sections 8.3 and 10.4), so a
 // Config says whether the run is online and holds the seams an online
-// keyring read and a source's identity read go through, and the Stellar and
+// keyring read, a source's identity read and the reads of CHAIN and SOURCES
+// go through, and the Stellar and
 // Bitcoin sources the operator pins, with each network's several sources and
 // their source policy where the operator configures them (SPEC.md section 9,
 // "Sources" and "Several sources for one network"); its keyring
@@ -139,6 +140,10 @@ type Config struct {
 	// ReadIdentity reads a source's identity in an online run. A nil
 	// reader reads nothing, so each source gives no usable answer.
 	ReadIdentity IdentityReader
+	// ReadChain makes the reads CHAIN and SOURCES make of a source whose
+	// identity was confirmed (SPEC.md section 10.4). A nil reader reads
+	// nothing, so each such read gives no usable answer.
+	ReadChain ChainReader
 	// ExpectedHash is the caller's hash for step EXPECTED_HASH (SPEC.md
 	// section 10.2, step 13), as the caller gave it, or nil when none is
 	// given. Any string is taken: one that is not hex of the claims'

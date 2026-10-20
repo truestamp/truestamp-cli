@@ -39,11 +39,13 @@
 // Then step 10, CHAIN, and step 11, SOURCES: under a closed gate, each
 // commitment entry, genesis.bitcoin and entropy object gets its row skip
 // offline or skip prior_failure, and KEY_EVENT_COMMITMENT ends CHAIN.
-// Under an open gate no chain or source rule of section 10.4 is in the
-// package yet, so CHAIN, SOURCES and WINDOW give no row; source_outcomes.go
-// is the frame those rules will run through, each made once for each
-// source of its network and combined under the network's source policy.
-// Then step 12, WINDOW, which a closed gate leaves not established; step
+// Under an open gate CHAIN reads each Stellar commitment entry by the rule
+// of section 10.4, through source_outcomes.go's frame, made once for each
+// source of its network and combined under the network's source policy,
+// and keeps each passing row's candidate for WINDOW; the Bitcoin rule and
+// the sources' rules are not in the package yet, so their rows, and
+// WINDOW's, are not given under an open gate. Then step 12, WINDOW, which
+// a closed gate leaves not established; step
 // 13, EXPECTED_HASH; and step 14, VERDICT, the label and the run's code of
 // section 10.5.
 //
@@ -69,6 +71,10 @@
 //     links of derive_links.go (section 10.3);
 //   - external.go: the external gate, and steps 10 and 11, CHAIN and
 //     SOURCES, under a closed gate (sections 10.2, 10.3 and 10.4);
+//   - chain.go: CHAIN under an open gate, KEY_EVENT_COMMITMENT's statuses
+//     from its inputs, and the [ChainReader] its reads go through
+//     (sections 10.3 and 10.4); chain_stellar.go: the rule of a Stellar
+//     commitment entry (sections 10.4 and 11.1);
 //   - source_outcomes.go: the frame a CHAIN or SOURCES row read under an
 //     open gate runs through: each source's outcome, their combination
 //     under the source policy, and the row's values (section 10.4);
@@ -95,7 +101,8 @@
 // configures for a network, in an order, under a source policy (SPEC.md
 // section 9); the document never chooses one, nor a policy. Each source's
 // identity read goes through [Config.ReadIdentity], and one with no usable
-// answer is recorded unreachable, so nothing else is read from it.
+// answer is recorded unreachable, so nothing else is read from it; every
+// other read of a source goes through [Config.ReadChain].
 //
 // The CLI is an external verifier (SPEC.md section 8.3). Online, under E_v
 // prod and with no supplied keyring, the keyring read from

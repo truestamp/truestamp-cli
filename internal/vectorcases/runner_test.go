@@ -45,9 +45,13 @@ import (
 // each row skip offline. Each such case, every offline case and every
 // online case whose gate does not open, is held to all of its rows and its
 // label. Under an open gate, the rows of CHAIN, SOURCES and WINDOW are the
-// rules of each chain and source (SPEC.md sections 10.4 and 11), which the
-// verifier does not make yet, so such a case is held to every other row
-// (unbuiltOpen) and not to its label.
+// rules of each chain and source (SPEC.md sections 10.4 and 11), of which
+// the verifier makes Stellar's commitment rule so far, so such a case is
+// held to every other row and to its rows of Stellar commitment entries
+// and, when each of its inputs is one of those, KEY_EVENT_COMMITMENT
+// (builtOpen), and to its label when each of its failing rows is one it is
+// held to and its label is failed or names its attribution
+// (labelDecided).
 //
 // DERIVE makes every check of step 9, parts (a) to (e), and its rows are
 // compared whole, each with the values and trace rows of
@@ -70,8 +74,37 @@ import (
 const lastBuilt = "EXPECTED_HASH"
 
 // unbuiltOpen are the steps whose rows under an open external gate the
-// verifier does not make yet.
+// verifier does not make yet, but for CHAIN's rows of Stellar commitment
+// entries (builtOpen).
 var unbuiltOpen = []string{"CHAIN", "SOURCES", "WINDOW"}
+
+// stellarEntry reports whether part is a Stellar commitment entry's,
+// /commitments/stellar or /signing_key_event/commitments/stellar.
+func stellarEntry(part *string) bool {
+	return part != nil && (*part == "/commitments/stellar" || *part == "/signing_key_event/commitments/stellar")
+}
+
+// builtOpen reports whether the verifier makes row, one of rows, a case's
+// expected rows, under an open external gate: every row of a step outside
+// unbuiltOpen; a CHAIN row of a Stellar commitment entry; and
+// KEY_EVENT_COMMITMENT, at /signing_key_event, when every CHAIN row under
+// /signing_key_event, its inputs (SPEC.md section 10.3), is a Stellar
+// entry's.
+func builtOpen(row vectorcases.Row, rows []vectorcases.Row) bool {
+	switch {
+	case !slices.Contains(unbuiltOpen, row.Step):
+		return true
+	case row.Step != "CHAIN":
+		return false
+	case stellarEntry(row.Part):
+		return true
+	case row.Part == nil || *row.Part != "/signing_key_event":
+		return false
+	}
+	return !slices.ContainsFunc(rows, func(input vectorcases.Row) bool {
+		return input.Step == "CHAIN" && input.Part != nil && strings.HasPrefix(*input.Part, "/signing_key_event/") && !stellarEntry(input.Part)
+	})
+}
 
 // firstBuilt is the first.
 const firstBuilt = "CONFIGURATION"
@@ -154,7 +187,7 @@ func caseConfig(t *testing.T, c vectorcases.Case, replay *caseReplay) verifier.C
 		Entropy:    specdata.ChainNetworks{Bitcoin: pins.Entropy["bitcoin"], Stellar: pins.Entropy["stellar"]},
 	}
 	if replay != nil {
-		cfg.Online, cfg.ReadKeyring, cfg.ReadIdentity = true, replay.keyrings, replay.identities
+		cfg.Online, cfg.ReadKeyring, cfg.ReadIdentity, cfg.ReadChain = true, replay.keyrings, replay.identities, replay.chains
 		cfg.NetworkSources = replay.networks
 	}
 	cfg.ExpectedHash = c.Config.ExpectedHash
@@ -200,11 +233,13 @@ func reportOf(run *verifier.Run, from int) outcome {
 }
 
 // caseReplay is the replay adapter of one online case: its keyring
-// reader, its identity reader, the network configurations its replay file
-// stands for, and the reads each reader made.
+// reader, its identity reader, its chain reader, the network
+// configurations its replay file stands for, and the reads each reader
+// made.
 type caseReplay struct {
 	keyrings   verifier.KeyringReader
 	identities verifier.IdentityReader
+	chains     verifier.ChainReader
 	networks   []verifier.NetworkSources
 	// names are the name of each source the file stands for, by its URL,
 	// the empty string for a network's one source.
@@ -214,6 +249,9 @@ type caseReplay struct {
 	// urls are the keyring reads made, and identityReads the identity
 	// reads, each "<chain> <network>", with " <name>" for a named source.
 	urls, identityReads []string
+	// chainReads are the chain reads made, each with the name of its
+	// source, in the order made.
+	chainReads []chainRead
 }
 
 // replayOf is the replay adapter of an online case, or nil for an offline
@@ -228,8 +266,10 @@ type caseReplay struct {
 // Esplora server for Bitcoin, at a URL under replay.invalid that no read
 // reaches, configured for that network. A network the case's sources name
 // has those sources in their order under the case's policy, and any other
-// network one source under the policy first. A read the file does not hold
-// fails the test.
+// network one source under the policy first. Each chain read of a source is
+// answered from the file's record of that read from that source, found
+// with its value, not found, or unreachable with its reason. A read the
+// file does not hold fails the test.
 func replayOf(t *testing.T, c vectorcases.Case) *caseReplay {
 	t.Helper()
 	if c.Config.Online == nil {
@@ -266,6 +306,22 @@ func replayOf(t *testing.T, c vectorcases.Case) *caseReplay {
 			t.Errorf("%s: %v", c.ID, err)
 		}
 		return value, err
+	}
+	adapter.chains = func(s verifier.Source, read map[string]any) verifier.SourceRead {
+		name, known := adapter.names[s.URL]
+		key, err := json.Marshal(read)
+		if err != nil {
+			t.Errorf("%s: a chain read encoding/json cannot write: %v", c.ID, err)
+		}
+		adapter.mu.Lock()
+		adapter.chainReads = append(adapter.chainReads, chainRead{read, name})
+		adapter.mu.Unlock()
+		answer, held := replay.Answer(read, name)
+		if !known || !held {
+			t.Errorf("%s: a chain read %s of the source %q, which the replay file does not hold", c.ID, key, name)
+			return verifier.SourceRead{Outcome: verifier.ReadUnreachable, Reason: "no answer"}
+		}
+		return verifier.SourceRead{Outcome: verifier.ReadOutcome(answer.Outcome), Value: answer.Value, Reason: answer.Reason}
 	}
 	for _, s := range replay.Sources() {
 		if slices.ContainsFunc(adapter.networks, func(n verifier.NetworkSources) bool { return n.Chain == s.Chain && n.Network == s.Network }) {
@@ -471,13 +527,32 @@ func rowsThrough(rows []vectorcases.Row) []vectorcases.Row {
 }
 
 // expectedThrough returns a case's expected rows from firstBuilt to
-// lastBuilt, without the rows of unbuiltOpen when its external gate opens.
+// lastBuilt, only those builtOpen holds when its external gate opens.
 func expectedThrough(c vectorcases.Case) []vectorcases.Row {
 	rows := rowsThrough(c.Expected.Rows)
 	if gateOf(c) != verifier.ExternalGateOpen {
 		return rows
 	}
-	return slices.DeleteFunc(rows, func(row vectorcases.Row) bool { return slices.Contains(unbuiltOpen, row.Step) })
+	return slices.DeleteFunc(rows, func(row vectorcases.Row) bool { return !builtOpen(row, c.Expected.Rows) })
+}
+
+// labelDecided reports whether the rows a case's run is held to decide its
+// label (SPEC.md section 10.5): every row when its gate does not open, and
+// under an open gate when each of its failing rows is one expectedThrough
+// holds and its label is failed or one the attribution alone gives, so
+// that no row the verifier does not make yet, WINDOW's among them, could
+// change it.
+func labelDecided(c vectorcases.Case) bool {
+	if gateOf(c) != verifier.ExternalGateOpen {
+		return true
+	}
+	held := expectedThrough(c)
+	for _, row := range c.Expected.Rows {
+		if failing(row) && !slices.ContainsFunc(held, func(h vectorcases.Row) bool { return h.String() == row.String() }) {
+			return false
+		}
+	}
+	return c.Expected.Label == "failed" || c.Expected.Label == "supplied-keyring" || c.Expected.Label == "unattributed"
 }
 
 // gateOf is the external gate a case's run decides when DERIVE ends,
@@ -700,8 +775,13 @@ func unsourced(t *testing.T, c vectorcases.Case, o outcome) []string {
 // online ones (gates-online-policy, gates-online-derive and the two
 // key_binding-unavailable-* cases), matches in full, every row, CHAIN's,
 // SOURCES' and WINDOW's under the closed gate and EXPECTED_HASH's
-// included, with its label and its code (checkLabel); a run that reaches
-// DERIVE has exactly
+// included, with its label and its code (checkLabel); each of the 77
+// open cases matches every row but those builtOpen leaves out, the 154
+// rows of their Stellar commitment entries among them, and none in full, since
+// each has a WINDOW row and a row of the Bitcoin or the sources' rules; 63
+// of them, whose failing rows are all among those and whose label is failed
+// or supplied-keyring, also match their label and code, and the other 14
+// wait for those rules; a run that reaches DERIVE has exactly
 // the rows and trace of DERIVE that the model of derive_model_test.go gives
 // (checkDerive), and a run that ended before it has no trace; every row's
 // values write with JCS, and each value of a row of SHAPE or POLICY is one
@@ -711,8 +791,8 @@ func unsourced(t *testing.T, c vectorcases.Case, o outcome) []string {
 // adapter; the 18 sources-* cases, which alone name several sources of a
 // network (SPEC.md section 9), run with those sources in their order under
 // their policy, sources-configuration-regtest-mainnet_block0 giving
-// configuration_error and the other 17 their rows but CHAIN's, SOURCES' and
-// WINDOW's, their gate open; every
+// configuration_error and the other 17 the rows builtOpen holds, their
+// gate open; every
 // other online case runs with one source configured for each network its
 // file stands for, under the policy first; each online case that passes
 // CONFIGURATION has, for each pin, the sources and policy its case gives
@@ -768,7 +848,9 @@ func unsourced(t *testing.T, c vectorcases.Case, o outcome) []string {
 // before CHAIN differ); Chain without KEY_EVENT_COMMITMENT (every proof
 // with a signing key event lacks its row); Window giving
 // window_not_established after a failure (every case failing before WINDOW
-// differs); the runner not passing a case's expected_hash (the
+// differs); the Stellar rule's memo left uncompared (both
+// leaf_count-record-*-stellar-online cases pass their Stellar row); the
+// runner not passing a case's expected_hash (the
 // expected_hash-* and four gates-* cases give expected_hash_not_checked);
 // ExpectedHash not lowercasing (expected_hash-capitals fails); Verdict
 // taking the label from the attribution alone (every failed supplied-keyring
@@ -861,9 +943,16 @@ func TestCases_ThroughEveryStep(t *testing.T) {
 			}
 			if gate == verifier.ExternalGateOpen {
 				tally[on+"the external gate opens"]++
-			} else {
+			}
+			switch {
+			case gate != verifier.ExternalGateOpen || rowsEqual(want, rowsThrough(c.Expected.Rows)):
 				tally[on+"matched in full"]++
 				checkLabel(t, c, got.run)
+			case labelDecided(c):
+				tally[on+"open, its label decided"]++
+				checkLabel(t, c, got.run)
+			default:
+				tally[on+"open, its label waits"]++
 			}
 			passed := !got.ended
 			typ, subject := typeAndSubject(proofOf(t, c))
@@ -899,6 +988,8 @@ func TestCases_ThroughEveryStep(t *testing.T) {
 		"matched in full":                      335,
 		"online matched in full":               4,
 		"online the external gate opens":       77,
+		"online open, its label decided":       63,
+		"online open, its label waits":         14,
 	}
 	if len(tally) != len(want) {
 		t.Fatalf("tally = %v, want %v", tally, want)
@@ -2241,11 +2332,14 @@ func totalTxs(t *testing.T, txoutproof any) int {
 // gates-online-chain_failure and the eight reads-unreachable-* cases fail
 // no row before CHAIN, so their gate opens, every source of every pinned
 // network confirmed, and they give every row but CHAIN's, SOURCES' and
-// WINDOW's, whose reads are each chain's and source's rules. Mutants
-// killed: the gate deciding offline for an online run (the open cases give
-// skip offline rows); prior_failure deciding open (gates-online-policy and
-// -derive give no CHAIN or SOURCES row); Chain making closed rows under an
-// open gate (the open cases give CHAIN rows).
+// WINDOW's, whose reads are each chain's and source's rules, and CHAIN's
+// rows of their Stellar commitment entries, one or more each, and no other
+// row of those steps. Mutants killed: the gate deciding offline for an
+// online run (the open cases give skip offline rows); prior_failure
+// deciding open (gates-online-policy and -derive give no CHAIN or SOURCES
+// row); Chain making closed rows under an open gate (the open cases give
+// skip offline CHAIN rows); Chain making no row under an open gate (the
+// open cases give no Stellar row).
 func TestCases_TheOnlineGateCases(t *testing.T) {
 	cases, err := vectorcases.Load()
 	if err != nil {
@@ -2266,7 +2360,7 @@ func TestCases_TheOnlineGateCases(t *testing.T) {
 		reached := rowsBetween("CHAIN", "WINDOW", got.rows)
 		switch got.run.ExternalGate {
 		case verifier.ExternalGateOpen:
-			if len(reached) != 0 {
+			if len(reached) == 0 || slices.ContainsFunc(reached, func(row vectorcases.Row) bool { return row.Step != "CHAIN" || !stellarEntry(row.Part) }) {
 				t.Errorf("%s: under an open gate, rows %v", id, reached)
 			}
 			for _, set := range got.run.SourceSets {

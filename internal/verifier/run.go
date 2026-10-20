@@ -23,8 +23,11 @@
 // is, SPEC.md section 8.3), trust_root takes the kind current_keyring under
 // the keyring read from www.truestamp.com (section 10.5), and the run holds
 // the outcome of each source's identity read and each pinned network's
-// sources and source policy (SPEC.md sections 9 and 10.2, step 0). It
-// holds no edge objects of SPEC.md section 11.5.
+// sources and source policy (SPEC.md sections 9 and 10.2, step 0). Under
+// an open gate it holds the candidate of each CHAIN and SOURCES row that
+// passed with one, in row order, with the sources it rests on, for WINDOW
+// (SPEC.md sections 11.1, 11.2 and 11.5). It holds no edge objects of
+// SPEC.md section 11.5.
 
 package verifier
 
@@ -98,6 +101,7 @@ const (
 //	| SubjectID           | the subject's id: /subject/record/id, or /block/record/id for block and beacon (SPEC.md section 10.5); "" until SHAPE passes, which a report writes as null | SHAPE |
 //	| Trace               | the trace (SPEC.md section 10.6): one row for each DERIVE row whose part is a CHECKED value, other than a row of LINK_HEAD, LINK_KEY_EVENT or LINK_CHAIN_ORDER, in DERIVE's order; nil until DERIVE, for a run that ends before it, and after a fault in it | DERIVE |
 //	| ExternalGate        | the external gate (SPEC.md section 10.2): open, offline or prior_failure; "" before DERIVE ends, and in a run that ended before it or in it | DERIVE |
+//	| Candidates          | the candidate of each CHAIN and SOURCES row that passed with one, in row order, and the sources it rests on (chain.go) | CHAIN, SOURCES |
 //	| Label               | the report's label (SPEC.md section 10.5); "" before VERDICT | VERDICT |
 //	| Code                | the run's code, the code of its first failing row, when Label is failed; "" otherwise | VERDICT |
 //	| Rows                | the rows so far, in step order                              | every step    |
@@ -120,6 +124,7 @@ type Run struct {
 	SubjectID          string
 	Trace              []TraceRow
 	ExternalGate       ExternalGate
+	Candidates         []RowCandidate
 	Label              string
 	Code               specdata.Reason
 	Rows               []Row

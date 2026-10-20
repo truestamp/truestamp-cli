@@ -221,25 +221,28 @@ func TestChainAndSources_OfflineMessagesNameTheRead(t *testing.T) {
 	}
 }
 
-// Under an open gate CHAIN, SOURCES and WINDOW give no row here, since the
-// rules of each chain and source are not in this package, and a failure at
-// CHAIN does not close the gate for SOURCES: nothing decides it again.
-// Mutants killed: closedGate deciding from Run.Failed (SOURCES gives skip
-// prior_failure rows after the CHAIN failure); Chain treating an open gate
-// as offline (CHAIN gives skip offline rows); Window drawing its row under
-// an open gate (a WINDOW row follows).
+// Under an open gate CHAIN gives its Stellar rows, and a failure CHAIN
+// itself gives does not close the gate for SOURCES: nothing decides it
+// again, so SOURCES gives no skip prior_failure row. SOURCES' and WINDOW's
+// rules are not in this package, so they give no row here. The item
+// proof's two Stellar entries name one transaction, so both fail on its
+// one answer. Mutants killed: Chain deciding the gate again when it ends
+// (SOURCES gives skip prior_failure rows after CHAIN's failure);
+// closedGate deciding from Run.Failed (the same); Chain treating an open
+// gate as offline (CHAIN gives skip offline rows); Window drawing its row
+// under an open gate (a WINDOW row follows).
 func TestExternalGate_AChainFailureLeavesItOpenForSources(t *testing.T) {
-	run := throughDerive(positiveProofs(t)["item"], true)
-	if run.ExternalGate != ExternalGateOpen {
-		t.Fatalf("the gate is %q", run.ExternalGate)
-	}
+	item := positiveProofs(t)["item"]
+	stand := &chainStandIn{answers: map[string]SourceRead{}}
+	stand.answer(soundStellar(t, item, topStellar, itemClosed), soundTx(map[string]any{"successful": false}), SourceRead{}, "a")
+	run := openItemRun(t, item, deriveAttribution, standInSet(SourcePolicy{Kind: SourcePolicyFirst}, "a"), stand)
 	before := len(run.Rows)
 	Chain(run)
-	run.AddRow(NewRow("CHAIN", specdata.ReasonChainMismatch, Part("/commitments/stellar"), "the chain differs", nil))
 	Sources(run)
 	Window(run)
-	if len(run.Rows) != before+1 || run.ExternalGate != ExternalGateOpen {
-		t.Fatalf("rows after DERIVE %s, gate %q", rowSummary(run.Rows[before:]), run.ExternalGate)
+	want := "[chain_mismatch /commitments/stellar fail CHAIN] [chain_mismatch /signing_key_event/commitments/stellar fail CHAIN]"
+	if got := rowSummary(run.Rows[before:]); got != want || run.ExternalGate != ExternalGateOpen {
+		t.Fatalf("rows after DERIVE %s, gate %q; want %s", got, run.ExternalGate, want)
 	}
 }
 

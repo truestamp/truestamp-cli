@@ -116,8 +116,9 @@ import (
 	"github.com/truestamp/truestamp-cli/internal/verifier/source"
 )
 
-// SourceReadDeadline bounds each identity read, the whole read, as the
-// Truestamp application bounds each of its verification reads.
+// SourceReadDeadline bounds each identity read and each chain read of
+// [DefaultChainReader], the whole read, as the Truestamp application
+// bounds each of its verification reads.
 const SourceReadDeadline = 9 * time.Second
 
 // The production values of the identity checks (SPEC.md section 10.2,
