@@ -32,8 +32,8 @@
 // which normalizes out-of-range fields, as the lenient parse. No offset but
 // Z matches the pattern, so no string here names a local time.
 //
-// SHAPE's check 5 (SPEC.md section 10.2, step 7) uses this file, and
-// DERIVE's header_time row (step 9 (d)) is to use it too.
+// SHAPE's check 5 (SPEC.md section 10.2, step 7) uses this file, and so
+// does DERIVE's header_time row (step 9 (d)).
 //
 // Adapted from the reference: the calendar arithmetic is this file's own
 // (Howard Hinnant's day count from a civil date and back, with floor

@@ -1,21 +1,22 @@
 // Copyright (c) 2019-2026 Truestamp, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-// An independent model of DERIVE's built checks (SPEC.md section 10.2,
-// step 9 (a) to (c), the key events of section 10.3, and the links of
-// (e)), and the value classes of spec/value-classes.json (section 3.7),
-// for the runner. The model shares no code with internal/verifier or
-// internal/registry: it reads each prefix byte from spec/prefixes.json and
-// each small-order key from spec/small-order-keys.json, hashes with
-// crypto/sha256 over internal/jcs's encoding, verifies a handover with
-// crypto/ed25519 after its own steps 2 and 3 of section 6.2, finds each
-// position from SPEC.md's tables and the proof's own members, and walks
-// each inclusion proof by the steps of section 5.3 as written, so a defect
-// in the verifier's layout, registry, walk or key checks cannot hide in
-// the values it is compared with. It ports the reference's test support
-// elixir/test/support/value_classes.ex and the application's
-// test/support/proof_derive_model.ex and proof_value_classes.ex, and the
-// failure values of the application's derive_key_events_test.exs.
+// An independent model of DERIVE (SPEC.md section 10.2, step 9 (a) to (e),
+// with the key events of section 10.3 and the Bitcoin evidence of
+// bitcoin_model_test.go), and the value classes of
+// spec/value-classes.json (section 3.7), for the runner. The model shares
+// no code with internal/verifier or internal/registry: it reads each prefix
+// byte from spec/prefixes.json and each small-order key from
+// spec/small-order-keys.json, hashes with crypto/sha256 over internal/jcs's
+// encoding, verifies a handover with crypto/ed25519 after its own steps 2
+// and 3 of section 6.2, finds each position from SPEC.md's tables and the
+// proof's own members, and walks each inclusion proof by the steps of
+// section 5.3 as written, so a defect in the verifier's layout, registry,
+// walk or key checks cannot hide in the values it is compared with. It
+// ports the reference's test support elixir/test/support/value_classes.ex
+// and the application's test/support/proof_derive_model.ex and
+// proof_value_classes.ex, and the failure values of the application's
+// derive_key_events_test.exs.
 
 package vectorcases_test
 
@@ -31,7 +32,6 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
-	"regexp"
 	"slices"
 	"sort"
 	"strconv"
@@ -45,26 +45,18 @@ import (
 	"github.com/truestamp/truestamp-cli/internal/verifier"
 )
 
-// builtConstructions are the rows of the constructions text the built
-// checks' trace rows name, sorted: every row a sound trace holds but
-// bitcoin.
-var builtConstructions = []string{"block_hash", "claims_hash", "entropy_hash", "epoch_hash", "genesis", "handover", "inclusion",
+// tracedConstructions are the rows of the constructions text DERIVE's
+// trace rows name, sorted: every row a sound trace holds.
+var tracedConstructions = []string{"bitcoin", "block_hash", "claims_hash", "entropy_hash", "epoch_hash", "genesis", "handover", "inclusion",
 	"item_hash", "key_event", "observation_hash", "witnesses"}
-
-// bitcoinEvidencePart matches the parts of the Bitcoin evidence's rows
-// (SPEC.md section 10.2, step 9 (d)), the one part of DERIVE not built.
-var bitcoinEvidencePart = regexp.MustCompile(`\A(?:/signing_key_event)?/commitments/bitcoin/(?:raw_transaction|transaction_hash|txoutproof|header_hash|header_merkle_root|header_time)\z`)
-
-// builtPart reports whether part is the part of a built check's row: of
-// every DERIVE check but the Bitcoin evidence's.
-func builtPart(part string) bool { return !bitcoinEvidencePart.MatchString(part) }
 
 // modelCheck is one check of the model: its part and constructions row,
 // the pointers it reads, sorted (lessPointer), the value P carries at its
 // part, what it compares that with, whether it gives a trace row, its
 // status and code, and, for a refused key or signature, the step of
 // SPEC.md section 6.2 that refused it, with uncompared for the check of a
-// key's bytes, whose failing row holds no recomputed value.
+// key's bytes, whose failing row holds no recomputed value, and, for a
+// Bitcoin structure that is not well formed, the first rule it breaks.
 type modelCheck struct {
 	part, construction string
 	inputs             []string
@@ -74,6 +66,7 @@ type modelCheck struct {
 	status, code       string
 	refused            string
 	uncompared         bool
+	rule               string
 }
 
 // equal is the traced check that declared equals recomputed, failing with
@@ -97,12 +90,17 @@ func order(part, construction string, inputs []string, declared, bound any, hold
 }
 
 // values are the values SPEC.md section 10.5 gives the check's row: its
-// construction, and, when it fails, the value P carries at its part as
-// declared, the model's recomputed value unless the check compares none,
-// and the refusal's step when it names one.
+// construction, and, when it fails, the rule a structure breaks for a
+// check of well-formedness, which compares nothing, and otherwise the
+// value it compares as declared, the model's recomputed value unless the
+// check compares none, and the refusal's step when it names one.
 func (m modelCheck) values() map[string]any {
 	out := map[string]any{"construction": m.construction}
 	if m.status != "fail" {
+		return out
+	}
+	if m.rule != "" {
+		out["rule"] = m.rule
 		return out
 	}
 	out["declared"] = m.declared
@@ -242,7 +240,8 @@ func sortedPointers(pointers ...string) []string {
 // is k, in a run whose attribution is attribution: (a) the subject
 // hashes, (b) each block node's block_hash and, with metadata.genesis, its
 // height and previous_block_hash, then the checks of the key event its
-// record carries, (c) each commitment entry's epoch_hash, and the links:
+// record carries, (c) each commitment entry's epoch_hash, (d) each
+// Bitcoin entry's evidence (modelBitcoin), and the links:
 // LINK_INCLUSION's root and size of each inclusion proof, LINK_WITNESS,
 // LINK_HEAD, LINK_KEY_EVENT and LINK_CHAIN_ORDER. The runner compares them
 // by part and construction; of the checks at one part with one
@@ -307,6 +306,11 @@ func model(t *testing.T, proof map[string]any, k, attribution string) []modelChe
 			n := base + "/commitments/" + chain
 			hash(n+"/epoch/epoch_hash", "epoch_hash", n+"/epoch/record")
 			links = append(links, func() { inclusion(n+"/inclusion_proof", "block_hash", base+"/block/record", n+"/epoch/record") })
+		}
+	}
+	for _, base := range []string{"", "/signing_key_event"} {
+		if get(proof, base+"/commitments/bitcoin") != nil {
+			out = append(out, modelBitcoin(t, proof, base+"/commitments/bitcoin")...)
 		}
 	}
 	for _, link := range links {
@@ -740,9 +744,6 @@ func checkDerive(t *testing.T, c vectorcases.Case, run *verifier.Run) {
 		t.Fatalf("%d traced rows, %d trace rows", traced, len(run.Trace))
 	}
 	for key, checks := range groups {
-		if !builtPart(strings.SplitN(key, " ", 2)[0]) {
-			t.Fatalf("the model makes a check %s of the Bitcoin evidence", key)
-		}
 		if seen[key] != len(checks) {
 			t.Fatalf("the model's check %s gives %d rows, the run %d", key, len(checks), seen[key])
 		}

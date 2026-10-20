@@ -55,16 +55,23 @@ import (
 // of them (importableDirs), to the sites it names.
 //
 //  6. crypto/sha256 used outside the registry's digest, the one function
-//     that applies a prefix byte, and outside contentDigests, the two
-//     functions of the new verifier that make a content digest, a SHA-256
-//     with no prefix byte (SPEC.md section 4.1): keyring.Digest,
-//     trust_root's digest of a keyring's bytes as read (section 8.3), and
+//     that applies a prefix byte, and outside contentDigests, the three
+//     functions of the new verifier that make a hash with no prefix byte,
+//     which SPEC.md section 4.1 puts outside the registry: keyring.Digest,
+//     trust_root's digest of a keyring's bytes as read (section 8.3);
 //     SHAPE's shapeConstructions, check 6's d of a constructions text's JCS
-//     (sections 7.2 and 10.2); in internal/registry, digest given a
-//     construction that is not a registry constant (or RecordHash's
-//     checked kind), or the leaf or node; a hex integer literal, or a byte
-//     slice or array literal holding a literal, outside the table; and an
-//     import by ".", which hides its uses from these checks;
+//     (sections 7.2 and 10.2); and the Bitcoin evidence's sha256d,
+//     Bitcoin's SHA-256d (section 10.2, step 9 (d)); in internal/registry,
+//     digest given a construction that is not a registry constant (or
+//     RecordHash's checked kind), or the leaf or node; a hex integer
+//     literal, or a byte slice or array literal holding a literal, outside
+//     the table; and an import by ".", which hides its uses from these
+//     checks. The one package marked protocolLiterals,
+//     internal/verifier/bitcoin, may write hex integer literals, which
+//     there are Bitcoin's own numbers (an opcode, a compact size's markers,
+//     nBits' masks), never a prefix byte: its list imports neither the
+//     registry nor a hash but the crypto/sha256 of its one SHA-256d; a
+//     byte slice or array literal holding a literal is refused there too;
 //  7. in the registry, and in DERIVE and its layout, the files
 //     internal/verifier/derive*.go and internal/verifier/layout.go, as the
 //     reference's derive_test.exs scans them (never SHAPE, the schema's
@@ -93,15 +100,16 @@ import (
 //     derive*.go and layout.go is not read;
 //  8. an import that is not on the package's list in scannedPackages, so
 //     that nothing in internal/registry hashes but digest and the walk, and
-//     nothing in another package of the new verifier hashes but the two
+//     nothing in another package of the new verifier hashes but the three
 //     content digests: no list holds crypto/sha256 but the registry's and
-//     those of the content digests' two packages, internal/verifier and
-//     internal/verifier/keyring, where check 6 confines it to those two
-//     functions; and none holds another hash package (crypto, crypto/sha1,
-//     crypto/sha512, crypto/md5, crypto/hmac, crypto/sha3, hash or a hash/
-//     package), internal/tscrypto or internal/hashing, whose generic hashers
-//     and prefix tables the other checks do not see. Another crypto/
-//     package, such as crypto/ed25519, may be listed;
+//     those of the content digests' three packages, internal/verifier,
+//     internal/verifier/keyring and internal/verifier/bitcoin, where check
+//     6 confines it to those three functions; and none holds another hash
+//     package (crypto, crypto/sha1, crypto/sha512, crypto/md5, crypto/hmac,
+//     crypto/sha3, hash or a hash/ package), internal/tscrypto or
+//     internal/hashing, whose generic hashers and prefix tables the other
+//     checks do not see. Another crypto/ package, such as crypto/ed25519,
+//     may be listed;
 // 10. in a package marked to print nothing (internal/verifier/source, which
 //     sends a Bitcoin Core node's RPC credentials and reads what the node
 //     answers), a call of fmt's Print, Printf, Println, Fprint, Fprintf or
@@ -117,21 +125,25 @@ import (
 //     function's parameter, so no kind is held in a variable, a field or a
 //     table, and each kind DERIVE hashes under is a constant written at a
 //     call;
-// 12. a named digest, one of contentDigests or importedDigests, referred
-//     to anywhere but at its one call (digestCalls): keyring.Digest only in
-//     keyring.go's Load, shapeConstructions only in shape.go's Shape,
-//     specdata's acceptedDigests only in constructions.go's
-//     mustAcceptedDigests and jcs's placeholderFor only in jcs.go's
-//     Canonicalize; and, in a package of the module a scanned package may
-//     import that is not itself scanned (check 6 holds those), crypto/sha256
-//     used anywhere but in that package's importedDigests, at the top level
-//     or in any other function, exported or not, and an import of a hash
-//     package check 8 lists (hasher) other than crypto/sha256, of
-//     crypto/sha256 by ".", or of a dependency outside the module that is
-//     not on importableDependencies, so that no wrapper, variable or other
-//     hash a verifier package could call hashes outside the registry. It
-//     reads syntax: a named digest that hands out a hash function as a
-//     value is beyond it.
+// 12. a named digest, one of contentDigests, wrappedDigests or
+//     importedDigests, referred to anywhere but at its calls (digestCalls):
+//     keyring.Digest only in keyring.go's Load, shapeConstructions only in
+//     shape.go's Shape, the Bitcoin evidence's sha256d only in
+//     transaction.go's TransactionHash, header.go's HeaderHash and
+//     merkle_block.go's traverse, bitcoin.TransactionHash only in
+//     derive_bitcoin.go's bitcoinEntryChecks, bitcoin.HeaderHash only there
+//     and in header.go's MeetsTarget, specdata's acceptedDigests only in
+//     constructions.go's mustAcceptedDigests and jcs's placeholderFor only
+//     in jcs.go's Canonicalize; and, in a package of the module a scanned
+//     package may import that is not itself scanned (check 6 holds those),
+//     crypto/sha256 used anywhere but in that package's importedDigests, at
+//     the top level or in any other function, exported or not, and an
+//     import of a hash package check 8 lists (hasher) other than
+//     crypto/sha256, of crypto/sha256 by ".", or of a dependency outside
+//     the module that is not on importableDependencies, so that no wrapper,
+//     variable or other hash a verifier package could call hashes outside
+//     the registry. It reads syntax: a named digest that hands out a hash
+//     function as a value is beyond it.
 //
 // Checks other than 7 read syntax, not data flow, so they cannot see a byte
 // or a name that reaches these sites through a variable or a call; a
@@ -162,6 +174,9 @@ type scannedPackage struct {
 	memberSetFiles []string
 	// printsNothing says check 10 reads it.
 	printsNothing bool
+	// protocolLiterals says its hex integer literals are an outside
+	// protocol's numbers, which check 6 does not read as prefix bytes.
+	protocolLiterals bool
 }
 
 // scannedPackages are the packages of the new verifier that checks 6 to 8
@@ -177,6 +192,7 @@ var scannedPackages = map[string]scannedPackage{
 		"github.com/truestamp/truestamp-cli/internal/config",
 		"github.com/truestamp/truestamp-cli/internal/httpclient",
 		jcsPath, registryPath, specdataPath, strictjsonPath,
+		"github.com/truestamp/truestamp-cli/internal/verifier/bitcoin",
 		"github.com/truestamp/truestamp-cli/internal/verifier/ed25519",
 		"github.com/truestamp/truestamp-cli/internal/verifier/keyring",
 		"github.com/truestamp/truestamp-cli/internal/verifier/source",
@@ -192,23 +208,28 @@ var scannedPackages = map[string]scannedPackage{
 		"github.com/truestamp/truestamp-cli/internal/verifier/ed25519",
 	}},
 	"internal/verifier/ed25519": {imports: []string{"crypto/ed25519", "errors", "math/big", specdataPath}},
+	"internal/verifier/bitcoin": {imports: []string{"crypto/sha256", "encoding/binary", "encoding/hex", "errors", "math/big", specdataPath},
+		protocolLiterals: true},
 }
 
 // contentDigest is a function of the new verifier outside the registry
 // that may use crypto/sha256, by its file and its name.
 type contentDigest struct{ file, function string }
 
-// contentDigests are the two content digests, SHA-256 with no prefix byte,
-// which SPEC.md section 4.1 puts outside the registry: keyring.Digest,
-// trust_root's digest d of a keyring's bytes as read (section 8.3), and
-// shapeConstructions, SHAPE's check 6, whose d is the SHA-256 of a
-// constructions text's JCS (sections 7.2 and 10.2). Check 6 allows the use
-// in each of those functions of its file, and nowhere else in its
-// package, and check 8 lets their two packages alone list crypto/sha256
-// beside the registry.
+// contentDigests are the three hashes with no prefix byte the new
+// verifier makes, which SPEC.md section 4.1 puts outside the registry:
+// keyring.Digest, trust_root's digest d of a keyring's bytes as read
+// (section 8.3); shapeConstructions, SHAPE's check 6, whose d is the
+// SHA-256 of a constructions text's JCS (sections 7.2 and 10.2); and
+// sha256d, Bitcoin's SHA-256d, which the Bitcoin evidence applies to a
+// raw_transaction, a header and the nodes of a partial Merkle tree
+// (section 10.2, step 9 (d)). Check 6 allows the use in each of those
+// functions of its file, and nowhere else in its package, and check 8 lets
+// their three packages alone list crypto/sha256 beside the registry.
 var contentDigests = []contentDigest{
 	{"internal/verifier/keyring/digest.go", "Digest"},
 	{"internal/verifier/shape.go", "shapeConstructions"},
+	{"internal/verifier/bitcoin/bitcoin.go", "sha256d"},
 }
 
 // inContentDigest reports whether pos, in f, lies in one of
@@ -230,17 +251,48 @@ var importedDigests = []contentDigest{
 	{"internal/jcs/jcs.go", "placeholderFor"},
 }
 
-// namedDigests are the functions outside the registry check 12 names:
-// contentDigests and importedDigests.
-var namedDigests = slices.Concat(contentDigests, importedDigests)
+// wrappedDigests are the exported functions of the new verifier that
+// return a content digest of whatever they are given, which any package
+// importing theirs could otherwise call (check 12): the Bitcoin
+// evidence's TransactionHash and HeaderHash, each SHA-256d of its bytes.
+var wrappedDigests = []contentDigest{
+	{"internal/verifier/bitcoin/transaction.go", "TransactionHash"},
+	{"internal/verifier/bitcoin/header.go", "HeaderHash"},
+}
 
-// digestCalls are the one call each of namedDigests has, by the file and
-// the function it lies in (check 12).
-var digestCalls = map[contentDigest]contentDigest{
-	contentDigests[0]:  {"internal/verifier/keyring/keyring.go", "Load"},
-	contentDigests[1]:  {"internal/verifier/shape.go", "Shape"},
-	importedDigests[0]: {"internal/specdata/constructions.go", "mustAcceptedDigests"},
-	importedDigests[1]: {"internal/jcs/jcs.go", "Canonicalize"},
+// namedDigests are the functions outside the registry check 12 names:
+// contentDigests, wrappedDigests and importedDigests.
+var namedDigests = slices.Concat(contentDigests, wrappedDigests, importedDigests)
+
+// digestCalls are the calls each of namedDigests has, by the file and the
+// function each lies in (check 12): one for each but the Bitcoin
+// evidence's sha256d, which hashes a raw_transaction, a header and a node
+// of a partial Merkle tree, each in a function of its own, and HeaderHash,
+// which DERIVE calls for header_hash and MeetsTarget for the target.
+var digestCalls = map[contentDigest][]contentDigest{
+	contentDigests[0]: {{"internal/verifier/keyring/keyring.go", "Load"}},
+	contentDigests[1]: {{"internal/verifier/shape.go", "Shape"}},
+	contentDigests[2]: {
+		{"internal/verifier/bitcoin/transaction.go", "TransactionHash"},
+		{"internal/verifier/bitcoin/header.go", "HeaderHash"},
+		{"internal/verifier/bitcoin/merkle_block.go", "traverse"},
+	},
+	wrappedDigests[0]: {{"internal/verifier/derive_bitcoin.go", "bitcoinEntryChecks"}},
+	wrappedDigests[1]: {
+		{"internal/verifier/derive_bitcoin.go", "bitcoinEntryChecks"},
+		{"internal/verifier/bitcoin/header.go", "MeetsTarget"},
+	},
+	importedDigests[0]: {{"internal/specdata/constructions.go", "mustAcceptedDigests"}},
+	importedDigests[1]: {{"internal/jcs/jcs.go", "Canonicalize"}},
+}
+
+// callSites writes calls as "file's function", joined by ", ".
+func callSites(calls []contentDigest) string {
+	var out []string
+	for _, call := range calls {
+		out = append(out, call.file+"'s "+call.function)
+	}
+	return strings.Join(out, ", ")
 }
 
 // pointerRead is a function whose index of an object by a name that is not
@@ -563,7 +615,7 @@ func rule2Findings(fset *token.FileSet, files []goFile, scanned map[string]scann
 				if !inScanned || inTable(f, n.Pos()) {
 					break
 				}
-				if n.Kind == token.INT && strings.HasPrefix(strings.ToLower(n.Value), "0x") {
+				if n.Kind == token.INT && strings.HasPrefix(strings.ToLower(n.Value), "0x") && !pkg.protocolLiterals {
 					report(f, n.Pos(), "writes the byte literal %s outside the table", n.Value)
 				}
 				if text, err := strconv.Unquote(n.Value); memberSets && n.Kind == token.STRING && err == nil && slices.Contains(memberNames, text) {
@@ -991,7 +1043,7 @@ func kindFindings(fset *token.FileSet, f goFile, constants map[string]bool, para
 }
 
 // digestFindings reports check 12 in f: a reference to one of
-// namedDigests but at its one call; and, with held true, f's package being
+// namedDigests but at its calls; and, with held true, f's package being
 // one a scanned package may import and not itself scanned, a use of
 // crypto/sha256 outside the package's importedDigests, and an import of a
 // hash package other than crypto/sha256, or of crypto/sha256 by ".".
@@ -1005,6 +1057,7 @@ func digestFindings(fset *token.FileSet, f goFile, held bool) []finding {
 	// method's name, and a key of a composite literal.
 	notReferences := map[*ast.Ident]bool{}
 	callees := map[*ast.Ident]bool{}
+	selectorCallees := map[*ast.SelectorExpr]bool{}
 	ast.Inspect(f.file, func(node ast.Node) bool {
 		switch n := node.(type) {
 		case *ast.SelectorExpr:
@@ -1020,14 +1073,17 @@ func digestFindings(fset *token.FileSet, f goFile, held bool) []finding {
 		case *ast.FuncDecl:
 			notReferences[n.Name] = true
 		case *ast.CallExpr:
-			if ident, ok := n.Fun.(*ast.Ident); ok {
-				callees[ident] = true
+			switch fun := n.Fun.(type) {
+			case *ast.Ident:
+				callees[fun] = true
+			case *ast.SelectorExpr:
+				selectorCallees[fun] = true
 			}
 		}
 		return true
 	})
 	for _, digest := range namedDigests {
-		call := digestCalls[digest]
+		calls := digestCalls[digest]
 		digestDir := path.Dir(digest.file)
 		if dir == digestDir {
 			ast.Inspect(f.file, func(node ast.Node) bool {
@@ -1035,8 +1091,8 @@ func digestFindings(fset *token.FileSet, f goFile, held bool) []finding {
 				if !ok || ident.Name != digest.function || notReferences[ident] {
 					return true
 				}
-				if !(f.rel == call.file && enclosingFunc(f.file, ident.Pos()) == call.function && callees[ident]) {
-					report(ident.Pos(), fmt.Sprintf("refers to the digest %s outside its one call, in %s's %s", digest.function, call.file, call.function))
+				if !(slices.Contains(calls, contentDigest{f.rel, enclosingFunc(f.file, ident.Pos())}) && callees[ident]) {
+					report(ident.Pos(), fmt.Sprintf("refers to the digest %s outside its calls, in %s", digest.function, callSites(calls)))
 				}
 				return true
 			})
@@ -1048,8 +1104,9 @@ func digestFindings(fset *token.FileSet, f goFile, held bool) []finding {
 		}
 		ast.Inspect(f.file, func(node ast.Node) bool {
 			if sel, ok := node.(*ast.SelectorExpr); ok {
-				if x, ok := sel.X.(*ast.Ident); ok && x.Name == name && sel.Sel.Name == digest.function {
-					report(sel.Pos(), fmt.Sprintf("refers to the digest %s.%s outside its one call, in %s's %s", x.Name, digest.function, call.file, call.function))
+				if x, ok := sel.X.(*ast.Ident); ok && x.Name == name && sel.Sel.Name == digest.function &&
+					!(slices.Contains(calls, contentDigest{f.rel, enclosingFunc(f.file, sel.Pos())}) && selectorCallees[sel]) {
+					report(sel.Pos(), fmt.Sprintf("refers to the digest %s.%s outside its calls, in %s", x.Name, digest.function, callSites(calls)))
 				}
 			}
 			return true
@@ -1149,9 +1206,11 @@ func importableDirs(files []goFile, scanned map[string]scannedPackage) map[strin
 // SHA-256 added to internal/specdata and called from Policy, an exported
 // wrapper over an unexported SHA-256 helper added to internal/specdata and
 // to internal/jcs and called from DERIVE with the prefix byte written
-// outside a composite literal, and an exported var holding sha256.Sum256
-// and a crypto/sha512 export added to internal/specdata and called from
-// Policy (check 12).
+// outside a composite literal, an exported var holding sha256.Sum256 and
+// a crypto/sha512 export added to internal/specdata and called from
+// Policy, a bitcoin.TransactionHash call added to derive_records.go's
+// recordChecks and a bitcoin.HeaderHash call added to derive_links.go's
+// linkChecks (check 12).
 func TestRule2_TheModuleAndTheScannedPackagesTakeNoByteOrMemberSetFromADocument(t *testing.T) {
 	fset, files := parseModule(t, repoRoot)
 	if findings := rule2Findings(fset, files, scannedPackages); len(findings) > 0 {
@@ -1201,8 +1260,9 @@ func TestRule2_TheModuleAndTheScannedPackagesTakeNoByteOrMemberSetFromADocument(
 		}
 	}
 	sort.Strings(memberSetFiles)
-	if want := []string{"internal/verifier/derive.go", "internal/verifier/derive_check.go", "internal/verifier/derive_key_events.go",
-		"internal/verifier/derive_links.go", "internal/verifier/derive_records.go", "internal/verifier/layout.go"}; !slices.Equal(memberSetFiles, want) {
+	if want := []string{"internal/verifier/derive.go", "internal/verifier/derive_bitcoin.go", "internal/verifier/derive_check.go",
+		"internal/verifier/derive_key_events.go", "internal/verifier/derive_links.go", "internal/verifier/derive_records.go",
+		"internal/verifier/layout.go"}; !slices.Equal(memberSetFiles, want) {
 		t.Errorf("check 7 reads %q of the verifier, want %q", memberSetFiles, want)
 	}
 	if len(files) < 150 || len(constructionNames(files)) != 13 {
@@ -1221,6 +1281,19 @@ var quotedWant = regexp.MustCompile(`"(?:[^"\\]|\\.)+"`)
 // each line should give, and files of the shapes it allows, which should
 // give none.
 var plantedFiles = map[string]string{
+	"internal/verifier/bitcoin/planted.go": `package bitcoin
+
+func planted() {
+	_ = 0x6a
+	_ = []byte{0x6a} // want "writes bytes as a literal"
+}
+`,
+	"internal/verifier/ed25519/planted.go": `package ed25519
+
+func planted() {
+	_ = 0x6a // want "writes the byte literal 0x6a"
+}
+`,
 	"internal/registry/planted.go": `package registry
 
 import (
@@ -1484,7 +1557,11 @@ func assertFindings(t *testing.T, got []finding, want map[string][]string) {
 // function of prefixes.go (the Merkle leaf's byte hashed outside digest
 // passes); check 5 limited to calls (specdata.PrefixByte taken as a value
 // passes); the dot-import check left out; a var table in any registry file
-// taken for the table (a byte literal in key_id.go's passes).
+// taken for the table (a byte literal in key_id.go's passes); the hex
+// literals of internal/verifier/bitcoin refused (its planted 0x6a gives a
+// finding), or allowed in every scanned package (the registry's planted
+// 0x6a passes) or in every one but the registry (ed25519's planted 0x6a
+// passes), or its byte slice literal allowed with them.
 func TestRule2_FindsEveryPlantedViolation(t *testing.T) {
 	fset, files, want := parsePlanted(t, plantedFiles, "want")
 	assertFindings(t, rule2Findings(fset, files, scannedPackages), want)
@@ -1758,7 +1835,7 @@ func hasherImports(packages map[string]scannedPackage) []string {
 }
 
 // No list of a package of the new verifier but the registry's names a
-// hash package, but crypto/sha256 on the lists of the two packages that
+// hash package, but crypto/sha256 on the lists of the three packages that
 // hold contentDigests: crypto/sha256 is otherwise the registry's alone,
 // and crypto, the other hashes of crypto/, hash and the hash/ packages,
 // internal/tscrypto and internal/hashing are no one's; another crypto/
@@ -1805,7 +1882,7 @@ func TestRule2_NoOtherPackageOfTheNewVerifierMayImportAHasher(t *testing.T) {
 }
 
 // contentDigestPlanted are files of the content digests' packages and of
-// another package of the new verifier that use crypto/sha256: the two
+// another package of the new verifier that use crypto/sha256: the three
 // functions check 6 allows; a second function in each one's file; a
 // function of each one's name in another file of its package; a use in
 // another file of internal/verifier; and a function named like one in
@@ -1828,6 +1905,19 @@ func another(data []byte) [32]byte {
 import "crypto/sha256"
 
 func Digest(data []byte) [32]byte {
+	return sha256.Sum256(data) // want "uses crypto/sha256 outside the registry's digest"
+}
+`,
+	"internal/verifier/bitcoin/bitcoin.go": `package bitcoin
+
+import "crypto/sha256"
+
+func sha256d(data []byte) [32]byte {
+	sum := sha256.Sum256(data)
+	return sum
+}
+
+func sha256Once(data []byte) [32]byte {
 	return sha256.Sum256(data) // want "uses crypto/sha256 outside the registry's digest"
 }
 `,
@@ -1877,21 +1967,22 @@ func shapeConstructions(data []byte) [32]byte {
 `,
 }
 
-// Check 6 allows crypto/sha256 in exactly two functions outside the
+// Check 6 allows crypto/sha256 in exactly three functions outside the
 // registry, contentDigests, each by its file and its name, and the
-// module's own keyring.Digest and shapeConstructions are those functions
-// and each uses it once. Mutants killed: the allowance matched by the
+// module's own keyring.Digest, shapeConstructions and the Bitcoin
+// evidence's sha256d are those functions and each uses it once. Mutants
+// killed: the allowance matched by the
 // function's name alone (keyring.go's Digest and layout.go's
 // shapeConstructions pass); by its file alone (another and shapeTimes
 // pass); by its name in every scanned package (internal/verifier's Digest
 // passes its check 6 finding); or for every function of a content
-// digest's package (policy.go's Policy passes); and shapeConstructions
-// left off contentDigests (the planted shape.go's shapeConstructions gives
-// a finding).
-func TestRule2_AllowsTheTwoContentDigests(t *testing.T) {
+// digest's package (policy.go's Policy passes); and shapeConstructions or
+// sha256d left off contentDigests (the planted shape.go's
+// shapeConstructions or bitcoin.go's sha256d gives a finding).
+func TestRule2_AllowsTheContentDigests(t *testing.T) {
 	fset, files, want := parsePlanted(t, contentDigestPlanted, "want")
-	if len(want) != 8 {
-		t.Fatalf("%d planted lines, want 8", len(want))
+	if len(want) != 9 {
+		t.Fatalf("%d planted lines, want 9", len(want))
 	}
 	assertFindings(t, rule2Findings(fset, files, scannedPackages), want)
 
@@ -2211,7 +2302,7 @@ func TestRule2_EachRecordHashKindIsAConstantAtItsCall(t *testing.T) {
 	assertFindings(t, rule2Findings(fset, files, scannedPackages), want)
 }
 
-// callPlanted are files that call each content digest at its one call and
+// callPlanted are files that call each content digest at its calls and
 // elsewhere, and packages that export a SHA-256 of their own.
 var callPlanted = map[string]string{
 	"internal/verifier/keyring/digest.go": `package keyring
@@ -2229,15 +2320,15 @@ type Keyring struct{ Digest [32]byte }
 func Load(data []byte) *Keyring {
 	loaded := &Keyring{}
 	loaded.Digest = Digest(data)
-	_ = Digest // want "refers to the digest Digest outside its one call"
+	_ = Digest // want "refers to the digest Digest outside its calls"
 	return &Keyring{Digest: loaded.Digest}
 }
 
 func Reload(data []byte) [32]byte {
-	return Digest(data) // want "refers to the digest Digest outside its one call"
+	return Digest(data) // want "refers to the digest Digest outside its calls"
 }
 
-var later = Digest // want "refers to the digest Digest outside its one call"
+var later = Digest // want "refers to the digest Digest outside its calls"
 `,
 	"internal/verifier/policy.go": `package verifier
 
@@ -2247,7 +2338,7 @@ import (
 )
 
 func Policy(data []byte) {
-	_ = keyring.Digest(data) // want "refers to the digest keyring.Digest outside its one call"
+	_ = keyring.Digest(data) // want "refers to the digest keyring.Digest outside its calls"
 	_ = specdata.ConstructionsDigest(data)
 }
 `,
@@ -2264,7 +2355,7 @@ func shapeConstructions(text []byte) [32]byte {
 }
 
 func shapeTimes(text []byte) {
-	_ = shapeConstructions(text) // want "refers to the digest shapeConstructions outside its one call"
+	_ = shapeConstructions(text) // want "refers to the digest shapeConstructions outside its calls"
 }
 `,
 	"internal/specdata/constructions.go": `package specdata
@@ -2297,24 +2388,99 @@ func Hash(data []byte) [32]byte {
 	return sha256.Sum256(data)
 }
 `,
+	"internal/verifier/bitcoin/transaction.go": `package bitcoin
+
+func TransactionHash(raw []byte) [32]byte {
+	return sha256d(raw)
 }
 
-// Check 12: each named digest is referred to only at its one call,
-// keyring.Digest in keyring.go's Load and shapeConstructions in shape.go's
-// Shape among them, and no package the new verifier may import uses a
-// SHA-256 of its own outside its named digests; a command, which no
-// verifier package imports, may. Mutants killed: the call allowed in any
-// function of its file (Reload passes); a reference in the one caller
-// that is not a call allowed (Load's Digest taken as a value passes); a
-// reference from another package left out
-// (Policy's keyring.Digest passes); the use rule left out (specdata's
-// ConstructionsDigest, which Policy calls, passes); the use rule reading
-// functions alone (jcs's method Sum passes); the use rule read in every
-// package (cmd's Hash gives a finding).
-func TestRule2_EachContentDigestHasItsOneCall(t *testing.T) {
+func WitnessHash(raw []byte) [32]byte {
+	return sha256d(raw) // want "refers to the digest sha256d outside its calls"
+}
+`,
+	"internal/verifier/bitcoin/header.go": `package bitcoin
+
+func HeaderHash(header []byte) [32]byte {
+	return sha256d(header)
+}
+
+func MeetsTarget(header []byte) bool {
+	return HeaderHash(header)[0] == 0
+}
+
+func Target(header []byte) [32]byte {
+	return HeaderHash(header) // want "refers to the digest HeaderHash outside its calls"
+}
+`,
+	"internal/verifier/derive_bitcoin.go": `package verifier
+
+import "github.com/truestamp/truestamp-cli/internal/verifier/bitcoin"
+
+func bitcoinEntryChecks(raw, header []byte) {
+	_ = bitcoin.TransactionHash(raw)
+	_ = bitcoin.HeaderHash(header)
+	_ = bitcoin.HeaderHash // want "refers to the digest bitcoin.HeaderHash outside its calls"
+}
+
+func bitcoinEvidenceChecks(raw []byte) {
+	_ = bitcoin.TransactionHash(raw) // want "refers to the digest bitcoin.TransactionHash outside its calls"
+}
+`,
+	"internal/verifier/derive_records.go": `package verifier
+
+import "github.com/truestamp/truestamp-cli/internal/verifier/bitcoin"
+
+func recordChecks(raw []byte) {
+	_ = bitcoin.TransactionHash(raw) // want "refers to the digest bitcoin.TransactionHash outside its calls"
+}
+`,
+	"internal/verifier/derive_links.go": `package verifier
+
+import "github.com/truestamp/truestamp-cli/internal/verifier/bitcoin"
+
+func linkChecks(header []byte) {
+	_ = bitcoin.HeaderHash(header) // want "refers to the digest bitcoin.HeaderHash outside its calls"
+}
+`,
+	"internal/verifier/bitcoin/merkle_block.go": `package bitcoin
+
+func traverse(left, right []byte) [32]byte {
+	return sha256d(append(left, right...))
+}
+
+func walkTree(left, right []byte) [32]byte {
+	return sha256d(append(left, right...)) // want "refers to the digest sha256d outside its calls"
+}
+`,
+}
+
+// Check 12: each named digest is referred to only at its calls,
+// keyring.Digest in keyring.go's Load, shapeConstructions in shape.go's
+// Shape, the Bitcoin evidence's sha256d in its three functions among them,
+// bitcoin.TransactionHash in derive_bitcoin.go's bitcoinEntryChecks and
+// bitcoin.HeaderHash there and in header.go's MeetsTarget, and no package
+// the new verifier may import uses a SHA-256 of its own outside its named
+// digests; a command, which no verifier package imports, may. Each of the
+// module's named digests is called at each of its calls, and nowhere else.
+// Mutants killed: the call allowed in any function of its file (Reload,
+// WitnessHash, Target and bitcoinEvidenceChecks pass); a digest's first
+// call taken as its only one (header.go's HeaderHash and merkle_block.go's
+// traverse give findings); a reference in the one caller that is not a
+// call allowed (Load's Digest, and bitcoinEntryChecks' bitcoin.HeaderHash,
+// taken as a value pass); a reference from another package left out
+// (Policy's keyring.Digest passes); TransactionHash and HeaderHash left off
+// the named digests (recordChecks' bitcoin.TransactionHash and linkChecks'
+// bitcoin.HeaderHash pass); a reference from another package refused even
+// at its calls (bitcoinEntryChecks' calls give findings); the use rule left
+// out (specdata's ConstructionsDigest, which Policy calls, passes); the use
+// rule reading functions alone (jcs's method Sum passes); the use rule read
+// in every package (cmd's Hash gives a finding); a call listed for a
+// function that does not make it (the module's calls differ from
+// digestCalls).
+func TestRule2_EachNamedDigestHasOnlyItsCalls(t *testing.T) {
 	fset, files, want := parsePlanted(t, callPlanted, "want")
-	if len(want) != 7 {
-		t.Fatalf("%d planted lines, want 7", len(want))
+	if len(want) != 14 {
+		t.Fatalf("%d planted lines, want 14", len(want))
 	}
 	assertFindings(t, rule2Findings(fset, files, scannedPackages), want)
 	for digest := range digestCalls {
@@ -2325,6 +2491,45 @@ func TestRule2_EachContentDigestHasItsOneCall(t *testing.T) {
 	if len(digestCalls) != len(namedDigests) {
 		t.Errorf("%d named digests, %d calls", len(namedDigests), len(digestCalls))
 	}
+	_, module := parseModule(t, repoRoot)
+	found := map[contentDigest][]contentDigest{}
+	for _, f := range module {
+		ast.Inspect(f.file, func(node ast.Node) bool {
+			call, ok := node.(*ast.CallExpr)
+			if !ok {
+				return true
+			}
+			for _, d := range namedDigests {
+				name := ""
+				switch fun := call.Fun.(type) {
+				case *ast.Ident:
+					if path.Dir(f.rel) == path.Dir(d.file) {
+						name = fun.Name
+					}
+				case *ast.SelectorExpr:
+					if x, ok := fun.X.(*ast.Ident); ok && x.Name == importName(f.file, modulePrefix+path.Dir(d.file)) {
+						name = fun.Sel.Name
+					}
+				}
+				site := contentDigest{f.rel, enclosingFunc(f.file, call.Pos())}
+				if name == d.function && !slices.Contains(found[d], site) {
+					found[d] = append(found[d], site)
+				}
+			}
+			return true
+		})
+	}
+	for _, d := range namedDigests {
+		got := slices.SortedFunc(slices.Values(found[d]), compareSites)
+		if want := slices.SortedFunc(slices.Values(digestCalls[d]), compareSites); !slices.Equal(got, want) {
+			t.Errorf("%s's %s is called in %v, want %v", d.file, d.function, got, want)
+		}
+	}
+}
+
+// compareSites orders two call sites by file, then function.
+func compareSites(a, b contentDigest) int {
+	return strings.Compare(a.file+" "+a.function, b.file+" "+b.function)
 }
 
 // importedDigestPlanted are files of the packages the new verifier may
@@ -2335,7 +2540,7 @@ func TestRule2_EachContentDigestHasItsOneCall(t *testing.T) {
 // holding a hash function; a method named like a named digest; another
 // hash package's export; crypto/sha256 imported by "."; a SHA-256 in a
 // package of the module only an importable package imports; and each
-// named digest referred to outside its one call. A command may hash as it
+// named digest referred to outside its calls. A command may hash as it
 // likes.
 var importedDigestPlanted = map[string]string{
 	"internal/specdata/constructions.go": `package specdata
@@ -2353,7 +2558,7 @@ func mustAcceptedDigests() [32]byte {
 }
 
 func Accepted(text []byte) [32]byte {
-	return acceptedDigests(text) // want "refers to the digest acceptedDigests outside its one call"
+	return acceptedDigests(text) // want "refers to the digest acceptedDigests outside its calls"
 }
 
 type Digester struct{}
@@ -2402,7 +2607,7 @@ func placeholderFor(data []byte) string {
 }
 
 func Transform(data []byte) string {
-	return placeholderFor(data) // want "refers to the digest placeholderFor outside its one call"
+	return placeholderFor(data) // want "refers to the digest placeholderFor outside its calls"
 }
 
 func SumOf(data []byte) [32]byte {
@@ -2510,7 +2715,7 @@ func TestRule2_TheImportablePackagesHashOnlyInTheirNamedDigests(t *testing.T) {
 			case *ast.CallExpr:
 				for _, d := range importedDigests {
 					if ident, ok := n.Fun.(*ast.Ident); ok && ident.Name == d.function && path.Dir(f.rel) == path.Dir(d.file) &&
-						(contentDigest{f.rel, enclosingFunc(f.file, n.Pos())}) == digestCalls[d] {
+						slices.Contains(digestCalls[d], contentDigest{f.rel, enclosingFunc(f.file, n.Pos())}) {
 						calls[d]++
 					}
 				}

@@ -9,8 +9,7 @@
 // and POLICY, the check of where each value of their rows comes from
 // included, and elixir/test/verifier/derive_cases_test.exs for DERIVE, its
 // rows, their values and the trace, checked against the application's
-// derive_cases_test.exs, which cuts DERIVE at the checks built so far as
-// this runner does.
+// derive_cases_test.exs.
 
 package vectorcases_test
 
@@ -46,11 +45,9 @@ import (
 // DERIVE does not end the run, so a case either fails is held, as any
 // other open run is, to its rows through DERIVE.
 //
-// DERIVE is cut at the checks built so far (derive_model_test.go): every
-// check of step 9 but the Bitcoin evidence of (d), the key events and every
-// link included. Its expected rows are those of these checks' parts, in
-// order (expectedThrough); the rows of the Bitcoin evidence are left out by
-// their parts, none of which another check shares.
+// DERIVE makes every check of step 9, parts (a) to (e), and its rows are
+// compared whole, each with the values and trace rows of
+// derive_model_test.go's model.
 //
 // An online case runs online, every read it makes answered from its replay
 // file by the replay adapter (vectorcases.Replay, SPEC.md section 13.2), so
@@ -384,18 +381,9 @@ func rowsThrough(rows []vectorcases.Row) []vectorcases.Row {
 }
 
 // expectedThrough returns a case's expected rows from firstBuilt to
-// lastBuilt, its DERIVE rows cut at the checks built so far: a part-null
-// row, and each row at a part of these checks (builtPart).
-func expectedThrough(t *testing.T, c vectorcases.Case, proof map[string]any) []vectorcases.Row {
-	t.Helper()
-	var out []vectorcases.Row
-	for _, row := range rowsThrough(c.Expected.Rows) {
-		if row.Step == "DERIVE" && row.Part != nil && !builtPart(*row.Part) {
-			continue
-		}
-		out = append(out, row)
-	}
-	return out
+// lastBuilt.
+func expectedThrough(c vectorcases.Case) []vectorcases.Row {
+	return rowsThrough(c.Expected.Rows)
 }
 
 func rowsEqual(a, b []vectorcases.Row) bool {
@@ -575,10 +563,10 @@ func unsourced(t *testing.T, c vectorcases.Case, o outcome) []string {
 // attribution SIGNATURE gave it when SHAPE did; a run the gate opens has
 // the attribution its label needs; a run SHAPE passes takes the type and
 // subject id its proof carries, stays open through DERIVE, and has a
-// failing row exactly when its expected rows of POLICY and of DERIVE's
-// built checks do, and any other run takes neither; a run that reaches
-// DERIVE has exactly the rows and trace of DERIVE's built checks that the
-// model of derive_model_test.go gives (checkDerive), and a run that ended
+// failing row exactly when its expected rows of POLICY and of DERIVE do,
+// and any other run takes neither; a run that reaches DERIVE has exactly
+// the rows and trace of DERIVE that the model of derive_model_test.go
+// gives (checkDerive), and a run that ended
 // before it has no trace; every row's values write with JCS, and each
 // value of a row of SHAPE or POLICY is one the run computed or holds (valueSourced),
 // every SHAPE row's keyword "false" or one of verifier.SchemaKeywords()
@@ -618,9 +606,9 @@ func unsourced(t *testing.T, c vectorcases.Case, o outcome) []string {
 // policyComparisons comparing genesis.bitcoin with the entropy pin (each
 // genesis row's pin_kind is unsourced, though every case with a genesis
 // row pins one Bitcoin network for both kinds); the runner without its
-// call to Derive (every DERIVE row of a built check is missing); Derive
-// ending the run at a failing row (the 111 cases that fail at DERIVE get
-// skip rows); deriveChecks giving the links before the records (in
+// call to Derive (every DERIVE row is missing); Derive ending the run at
+// a failing row (the 140 cases that fail at DERIVE get skip rows);
+// deriveChecks giving the links before the records (in
 // declared-genesis_height-witnesses LINK_HEAD's pass comes before the
 // genesis height's failure at /witnesses/block/record/height, and in every
 // case with a signing key event LINK_KEY_EVENT's row before the check of
@@ -678,7 +666,7 @@ func TestCases_ThroughDerive(t *testing.T) {
 					t.Fatalf("SHAPE ended the run with attribution %q; the case's label is %s", got.attribution, c.Expected.Label)
 				}
 			default:
-				want = expectedThrough(t, c, proofOf(t, c))
+				want = expectedThrough(c)
 				fails := func(step string) bool {
 					return slices.ContainsFunc(rowsBetween(step, step, want), func(row vectorcases.Row) bool { return row.Status == "fail" })
 				}
@@ -725,8 +713,8 @@ func TestCases_ThroughDerive(t *testing.T) {
 		"report, the gate fails":               30,
 		"report, SHAPE fails":                  63,
 		"report, POLICY fails":                 14,
-		"report, DERIVE fails":                 110,
-		"report, passes through DERIVE":        98,
+		"report, DERIVE fails":                 139,
+		"report, passes through DERIVE":        69,
 		"online report, passes through DERIVE": 60,
 		"online report, POLICY fails":          1,
 		"online report, DERIVE fails":          1,
@@ -1397,7 +1385,7 @@ func derivePartsOf(rows []verifier.Row) []string {
 // The families cut at DERIVE are SPEC.md section 13.3's: the 42 declared-*
 // cases, the 20 paths-*, the 18 offline leaf_count-* and the 2 graft-*,
 // and gates-derive, each run through TestCases_ThroughDerive's comparison
-// (its rows through DERIVE's built checks and its values against the
+// (its rows through DERIVE and its values against the
 // model); each family fails these checks in some case, and only with
 // derivation_mismatch; gates-derive fails at /subject/item_hash alone. And
 // the cases of the committed leaf count (SPEC.md section 5.4) and of
@@ -1445,8 +1433,8 @@ func TestCases_FamiliesCutAtDerive(t *testing.T) {
 		}
 		families[family]++
 		got := run(t, c)
-		if got.bare() || got.ended || !rowsEqual(got.rows, expectedThrough(t, c, proofOf(t, c))) {
-			t.Fatalf("%s: rows %v, want %v", c.ID, got.rows, expectedThrough(t, c, proofOf(t, c)))
+		if got.bare() || got.ended || !rowsEqual(got.rows, expectedThrough(c)) {
+			t.Fatalf("%s: rows %v, want %v", c.ID, got.rows, expectedThrough(c))
 		}
 		checkDerive(t, c, got.run)
 		if codes[family] == nil {
@@ -1560,21 +1548,25 @@ func TestCases_FamiliesCutAtDerive(t *testing.T) {
 
 // The 11 sound traces (SPEC.md sections 10.6 and 13.3): each case that
 // names a trace file, one for each of vectors/positive/*.trace.json, gives
-// exactly the rows of that file whose construction a built check names,
-// each compared whole, all six members written as JCS, inputs included,
-// and in order; every row of these passes; and the rows the file holds of
-// the checks not yet built are the Bitcoin evidence's, 76 in all, each at
-// a part of it (bitcoinEvidencePart), and no other row is at such a part.
-// Across the 11 the built checks give every one of their constructions.
-// Mutants killed: the trace's inputs left unsorted (the epoch roots'
-// inputs, /commitments/C/inclusion_proof before /block/record, are out of
-// document order); the trace's recomputed root given as the leaf (every
-// inclusion root row differs); the genesis height's trace row left out
-// (item-genesis-witness's and block's differ); a handover signature's
-// recomputed given as the signature or its inputs without the event (every
-// handover_signature row differs); the key bytes check traced (a row at
-// each key event's public_key that no trace holds); LINK_WITNESS untraced
-// (the witness_hashes rows are missing).
+// exactly the rows of that file, each compared whole, all six members
+// written as JCS, inputs included, and in order; every row passes; across
+// the 11 the rows name every construction a trace row can name; and the
+// files hold 76 rows of the Bitcoin evidence, 4 for each of the 19 Bitcoin
+// entries they carry (transaction_hash, header_hash, header_merkle_root
+// and header_time), every one of which the run gives. Mutants killed: the
+// Bitcoin evidence's transaction_hash or header rows untraced (the 76 rows
+// are missing); its raw_transaction or txoutproof rows traced (rows no
+// file holds); a header row's inputs naming raw_transaction (every header
+// row differs); the transaction_hash in the order hashed rather than
+// display order (every transaction_hash row differs); the trace's inputs
+// left unsorted (the epoch roots' inputs, /commitments/C/inclusion_proof
+// before /block/record, are out of document order); the trace's recomputed
+// root given as the leaf (every inclusion root row differs); the genesis
+// height's trace row left out (item-genesis-witness's and block's differ);
+// a handover signature's recomputed given as the signature or its inputs
+// without the event (every handover_signature row differs); the key bytes
+// check traced (a row at each key event's public_key that no trace holds);
+// LINK_WITNESS untraced (the witness_hashes rows are missing).
 func TestCases_TheSoundTraces(t *testing.T) {
 	cases, err := vectorcases.Load()
 	if err != nil {
@@ -1586,7 +1578,8 @@ func TestCases_TheSoundTraces(t *testing.T) {
 	}
 	traced := map[string]bool{}
 	constructions := map[string]bool{}
-	leftOut := map[string]int{}
+	bitcoinRows := map[string]int{}
+	entries := 0
 	for _, c := range cases {
 		if c.Expected.Trace == "" {
 			continue
@@ -1604,30 +1597,29 @@ func TestCases_TheSoundTraces(t *testing.T) {
 				t.Errorf("%s: a trace row %s fails", c.ID, row.Part)
 			}
 		}
-		var want []string
+		want := traceFile(t, c.Expected.Trace)
 		bitcoin := 0
-		for _, row := range traceFile(t, c.Expected.Trace) {
+		for _, row := range want {
 			var parsed struct {
 				Construction string `json:"construction"`
-				Part         string `json:"part"`
 			}
 			if err := json.Unmarshal([]byte(row), &parsed); err != nil {
 				t.Fatal(err)
 			}
-			switch {
-			case slices.Contains(builtConstructions, parsed.Construction) && builtPart(parsed.Part):
-				want = append(want, row)
-			case parsed.Construction == "bitcoin" && !builtPart(parsed.Part):
+			if parsed.Construction == "bitcoin" {
 				bitcoin++
-			default:
-				t.Errorf("%s: a trace row of %s at %s, which no check names there", c.Expected.Trace, parsed.Construction, parsed.Part)
 			}
 		}
 		if len(want) == 0 || !slices.Equal(rows, want) {
 			t.Errorf("%s: trace\n  %s\nwant\n  %s", c.ID, strings.Join(rows, "\n  "), strings.Join(want, "\n  "))
 		}
+		bitcoinRows[c.Expected.Trace] = bitcoin
 		if !traced[c.Expected.Trace] {
-			leftOut[c.Expected.Trace] = bitcoin
+			for _, n := range []string{"/commitments/bitcoin", "/signing_key_event/commitments/bitcoin"} {
+				if get(proofOf(t, c), n) != nil {
+					entries++
+				}
+			}
 		}
 		traced[c.Expected.Trace] = true
 	}
@@ -1641,14 +1633,14 @@ func TestCases_TheSoundTraces(t *testing.T) {
 		}
 	}
 	total := 0
-	for _, n := range leftOut {
+	for _, n := range bitcoinRows {
 		total += n
 	}
-	if total != 76 {
-		t.Fatalf("the sound traces leave out %d Bitcoin rows, want 76: %v", total, leftOut)
+	if total != 76 || entries != 19 {
+		t.Fatalf("the sound traces hold %d Bitcoin rows for %d Bitcoin entries, want 76 for 19: %v", total, entries, bitcoinRows)
 	}
-	if got := slices.Sorted(maps.Keys(constructions)); !slices.Equal(got, builtConstructions) {
-		t.Fatalf("the sound traces reach %q, want %q", got, builtConstructions)
+	if got := slices.Sorted(maps.Keys(constructions)); !slices.Equal(got, tracedConstructions) {
+		t.Fatalf("the sound traces reach %q, want %q", got, tracedConstructions)
 	}
 }
 
@@ -1711,7 +1703,7 @@ func expectedFailure(t *testing.T, id string) string {
 
 // The key_events (26), handover_position (4), order (12) and self_signed
 // (1) cases, cut at DERIVE, each run through TestCases_ThroughDerive's
-// comparison (its rows through DERIVE's built checks, and its values and
+// comparison (its rows through DERIVE, and its values and
 // trace against the model): each fails only at the part and with the code
 // its name gives (none for the equal Bitcoin heights and self_signed); each
 // has LINK_KEY_EVENT's row info not_attributable, since every one runs
@@ -1740,8 +1732,8 @@ func TestCases_KeyEventFamiliesCutAtDerive(t *testing.T) {
 		}
 		families[c.Family()]++
 		got := run(t, c)
-		if got.bare() || got.ended || !rowsEqual(got.rows, expectedThrough(t, c, proofOf(t, c))) {
-			t.Fatalf("%s: rows %v, want %v", c.ID, got.rows, expectedThrough(t, c, proofOf(t, c)))
+		if got.bare() || got.ended || !rowsEqual(got.rows, expectedThrough(c)) {
+			t.Fatalf("%s: rows %v, want %v", c.ID, got.rows, expectedThrough(c))
 		}
 		checkDerive(t, c, got.run)
 		var failures, infos []string
@@ -1785,5 +1777,144 @@ func TestCases_KeyEventFamiliesCutAtDerive(t *testing.T) {
 		if refusals[id] != refused {
 			t.Errorf("%s: refused %q, want %q", id, refusals[id], refused)
 		}
+	}
+}
+
+// bitcoinRules are the bitcoin cases (SPEC.md section 13.3), by the part
+// of their one failing row and, for a structure that is not well formed,
+// the rule it breaks.
+var bitcoinRules = map[string][2]string{
+	"bitcoin-op_return_other_value-commitments":                {"/commitments/bitcoin/raw_transaction", ""},
+	"bitcoin-op_return_other_value-signing_key_event":          {"/signing_key_event/commitments/bitcoin/raw_transaction", ""},
+	"bitcoin-raw_transaction_trailing_bytes-commitments":       {"/commitments/bitcoin/raw_transaction", "parse"},
+	"bitcoin-raw_transaction_trailing_bytes-signing_key_event": {"/signing_key_event/commitments/bitcoin/raw_transaction", "parse"},
+	"bitcoin-txoutproof_trailing_bytes-commitments":            {"/commitments/bitcoin/txoutproof", "parse"},
+	"bitcoin-txoutproof_trailing_bytes-signing_key_event":      {"/signing_key_event/commitments/bitcoin/txoutproof", "parse"},
+	"bitcoin-raw_transaction_64_octets":                        {"/commitments/bitcoin/raw_transaction", "length"},
+	"bitcoin-raw_transaction_no_input":                         {"/commitments/bitcoin/raw_transaction", "parse"},
+	"bitcoin-raw_transaction_two_op_returns":                   {"/commitments/bitcoin/raw_transaction", "op_return"},
+	"bitcoin-raw_transaction_op_return_pushdata":               {"/commitments/bitcoin/raw_transaction", "op_return"},
+	"bitcoin-txoutproof_duplicate_pair":                        {"/commitments/bitcoin/txoutproof", "duplicate_pair"},
+	"bitcoin-txoutproof_unused_hash":                           {"/commitments/bitcoin/txoutproof", "partial_tree"},
+	"bitcoin-txoutproof_unused_flag_bit":                       {"/commitments/bitcoin/txoutproof", "partial_tree"},
+	"bitcoin-txoutproof_total_txs_0":                           {"/commitments/bitcoin/txoutproof", "total_txs"},
+	"bitcoin-txoutproof_total_txs_above_max":                   {"/commitments/bitcoin/txoutproof", "total_txs"},
+	"bitcoin-txoutproof_header_above_target":                   {"/commitments/bitcoin/txoutproof", "target"},
+	"bitcoin-txoutproof_nbits_overflow":                        {"/commitments/bitcoin/txoutproof", "target"},
+	"bitcoin-txoutproof_nbits_negative":                        {"/commitments/bitcoin/txoutproof", "target"},
+	"bitcoin-unmatched_transaction":                            {"/commitments/bitcoin/txoutproof", ""},
+}
+
+// The 19 bitcoin cases (SPEC.md section 13.3), cut at DERIVE, each run
+// through TestCases_ThroughDerive's comparison (its rows through DERIVE,
+// and its values and trace against the model): each fails at DERIVE only
+// at the part bitcoinRules gives it, with bitcoin_evidence_invalid and the
+// rule named when the structure is not well formed, every rule of a
+// raw_transaction and a txoutproof among them, and with
+// derivation_mismatch otherwise; a malformed structure has one row at its
+// part, its OP_RETURN or its matched hash unread, and a malformed
+// txoutproof no header row; and no run ends. And the OP_RETURN is held to
+// the recomputed epoch_hash (SPEC.md section 5.4): in
+// leaf_count-record-commitments-bitcoin and
+// leaf_count-record-signing_key_event-bitcoin, whose epoch records lie
+// about their leaf count with epoch_hash declared as the lying record's
+// hash, the OP_RETURN row alone fails, declared as the 32 bytes the
+// OP_RETURN pushes and recomputed as the model's hash of the record; and
+// in declared-epoch_hash-commitments-bitcoin and
+// declared-epoch_hash-signing_key_event-bitcoin, whose epoch_hash alone is
+// changed, the OP_RETURN row passes beside the failing epoch_hash. Mutants
+// killed: the OP_RETURN compared with the carried epoch_hash (the two
+// declared-epoch_hash cases fail it); a well-formedness row's rule
+// misnamed or left out; the OP_RETURN or header rows made for a malformed
+// structure (a second row at its part, or header rows a malformed
+// txoutproof should not give).
+func TestCases_BitcoinFamilyCutAtDerive(t *testing.T) {
+	cases, err := vectorcases.Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	seen, rules := 0, map[string]bool{}
+	epochCases := 0
+	for _, c := range cases {
+		id := c.ID
+		epochCase := strings.HasPrefix(id, "leaf_count-record-") && strings.HasSuffix(id, "-bitcoin") ||
+			strings.HasPrefix(id, "declared-epoch_hash-") && strings.HasSuffix(id, "-bitcoin")
+		if c.Family() != "bitcoin" && !epochCase {
+			continue
+		}
+		got := run(t, c)
+		if got.bare() || got.ended || !rowsEqual(got.rows, expectedThrough(c)) {
+			t.Fatalf("%s: rows %v, want %v", id, got.rows, expectedThrough(c))
+		}
+		checkDerive(t, c, got.run)
+		failed := failingDerive(got.run)
+		if epochCase {
+			epochCases++
+			proof := proofOf(t, c)
+			base := "/commitments/bitcoin"
+			if strings.Contains(id, "-signing_key_event-") {
+				base = "/signing_key_event" + base
+			}
+			var opReturn []verifier.Row
+			for _, row := range got.run.Rows {
+				if row.Step == "DERIVE" && *row.Part == base+"/raw_transaction" {
+					opReturn = append(opReturn, row)
+				}
+			}
+			raw := get(proof, base+"/raw_transaction").(string)
+			at := strings.Index(raw, "226a20")
+			if at < 0 || strings.Count(raw, "226a20") != 1 {
+				t.Fatalf("%s: no one output script 0x6a 0x20 in %s", id, raw)
+			}
+			pushed, recomputed := raw[at+6:at+6+64], modelHash(t, "epoch_hash", get(proof, base+"/epoch/record"))
+			wantFailing := []string{base + "/raw_transaction"}
+			if strings.HasPrefix(id, "declared-") {
+				wantFailing = []string{base + "/epoch/epoch_hash"}
+				if len(opReturn) != 2 || opReturn[1].Status != verifier.StatusPass || pushed != recomputed || pushed == get(proof, base+"/epoch/epoch_hash") {
+					t.Errorf("%s: the OP_RETURN rows %+v", id, opReturn)
+				}
+			} else if len(opReturn) != 2 || opReturn[1].Values["declared"] != pushed || opReturn[1].Values["recomputed"] != recomputed ||
+				pushed == recomputed || recomputed != get(proof, base+"/epoch/epoch_hash") {
+				t.Errorf("%s: the OP_RETURN rows %+v; it pushes %s", id, opReturn, pushed)
+			}
+			if got := derivePartsOf(failed); !slices.Equal(got, wantFailing) {
+				t.Errorf("%s: failing %q, want %q", id, got, wantFailing)
+			}
+			continue
+		}
+		seen++
+		want, ok := bitcoinRules[id]
+		if !ok {
+			t.Fatalf("%s is not among bitcoinRules", id)
+		}
+		code := "derivation_mismatch"
+		if want[1] != "" {
+			code = "bitcoin_evidence_invalid"
+			rules[want[1]] = true
+		}
+		if len(failed) != 1 || *failed[0].Part != want[0] || string(failed[0].Code) != code || (want[1] != "" && failed[0].Values["rule"] != want[1]) {
+			t.Errorf("%s: failing %q %v, want %s %s rule %q", id, derivePartsOf(failed), failed, code, want[0], want[1])
+			continue
+		}
+		atPart := 0
+		for _, row := range got.run.Rows {
+			if row.Step == "DERIVE" && *row.Part == want[0] {
+				atPart++
+			}
+		}
+		if wantRows := map[bool]int{false: 2, true: 1}[want[1] != ""]; atPart != wantRows {
+			t.Errorf("%s: %d rows at %s, want %d", id, atPart, want[0], wantRows)
+		}
+		if strings.HasSuffix(want[0], "/txoutproof") && want[1] != "" {
+			for _, row := range got.run.Rows {
+				if row.Step == "DERIVE" && strings.HasPrefix(*row.Part, strings.TrimSuffix(want[0], "txoutproof")+"header_") {
+					t.Errorf("%s: a header row at %s", id, *row.Part)
+				}
+			}
+		}
+	}
+	allRules := []string{"duplicate_pair", "length", "op_return", "parse", "partial_tree", "target", "total_txs"}
+	if seen != 19 || epochCases != 4 || !slices.Equal(slices.Sorted(maps.Keys(rules)), allRules) {
+		t.Fatalf("%d bitcoin cases, %d epoch cases, rules %v; want 19, 4, %q", seen, epochCases, rules, allRules)
 	}
 }

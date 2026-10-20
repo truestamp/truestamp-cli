@@ -169,11 +169,13 @@ func levels(positions []inclusionAt) []string {
 }
 
 // untracedRow reports whether a DERIVE row gives no trace row (SPEC.md
-// section 10.6): a check of a key's bytes, whose part is PREIMAGE, or a row
-// of LINK_HEAD, LINK_KEY_EVENT or LINK_CHAIN_ORDER.
+// section 10.6): a check of a key's bytes, or a row of the Bitcoin
+// evidence at a raw_transaction or a txoutproof, whose parts are PREIMAGE,
+// or a row of LINK_HEAD, LINK_KEY_EVENT or LINK_CHAIN_ORDER.
 func untracedRow(row Row) bool {
 	construction := row.Values["construction"]
-	return construction == "height" || construction == "chain_order" || strings.HasSuffix(*row.Part, "/key_event/public_key")
+	return construction == "height" || construction == "chain_order" || strings.HasSuffix(*row.Part, "/key_event/public_key") ||
+		strings.HasSuffix(*row.Part, "/bitcoin/raw_transaction") || strings.HasSuffix(*row.Part, "/bitcoin/txoutproof")
 }
 
 // Every positive proof passes DERIVE: no row fails, the one info row is
@@ -424,7 +426,12 @@ func TestDerive_Rule1_TheSameWhateverConstructionsHolds(t *testing.T) {
 // computed here from the file: a handover's over the event without its
 // handover_signature, deleted here from the event as carried; the static
 // checks of internal/registry/rule2_test.go hold DERIVE to registry
-// constants at each call and to no member set read from a document.
+// constants at each call and to no member set read from a document. The
+// Bitcoin evidence's hashes are SHA-256d, outside the registry (section
+// 4.1): internal/vectorcases/bitcoin_model_test.go models every Bitcoin
+// value, which the runner compares with DERIVE's rows through checkDerive,
+// and the bitcoin package's corpus test holds the parsers to
+// vectors/corpus/bitcoin/.
 // Mutants killed: the subject's item_hash recomputed under the claims_hash
 // byte (the trace's recomputed differs from the model's); the handover
 // recomputed under the block_hash byte (every handover signature's
@@ -440,7 +447,7 @@ func TestDerive_Rule2_EachHashIsUnderItsRowsByte(t *testing.T) {
 				input = row.Inputs[0]
 			}
 			switch {
-			case kind == "inclusion" || (kind == "genesis" && strings.HasSuffix(row.Part, "/height")):
+			case kind == "inclusion" || kind == "bitcoin" || (kind == "genesis" && strings.HasSuffix(row.Part, "/height")):
 				continue
 			case kind == "genesis":
 				kind = "genesis_previous_block_hash"
