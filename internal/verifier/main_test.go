@@ -24,12 +24,11 @@ import (
 //   - the shared HTTP client's, through httpclient.SetTransport, which
 //     refuses every request;
 //   - http.DefaultTransport, which a SingleRead built with no transport of
-//     its own reads through, DefaultKeyringReader's and
-//     DefaultIdentityReader's included: it is
-//     replaced by loopbackOnly, which sends a request on to the transport
-//     saved at package init only when its host is a loopback IP literal,
-//     such as an httptest server's, and refuses every other one before any
-//     lookup.
+//     its own reads through, DefaultKeyringReader's, DefaultIdentityReader's
+//     and DefaultChainReader's included: it is replaced by loopbackOnly,
+//     which sends a request on to the transport saved at package init only
+//     when its host is a loopback IP literal, such as an httptest server's,
+//     and refuses every other one before any lookup.
 //
 // The package's tests read bytes in memory, embedded spec data and files
 // of this repository. Every online keyring read goes through a fake

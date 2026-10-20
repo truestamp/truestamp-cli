@@ -94,7 +94,14 @@ import (
 //     read, valueAt's index of an object by its pointer segment's name
 //     (pointerReads). Its known limit is its file scope: a helper DERIVE
 //     calls that is declared in a file of internal/verifier outside
-//     derive*.go and layout.go is not read;
+//     derive*.go and layout.go is not read. CHAIN's files,
+//     internal/verifier/chain*.go, are outside it, as are the external
+//     gate, SOURCES, WINDOW, EXPECTED_HASH and VERDICT (external.go,
+//     source_outcomes.go, sources.go, window.go, expected_hash.go and
+//     verdict.go): they read a commitment entry's members by literal name,
+//     and a source's answer by the field names the rule passes, and the one
+//     hash CHAIN makes is recordHashAt's, in derive_records.go, which this
+//     check reads, under a constant kind that check 11 holds;
 //  8. an import that is not on the package's list in scannedPackages, so
 //     that nothing in internal/registry hashes but digest and the walk, and
 //     nothing in another package of the new verifier hashes but the three
@@ -195,7 +202,7 @@ var scannedPackages = map[string]scannedPackage{
 		"github.com/truestamp/truestamp-cli/internal/verifier/source",
 	}},
 	"internal/verifier/source": {imports: []string{
-		"bytes", "context", "encoding/base64", "errors", "fmt", "io", "net/http", "net/url", "strings",
+		"bytes", "context", "encoding/base64", "encoding/hex", "errors", "fmt", "io", "net/http", "net/url", "regexp", "strconv", "strings",
 		"github.com/truestamp/truestamp-cli/internal/httpclient",
 		strictjsonPath,
 	}, printsNothing: true},

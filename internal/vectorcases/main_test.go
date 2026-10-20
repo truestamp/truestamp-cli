@@ -24,16 +24,16 @@ import (
 //   - the shared HTTP client's, through httpclient.SetTransport, which
 //     refuses every request;
 //   - http.DefaultTransport, which internal/verifier's real readers,
-//     DefaultKeyringReader and DefaultIdentityReader, read through, and
-//     which these tests can reach since they import internal/verifier: it
-//     is replaced by loopbackOnly,
-//     which sends a request on to the transport saved at package init only
-//     when its host is a loopback IP literal and refuses every other one
-//     before any lookup.
+//     DefaultKeyringReader, DefaultIdentityReader and DefaultChainReader,
+//     read through, and which these tests can reach since they import
+//     internal/verifier: it is replaced by loopbackOnly, which sends a
+//     request on to the transport saved at package init only when its host
+//     is a loopback IP literal and refuses every other one before any
+//     lookup.
 //
 // The package's tests read only bytes in memory and files of this
-// repository, and every online case's keyring and identity reads are
-// answered by the replay adapter.
+// repository, and every online case's keyring, identity and chain reads
+// are answered by the replay adapter.
 func TestMain(m *testing.M) {
 	httpclient.SetTransport(refusingTransport{})
 	http.DefaultTransport = loopbackOnly{}

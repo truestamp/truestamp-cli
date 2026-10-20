@@ -18,11 +18,14 @@
 // (lib/truestamp/source_cache/identity.ex, stellar_source.ex and
 // bitcoin_source.ex in truestamp-v2), adapted:
 //
-//   - only the identity reads of SPEC.md section 10.2, step 0
-//     (CONFIGURATION), are here so far: Horizon's GET / for its
-//     network_passphrase, Esplora's GET /block-height/0 and Bitcoin
-//     Core's getblockhash 0 for the hash of the block at height 0; the
-//     reads of CHAIN and SOURCES join with those steps;
+//   - the identity reads of SPEC.md section 10.2, step 0
+//     (CONFIGURATION): Horizon's GET / for its network_passphrase,
+//     Esplora's GET /block-height/0 and Bitcoin Core's getblockhash 0 for
+//     the hash of the block at height 0; and Horizon's reads of CHAIN for a
+//     Stellar commitment entry, its root, a transaction and a ledger
+//     (stellar.go, SPEC.md section 10.4), each an [Answer] in the form of a
+//     replay record (section 13.2); the Bitcoin reads of CHAIN and the
+//     reads of SOURCES join with the rules that make them;
 //   - an identity read is found or unreachable, never not found (SPEC.md
 //     section 13.2 (The vectors)): every answer but a value in its form,
 //     a 404 and a Bitcoin Core error included, is an [*Unreachable],
