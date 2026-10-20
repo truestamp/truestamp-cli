@@ -141,8 +141,9 @@ type Config struct {
 	// reader reads nothing, so each source gives no usable answer.
 	ReadIdentity IdentityReader
 	// ReadChain makes the reads CHAIN and SOURCES make of a source whose
-	// identity was confirmed (SPEC.md section 10.4). A nil reader reads
-	// nothing, so each such read gives no usable answer.
+	// identity was confirmed, and of NIST's Randomness Beacon, which has no
+	// identity read (SPEC.md section 10.4). A nil reader reads nothing, so
+	// each such read gives no usable answer.
 	ReadChain ChainReader
 	// ExpectedHash is the caller's hash for step EXPECTED_HASH (SPEC.md
 	// section 10.2, step 13), as the caller gave it, or nil when none is

@@ -4,13 +4,14 @@
 // This file is the replay adapter of the online cases: it answers each
 // read a verifier makes in an online case from the case's replay file,
 // in place of the network (SPEC.md section 13.2 (The vectors), "Replay
-// files"), so far for the kinds a verifier's step 0 reads: keyring, and
-// the sources' identities, stellar_identity and bitcoin_identity; the
-// reads of the chains and the entropy sources join with the steps that
-// make them. The file stands as the operator-pinned source of each Stellar
-// and Bitcoin network whose identity read it holds, or as each named source
-// whose identity read it holds ([Replay.Sources]), so a case that pins such
-// a network, regtest included, has a source for it.
+// files"): the kinds a verifier's step 0 reads, keyring and the sources'
+// identities, stellar_identity and bitcoin_identity, each through its own
+// method, and every read of a chain or an entropy source, NIST's pulse
+// among them, through [Replay.Answer]. The file stands as the
+// operator-pinned source of each Stellar and Bitcoin network whose
+// identity read it holds, or as each named source whose identity read it
+// holds ([Replay.Sources]), so a case that pins such a network, regtest
+// included, has a source for it.
 //
 // A record is {answer, read} or {answer, read, source}. Its source, present
 // only in a record of a read of a Stellar or Bitcoin network that the case's

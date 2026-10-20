@@ -43,12 +43,14 @@
 // and each genesis.bitcoin by its rule of section 10.4, through
 // source_outcomes.go's frame, made once for each source of its network and
 // combined under the network's source policy, keeps each passing row's
-// candidate for WINDOW and ends with KEY_EVENT_COMMITMENT; the sources'
-// rules are not in the package yet, so their rows, and WINDOW's, are not
-// given under an open gate. Then step 12, WINDOW, which
-// a closed gate leaves not established; step
-// 13, EXPECTED_HASH; and step 14, VERDICT, the label and the run's code of
-// section 10.5.
+// candidate for WINDOW and ends with KEY_EVENT_COMMITMENT; SOURCES reads
+// each entropy object whose entropy_hash matched at DERIVE by its source's
+// rule of section 10.4, from the sources of the run's entropy pin, through
+// the same frame, and keeps each passing row's candidate for WINDOW.
+// WINDOW's rule is not in the package yet, so its row is not given under
+// an open gate. Then step 12, WINDOW, which a closed gate leaves not
+// established; step 13, EXPECTED_HASH; and step 14, VERDICT, the label and
+// the run's code of section 10.5.
 //
 //   - config.go: a run's [Config], what step 0 fixes (section 10.2);
 //   - options.go: the options of `truestamp verify` that set a Config,
@@ -77,6 +79,8 @@
 //     (sections 10.3 and 10.4); chain_stellar.go: the rule of a Stellar
 //     commitment entry, and chain_bitcoin.go: the rule of a Bitcoin
 //     commitment entry and of genesis.bitcoin (sections 10.4 and 11.1);
+//   - entropy.go: SOURCES under an open gate, the rule of each entropy
+//     object, NIST's, Stellar's and Bitcoin's (sections 10.4 and 11.2);
 //   - source_outcomes.go: the frame a CHAIN or SOURCES row read under an
 //     open gate runs through: each source's outcome, their combination
 //     under the source policy, and the row's values (section 10.4);
@@ -104,7 +108,9 @@
 // section 9); the document never chooses one, nor a policy. Each source's
 // identity read goes through [Config.ReadIdentity], and one with no usable
 // answer is recorded unreachable, so nothing else is read from it; every
-// other read of a source goes through [Config.ReadChain].
+// other read of a source goes through [Config.ReadChain]. NIST's
+// Randomness Beacon is one source, at its compiled-in address, with no
+// identity read, and no configuration names another.
 //
 // The CLI is an external verifier (SPEC.md section 8.3). Online, under E_v
 // prod and with no supplied keyring, the keyring read from

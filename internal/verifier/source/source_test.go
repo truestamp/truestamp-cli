@@ -258,10 +258,12 @@ func TestCheckURL_RefusesAndQuotesNothing(t *testing.T) {
 	}
 }
 
-// Each provider names its chain, and an unknown one none. Mutant killed:
-// Chain giving bitcoin for Horizon.
+// Each provider names its chain, and NIST's beacon, which serves none, and
+// an unknown provider name none, so no source configured with either
+// passes a check of its chain. Mutants killed: Chain giving bitcoin for
+// Horizon; Chain giving nist for the beacon.
 func TestProvider_Chain(t *testing.T) {
-	if Horizon.Chain() != "stellar" || Esplora.Chain() != "bitcoin" || BitcoinCore.Chain() != "bitcoin" || Provider("x").Chain() != "" {
+	if Horizon.Chain() != "stellar" || Esplora.Chain() != "bitcoin" || BitcoinCore.Chain() != "bitcoin" || NISTBeacon.Chain() != "" || Provider("x").Chain() != "" {
 		t.Fatal("Chain")
 	}
 }

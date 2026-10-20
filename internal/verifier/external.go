@@ -33,10 +33,10 @@
 // each made once for each source of its network and combined under the
 // network's source policy (source_outcomes.go): CHAIN's are chain.go's,
 // Stellar's rule (chain_stellar.go) and Bitcoin's, for a commitment entry
-// and for genesis.bitcoin (chain_bitcoin.go), and no source's rule is in
-// the package yet, so under an open gate SOURCES gives no row here. A run
-// that has ended passes through, since its CHAIN and SOURCES rows are
-// already skip prior_failure, part null.
+// and for genesis.bitcoin (chain_bitcoin.go), and SOURCES' are
+// entropy.go's, NIST's, Stellar's and Bitcoin's rules for an entropy
+// object. A run that has ended passes through, since its CHAIN and SOURCES
+// rows are already skip prior_failure, part null.
 
 package verifier
 
@@ -161,6 +161,7 @@ func Sources(run *Run) {
 	}
 	code, closed := closedGate(run, "SOURCES")
 	if !closed {
+		sourcesOpen(run)
 		return
 	}
 	objects := entropyObjects(run.Proof)

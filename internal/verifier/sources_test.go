@@ -949,11 +949,15 @@ func TestSources_TheDefaultReaderBuildsEachReadWithItsDeadline(t *testing.T) {
 // quotes the source's URL: a provider of another chain, a network not of
 // its chain, a URL with user information, a query or a host that is not a
 // DNS name, credentials on a source that is not a Bitcoin Core node, and a
-// source given for no network that names one, even one of its chain.
-// Mutants killed: checkSource without its provider check; without its
-// credentials check; checkSourceURL without its host check; Validate
-// without its refusal of a network on a source of Config.Sources (the
-// source naming testnet is allowed).
+// source given for no network that names one, even one of its chain, and
+// NIST's beacon as a source of any chain or of none, since it is one
+// source at its compiled-in address and no configuration names another
+// (SPEC.md section 9). Mutants killed: checkSource without its provider
+// check; without its credentials check; checkSourceURL without its host
+// check; Validate without its refusal of a network on a source of
+// Config.Sources (the source naming testnet is allowed); the beacon's
+// provider serving a chain named nist (the beacon of the chain nist is
+// allowed).
 func TestConfig_SourceRefusals(t *testing.T) {
 	const secret = "planted-secret-2e8a"
 	for name, s := range map[string]Source{
@@ -966,6 +970,9 @@ func TestConfig_SourceRefusals(t *testing.T) {
 		"a host that is no DNS name": {Chain: ChainBitcoin, Provider: source.Esplora, URL: "https://" + secret + "..example"},
 		"credentials on Esplora": {Chain: ChainBitcoin, Provider: source.Esplora, URL: "https://e.example",
 			Credentials: source.NewCredentials("u", secret)},
+		"the NIST beacon":             {Chain: SourceNIST, Provider: source.NISTBeacon, URL: "https://beacon.example"},
+		"the NIST beacon for Bitcoin": {Chain: ChainBitcoin, Provider: source.NISTBeacon, URL: "https://beacon.example"},
+		"the NIST beacon of no chain": {Provider: source.NISTBeacon, URL: "https://beacon.example"},
 	} {
 		cfg, _ := NewConfig("prod")
 		cfg.Sources = []Source{s}

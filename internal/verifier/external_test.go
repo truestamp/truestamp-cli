@@ -221,28 +221,37 @@ func TestChainAndSources_OfflineMessagesNameTheRead(t *testing.T) {
 	}
 }
 
-// Under an open gate CHAIN gives its Stellar rows, and a failure CHAIN
-// itself gives does not close the gate for SOURCES: nothing decides it
-// again, so SOURCES gives no skip prior_failure row. SOURCES' and WINDOW's
-// rules are not in this package, so they give no row here. The item
-// proof's two Stellar entries name one transaction, so both fail on its
-// one answer, and so does KEY_EVENT_COMMITMENT; its Bitcoin entries pass.
-// Mutants killed: Chain deciding the gate again when it ends (SOURCES
-// gives skip prior_failure rows after CHAIN's failure);
-// closedGate deciding from Run.Failed (the same); Chain treating an open
-// gate as offline (CHAIN gives skip offline rows); Window drawing its row
-// under an open gate (a WINDOW row follows).
+// Under an open gate CHAIN gives its rows, and a failure CHAIN itself
+// gives does not close the gate for SOURCES: nothing decides it again, so
+// SOURCES reads each entropy object and gives its row, no skip
+// prior_failure row among them. WINDOW's rule is not in this package, so
+// it gives no row here. The item proof's two Stellar entries name one
+// transaction, so both fail on its one answer, and so does
+// KEY_EVENT_COMMITMENT; its Bitcoin entries pass, and so do its three
+// witnesses, each read from the sources of the entropy pins, the Stellar
+// witness from the source whose transaction answer failed CHAIN. Mutants
+// killed: Chain deciding the gate again when it ends (SOURCES gives skip
+// prior_failure rows after CHAIN's failure); closedGate deciding from
+// Run.Failed (the same); Chain treating an open gate as offline (CHAIN
+// gives skip offline rows); Sources giving no row under an open gate (no
+// SOURCES row follows); Window drawing its row under an open gate (a
+// WINDOW row follows).
 func TestExternalGate_AChainFailureLeavesItOpenForSources(t *testing.T) {
 	item := positiveProofs(t)["item"]
 	stand := &chainStandIn{answers: map[string]SourceRead{}}
 	stand.answer(soundStellar(t, item, topStellar, itemClosed), soundTx(map[string]any{"successful": false}), SourceRead{}, "a")
+	stand.answerEntropy(t, entropyEntryAt(t, item, witnessNIST), "", SourceRead{})
+	stand.answerEntropy(t, entropyEntryAt(t, item, witnessStellar), "testnet", SourceRead{}, "a")
+	stand.answerEntropy(t, entropyEntryAt(t, item, witnessBitcoin), "regtest", SourceRead{}, "btc")
 	run := openItemRun(t, item, deriveAttribution, standInSet(SourcePolicy{Kind: SourcePolicyFirst}, "a"), stand)
+	run.Config.Networks.Entropy = specdata.ChainNetworks{Bitcoin: "regtest", Stellar: "testnet"}
 	before := len(run.Rows)
 	Chain(run)
 	Sources(run)
 	Window(run)
 	want := "[null /commitments/bitcoin pass CHAIN] [chain_mismatch /commitments/stellar fail CHAIN] [null /signing_key_event/commitments/bitcoin pass CHAIN] " +
-		"[chain_mismatch /signing_key_event/commitments/stellar fail CHAIN] [chain_mismatch /signing_key_event fail CHAIN]"
+		"[chain_mismatch /signing_key_event/commitments/stellar fail CHAIN] [chain_mismatch /signing_key_event fail CHAIN] " +
+		"[null /witnesses/entropy_bitcoin pass SOURCES] [null /witnesses/entropy_nist pass SOURCES] [null /witnesses/entropy_stellar pass SOURCES]"
 	if got := rowSummary(run.Rows[before:]); got != want || run.ExternalGate != ExternalGateOpen {
 		t.Fatalf("rows after DERIVE %s, gate %q; want %s", got, run.ExternalGate, want)
 	}

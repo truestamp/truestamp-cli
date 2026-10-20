@@ -2,8 +2,9 @@
 // SPDX-License-Identifier: Apache-2.0
 
 // This file holds the reads CHAIN makes of an Esplora server or a Bitcoin
-// Core node for a Bitcoin commitment entry and for genesis.bitcoin
-// (SPEC.md section 10.4, "Bitcoin commitment entries", "genesis.bitcoin"
+// Core node for a Bitcoin commitment entry and for genesis.bitcoin, and
+// the read SOURCES makes for a Bitcoin entropy object (SPEC.md section
+// 10.4, "Bitcoin commitment entries", "genesis.bitcoin", "Entropy objects"
 // and its informative table, "Common sources"), each giving its answer in
 // the form of a replay record (SPEC.md section 13.2, "Replay files"):
 //
@@ -15,13 +16,20 @@
 //	|                         | GET <base>/block/<hash>                                   | transaction_count (tx_count)                 |
 //	|                         | Bitcoin Core getblockhash <height>, then                  | hash, median_time_past (mediantime),         |
 //	|                         | getblockheader <hash>                                     | transaction_count (nTx)                      |
+//	| bitcoin_block           | Esplora GET <base>/block/<hash>                           | height, median_time_past, time               |
+//	|                         | Bitcoin Core getblockheader <hash>                        |                                              |
 //
 // The block at a height is the best-chain block there: its hash is the
 // first call's answer, and its median time past and its transaction count
 // are those the second call gives of the block with that hash, Esplora's
-// mediantime and tx_count and Bitcoin Core's mediantime and nTx. Section
-// 10.4 lets a verifier take a median time past from the source's report
-// ("Median time past"), which is what these reads give.
+// mediantime and tx_count and Bitcoin Core's mediantime and nTx. The block
+// by its hash is the block the source holds with that hash, on its best
+// chain or not (section 10.4: the block of an entropy object need not be
+// on the best chain, and Bitcoin Core's getblockheader answers for a block
+// off it too), one call: its height, its header's nTime as time, and its
+// median time past. Section 10.4 lets a verifier take a median time past
+// from the source's report ("Median time past"), which is what these reads
+// give.
 //
 // A read's answer is one of SPEC.md section 10.4's three outcomes
 // ("Answers"):
@@ -30,7 +38,9 @@
 //     Bitcoin Core's result); or the block at a height, whose value holds
 //     the hash, a HEX64 (Esplora's text, Bitcoin Core's result), and
 //     median_time_past and transaction_count, each when the second call
-//     gives it as an INT. A field the second call does not give as an INT,
+//     gives it as an INT; or the block by its hash, whose value holds
+//     height, median_time_past and time, each when the source gives it as
+//     an INT. A field the second call does not give as an INT,
 //     and both when that call gives no answer at all (a failure, a 404 or
 //     a Bitcoin Core error included, or a body that is not a JSON object),
 //     is absent from the value: the answer holds what the source gave, so
@@ -40,17 +50,22 @@
 //     point). A field in another form is left out rather than copied, so a
 //     value never holds what a server wrote in place of a number, such as
 //     the credentials a node echoes back, and the rule judges it unusable
-//     either way;
+//     either way. A block by its hash whose one call gives no answer is
+//     unreachable, as any read with no answer is: unlike the block at a
+//     height, nothing of it has been given;
 //   - not found: the first call of a block at a height, when Esplora
 //     answers 404 or Bitcoin Core answers its error -8 (a height out of
 //     range) or -5 (no such block): the source holds no best-chain block
-//     at that height. A tip is never not found (SPEC.md section 13.2), so
-//     a 404 or a Bitcoin Core error to it is unreachable;
+//     at that height; and the block by its hash, when Esplora answers 404
+//     or Bitcoin Core one of those errors: the source holds no block with
+//     that hash. A tip is never not found (SPEC.md section 13.2), so a 404
+//     or a Bitcoin Core error to it is unreachable;
 //   - unreachable: every other answer, a 3xx, a 429, a 503, a challenge
 //     page and a body over its bound among them, a tip or a hash that is
 //     not in its form, any other Bitcoin Core error and an answer to
-//     another call; and a read whose height is not an INT, which is made
-//     to no server. Its reason is a fixed text, as the identity reads' are
+//     another call; a block by its hash whose answer is not a JSON object;
+//     and a read whose height is not an INT, or whose hash is not a HEX64,
+//     which is made to no server. Its reason is a fixed text, as the identity reads' are
 //     ([fromRead]), quoting nothing a server sent.
 //
 // A Bitcoin Core call is a JSON-RPC 1.0 POST to the node's URL, with the
@@ -61,8 +76,13 @@
 // PostRPC), so its error's code is read there; nothing else of the error
 // is read. Esplora's reads send no credential.
 //
+// Every JSON answer is read whole by the strict reader
+// (internal/strictjson), so a body it refuses, for a number past
+// MAX_INTEGER in a member no read uses too, gives its call no answer.
+//
 // The source's URL is the operator's or a compiled-in default, never the
-// document's: a read's parameters name only the height asked for.
+// document's: a read's parameters name only the height or the hash asked
+// for.
 
 package source
 
@@ -82,6 +102,7 @@ import (
 const (
 	KindBitcoinTip           = "bitcoin_tip"
 	KindBitcoinBlockAtHeight = "bitcoin_block_at_height"
+	KindBitcoinBlock         = "bitcoin_block"
 )
 
 // BitcoinOctets bounds the body of each Bitcoin answer: a height, a hash,
@@ -118,7 +139,7 @@ func EsploraTip(ctx context.Context, reads *httpclient.SingleRead, base string) 
 // server: GET <base>/block-height/<height>, the block's hash, then GET
 // <base>/block/<hash>, for its mediantime and tx_count.
 func EsploraBlockAtHeight(ctx context.Context, reads *httpclient.SingleRead, base string, height any) Answer {
-	h, ok := heightOf(height)
+	h, ok := intParam(height)
 	if !ok {
 		return unreachableAnswer("the height is not an integer from 0 to 2^53 - 1")
 	}
@@ -164,7 +185,7 @@ func CoreTip(ctx context.Context, reads *httpclient.SingleRead, url string, cred
 // node at url, with creds: getblockhash <height>, the block's hash, then
 // getblockheader <hash>, for its mediantime and nTx.
 func CoreBlockAtHeight(ctx context.Context, reads *httpclient.SingleRead, url string, creds Credentials, height any) Answer {
-	h, ok := heightOf(height)
+	h, ok := intParam(height)
 	if !ok {
 		return unreachableAnswer("the height is not an integer from 0 to 2^53 - 1")
 	}
@@ -182,6 +203,54 @@ func CoreBlockAtHeight(ctx context.Context, reads *httpclient.SingleRead, url st
 		addInts(answer.Value, header, map[string]string{"mediantime": "median_time_past", "nTx": "transaction_count"})
 	}
 	return answer
+}
+
+// EsploraBlock reads the block whose hash is hash of an Esplora server,
+// GET <base>/block/<hash>, for its height, timestamp and mediantime.
+func EsploraBlock(ctx context.Context, reads *httpclient.SingleRead, base string, hash any) Answer {
+	text, ok := hashParam(hash)
+	if !ok {
+		return unreachableAnswer("the block hash is not 64 lowercase hex digits")
+	}
+	body, err := reads.Get(ctx, endpoint(base, "/block/"+text), BitcoinOctets)
+	if err != nil {
+		if httpclient.Status(err) == http.StatusNotFound {
+			return Answer{Outcome: OutcomeNotFound}
+		}
+		return unreachableFrom(err)
+	}
+	block, err := strictjson.Parse(body)
+	if _, isObject := block.(map[string]any); err != nil || !isObject {
+		return unreachableAnswer("Esplora's answer is not a JSON object")
+	}
+	return blockByHash(block, map[string]string{"height": "height", "mediantime": "median_time_past", "timestamp": "time"})
+}
+
+// CoreBlock reads the block whose hash is hash of a Bitcoin Core node at
+// url, with creds: getblockheader <hash>, for its height, time and
+// mediantime.
+func CoreBlock(ctx context.Context, reads *httpclient.SingleRead, url string, creds Credentials, hash any) Answer {
+	text, ok := hashParam(hash)
+	if !ok {
+		return unreachableAnswer("the block hash is not 64 lowercase hex digits")
+	}
+	result, answer, ok := coreCall(ctx, reads, url, creds, "getblockheader", `"`+text+`"`)
+	if !ok {
+		return answer
+	}
+	if _, isObject := result.(map[string]any); !isObject {
+		return unreachableAnswer("Bitcoin Core's result is not a JSON object")
+	}
+	return blockByHash(result, map[string]string{"height": "height", "mediantime": "median_time_past", "time": "time"})
+}
+
+// blockByHash is the found answer of a block by its hash, holding each
+// field of block that names gives a field of the value's name, when block
+// holds it as an INT.
+func blockByHash(block any, names map[string]string) Answer {
+	value := map[string]any{}
+	addInts(value, block, names)
+	return Answer{Outcome: OutcomeFound, Value: value}
 }
 
 // coreCall calls method with params, the JSON text of its one parameter
@@ -244,10 +313,17 @@ func intOf(v any) (int64, bool) {
 	return n, isNumber && isInt
 }
 
-// heightOf is a read's height parameter as an INT, and whether it is one.
-func heightOf(height any) (int64, bool) {
-	n, ok := intOf(height)
+// intParam is a read's integer parameter, a height or a NIST index, as an
+// INT, and whether it is one.
+func intParam(param any) (int64, bool) {
+	n, ok := intOf(param)
 	return n, ok && n >= 0
+}
+
+// hashParam is a read's hash parameter as a HEX64, and whether it is one.
+func hashParam(param any) (string, bool) {
+	text, ok := param.(string)
+	return text, ok && hex64(text)
 }
 
 // decimalInt is text, an integer in decimal digits, as an INT, and

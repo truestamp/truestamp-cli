@@ -97,9 +97,10 @@ import (
 //     derive*.go and layout.go is not read. CHAIN's files,
 //     internal/verifier/chain*.go, are outside it, as are the external
 //     gate, SOURCES, WINDOW, EXPECTED_HASH and VERDICT (external.go,
-//     source_outcomes.go, sources.go, window.go, expected_hash.go and
-//     verdict.go): they read a commitment entry's members by literal name,
-//     and a source's answer by the field names the rule passes, and the
+//     entropy.go, source_outcomes.go, sources.go, window.go,
+//     expected_hash.go and verdict.go): they read a commitment entry's and
+//     an entropy object's members by literal name, and a source's answer
+//     by the field names the rule passes, and the
 //     hashes CHAIN makes are recordHashAt's, in derive_records.go, which
 //     this check reads, under a constant kind that check 11 holds, and the
 //     named digest bitcoin.HeaderHash's, which check 12 holds to its calls;
