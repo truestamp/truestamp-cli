@@ -95,6 +95,26 @@ func (r Row) Reduce() (code *string, part *string, status, step string) {
 	return code, r.Part, string(r.Status), r.Step
 }
 
+// Value is the row as a report writes it, {code, message, part, status,
+// step, values} (SPEC.md section 10.5, "Rows"): code is absent exactly
+// when the status is pass, a null part is nil, and a row with no values
+// holds {}.
+func (r Row) Value() map[string]any {
+	var part any
+	if r.Part != nil {
+		part = *r.Part
+	}
+	values := r.Values
+	if values == nil {
+		values = map[string]any{}
+	}
+	out := map[string]any{"message": r.Message, "part": part, "status": string(r.Status), "step": r.Step, "values": values}
+	if r.Status != StatusPass {
+		out["code"] = string(r.Code)
+	}
+	return out
+}
+
 // rowSteps are the steps that report rows: every step of SPEC.md section
 // 10.2 but VERDICT (step 14), which adds none.
 var rowSteps = steps[:len(steps)-1]

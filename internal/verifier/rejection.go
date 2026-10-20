@@ -3,7 +3,8 @@
 
 // This file holds a bare rejection (SPEC.md section 10.2, the gate), a
 // failure at steps 0 to 3, which gives only {code, message, sub_reason},
-// with no report and no verdict. The codes are internal/specdata's (SPEC.md
+// with no report and no verdict, sub_reason present only for
+// malformed_json and invalid_envelope (section 12.1). The codes are internal/specdata's (SPEC.md
 // section 12.1), and a rejection of steps READ and PARSE is built from the
 // strictjson.Rejection the strict reader gives.
 
@@ -13,6 +14,7 @@ import (
 	"fmt"
 	"slices"
 
+	"github.com/truestamp/truestamp-cli/internal/jcs"
 	"github.com/truestamp/truestamp-cli/internal/specdata"
 	"github.com/truestamp/truestamp-cli/internal/strictjson"
 )
@@ -35,6 +37,22 @@ func (r *Rejection) Error() string {
 	}
 	return fmt.Sprintf("%s: %s", r.Code, r.Message)
 }
+
+// Value is the rejection as a verifier outputs it, and all it outputs
+// (SPEC.md section 10.2, the gate): {code, message, sub_reason}, with
+// sub_reason present only for malformed_json and invalid_envelope and
+// absent otherwise (section 12.1). There is no report, row or verdict.
+func (r *Rejection) Value() map[string]any {
+	out := map[string]any{"code": string(r.Code), "message": r.Message}
+	if r.SubReason != "" {
+		out["sub_reason"] = string(r.SubReason)
+	}
+	return out
+}
+
+// Encode returns the rejection written with JCS (SPEC.md section 2.5),
+// its members in the order JCS gives them.
+func (r *Rejection) Encode() ([]byte, error) { return jcs.Encode(r.Value()) }
 
 // NewRejection returns a bare rejection with code, message and, when the
 // code has one, sub. It panics for a code that is not bare, a sub_reason

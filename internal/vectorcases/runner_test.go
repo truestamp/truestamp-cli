@@ -9,7 +9,9 @@
 // comes from (section 10.5); for DERIVE, its rows, their values and the
 // trace (section 10.6); for CHAIN, SOURCES and WINDOW, under a closed
 // and an open external gate, EXPECTED_HASH and VERDICT, their rows, the
-// label and the two edges of the submission window (section 11.5).
+// label and the two edges of the submission window (section 11.5); and
+// each bare rejection and each report whole, as the verifier writes them
+// (sections 10.2 and 10.5; report_test.go).
 
 package vectorcases_test
 
@@ -109,6 +111,7 @@ var laterShapeChecks = map[string]int{
 // row whose values JCS cannot write.
 type outcome struct {
 	run         *verifier.Run
+	rejection   *verifier.Rejection
 	code        string
 	subReason   string
 	rows        []vectorcases.Row
@@ -185,7 +188,7 @@ func rowsOf(run *verifier.Run) []vectorcases.Row {
 }
 
 func bareOf(rejection *verifier.Rejection) outcome {
-	return outcome{code: string(rejection.Code), subReason: string(rejection.SubReason)}
+	return outcome{rejection: rejection, code: string(rejection.Code), subReason: string(rejection.SubReason)}
 }
 
 // reportOf is the outcome of a run that passed steps 0 to 3, its rows from
@@ -719,8 +722,10 @@ func unsourced(t *testing.T, c vectorcases.Case, o outcome) []string {
 }
 
 // Every case of cases.json through every step: a case a step decides
-// gives exactly its code and sub_reason; every other case passes steps 0 to
-// 3, and a report's rows are exactly its expected rows (expectedThrough),
+// gives exactly its code and sub_reason, and its rejection, as the
+// verifier writes it, is exactly {code, message, sub_reason}
+// (checkRejection), in the 65 such cases; every other case passes steps 0
+// to 3, and a report's rows are exactly its expected rows (expectedThrough),
 // all of them when the gate or SHAPE ends the run, whose label is then
 // failed, with the attribution none when the gate ended it and the
 // attribution SIGNATURE gave it when SHAPE did; a run the gate opens has
@@ -760,6 +765,12 @@ func unsourced(t *testing.T, c vectorcases.Case, o outcome) []string {
 // keyring is unavailable, key_binding-unavailable-unreachable and
 // key_binding-unavailable-load_check, read the keyring of www.truestamp.com
 // through the replay adapter and fail KEY_BINDING keyring_unavailable.
+// Each of the 416 reports, the 335 offline and the 81 online, matches as
+// a whole report too (checkReport): written by the verifier with JCS and
+// read back, its members exactly SPEC.md section 10.5's in their order,
+// every row, its label and code, its edges, window, verified, environment,
+// type, subject id, attribution and trust_root, the expected_hash-*,
+// sound-*, gates-* and sources-* cases among them.
 // Mutants killed: a failed online keyring read binding against the compiled
 // pin (both online key_binding-* cases fail key_binding_failed); a replayed
 // keyring loaded under a fixed "test" (key_binding-unavailable-load_check's
@@ -821,7 +832,16 @@ func unsourced(t *testing.T, c vectorcases.Case, o outcome) []string {
 // expected_hash-* and four gates-* cases give expected_hash_not_checked);
 // ExpectedHash not lowercasing (expected_hash-capitals fails); Verdict
 // taking the label from the attribution alone (every failed supplied-keyring
-// case is supplied-keyring).
+// case is supplied-keyring); the report writing the edges of a failed run
+// (window-inverted and gates-online-chain_failure, whose WINDOW drew both,
+// have edges); the report's verified true for an established window (every
+// supplied-keyring case with a submitted-before edge is verified); the
+// report's code written on every report (each case not failed has one);
+// a rejection writing sub_reason as "" when it has none (the 18
+// configuration_error and input_too_large cases have a third member); a
+// row's code written on a pass (every pass row has six members);
+// trust_root's location left null for a supplied keyring (every case
+// under test or a keyring path differs).
 func TestCases_ThroughEveryStep(t *testing.T) {
 	cases, err := vectorcases.Load()
 	if err != nil {
@@ -851,6 +871,8 @@ func TestCases_ThroughEveryStep(t *testing.T) {
 				if got.code != c.Expected.Code || got.subReason != c.Expected.SubReason {
 					t.Fatalf("got %s (%s), want %s (%s)", got.code, got.subReason, c.Expected.Code, c.Expected.SubReason)
 				}
+				checkRejection(t, c, got.rejection)
+				tally["bare rejection, its members"]++
 				return
 			case got.bare():
 				t.Fatalf("rejected %s (%s) at a built step; the case is decided later", got.code, got.subReason)
@@ -911,11 +933,12 @@ func TestCases_ThroughEveryStep(t *testing.T) {
 			if gate == verifier.ExternalGateOpen {
 				tally[on+"the external gate opens"]++
 			}
-			tally[on+"matched in full"]++
 			checkLabel(t, c, got.run)
 			if online {
 				tally[checkEdges(t, c, got.run)]++
 			}
+			checkReport(t, c, got.run)
+			tally[on+"matched in full"]++
 			passed := !got.ended
 			typ, subject := typeAndSubject(proofOf(t, c))
 			if passed && (got.typ != typ || got.subjectID != subject || subject == "") {
@@ -947,6 +970,7 @@ func TestCases_ThroughEveryStep(t *testing.T) {
 		"online report, POLICY fails":          1,
 		"online report, DERIVE fails":          1,
 		"online report, the gate fails":        2,
+		"bare rejection, its members":          65,
 		"matched in full":                      335,
 		"online matched in full":               81,
 		"online the external gate opens":       77,
