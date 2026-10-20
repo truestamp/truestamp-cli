@@ -66,7 +66,11 @@ func TestLoad_ReadsSources(t *testing.T) {
 // required of 0 or above the number of names; a break after a chain's first
 // network (a bad network after a good one, Bitcoin testnet after mainnet,
 // is allowed); a return after the first chain (a bad chain after a good
-// one, Stellar after Bitcoin, is allowed).
+// one, Stellar after Bitcoin, is allowed); checkSources checking only the
+// last network of each chain (a bad network before a good one, Bitcoin
+// mainnet before regtest, is allowed); checkSources checking only the last
+// chain (a bad chain before a good one, Bitcoin before Stellar, is
+// allowed).
 func TestCheckSources_Refusals(t *testing.T) {
 	const online = `"online": "corpus/replay/sources-all-agree.json"`
 	const networks = `"networks": {"commitment": {"bitcoin": "regtest", "stellar": "testnet"}, "entropy": {"bitcoin": "mainnet", "stellar": "testnet"}}`
@@ -95,22 +99,24 @@ func TestCheckSources_Refusals(t *testing.T) {
 		}
 	}
 	refused := map[string]string{
-		"a chain with no sources option": sources(`{"nist": {"testnet": {"policy": "first", "sources": ["a"]}}}`),
-		"a network of another chain":     sources(`{"stellar": {"regtest": {"policy": "first", "sources": ["a"]}}}`),
-		"no names":                       sources(`{"stellar": {"testnet": {"policy": "first", "sources": []}}}`),
-		"no sources member":              sources(`{"stellar": {"testnet": {"policy": "first"}}}`),
-		"an empty name":                  sources(`{"stellar": {"testnet": {"policy": "first", "sources": [""]}}}`),
-		"a name of 17 characters":        sources(`{"stellar": {"testnet": {"policy": "first", "sources": ["abcdefghijklmnopq"]}}}`),
-		"a name twice":                   sources(`{"stellar": {"testnet": {"policy": "all", "sources": ["a", "b", "a"]}}}`),
-		"an unknown policy":              sources(`{"stellar": {"testnet": {"policy": "most", "sources": ["a", "b"]}}}`),
-		"required under first":           sources(`{"stellar": {"testnet": {"policy": "first", "required": 1, "sources": ["a", "b"]}}}`),
-		"required under all":             sources(`{"stellar": {"testnet": {"policy": "all", "required": 2, "sources": ["a", "b"]}}}`),
-		"at_least without required":      sources(`{"stellar": {"testnet": {"policy": "at_least", "sources": ["a", "b"]}}}`),
-		"at_least 0":                     sources(`{"stellar": {"testnet": {"policy": "at_least", "required": 0, "sources": ["a", "b"]}}}`),
-		"at_least 3 of two":              sources(`{"stellar": {"testnet": {"policy": "at_least", "required": 3, "sources": ["a", "b"]}}}`),
-		"offline":                        `{"environment": "test", ` + networks + `, "sources": {"stellar": {"testnet": {"policy": "first", "sources": ["a"]}}}}`,
-		"a bad network after a good one": sources(`{"bitcoin": {"mainnet": {"policy": "first", "sources": ["a"]}, "testnet": {"policy": "most", "sources": ["a", "b"]}}}`),
-		"a bad chain after a good one":   sources(`{"bitcoin": {"regtest": {"policy": "first", "sources": ["a"]}}, "stellar": {"testnet": {"policy": "first", "required": 1, "sources": ["a", "b"]}}}`),
+		"a chain with no sources option":  sources(`{"nist": {"testnet": {"policy": "first", "sources": ["a"]}}}`),
+		"a network of another chain":      sources(`{"stellar": {"regtest": {"policy": "first", "sources": ["a"]}}}`),
+		"no names":                        sources(`{"stellar": {"testnet": {"policy": "first", "sources": []}}}`),
+		"no sources member":               sources(`{"stellar": {"testnet": {"policy": "first"}}}`),
+		"an empty name":                   sources(`{"stellar": {"testnet": {"policy": "first", "sources": [""]}}}`),
+		"a name of 17 characters":         sources(`{"stellar": {"testnet": {"policy": "first", "sources": ["abcdefghijklmnopq"]}}}`),
+		"a name twice":                    sources(`{"stellar": {"testnet": {"policy": "all", "sources": ["a", "b", "a"]}}}`),
+		"an unknown policy":               sources(`{"stellar": {"testnet": {"policy": "most", "sources": ["a", "b"]}}}`),
+		"required under first":            sources(`{"stellar": {"testnet": {"policy": "first", "required": 1, "sources": ["a", "b"]}}}`),
+		"required under all":              sources(`{"stellar": {"testnet": {"policy": "all", "required": 2, "sources": ["a", "b"]}}}`),
+		"at_least without required":       sources(`{"stellar": {"testnet": {"policy": "at_least", "sources": ["a", "b"]}}}`),
+		"at_least 0":                      sources(`{"stellar": {"testnet": {"policy": "at_least", "required": 0, "sources": ["a", "b"]}}}`),
+		"at_least 3 of two":               sources(`{"stellar": {"testnet": {"policy": "at_least", "required": 3, "sources": ["a", "b"]}}}`),
+		"offline":                         `{"environment": "test", ` + networks + `, "sources": {"stellar": {"testnet": {"policy": "first", "sources": ["a"]}}}}`,
+		"a bad network after a good one":  sources(`{"bitcoin": {"mainnet": {"policy": "first", "sources": ["a"]}, "testnet": {"policy": "most", "sources": ["a", "b"]}}}`),
+		"a bad chain after a good one":    sources(`{"bitcoin": {"regtest": {"policy": "first", "sources": ["a"]}}, "stellar": {"testnet": {"policy": "first", "required": 1, "sources": ["a", "b"]}}}`),
+		"a bad network before a good one": sources(`{"bitcoin": {"mainnet": {"policy": "most", "sources": ["a"]}, "regtest": {"policy": "first", "sources": ["a", "b"]}}}`),
+		"a bad chain before a good one":   sources(`{"bitcoin": {"regtest": {"policy": "all", "required": 2, "sources": ["a", "b"]}}, "stellar": {"testnet": {"policy": "first", "sources": ["a"]}}}`),
 	}
 	for name, text := range refused {
 		if err := vectorcases.CheckSources(config(t, text)); err == nil {
@@ -142,5 +148,32 @@ func TestLoad_RefusesACaseSources(t *testing.T) {
 	}
 	if !strings.Contains(err.Error(), "sources-refused") {
 		t.Errorf("the error %q does not name the case", err)
+	}
+}
+
+// When two entries of a case's sources are refused, checkSources gives the
+// refusal of the first in sorted order, chain by chain and then network by
+// network: of Bitcoin mainnet's unknown policy and Bitcoin regtest's
+// sources with no names, mainnet's; of Bitcoin regtest's required under
+// all and Stellar testnet's name given twice, Bitcoin's. Each error is
+// exactly that refusal's. Mutants killed: checkSources ranging over the
+// networks in reverse order (regtest's refusal is given), over the chains
+// in reverse order (Stellar's is given), or in map order unsorted (one of
+// the two orders is given in some runs, so the check is made 50 times).
+func TestCheckSources_TheFirstRefusalInSortedOrder(t *testing.T) {
+	const prefix = `{"environment": "test", "networks": {"commitment": {"bitcoin": "regtest", "stellar": "testnet"}, "entropy": {"bitcoin": "mainnet", "stellar": "testnet"}}, "online": "corpus/replay/sources-all-agree.json", "sources": `
+	for body, want := range map[string]string{
+		`{"bitcoin": {"regtest": {"policy": "first", "sources": []}, "mainnet": {"policy": "most", "sources": ["a"]}}}`:                                       `sources of bitcoin mainnet: the policy "most"`,
+		`{"stellar": {"testnet": {"policy": "all", "sources": ["a", "a"]}}, "bitcoin": {"regtest": {"policy": "all", "required": 2, "sources": ["a", "b"]}}}`: `sources of bitcoin regtest: required under all`,
+	} {
+		var cfg vectorcases.Config
+		if err := json.Unmarshal([]byte(prefix+body+`}`), &cfg); err != nil {
+			t.Fatal(err)
+		}
+		for range 50 {
+			if err := vectorcases.CheckSources(cfg); err == nil || err.Error() != want {
+				t.Fatalf("%s: %v, want %q", body, err, want)
+			}
+		}
 	}
 }

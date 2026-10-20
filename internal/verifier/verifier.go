@@ -43,10 +43,12 @@
 //   - keyring_read.go: the online keyring read of step 0, of the keyring
 //     that governs an external verifier's online run by default (section
 //     8.3);
-//   - sources.go: the rest of step 0 in an online run: which Stellar and
-//     Bitcoin source serves each network pin, and each source's identity,
-//     confirmed both ways before the file is read (sections 9 and 10.2,
-//     step 0), through the readers of internal/verifier/source;
+//   - sources.go: the rest of step 0 for the sources: each network's
+//     source policy, held to its number of sources in every run, and in
+//     an online run which Stellar and Bitcoin sources serve each network
+//     pin, in what order, and each source's identity, confirmed both ways
+//     before the file is read (sections 9 and 10.2, step 0), through the
+//     readers of internal/verifier/source;
 //   - shape.go: step 7, SHAPE, whose check 5 parses each time through
 //     time.go, the classes TIME and NISTTIME (section 2.4);
 //   - policy.go: step 8, POLICY;
@@ -68,8 +70,10 @@
 // internal/verifier/ed25519.
 //
 // An online run's sources are the compiled-in defaults of its pinned
-// networks (none for regtest) and the Horizon, Esplora and Bitcoin Core
-// servers the operator pins; the document never chooses one. Each source's
+// networks (none for regtest), the Horizon, Esplora and Bitcoin Core
+// servers the operator pins, and the several sources the operator
+// configures for a network, in an order, under a source policy (SPEC.md
+// section 9); the document never chooses one, nor a policy. Each source's
 // identity read goes through [Config.ReadIdentity], and one with no usable
 // answer is recorded unreachable, so nothing else is read from it.
 //

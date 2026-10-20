@@ -2,72 +2,99 @@
 // SPDX-License-Identifier: Apache-2.0
 
 // This file is the part of step 0 (CONFIGURATION, SPEC.md section 10.2)
-// that only an online run makes: which Stellar and Bitcoin source serves
-// each network pin, and each source's identity, confirmed both ways
-// before the file is read (SPEC.md sections 9 (What a verifier pins), 10.2,
-// step 0, and 10.4 (Chain and source reads)). Step 0 requires it of every
-// verifier in an online run, the reference verifier of SPEC.md section
-// 13.1 among them, which reads chains and sources online when it is given
-// a reader (section 8.3). For the CLI's sources:
+// that concerns the Stellar and Bitcoin sources: which sources each
+// network pin has, in what order and under what source policy, and each
+// source's identity, confirmed both ways before the file is read (SPEC.md
+// sections 9 (What a verifier pins), "Sources", "Several sources for one
+// network" and "Which pin a source serves", 10.2, step 0, and 10.4 (Chain
+// and source reads), "Several sources"). For the CLI's sources:
 //
 //   - the CLI has a compiled-in default for each network but regtest
-//     ([DefaultSource]), and the operator may pin a Horizon server, an
-//     Esplora server and a Bitcoin Core node ([Config.Sources]), each
-//     serving the pins of its chain whose network its identity read shows
-//     (SPEC.md section 9, "Which pin a source serves"); a source a
-//     conformance case's replay file stands for names its one network
-//     instead ([Source.Network]);
+//     ([DefaultSource]); the operator may give sources configured for no
+//     network ([Config.Sources]: a Horizon server, an Esplora server and a
+//     Bitcoin Core node), each serving, when it answers its identity read,
+//     only the pins of its chain of networks with no configuration that
+//     the answer shows, so that one whose answer fits only configured
+//     networks serves nothing, and may configure a network's sources, one
+//     or more in an order, with a source policy, first, at_least n or all
+//     ([Config.NetworkSources], [SourcePolicy]); a network with no such
+//     configuration has, under the policy first, its compiled-in default
+//     or the sources configured for no network that serve it, so a run
+//     with one source per network is the run of a single source. SPEC.md
+//     section 9 gives such a network one source; that several sources
+//     configured for no network that serve it are all its sources, in the
+//     order of [Config.Sources], is the CLI's own rule (step 4 below);
+//   - each source has its own identity read, made once, all of them at
+//     once, before anything else is read from any source;
 //   - an identity read with no usable answer records the source
 //     unreachable, and the run reads nothing else from it; the rows it
-//     serves are made by CHAIN and SOURCES, so this file records only the
-//     outcome, in [Run.Sources];
-//   - a source whose identity contradicts the pin it serves, a pinned
-//     network with no source, and two sources for one pin are each
-//     configuration_error, a bare rejection;
+//     serves are made by CHAIN and SOURCES, which combine its outcome
+//     with the network's other sources' under the policy, so this file
+//     records only the outcome, in [Run.Sources], and each pinned
+//     network's sources and policy, the source map those steps read, in
+//     [Run.SourceSets];
+//   - configuration_error, a bare rejection: a source whose identity read
+//     gives a value step 0 forbids for the network it serves, whatever the
+//     policy and whatever the network's other sources give; a pinned
+//     network with no source; and, in every run, online or offline, a
+//     policy at_least n whose n is 0 or above the number of its network's
+//     sources ([checkPolicies]);
 //   - a source's URL is printed, in a message and in CONFIGURATION's
 //     values, as its scheme, host and port alone ([printedURL]), and no
 //     unreachable reason names it, since a hosted node's provider may
 //     carry an API key in the path and a report is made to be shared; the
-//     reads use the whole URL.
+//     reads use the whole URL. No source takes credentials from the
+//     command line: a Bitcoin Core node's credentials are a
+//     source.Credentials, which prints masked.
 //
 // A source with no usable identity answer serves the pins SPEC.md section
 // 9, "Which pin a source serves", gives it: a source configured for one
-// network, a compiled-in default or an operator source that names that
-// network (in the CLI, only a source a conformance case's replay file
-// stands for names one), serves that network's pins, and each of their rows
-// it makes is skip source_unreachable; a source configured for no network
-// serves each pin of its chain the run pins that no other source serves,
-// and of two such sources the first in the order of the verifier's source
-// options serves it; and no compiled-in default is read in such a source's
-// place, so an outage is never configuration_error (SPEC.md section 10.2,
-// step 0). Steps 4 and 5 below make that rule, the options' order being
-// that of [Config.Sources], so no pin is served twice.
+// network, a compiled-in default or a source of the network's
+// configuration, serves that network's pins and stays among its sources,
+// so each of their rows it makes is skip source_unreachable; a source
+// configured for no network serves each pin of its chain the run pins that
+// no other source serves, and of two such sources the first in the order
+// of [Config.Sources], the order of the verifier's source options, serves
+// it; and no compiled-in default is read in such a source's place, so an
+// outage is never configuration_error (SPEC.md section 10.2, step 0).
 //
-// NIST's Randomness Beacon has no network and no identity read: SOURCES
-// reads it at its one compiled-in address.
+// NIST's Randomness Beacon is one source, with no network and no identity
+// read (SPEC.md section 9): SOURCES reads it at its one compiled-in
+// address, and no configuration names another.
 //
 // The steps, for an online run:
 //
 //  1. each chain's pinned networks, from the run's commitment and entropy
-//     pins in that order; an operator source that names a network not
-//     pinned serves nothing and is not read;
-//  2. before any read: two operator sources that name one network, or more
-//     operator sources of a chain than it has networks for them to serve,
-//     are two sources for one pin; a pinned network that no operator
-//     source can serve and that has no default has no source;
-//  3. every operator source's identity read, all at once;
-//  4. each operator source that answered serves the pinned networks its
-//     answer allows, of those it may serve (its own network, or every
-//     network of its chain no source names): a production value the
-//     chain's production network, any other value its other networks; one
-//     that may serve none of them contradicts its pin; two that serve one
-//     network are two sources for one pin; then each operator source with
-//     no usable answer, in the order of [Config.Sources] (the options'
-//     order: Horizon, Esplora, Bitcoin Core), serves every network it may
-//     serve that neither a source that answered nor such a source before
-//     it serves, so under dev or staging, of an Esplora server and a
-//     Bitcoin Core node that both give no usable answer, the Esplora
-//     server serves regtest and mainnet and the node serves nothing;
+//     pins in that order; a network's configuration whose network the run
+//     does not pin serves nothing and is not read, and neither is a
+//     source configured for no network when every pinned network of its
+//     chain has a configuration;
+//  2. before any read: a pinned network with no configuration that no
+//     source configured for no network can serve and that has no default
+//     has no source;
+//  3. the identity read of every source of every pinned network's
+//     configuration and of every source configured for no network, all at
+//     once;
+//  4. each source of a network's configuration that answered is held to
+//     that network alone: a value the network forbids is
+//     configuration_error, and the message names the source's place in
+//     the network's order when the network has several; then each source
+//     configured for no network that answered serves the pinned networks
+//     of its chain with no configuration that its answer allows, a
+//     production value the chain's production network and any other value
+//     its other networks. One whose answer only pinned networks with a
+//     configuration allow serves nothing and is recorded with no pins,
+//     whatever other networks are open, and one whose answer no pinned
+//     network of its chain allows is configuration_error; SPEC.md section
+//     10.2, step 0, lists no other case, and the first is the CLI's own
+//     reading of section 9. Several such sources that serve one network
+//     are its sources in the order of [Config.Sources], under the policy
+//     first, also the CLI's own rule; then each source configured for no
+//     network with no usable answer, in that order, serves every such
+//     network it may serve that no source before it serves, so under dev
+//     or staging, of an Esplora server and a Bitcoin Core node that both
+//     give no usable answer, the Esplora server serves regtest and mainnet
+//     and the node serves nothing;
 //  5. each pinned network still unserved: its default, if it has one, or
 //     no source;
 //  6. every such default's identity read, all at once, each checked
@@ -139,10 +166,75 @@ type Source struct {
 	// Credentials are a Bitcoin Core node's RPC credentials; they print
 	// masked.
 	Credentials source.Credentials
-	// Network is the one network the source is pinned to, or "" for a
-	// source that serves the pins of its chain whose network its identity
-	// read shows.
+	// Network is the one network the source is configured for, a
+	// compiled-in default's or that of the [NetworkSources] it is one of,
+	// or "" for a source configured for no network, which, when it answers
+	// its identity read, serves only the pins of its chain of networks with
+	// no configuration that the answer shows. Step 0 sets it on each source
+	// of a network's configuration.
 	Network string
+}
+
+// SourcePolicyKind names a source policy (SPEC.md section 9, "Several
+// sources for one network").
+type SourcePolicyKind string
+
+// The source policies.
+const (
+	// SourcePolicyFirst: the sources are asked in their order, and a row
+	// takes the first conclusive outcome.
+	SourcePolicyFirst SourcePolicyKind = "first"
+	// SourcePolicyAtLeast: every source is asked, and a row passes or
+	// fails when n of them agree.
+	SourcePolicyAtLeast SourcePolicyKind = "at_least"
+	// SourcePolicyAll: at_least the number of sources.
+	SourcePolicyAll SourcePolicyKind = "all"
+)
+
+// SourcePolicy is a network's source policy (SPEC.md sections 9 and 10.4,
+// "Several sources"): first, at_least n with N its n, or all. Only the
+// operator sets it, never the document. N is 0 under first and all; under
+// at_least, an N that is 0 or above the number of the network's sources is
+// configuration_error at step 0.
+type SourcePolicy struct {
+	Kind SourcePolicyKind
+	N    int
+}
+
+// Required is the policy's n for a network of count sources, the number of
+// conclusive outcomes it asks for (SPEC.md section 10.4, "What a row
+// read"): 1 under first, N under at_least and count under all.
+func (p SourcePolicy) Required(count int) int {
+	switch p.Kind {
+	case SourcePolicyAtLeast:
+		return p.N
+	case SourcePolicyAll:
+		return count
+	}
+	return 1
+}
+
+// String writes the policy as a message names it: first, at_least n or
+// all.
+func (p SourcePolicy) String() string {
+	if p.Kind == SourcePolicyAtLeast {
+		return fmt.Sprintf("%s %d", p.Kind, p.N)
+	}
+	return string(p.Kind)
+}
+
+// NetworkSources is the operator's configuration of one Stellar or Bitcoin
+// network's sources (SPEC.md section 9, "Several sources for one
+// network"): the chain and network, the policy, and the sources, one or
+// more, in the order the operator gives them, each configured for that
+// network. Each has its own identity read, held to that network (SPEC.md
+// section 10.2, step 0). NIST's Randomness Beacon is one source, so no
+// configuration names it.
+type NetworkSources struct {
+	Chain   string
+	Network string
+	Policy  SourcePolicy
+	Sources []Source
 }
 
 // IdentityReader reads a source's identity live (SPEC.md section 10.2,
@@ -195,7 +287,9 @@ type SourceStatus string
 
 // The outcomes of an identity read that is no configuration_error.
 const (
-	// SourceConfirmed: the source answered with a value its pins allow.
+	// SourceConfirmed: the source answered with a value its pins allow;
+	// a source configured for no network whose answer only pinned networks
+	// with a configuration allow is confirmed with no pins.
 	SourceConfirmed SourceStatus = "confirmed"
 	// SourceUnreachable: the source gave no usable answer, and the run
 	// reads nothing else from it.
@@ -218,27 +312,43 @@ type SourceRecord struct {
 	Identity string
 	// Reason says why the source gave no usable answer, when unreachable.
 	Reason string
-	// Pins are the network pins the source serves.
+	// Pins are the network pins the source serves, none for a source that
+	// serves nothing.
 	Pins []ServedPin
 }
 
-// Serves reports whether the record serves pin of its chain.
-func (r SourceRecord) Serves(pin, network string) bool {
-	return slices.Contains(r.Pins, ServedPin{Pin: pin, Network: network})
+// SourceSet is one pinned network's sources, in their order, each with its
+// identity read's outcome, and its policy: what CHAIN and SOURCES read
+// that network from, each row's rule made once for each source and the
+// outcomes combined under the policy (SPEC.md section 10.4, "Several
+// sources"). A network with no configuration has the policy first and
+// either its compiled-in default or the sources configured for no network
+// that serve it, one or more, in the order of [Config.Sources]: SPEC.md
+// section 9 gives such a network one source, and several is the CLI's own
+// rule, which [assign] applies.
+type SourceSet struct {
+	Chain   string
+	Network string
+	Policy  SourcePolicy
+	Sources []SourceRecord
 }
 
-// SourceFor returns the record of the source that serves the run's pin
-// (commitment or entropy) of chain, and whether one does: every pin of an
-// online run that passed CONFIGURATION has one, and an offline run has
-// none.
-func (r *Run) SourceFor(pin, chain string) (SourceRecord, bool) {
+// Required is the set's n: the number of conclusive outcomes its policy
+// asks for (SPEC.md section 10.4, "What a row read").
+func (s SourceSet) Required() int { return s.Policy.Required(len(s.Sources)) }
+
+// SourcesFor returns the sources of the run's pin (commitment or entropy)
+// of chain, all of them in their order under the network's policy, and
+// whether it has any: every pin of an online run that passed CONFIGURATION
+// has one or more, and an offline run has none.
+func (r *Run) SourcesFor(pin, chain string) (SourceSet, bool) {
 	network := r.Config.pinNetwork(pin, chain)
-	for _, record := range r.Sources {
-		if record.Source.Chain == chain && record.Serves(pin, network) {
-			return record, true
+	for _, set := range r.SourceSets {
+		if set.Chain == chain && set.Network == network {
+			return set, true
 		}
 	}
-	return SourceRecord{}, false
+	return SourceSet{}, false
 }
 
 // pinNetwork is the network of the run's pin of chain.
@@ -319,52 +429,96 @@ func readIdentities(reader IdentityReader, sources []Source) []identityAnswer {
 	return answers
 }
 
-// chainPlan is what step 0 knows of one chain's operator sources before
-// any read: the sources pinned to one network, by network, and the
-// sources that serve whatever their identity read shows.
+// checkPolicies is configuration_error for the first of the run's network
+// configurations, in their order, whose policy is at_least n with n 0 or
+// above the number of its sources (SPEC.md sections 9 and 10.2, step 0),
+// or nil. Step 0 makes it in every run, online or offline, before any
+// read, and for every configuration, pinned or not, since it concerns the
+// configuration alone. The message names no source.
+func checkPolicies(cfg Config) *Rejection {
+	for _, n := range cfg.NetworkSources {
+		if n.Policy.Kind != SourcePolicyAtLeast || (n.Policy.N >= 1 && n.Policy.N <= len(n.Sources)) {
+			continue
+		}
+		if len(n.Sources) == 1 {
+			return ConfigurationError(fmt.Sprintf(
+				"%s's %s network has one source, under the policy %s, so the run gives no verdict: "+
+					"give it the policy first or at_least 1.",
+				chainName(n.Chain), n.Network, n.Policy))
+		}
+		return ConfigurationError(fmt.Sprintf(
+			"The sources of %s's %s network have the policy %s, and the network has %d sources, "+
+				"so the run gives no verdict: give at_least a number from 1 to %d.",
+			chainName(n.Chain), n.Network, n.Policy, len(n.Sources), len(n.Sources)))
+	}
+	return nil
+}
+
+// chainPlan is what step 0 knows of one chain's sources before any read.
 type chainPlan struct {
-	chain    string
+	chain string
+	// networks are the chain's pinned networks, in the order of its pins.
 	networks []string
-	fixed    []Source
+	// configured are the operator's configurations of pinned networks, in
+	// the order of networks, each source's Network set to its network.
+	configured []NetworkSources
+	// floating are the sources configured for no network, in the order of
+	// [Config.Sources]; none when open is empty.
 	floating []Source
-	// open are the pinned networks no fixed source names, which the
+	// open are the pinned networks with no configuration, which the
 	// floating sources may serve.
 	open []string
 }
 
+// reads are the plan's sources whose identity step 0 reads first: each
+// configured network's sources in order, then the floating sources.
+func (p chainPlan) reads() []Source {
+	var out []Source
+	for _, n := range p.configured {
+		out = append(out, n.Sources...)
+	}
+	return append(out, p.floating...)
+}
+
 // confirmSources makes the online part of step 0 (see the file comment):
 // the record of each source, in the order of [chains], each chain's
-// operator sources first; or configuration_error.
-func confirmSources(cfg Config) ([]SourceRecord, *Rejection) {
+// configured sources first, then those configured for no network, then its
+// defaults; and the sources of each pinned network, in the order of
+// [chains] and of each chain's pins; or configuration_error.
+func confirmSources(cfg Config) ([]SourceRecord, []SourceSet, *Rejection) {
 	plans := make([]chainPlan, 0, len(chains))
 	var operator []Source
 	for _, chain := range chains {
 		plan, rejection := planChain(cfg, chain)
 		if rejection != nil {
-			return nil, rejection
+			return nil, nil, rejection
 		}
 		plans = append(plans, plan)
-		operator = append(operator, plan.fixed...)
-		operator = append(operator, plan.floating...)
+		operator = append(operator, plan.reads()...)
 	}
 
 	answers := readIdentities(cfg.ReadIdentity, operator)
 	var records []SourceRecord
 	var defaults []Source
+	sets := map[[2]string]SourceSet{}
 	for _, plan := range plans {
-		chainRecords, rejection := assign(cfg, plan, answers[:len(plan.fixed)+len(plan.floating)])
+		count := len(plan.reads())
+		chainRecords, chainSets, rejection := assign(cfg, plan, answers[:count])
 		if rejection != nil {
-			return nil, rejection
+			return nil, nil, rejection
 		}
-		answers = answers[len(plan.fixed)+len(plan.floating):]
+		answers = answers[count:]
 		records = append(records, chainRecords...)
+		for _, set := range chainSets {
+			sets[[2]string{set.Chain, set.Network}] = set
+		}
 		for _, network := range plan.networks {
-			if served(chainRecords, network) {
+			if _, ok := sets[[2]string{plan.chain, network}]; ok {
 				continue
 			}
 			s, ok := DefaultSource(plan.chain, network)
 			if !ok {
-				return nil, noSource(plan.chain, network)
+				return nil, nil, noSource(plan.chain, network)
 			}
 			defaults = append(defaults, s)
 		}
@@ -377,44 +531,50 @@ func confirmSources(cfg Config) ([]SourceRecord, *Rejection) {
 		case answer.err != nil:
 			record.Status, record.Reason = SourceUnreachable, answer.err.Error()
 		case !allows(s.Chain, s.Network, answer.value):
-			return nil, mismatch(s, []string{s.Network}, answer.value)
+			return nil, nil, mismatch(s, sourceAt(s, 1, 1), []string{s.Network}, answer.value)
 		default:
 			record.Status, record.Identity = SourceConfirmed, answer.value
 		}
 		records = append(records, record)
+		sets[[2]string{s.Chain, s.Network}] = SourceSet{
+			Chain: s.Chain, Network: s.Network, Policy: SourcePolicy{Kind: SourcePolicyFirst}, Sources: []SourceRecord{record},
+		}
 	}
 	slices.SortStableFunc(records, func(a, b SourceRecord) int {
 		return slices.Index(chains, a.Source.Chain) - slices.Index(chains, b.Source.Chain)
 	})
-	return records, nil
+	var ordered []SourceSet
+	for _, plan := range plans {
+		for _, network := range plan.networks {
+			ordered = append(ordered, sets[[2]string{plan.chain, network}])
+		}
+	}
+	return records, ordered, nil
 }
 
-// planChain sorts chain's operator sources before any read, and refuses
-// two sources for one pin and a pinned network with no source that the
-// reads cannot change.
+// planChain sorts chain's sources before any read, and refuses a pinned
+// network with no source that the reads cannot change.
 func planChain(cfg Config, chain string) (chainPlan, *Rejection) {
 	plan := chainPlan{chain: chain, networks: cfg.networksOf(chain)}
-	for _, s := range cfg.Sources {
-		switch {
-		case s.Chain != chain:
-		case s.Network == "":
-			plan.floating = append(plan.floating, s)
-		case !slices.Contains(plan.networks, s.Network):
-			// A source pinned to a network the run does not pin serves
-			// nothing, and is not read.
-		case slices.ContainsFunc(plan.fixed, func(f Source) bool { return f.Network == s.Network }):
-			return chainPlan{}, twoSources(chain, []string{s.Network})
-		default:
-			plan.fixed = append(plan.fixed, s)
-		}
-	}
 	for _, network := range plan.networks {
-		if !slices.ContainsFunc(plan.fixed, func(f Source) bool { return f.Network == network }) {
+		i := slices.IndexFunc(cfg.NetworkSources, func(n NetworkSources) bool { return n.Chain == chain && n.Network == network })
+		if i < 0 {
 			plan.open = append(plan.open, network)
+			continue
 		}
+		n := cfg.NetworkSources[i]
+		n.Sources = slices.Clone(n.Sources)
+		for j := range n.Sources {
+			n.Sources[j].Network = network
+		}
+		plan.configured = append(plan.configured, n)
 	}
-	if len(plan.floating) > len(plan.open) {
-		return chainPlan{}, twoSources(chain, plan.open)
+	if len(plan.open) > 0 {
+		for _, s := range cfg.Sources {
+			if s.Chain == chain {
+				plan.floating = append(plan.floating, s)
+			}
+		}
 	}
 	if len(plan.floating) == 0 {
 		for _, network := range plan.open {
@@ -426,66 +586,94 @@ func planChain(cfg Config, chain string) (chainPlan, *Rejection) {
 	return plan, nil
 }
 
-// assign gives each of a chain's operator sources the pins it serves from
-// its identity read's answer (answers holds the fixed sources' answers,
-// then the floating sources'): first each source that answered, then each
-// that did not, in order, the pins it may serve that no record before it
-// serves.
-func assign(cfg Config, plan chainPlan, answers []identityAnswer) ([]SourceRecord, *Rejection) {
+// assign holds each of a chain's operator sources to what its identity
+// read's answer allows (answers holds the configured sources' answers, in
+// order, then the floating sources'), and gives the sources of each
+// network it serves: each configured network's, under its policy, each
+// source held to that network alone; then each open network that floating
+// sources serve, those that answered and allow it, then any that did not
+// answer, in order, each serving the open networks no record before it
+// serves, under the policy first. Several floating sources that serve one
+// open network are all its sources, the CLI's own rule, since SPEC.md
+// section 9 gives a network with no configuration one source. A floating
+// source whose answer only configured networks allow serves nothing, and
+// one whose answer no pinned network of the chain allows is
+// configuration_error.
+func assign(cfg Config, plan chainPlan, answers []identityAnswer) ([]SourceRecord, []SourceSet, *Rejection) {
 	var records []SourceRecord
-	operator := append(slices.Clone(plan.fixed), plan.floating...)
-	var unreachable []int
-	for i, s := range operator {
-		may := plan.open
-		if s.Network != "" {
-			may = []string{s.Network}
-		}
-		record := SourceRecord{Source: s, From: FromOperator}
-		if err := answers[i].err; err != nil {
-			record.Status, record.Reason = SourceUnreachable, err.Error()
+	var sets []SourceSet
+	for _, n := range plan.configured {
+		set := SourceSet{Chain: plan.chain, Network: n.Network, Policy: n.Policy}
+		for place, s := range n.Sources {
+			answer := answers[0]
+			answers = answers[1:]
+			record := SourceRecord{Source: s, From: FromOperator, Pins: cfg.pinsFor(plan.chain, []string{n.Network})}
+			switch {
+			case answer.err != nil:
+				record.Status, record.Reason = SourceUnreachable, answer.err.Error()
+			case !allows(plan.chain, n.Network, answer.value):
+				return nil, nil, mismatch(s, sourceAt(s, place+1, len(n.Sources)), []string{n.Network}, answer.value)
+			default:
+				record.Status, record.Identity = SourceConfirmed, answer.value
+			}
 			records = append(records, record)
-			unreachable = append(unreachable, len(records)-1)
+			set.Sources = append(set.Sources, record)
+		}
+		sets = append(sets, set)
+	}
+
+	floating := make([]SourceRecord, len(plan.floating))
+	var serves [][]string
+	for i, s := range plan.floating {
+		floating[i] = SourceRecord{Source: s, From: FromOperator}
+		var networks []string
+		if err := answers[i].err; err != nil {
+			floating[i].Status, floating[i].Reason = SourceUnreachable, err.Error()
+		} else {
+			value := answers[i].value
+			for _, network := range plan.open {
+				if allows(plan.chain, network, value) {
+					networks = append(networks, network)
+				}
+			}
+			if len(networks) == 0 && !slices.ContainsFunc(plan.networks, func(network string) bool { return allows(plan.chain, network, value) }) {
+				return nil, nil, mismatch(s, sourceAt(s, 1, 1), plan.networks, value)
+			}
+			floating[i].Status, floating[i].Identity = SourceConfirmed, value
+		}
+		serves = append(serves, networks)
+	}
+	served := func(network string) bool {
+		return slices.ContainsFunc(serves, func(networks []string) bool { return slices.Contains(networks, network) })
+	}
+	for i := range floating {
+		if floating[i].Status != SourceUnreachable {
 			continue
 		}
-		value := answers[i].value
-		var serves []string
-		for _, network := range may {
-			if allows(plan.chain, network, value) {
-				serves = append(serves, network)
+		var networks []string
+		for _, network := range plan.open {
+			if !served(network) {
+				networks = append(networks, network)
 			}
 		}
-		if len(serves) == 0 {
-			return nil, mismatch(s, may, value)
-		}
-		for _, network := range serves {
-			if served(records, network) {
-				return nil, twoSources(plan.chain, []string{network})
-			}
-		}
-		record.Status, record.Identity, record.Pins = SourceConfirmed, value, cfg.pinsFor(plan.chain, serves)
-		records = append(records, record)
+		serves[i] = networks
 	}
-	for _, i := range unreachable {
-		may := plan.open
-		if network := records[i].Source.Network; network != "" {
-			may = []string{network}
-		}
-		var serves []string
-		for _, network := range may {
-			if !served(records, network) {
-				serves = append(serves, network)
+	for i := range floating {
+		floating[i].Pins = cfg.pinsFor(plan.chain, serves[i])
+	}
+	records = append(records, floating...)
+	for _, network := range plan.open {
+		set := SourceSet{Chain: plan.chain, Network: network, Policy: SourcePolicy{Kind: SourcePolicyFirst}}
+		for i, record := range floating {
+			if slices.Contains(serves[i], network) {
+				set.Sources = append(set.Sources, record)
 			}
 		}
-		records[i].Pins = cfg.pinsFor(plan.chain, serves)
+		if len(set.Sources) > 0 {
+			sets = append(sets, set)
+		}
 	}
-	return records, nil
-}
-
-// served reports whether a record serves a pin of network.
-func served(records []SourceRecord, network string) bool {
-	return slices.ContainsFunc(records, func(r SourceRecord) bool {
-		return slices.ContainsFunc(r.Pins, func(p ServedPin) bool { return p.Network == network })
-	})
+	return records, sets, nil
 }
 
 // chainName is a chain's name in a message.
@@ -512,33 +700,40 @@ func noSource(chain, network string) *Rejection {
 		chainName(chain), network, network, operatorOptions(chain)))
 }
 
-// twoSources is configuration_error for two sources of one pin.
-func twoSources(chain string, networks []string) *Rejection {
-	return ConfigurationError(fmt.Sprintf(
-		"Two %s sources serve the pin of %s's %s network, so the run gives no verdict: give one source for each network.",
-		chainName(chain), chainName(chain), strings.Join(networks, " or ")))
-}
-
-// mismatch is configuration_error for a source whose identity value no
-// network it may serve allows.
-func mismatch(s Source, networks []string, value string) *Rejection {
+// mismatch is configuration_error for source s, which the message names as
+// at ([sourceAt]), whose identity value no network it may serve allows;
+// networks are the networks the run pins it to.
+func mismatch(s Source, at string, networks []string, value string) *Rejection {
 	chain := chainName(s.Chain)
 	if value == productionIdentity[s.Chain] {
 		return ConfigurationError(fmt.Sprintf(
 			"The %s source at %s gives the %s of %s's production network, %s, and the run pins it to %s, "+
 				"so the run gives no verdict.",
-			chain, printedURL(s.URL), identityName(s.Chain), chain, productionNetwork[s.Chain], strings.Join(networks, " or ")))
+			chain, at, identityName(s.Chain), chain, productionNetwork[s.Chain], strings.Join(networks, " or ")))
 	}
 	return ConfigurationError(fmt.Sprintf(
 		"The %s source at %s gives a %s other than that of %s's production network, %s, which the run pins it to, "+
 			"so the run gives no verdict.",
-		chain, printedURL(s.URL), identityName(s.Chain), chain, productionNetwork[s.Chain]))
+		chain, at, identityName(s.Chain), chain, productionNetwork[s.Chain]))
+}
+
+// sourceAt names source s in a message: its URL as [printedURL] prints it
+// and, for one of count sources of a network's configuration, count above
+// one, its place in that network's order, from 1, since two sources of one
+// provider and host print alike.
+func sourceAt(s Source, place, count int) string {
+	at := printedURL(s.URL)
+	if count > 1 {
+		at += fmt.Sprintf(", source %d of the %d sources of %s's %s network,", place, count, chainName(s.Chain), s.Network)
+	}
+	return at
 }
 
 // printedURL is a source's URL as a message or a report prints it:
 // scheme://host, with the port when the URL names one. Its path, which may
-// hold a provider's API key, is never printed; [Config.Validate] has refused user
-// information, a query and a fragment before any source is read.
+// hold a provider's API key, is never printed; [Config.Validate] has
+// refused user information, a query and a fragment before any source is
+// read.
 func printedURL(raw string) string {
 	u, err := url.Parse(raw)
 	if err != nil || u.Host == "" {
@@ -555,9 +750,11 @@ func operatorOptions(chain string) string {
 	return "--esplora URL or --bitcoin-core URL"
 }
 
-// sourceValues are the run's sources as CONFIGURATION's row holds them,
-// each URL as [printedURL] prints it: two sources stay told apart by their
-// chain, provider and pins.
+// sourceValues are the run's sources as CONFIGURATION's row holds them, in
+// the order of [Run.Sources], each URL as [printedURL] prints it. Two
+// sources of one provider and host that serve one network print alike,
+// since no path is printed, and only their places in that order tell them
+// apart.
 func sourceValues(records []SourceRecord) []any {
 	values := make([]any, 0, len(records))
 	for _, r := range records {

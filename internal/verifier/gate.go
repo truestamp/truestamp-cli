@@ -174,17 +174,25 @@ func afterConfiguration(run *Run, data []byte) (*Run, *Rejection, error) {
 // checks, for any reason, is no rejection: the run holds no keyring and
 // KeyringUnavailable, so no key binds.
 //
-// An online run then confirms each Stellar and Bitcoin source's identity
-// (sources.go): a source whose identity contradicts its pin, a pinned
-// network with no source, and two sources for one pin are each
-// configuration_error, and the run holds every other source's outcome,
-// confirmed or unreachable, with the pins it serves. No pin is served
-// twice: of two operator sources with no usable answer that may serve one
-// pin, the first in the options' order serves it. An offline run reads no
-// source.
+// Before any read, in every run, a network's source policy at_least n
+// whose n is 0 or above the number of its sources is configuration_error
+// (sources.go). An online run then confirms each Stellar and Bitcoin
+// source's identity (sources.go): a source whose identity contradicts the
+// network it serves, whatever the policy and the network's other sources
+// give, and a pinned network with no source are each configuration_error,
+// and the run holds every other source's outcome, confirmed or
+// unreachable, with the pins it serves, and each pinned network's sources
+// in their order under its policy. A source configured for no network
+// whose answer only pinned networks with a configuration allow serves
+// nothing. Of two sources configured for no network that give no usable
+// answer and may serve one pin, the first in the options' order serves
+// it. An offline run reads no source.
 func Configure(cfg Config) (*Run, *Rejection, error) {
 	if err := cfg.Validate(); err != nil {
 		return nil, nil, err
+	}
+	if rejection := checkPolicies(cfg); rejection != nil {
+		return nil, rejection, nil
 	}
 	run := &Run{Config: cfg}
 	switch source := cfg.Keyring; {
@@ -225,11 +233,11 @@ func Configure(cfg Config) (*Run, *Rejection, error) {
 	values := map[string]any{"environment": cfg.Environment, "trust_root": string(run.TrustRoot.Kind)}
 	message := fmt.Sprintf("The run checks proofs of Truestamp's %s environment, and %s.", cfg.Environment, governs(run))
 	if cfg.Online {
-		records, rejection := confirmSources(cfg)
+		records, sets, rejection := confirmSources(cfg)
 		if rejection != nil {
 			return nil, rejection, nil
 		}
-		run.Sources = records
+		run.Sources, run.SourceSets = records, sets
 		values["sources"] = sourceValues(records)
 		message += " " + sourcesSummary(records)
 	}

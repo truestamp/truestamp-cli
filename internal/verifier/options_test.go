@@ -7,6 +7,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"testing"
 
@@ -139,7 +140,7 @@ keyring = "` + vectorcases.Path("keyring.test.json") + `"
 	if cfg.Verify.Keyring == "" {
 		t.Fatal("the keyring config key did not load, so this test shows nothing")
 	}
-	if options != (Options{Environment: "prod", Offline: true}) {
+	if !reflect.DeepEqual(options, Options{Environment: "prod", Offline: true}) {
 		t.Fatalf("options = %+v", options)
 	}
 	run, rejection, _ := configureOptions(t, options)
@@ -391,7 +392,7 @@ func TestOptions_Refusals(t *testing.T) {
 func TestOptions_FlagsTheCommandDoesNotRegister(t *testing.T) {
 	flags := pflag.NewFlagSet("bare", pflag.ContinueOnError)
 	options, err := OptionsFromCommand(flags, &config.Config{})
-	if err != nil || options != (Options{Environment: "prod", Offline: false}) {
+	if err != nil || !reflect.DeepEqual(options, Options{Environment: "prod", Offline: false}) {
 		t.Fatalf("options = %+v, %v", options, err)
 	}
 }

@@ -10,7 +10,9 @@
 // reads only in an online run (SPEC.md sections 8.3 and 10.4), so a
 // Config says whether the run is online and holds the seams an online
 // keyring read and a source's identity read go through, and the Stellar and
-// Bitcoin sources the operator pins (SPEC.md section 9); its keyring
+// Bitcoin sources the operator pins, with each network's several sources and
+// their source policy where the operator configures them (SPEC.md section 9,
+// "Sources" and "Several sources for one network"); its keyring
 // sources include a configured keyring read from a file the configuration
 // file names (SPEC.md section 8.3), and the keyring read from the origin an
 // explicit --base-url names; and it holds no expected hash yet, which joins
@@ -25,6 +27,7 @@ import (
 	"net"
 	"net/url"
 	"slices"
+	"strings"
 
 	"github.com/truestamp/truestamp-cli/internal/specdata"
 	"github.com/truestamp/truestamp-cli/internal/verifier/source"
@@ -118,10 +121,20 @@ type Config struct {
 	// ReadKeyring reads a keyring online. A nil reader reads nothing, so an
 	// online keyring read through it fails and binds no key.
 	ReadKeyring KeyringReader
-	// Sources are the Stellar and Bitcoin sources the operator pins, at
-	// most one of each provider, each in place of the compiled-in default
-	// of the networks it serves (SPEC.md section 9).
+	// Sources are the Stellar and Bitcoin sources the operator gives for
+	// no network, at most one of each provider in the command's options,
+	// in the order of those options, each in place of the compiled-in
+	// default of the pinned networks with no configuration that its
+	// identity read shows it serves (SPEC.md section 9); one whose answer
+	// only networks with a configuration allow serves nothing. Each has
+	// Network "".
 	Sources []Source
+	// NetworkSources are the operator's configurations of a network's
+	// several sources, at most one for each network, each with its
+	// sources in order and its source policy (SPEC.md section 9, "Several
+	// sources for one network"). A pinned network with one serves no other
+	// source and reads no default. No document sets any.
+	NetworkSources []NetworkSources
 	// ReadIdentity reads a source's identity in an online run. A nil
 	// reader reads nothing, so each source gives no usable answer.
 	ReadIdentity IdentityReader
@@ -147,10 +160,12 @@ func NewConfig(environment string) (Config, error) {
 // Validate reports a configuration no run can take, wrapping
 // [ErrInvalidConfig]: an environment that is not an E_v, a pin that names
 // no network of its chain, a keyring source without its file or URL, a
-// keyring read online in an offline run, or a source whose provider is not
+// keyring read online in an offline run, a source whose provider is not
 // one of its chain's, whose URL [source.CheckURL] refuses or whose host is
 // neither an IP address nor a valid DNS name, that names a network not of
-// its chain, or that carries credentials and is not a Bitcoin Core node.
+// its chain, or that carries credentials and is not a Bitcoin Core node, a
+// source of [Config.Sources] that names a network, a network configuration
+// [checkNetworkSources] refuses, and two configurations of one network.
 // No error quotes a source's URL.
 func (c Config) Validate() error {
 	if !slices.Contains(specdata.Environments(), c.Environment) {
@@ -187,26 +202,113 @@ func (c Config) Validate() error {
 		return fmt.Errorf("%w: an unknown keyring source", ErrInvalidConfig)
 	}
 	for _, s := range c.Sources {
+		if s.Network != "" {
+			return fmt.Errorf("%w: a %s source given for no network names the network %q; a network's own sources are its NetworkSources",
+				ErrInvalidConfig, chainName(s.Chain), s.Network)
+		}
 		if err := checkSource(s); err != nil {
 			return err
+		}
+	}
+	for i, n := range c.NetworkSources {
+		if err := checkNetworkSources(n); err != nil {
+			return err
+		}
+		if slices.ContainsFunc(c.NetworkSources[:i], func(m NetworkSources) bool { return m.Chain == n.Chain && m.Network == n.Network }) {
+			return fmt.Errorf("%w: two configurations of the sources of %s's %s network", ErrInvalidConfig, chainName(n.Chain), n.Network)
 		}
 	}
 	return nil
 }
 
+// checkNetworkSources refuses a network's configuration no run can take
+// (see [Config.Validate]): a network that is not one of a Stellar or
+// Bitcoin chain's in spec/networks.json, so any of NIST's, the Randomness
+// Beacon being one source (SPEC.md section 9); no source; a policy other
+// than first, at_least and all, or an n under first or all; a source of
+// another chain or network, or one [checkSource] refuses; and one server
+// twice ([sameServer]), which would count one server's outcome twice under
+// at_least and all. An at_least n out of range is no invalid configuration
+// but configuration_error at step 0 ([checkPolicies]). An error about a
+// source names it by its place in the network's order, from 1, and no
+// error quotes a source's URL.
+func checkNetworkSources(n NetworkSources) error {
+	if !slices.Contains(specdata.Networks()[n.Chain], n.Network) {
+		return fmt.Errorf("%w: a configuration of sources names the chain %q and the network %q, which is not one of the Stellar or Bitcoin networks; "+
+			"NIST's Randomness Beacon is one source", ErrInvalidConfig, n.Chain, n.Network)
+	}
+	if len(n.Sources) == 0 {
+		return fmt.Errorf("%w: the configuration of %s's %s network names no source", ErrInvalidConfig, chainName(n.Chain), n.Network)
+	}
+	switch n.Policy.Kind {
+	case SourcePolicyFirst, SourcePolicyAll:
+		if n.Policy.N != 0 {
+			return fmt.Errorf("%w: the policy %s of %s's %s network takes no number", ErrInvalidConfig, n.Policy.Kind, chainName(n.Chain), n.Network)
+		}
+	case SourcePolicyAtLeast:
+	default:
+		return fmt.Errorf("%w: the sources of %s's %s network have the policy %q, not first, at_least or all", ErrInvalidConfig, chainName(n.Chain), n.Network, n.Policy.Kind)
+	}
+	for i, s := range n.Sources {
+		place := fmt.Sprintf("source %d of %s's %s network", i+1, chainName(n.Chain), n.Network)
+		if s.Chain != n.Chain || (s.Network != "" && s.Network != n.Network) {
+			return fmt.Errorf("%w: %s is configured for another chain or network", ErrInvalidConfig, place)
+		}
+		if err := sourceFault(s); err != nil {
+			return fmt.Errorf("%w: %s: %w", ErrInvalidConfig, place, err)
+		}
+		if j := slices.IndexFunc(n.Sources[:i], func(t Source) bool { return sameServer(s, t) }); j >= 0 {
+			return fmt.Errorf("%w: sources %d and %d of %s's %s network name one %s server", ErrInvalidConfig, j+1, i+1, chainName(n.Chain), n.Network, s.Provider)
+		}
+	}
+	return nil
+}
+
+// sameServer reports whether two sources are one server given twice: one
+// provider, one scheme, one host, lowercased with one trailing dot dropped
+// as [hostOf] gives it, one port, the scheme's default (443 for https, 80
+// for http) when the URL names none, and one path, with any trailing
+// slashes dropped, as the reads join a path to it. It catches one server
+// spelled two ways; two names for one machine are beyond any comparison
+// of URLs.
+func sameServer(a, b Source) bool {
+	server := func(s Source) string {
+		u, err := url.Parse(s.URL)
+		host, ok := hostOf(s.URL)
+		if err != nil || !ok {
+			return s.URL
+		}
+		port := u.Port()
+		if port == "" {
+			port = map[string]string{"https": "443", "http": "80"}[strings.ToLower(u.Scheme)]
+		}
+		return strings.ToLower(u.Scheme) + "://" + net.JoinHostPort(host, port) + strings.TrimRight(u.EscapedPath(), "/")
+	}
+	return a.Provider == b.Provider && server(a) == server(b)
+}
+
 // checkSource refuses a source no run can read; see [Config.Validate].
 func checkSource(s Source) error {
+	if err := sourceFault(s); err != nil {
+		return fmt.Errorf("%w: %w", ErrInvalidConfig, err)
+	}
+	return nil
+}
+
+// sourceFault is why no run can read source s, or nil (see
+// [checkSource]). It never quotes the source's URL.
+func sourceFault(s Source) error {
 	if s.Chain == "" || s.Provider.Chain() != s.Chain {
-		return fmt.Errorf("%w: a source of the chain %q has the provider %q, which does not serve it", ErrInvalidConfig, s.Chain, s.Provider)
+		return fmt.Errorf("a source of the chain %q has the provider %q, which does not serve it", s.Chain, s.Provider)
 	}
 	if s.Network != "" && !slices.Contains(specdata.Networks()[s.Chain], s.Network) {
-		return fmt.Errorf("%w: a %s source names %q, which is not one of its networks", ErrInvalidConfig, chainName(s.Chain), s.Network)
+		return fmt.Errorf("a %s source names %q, which is not one of its networks", chainName(s.Chain), s.Network)
 	}
 	if err := checkSourceURL(s.URL); err != nil {
-		return fmt.Errorf("%w: the %s URL: %w", ErrInvalidConfig, s.Provider, err)
+		return fmt.Errorf("the %s URL: %w", s.Provider, err)
 	}
 	if !s.Credentials.Empty() && s.Provider != source.BitcoinCore {
-		return fmt.Errorf("%w: only a Bitcoin Core node takes RPC credentials", ErrInvalidConfig)
+		return errors.New("only a Bitcoin Core node takes RPC credentials")
 	}
 	return nil
 }
