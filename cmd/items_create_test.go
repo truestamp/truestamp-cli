@@ -8,26 +8,99 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"reflect"
 	"strings"
+	"sync/atomic"
 	"testing"
 
 	"github.com/truestamp/truestamp-cli/internal/items"
+	"github.com/truestamp/truestamp-cli/internal/strictjson"
 )
 
-// validSHA256Hex is a 64-char hex string with the right shape for a SHA-256
-// claims hash. Used in tests that want validation to pass to the next step
-// without caring about hash specifics.
+// validSHA256Hex is a 64-char hex string with the shape of a SHA-256
+// claims hash.
 const validSHA256Hex = "0000000000000000000000000000000000000000000000000000000000000000"
 
-// longDesc is a description with >= claimsOnlyMinDescription (32)
-// non-whitespace characters, used to satisfy the claims-as-source-of-truth
-// meaningful-content rule in tests that exercise that mode.
+// longDesc is a description of more than 32 code points.
 const longDesc = "Lorem ipsum dolor sit amet, consectetur adipiscing elit."
+
+// createdItemDoc is a 201 answer to a create, carrying the claims_jcs and
+// claims_hash the server returns.
+const createdItemDoc = `{"data":{"id":"019a0000-0000-7000-8000-000000000001","type":"item","attributes":{` +
+	`"display_name":"Echo","visibility":"private","state":"created",` +
+	`"claims_jcs":"{\"hash\":\"ab\",\"name\":\"Echo\"}",` +
+	`"claims_hash":"5d0c6ffbd0e4e3e3b1b1c8e8b0b2d7e3a7f6c9a5b4d3c2e1f0a9b8c7d6e5f4a3"}}}`
+
+// createServer is a loopback items API answering every request with status
+// and body, recording the last request body and counting requests.
+type createServer struct {
+	*itemsServer
+	hits *atomic.Int32
+}
+
+func startCreateServer(t *testing.T, status int, body string) createServer {
+	t.Helper()
+	var hits atomic.Int32
+	s := startItemsServer(t, func(w http.ResponseWriter, _ *http.Request) {
+		hits.Add(1)
+		w.WriteHeader(status)
+		_, _ = w.Write([]byte(body))
+	})
+	return createServer{itemsServer: s, hits: &hits}
+}
+
+// sentClaims is the claims text of the last request, as the bytes between
+// `"claims":` and the attribute after it. createBody writes the claims
+// first and then visibility, which every create sends.
+func (s createServer) sentClaims(t *testing.T) string {
+	t.Helper()
+	body := s.body()
+	const head = `{"data":{"type":"item","attributes":{"claims":`
+	rest, ok := strings.CutPrefix(body, head)
+	if !ok {
+		t.Fatalf("request body does not begin with %s: %s", head, body)
+	}
+	at := strings.LastIndex(rest, `,"visibility":`)
+	if at < 0 {
+		t.Fatalf("request body has no visibility after the claims: %s", body)
+	}
+	return rest[:at]
+}
+
+// runCreate runs `truestamp items create args...` with stdin and the clean
+// environment, and returns stdout, stderr and the exit code.
+func runCreate(t *testing.T, stdin string, args ...string) (stdout, stderr string, exit int) {
+	t.Helper()
+	cmd := exec.Command(binaryPath, append([]string{"items", "create"}, args...)...)
+	cmd.Env = cleanEnv()
+	cmd.Stdin = strings.NewReader(stdin)
+	var outBuf, errBuf bytes.Buffer
+	cmd.Stdout, cmd.Stderr = &outBuf, &errBuf
+	err := cmd.Run()
+	var ee *exec.ExitError
+	switch {
+	case errors.As(err, &ee):
+		exit = ee.ExitCode()
+	case err != nil:
+		t.Fatalf("running: %v", err)
+	}
+	return outBuf.String(), errBuf.String(), exit
+}
+
+func writeClaims(t *testing.T, text string) string {
+	t.Helper()
+	path := filepath.Join(t.TempDir(), "claims.json")
+	if err := os.WriteFile(path, []byte(text), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	return path
+}
 
 // --- No-args / help ---
 
@@ -37,12 +110,15 @@ func TestCLI_ItemsCreate_NoArgs_ShowsHelp(t *testing.T) {
 	if err != nil {
 		t.Fatalf("create with no args should exit 0, got: %s", err)
 	}
-	output := string(out)
-	if !containsString(output, "Usage") {
+	if !containsString(string(out), "Usage") {
 		t.Error("no-args output should contain Usage")
 	}
 }
 
+// TestCLI_ItemsCreate_Help_ShowsAllFlags pins the flag set, the
+// --timestamp help text and --hash-type's lack of a default. Mutants
+// killed: --timestamp's help left as the ISO 8601 forms it once
+// normalized, and --hash-type given the default sha256.
 func TestCLI_ItemsCreate_Help_ShowsAllFlags(t *testing.T) {
 	cmd := exec.Command(binaryPath, "items", "create", "--help")
 	out, err := cmd.CombinedOutput()
@@ -55,9 +131,16 @@ func TestCLI_ItemsCreate_Help_ShowsAllFlags(t *testing.T) {
 			t.Errorf("help output missing flag %s", flag)
 		}
 	}
+	const timestampHelp = "claimed timestamp: your own statement; Truestamp checks only that it is a well-formed date"
+	if !containsString(output, timestampHelp) {
+		t.Errorf("help output missing the --timestamp text %q:\n%s", timestampHelp, output)
+	}
+	if containsString(output, `(default "sha256")`) {
+		t.Errorf("--hash-type shows a sha256 default:\n%s", output)
+	}
 }
 
-// --- Validation errors (no API needed) ---
+// --- Local refusals, none of which sends a request ---
 
 func TestCLI_ItemsCreate_NoAPIKey_Error(t *testing.T) {
 	cmd := exec.Command(binaryPath, "items", "create", "-n", "Test", "--data-hash", validSHA256Hex)
@@ -70,947 +153,593 @@ func TestCLI_ItemsCreate_NoAPIKey_Error(t *testing.T) {
 	}
 }
 
-func TestCLI_ItemsCreate_MissingName_Error(t *testing.T) {
-	cmd := exec.Command(binaryPath, "items", "create", "--data-hash", validSHA256Hex, "--api-key", "fake")
-	cmd.Env = append(os.Environ(), "TRUESTAMP_BASE_URL=http://localhost:0")
-	out, _ := cmd.CombinedOutput()
-	if !containsString(string(out), "name is required") {
-		t.Errorf("expected name required error, got: %s", out)
-	}
-}
-
-// TestCLI_ItemsCreate_NoHash_NoDescription_TriggersClaimsOnlyError covers the case
-// where the user supplies only --name (no hash, no description, no metadata).
-// Under claims-as-source-of-truth mode this fails the local meaningful-content
-// rule with a message naming the 32-char threshold.
-func TestCLI_ItemsCreate_NoHash_NoDescription_TriggersClaimsOnlyError(t *testing.T) {
-	cmd := exec.Command(binaryPath, "items", "create", "-n", "Test", "--api-key", "fake")
-	cmd.Env = append(os.Environ(), "TRUESTAMP_BASE_URL=http://localhost:0")
-	out, _ := cmd.CombinedOutput()
-	output := string(out)
-	if !containsString(output, "claims content is required") {
-		t.Errorf("expected claims-only meaningful-content error, got: %s", output)
-	}
-	if !containsString(output, "32 characters") {
-		t.Errorf("error should name the 32-char threshold, got: %s", output)
-	}
-}
-
-func TestCLI_ItemsCreate_InvalidHex_Error(t *testing.T) {
-	cmd := exec.Command(binaryPath, "items", "create", "-n", "Test", "--data-hash", "xyz", "--api-key", "fake")
-	cmd.Env = append(os.Environ(), "TRUESTAMP_BASE_URL=http://localhost:0")
-	out, _ := cmd.CombinedOutput()
-	output := string(out)
-	if !containsString(output, "hex") {
-		t.Errorf("expected hex error, got: %s", output)
-	}
-}
-
-func TestCLI_ItemsCreate_OddLengthHex_Error(t *testing.T) {
-	cmd := exec.Command(binaryPath, "items", "create", "-n", "Test", "--data-hash", "abc", "--api-key", "fake")
-	cmd.Env = append(os.Environ(), "TRUESTAMP_BASE_URL=http://localhost:0")
-	out, _ := cmd.CombinedOutput()
-	if !containsString(string(out), "even-length") {
-		t.Errorf("expected even-length error, got: %s", out)
-	}
-}
-
-func TestCLI_ItemsCreate_InvalidVisibility_Error(t *testing.T) {
-	cmd := exec.Command(binaryPath, "items", "create", "-n", "Test", "--data-hash", validSHA256Hex, "-v", "secret", "--api-key", "fake")
-	cmd.Env = append(os.Environ(), "TRUESTAMP_BASE_URL=http://localhost:0")
-	out, _ := cmd.CombinedOutput()
-	if !containsString(string(out), "private, team, or public") {
-		t.Errorf("expected visibility error, got: %s", out)
-	}
-}
-
-func TestCLI_ItemsCreate_InvalidURL_Error(t *testing.T) {
-	cmd := exec.Command(binaryPath, "items", "create", "-n", "Test", "--data-hash", validSHA256Hex, "--url", "http://not-https.com", "--api-key", "fake")
-	cmd.Env = append(os.Environ(), "TRUESTAMP_BASE_URL=http://localhost:0")
-	out, _ := cmd.CombinedOutput()
-	if !containsString(string(out), "https://") {
-		t.Errorf("expected https error, got: %s", out)
-	}
-}
-
-func TestCLI_ItemsCreate_InvalidLocation_Error(t *testing.T) {
-	cmd := exec.Command(binaryPath, "items", "create", "-n", "Test", "--data-hash", validSHA256Hex, "--location", "abc", "--api-key", "fake")
-	cmd.Env = append(os.Environ(), "TRUESTAMP_BASE_URL=http://localhost:0")
-	out, _ := cmd.CombinedOutput()
-	if !containsString(string(out), "lat,lon") {
-		t.Errorf("expected location error, got: %s", out)
-	}
-}
-
-func TestCLI_ItemsCreate_InvalidMetadata_Error(t *testing.T) {
-	cmd := exec.Command(binaryPath, "items", "create", "-n", "Test", "--data-hash", validSHA256Hex, "--metadata", "not json", "--api-key", "fake")
-	cmd.Env = append(os.Environ(), "TRUESTAMP_BASE_URL=http://localhost:0")
-	out, _ := cmd.CombinedOutput()
-	if !containsString(string(out), "valid JSON") {
-		t.Errorf("expected JSON error, got: %s", out)
-	}
-}
-
-func TestCLI_ItemsCreate_NonexistentFile_Error(t *testing.T) {
-	cmd := exec.Command(binaryPath, "items", "create", "/nonexistent/file.pdf", "--api-key", "fake")
-	cmd.Env = append(os.Environ(), "TRUESTAMP_BASE_URL=http://localhost:0")
-	out, _ := cmd.CombinedOutput()
-	if !containsString(string(out), "cannot access") {
-		t.Errorf("expected file access error, got: %s", out)
-	}
-}
-
-func TestCLI_ItemsCreate_Directory_Error(t *testing.T) {
-	cmd := exec.Command(binaryPath, "items", "create", os.TempDir(), "--api-key", "fake")
-	cmd.Env = append(os.Environ(), "TRUESTAMP_BASE_URL=http://localhost:0")
-	out, _ := cmd.CombinedOutput()
-	if !containsString(string(out), "directory") {
-		t.Errorf("expected directory error, got: %s", out)
-	}
-}
-
-// --- Auto-hash correctness ---
-
-func TestCLI_ItemsCreate_AutoHash_MatchesSHA256(t *testing.T) {
-	// Create a temp file with known content
-	content := []byte("test content for hash verification\n")
-	path := filepath.Join(t.TempDir(), "hashtest.txt")
-	if err := os.WriteFile(path, content, 0644); err != nil {
-		t.Fatal(err)
-	}
-
-	// Compute expected SHA-256
-	h := sha256.Sum256(content)
-	expected := hex.EncodeToString(h[:])
-
-	// Run create with a fake API (will fail at API call, but we can check
-	// the hash via --json mode's error output). Instead, test the validation
-	// passes by checking the error is an API error (not a validation error).
-	cmd := exec.Command(binaryPath, "items", "create", path, "--json", "--api-key", "fake", "--base-url", "http://localhost:1")
-	out, _ := cmd.CombinedOutput()
-	output := string(out)
-
-	// Should get past validation (API call fails with connection error)
-	if containsString(output, "hash is required") || containsString(output, "name is required") {
-		t.Errorf("auto-hash should populate hash and name, got: %s", output)
-	}
-
-	// Verify hash by checking it doesn't complain about hex format
-	if containsString(output, "hex") {
-		t.Errorf("auto-hash should produce valid hex, got: %s", output)
-	}
-
-	_ = expected // hash value is correct if validation passes
-}
-
-// --- Claims file input ---
-
-func TestCLI_ItemsCreate_ClaimsFile_ParsesJSON(t *testing.T) {
-	claims := `{"hash":"` + validSHA256Hex + `","hash_type":"sha256","name":"From File"}`
-	path := filepath.Join(t.TempDir(), "claims.json")
-	if err := os.WriteFile(path, []byte(claims), 0644); err != nil {
-		t.Fatal(err)
-	}
-
-	cmd := exec.Command(binaryPath, "items", "create", "--claims="+path, "--api-key", "fake", "--base-url", "http://localhost:1")
-	out, _ := cmd.CombinedOutput()
-	output := string(out)
-
-	// Should get past validation (API error, not claims error)
-	if containsString(output, "name is required") || containsString(output, "hash is required") {
-		t.Errorf("claims file should populate required fields, got: %s", output)
-	}
-}
-
-func TestCLI_ItemsCreate_ClaimsFile_InvalidJSON_Error(t *testing.T) {
-	path := filepath.Join(t.TempDir(), "bad.json")
-	if err := os.WriteFile(path, []byte("not json"), 0644); err != nil {
-		t.Fatal(err)
-	}
-
-	srv, hits := countingAPI(t)
-	cmd := exec.Command(binaryPath, "items", "create", "--claims="+path, "--api-key", "fake", "--base-url", srv.URL)
-	out, _ := cmd.CombinedOutput()
-	if !containsString(string(out), "parsing claims JSON") {
-		t.Errorf("expected JSON parse error, got: %s", out)
-	}
-	if n := hits.Load(); n != 0 {
-		t.Errorf("a claims file that does not parse sent %d requests, want 0", n)
-	}
-}
-
-// --- Claims stdin input ---
-
-func TestCLI_ItemsCreate_ClaimsStdin_ParsesJSON(t *testing.T) {
-	claims := `{"hash":"` + validSHA256Hex + `","hash_type":"sha256","name":"From Stdin"}`
-
-	cmd := exec.Command(binaryPath, "items", "create", "-C", "--api-key", "fake", "--base-url", "http://localhost:1")
-	cmd.Stdin = strings.NewReader(claims)
-	out, _ := cmd.CombinedOutput()
-	output := string(out)
-
-	if containsString(output, "name is required") || containsString(output, "hash is required") {
-		t.Errorf("claims stdin should populate required fields, got: %s", output)
-	}
-}
-
-func TestCLI_ItemsCreate_ClaimsStdin_InvalidJSON_Error(t *testing.T) {
-	srv, hits := countingAPI(t)
-	cmd := exec.Command(binaryPath, "items", "create", "-C", "--api-key", "fake", "--base-url", srv.URL)
-	cmd.Stdin = strings.NewReader("not json")
-	out, _ := cmd.CombinedOutput()
-	if !containsString(string(out), "parsing claims JSON") {
-		t.Errorf("expected JSON parse error, got: %s", out)
-	}
-	if n := hits.Load(); n != 0 {
-		t.Errorf("claims on stdin that do not parse sent %d requests, want 0", n)
-	}
-}
-
-// --- File stdin input ---
-
-func TestCLI_ItemsCreate_FileStdin_RequiresName(t *testing.T) {
-	cmd := exec.Command(binaryPath, "items", "create", "-F", "--api-key", "fake", "--base-url", "http://localhost:1")
-	cmd.Stdin = strings.NewReader("raw file content")
-	out, _ := cmd.CombinedOutput()
-	if !containsString(string(out), "name is required") {
-		t.Errorf("--file-stdin without --name should error, got: %s", out)
-	}
-}
-
-func TestCLI_ItemsCreate_FileStdin_WithName_HashesContent(t *testing.T) {
-	content := "raw file content for hashing"
-
-	cmd := exec.Command(binaryPath, "items", "create", "-F", "-n", "Stdin File", "--api-key", "fake", "--base-url", "http://localhost:1")
-	cmd.Stdin = strings.NewReader(content)
-	out, _ := cmd.CombinedOutput()
-	output := string(out)
-
-	// Should get past validation to API call
-	if containsString(output, "hash is required") || containsString(output, "name is required") {
-		t.Errorf("--file-stdin with --name should populate hash, got: %s", output)
-	}
-}
-
-// --- Flag overrides ---
-
-func TestCLI_ItemsCreate_FlagOverridesAutoHash(t *testing.T) {
-	content := []byte("override test")
-	path := filepath.Join(t.TempDir(), "original-name.txt")
-	if err := os.WriteFile(path, content, 0644); err != nil {
-		t.Fatal(err)
-	}
-
-	// Override name from auto-hash
-	cmd := exec.Command(binaryPath, "items", "create", path, "-n", "Custom Name", "--api-key", "fake", "--base-url", "http://localhost:1")
-	out, _ := cmd.CombinedOutput()
-	output := string(out)
-
-	// Should not error about missing name (it's provided via flag)
-	if containsString(output, "name is required") {
-		t.Errorf("--name flag should override, got: %s", output)
-	}
-}
-
-func TestCLI_ItemsCreate_FlagOverridesClaimsFile(t *testing.T) {
-	claims := `{"hash":"` + validSHA256Hex + `","hash_type":"sha256","name":"Original"}`
-	path := filepath.Join(t.TempDir(), "claims.json")
-	if err := os.WriteFile(path, []byte(claims), 0644); err != nil {
-		t.Fatal(err)
-	}
-
-	// Override visibility from claims file
-	cmd := exec.Command(binaryPath, "items", "create", "--claims="+path, "-v", "public", "--api-key", "fake", "--base-url", "http://localhost:1")
-	out, _ := cmd.CombinedOutput()
-	output := string(out)
-
-	if containsString(output, "name is required") {
-		t.Errorf("claims file + flag override should work, got: %s", output)
-	}
-}
-
-// --- File flag ---
-
-func TestCLI_ItemsCreate_FileFlag_HashesFile(t *testing.T) {
-	content := []byte("file flag test content")
-	path := filepath.Join(t.TempDir(), "fileflag.txt")
-	if err := os.WriteFile(path, content, 0644); err != nil {
-		t.Fatal(err)
-	}
-
-	cmd := exec.Command(binaryPath, "items", "create", "--file="+path, "--api-key", "fake", "--base-url", "http://localhost:1")
-	out, _ := cmd.CombinedOutput()
-	output := string(out)
-
-	if containsString(output, "hash is required") || containsString(output, "name is required") {
-		t.Errorf("--file flag should auto-hash, got: %s", output)
-	}
-}
-
-func TestCLI_ItemsCreate_FileFlag_NonexistentFile_Error(t *testing.T) {
-	srv, hits := countingAPI(t)
-	cmd := exec.Command(binaryPath, "items", "create", "--file=/nonexistent/file.txt", "--api-key", "fake", "--base-url", srv.URL)
-	out, _ := cmd.CombinedOutput()
-	if !containsString(string(out), "cannot access") {
-		t.Errorf("expected file access error, got: %s", out)
-	}
-	if n := hits.Load(); n != 0 {
-		t.Errorf("a file that cannot be read sent %d requests, want 0", n)
-	}
-}
-
-// --- JSON output structure ---
-
-func TestCLI_ItemsCreate_JSONOutput_Structure(t *testing.T) {
-	// This test verifies JSON output has the expected keys.
-	// Uses a fake API URL so it fails at the network level, but we can test
-	// that --json flag is accepted without error alongside other flags.
-	cmd := exec.Command(binaryPath, "items", "create", "--help")
-	out, err := cmd.CombinedOutput()
-	if err != nil {
-		t.Fatalf("help failed: %s", err)
-	}
-	if !containsString(string(out), "--json") {
-		t.Error("help should mention --json flag")
-	}
-}
-
-// --- Tags parsing ---
-
-func TestCLI_ItemsCreate_TagsParsing(t *testing.T) {
-	// Verify tags are split and trimmed. We can only test indirectly
-	// since the API call will fail, but we verify no validation error.
-	content := []byte("tags test")
-	path := filepath.Join(t.TempDir(), "tags.txt")
-	if err := os.WriteFile(path, content, 0644); err != nil {
-		t.Fatal(err)
-	}
-
-	cmd := exec.Command(binaryPath, "items", "create", path, "-t", " a , b , c ", "--api-key", "fake", "--base-url", "http://localhost:1")
-	out, _ := cmd.CombinedOutput()
-	output := string(out)
-
-	// Should pass validation, fail only at API
-	if containsString(output, "tag") && containsString(output, "error") {
-		t.Errorf("tags should parse without error, got: %s", output)
-	}
-}
-
-// --- Hash normalization ---
-
-func TestCLI_ItemsCreate_HashNormalizedToLowercase(t *testing.T) {
-	// Uppercase hex should be normalized to lowercase. Use a mixed-case
-	// 64-char hash so the case-folding is actually exercised (the all-zeros
-	// fixture is case-invariant).
-	upper := "ABCDEF" + strings.Repeat("0", 64-6)
-	cmd := exec.Command(binaryPath, "items", "create", "-n", "Test", "--data-hash", upper, "--api-key", "fake", "--base-url", "http://localhost:1")
-	out, _ := cmd.CombinedOutput()
-	output := string(out)
-
-	// Should not error about hex format
-	if containsString(output, "invalid hex") || containsString(output, "even-length") {
-		t.Errorf("uppercase hex should be accepted, got: %s", output)
-	}
-}
-
-// --- Default hash type ---
-
-func TestCLI_ItemsCreate_DefaultHashType(t *testing.T) {
-	// When --data-hash is provided without --hash-type, default to sha256
-	cmd := exec.Command(binaryPath, "items", "create", "-n", "Test", "--data-hash", validSHA256Hex, "--api-key", "fake", "--base-url", "http://localhost:1")
-	out, _ := cmd.CombinedOutput()
-	output := string(out)
-
-	if containsString(output, "hash_type is required") {
-		t.Errorf("hash_type should default to sha256, got: %s", output)
-	}
-}
-
-// --- Claims-as-source-of-truth mode ---
-
-// TestCLI_ItemsCreate_ClaimsOnly_NameAndDescription_PassesValidation confirms that
-// claims-only mode with a sufficient description gets past local validation.
-// The API call still fails (no real server), but the error must not be a
-// validation failure.
-func TestCLI_ItemsCreate_ClaimsOnly_NameAndDescription_PassesValidation(t *testing.T) {
-	cmd := exec.Command(binaryPath, "items", "create",
-		"-n", "Invention",
-		"-d", longDesc,
-		"--api-key", "fake", "--base-url", "http://localhost:1")
-	out, _ := cmd.CombinedOutput()
-	output := string(out)
-
-	if containsString(output, "claims content is required") {
-		t.Errorf("32+ char description should satisfy claims-only rule, got: %s", output)
-	}
-	if containsString(output, "hash is required") || containsString(output, "hash_type is required") {
-		t.Errorf("claims-only mode must not require hash/hash_type, got: %s", output)
-	}
-}
-
-// TestCLI_ItemsCreate_ClaimsOnly_ShortDescription_Fails fails locally with the
-// meaningful-content error when description is below the 32-char threshold.
-func TestCLI_ItemsCreate_ClaimsOnly_ShortDescription_Fails(t *testing.T) {
-	cmd := exec.Command(binaryPath, "items", "create",
-		"-n", "Doc",
-		"-d", "short",
-		"--api-key", "fake")
-	cmd.Env = append(os.Environ(), "TRUESTAMP_BASE_URL=http://localhost:0")
-	out, _ := cmd.CombinedOutput()
-	output := string(out)
-	if !containsString(output, "claims content is required") {
-		t.Errorf("short description in claims-only mode should fail, got: %s", output)
-	}
-}
-
-// TestCLI_ItemsCreate_ClaimsOnly_NonEmptyMetadata_PassesValidation confirms the
-// metadata escape hatch: a non-empty metadata object satisfies the
-// meaningful-content rule even without a long description.
-func TestCLI_ItemsCreate_ClaimsOnly_NonEmptyMetadata_PassesValidation(t *testing.T) {
-	cmd := exec.Command(binaryPath, "items", "create",
-		"-n", "Doc",
-		"--metadata", `{"k":"v"}`,
-		"--api-key", "fake", "--base-url", "http://localhost:1")
-	out, _ := cmd.CombinedOutput()
-	output := string(out)
-
-	if containsString(output, "claims content is required") {
-		t.Errorf("non-empty metadata should satisfy claims-only rule, got: %s", output)
-	}
-}
-
-// TestCLI_ItemsCreate_HashTypeAlone_Rejected covers the co-required pair:
-// supplying --hash-type without --data-hash is a partial pair and must be
-// rejected with a clear error before any network round-trip. Confirms the
-// --hash-type flag default does not leak through into the claims map.
-func TestCLI_ItemsCreate_HashTypeAlone_Rejected(t *testing.T) {
-	cmd := exec.Command(binaryPath, "items", "create",
-		"-n", "Doc",
-		"--hash-type", "sha256",
-		"--api-key", "fake")
-	cmd.Env = append(os.Environ(), "TRUESTAMP_BASE_URL=http://localhost:0")
-	out, _ := cmd.CombinedOutput()
-	output := string(out)
-	if !containsString(output, "hash is required when hash_type is supplied") {
-		t.Errorf("expected co-required error, got: %s", output)
-	}
-}
-
-// TestCLI_ItemsCreate_HashWithoutHashType_FromClaimsFile_Rejected covers the
-// reverse partial pair: a claims file with hash but explicit empty
-// hash_type is rejected with a clear error. (The overlayFlags default rule
-// fills in sha256 when hash_type is missing from claims; this test forces
-// an empty-string hash_type to bypass that fallback.)
-func TestCLI_ItemsCreate_HashWithoutHashType_FromClaimsFile_Rejected(t *testing.T) {
-	claims := `{"hash":"` + validSHA256Hex + `","hash_type":"","name":"Doc"}`
-	path := filepath.Join(t.TempDir(), "partial.json")
-	if err := os.WriteFile(path, []byte(claims), 0644); err != nil {
-		t.Fatal(err)
-	}
-	cmd := exec.Command(binaryPath, "items", "create", "--claims="+path, "--api-key", "fake")
-	cmd.Env = append(os.Environ(), "TRUESTAMP_BASE_URL=http://localhost:0")
-	out, _ := cmd.CombinedOutput()
-	output := string(out)
-	if !containsString(output, "hash_type is required when hash is supplied") {
-		t.Errorf("expected co-required error, got: %s", output)
-	}
-}
-
-// --- Mutual exclusivity isn't enforced (flags overlay) ---
-
-func TestCLI_ItemsCreate_ClaimsAndFlags_Merge(t *testing.T) {
-	// Claims from file + flag overrides should merge (not conflict)
-	claims := `{"hash":"` + validSHA256Hex + `","hash_type":"sha256","name":"Base"}`
-	path := filepath.Join(t.TempDir(), "merge.json")
-	if err := os.WriteFile(path, []byte(claims), 0644); err != nil {
-		t.Fatal(err)
-	}
-
-	cmd := exec.Command(binaryPath, "items", "create", "--claims="+path, "-d", "Added desc", "--api-key", "fake", "--base-url", "http://localhost:1")
-	out, _ := cmd.CombinedOutput()
-	output := string(out)
-
-	if containsString(output, "name is required") || containsString(output, "hash is required") {
-		t.Errorf("claims file + flag overlay should work, got: %s", output)
-	}
-}
-
-// --- JSON output key validation (with mock response) ---
-
-func TestCLI_ItemsCreate_JSONOutput_HasExpectedKeys(t *testing.T) {
-	// We validate the JSON marshaling logic by checking that the output
-	// function produces valid JSON with the right keys. This uses a
-	// dummy response to avoid needing a real API.
-
-	// Since we can't easily inject a mock, verify that the JSON struct
-	// has the expected shape by parsing a sample output string.
-	sample := `{"id":"01TEST","name":"Test","hash":"abcd","hash_type":"sha256","visibility":"private","team_id":"019test"}`
-	var parsed map[string]any
-	if err := json.Unmarshal([]byte(sample), &parsed); err != nil {
-		t.Fatal(err)
-	}
-	for _, key := range []string{"id", "name", "hash", "hash_type", "visibility", "team_id"} {
-		if _, ok := parsed[key]; !ok {
-			t.Errorf("JSON output should contain key %q", key)
-		}
-	}
-}
-
-// TestCLI_ItemsCreate_JSONOutput_ClaimsOnly_OmitsHashKeys exercises printCreateJSON
-// directly against a claims-only CreateItemResponse (Hash and HashType empty)
-// and asserts the marshaled object does not carry "hash" or "hash_type" keys.
-// External-hash responses still include both keys.
-func TestCLI_ItemsCreate_JSONOutput_ClaimsOnly_OmitsHashKeys(t *testing.T) {
-	// Capture stdout from printCreateJSON.
-	capture := func(resp *items.CreateItemResponse) string {
-		var buf bytes.Buffer
-		_ = printCreateJSON(&buf, resp)
-		return buf.String()
-	}
-
-	// Claims-only: no hash or hash_type.
-	claimsOnly := &items.CreateItemResponse{
-		ID:         "01CLAIMSONLY",
-		Name:       "Invention",
-		Visibility: "private",
-		TeamID:     "team_xyz",
-	}
-	var got map[string]any
-	if err := json.Unmarshal([]byte(capture(claimsOnly)), &got); err != nil {
-		t.Fatalf("unmarshal claims-only output: %v", err)
-	}
-	if _, has := got["hash"]; has {
-		t.Errorf("claims-only JSON output must not include hash key, got: %v", got)
-	}
-	if _, has := got["hash_type"]; has {
-		t.Errorf("claims-only JSON output must not include hash_type key, got: %v", got)
-	}
-
-	// External-hash: both keys present.
-	external := &items.CreateItemResponse{
-		ID:         "01EXT",
-		Name:       "Doc",
-		Hash:       validSHA256Hex,
-		HashType:   "sha256",
-		Visibility: "private",
-		TeamID:     "team_xyz",
-	}
-	var got2 map[string]any
-	if err := json.Unmarshal([]byte(capture(external)), &got2); err != nil {
-		t.Fatalf("unmarshal external-hash output: %v", err)
-	}
-	if got2["hash"] != validSHA256Hex {
-		t.Errorf("external-hash JSON output should carry hash, got: %v", got2)
-	}
-	if got2["hash_type"] != "sha256" {
-		t.Errorf("external-hash JSON output should carry hash_type, got: %v", got2)
-	}
-}
-
-// --- Integer literal preservation + producer-side portability guard ---
-
-// startCreateEchoServer is the items mock server answering every request
-// with a minimal JSON:API item, so the command completes normally, and
-// handing back the RAW request body: the actual bytes that went out on the
-// wire.
-//
-// Asserting on these bytes rather than on an intermediate map is the entire
-// point: the corruption this guards against happened during decode, so any
-// check that re-decodes the claims in the test process would round the value a
-// second time and agree with itself.
-func startCreateEchoServer(t *testing.T) (url string, body func() []byte) {
-	t.Helper()
-	s := startItemsServer(t, func(w http.ResponseWriter, r *http.Request) {
-		w.WriteHeader(http.StatusCreated)
-		fmt.Fprint(w, `{"data":{"id":"01HJHB01T8FYZ7YTR9P5N62K5B","type":"item",`+
-			`"attributes":{"display_name":"Echo","visibility":"private","state":"pending"}}}`)
-	})
-	return s.URL, func() []byte { return []byte(s.body()) }
-}
-
-// TestCLI_ItemsCreate_PreservesLiteralsOnTheWire is the end-to-end regression for
-// the claims-corruption bug, asserted against the actual request body.
-//
-// Before the UseNumber fix, cmd/create decoded claims into map[string]any with
-// json.Unmarshal, so every number became a float64 and was re-serialized from
-// that double. The user's own digits never reached the server.
-//
-// Two properties are checked here, both against the raw bytes off the wire:
-//
-// Integers travel verbatim. The largest portable integer, 2^53 - 1, and its
-// negation are carried through, every integer a double would actually mangle
-// is now refused by the portability guard before it can reach the wire
-// (TestCLI_ItemsCreate_UnsafeIntegerBoundary), so the byte-identical wire proof for
-// a value like 18446744073709551615 lives one layer down, in
-// items.TestCreateItemCtx_PreservesIntegerLiteralOnTheWire.
-//
-// Floats travel verbatim too: a float whose nearest double is not an
-// integer in rule J5's gap is never a portability violation, so its text
-// reaches the wire as written, 1e21 not as 1e+21 and 1.50e300 not as
-// 1.5e+300, the same bytes and therefore the same JCS canonicalization.
-// Mutant killed: the claims re-encoded through float64 (1e21 is sent as
-// 1e+21).
-func TestCLI_ItemsCreate_PreservesLiteralsOnTheWire(t *testing.T) {
-	url, body := startCreateEchoServer(t)
-
-	claims := `{"name":"Big","description":"` + longDesc + `","metadata":{` +
-		`"max_safe":9007199254740991,` +
-		`"neg":-9007199254740991,` +
-		`"as_string":"18446744073709551615",` +
-		`"exp":1e21,` +
-		`"wide_float":1.50e300}}`
-	path := filepath.Join(t.TempDir(), "claims.json")
-	if err := os.WriteFile(path, []byte(claims), 0644); err != nil {
-		t.Fatal(err)
-	}
-
-	cmd := exec.Command(binaryPath, "items", "create", "--claims="+path,
-		"--api-key", "fake", "--base-url", url)
-	out, err := cmd.CombinedOutput()
-	if err != nil {
-		t.Fatalf("create failed: %v\n%s", err, out)
-	}
-
-	got := string(body())
-	for _, literal := range []string{
-		`"max_safe":9007199254740991`,
-		`"neg":-9007199254740991`,
-		`"as_string":"18446744073709551615"`,
-		`"exp":1e21`,
-		`"wide_float":1.50e300`,
-	} {
-		if !strings.Contains(got, literal) {
-			t.Errorf("request body missing %s\nbody: %s", literal, got)
-		}
-	}
-
-	// The exact rewrites the pre-fix float64 path produced. Their absence is
-	// the assertion that matters.
-	for _, corrupted := range []string{"1e+21", "1.5e+300"} {
-		if strings.Contains(got, corrupted) {
-			t.Errorf("request body carries rewritten literal %s, the user's bytes were corrupted\nbody: %s", corrupted, got)
-		}
-	}
-}
-
-// TestCLI_ItemsCreate_UnsafeIntegerRejectedBeforeNetwork is the other half of the
-// contract: a value the producer must not emit never reaches the server at
-// all. The echo server records nothing, which is what "before the network
-// call" means operationally.
-func TestCLI_ItemsCreate_UnsafeIntegerRejectedBeforeNetwork(t *testing.T) {
-	url, body := startCreateEchoServer(t)
-
-	claims := `{"name":"Big","description":"` + longDesc + `","metadata":{"rows":[{"id":18446744073709551615}]}}`
-	path := filepath.Join(t.TempDir(), "claims.json")
-	if err := os.WriteFile(path, []byte(claims), 0644); err != nil {
-		t.Fatal(err)
-	}
-
-	cmd := exec.Command(binaryPath, "items", "create", "--claims="+path,
-		"--api-key", "fake", "--base-url", url)
-	out, err := cmd.CombinedOutput()
-	if err == nil {
-		t.Fatalf("expected non-zero exit for an unsafe integer, got success:\n%s", out)
-	}
-	output := string(out)
-
-	// Every fact the server's message carries, so the two read as one system.
-	for _, want := range []string{
-		"claims.metadata.rows[0].id",            // dotted path
-		"18446744073709551615",                  // the user's own literal, unrounded
-		"-9007199254740991 to 9007199254740991", // allowed range
-		"as a string",                           // the remedy
-	} {
-		if !containsString(output, want) {
-			t.Errorf("error output missing %q, got:\n%s", want, output)
-		}
-	}
-
-	if len(body()) != 0 {
-		t.Errorf("request reached the server despite an unsafe integer: %s", body())
-	}
-}
-
-// TestCLI_ItemsCreate_UnsafeIntegerBoundary walks MAX_INTEGER, the one bound
-// of rule J5, through the real CLI, in both directions and both signs. 2^53 is
-// the first integer past it: `create` refuses it before sending, naming its
-// path, as every verifier and the Truestamp service refuse it, and an integral
-// float such as 9007199254740993.0 is refused too, by the J5 check of the
-// canonicalizer. Mutant killed: jcs.UnsafeIntegers bounded at MAX_INTEGER + 1
-// (2^53 is then refused only by the canonicalizer, whose error names no path).
-func TestCLI_ItemsCreate_UnsafeIntegerBoundary(t *testing.T) {
+// TestCLI_ItemsCreate_LocalRefusals pins each refusal the CLI still makes
+// before sending: an unknown visibility, a --location that is not two JSON
+// numbers, --metadata that is not JSON, a file that cannot be read, and a
+// claims text the strict reader refuses (not JSON, or trailing content).
+// Each names its fix and sends nothing. Mutant killed: the claims of a
+// file read with a reader that stops after the first value (the trailing
+// case is sent).
+func TestCLI_ItemsCreate_LocalRefusals(t *testing.T) {
+	notJSON := writeClaims(t, "not json")
+	trailing := writeClaims(t, `{"name":"A"} {"name":"B"}`)
 	for _, tc := range []struct {
-		name   string
-		lit    string
-		reject bool
+		name  string
+		stdin string
+		args  []string
+		want  string
 	}{
-		{"max_safe_accepted", "9007199254740991", false},
-		{"two_pow_53_rejected_by_producer", "9007199254740992", true},
-		{"two_pow_53_plus_one_rejected", "9007199254740993", true},
-		{"negative_max_safe_accepted", "-9007199254740991", false},
-		{"negative_two_pow_53_rejected", "-9007199254740992", true},
+		{"visibility", "", []string{"-n", "T", "-d", longDesc, "-v", "secret"}, "private, team, or public"},
+		{"location shape", "", []string{"-n", "T", "-d", longDesc, "--location", "abc"}, "--location must be lat,lon"},
+		{"location number", "", []string{"-n", "T", "-d", longDesc, "--location", "+37.7,1"}, "--location latitude: malformed_json (syntax)"},
+		{"location not a number", "", []string{"-n", "T", "-d", longDesc, "--location", `"a",1`}, "--location latitude must be a JSON number"},
+		{"metadata", "", []string{"-n", "T", "--metadata", "not json"}, "--metadata must be valid JSON"},
+		{"missing file", "", []string{"/nonexistent/file.pdf"}, "cannot access"},
+		{"directory", "", []string{os.TempDir()}, "is a directory, expected a file"},
+		{"file flag", "", []string{"--file=/nonexistent/file.txt"}, "cannot access"},
+		{"claims file not JSON", "", []string{"--claims=" + notJSON}, "parsing claims JSON: malformed_json (syntax)"},
+		{"claims file trailing", "", []string{"--claims=" + trailing}, "parsing claims JSON: malformed_json (syntax)"},
+		{"claims stdin not JSON", "not json", []string{"-C"}, "parsing claims JSON from stdin: malformed_json (syntax)"},
+		{"claims stdin empty", "", []string{"-C"}, "no data received on stdin"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			url, body := startCreateEchoServer(t)
-
-			claims := `{"name":"B","description":"` + longDesc + `","metadata":{"n":` + tc.lit + `}}`
-			path := filepath.Join(t.TempDir(), "claims.json")
-			if err := os.WriteFile(path, []byte(claims), 0644); err != nil {
-				t.Fatal(err)
+			s := startCreateServer(t, http.StatusCreated, createdItemDoc)
+			_, stderr, exit := runCreate(t, tc.stdin, append(tc.args, "--api-key", "fake", "--base-url", s.URL)...)
+			if exit != 1 || !strings.Contains(stderr, tc.want) {
+				t.Errorf("exit %d, stderr %q, want exit 1 and %q", exit, stderr, tc.want)
 			}
-
-			cmd := exec.Command(binaryPath, "items", "create", "--claims="+path,
-				"--api-key", "fake", "--base-url", url)
-			out, err := cmd.CombinedOutput()
-
-			if tc.reject {
-				if err == nil {
-					t.Fatalf("%s should be rejected by the producer guard, got success:\n%s", tc.lit, out)
-				}
-				if !containsString(string(out), "claims.metadata.n") {
-					t.Errorf("rejection should name the path, got:\n%s", out)
-				}
-				return
-			}
-
-			if err != nil {
-				t.Fatalf("%s should be accepted, got error: %v\n%s", tc.lit, err, out)
-			}
-			if !strings.Contains(string(body()), `"n":`+tc.lit) {
-				t.Errorf("request body should carry %s verbatim, got: %s", tc.lit, body())
+			if n := s.hits.Load(); n != 0 {
+				t.Errorf("%d requests sent, want 0", n)
 			}
 		})
 	}
 }
 
-// TestCLI_ItemsCreate_UnsafeIntegerFromMetadataFlag covers the flag input path:
-// --metadata is parsed after the claims file is loaded, so a value injected
-// there has to be checked too. Placing the guard before overlayFlags would
-// pass this file and miss this flag.
-func TestCLI_ItemsCreate_UnsafeIntegerFromMetadataFlag(t *testing.T) {
-	url, body := startCreateEchoServer(t)
-
-	cmd := exec.Command(binaryPath, "items", "create",
-		"-n", "Doc", "-d", longDesc,
-		"--metadata", `{"ledger":9007199254740993}`,
-		"--api-key", "fake", "--base-url", url)
-	out, err := cmd.CombinedOutput()
-	if err == nil {
-		t.Fatalf("expected rejection for --metadata unsafe integer, got:\n%s", out)
-	}
-	output := string(out)
-	if !containsString(output, "claims.metadata.ledger") {
-		t.Errorf("error should name claims.metadata.ledger, got:\n%s", output)
-	}
-	if !containsString(output, "9007199254740993") {
-		t.Errorf("error should name the literal, got:\n%s", output)
-	}
-	if len(body()) != 0 {
-		t.Errorf("request should not reach the server: %s", body())
-	}
-}
-
-// TestCLI_ItemsCreate_UnsafeIntegerExternalHashMode confirms the guard covers both
-// submission modes, not just claims-as-source-of-truth.
-func TestCLI_ItemsCreate_UnsafeIntegerExternalHashMode(t *testing.T) {
-	url, body := startCreateEchoServer(t)
-
-	cmd := exec.Command(binaryPath, "items", "create",
-		"-n", "Doc", "--data-hash", validSHA256Hex, "--hash-type", "sha256",
-		"--metadata", `{"serial":18446744073709551615}`,
-		"--api-key", "fake", "--base-url", url)
-	out, err := cmd.CombinedOutput()
-	if err == nil {
-		t.Fatalf("external-hash mode should also be guarded, got:\n%s", out)
-	}
-	if !containsString(string(out), "claims.metadata.serial") {
-		t.Errorf("error should name claims.metadata.serial, got:\n%s", out)
-	}
-	if len(body()) != 0 {
-		t.Errorf("request should not reach the server: %s", body())
+// TestCLI_ItemsCreate_RepeatedNameRefusedLocally: a member name twice in
+// one object is refused before sending, from a claims file, from stdin and
+// from --metadata, since the server's JSON:API reader would see one value.
+// Mutant killed: the claims checked with encoding/json instead of the
+// strict reader (the text is sent).
+func TestCLI_ItemsCreate_RepeatedNameRefusedLocally(t *testing.T) {
+	text := `{"name":"A","description":"` + longDesc + `","name":"B"}`
+	path := writeClaims(t, text)
+	for _, tc := range []struct {
+		name  string
+		stdin string
+		args  []string
+		want  string
+	}{
+		{"file", "", []string{"--claims=" + path}, "parsing claims JSON: malformed_json (duplicate_name)"},
+		{"stdin", text, []string{"-C"}, "parsing claims JSON from stdin: malformed_json (duplicate_name)"},
+		{"metadata", "", []string{"-n", "T", "--metadata", `{"k":1,"k":2}`}, "--metadata must be valid JSON: malformed_json (duplicate_name)"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			s := startCreateServer(t, http.StatusCreated, createdItemDoc)
+			_, stderr, exit := runCreate(t, tc.stdin, append(tc.args, "--api-key", "fake", "--base-url", s.URL)...)
+			if exit != 1 || !strings.Contains(stderr, tc.want) || !strings.Contains(stderr, "a member name appears twice in one object") {
+				t.Errorf("exit %d, stderr %q, want exit 1 and %q", exit, stderr, tc.want)
+			}
+			if n := s.hits.Load(); n != 0 {
+				t.Errorf("%d requests sent, want 0", n)
+			}
+		})
 	}
 }
 
-// TestCLI_ItemsCreate_UnsafeIntegerFromClaimsStdin covers the --claims-stdin input
-// path, which parses through the same decoder.
-func TestCLI_ItemsCreate_UnsafeIntegerFromClaimsStdin(t *testing.T) {
-	url, body := startCreateEchoServer(t)
+// TestCLI_ItemsCreate_J5NumberRefusedLocally walks MAX_INTEGER, the one
+// bound of rule J5 (SPEC.md section 10.1), through every way a number
+// reaches the claims: 2^53, and 9007199254740993.0, whose nearest binary64
+// is in J5's integer gap, are refused before sending, and 2^53 - 1 is sent
+// as written. Mutant killed: the claims checked with encoding/json instead
+// of the strict reader (2^53 is sent).
+func TestCLI_ItemsCreate_J5NumberRefusedLocally(t *testing.T) {
+	refused := []struct {
+		name  string
+		stdin string
+		args  func(t *testing.T) []string
+		want  string
+	}{
+		{"file", "", func(t *testing.T) []string {
+			return []string{"--claims=" + writeClaims(t, `{"name":"B","metadata":{"n":9007199254740992}}`)}
+		}, "parsing claims JSON: malformed_json (number)"},
+		{"file float", "", func(t *testing.T) []string {
+			return []string{"--claims=" + writeClaims(t, `{"name":"B","metadata":{"n":9007199254740993.0}}`)}
+		}, "parsing claims JSON: malformed_json (number)"},
+		{"stdin", `{"name":"B","metadata":{"n":-9007199254740992}}`, func(*testing.T) []string { return []string{"-C"} },
+			"parsing claims JSON from stdin: malformed_json (number)"},
+		{"metadata", "", func(*testing.T) []string { return []string{"-n", "B", "--metadata", `{"n":9007199254740992}`} },
+			"--metadata must be valid JSON: malformed_json (number)"},
+		{"location", "", func(*testing.T) []string { return []string{"-n", "B", "--location", "9007199254740992,1"} },
+			"--location latitude: malformed_json (number)"},
+	}
+	for _, tc := range refused {
+		t.Run(tc.name, func(t *testing.T) {
+			s := startCreateServer(t, http.StatusCreated, createdItemDoc)
+			_, stderr, exit := runCreate(t, tc.stdin, append(tc.args(t), "--api-key", "fake", "--base-url", s.URL)...)
+			if exit != 1 || !strings.Contains(stderr, tc.want) || !strings.Contains(stderr, "send it as a string") {
+				t.Errorf("exit %d, stderr %q, want exit 1 and %q", exit, stderr, tc.want)
+			}
+			if n := s.hits.Load(); n != 0 {
+				t.Errorf("%d requests sent, want 0", n)
+			}
+		})
+	}
 
-	cmd := exec.Command(binaryPath, "items", "create", "-C",
-		"--api-key", "fake", "--base-url", url)
-	cmd.Stdin = strings.NewReader(
-		`{"name":"Doc","description":"` + longDesc + `","big":9007199254740993}`)
-	out, err := cmd.CombinedOutput()
-	if err == nil {
-		t.Fatalf("expected rejection from stdin claims, got:\n%s", out)
+	s := startCreateServer(t, http.StatusCreated, createdItemDoc)
+	text := `{"name":"B","metadata":{"n":9007199254740991,"m":-9007199254740991}}`
+	if _, stderr, exit := runCreate(t, "", "--claims="+writeClaims(t, text), "--api-key", "fake", "--base-url", s.URL); exit != 0 {
+		t.Fatalf("2^53 - 1: exit %d, stderr %q", exit, stderr)
 	}
-	if !containsString(string(out), "claims.big") {
-		t.Errorf("error should name claims.big, got:\n%s", out)
-	}
-	if len(body()) != 0 {
-		t.Errorf("request should not reach the server: %s", body())
+	if got := s.sentClaims(t); got != text {
+		t.Errorf("claims sent %s, want %s", got, text)
 	}
 }
 
-// TestCLI_ItemsCreate_UnsafeIntegerMultipleViolations asserts every offender is
-// listed, in the deterministic order the walker produces, so a user with
-// several bad values fixes them in one pass instead of one 422 at a time.
-func TestCLI_ItemsCreate_UnsafeIntegerMultipleViolations(t *testing.T) {
-	url, _ := startCreateEchoServer(t)
+// TestCLI_ItemsCreate_ClaimFlagsRefusedWithClaims: every claim flag is
+// refused beside a claims file or claims on stdin, naming the flag, with
+// nothing sent. Mutants killed: refuseClaimFlags removed (the flag
+// rewrites the claims), and any one flag left out of claimFlags (its case
+// is sent).
+func TestCLI_ItemsCreate_ClaimFlagsRefusedWithClaims(t *testing.T) {
+	text := `{"name":"Base","description":"` + longDesc + `"}`
+	path := writeClaims(t, text)
+	values := map[string]string{
+		"name": "X", "data-hash": validSHA256Hex, "hash-type": "sha256", "description": longDesc,
+		"url": "https://example.com", "timestamp": "2025", "location": "1,2", "metadata": `{"k":"v"}`,
+	}
+	for _, flag := range []string{"name", "data-hash", "hash-type", "description", "url", "timestamp", "location", "metadata"} {
+		for _, source := range []string{"file", "stdin"} {
+			t.Run(flag+" "+source, func(t *testing.T) {
+				s := startCreateServer(t, http.StatusCreated, createdItemDoc)
+				args := []string{"--" + flag, values[flag], "--api-key", "fake", "--base-url", s.URL}
+				stdin := ""
+				if source == "file" {
+					args = append([]string{"--claims=" + path}, args...)
+				} else {
+					args = append([]string{"-C"}, args...)
+					stdin = text
+				}
+				_, stderr, exit := runCreate(t, stdin, args...)
+				want := "--" + flag + " cannot be combined with --claims or --claims-stdin"
+				if exit != 1 || !strings.Contains(stderr, want) {
+					t.Errorf("exit %d, stderr %q, want exit 1 and %q", exit, stderr, want)
+				}
+				if n := s.hits.Load(); n != 0 {
+					t.Errorf("%d requests sent, want 0", n)
+				}
+			})
+		}
+	}
+}
 
-	claims := `{"name":"Multi","description":"` + longDesc + `",` +
-		`"zeta":9007199254740993,"alpha":18446744073709551615,` +
-		`"metadata":{"rows":[{"id":9007199254740992}]}}`
-	path := filepath.Join(t.TempDir(), "claims.json")
-	if err := os.WriteFile(path, []byte(claims), 0644); err != nil {
+// --- What reaches the server ---
+
+// TestCLI_ItemsCreate_ClaimsSentByteForByte: a claims file and claims on
+// stdin reach the server exactly as given, with a leading space in name,
+// the text's whitespace, member order, escapes and number spellings, and
+// the item attributes beside them. Mutants killed: the claims decoded and
+// re-encoded before sending (the whitespace, the order and 1.50e300 are
+// rewritten), and name trimmed (" Big <a>" is sent as "Big <a>").
+func TestCLI_ItemsCreate_ClaimsSentByteForByte(t *testing.T) {
+	text := "{ \"name\" : \" Big <a>\",\n\t\"metadata\":{\"z\":1.50e300,\"a\":\"\\u00e9\",\"e\":1e21}, \"description\":\"" + longDesc + "\" }\n"
+	for _, source := range []string{"file", "stdin"} {
+		t.Run(source, func(t *testing.T) {
+			s := startCreateServer(t, http.StatusCreated, createdItemDoc)
+			args := []string{"-v", "public", "--tags", "a,b", "--api-key", "fake", "--base-url", s.URL}
+			stdin := ""
+			if source == "file" {
+				args = append([]string{"--claims=" + writeClaims(t, text)}, args...)
+			} else {
+				args = append([]string{"-C"}, args...)
+				stdin = text
+			}
+			if _, stderr, exit := runCreate(t, stdin, args...); exit != 0 {
+				t.Fatalf("exit %d, stderr %q", exit, stderr)
+			}
+			want := `{"data":{"type":"item","attributes":{"claims":` + text + `,"visibility":"public","tags":["a","b"]}}}`
+			if got := s.body(); got != want {
+				t.Errorf("request body\n got: %q\nwant: %q", got, want)
+			}
+		})
+	}
+}
+
+// TestCLI_ItemsCreate_ClaimsFromFlags pins the claims text the claim flags
+// build, member by member, each value exactly as typed: a leading space in
+// name, an uppercase hash, a --timestamp with an offset, with a fraction
+// and Z, and with +00:00, a --url and a --hash-type with spaces and
+// capitals, a blank description, the --location numbers as typed and
+// --metadata's own text. Mutants killed: name trimmed, the hash
+// lowercased, the timestamp normalized to UTC ("2025-01-15T14:30:00Z" is
+// sent), --metadata re-encoded (its space and member order are lost), a
+// --timestamp that parses as RFC 3339 written again in that form (the
+// fraction is dropped and +00:00 sent as Z), --url and --hash-type trimmed
+// and lowercased, and a flag whose value is only whitespace left out of
+// the claims.
+func TestCLI_ItemsCreate_ClaimsFromFlags(t *testing.T) {
+	upper := "ABCDEF" + strings.Repeat("0", 58)
+	for _, tc := range []struct {
+		name string
+		args []string
+		want string
+	}{
+		{"every flag", []string{
+			"-n", " Doc", "--data-hash", upper, "--hash-type", "sha256", "-d", "a \"quoted\" line\n",
+			"--url", "https://example.com/x", "--timestamp", "2025-01-15T09:30:00-05:00",
+			"--location", "37.7749, -122.4194", "--metadata", `{"b":1, "a":[2.50]}`},
+			`{"name":" Doc","hash":"` + upper + `","hash_type":"sha256","description":"a \"quoted\" line\u000a",` +
+				`"url":"https://example.com/x","timestamp":"2025-01-15T09:30:00-05:00",` +
+				`"location":{"latitude":37.7749,"longitude": -122.4194},"metadata":{"b":1, "a":[2.50]}}`},
+		{"timestamp fraction and Z", []string{"-n", "Doc", "--timestamp", "2025-01-15T14:30:00.500Z"},
+			`{"name":"Doc","timestamp":"2025-01-15T14:30:00.500Z"}`},
+		{"timestamp +00:00", []string{"-n", "Doc", "--timestamp", "2025-01-15T09:30:00+00:00"},
+			`{"name":"Doc","timestamp":"2025-01-15T09:30:00+00:00"}`},
+		{"url and hash type as typed", []string{"-n", "Doc", "--data-hash", validSHA256Hex, "--hash-type", " SHA256", "--url", " https://Example.com/X "},
+			`{"name":"Doc","hash":"` + validSHA256Hex + `","hash_type":" SHA256","url":" https://Example.com/X "}`},
+		{"blank description", []string{"-n", "Doc", "-d", " "},
+			`{"name":"Doc","description":" "}`},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			s := startCreateServer(t, http.StatusCreated, createdItemDoc)
+			_, stderr, exit := runCreate(t, "", append(tc.args, "--api-key", "fake", "--base-url", s.URL)...)
+			if exit != 0 {
+				t.Fatalf("exit %d, stderr %q", exit, stderr)
+			}
+			if got := s.sentClaims(t); got != tc.want {
+				t.Errorf("claims sent\n got: %s\nwant: %s", got, tc.want)
+			}
+		})
+	}
+}
+
+// TestCLI_ItemsCreate_BareHashSendsNoHashType: --data-hash alone sends a
+// hash and no hash_type, leaving the half pair for the server to refuse.
+// Mutant killed: the sha256 default for hash_type restored (as the flag's
+// default or filled in beside a bare hash).
+func TestCLI_ItemsCreate_BareHashSendsNoHashType(t *testing.T) {
+	s := startCreateServer(t, http.StatusCreated, createdItemDoc)
+	if _, stderr, exit := runCreate(t, "", "-n", "Doc", "--data-hash", validSHA256Hex, "--api-key", "fake", "--base-url", s.URL); exit != 0 {
+		t.Fatalf("exit %d, stderr %q", exit, stderr)
+	}
+	if got, want := s.sentClaims(t), `{"name":"Doc","hash":"`+validSHA256Hex+`"}`; got != want {
+		t.Errorf("claims sent %s, want %s", got, want)
+	}
+}
+
+// TestCLI_ItemsCreate_HashedFileClaims: a hashed file gives the hash, the
+// type sha256 and the file's name, and --name replaces that name in its
+// place; --file-stdin gives the hash and type and takes --name. Mutant
+// killed: claimsBuilder.set appending instead of replacing (the claims
+// carry "name" twice).
+func TestCLI_ItemsCreate_HashedFileClaims(t *testing.T) {
+	content := []byte("test content for hash verification\n")
+	path := filepath.Join(t.TempDir(), "hashtest.txt")
+	if err := os.WriteFile(path, content, 0o600); err != nil {
 		t.Fatal(err)
 	}
+	sum := sha256.Sum256(content)
+	digest := hex.EncodeToString(sum[:])
 
-	cmd := exec.Command(binaryPath, "items", "create", "--claims="+path,
-		"--api-key", "fake", "--base-url", url)
-	out, _ := cmd.CombinedOutput()
-	output := string(out)
-
-	if !containsString(output, "3 integers in claims are outside the range") {
-		t.Errorf("error should announce all three violations, got:\n%s", output)
-	}
-
-	// Deterministic order: sorted keys at each level.
-	wantOrder := []string{
-		"claims.alpha = 18446744073709551615",
-		"claims.metadata.rows[0].id = 9007199254740992",
-		"claims.zeta = 9007199254740993",
-	}
-	prev := -1
-	for _, want := range wantOrder {
-		at := strings.Index(output, want)
-		if at < 0 {
-			t.Fatalf("error output missing %q, got:\n%s", want, output)
-		}
-		if at < prev {
-			t.Errorf("violations out of order: %q appeared before the previous entry\n%s", want, output)
-		}
-		prev = at
+	for _, tc := range []struct {
+		name  string
+		stdin string
+		args  []string
+		want  string
+	}{
+		{"positional", "", []string{path},
+			`{"hash":"` + digest + `","hash_type":"sha256","name":"hashtest.txt"}`},
+		{"name override", "", []string{"--file=" + path, "-n", "Q1 Report"},
+			`{"hash":"` + digest + `","hash_type":"sha256","name":"Q1 Report"}`},
+		{"stdin", string(content), []string{"-F", "-n", "Stdin File"},
+			`{"hash":"` + digest + `","hash_type":"sha256","name":"Stdin File"}`},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			s := startCreateServer(t, http.StatusCreated, createdItemDoc)
+			if _, stderr, exit := runCreate(t, tc.stdin, append(tc.args, "--api-key", "fake", "--base-url", s.URL)...); exit != 0 {
+				t.Fatalf("exit %d, stderr %q", exit, stderr)
+			}
+			if got := s.sentClaims(t); got != tc.want {
+				t.Errorf("claims sent %s, want %s", got, tc.want)
+			}
+		})
 	}
 }
 
-// TestCLI_ItemsCreate_UnsafeIntegerJSONOutput covers --json: the rejection is
-// structured data, not an English sentence on stderr, and the offending value
-// is a JSON STRING so a consumer parsing with doubles does not re-round the
-// very number being complained about.
-func TestCLI_ItemsCreate_UnsafeIntegerJSONOutput(t *testing.T) {
-	url, body := startCreateEchoServer(t)
-
-	claims := `{"name":"J","description":"` + longDesc + `","metadata":{"id":18446744073709551615}}`
-	path := filepath.Join(t.TempDir(), "claims.json")
-	if err := os.WriteFile(path, []byte(claims), 0644); err != nil {
+// TestCLI_ItemsCreate_HashFlagsRefusedWithHashedFile: --data-hash and
+// --hash-type are refused beside a hashed file, a file argument, --file or
+// --file-stdin, naming the flag, with nothing sent: the file supplies the
+// hash and its type. Mutant killed: refuseHashFlags removed (the file's
+// digest is sent under the typed hash_type, or the typed hash under the
+// file's sha256).
+func TestCLI_ItemsCreate_HashFlagsRefusedWithHashedFile(t *testing.T) {
+	content := "content to hash\n"
+	path := filepath.Join(t.TempDir(), "hashed.txt")
+	if err := os.WriteFile(path, []byte(content), 0o600); err != nil {
 		t.Fatal(err)
 	}
+	values := map[string]string{"data-hash": strings.Repeat("ab", 32), "hash-type": "sha512"}
+	for _, flag := range []string{"data-hash", "hash-type"} {
+		for _, source := range []struct {
+			name, stdin string
+			args        []string
+		}{
+			{"argument", "", []string{path}},
+			{"file flag", "", []string{"--file=" + path}},
+			{"file stdin", content, []string{"-F", "-n", "Doc"}},
+		} {
+			t.Run(flag+" "+source.name, func(t *testing.T) {
+				s := startCreateServer(t, http.StatusCreated, createdItemDoc)
+				args := append(append([]string{}, source.args...), "--"+flag, values[flag], "--api-key", "fake", "--base-url", s.URL)
+				_, stderr, exit := runCreate(t, source.stdin, args...)
+				want := "--" + flag + " cannot be combined with a hashed file (a file argument, --file or --file-stdin): " +
+					"the file supplies the hash and its hash_type, sha256"
+				if exit != 1 || !strings.Contains(stderr, want) {
+					t.Errorf("exit %d, stderr %q, want exit 1 and %q", exit, stderr, want)
+				}
+				if n := s.hits.Load(); n != 0 {
+					t.Errorf("%d requests sent, want 0", n)
+				}
+			})
+		}
+	}
+}
 
-	cmd := exec.Command(binaryPath, "items", "create", "--claims="+path, "--json",
-		"--api-key", "fake", "--base-url", url)
-	stdout, err := cmd.Output()
-	if err == nil {
-		t.Fatalf("expected non-zero exit, got success:\n%s", stdout)
+// TestCLI_ItemsCreate_LongNumberRefusedLocally: a number literal longer
+// than 1,024 octets, which the service's request reader refuses whatever
+// its value, is refused before sending, from a claims file, from stdin and
+// from --metadata, and one of exactly 1,024 octets is sent as written.
+// Mutants killed: checkNumberLengths not called (the claims are sent), and
+// the limit compared with >= (the 1,024-octet number is refused).
+func TestCLI_ItemsCreate_LongNumberRefusedLocally(t *testing.T) {
+	over := `{"name":"Doc","metadata":{"n":1.` + strings.Repeat("0", 1023) + `}}`
+	want := "the claims hold a number of 1025 characters at octet 30: the Truestamp service reads no request " +
+		"holding a number longer than 1024 characters (its request reader, TruestampWeb.RequestJSON, holds every body " +
+		"to JSONNumbers.max_octets), a limit on what can be sent, not a rule about the value; send it as a string"
+	for _, tc := range []struct {
+		name, stdin string
+		args        []string
+	}{
+		{"file", "", []string{"--claims=" + writeClaims(t, over)}},
+		{"stdin", over, []string{"-C"}},
+		{"metadata", "", []string{"-n", "Doc", "--metadata", `{"n":1.` + strings.Repeat("0", 1023) + `}`}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			s := startCreateServer(t, http.StatusCreated, createdItemDoc)
+			_, stderr, exit := runCreate(t, tc.stdin, append(tc.args, "--api-key", "fake", "--base-url", s.URL)...)
+			if exit != 1 || !strings.Contains(stderr, want) {
+				t.Errorf("exit %d, stderr %q, want exit 1 and %q", exit, stderr, want)
+			}
+			if n := s.hits.Load(); n != 0 {
+				t.Errorf("%d requests sent, want 0", n)
+			}
+		})
 	}
 
+	s := startCreateServer(t, http.StatusCreated, createdItemDoc)
+	at := `{"name":"Doc","metadata":{"n":1.` + strings.Repeat("0", 1022) + `}}`
+	if _, stderr, exit := runCreate(t, "", "--claims="+writeClaims(t, at), "--api-key", "fake", "--base-url", s.URL); exit != 0 {
+		t.Fatalf("1,024 octets: exit %d, stderr %q", exit, stderr)
+	}
+	if got := s.sentClaims(t); got != at {
+		t.Errorf("claims sent %s, want %s", got, at)
+	}
+}
+
+// TestCLI_ItemsCreate_OversizedClaimsFileRefused: a claims file over
+// MAX_READ_OCTETS is refused as input_too_large, read no further than
+// MAX_READ_OCTETS + 1 octets, with nothing sent. Mutant killed: the file
+// read whole with os.ReadFile and then parsed (it is sent).
+func TestCLI_ItemsCreate_OversizedClaimsFileRefused(t *testing.T) {
+	head := `{"name":"Doc","description":"` + longDesc + `","metadata":{"pad":"`
+	tail := `"}}`
+	text := head + strings.Repeat("x", strictjson.MaxReadOctets+1-len(head)-len(tail)) + tail
+	if len(text) != strictjson.MaxReadOctets+1 {
+		t.Fatalf("built %d octets", len(text))
+	}
+	s := startCreateServer(t, http.StatusCreated, createdItemDoc)
+	_, stderr, exit := runCreate(t, "", "--claims="+writeClaims(t, text), "--api-key", "fake", "--base-url", s.URL)
+	want := fmt.Sprintf("reading claims file: input_too_large: the input is over %d octets", strictjson.MaxReadOctets)
+	if exit != 1 || !strings.Contains(stderr, want) {
+		t.Errorf("exit %d, stderr %q, want exit 1 and %q", exit, stderr, want)
+	}
+	if n := s.hits.Load(); n != 0 {
+		t.Errorf("%d requests sent, want 0", n)
+	}
+}
+
+// TestCLI_ItemsCreate_TimestampGrammarRefusedLocally: a --timestamp off
+// the grammar, or naming a day that does not exist, is refused before
+// sending. Mutant killed: checkTimestamp not called (the value is sent).
+func TestCLI_ItemsCreate_TimestampGrammarRefusedLocally(t *testing.T) {
+	for _, tc := range []struct{ in, want string }{
+		{"2025-02-30", "--timestamp names 2025-02-30, a date that does not exist"},
+		{"15 Jan 2025", `--timestamp "15 Jan 2025" is not a date or time in an accepted form`},
+	} {
+		s := startCreateServer(t, http.StatusCreated, createdItemDoc)
+		_, stderr, exit := runCreate(t, "", "-n", "Doc", "-d", longDesc, "--timestamp", tc.in, "--api-key", "fake", "--base-url", s.URL)
+		if exit != 1 || !strings.Contains(stderr, tc.want) {
+			t.Errorf("%q: exit %d, stderr %q, want %q", tc.in, exit, stderr, tc.want)
+		}
+		if n := s.hits.Load(); n != 0 {
+			t.Errorf("%q: %d requests sent, want 0", tc.in, n)
+		}
+	}
+}
+
+// --- What the server answers ---
+
+// claimsRefusalDoc is a 422 as the server writes a claims refusal.
+const claimsRefusalDoc = `{"errors":[` +
+	`{"code":"claims_surrounding_whitespace","title":"Invalid claims","detail":"/name begins with a space (U+0020). Remove it.","source":{"pointer":"/data/attributes/claims/name"}},` +
+	`{"code":"claims_hash_pair","title":"Invalid claims","detail":"The claims have hash without hash_type. Add hash_type.","source":{"pointer":"/data/attributes/claims"}}]}`
+
+// TestCLI_ItemsCreate_ClaimsReasonsPrinted: each broken rule the server
+// names is printed with its pointer into the claims, its code and its
+// message, in the server's order, and the run exits 1. Mutants killed:
+// only the first reason printed, and the pointer left out of the line.
+func TestCLI_ItemsCreate_ClaimsReasonsPrinted(t *testing.T) {
+	s := startCreateServer(t, http.StatusUnprocessableEntity, claimsRefusalDoc)
+	_, stderr, exit := runCreate(t, "", "-n", " Doc", "--data-hash", validSHA256Hex, "--api-key", "fake", "--base-url", s.URL)
+	if exit != 1 {
+		t.Fatalf("exit %d, want 1; stderr %q", exit, stderr)
+	}
+	first := `pointer "/name", claims_surrounding_whitespace: /name begins with a space (U+0020). Remove it.`
+	second := `pointer "", claims_hash_pair: The claims have hash without hash_type. Add hash_type.`
+	i, j := strings.Index(stderr, first), strings.Index(stderr, second)
+	if i < 0 || j < 0 || j < i {
+		t.Errorf("stderr should list both reasons in order:\n%s", stderr)
+	}
+	for _, want := range []string{"Claims refused", "Nothing was created. The server answered HTTP 422."} {
+		if !strings.Contains(stderr, want) {
+			t.Errorf("stderr missing %q:\n%s", want, stderr)
+		}
+	}
+}
+
+// TestCLI_ItemsCreate_ClaimsReasonsJSON: under --json the refusal is one
+// object on stdout carrying every reason with its code, message and
+// pointer, a whole-claims reason's pointer written as "". Mutants killed:
+// the --json branch printing the English lines on stderr instead (stdout
+// is empty), and ClaimsReason's pointer tagged omitempty (the key is left
+// out).
+func TestCLI_ItemsCreate_ClaimsReasonsJSON(t *testing.T) {
+	s := startCreateServer(t, http.StatusUnprocessableEntity, claimsRefusalDoc)
+	stdout, _, exit := runCreate(t, "", "-n", " Doc", "--data-hash", validSHA256Hex, "--json", "--api-key", "fake", "--base-url", s.URL)
+	if exit != 1 {
+		t.Fatalf("exit %d, want 1", exit)
+	}
 	var got struct {
-		Error      string `json:"error"`
-		Message    string `json:"message"`
-		Violations []struct {
-			Path  string `json:"path"`
-			Value string `json:"value"`
-			Min   string `json:"min"`
-			Max   string `json:"max"`
-		} `json:"violations"`
+		Error   string               `json:"error"`
+		Message string               `json:"message"`
+		Reasons []items.ClaimsReason `json:"claims_reasons"`
 	}
-	if jErr := json.Unmarshal(stdout, &got); jErr != nil {
-		t.Fatalf("--json output is not valid JSON: %v\n%s", jErr, stdout)
+	if err := json.Unmarshal([]byte(stdout), &got); err != nil {
+		t.Fatalf("stdout is not JSON: %v\n%s", err, stdout)
 	}
-
-	if got.Error != "unsafe_integer" {
-		t.Errorf("error = %q, want %q", got.Error, "unsafe_integer")
+	want := []items.ClaimsReason{
+		{Code: "claims_surrounding_whitespace", Message: "/name begins with a space (U+0020). Remove it.", Pointer: "/name"},
+		{Code: "claims_hash_pair", Message: "The claims have hash without hash_type. Add hash_type.", Pointer: ""},
 	}
-	if len(got.Violations) != 1 {
-		t.Fatalf("violations = %v, want one", got.Violations)
+	if got.Error != "claims_refused" || got.Message != "the server refused the claims" || !reflect.DeepEqual(got.Reasons, want) {
+		t.Errorf("got %+v", got)
 	}
-	v := got.Violations[0]
-	if v.Path != "claims.metadata.id" {
-		t.Errorf("path = %q, want claims.metadata.id", v.Path)
+	// A whole-claims reason carries the key "pointer" with the value "",
+	// so a script can tell it from a reason with no pointer.
+	var raw struct {
+		Reasons []map[string]any `json:"claims_reasons"`
 	}
-	if v.Value != "18446744073709551615" {
-		t.Errorf("value = %q, want the exact literal 18446744073709551615", v.Value)
+	if err := json.Unmarshal([]byte(stdout), &raw); err != nil {
+		t.Fatal(err)
 	}
-	if v.Min != "-9007199254740991" || v.Max != "9007199254740991" {
-		t.Errorf("range = %s..%s, want -9007199254740991..9007199254740991", v.Min, v.Max)
+	if len(raw.Reasons) != 2 {
+		t.Fatalf("claims_reasons %v, want 2", raw.Reasons)
 	}
-	if !strings.Contains(got.Message, "as a string") {
-		t.Errorf("message should suggest the string remedy, got %q", got.Message)
-	}
-	if len(body()) != 0 {
-		t.Errorf("request should not reach the server: %s", body())
+	if pointer, ok := raw.Reasons[1]["pointer"]; !ok || pointer != "" {
+		t.Errorf(`claims_reasons[1] %v, want "pointer": ""`, raw.Reasons[1])
 	}
 }
 
-// TestCLI_ItemsCreate_FloatsAreNotFlagged confirms the producer rule is about
-// integers only. A geolocation or a scientific measurement with a huge
-// magnitude is legal and must reach the wire unchanged, while a float whose
-// nearest double is an integer of magnitude above 2^53 - 1 and below 10^21,
-// such as 9007199254740993.0, is refused as rule J5 refuses it (SPEC.md
-// section 10.1), before any request. Mutant killed: checkClaimsPortability
-// checking the claims with gowebpki/jcs's Transform (9007199254740993.0 is
-// sent).
-func TestCLI_ItemsCreate_FloatsAreNotFlagged(t *testing.T) {
-	refused, refusedBody := startCreateEchoServer(t)
-	gap := filepath.Join(t.TempDir(), "gap.json")
-	if err := os.WriteFile(gap, []byte(`{"name":"F","description":"`+longDesc+`","metadata":{"c":9007199254740993.0}}`), 0o600); err != nil {
-		t.Fatal(err)
+// TestCLI_ItemsCreate_ItemCodeUnavailableIsRetryable: the 409 the server
+// sends when it could not issue an item code is told as nothing created
+// and safe to run again, in text and under --json. Mutant killed:
+// explainCreateError not handling ErrItemCodeUnavailable (the run prints
+// a bare "HTTP 409" error).
+func TestCLI_ItemsCreate_ItemCodeUnavailableIsRetryable(t *testing.T) {
+	const conflict = `{"errors":[{"code":"item_code_unavailable","title":"Conflict","detail":"Could not issue an item code. Try again."}]}`
+	s := startCreateServer(t, http.StatusConflict, conflict)
+	_, stderr, exit := runCreate(t, "", "-n", "Doc", "-d", longDesc, "--api-key", "fake", "--base-url", s.URL)
+	if exit != 1 {
+		t.Fatalf("exit %d, want 1", exit)
 	}
-	out, err := exec.Command(binaryPath, "items", "create", "--claims="+gap, "--api-key", "fake", "--base-url", refused).CombinedOutput()
-	if err == nil || !strings.Contains(string(out), "malformed_json (number)") || len(refusedBody()) != 0 {
-		t.Errorf("9007199254740993.0: %v, %s; %d bytes sent", err, out, len(refusedBody()))
-	}
-
-	url, body := startCreateEchoServer(t)
-
-	claims := `{"name":"F","description":"` + longDesc + `",` +
-		`"metadata":{"a":1.5,"b":1e21,"c":1.50e300}}`
-	path := filepath.Join(t.TempDir(), "claims.json")
-	if err := os.WriteFile(path, []byte(claims), 0644); err != nil {
-		t.Fatal(err)
+	for _, want := range []string{
+		"Item not created yet",
+		"Could not issue an item code. Try again.",
+		"Nothing was created. This clears on its own: run the same command again.",
+		"The server said item_code_unavailable (HTTP 409).",
+	} {
+		if !strings.Contains(stderr, want) {
+			t.Errorf("stderr missing %q:\n%s", want, stderr)
+		}
 	}
 
-	cmd := exec.Command(binaryPath, "items", "create", "--claims="+path,
-		"--api-key", "fake", "--base-url", url)
-	out, err = cmd.CombinedOutput()
-	if err != nil {
-		t.Fatalf("floats must not be rejected: %v\n%s", err, out)
+	stdout, _, exit := runCreate(t, "", "-n", "Doc", "-d", longDesc, "--json", "--api-key", "fake", "--base-url", s.URL)
+	var got map[string]any
+	if err := json.Unmarshal([]byte(stdout), &got); err != nil || exit != 1 {
+		t.Fatalf("exit %d, stdout %q: %v", exit, stdout, err)
 	}
-	if len(body()) == 0 {
-		t.Fatal("request never reached the server")
-	}
-	// Float literals travel verbatim too, UseNumber preserves their text.
-	if !strings.Contains(string(body()), `"b":1e21`) {
-		t.Errorf("float literal not preserved on the wire: %s", body())
+	want := map[string]any{"error": "item_code_unavailable", "message": "Could not issue an item code. Try again.", "retryable": true}
+	if !reflect.DeepEqual(got, want) {
+		t.Errorf("got %v, want %v", got, want)
 	}
 }
 
-// TestCLI_ItemsCreate_TrailingDataRejected pins the strictness json.Unmarshal gave
-// for free and json.Decoder does not: a truncated or concatenated claims file
-// must be an error, never a silently accepted prefix.
-func TestCLI_ItemsCreate_TrailingDataRejected(t *testing.T) {
-	path := filepath.Join(t.TempDir(), "trailing.json")
-	if err := os.WriteFile(path, []byte(`{"name":"A"} {"name":"B"}`), 0644); err != nil {
-		t.Fatal(err)
+// TestCLI_ItemsCreate_PrintsClaimsJCSAndHash: a created item's claims_jcs
+// and claims_hash are printed whole, in the card and under --json.
+// Mutants killed: the Claims JCS and Claims hash rows left out of the
+// card, and claims_jcs and claims_hash left out of the JSON.
+func TestCLI_ItemsCreate_PrintsClaimsJCSAndHash(t *testing.T) {
+	const jcs = `{"hash":"ab","name":"Echo"}`
+	const hash = "5d0c6ffbd0e4e3e3b1b1c8e8b0b2d7e3a7f6c9a5b4d3c2e1f0a9b8c7d6e5f4a3"
+	s := startCreateServer(t, http.StatusCreated, createdItemDoc)
+
+	stdout, stderr, exit := runCreate(t, "", "-n", "Echo", "-d", longDesc, "--api-key", "fake", "--base-url", s.URL)
+	if exit != 0 {
+		t.Fatalf("exit %d, stderr %q", exit, stderr)
 	}
-	srv, hits := countingAPI(t)
-	cmd := exec.Command(binaryPath, "items", "create", "--claims="+path, "--api-key", "fake", "--base-url", srv.URL)
-	out, _ := cmd.CombinedOutput()
-	if !containsString(string(out), "parsing claims JSON") {
-		t.Errorf("expected a parse error for trailing data, got: %s", out)
+	for _, want := range []string{"Claims JCS", jcs, "Claims hash", hash} {
+		if !strings.Contains(stdout, want) {
+			t.Errorf("card missing %q:\n%s", want, stdout)
+		}
 	}
-	if n := hits.Load(); n != 0 {
-		t.Errorf("a claims file with trailing data sent %d requests, want 0", n)
+
+	stdout, stderr, exit = runCreate(t, "", "-n", "Echo", "-d", longDesc, "--json", "--api-key", "fake", "--base-url", s.URL)
+	if exit != 0 {
+		t.Fatalf("exit %d, stderr %q", exit, stderr)
+	}
+	var got map[string]any
+	if err := json.Unmarshal([]byte(stdout), &got); err != nil {
+		t.Fatalf("stdout is not JSON: %v\n%s", err, stdout)
+	}
+	if got["claims_jcs"] != jcs || got["claims_hash"] != hash {
+		t.Errorf("claims_jcs %v, claims_hash %v", got["claims_jcs"], got["claims_hash"])
+	}
+}
+
+// TestCLI_ItemsCreate_JSONOutput_ClaimsOnly_OmitsHashKeys exercises
+// printCreateJSON on a claims-only response (no hash or hash_type) and on
+// an external-hash one.
+func TestCLI_ItemsCreate_JSONOutput_ClaimsOnly_OmitsHashKeys(t *testing.T) {
+	capture := func(resp *items.CreateItemResponse) map[string]any {
+		var buf bytes.Buffer
+		if err := printCreateJSON(&buf, resp); err != nil {
+			t.Fatal(err)
+		}
+		var got map[string]any
+		if err := json.Unmarshal(buf.Bytes(), &got); err != nil {
+			t.Fatal(err)
+		}
+		return got
+	}
+
+	got := capture(&items.CreateItemResponse{ID: "01CLAIMSONLY", Name: "Invention", Visibility: "private", TeamID: "team_xyz", ClaimsJCS: `{"name":"Invention"}`, ClaimsHash: "ch"})
+	want := map[string]any{"id": "01CLAIMSONLY", "name": "Invention", "visibility": "private", "team_id": "team_xyz", "claims_jcs": `{"name":"Invention"}`, "claims_hash": "ch"}
+	if !reflect.DeepEqual(got, want) {
+		t.Errorf("claims-only JSON %v, want %v", got, want)
+	}
+
+	got = capture(&items.CreateItemResponse{ID: "01EXT", Name: "Doc", Hash: validSHA256Hex, HashType: "sha256", Visibility: "private", TeamID: "team_xyz"})
+	if got["hash"] != validSHA256Hex || got["hash_type"] != "sha256" {
+		t.Errorf("external-hash JSON output should carry hash and hash_type, got: %v", got)
+	}
+}
+
+// TestSetStringRefusesInvalidUTF8: a claim flag's value that is not valid
+// UTF-8 is refused, as no JSON text holds it unchanged. Mutant killed: the
+// utf8.ValidString check removed (the value is written).
+func TestSetStringRefusesInvalidUTF8(t *testing.T) {
+	var b claimsBuilder
+	if err := b.setString("name", "bad\xff", "--name"); err == nil || err.Error() != "--name is not valid UTF-8, so no JSON text can hold it as given" {
+		t.Errorf("invalid UTF-8: %v", err)
 	}
 }
 

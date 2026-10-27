@@ -5,19 +5,21 @@ package items
 
 import (
 	"context"
-	"encoding/json"
+	"errors"
 	"io"
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"reflect"
 	"strings"
 	"testing"
 
 	"github.com/truestamp/truestamp-cli/internal/auth"
+	"github.com/truestamp/truestamp-cli/internal/jsonapi"
 )
 
 // TestMain installs an api-key Authorizer for the whole package so
-// CreateItem/CreateItemCtx stamp the Authorization header. The key
+// CreateItemCtx stamps the Authorization header. The key
 // matches the "Bearer key" header TestCreateItem_Success asserts.
 func TestMain(m *testing.M) {
 	auth.SetDefault(auth.APIKeyAuthorizer("key"))
@@ -30,7 +32,7 @@ func TestMain(m *testing.M) {
 
 func TestParseResponse_Full(t *testing.T) {
 	body := []byte(`{"data":{"id":"01TESTITEM","type":"item","attributes":{
-        "state":"new","claims_hash":"ch","item_hash":"ih",
+        "state":"new","claims_hash":"ch","claims_jcs":"{\"name\":\"doc.pdf\"}","item_hash":"ih",
         "visibility":"private","team_id":"team-1","display_name":"doc.pdf",
         "claims":{"hash":"aaaa","hash_type":"sha256","name":"doc.pdf"},
         "tags":["finance","q1",123]
@@ -47,6 +49,9 @@ func TestParseResponse_Full(t *testing.T) {
 	}
 	if r.ClaimsHash != "ch" {
 		t.Errorf("ClaimsHash: got %q", r.ClaimsHash)
+	}
+	if r.ClaimsJCS != `{"name":"doc.pdf"}` {
+		t.Errorf("ClaimsJCS: got %q", r.ClaimsJCS)
 	}
 	if r.ItemHash != "ih" {
 		t.Errorf("ItemHash: got %q", r.ItemHash)
@@ -116,7 +121,7 @@ func TestGetString(t *testing.T) {
 	}
 }
 
-// --- CreateItem / CreateItemCtx (httptest) ---------------------------
+// --- CreateItemCtx (httptest) -----------------------------------------
 
 func TestCreateItem_Success(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -126,22 +131,19 @@ func TestCreateItem_Success(t *testing.T) {
 		if r.Header.Get("tenant") != "team-1" {
 			t.Errorf("tenant header: got %q", r.Header.Get("tenant"))
 		}
-		// Echo back a valid envelope.
-		body, _ := io.ReadAll(r.Body)
-		_ = body
 		w.WriteHeader(201)
-		_, _ = w.Write([]byte(`{"data":{"id":"01NEW","attributes":{"state":"new","claims":{"hash":"aa","hash_type":"sha256"}}}}`))
+		_, _ = w.Write([]byte(`{"data":{"id":"01NEW","attributes":{"state":"new","claims":{"hash":"aa","hash_type":"sha256"},` +
+			`"claims_jcs":"{\"hash\":\"aa\",\"hash_type\":\"sha256\",\"name\":\"x\"}","claims_hash":"c1"}}}`))
 	}))
 	defer srv.Close()
 
-	r, err := CreateItem(srv.URL, "team-1",
-		map[string]any{"hash": "aa", "hash_type": "sha256", "name": "x"},
-		"public", []string{"foo"})
+	r, err := CreateItemCtx(context.Background(), srv.URL, "team-1",
+		[]byte(`{"hash":"aa","hash_type":"sha256","name":"x"}`), "public", []string{"foo"})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if r.ID != "01NEW" {
-		t.Errorf("ID: got %q", r.ID)
+	if r.ID != "01NEW" || r.ClaimsHash != "c1" || r.ClaimsJCS != `{"hash":"aa","hash_type":"sha256","name":"x"}` {
+		t.Errorf("got %+v", r)
 	}
 }
 
@@ -154,9 +156,7 @@ func TestCreateItem_NoTenantWhenEmpty(t *testing.T) {
 		_, _ = w.Write([]byte(`{"data":{"id":"x"}}`))
 	}))
 	defer srv.Close()
-	_, err := CreateItemCtx(context.Background(), srv.URL, "",
-		map[string]any{}, "", nil)
-	if err != nil {
+	if _, err := CreateItemCtx(context.Background(), srv.URL, "", []byte(`{}`), "", nil); err != nil {
 		t.Fatal(err)
 	}
 }
@@ -167,16 +167,16 @@ func TestCreateItem_APIError(t *testing.T) {
 		_, _ = w.Write([]byte(`{"errors":[{"detail":"bad request"}]}`))
 	}))
 	defer srv.Close()
-	_, err := CreateItem(srv.URL, "", map[string]any{}, "", nil)
-	if err == nil || !strings.Contains(err.Error(), "bad request") {
+	_, err := CreateItemCtx(context.Background(), srv.URL, "", []byte(`{}`), "", nil)
+	if err == nil || err.Error() != "HTTP 400: bad request" {
 		t.Errorf("expected API error, got %v", err)
 	}
 }
 
 func TestCreateItem_UnreachableHost(t *testing.T) {
-	_, err := CreateItem("http://127.0.0.1:1", "", map[string]any{}, "", nil)
-	if err == nil {
-		t.Error("expected connection error")
+	_, err := CreateItemCtx(context.Background(), "http://127.0.0.1:1", "", []byte(`{}`), "", nil)
+	if err == nil || !strings.Contains(err.Error(), "API request failed") {
+		t.Errorf("expected connection error, got %v", err)
 	}
 }
 
@@ -185,57 +185,19 @@ func TestCreateItem_MalformedResponse(t *testing.T) {
 		_, _ = w.Write([]byte("not json"))
 	}))
 	defer srv.Close()
-	_, err := CreateItem(srv.URL, "", map[string]any{}, "", nil)
-	if err == nil {
-		t.Error("expected parse error")
+	_, err := CreateItemCtx(context.Background(), srv.URL, "", []byte(`{}`), "", nil)
+	if err == nil || !strings.HasPrefix(err.Error(), "parsing response:") {
+		t.Errorf("expected parse error, got %v", err)
 	}
 }
 
-func TestCreateItem_TagsEchoedInRequest(t *testing.T) {
-	var received map[string]any
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		_ = json.NewDecoder(r.Body).Decode(&received)
-		_, _ = w.Write([]byte(`{"data":{"id":"x"}}`))
-	}))
-	defer srv.Close()
-	_, err := CreateItem(srv.URL, "", map[string]any{"x": 1}, "private",
-		[]string{"a", "b"})
-	if err != nil {
-		t.Fatal(err)
-	}
-	attrs, _ := received["data"].(map[string]any)
-	a, _ := attrs["attributes"].(map[string]any)
-	tags, ok := a["tags"].([]any)
-	if !ok || len(tags) != 2 {
-		t.Errorf("tags not echoed: %+v", a)
-	}
-}
-
-// TestCreateItemCtx_PreservesIntegerLiteralOnTheWire is the wire-level
-// regression for the claims-corruption bug.
-//
-// The defect lived in cmd/create's decode, which used json.Unmarshal into a
-// map[string]any with no UseNumber: every JSON number became a float64, so
-// 18446744073709551615 was rewritten to 18446744073709552000 and
-// 9007199254740993 to 9007199254740992 before any code could inspect them. A
-// user timestamping a 64-bit id got a proof committing to a number they never
-// submitted.
-//
-// The fix is json.Number, and this test asserts the second half of that
-// contract: that a json.Number in the claims map survives THIS package's
-// json.Marshal and lands in the request body as the exact bytes the user
-// typed. It asserts on the raw body read off the connection rather than on a
-// re-decoded map, because the corruption happened during decode, a test that
-// decoded the body again in-process would round the value a second time and
-// happily agree with itself.
-//
-// The values here are deliberately outside the producer's portable range, so
-// `truestamp items create` refuses them at the CLI layer (see
-// TestCLI_Create_UnsafeIntegerRejectedBeforeNetwork). That guard is only
-// correct because of the preservation proved here: it can name the offending
-// value in its error message only if the literal was never rounded on the way
-// in.
-func TestCreateItemCtx_PreservesIntegerLiteralOnTheWire(t *testing.T) {
+// TestCreateItemCtx_SendsClaimsTextVerbatim pins the request body byte for
+// byte: the claims text, with its whitespace, its member order, its
+// escapes, a leading space in a value and its number spellings, sits
+// unchanged as the value of attributes.claims, beside the visibility and
+// tags. Mutant killed: the claims spliced in as a json.RawMessage through
+// json.Marshal (the text is compacted, and "<" is written \u003c).
+func TestCreateItemCtx_SendsClaimsTextVerbatim(t *testing.T) {
 	var captured []byte
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		captured, _ = io.ReadAll(r.Body)
@@ -244,29 +206,108 @@ func TestCreateItemCtx_PreservesIntegerLiteralOnTheWire(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	// Decode exactly the way cmd/create does.
-	dec := json.NewDecoder(strings.NewReader(
-		`{"name":"Big","id":18446744073709551615,"metadata":{"rows":[{"n":9007199254740993}]}}`))
-	dec.UseNumber()
-	var claims map[string]any
-	if err := dec.Decode(&claims); err != nil {
-		t.Fatalf("decoding claims: %v", err)
-	}
-
-	if _, err := CreateItemCtx(context.Background(), srv.URL, "", claims, "private", nil); err != nil {
+	claims := "{ \"name\" : \" Big <a>\",\n\t\"metadata\":{\"z\":1.50e300,\"a\":\"\\u00e9\"} }"
+	if _, err := CreateItemCtx(context.Background(), srv.URL, "", []byte(claims), "private", []string{"a", "b"}); err != nil {
 		t.Fatalf("CreateItemCtx: %v", err)
 	}
-
-	body := string(captured)
-	for _, want := range []string{`"id":18446744073709551615`, `"n":9007199254740993`} {
-		if !strings.Contains(body, want) {
-			t.Errorf("request body missing %s\nbody: %s", want, body)
-		}
+	want := `{"data":{"type":"item","attributes":{"claims":` + claims + `,"visibility":"private","tags":["a","b"]}}}`
+	if string(captured) != want {
+		t.Errorf("request body\n got: %s\nwant: %s", captured, want)
 	}
-	// The exact corruptions the float64 path produced.
-	for _, corrupted := range []string{"18446744073709552000", "9007199254740992", "1.8446744073709552e+19"} {
-		if strings.Contains(body, corrupted) {
-			t.Errorf("request body carries rounded value %s\nbody: %s", corrupted, body)
-		}
+}
+
+// TestCreateItemCtx_ClaimsRefusal reads a 422 the way the server writes a
+// claims refusal (one error per broken rule, source.pointer under
+// /data/attributes/claims) as every reason, in order, with each pointer
+// made relative to the claims, and keeps an error about another attribute
+// apart. Mutant killed: parseClaimsRefusal keeping only the first error
+// (the second reason is lost), and claimsMemberPointer returning the full
+// source pointer (/data/attributes/claims/name is reported as the pointer).
+func TestCreateItemCtx_ClaimsRefusal(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusUnprocessableEntity)
+		_, _ = w.Write([]byte(`{"errors":[` +
+			`{"code":"claims_surrounding_whitespace","title":"Invalid claims","detail":"/name begins with a space (U+0020). Remove it.","source":{"pointer":"/data/attributes/claims/name"}},` +
+			`{"code":"claims_content","title":"Invalid claims","detail":"The claims need a description.","source":{"pointer":"/data/attributes/claims"}},` +
+			`{"code":"invalid_attribute","detail":"tags is invalid","source":{"pointer":"/data/attributes/tags"}}]}`))
+	}))
+	defer srv.Close()
+
+	_, err := CreateItemCtx(context.Background(), srv.URL, "", []byte(`{"name":" x"}`), "", nil)
+	var refused *ClaimsRefusedError
+	if !errors.As(err, &refused) {
+		t.Fatalf("want *ClaimsRefusedError, got %T %v", err, err)
+	}
+	want := []ClaimsReason{
+		{Code: "claims_surrounding_whitespace", Message: "/name begins with a space (U+0020). Remove it.", Pointer: "/name"},
+		{Code: "claims_content", Message: "The claims need a description.", Pointer: ""},
+	}
+	if !reflect.DeepEqual(refused.Reasons, want) {
+		t.Errorf("reasons\n got: %#v\nwant: %#v", refused.Reasons, want)
+	}
+	if !reflect.DeepEqual(refused.Others, []string{"invalid_attribute: tags is invalid"}) {
+		t.Errorf("others: %#v", refused.Others)
+	}
+	if refused.Status != http.StatusUnprocessableEntity {
+		t.Errorf("status %d", refused.Status)
+	}
+}
+
+// TestCreateItemCtx_NonClaims422IsAPIError keeps a 422 that names no
+// member of the claims, or names a pointer that only begins with the same
+// letters, an ordinary API error. Mutant killed: claimsMemberPointer
+// matching on the bare prefix (/data/attributes/claimsx is read as a
+// member of the claims).
+func TestCreateItemCtx_NonClaims422IsAPIError(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusUnprocessableEntity)
+		_, _ = w.Write([]byte(`{"errors":[{"code":"invalid","detail":"nope","source":{"pointer":"/data/attributes/claimsx"}}]}`))
+	}))
+	defer srv.Close()
+
+	_, err := CreateItemCtx(context.Background(), srv.URL, "", []byte(`{}`), "", nil)
+	var refused *ClaimsRefusedError
+	if errors.As(err, &refused) {
+		t.Fatalf("a 422 about another attribute read as a claims refusal: %v", err)
+	}
+	var apiErr *jsonapi.APIError
+	if !errors.As(err, &apiErr) || apiErr.Status != 422 || apiErr.Detail != "nope" {
+		t.Errorf("want the 422 as an APIError, got %v", err)
+	}
+}
+
+// TestCreateItemCtx_ItemCodeUnavailable classes the 409 the server sends
+// when it could not issue an item code as ErrItemCodeUnavailable, keeping
+// its detail. Mutant killed: the 409 left in jsonapi's bad-request class
+// (errors.Is(err, ErrItemCodeUnavailable) is false).
+func TestCreateItemCtx_ItemCodeUnavailable(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusConflict)
+		_, _ = w.Write([]byte(`{"errors":[{"code":"item_code_unavailable","title":"Conflict","detail":"Could not issue an item code. Try again."}]}`))
+	}))
+	defer srv.Close()
+
+	_, err := CreateItemCtx(context.Background(), srv.URL, "", []byte(`{}`), "", nil)
+	if !errors.Is(err, ErrItemCodeUnavailable) {
+		t.Fatalf("want ErrItemCodeUnavailable, got %v", err)
+	}
+	if err.Error() != "HTTP 409: Could not issue an item code. Try again." {
+		t.Errorf("message: %v", err)
+	}
+}
+
+// TestCreateItemCtx_OtherConflictKeepsItsClass leaves a 409 with another
+// code in jsonapi's bad-request class. Mutant killed: every 409 classed as
+// ErrItemCodeUnavailable.
+func TestCreateItemCtx_OtherConflictKeepsItsClass(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusConflict)
+		_, _ = w.Write([]byte(`{"errors":[{"code":"conflict","detail":"taken"}]}`))
+	}))
+	defer srv.Close()
+
+	_, err := CreateItemCtx(context.Background(), srv.URL, "", []byte(`{}`), "", nil)
+	if errors.Is(err, ErrItemCodeUnavailable) || !errors.Is(err, jsonapi.ErrBadRequest) {
+		t.Errorf("want the bad-request class, got %v", err)
 	}
 }

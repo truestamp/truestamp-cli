@@ -39,11 +39,11 @@ func TestSmokeItemsCreate(t *testing.T) {
 	// 64-hex-char sha256, deterministic per run.
 	hash := strings.Repeat("ab", 32)
 
+	// items.create takes {claims_json, watch}: the claims as a JSON text,
+	// sent exactly as given; the server commits their canonical form
+	// (claims_jcs).
 	reply, err := client.Push(ctx, "console:lobby", "items.create", map[string]any{
-		"name":        "smoke test item",
-		"description": "from go smoke test",
-		"hash":        hash,
-		"hash_type":   "sha256",
+		"claims_json": `{"name":"smoke test item","description":"from go smoke test","hash":"` + hash + `","hash_type":"sha256"}`,
 		"watch":       true,
 	})
 	if err != nil {
@@ -57,11 +57,16 @@ func TestSmokeItemsCreate(t *testing.T) {
 			ID    string `json:"id"`
 			State string `json:"state"`
 		} `json:"item"`
+		ClaimsJCS  string `json:"claims_jcs"`
+		ClaimsHash string `json:"claims_hash"`
 	}
 	if err := json.Unmarshal(reply.Response, &resp); err != nil {
 		t.Fatalf("decode reply: %v", err)
 	}
-	t.Logf("created item %s in state %s", resp.Item.ID, resp.Item.State)
+	if resp.ClaimsJCS == "" || resp.ClaimsHash == "" {
+		t.Fatalf("items.create reply carries no claims_jcs or claims_hash: %s", reply.Response)
+	}
+	t.Logf("created item %s in state %s, claims_jcs %s, claims_hash %s", resp.Item.ID, resp.Item.State, resp.ClaimsJCS, resp.ClaimsHash)
 
 	// Consume any pushes for ~5 seconds to confirm we receive at least
 	// the synthetic item.created (or a subsequent transition) for our

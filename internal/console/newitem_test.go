@@ -4,8 +4,12 @@
 package console
 
 import (
+	"encoding/json"
+	"reflect"
 	"strings"
 	"testing"
+
+	"github.com/truestamp/truestamp-cli/internal/items"
 )
 
 // TestHashTypeDisplayMatchesServerCanonical pins each algorithm's
@@ -306,7 +310,10 @@ func TestValidateDescription_ExternalMode_AlwaysOK(t *testing.T) {
 
 // TestValidateDescription_ClaimsOnly_RejectsShort confirms the local
 // meaningful-content rule fires in claims-content mode when the
-// description is too short.
+// description is too short, counted in characters (code points): 31
+// two-octet characters are refused, with the count the error names.
+// Mutant killed: len counting octets in place of the characters (62
+// octets pass).
 func TestValidateDescription_ClaimsOnly_RejectsShort(t *testing.T) {
 	t.Parallel()
 
@@ -317,17 +324,24 @@ func TestValidateDescription_ClaimsOnly_RejectsShort(t *testing.T) {
 		"",
 		"x",
 		strings.Repeat("x", claimsOnlyMinDescription-1),
-		"   " + strings.Repeat("x", claimsOnlyMinDescription-1) + "   ", // padded whitespace
+		strings.Repeat("é", claimsOnlyMinDescription-1),
 	}
 	for _, in := range tooShort {
 		if err := validate(in); err == nil {
-			t.Errorf("claims-only mode should reject %q (trimmed len %d)", in, len(strings.TrimSpace(in)))
+			t.Errorf("claims-only mode should reject %q", in)
 		}
+	}
+	err := validate(strings.Repeat("é", claimsOnlyMinDescription-1))
+	if want := "description must be at least 32 characters in claims-content mode (got 31)"; err == nil || err.Error() != want {
+		t.Errorf("error %v, want %q", err, want)
 	}
 }
 
 // TestValidateDescription_ClaimsOnly_AcceptsLong confirms a description
-// at or above the threshold passes the claims-content validator.
+// at or above the threshold passes the claims-content validator, counted
+// as typed: 32 two-octet characters pass, and so do 31 letters inside
+// three spaces each side, 37 characters as sent. Mutant killed: the text
+// trimmed before it is counted (the padded description is refused).
 func TestValidateDescription_ClaimsOnly_AcceptsLong(t *testing.T) {
 	t.Parallel()
 
@@ -342,70 +356,185 @@ func TestValidateDescription_ClaimsOnly_AcceptsLong(t *testing.T) {
 	if err := validate(above); err != nil {
 		t.Errorf("above-threshold description should pass, got %v", err)
 	}
+	for _, in := range []string{
+		strings.Repeat("é", claimsOnlyMinDescription),
+		"   " + strings.Repeat("x", claimsOnlyMinDescription-1) + "   ",
+	} {
+		if err := validate(in); err != nil {
+			t.Errorf("%q should pass, got %v", in, err)
+		}
+	}
 }
 
-// TestBuildCreateItemPayload_External includes hash + hash_type in the
-// outgoing payload, lowercased and whitespace-trimmed.
+// TestBuildCreateItemPayload_External pins the payload as exactly
+// {claims_json, watch}, with the claims text holding each field exactly
+// as typed: surrounding spaces, an uppercase hash and a quotation mark
+// kept, in the form's order. Mutants killed: the payload carrying the
+// claims as top-level members (the server refuses every member but
+// claims_json and watch), name or description trimmed, and the hash
+// lowercased.
 func TestBuildCreateItemPayload_External(t *testing.T) {
 	t.Parallel()
 
-	payload := buildCreateItemPayload(formModeExternal, "  Doc  ", "  some context  ",
-		"  ABCDEF"+strings.Repeat("0", 58)+"  ", "sha256")
+	hash := "  ABCDEF" + strings.Repeat("0", 58) + "  "
+	payload := buildCreateItemPayload(formModeExternal, "  Doc  ", "  some \"context\"  ", hash, "sha256")
 
-	if payload["name"] != "Doc" {
-		t.Errorf("name should be trimmed, got %q", payload["name"])
+	want := map[string]any{
+		"claims_json": `{"name":"  Doc  ","description":"  some \"context\"  ","hash":"` + hash + `","hash_type":"sha256"}`,
+		"watch":       true,
 	}
-	if payload["description"] != "some context" {
-		t.Errorf("description should be trimmed, got %q", payload["description"])
-	}
-	if h, ok := payload["hash"].(string); !ok || h != "abcdef"+strings.Repeat("0", 58) {
-		t.Errorf("hash should be lowercased + trimmed, got %v", payload["hash"])
-	}
-	if payload["hash_type"] != "sha256" {
-		t.Errorf("hash_type should be set, got %v", payload["hash_type"])
-	}
-	if payload["watch"] != true {
-		t.Errorf("watch should be true, got %v", payload["watch"])
+	if !reflect.DeepEqual(payload, want) {
+		t.Errorf("payload\n got: %#v\nwant: %#v", payload, want)
 	}
 }
 
-// TestBuildCreateItemPayload_ClaimsOnly omits hash + hash_type so the
-// server treats them as cleanly absent (claims-as-source-of-truth mode).
-func TestBuildCreateItemPayload_ClaimsOnly(t *testing.T) {
+// TestBuildCreateItemPayload_BareHashAddsNoHashType: a hash with no hash
+// type chosen is sent without hash_type, for the server to refuse the
+// half pair. Mutant killed: the sha256 default for a bare hash restored.
+func TestBuildCreateItemPayload_BareHashAddsNoHashType(t *testing.T) {
 	t.Parallel()
 
-	payload := buildCreateItemPayload(formModeClaimsOnly, "Invention",
-		"On this day I claim the following novel approach.", "", "")
-
-	if _, has := payload["hash"]; has {
-		t.Errorf("claims-only payload must not carry hash key, got: %v", payload)
+	payload := buildCreateItemPayload(formModeExternal, "Doc", "", strings.Repeat("ab", 32), "")
+	want := map[string]any{
+		"claims_json": `{"name":"Doc","hash":"` + strings.Repeat("ab", 32) + `"}`,
+		"watch":       true,
 	}
-	if _, has := payload["hash_type"]; has {
-		t.Errorf("claims-only payload must not carry hash_type key, got: %v", payload)
-	}
-	if payload["name"] != "Invention" {
-		t.Errorf("name should be present, got %v", payload["name"])
-	}
-	if payload["watch"] != true {
-		t.Errorf("watch should be true, got %v", payload["watch"])
+	if !reflect.DeepEqual(payload, want) {
+		t.Errorf("payload\n got: %#v\nwant: %#v", payload, want)
 	}
 }
 
-// TestBuildCreateItemPayload_ClaimsOnly_IgnoresHashFields confirms that
-// even if the form fields somehow carry stale hash values (e.g. user
-// flipped from external to claims-only mid-form), claims-only mode
-// strips them before sending, the mode bit is the only thing that
-// gates these fields server-side.
+// TestBuildCreateItemPayload_ClaimsOnly_IgnoresHashFields: claims-only
+// mode leaves the hash fields out even when they hold stale values, and
+// a description is written with its control characters escaped and "<"
+// as itself, as items.ClaimsJSONString writes it. Mutants killed: the
+// writer leaving a newline unescaped (claims_json is then not JSON), and
+// the pane writing its claims with a writer of its own that drifts from
+// the shared one (encoding/json's, which writes "<" as \u003c).
 func TestBuildCreateItemPayload_ClaimsOnly_IgnoresHashFields(t *testing.T) {
 	t.Parallel()
 
-	payload := buildCreateItemPayload(formModeClaimsOnly, "Doc", "Long enough description content.",
+	payload := buildCreateItemPayload(formModeClaimsOnly, "Invention",
+		"On this day I claim\nthe following <novel> approach.",
 		"deadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeef", "sha256")
-
-	if _, has := payload["hash"]; has {
-		t.Errorf("claims-only payload must drop stale hash, got: %v", payload)
+	want := map[string]any{
+		"claims_json": `{"name":"Invention","description":"On this day I claim\u000athe following <novel> approach."}`,
+		"watch":       true,
 	}
-	if _, has := payload["hash_type"]; has {
-		t.Errorf("claims-only payload must drop stale hash_type, got: %v", payload)
+	if !reflect.DeepEqual(payload, want) {
+		t.Errorf("payload\n got: %#v\nwant: %#v", payload, want)
+	}
+	var decoded map[string]string
+	if err := json.Unmarshal([]byte(payload["claims_json"].(string)), &decoded); err != nil ||
+		decoded["description"] != "On this day I claim\nthe following <novel> approach." {
+		t.Errorf("claims_json does not read back as the form's values: %v %v", err, decoded)
+	}
+}
+
+// TestHashTypePickerHasNoPreselectedType: the picker's first option has
+// no value, so a form whose hash type is never picked holds none, both
+// when the pane opens and after it is reset. Mutants killed: the picker
+// listing sha256 first again (huh's Select sets its value to the first
+// option), and the reset setting the hash type to sha256.
+func TestHashTypePickerHasNoPreselectedType(t *testing.T) {
+	t.Parallel()
+
+	opts := hashTypeSelectOptions()
+	if len(opts) != len(hashTypeOptions)+1 || opts[0].Value != "" {
+		t.Fatalf("first option %q of %d, want an empty value before the %d types", opts[0].Value, len(opts), len(hashTypeOptions))
+	}
+	m := newNewItemModel(nil)
+	if m.formHashType != "" {
+		t.Errorf("a new form holds hash type %q, want none", m.formHashType)
+	}
+	m.formHashType = "sha512"
+	m.Update(resetFormMsg{})
+	if m.formHashType != "" {
+		t.Errorf("a reset form holds hash type %q, want none", m.formHashType)
+	}
+}
+
+// TestValidateHashJudgesTheTextAsTyped: the hash is judged as it will be
+// sent, so uppercase hex and surrounding spaces are refused rather than
+// tidied. Mutant killed: validateHash trimming and lowercasing before it
+// judges.
+func TestValidateHashJudgesTheTextAsTyped(t *testing.T) {
+	t.Parallel()
+
+	ht := "sha256"
+	validate := validateHash(&ht)
+	for _, in := range []string{strings.Repeat("A", 64), " " + strings.Repeat("a", 64), strings.Repeat("a", 64) + " "} {
+		if err := validate(in); err == nil || err.Error() != "hash must be an even-length lowercase hex string" {
+			t.Errorf("validateHash(%q) = %v", in, err)
+		}
+	}
+}
+
+// TestParseCreateReply_ClaimsReasons keeps every claims_reasons entry of
+// a refusal, and the pane shows each with its pointer, code and message.
+// Mutants killed: parseCreateReply dropping claims_reasons, and
+// renderForm leaving the reasons out.
+func TestParseCreateReply_ClaimsReasons(t *testing.T) {
+	t.Parallel()
+
+	reply := parseCreateReply("error", json.RawMessage(`{"code":"invalid","message":"/name begins with a space (U+0020). Remove it. The claims need a description.",`+
+		`"claims_reasons":[{"code":"claims_surrounding_whitespace","message":"/name begins with a space (U+0020). Remove it.","pointer":"/name"},`+
+		`{"code":"claims_content","message":"The claims need a description.","pointer":""}]}`))
+	want := []items.ClaimsReason{
+		{Code: "claims_surrounding_whitespace", Message: "/name begins with a space (U+0020). Remove it.", Pointer: "/name"},
+		{Code: "claims_content", Message: "The claims need a description.", Pointer: ""},
+	}
+	if reply.err == nil || reply.err.Error() != "invalid: the server refused the claims" || !reflect.DeepEqual(reply.reasons, want) {
+		t.Fatalf("reply %+v", reply)
+	}
+
+	m := newNewItemModel(nil)
+	m.Update(reply)
+	view := m.View(120, 60)
+	for _, line := range []string{
+		`pointer "/name", claims_surrounding_whitespace: /name begins with a space (U+0020). Remove it.`,
+		`pointer "", claims_content: The claims need a description.`,
+	} {
+		if !strings.Contains(view, line) {
+			t.Errorf("view missing %q:\n%s", line, view)
+		}
+	}
+}
+
+// TestParseCreateReply_ItemCodeUnavailable keeps the refusal's own code
+// and message. Mutant killed: a refusal without claims_reasons told as
+// "the server refused the claims".
+func TestParseCreateReply_ItemCodeUnavailable(t *testing.T) {
+	t.Parallel()
+
+	reply := parseCreateReply("error", json.RawMessage(`{"code":"item_code_unavailable","message":"Could not issue an item code. Try again."}`))
+	if reply.err == nil || reply.err.Error() != "item_code_unavailable: Could not issue an item code. Try again." || reply.reasons != nil {
+		t.Errorf("reply %+v", reply)
+	}
+}
+
+// TestParseCreateReply_ClaimsJCSAndHash: a success carries the reply's
+// claims_jcs and claims_hash, and the watching pane shows both whole.
+// Mutants killed: claims_jcs not read from the reply, and the Claims JCS
+// and Claims hash rows left out of the pane.
+func TestParseCreateReply_ClaimsJCSAndHash(t *testing.T) {
+	t.Parallel()
+
+	const jcs = `{"hash":"abab","hash_type":"sha256","name":"Doc"}`
+	const hash = "0f1e2d3c4b5a69788796a5b4c3d2e1f00f1e2d3c4b5a69788796a5b4c3d2e1f0"
+	reply := parseCreateReply("ok", json.RawMessage(`{"item":{"id":"019a0000-0000-7000-8000-000000000001","state":"created",`+
+		`"claims":{"name":"Doc"},"claims_hash":"`+hash+`","item_hash":"ih"},"watched":true,`+
+		`"claims_jcs":"{\"hash\":\"abab\",\"hash_type\":\"sha256\",\"name\":\"Doc\"}","claims_hash":"`+hash+`"}`))
+	if reply.err != nil || reply.item == nil || reply.item.ClaimsJCS != jcs || reply.item.ClaimsHash != hash {
+		t.Fatalf("reply %+v", reply)
+	}
+
+	m := newNewItemModel(nil)
+	m.Update(reply)
+	view := m.View(200, 60)
+	for _, want := range []string{"Claims JCS", jcs, "Claims hash", hash} {
+		if !strings.Contains(view, want) {
+			t.Errorf("view missing %q:\n%s", want, view)
+		}
 	}
 }

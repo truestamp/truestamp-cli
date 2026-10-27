@@ -8,13 +8,16 @@ import (
 	"encoding/json"
 	"fmt"
 	"regexp"
+	"strconv"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	tea "charm.land/bubbletea/v2"
 	"charm.land/huh/v2"
 	lipgloss "charm.land/lipgloss/v2"
 	"github.com/truestamp/truestamp-cli/internal/console/events"
+	"github.com/truestamp/truestamp-cli/internal/items"
 	"github.com/truestamp/truestamp-cli/internal/ui"
 	"github.com/truestamp/truestamp-cli/internal/wschannel"
 )
@@ -90,20 +93,18 @@ func lookupHashType(value string) *hashTypeOption {
 	return nil
 }
 
-// Submission-mode wire values for the form. Must match the mode
-// semantics in cmd/items_create.go: external-hash mode sends claims.hash +
-// claims.hash_type; claims-only mode omits both and timestamps the
-// claims content itself.
+// Submission-mode values for the form: external-hash mode sends
+// claims.hash and claims.hash_type; claims-only mode omits both and
+// timestamps the claims content itself.
 const (
 	formModeExternal   = "external"
 	formModeClaimsOnly = "claims_only"
 )
 
-// claimsOnlyMinDescription is the minimum description length (in
-// non-whitespace characters after trimming) for claims-only submissions.
-// Mirrors the server-side threshold enforced in
-// lib/truestamp/items/validations/validate_claims_only_content.ex and the
-// matching CLI constant in cmd/items_create.go.
+// claimsOnlyMinDescription is the server's minimum description length,
+// in code points of the text as typed, for claims-only submissions. The
+// form checks it as the user types; the server's check is the one that
+// counts.
 const claimsOnlyMinDescription = 32
 
 // newItemModel implements the form pane. The form fields are owned by
@@ -133,6 +134,9 @@ type newItemModel struct {
 	transitions []itemTransition
 
 	formError string
+	// formReasons is the last refusal's claims_reasons, each shown with
+	// its pointer under formError.
+	formReasons []items.ClaimsReason
 }
 
 type newItemState int
@@ -154,6 +158,9 @@ type createdItem struct {
 	} `json:"claims"`
 	ClaimsHash string `json:"claims_hash"`
 	ItemHash   string `json:"item_hash"`
+	// ClaimsJCS is the reply's claims_jcs: the claims in canonical form
+	// (RFC 8785), exactly as the server keeps them and ClaimsHash covers.
+	ClaimsJCS string `json:"-"`
 }
 
 type itemTransition struct {
@@ -163,9 +170,11 @@ type itemTransition struct {
 }
 
 // itemCreateReplyMsg is dispatched after the items.create round-trip.
+// reasons holds a claims refusal's claims_reasons, beside err.
 type itemCreateReplyMsg struct {
-	item *createdItem
-	err  error
+	item    *createdItem
+	err     error
+	reasons []items.ClaimsReason
 }
 
 // resetFormMsg requests resetting the pane back to a blank form.
@@ -173,10 +182,9 @@ type resetFormMsg struct{}
 
 func newNewItemModel(client *wschannel.Client) *newItemModel {
 	m := &newItemModel{
-		client:       client,
-		state:        formEntering,
-		formMode:     formModeExternal,
-		formHashType: "sha256",
+		client:   client,
+		state:    formEntering,
+		formMode: formModeExternal,
 	}
 	m.form = m.makeForm()
 	return m
@@ -217,15 +225,15 @@ func (m *newItemModel) makeForm() *huh.Form {
 
 			huh.NewInput().
 				Title("Name").
-				Description("Required. Free-form label, ≤ 200 chars.").
-				CharLimit(200).
+				Description("Required. At most 64 characters.").
+				CharLimit(64).
 				Validate(requiredString("name")).
 				Value(&m.formName),
 
 			huh.NewText().
 				Title("Description").
 				DescriptionFunc(descriptionFieldHint(&m.formMode), &m.formMode).
-				CharLimit(1000).
+				CharLimit(256).
 				Validate(validateDescription(&m.formMode)).
 				Value(&m.formDescription),
 		),
@@ -234,6 +242,7 @@ func (m *newItemModel) makeForm() *huh.Form {
 				Title("Hash type").
 				Description("Selects which algorithm produced the hash; sets the expected hex length.").
 				Options(hashTypeSelectOptions()...).
+				Validate(requiredString("hash type")).
 				Value(&m.formHashType),
 
 			huh.NewInput().
@@ -261,7 +270,7 @@ func descriptionFieldHint(mode *string) func() string {
 		if mode != nil && *mode == formModeClaimsOnly {
 			return fmt.Sprintf(
 				"In claims-content mode the description IS the data being timestamped. "+
-					"Required: at least %d non-whitespace characters.",
+					"Required: at least %d characters.",
 				claimsOnlyMinDescription)
 		}
 		return "Optional context for the item."
@@ -270,31 +279,34 @@ func descriptionFieldHint(mode *string) func() string {
 
 // validateDescription enforces the meaningful-content rule for
 // claims-only mode locally so users see the error inline instead of
-// after a network round-trip. In external-hash mode the description
-// is unconditionally optional.
+// after a network round-trip, counting the characters (code points) of
+// the text as typed, which is what is sent and what the server counts.
+// In external-hash mode the description is unconditionally optional.
 func validateDescription(mode *string) func(string) error {
 	return func(s string) error {
 		if mode == nil || *mode != formModeClaimsOnly {
 			return nil
 		}
-		trimmed := strings.TrimSpace(s)
-		if len(trimmed) < claimsOnlyMinDescription {
+		if n := utf8.RuneCountInString(s); n < claimsOnlyMinDescription {
 			return fmt.Errorf(
 				"description must be at least %d characters in claims-content mode (got %d)",
-				claimsOnlyMinDescription, len(trimmed))
+				claimsOnlyMinDescription, n)
 		}
 		return nil
 	}
 }
 
 // hashTypeSelectOptions converts the canonical hashTypeOptions slice
-// into huh.Option values for the Select field. Labels are derived
-// from the canonical Display name via selectLabel so the picker and
-// the watching-screen summary stay in lockstep.
+// into huh.Option values for the Select field, after a first option
+// whose value is empty, so that no hash type is chosen until the user
+// picks one. Labels are derived from the canonical Display name via
+// selectLabel so the picker and the watching-screen summary stay in
+// lockstep.
 func hashTypeSelectOptions() []huh.Option[string] {
-	opts := make([]huh.Option[string], len(hashTypeOptions))
-	for i, h := range hashTypeOptions {
-		opts[i] = huh.NewOption(h.selectLabel(), h.Value)
+	opts := make([]huh.Option[string], 0, len(hashTypeOptions)+1)
+	opts = append(opts, huh.NewOption("Choose a hash type", ""))
+	for _, h := range hashTypeOptions {
+		opts = append(opts, huh.NewOption(h.selectLabel(), h.Value))
 	}
 	return opts
 }
@@ -308,18 +320,20 @@ func requiredString(name string) func(string) error {
 	}
 }
 
-// hexHash matches a non-empty hex string of EVEN length. The pair
-// match (`{2}+`) implicitly rejects single-char inputs and odd-
-// length strings (which can't represent a whole-byte digest) even
-// when the hashType is unknown, defense in depth, since downstream
-// table-driven length checking is skipped for unknown algorithms.
-var hexHash = regexp.MustCompile(`^([0-9a-fA-F]{2})+$`)
+// hexHash matches a non-empty lowercase hex string of EVEN length, the
+// form the server accepts. The pair match (`{2}+`) implicitly rejects
+// single-char inputs and odd-length strings (which can't represent a
+// whole-byte digest) even when the hashType is unknown, defense in
+// depth, since downstream table-driven length checking is skipped for
+// unknown algorithms.
+var hexHash = regexp.MustCompile(`^([0-9a-f]{2})+$`)
 
-// validateHash enforces three invariants. All three are mandatory;
-// none is skipped on any input path.
+// validateHash enforces three invariants on the hash exactly as typed,
+// which is what is sent. All three are mandatory; none is skipped on
+// any input path.
 //
 //  1. non-empty
-//  2. hex-only AND even length (one or more `[0-9a-fA-F]{2}` pairs)
+//  2. lowercase hex AND even length (one or more `[0-9a-f]{2}` pairs)
 //  3. exact byte length matching the chosen hash type's HexLen
 //
 // hashType is always one of hashTypeOptions when the form is driven
@@ -329,12 +343,11 @@ var hexHash = regexp.MustCompile(`^([0-9a-fA-F]{2})+$`)
 // if any of the three checks fails, the validator returns an error.
 func validateHash(hashType *string) func(string) error {
 	return func(s string) error {
-		s = strings.ToLower(strings.TrimSpace(s))
 		if s == "" {
 			return fmt.Errorf("hash is required")
 		}
 		if !hexHash.MatchString(s) {
-			return fmt.Errorf("hash must be an even-length hex string")
+			return fmt.Errorf("hash must be an even-length lowercase hex string")
 		}
 		if hashType == nil || *hashType == "" {
 			return fmt.Errorf("hash type is required")
@@ -357,9 +370,11 @@ func (m *newItemModel) Update(msg tea.Msg) (*newItemModel, tea.Cmd) {
 		if tmsg.err != nil {
 			m.state = formEntering
 			m.formError = tmsg.err.Error()
+			m.formReasons = tmsg.reasons
 			m.form = m.makeForm()
 			return m, m.form.Init()
 		}
+		m.formReasons = nil
 		m.state = formWatching
 		m.created = tmsg.item
 		m.transitions = []itemTransition{
@@ -374,8 +389,9 @@ func (m *newItemModel) Update(msg tea.Msg) (*newItemModel, tea.Cmd) {
 		m.formName = ""
 		m.formDescription = ""
 		m.formHash = ""
-		m.formHashType = "sha256"
+		m.formHashType = ""
 		m.formError = ""
+		m.formReasons = nil
 		m.state = formEntering
 		m.form = m.makeForm()
 		return m, m.form.Init()
@@ -426,20 +442,44 @@ func (m *newItemModel) Update(msg tea.Msg) (*newItemModel, tea.Cmd) {
 	return m, cmd
 }
 
-// buildCreateItemPayload builds the items.create wire payload from form
-// state. In claims-only mode the hash + hash_type keys are omitted (not
-// set to empty strings) so the server treats them as cleanly absent.
+// buildCreateItemPayload builds the items.create payload from form
+// state: {claims_json, watch}, where claims_json is the claims the form
+// states as a JSON text, each value exactly as typed. Nothing is trimmed
+// or case-folded, and nothing is filled in: a field left empty is
+// omitted, as the server refuses an empty optional string, and a hash
+// with no hash type chosen is sent without one. In claims-only mode the
+// hash fields are left out.
 func buildCreateItemPayload(mode, name, description, hash, hashType string) map[string]any {
-	payload := map[string]any{
-		"name":        strings.TrimSpace(name),
-		"description": strings.TrimSpace(description),
-		"watch":       true,
+	type member struct{ name, value string }
+	members := []member{{"name", name}}
+	if description != "" {
+		members = append(members, member{"description", description})
 	}
 	if mode == formModeExternal {
-		payload["hash"] = strings.ToLower(strings.TrimSpace(hash))
-		payload["hash_type"] = hashType
+		if hash != "" {
+			members = append(members, member{"hash", hash})
+		}
+		if hashType != "" {
+			members = append(members, member{"hash_type", hashType})
+		}
 	}
-	return payload
+
+	var text strings.Builder
+	text.WriteByte('{')
+	for i, mb := range members {
+		if i > 0 {
+			text.WriteByte(',')
+		}
+		text.Write(items.ClaimsJSONString(mb.name))
+		text.WriteByte(':')
+		text.Write(items.ClaimsJSONString(mb.value))
+	}
+	text.WriteByte('}')
+
+	return map[string]any{
+		"claims_json": text.String(),
+		"watch":       true,
+	}
 }
 
 func (m *newItemModel) submit() tea.Cmd {
@@ -453,26 +493,43 @@ func (m *newItemModel) submit() tea.Cmd {
 		if err != nil {
 			return itemCreateReplyMsg{err: err}
 		}
-		if reply.Status != "ok" {
-			var e struct {
-				Code    string `json:"code"`
-				Message string `json:"message"`
-			}
-			_ = json.Unmarshal(reply.Response, &e)
-			msg := e.Message
-			if msg == "" {
-				msg = string(reply.Response)
-			}
-			return itemCreateReplyMsg{err: fmt.Errorf("%s: %s", e.Code, msg)}
-		}
-		var resp struct {
-			Item createdItem `json:"item"`
-		}
-		if err := json.Unmarshal(reply.Response, &resp); err != nil {
-			return itemCreateReplyMsg{err: err}
-		}
-		return itemCreateReplyMsg{item: &resp.Item}
+		return parseCreateReply(reply.Status, reply.Response)
 	}
+}
+
+// parseCreateReply reads an items.create reply. A refusal is its code and
+// message, with each claims_reasons entry kept; a success is the item,
+// with the reply's claims_jcs and claims_hash.
+func parseCreateReply(status string, response json.RawMessage) itemCreateReplyMsg {
+	if status != "ok" {
+		var e struct {
+			Code          string               `json:"code"`
+			Message       string               `json:"message"`
+			ClaimsReasons []items.ClaimsReason `json:"claims_reasons"`
+		}
+		_ = json.Unmarshal(response, &e)
+		msg := e.Message
+		if msg == "" {
+			msg = string(response)
+		}
+		if len(e.ClaimsReasons) > 0 {
+			msg = "the server refused the claims"
+		}
+		return itemCreateReplyMsg{err: fmt.Errorf("%s: %s", e.Code, msg), reasons: e.ClaimsReasons}
+	}
+	var resp struct {
+		Item       createdItem `json:"item"`
+		ClaimsJCS  string      `json:"claims_jcs"`
+		ClaimsHash string      `json:"claims_hash"`
+	}
+	if err := json.Unmarshal(response, &resp); err != nil {
+		return itemCreateReplyMsg{err: err}
+	}
+	resp.Item.ClaimsJCS = resp.ClaimsJCS
+	if resp.ClaimsHash != "" {
+		resp.Item.ClaimsHash = resp.ClaimsHash
+	}
+	return itemCreateReplyMsg{item: &resp.Item}
 }
 
 func (m *newItemModel) handlePush(msg pushMsg) {
@@ -547,6 +604,10 @@ func (m *newItemModel) renderForm(width, height int) string {
 		sb.WriteString("\n")
 		sb.WriteString(formErrorStyle.Render("✗ " + m.formError))
 		sb.WriteString("\n")
+		for _, r := range m.formReasons {
+			sb.WriteString(formErrorStyle.Render(fmt.Sprintf("  pointer %s, %s: %s", strconv.Quote(r.Pointer), r.Code, r.Message)))
+			sb.WriteString("\n")
+		}
 	}
 
 	if m.state == formSubmitting {
@@ -612,7 +673,11 @@ func (m *newItemModel) renderWatching(width, height int) string {
 			cardField{label: "Hash", value: h},
 		)
 	}
-	fields = append(fields, cardField{label: "Item hash", value: m.created.ItemHash})
+	fields = append(fields,
+		cardField{label: "Item hash", value: m.created.ItemHash},
+		cardField{label: "Claims JCS", value: m.created.ClaimsJCS},
+		cardField{label: "Claims hash", value: m.created.ClaimsHash},
+	)
 
 	var sb strings.Builder
 	sb.WriteString(title + "\n\n")

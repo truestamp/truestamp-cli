@@ -3,18 +3,15 @@
 
 // Package tscrypto holds the hash and encoding helpers of the earlier
 // bundle layout that inspect and convert keyid print, the constant-time
-// comparisons, the claims hash_type table of SPEC.md section 10.2, step 13
-// (EXPECTED_HASH), that items create checks a hash against, and the UUIDv7
-// and ULID time readers. This CLI's verifier, which takes
-// its prefix bytes from SPEC.md section 4, is internal/verifier and
-// internal/registry.
+// comparisons, and the UUIDv7 and ULID time readers. This CLI's verifier,
+// which takes its prefix bytes from SPEC.md section 4, is internal/verifier
+// and internal/registry.
 package tscrypto
 
 import (
 	"crypto/sha256"
 	"crypto/subtle"
 	"encoding/hex"
-	"fmt"
 )
 
 // PrefixKeyID is the domain-separation prefix of [ComputeKeyID], the key
@@ -69,66 +66,6 @@ func HexEqual(a, b string) bool {
 func foldASCIIHex(c byte) byte {
 	isUpperHex := subtle.ConstantTimeLessOrEq('A', int(c)) & subtle.ConstantTimeLessOrEq(int(c), 'F')
 	return byte(subtle.ConstantTimeSelect(isUpperHex, int(c)+('a'-'A'), int(c)))
-}
-
-// hashTypeInfo holds metadata for a supported hash type.
-type hashTypeInfo struct {
-	Bytes int
-	Name  string
-}
-
-// hashTypes maps hash type keys to their expected output sizes.
-var hashTypes = map[string]hashTypeInfo{
-	"md5":      {Bytes: 16, Name: "MD5"},
-	"sha1":     {Bytes: 20, Name: "SHA-1"},
-	"sha224":   {Bytes: 28, Name: "SHA-224"},
-	"sha256":   {Bytes: 32, Name: "SHA-256"},
-	"sha384":   {Bytes: 48, Name: "SHA-384"},
-	"sha512":   {Bytes: 64, Name: "SHA-512"},
-	"sha3_224": {Bytes: 28, Name: "SHA3-224"},
-	"sha3_256": {Bytes: 32, Name: "SHA3-256"},
-	"sha3_384": {Bytes: 48, Name: "SHA3-384"},
-	"sha3_512": {Bytes: 64, Name: "SHA3-512"},
-	"blake2s":  {Bytes: 32, Name: "BLAKE2s"},
-	"blake2b":  {Bytes: 64, Name: "BLAKE2b"},
-}
-
-// ValidateClaimsHash checks that a claimed hash has both the length AND the
-// lowercase-hex character set required by its named hash type.
-//
-// Appendix E.11 of the whitepaper: "check that the hex length equals twice the
-// algorithm's output size and that the character set is lowercase hex, for one
-// of the twelve registered algorithms". Callers MUST render a non-nil error as
-// a warn and MUST NOT fail on it, every E.11 soft check is advisory.
-//
-// The scan is a byte loop, not a rune loop: a multi-byte UTF-8 hash trips the
-// length check first rather than the charset check, but either way the caller
-// warns, which is all E.11 constrains.
-func ValidateClaimsHash(hash, hashType string) error {
-	if hash == "" || hashType == "" {
-		return nil
-	}
-
-	info, ok := hashTypes[hashType]
-	if !ok {
-		return fmt.Errorf("unknown hash type: %s", hashType)
-	}
-
-	expectedHex := info.Bytes * 2
-	if len(hash) != expectedHex {
-		return fmt.Errorf("expected %d hex characters for %s, got %d", expectedHex, hashType, len(hash))
-	}
-
-	for i := range len(hash) {
-		c := hash[i]
-		if (c >= '0' && c <= '9') || (c >= 'a' && c <= 'f') {
-			continue
-		}
-		return fmt.Errorf("expected %d lowercase hex characters for %s, got %q at offset %d",
-			expectedHex, hashType, string(c), i)
-	}
-
-	return nil
 }
 
 // SecureEqual reports whether two strings are byte-for-byte equal, in
