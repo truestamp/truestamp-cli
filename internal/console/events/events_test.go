@@ -94,54 +94,59 @@ func TestProjectBeacon(t *testing.T) {
 	}
 }
 
-// TestProjectCommitment: id is the commitment's own ULID; payload
-// carries block_id and item_id for the Detail Panel.
-func TestProjectCommitment(t *testing.T) {
-	t.Parallel()
-
-	p := makePush(t, "commitments.internal", "commitment.created", map[string]any{
-		"id":       "01KQ88MP3GTM6CCCCCCCCCCCCC",
-		"block_id": "01KQ88MP3GTM6BBBBBBBBBBBBB",
-		"item_id":  "01KQ88MP3GTM6IIIIIIIIIIIII",
-	})
-
-	row := Project(time.Now(), p)
-
-	if row.Kind != "commitment" {
-		t.Errorf("Kind = %q, want bare 'commitment'", row.Kind)
+// commitmentPayload is a row as the server's console projection sends
+// it (TruestampWeb.ConsoleProjector.project/1 for a Commitment, in
+// lib/truestamp_web/channels/console_projector.ex of truestamp-v2): one
+// shape for the three kinds, the links a kind does not have null.
+func commitmentPayload(subjectKind string) map[string]any {
+	row := map[string]any{
+		"id": "019a3f2c-6b1e-7d40-9a51-3c2b1d0e4f60", "subject_kind": subjectKind,
+		"tree_kind": "block", "chain": nil, "item_id": nil, "entropy_observation_id": nil,
+		"subject_block_id": nil, "tree_block_id": nil, "epoch_id": nil,
+		"inserted_at": "2026-10-27T16:00:00.000000Z",
 	}
-	if row.ID != "01KQ88MP3GTM6CCCCCCCCCCCCC" {
-		t.Errorf("ID = %q, want commitment ULID", row.ID)
+	switch subjectKind {
+	case "item":
+		row["item_id"], row["tree_block_id"] = "019a3f2c-6a00-7c11-8e22-0f1e2d3c4b5a", "019a3f2c-5f00-7a00-8b00-000000000001"
+	case "observation":
+		row["entropy_observation_id"], row["tree_block_id"] = "019a3f2c-6900-7b22-9c33-1a2b3c4d5e6f", "019a3f2c-5f00-7a00-8b00-000000000001"
+	case "block":
+		row["tree_kind"], row["chain"] = "epoch", "stellar"
+		row["subject_block_id"], row["epoch_id"] = "019a3f2c-5f00-7a00-8b00-000000000001", "019a3f2c-7000-7d44-8a55-6b7c8d9e0f12"
 	}
-	if row.Stream != "commitments.internal" {
-		t.Errorf("Stream = %q, want commitments.internal", row.Stream)
-	}
-	if got, _ := row.Payload["block_id"].(string); got != "01KQ88MP3GTM6BBBBBBBBBBBBB" {
-		t.Errorf("Payload.block_id missing: %v", row.Payload["block_id"])
-	}
+	return row
 }
 
-// TestProjectExternalCommitment: ULID id, method preserved on payload.
-func TestProjectExternalCommitment(t *testing.T) {
+// TestProjectCommitmentEachSubjectKind: both commitment streams emit
+// commitment.created, and the payload's subject_kind says which level
+// the row is (TruestampWeb.ConsoleStreams.classify/3, in
+// lib/truestamp_web/channels/console_streams.ex of truestamp-v2): an item
+// or an observation on commitments.subjects, a block on
+// commitments.blocks. Each row's kind names its subject_kind, its id is
+// the row's own, and the stream and payload are kept for the panel.
+// Mutants killed: compactKind without its commitment branch (every row
+// "commitment"); the branch reading tree_kind instead of subject_kind
+// (the item and observation rows both "commitment.block").
+func TestProjectCommitmentEachSubjectKind(t *testing.T) {
 	t.Parallel()
 
-	p := makePush(t, "commitments.external", "external_commitment.created", map[string]any{
-		"id":       "01KQ88MP3GTM6XXXXXXXXXXXXX",
-		"method":   "stellar",
-		"block_id": "01KQ88MP3GTM6BBBBBBBBBBBBB",
-		"epoch_id": "01KQ88MP3GTM6EPOCHEPOCHEPO",
-	})
-
-	row := Project(time.Now(), p)
-
-	if row.Kind != "external_commitment" {
-		t.Errorf("Kind = %q, want bare 'external_commitment'", row.Kind)
-	}
-	if row.ID != "01KQ88MP3GTM6XXXXXXXXXXXXX" {
-		t.Errorf("ID = %q, want external commitment ULID", row.ID)
-	}
-	if got, _ := row.Payload["epoch_id"].(string); got != "01KQ88MP3GTM6EPOCHEPOCHEPO" {
-		t.Errorf("Payload.epoch_id missing: %v", row.Payload["epoch_id"])
+	for _, tc := range []struct{ stream, subjectKind, wantKind string }{
+		{"commitments.subjects", "item", "commitment.item"},
+		{"commitments.subjects", "observation", "commitment.observation"},
+		{"commitments.blocks", "block", "commitment.block"},
+	} {
+		t.Run(tc.subjectKind, func(t *testing.T) {
+			t.Parallel()
+			data := commitmentPayload(tc.subjectKind)
+			row := Project(time.Now(), makePush(t, tc.stream, "commitment.created", data))
+			if row.Kind != tc.wantKind || row.RawKind != "commitment.created" || row.Stream != tc.stream ||
+				row.ID != data["id"] || row.Severity != SeverityNormal {
+				t.Errorf("row %+v; want kind %q, raw kind commitment.created, stream %q, id %v", row, tc.wantKind, tc.stream, data["id"])
+			}
+			if row.Payload["subject_kind"] != tc.subjectKind || row.Payload["tree_kind"] != data["tree_kind"] {
+				t.Errorf("payload %v; want the server's subject_kind and tree_kind kept", row.Payload)
+			}
+		})
 	}
 }
 
@@ -354,8 +359,9 @@ func TestProjectorPreservesPayload(t *testing.T) {
 	}{
 		{"block", "blocks", "block.created", map[string]any{"id": "X", "state": "finalized", "block_hash": "abc"}},
 		{"beacon", "beacons", "beacon.created", map[string]any{"id": "X", "hash": "abc", "previous_hash": "def"}},
-		{"commitment", "commitments.internal", "commitment.created", map[string]any{"id": "X", "block_id": "B", "item_id": "I"}},
-		{"external", "commitments.external", "external_commitment.created", map[string]any{"id": "X", "method": "stellar"}},
+		{"item commitment", "commitments.subjects", "commitment.created", commitmentPayload("item")},
+		{"observation commitment", "commitments.subjects", "commitment.created", commitmentPayload("observation")},
+		{"block commitment", "commitments.blocks", "commitment.created", commitmentPayload("block")},
 		{"entropy", "entropy.nist", "entropy.created", map[string]any{"id": "X", "source": "entropy_nist"}},
 		{"item", "items.team", "item.created", map[string]any{"id": "X", "state": "created"}},
 		{"healing", "blocks.healing", "block_healing.forward", map[string]any{"block_id": "B", "reason": "ok"}},
@@ -428,7 +434,12 @@ func TestProjectAtFallback(t *testing.T) {
 
 // TestKindCompactionExhaustive locks down every concrete kind token
 // the redesign should produce. If a future change widens the kind
-// vocabulary the test must be updated explicitly.
+// vocabulary the test must be updated explicitly. A commitment burst
+// says it is of blocks only on commitments.blocks, whose rows are all
+// blocks; on commitments.subjects it may mix items and observations.
+// Mutants killed: burstKind without its commitments.blocks branch (the
+// blocks burst reads "commitment.burst"); the branch keyed on any
+// commitment stream (the subjects burst reads "commitment.block.burst").
 func TestKindCompactionExhaustive(t *testing.T) {
 	t.Parallel()
 
@@ -444,8 +455,6 @@ func TestKindCompactionExhaustive(t *testing.T) {
 		{"block created/finalized", "blocks", "block.created", "finalized", "", "block.finalized"},
 		{"block updated/committed", "blocks", "block.updated", "committed", "", "block.committed"},
 		{"beacon", "beacons", "beacon.created", "", "", "beacon"},
-		{"commitment", "commitments.internal", "commitment.created", "", "", "commitment"},
-		{"external_commitment", "commitments.external", "external_commitment.created", "", "", "external_commitment"},
 		{"entropy.nist created", "entropy.nist", "entropy.created", "created", "entropy_nist", "entropy.nist"},
 		{"entropy.stellar processing", "entropy.stellar", "entropy.updated", "processing", "entropy_stellar", "entropy.stellar.processing"},
 		{"entropy.bitcoin failed", "entropy.bitcoin", "entropy.updated", "failed", "entropy_bitcoin", "entropy.bitcoin.failed"},
@@ -457,6 +466,8 @@ func TestKindCompactionExhaustive(t *testing.T) {
 		{"healing reverse", "blocks.healing", "block_healing.reverse", "", "", "block_healing.reverse"},
 		{"item.burst", "items.team", "item.burst", "", "", "item.burst"},
 		{"entropy.stellar.burst", "entropy.stellar", "entropy.burst", "", "", "entropy.stellar.burst"},
+		{"commitments.subjects burst", "commitments.subjects", "commitment.burst", "", "", "commitment.burst"},
+		{"commitments.blocks burst", "commitments.blocks", "commitment.burst", "", "", "commitment.block.burst"},
 		{"server.down", "", "server.down", "", "", "server.down"},
 		{"server.up", "", "server.up", "", "", "server.up"},
 	}
@@ -498,8 +509,8 @@ func TestKindMaxWidth(t *testing.T) {
 	kinds := []string{
 		"block", "block.finalized", "block.committed", "block.burst",
 		"beacon", "beacon.burst",
-		"commitment", "commitment.burst",
-		"external_commitment", "external_commitment.burst",
+		"commitment", "commitment.item", "commitment.observation", "commitment.block",
+		"commitment.burst", "commitment.block.burst",
 		"entropy.nist", "entropy.nist.processing", "entropy.nist.failed", "entropy.nist.burst",
 		"entropy.stellar", "entropy.stellar.processing", "entropy.stellar.failed", "entropy.stellar.burst",
 		"entropy.bitcoin", "entropy.bitcoin.processing", "entropy.bitcoin.failed", "entropy.bitcoin.burst",

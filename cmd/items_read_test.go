@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"slices"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -246,10 +247,10 @@ func TestCLI_Items_Update_SendsOnlyChangedAttributes(t *testing.T) {
 	}
 }
 
-// TestCLI_Items_Update_CannotReachASignedField pins that no flag on this
-// command can touch claims. claims_hash is signed, so a `--claims` or a
+// TestCLI_Items_Update_CannotReachAHashedField pins that no flag on this
+// command can touch claims. claims_hash covers them, so a `--claims` or a
 // `--name` here would be a cryptographic hazard rather than a feature.
-func TestCLI_Items_Update_CannotReachASignedField(t *testing.T) {
+func TestCLI_Items_Update_CannotReachAHashedField(t *testing.T) {
 	for _, flag := range []string{"--claims", "--name", "--description", "--data-hash"} {
 		out, code := runCLIText(t, "items", "update", "01AAA", flag, "x")
 		if code == 0 {
@@ -323,6 +324,71 @@ func TestCLI_Items_Get_ReportsCommitmentPlainly(t *testing.T) {
 	}
 	if !strings.Contains(stdout, "cannot be generated") {
 		t.Errorf("an uncommitted item should say a proof is not available yet, got:\n%s", stdout)
+	}
+}
+
+// A committed item is in a block, and the server refuses its proof until
+// that block has a final commitment on a public chain (no_block_commitment
+// while it has none, commitment_not_final while none is final), so the
+// card's State row says exactly that, and only for a committed item. The
+// "Not yet committed" hint shows only for an item still waiting for its
+// block. Mutants killed: the label put back to "committed  (a proof can
+// be generated)"; the label shown for every state; the hint shown for a
+// redacted item.
+func TestCLI_Items_Get_CommittedSaysTheProofFollowsTheBlock(t *testing.T) {
+	for _, tc := range []struct {
+		state string
+		want  []string
+		hint  bool
+	}{
+		{"committed", []string{"committed  (in a block; its proof follows once the block is committed to a public chain)"}, false},
+		{"processing", []string{"processing"}, true},
+		{"redacted", []string{"redacted"}, false},
+	} {
+		t.Run(tc.state, func(t *testing.T) {
+			s := startItemsServer(t, func(w http.ResponseWriter, r *http.Request) {
+				_, _ = w.Write([]byte(`{"data":{"type":"item","id":"01AAA","attributes":{"state":"` + tc.state + `","visibility":"private"}}}`))
+			})
+			stdout, _, exit := runCLI(t, "--base-url", s.URL, "--api-key", "k", "items", "get", "01AAA")
+			if exit != 0 {
+				t.Fatalf("exit=%d\n%s", exit, stdout)
+			}
+			var rows []string
+			for _, line := range strings.Split(stdout, "\n") {
+				if label, value, ok := strings.Cut(strings.TrimSpace(line), " "); ok && label == "State" {
+					rows = append(rows, strings.TrimSpace(value))
+				}
+			}
+			if !slices.Equal(rows, tc.want) {
+				t.Errorf("State rows %q; want %q\n%s", rows, tc.want, stdout)
+			}
+			if got := strings.Contains(stdout, "Not yet committed"); got != tc.hint {
+				t.Errorf("the Not yet committed hint shown: %v; want %v\n%s", got, tc.hint, stdout)
+			}
+		})
+	}
+}
+
+// The --committed filter's help says the same as the card: committed
+// means in a block, with the proof following the block's public
+// commitment. Mutant killed: the help put back to "Only items that have
+// been committed (a proof can be generated)".
+func TestCLI_Items_List_CommittedHelpSaysTheProofFollowsTheBlock(t *testing.T) {
+	stdout, _, exit := runCLI(t, "items", "list", "--help")
+	if exit != 0 {
+		t.Fatalf("exit=%d\n%s", exit, stdout)
+	}
+	_, flags, _ := strings.Cut(stdout, "\nFlags:\n")
+	flags, _, _ = strings.Cut(flags, "\n\n")
+	var lines []string
+	for _, line := range strings.Split(flags, "\n") {
+		if fields := strings.Fields(line); len(fields) > 0 && fields[0] == "--committed" {
+			lines = append(lines, strings.Join(fields, " "))
+		}
+	}
+	want := []string{"--committed Only items committed in a block (a proof follows once the block is committed to a public chain)"}
+	if !slices.Equal(lines, want) {
+		t.Errorf("--committed help %q; want %q\n%s", lines, want, stdout)
 	}
 }
 

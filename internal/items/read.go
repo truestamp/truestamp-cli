@@ -15,7 +15,7 @@ import (
 
 // Item is the subset of an item's attributes the CLI reads back.
 //
-// Three of these fields — InsertedAt, UpdatedAt, ExpiresAt — are NOT in
+// Three of these fields, InsertedAt, UpdatedAt and ExpiresAt, are NOT in
 // the resource's json_api default_fields, so every request that wants
 // them must ask for them explicitly via fields[item]. See requestFields.
 type Item struct {
@@ -33,10 +33,11 @@ type Item struct {
 	ExpiresAt   string         `json:"expires_at,omitempty"`
 }
 
-// Committed reports whether a proof can be generated for this item.
-// Proof generation hard-requires the committed state server-side, so this
-// is the difference between `proofs get <id>` working and being refused
-// with no_external_commitments.
+// Committed reports whether the item is in a block. Proof generation
+// requires it server-side: an item not yet committed is refused with
+// subject_not_ready, and a committed item whose block has no commitment
+// on a public chain yet with no_block_commitment, or with
+// commitment_not_final while none of its commitments is final.
 func (i Item) Committed() bool { return i.State == "committed" }
 
 // Page is one page of a list response plus the cursor for the next.
@@ -59,7 +60,7 @@ const DefaultLimit = 25
 // requestFields asks for the attributes the CLI renders. inserted_at,
 // updated_at and expires_at are absent from the resource's
 // json_api default_fields, so omitting this leaves them empty with no
-// error — a silent hole rather than a failure.
+// error: a silent hole rather than a failure.
 const requestFields = "claims,claims_hash,item_hash,visibility,state,tags,team_id,display_name,inserted_at,updated_at,expires_at"
 
 // ListOptions configures a list request.
@@ -151,7 +152,7 @@ func Get(ctx context.Context, apiURL, team, id string) (*Item, error) {
 // The server's :update action is `accept [:team_id, :visibility, :tags]`,
 // described there as "considered mutable and not included in the item's
 // hash". name and description live inside claims and are immutable, so
-// there is deliberately no way to reach a signed field from here.
+// there is deliberately no way to reach a hashed field from here.
 type UpdateOptions struct {
 	Visibility *string
 	Tags       *[]string

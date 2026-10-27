@@ -832,13 +832,15 @@ func orderedPayloadKeys(m map[string]any, skip map[string]bool) []string {
 		return nil
 	}
 	priority := []string{
-		"state", "visibility", "method", "direction", "reason", "from_state", "to_state",
+		"state", "visibility", "direction", "reason", "from_state", "to_state",
 		"source", "capture_method",
+		"subject_kind", "tree_kind", "chain",
 		"count", "window_ms", "first_at", "last_at", "by_kind", "by_state",
 		"team_id", "owner_kind", "owner_id", "creator_id",
-		"block_id", "previous_block_id", "item_id", "entropy_observation_id", "epoch_id",
+		"block_id", "previous_block_id", "item_id", "entropy_observation_id",
+		"subject_block_id", "tree_block_id", "epoch_id",
 		"merkle_root", "block_hash", "previous_hash", "hash",
-		"observation_hash", "entropy_hash", "claims_hash", "item_hash", "commitment_hash",
+		"observation_hash", "entropy_hash", "claims_hash", "item_hash",
 		"claims", "tags",
 		"timestamp", "inserted_at",
 		"node", "evidence",
@@ -996,8 +998,6 @@ func kindStyleFor(kind string) lipgloss.Style {
 	case kind == "block_healing" || strings.HasPrefix(kind, "block_healing."):
 		return kindHealingStyle
 	case kind == "commitment" || strings.HasPrefix(kind, "commitment."):
-		return kindCommitStyle
-	case kind == "external_commitment" || strings.HasPrefix(kind, "external_commitment."):
 		return kindCommitStyle
 	case kind == "entropy" || strings.HasPrefix(kind, "entropy."):
 		return kindEntropyStyle

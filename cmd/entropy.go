@@ -93,8 +93,8 @@ var entropyGetCmd = &cobra.Command{
 	Short: "Show one observation by UUIDv7 id or by 64-hex-char entropy hash",
 	Long: `Fetch one observation, addressed either way.
 
-The two shapes are disjoint — a UUIDv7 has hyphens, an entropy hash is
-exactly 64 lowercase hex characters — so which you passed is unambiguous.
+The two shapes are disjoint: a UUIDv7 has hyphens, and an entropy hash is
+exactly 64 lowercase hex characters, so which you passed is unambiguous.
 The hash is the value an item's metadata commits to under
 subject.metadata.witnesses, so this is how a witness named in a proof is
 traced back to the observation it came from:
@@ -202,8 +202,11 @@ func renderObservationCard(w io.Writer, apiURL string, o *entropy.Observation) {
 	tbl := ui.CompactTable().
 		StyleFunc(ui.LabelValueStyleFunc()).
 		Row("ID", o.ID).
-		Row("Source", displaySource(o.Source)).
-		Row("State", o.State).
+		Row("Source", displaySource(o.Source))
+	if o.Network != "" {
+		tbl = tbl.Row("Network", o.Network)
+	}
+	tbl = tbl.Row("State", o.State).
 		Row("Entropy Hash", o.EntropyHash)
 	if o.SourcePublishedAt != "" {
 		tbl = tbl.Row("Published", timestampWithRelative(o.SourcePublishedAt))
@@ -214,7 +217,6 @@ func renderObservationCard(w io.Writer, apiURL string, o *entropy.Observation) {
 	if o.BlockID != "" {
 		tbl = tbl.Row("Block", o.BlockID)
 	}
-	tbl = tbl.Row("Signing Key", o.SigningKeyID)
 	tbl = entropyRows(tbl, "", o.Entropy)
 	if detail := ui.SubjectDetailURL(apiURL, o.Source, o.ID); detail != "" {
 		tbl = tbl.Row("Details", detail)

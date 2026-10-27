@@ -89,16 +89,17 @@ var itemsUpdateCmd = &cobra.Command{
 	Long: `Update the attributes of an item that are not covered by its hash.
 
 Only three attributes are mutable, and the server enforces this:
-visibility, tags, and the owning team. An item's claims — including its
-name and description, which live inside claims — are immutable, because
-claims_hash is signed. There is no flag here that can reach a signed
+visibility, tags, and the owning team. An item's claims, including its
+name and description, which live inside claims, are immutable, because
+claims_hash covers them and the item hash binds claims_hash into its
+block's Merkle tree. There is no flag here that can reach a hashed
 field.
 
 --to-team moves the item to a different team you are a member of. It is
 deliberately NOT the root --team flag: that one says which tenant scopes
 the request, and letting one word mean both would make
-'items update <id> --team ""' — a perfectly ordinary way to scope a
-request — silently mean "move this item to team ''". One word, one
+'items update <id> --team ""', a perfectly ordinary way to scope a
+request, silently mean "move this item to team ''". One word, one
 meaning.
 
 Examples:
@@ -176,18 +177,20 @@ func renderItem(cmd *cobra.Command, it *items.Item) error {
 		tbl = tbl.Row("Details", detail)
 	}
 	ui.Fprintln(w, strings.Join([]string{header, "", tbl.String()}, "\n"))
-	if !it.Committed() {
+	if it.State == "created" || it.State == "processing" {
 		ui.Fprintln(w, ui.FaintStyle().Render(
 			"    Not yet committed: a proof cannot be generated until it is."))
 	}
 	return nil
 }
 
-// commitmentLabel states plainly whether a proof is available, because
-// that is the only thing most callers want from the state field.
+// commitmentLabel says plainly what a committed item's state means for
+// its proof, because that is what most callers want from the state
+// field: the item is in a block, and its proof follows once that block
+// is committed to a public chain.
 func commitmentLabel(it *items.Item) string {
 	if it.Committed() {
-		return it.State + "  (a proof can be generated)"
+		return it.State + "  (in a block; its proof follows once the block is committed to a public chain)"
 	}
 	return it.State
 }
@@ -231,7 +234,7 @@ func itemListLine(it items.Item) string {
 func init() {
 	lf := itemsListCmd.Flags()
 	addPagingFlags(itemsListCmd, "items")
-	lf.Bool("committed", false, "Only items that have been committed (a proof can be generated)")
+	lf.Bool("committed", false, "Only items committed in a block (a proof follows once the block is committed to a public chain)")
 	lf.Bool("pending", false, "Only items not yet committed")
 
 	uf := itemsUpdateCmd.Flags()

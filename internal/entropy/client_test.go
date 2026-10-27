@@ -7,9 +7,13 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"maps"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"reflect"
+	"slices"
+	"strings"
 	"testing"
 
 	"github.com/truestamp/truestamp-cli/internal/auth"
@@ -38,13 +42,85 @@ func serve(t *testing.T, body string) (Config, *url.URL) {
 	return Config{APIURL: srv.URL}, &last
 }
 
+// observationHash is an observation_hash for the fixtures.
+const observationHash = "812c6486dd17951b3cc4e091530a685b98488b1ffdddab08c867b84d5bc2172d"
+
+// observationJSON is an entropy observation as the server's JSON:API
+// serves it: a resource object whose attributes are exactly the public
+// attributes of Truestamp.Entropy.EntropyObservation (in
+// lib/truestamp/entropy/entropy_observation.ex of truestamp-v2): no
+// signature, signing_key_id, metadata or metadata_hash
+// (test/truestamp_web/record_fields_surfaces_test.exs there), and the
+// network the source was read from.
 func observationJSON(id, source string) string {
 	return `{"type":"entropy_observation","id":"` + id + `","attributes":{"source":"` + source + `",
-	  "state":"committed","entropy_hash":"` + validHash + `","observation_hash":"oh","metadata_hash":"mh",
-	  "signing_key_id":"96b1cd2f","signature":"sig","capture_method":"http_sse",
-	  "source_published_at":"2026-09-05T20:29:07.000000Z","inserted_at":"2026-09-05T20:29:07.848738Z",
-	  "block_id":null,"metadata":{},
-	  "entropy":{"closed_at":"2026-09-05T20:29:07Z","hash":"abc","paging_token":"19427477109604352","sequence":4523312}}}`
+	  "network":"public","state":"committed","entropy_hash":"` + validHash + `","observation_hash":"` + observationHash + `",
+	  "capture_method":"http_sse","source_published_at":"2026-09-05T20:29:07.000000Z","inserted_at":"2026-09-05T20:29:07.848738Z",
+	  "block_id":"01a07335-b000-7000-8000-000000000001",
+	  "entropy":{"closed_at":"2026-09-05T20:29:07Z","hash":"abc","paging_token":"19427477109604352","sequence":4523312}},
+	  "relationships":{"block":{"links":{},"meta":{}}},
+	  "links":{"self":"http://localhost/api/json/entropy_observations/` + id + `"},"meta":{}}`
+}
+
+// The client decodes every attribute the server serves into the field of
+// its name, and carries no field the server does not send: re-encoded,
+// an observation has exactly the server's attribute names and its id.
+// Mutants killed: a field for signing_key_id, signature, metadata or
+// metadata_hash put back without omitempty (the re-encoding gains a
+// key); the network field dropped or under another name (the decoded
+// value or the key set differs).
+func TestGet_DecodesTheServersObservation(t *testing.T) {
+	cfg, _ := serve(t, `{"data":`+observationJSON(validID, "entropy_stellar")+`}`)
+	o, err := Get(context.Background(), cfg, validID)
+	if err != nil {
+		t.Fatalf("Get: %v", err)
+	}
+	want := Observation{
+		ID: validID, Source: "entropy_stellar", Network: "public", State: "committed",
+		EntropyHash: validHash, ObservationHash: observationHash, CaptureMethod: "http_sse",
+		SourcePublishedAt: "2026-09-05T20:29:07.000000Z", InsertedAt: "2026-09-05T20:29:07.848738Z",
+		BlockID: "01a07335-b000-7000-8000-000000000001",
+		Entropy: map[string]any{"closed_at": "2026-09-05T20:29:07Z", "hash": "abc",
+			"paging_token": "19427477109604352", "sequence": json.Number("4523312")},
+	}
+	if !reflect.DeepEqual(*o, want) {
+		t.Errorf("decoded\n%+v\nwant\n%+v", *o, want)
+	}
+	encoded, err := json.Marshal(o)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var fields map[string]json.RawMessage
+	if err := json.Unmarshal(encoded, &fields); err != nil {
+		t.Fatal(err)
+	}
+	keys := slices.Sorted(maps.Keys(fields))
+	wantKeys := []string{"block_id", "capture_method", "entropy", "entropy_hash", "id", "inserted_at", "network",
+		"observation_hash", "source", "source_published_at", "state"}
+	if !slices.Equal(keys, wantKeys) {
+		t.Errorf("re-encoded keys %q; want %q", keys, wantKeys)
+	}
+}
+
+// Observation has a field for exactly the server's public attributes,
+// whatever each tag's options: a field the server does not send is
+// caught even where omitempty keeps it out of every re-encoding of a
+// server answer. Mutants killed: a Signature field tagged
+// "signature,omitempty" added; a SigningKeyID field tagged
+// "signing_key_id,omitempty" added (with or without a card row for it).
+func TestObservation_HasAFieldForEachPublicAttributeOnly(t *testing.T) {
+	typ := reflect.TypeOf(Observation{})
+	var names []string
+	for i := range typ.NumField() {
+		name, _, _ := strings.Cut(typ.Field(i).Tag.Get("json"), ",")
+		names = append(names, name)
+	}
+	slices.Sort(names)
+	want := []string{"block_id", "capture_method", "entropy", "entropy_hash", "id", "inserted_at", "network",
+		"observation_hash", "source", "source_published_at", "state"}
+	if !slices.Equal(names, want) {
+		t.Errorf("Observation's JSON names %q; want %q", names, want)
+	}
 }
 
 // TestGet_DecodesNumbersExactly pins the json.Number decode: a ledger
@@ -56,7 +132,7 @@ func TestGet_DecodesNumbersExactly(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Get: %v", err)
 	}
-	if o.ID != validID || o.Source != "entropy_stellar" || o.BlockID != "" {
+	if o.ID != validID || o.Source != "entropy_stellar" || o.BlockID != "01a07335-b000-7000-8000-000000000001" {
 		t.Errorf("decoded %+v", o)
 	}
 	seq, ok := o.Entropy["sequence"].(json.Number)

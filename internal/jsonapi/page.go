@@ -28,9 +28,10 @@ func SetPageQuery(q url.Values, limit int, after, before string, count bool) {
 	}
 }
 
-// SortByID is the one ordering every list uses: by id, which for the
-// ULIDs and UUIDv7s these resources carry is insertion time. Newest first
-// unless the caller asked to start from the beginning.
+// SortByID is the id ordering the items, entropy and beacons lists use:
+// for the UUIDv7s these resources carry, it is insertion time. Newest
+// first unless the caller asked to start from the beginning. Blocks are
+// ordered by height instead (internal/blocks).
 func SortByID(oldestFirst bool) string {
 	if oldestFirst {
 		return "id"

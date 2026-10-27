@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -110,19 +111,17 @@ func TestByHash_ValidatesBeforeSending(t *testing.T) {
 
 // --- requests ----------------------------------------------------------
 
-// TestList_AlwaysSendsALimit: the server's block read declares no
-// default_limit and no max_page_size against a table growing about 1,440
-// rows a day, so an unbounded GET /blocks is a real hazard.
+// TestList_AlwaysSendsALimit: the blocks index route's action requires
+// pagination, defaults to 25 and clamps to 250; List sends a limit of 25
+// when the caller gives none, so the page size is explicit. Mutant
+// killed: defaultLimit set to 26 (page[limit] is "26").
 func TestList_AlwaysSendsALimit(t *testing.T) {
 	cfg, last := serve(t, `[]`)
 	if _, err := List(context.Background(), cfg, ListOptions{}); err != nil {
 		t.Fatalf("List: %v", err)
 	}
-	if got := last.Query().Get("page[limit]"); got == "" {
-		t.Error("List must always send a page limit")
-	}
-	if got := last.Query().Get("sort"); got != "-id" {
-		t.Errorf("List should sort newest first, got %q", got)
+	if got := last.Query().Get("page[limit]"); got != "25" {
+		t.Errorf("page[limit] = %q, want 25", got)
 	}
 }
 
@@ -140,24 +139,60 @@ func TestList_ForwardsAnOversizeLimitToTheServer(t *testing.T) {
 	}
 }
 
-func TestLatestAndGenesis_SortOppositeWays(t *testing.T) {
-	cfg, last := serve(t, `[`+blockJSON(validID, validHash)+`]`)
-	if _, err := Latest(context.Background(), cfg); err != nil {
-		t.Fatalf("Latest: %v", err)
-	}
-	if got := last.Query().Get("sort"); got != "-id" {
-		t.Errorf("Latest should sort descending, got %q", got)
+// serverBlock is a block as the server's JSON:API serves it: a resource
+// object whose attributes are exactly the twelve public attributes of
+// Truestamp.Blockchain.Block (lib/truestamp/blockchain/block.ex of
+// truestamp-v2, pinned by test/truestamp_web/json_api_blocks_test.exs
+// there), height among them, and relationship links for its six public
+// relationships.
+func serverBlock(id string, height int, previousID string) string {
+	relationship := `{"links":{},"meta":{}}`
+	return `{"type":"block","id":"` + id + `","attributes":{
+	  "block_hash":"` + validHash + `","height":` + strconv.Itoa(height) + `,"inserted_at":"2026-09-01T00:00:00.000000Z",
+	  "leaf_count":0,"merkle_root":"e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855","metadata":{},
+	  "previous_block_hash":"5df6e0e2761359d30a8275058e299fcc0381534545f55cf43e41983f5d4c9456",
+	  "previous_block_id":"` + previousID + `","signature":"` + strings.Repeat("A", 86) + `",
+	  "signing_key_id":"3c19f776","state":"committed","updated_at":"2026-09-01T00:00:00.000000Z"},
+	  "relationships":{"previous":` + relationship + `,"next":` + relationship + `,"items":` + relationship + `,
+	  "entropy_observations":` + relationship + `,"commitments":` + relationship + `,"leaf_commitments":` + relationship + `},
+	  "links":{"self":"http://localhost/api/json/blocks/` + id + `"},"meta":{}}`
+}
+
+// The chain is in height order, and the server sorts by height whatever
+// the ids (json_api_blocks_test.exs's "sorts and filters by height"): a
+// list asks for the highest first, or the lowest with OldestFirst; the
+// head is the highest; genesis, at height 0, the lowest. Mutants killed:
+// any of the four sorts left on the id (-id or id), or turned the other
+// way.
+func TestSorts_AreByHeight(t *testing.T) {
+	page := `{"data":[` + serverBlock(validID, 0, validID) + `]}`
+	for _, tc := range []struct {
+		name string
+		call func(Config) error
+		want string
+	}{
+		{"list", func(c Config) error { _, err := List(context.Background(), c, ListOptions{Limit: 5}); return err }, "-height"},
+		{"list oldest first", func(c Config) error {
+			_, err := List(context.Background(), c, ListOptions{Limit: 5, OldestFirst: true})
+			return err
+		}, "height"},
+		{"latest", func(c Config) error { _, err := Latest(context.Background(), c); return err }, "-height"},
+		{"genesis", func(c Config) error { _, err := Genesis(context.Background(), c); return err }, "height"},
+	} {
+		cfg, last := serve(t, page)
+		if err := tc.call(cfg); err != nil {
+			t.Fatalf("%s: %v", tc.name, err)
+		}
+		if got := last.Query().Get("sort"); got != tc.want {
+			t.Errorf("%s sorted by %q; want %q", tc.name, got, tc.want)
+		}
 	}
 
-	// Genesis is identifiable by id == previous_block_id.
-	cfg2, last2 := serve(t, `[`+blockJSON(validID, validHash)+`]`)
-	_, err := Genesis(context.Background(), cfg2)
-	if got := last2.Query().Get("sort"); got != "id" {
-		t.Errorf("Genesis should sort ascending, got %q", got)
-	}
-	// This fixture's previous_block_id is not its own id, so Genesis must
-	// refuse rather than present the oldest visible row as the root.
-	if err == nil {
+	// Genesis is identifiable by id == previous_block_id. A lowest row
+	// whose previous_block_id is not its own id is refused rather than
+	// presented as the root.
+	cfg, _ := serve(t, `{"data":[`+serverBlock(validID, 0, "01a06aef-0000-7000-8000-000000000000")+`]}`)
+	if _, err := Genesis(context.Background(), cfg); err == nil {
 		t.Error("a row whose previous_block_id is not its own id is not genesis")
 	}
 }
@@ -290,18 +325,29 @@ func TestGet_RejectsMalformedIDBeforeSending(t *testing.T) {
 	}
 }
 
-// TestNoHeightField pins a decision that is easy to undo by accident:
-// block_height is a runtime COUNT(*), explicitly non-sortable and
-// non-filterable, and withheld from the wire. A Height field would invite
-// rendering a number the server never sends.
-func TestNoHeightField(t *testing.T) {
-	body := `{"data":{"id":"` + validID + `","block_hash":"` + validHash + `","block_height":42}}`
-	cfg, _ := serve(t, body)
+// A block's height is the server's stored, 0-based height, served as
+// `height` (block.ex's height attribute: 0 at genesis, then one more per
+// block); the server serves no block_height (json_api_blocks_test.exs
+// refuses it as a sparse field). The client decodes height from a block,
+// and from each block of a list, genesis's 0 among them. Mutants killed:
+// the Height field under the tag block_height (every height reads 0);
+// the Height field dropped (this does not compile).
+func TestHeight_IsTheServersStoredHeight(t *testing.T) {
+	cfg, _ := serve(t, `{"data":`+serverBlock(validID, 1234, "01a06aef-0000-7000-8000-000000000000")+`}`)
 	b, err := Get(context.Background(), cfg, validID)
 	if err != nil {
 		t.Fatalf("Get: %v", err)
 	}
-	// Reflection-free check: the struct simply has no such field, so this
-	// compiles only while that stays true.
-	_ = b.BlockHash
+	if b.Height != 1234 || b.ID != validID || b.BlockHash != validHash {
+		t.Errorf("decoded height %d, id %q, hash %q; want 1234, %q, %q", b.Height, b.ID, b.BlockHash, validID, validHash)
+	}
+
+	cfg, _ = serve(t, `{"data":[`+serverBlock("01a06aef-425f-731e-bb35-a692ed2b0b89", 7, validID)+`,`+serverBlock(validID, 0, validID)+`]}`)
+	page, err := List(context.Background(), cfg, ListOptions{Limit: 2})
+	if err != nil {
+		t.Fatalf("List: %v", err)
+	}
+	if len(page.Blocks) != 2 || page.Blocks[0].Height != 7 || page.Blocks[1].Height != 0 {
+		t.Errorf("list heights %+v; want 7 then 0", page.Blocks)
+	}
 }
