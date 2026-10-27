@@ -5,7 +5,6 @@ package tscrypto
 
 import (
 	"encoding/base64"
-	"sort"
 	"strings"
 	"testing"
 )
@@ -253,117 +252,5 @@ func TestHexEqualNoEarlyExit(t *testing.T) {
 	}
 	if !HexEqual(base, base) {
 		t.Error("identical 64-char digests should compare equal")
-	}
-}
-
-// hexOfLen builds a lowercase-hex string of exactly n characters.
-func hexOfLen(n int) string {
-	return strings.Repeat("0123456789abcdef", n/16+1)[:n]
-}
-
-func TestValidateClaimsHashRegistryMatchesSpec(t *testing.T) {
-	t.Parallel()
-	// The twelve registered algorithms of Appendix E.11, verbatim and in the
-	// whitepaper's order. A thirteenth entry, a rename, or a dropped entry is
-	// a wire-contract change, not a refactor.
-	want := []string{
-		"md5", "sha1", "sha224", "sha256", "sha384", "sha512",
-		"sha3_224", "sha3_256", "sha3_384", "sha3_512", "blake2s", "blake2b",
-	}
-	got := make([]string, 0, len(hashTypes))
-	for name := range hashTypes {
-		got = append(got, name)
-	}
-	sort.Strings(got)
-	sorted := append([]string(nil), want...)
-	sort.Strings(sorted)
-	if strings.Join(got, ",") != strings.Join(sorted, ",") {
-		t.Errorf("registered hash types: got [%s], want [%s]", strings.Join(got, ","), strings.Join(sorted, ","))
-	}
-}
-
-func TestValidateClaimsHashAcceptsLowercase(t *testing.T) {
-	t.Parallel()
-	// One valid lowercase digest per registered type at its exact width.
-	widths := map[string]int{
-		"md5": 32, "sha1": 40, "sha224": 56, "sha256": 64,
-		"sha384": 96, "sha512": 128, "sha3_224": 56, "sha3_256": 64,
-		"sha3_384": 96, "sha3_512": 128, "blake2s": 64, "blake2b": 128,
-	}
-	if len(widths) != len(hashTypes) {
-		t.Fatalf("width table covers %d types, registry has %d", len(widths), len(hashTypes))
-	}
-	for hashType, width := range widths {
-		if err := ValidateClaimsHash(hexOfLen(width), hashType); err != nil {
-			t.Errorf("%s: unexpected error for a valid %d-char lowercase digest: %s", hashType, width, err)
-		}
-	}
-}
-
-func TestValidateClaimsHashCharset(t *testing.T) {
-	t.Parallel()
-	cases := []struct {
-		name string
-		hash string
-	}{
-		{"all z", strings.Repeat("z", 64)},
-		{"uppercase hex", strings.ToUpper(hexOfLen(64))},
-		{"punctuation", hexOfLen(63) + "!"},
-		{"leading uppercase", "A" + hexOfLen(63)},
-	}
-	for _, tc := range cases {
-		err := ValidateClaimsHash(tc.hash, "sha256")
-		if err == nil {
-			t.Errorf("%s: expected a charset error, got nil", tc.name)
-			continue
-		}
-		if !strings.Contains(err.Error(), "lowercase hex") {
-			t.Errorf("%s: error should name the lowercase-hex requirement, got %q", tc.name, err)
-		}
-	}
-}
-
-func TestValidateClaimsHashLengthStillChecked(t *testing.T) {
-	t.Parallel()
-	// Short AND long. A guard written as "at least the expected width" passes
-	// the short row and lets a padded digest through, and vice versa.
-	cases := []struct {
-		name string
-		hash string
-	}{
-		{"too short", "deadbeef"},
-		{"one char short", hexOfLen(63)},
-		{"one char long", hexOfLen(65)},
-		{"sha512-width value under sha256", hexOfLen(128)},
-	}
-	for _, tc := range cases {
-		err := ValidateClaimsHash(tc.hash, "sha256")
-		if err == nil {
-			t.Errorf("%s: expected a length error for a %d-char sha256 hash", tc.name, len(tc.hash))
-			continue
-		}
-		if !strings.Contains(err.Error(), "64 hex characters") {
-			t.Errorf("%s: error should name the expected width, got %q", tc.name, err)
-		}
-	}
-}
-
-func TestValidateClaimsHashEmptyInputs(t *testing.T) {
-	t.Parallel()
-	for _, tc := range [][2]string{{"", ""}, {"abc", ""}, {"", "sha256"}} {
-		if err := ValidateClaimsHash(tc[0], tc[1]); err != nil {
-			t.Errorf("ValidateClaimsHash(%q, %q) = %s, want nil", tc[0], tc[1], err)
-		}
-	}
-}
-
-func TestValidateClaimsHashUnknownType(t *testing.T) {
-	t.Parallel()
-	err := ValidateClaimsHash(hexOfLen(64), "sha999")
-	if err == nil {
-		t.Fatal("expected an error for an unregistered hash type")
-	}
-	if !strings.Contains(err.Error(), "unknown hash type") {
-		t.Errorf("error should name the unknown type, got %q", err)
 	}
 }

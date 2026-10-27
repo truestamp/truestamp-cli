@@ -5,10 +5,13 @@
 package items
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
+	"strings"
 
 	"github.com/truestamp/truestamp-cli/internal/jsonapi"
 )
@@ -18,6 +21,9 @@ type CreateItemResponse struct {
 	ID         string
 	State      string
 	ClaimsHash string
+	// ClaimsJCS is the server's claims_jcs: the canonical form (RFC 8785)
+	// of the claims it accepted, the bytes ClaimsHash is computed over.
+	ClaimsJCS  string
 	ItemHash   string
 	Visibility string
 	Tags       []string
@@ -27,44 +33,168 @@ type CreateItemResponse struct {
 	HashType   string
 }
 
-// CreateItem calls [CreateItemCtx] with [context.Background].
-func CreateItem(apiURL, team string, claims map[string]any, visibility string, tags []string) (*CreateItemResponse, error) {
-	return CreateItemCtx(context.Background(), apiURL, team, claims, visibility, tags)
+// CodeItemCodeUnavailable is the server's code for a submission it could
+// not give an item code. Nothing was created, and the same request may be
+// sent again.
+const CodeItemCodeUnavailable = "item_code_unavailable"
+
+// ErrItemCodeUnavailable is the class of a 409 item_code_unavailable
+// refusal: nothing was created, and sending the same request again is
+// expected to succeed.
+var ErrItemCodeUnavailable = errors.New("the server could not issue an item code")
+
+// claimsPointer is where the JSON:API create puts the claims, and so the
+// prefix of every source.pointer that names a member of them.
+const claimsPointer = "/data/attributes/claims"
+
+// ClaimsReason is one claims rule the server found broken: its code (such
+// as claims_surrounding_whitespace), its message, which names the fix, and
+// Pointer, the RFC 6901 pointer into the claims at the member that breaks
+// it ("" for the claims as a whole).
+type ClaimsReason struct {
+	Code    string `json:"code"`
+	Message string `json:"message"`
+	Pointer string `json:"pointer"`
 }
 
-// CreateItemCtx sends a JSON:API POST request to create a new item. claims
-// is the nested claims map (hash, hash_type, name, etc.); visibility and
-// tags are top-level item attributes. ctx cancels the in-flight request.
-// The credential is applied by the process-wide [auth.Authorizer].
-func CreateItemCtx(ctx context.Context, apiURL, team string, claims map[string]any, visibility string, tags []string) (*CreateItemResponse, error) {
-	// Build JSON:API envelope
-	attributes := map[string]any{
-		"claims": claims,
-	}
-	if visibility != "" {
-		attributes["visibility"] = visibility
-	}
-	if len(tags) > 0 {
-		attributes["tags"] = tags
-	}
+// ClaimsRefusedError is a create the server refused because the claims
+// break one or more of its rules: every rule broken, in the server's order.
+// Others holds the detail of any error in the same response that names no
+// member of the claims, so that nothing the server said is dropped.
+type ClaimsRefusedError struct {
+	Status  int
+	Reasons []ClaimsReason
+	Others  []string
+}
 
-	body := map[string]any{
-		"data": map[string]any{
-			"type":       "item",
-			"attributes": attributes,
-		},
+func (e *ClaimsRefusedError) Error() string {
+	var b strings.Builder
+	fmt.Fprintf(&b, "HTTP %d: the server refused the claims", e.Status)
+	for _, r := range e.Reasons {
+		fmt.Fprintf(&b, "; %s at %q: %s", r.Code, r.Pointer, r.Message)
 	}
-
-	bodyBytes, err := json.Marshal(body)
-	if err != nil {
-		return nil, fmt.Errorf("encoding request: %w", err)
+	for _, o := range e.Others {
+		fmt.Fprintf(&b, "; %s", o)
 	}
+	return b.String()
+}
 
-	respBody, err := jsonapi.Do(ctx, jsonapi.Config{APIURL: apiURL, Team: team}, http.MethodPost, "/items", bodyBytes)
+// CreateItemCtx sends a JSON:API POST request to create a new item.
+// claimsJSON is the claims as a JSON text, one value the caller has read
+// with the strict reader (internal/strictjson); it is written into the
+// request body byte for byte as the value of attributes.claims, never
+// decoded and re-encoded, so the server reads exactly the text the user
+// gave. visibility and tags are item attributes. ctx cancels the in-flight
+// request. The credential is applied by the process-wide [auth.Authorizer].
+//
+// A refusal of the claims is a [*ClaimsRefusedError]; a 409
+// item_code_unavailable is a [*jsonapi.APIError] whose Sentinel is
+// [ErrItemCodeUnavailable]; any other non-2xx status is a
+// [*jsonapi.APIError].
+func CreateItemCtx(ctx context.Context, apiURL, team string, claimsJSON []byte, visibility string, tags []string) (*CreateItemResponse, error) {
+	body, err := createBody(claimsJSON, visibility, tags)
 	if err != nil {
 		return nil, err
 	}
-	return parseResponse(respBody)
+
+	resp, respBody, err := jsonapi.DoRaw(ctx, jsonapi.Config{APIURL: apiURL, Team: team}, http.MethodPost, "/items", body)
+	if err != nil {
+		return nil, err
+	}
+	if resp.StatusCode >= 200 && resp.StatusCode < 300 {
+		return parseResponse(respBody)
+	}
+	if refused := parseClaimsRefusal(resp.StatusCode, respBody); refused != nil {
+		return nil, refused
+	}
+	apiErr := jsonapi.ErrorFromResponse(resp, respBody)
+	if resp.StatusCode == http.StatusConflict && apiErr.Code == CodeItemCodeUnavailable {
+		apiErr.Sentinel = ErrItemCodeUnavailable
+	}
+	return nil, apiErr
+}
+
+// createBody writes the JSON:API document with claimsJSON spliced in
+// verbatim. encoding/json is not used for the claims: json.RawMessage is
+// compacted and HTML-escaped when marshaled, which would change the text.
+func createBody(claimsJSON []byte, visibility string, tags []string) ([]byte, error) {
+	var b bytes.Buffer
+	b.WriteString(`{"data":{"type":"item","attributes":{"claims":`)
+	b.Write(claimsJSON)
+	if visibility != "" {
+		v, err := json.Marshal(visibility)
+		if err != nil {
+			return nil, fmt.Errorf("encoding request: %w", err)
+		}
+		b.WriteString(`,"visibility":`)
+		b.Write(v)
+	}
+	if len(tags) > 0 {
+		t, err := json.Marshal(tags)
+		if err != nil {
+			return nil, fmt.Errorf("encoding request: %w", err)
+		}
+		b.WriteString(`,"tags":`)
+		b.Write(t)
+	}
+	b.WriteString(`}}}`)
+	return b.Bytes(), nil
+}
+
+// parseClaimsRefusal reads a 422 whose errors name members of the claims
+// (source.pointer under /data/attributes/claims) as a ClaimsRefusedError,
+// one reason per such error with its pointer made relative to the claims.
+// It returns nil for any other response.
+func parseClaimsRefusal(status int, body []byte) *ClaimsRefusedError {
+	if status != http.StatusUnprocessableEntity {
+		return nil
+	}
+	var envelope struct {
+		Errors []struct {
+			Code   string `json:"code"`
+			Detail string `json:"detail"`
+			Title  string `json:"title"`
+			Source struct {
+				Pointer string `json:"pointer"`
+			} `json:"source"`
+		} `json:"errors"`
+	}
+	if err := json.Unmarshal(body, &envelope); err != nil {
+		return nil
+	}
+	refused := &ClaimsRefusedError{Status: status}
+	for _, e := range envelope.Errors {
+		message := e.Detail
+		if message == "" {
+			message = e.Title
+		}
+		pointer, inClaims := claimsMemberPointer(e.Source.Pointer)
+		if !inClaims {
+			other := message
+			if e.Code != "" {
+				other = e.Code + ": " + message
+			}
+			refused.Others = append(refused.Others, other)
+			continue
+		}
+		refused.Reasons = append(refused.Reasons, ClaimsReason{Code: e.Code, Message: message, Pointer: pointer})
+	}
+	if len(refused.Reasons) == 0 {
+		return nil
+	}
+	return refused
+}
+
+// claimsMemberPointer returns source, a pointer into the request document,
+// as a pointer into the claims, and whether it points into them at all.
+func claimsMemberPointer(source string) (string, bool) {
+	if source == claimsPointer {
+		return "", true
+	}
+	if rest, ok := strings.CutPrefix(source, claimsPointer); ok && strings.HasPrefix(rest, "/") {
+		return rest, true
+	}
+	return "", false
 }
 
 // parseResponse extracts item data from a JSON:API response envelope.
@@ -85,6 +215,7 @@ func parseResponse(body []byte) (*CreateItemResponse, error) {
 		ID:         envelope.Data.ID,
 		State:      getString(attrs, "state"),
 		ClaimsHash: getString(attrs, "claims_hash"),
+		ClaimsJCS:  getString(attrs, "claims_jcs"),
 		ItemHash:   getString(attrs, "item_hash"),
 		Visibility: getString(attrs, "visibility"),
 		TeamID:     getString(attrs, "team_id"),

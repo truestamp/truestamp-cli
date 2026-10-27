@@ -3,10 +3,7 @@
 
 package tscrypto
 
-import (
-	"strings"
-	"testing"
-)
+import "testing"
 
 // FuzzDecodeCompactMerkleProof feeds arbitrary base64url strings to
 // the compact-proof decoder. Must never panic, every malformed input
@@ -81,43 +78,6 @@ func FuzzHexEqual(f *testing.F) {
 		// rewrite replaced: hardening, never a semantic change.
 		if want := hexEqualLegacy(a, b); got != want {
 			t.Fatalf("HexEqual(%q, %q) = %v, legacy oracle gives %v", a, b, got, want)
-		}
-	})
-}
-
-// FuzzValidateClaimsHash: the hash_type+length+charset validator.
-func FuzzValidateClaimsHash(f *testing.F) {
-	f.Add("", "")
-	f.Add("deadbeef", "sha256")
-	f.Add("xxx", "sha3_256")
-	// Correct width, wrong character set, the charset arm.
-	f.Add(strings.Repeat("z", 64), "sha256")
-	f.Add(strings.ToUpper(strings.Repeat("ab", 32)), "sha256")
-
-	f.Fuzz(func(t *testing.T, hash, hashType string) {
-		if err := ValidateClaimsHash(hash, hashType); err != nil {
-			return
-		}
-		// A nil error is an assertion, so pin what it asserts: Appendix E.11's
-		// "hex length equals twice the algorithm's output size and the
-		// character set is lowercase hex", for a registered algorithm. The
-		// either-empty short-circuit is the one documented exemption.
-		if hash == "" || hashType == "" {
-			return
-		}
-		info, ok := hashTypes[hashType]
-		if !ok {
-			t.Fatalf("ValidateClaimsHash accepted unregistered hash type %q", hashType)
-		}
-		if len(hash) != info.Bytes*2 {
-			t.Fatalf("ValidateClaimsHash accepted a %d-char hash for %s, which is %d bytes wide", len(hash), hashType, info.Bytes)
-		}
-		for i := 0; i < len(hash); i++ {
-			c := hash[i]
-			if (c >= '0' && c <= '9') || (c >= 'a' && c <= 'f') {
-				continue
-			}
-			t.Fatalf("ValidateClaimsHash accepted %q at offset %d of %q", string(c), i, hash)
 		}
 	})
 }

@@ -40,13 +40,13 @@ func FuzzParseTime(f *testing.F) {
 	})
 }
 
-// FuzzNormalizeTimestamp: `create --timestamp` normalizer.
-func FuzzNormalizeTimestamp(f *testing.F) {
-	for _, s := range []string{"", "2026-04-21", "2026-04-21T12:00:00Z", "bad"} {
+// FuzzCheckTimestamp: the `create --timestamp` grammar check.
+func FuzzCheckTimestamp(f *testing.F) {
+	for _, s := range []string{"", "2026-04-21", "2026-04-21T12:00:00Z", "2026-02-30", "bad"} {
 		f.Add(s)
 	}
 	f.Fuzz(func(t *testing.T, s string) {
-		_, _ = normalizeTimestamp(s)
+		_ = checkTimestamp(s)
 	})
 }
 

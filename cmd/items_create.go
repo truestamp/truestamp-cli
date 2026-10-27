@@ -7,30 +7,26 @@ import (
 	"bytes"
 	"crypto/sha256"
 	"encoding/hex"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
+	"io/fs"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strconv"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	"github.com/spf13/cobra"
 	"github.com/truestamp/truestamp-cli/internal/inputsrc"
 	"github.com/truestamp/truestamp-cli/internal/items"
-	"github.com/truestamp/truestamp-cli/internal/jcs"
-	"github.com/truestamp/truestamp-cli/internal/tscrypto"
+	"github.com/truestamp/truestamp-cli/internal/jsonapi"
+	"github.com/truestamp/truestamp-cli/internal/specdata"
+	"github.com/truestamp/truestamp-cli/internal/strictjson"
 	"github.com/truestamp/truestamp-cli/internal/ui"
 )
-
-// claimsOnlyMinDescription is the minimum length (in non-whitespace
-// characters, after trimming) of claims.description for an item submitted
-// without an external hash. Mirrors the threshold enforced server-side in
-// lib/truestamp/items/validations/validate_claims_only_content.ex, do not
-// drift from this value without coordinating with the backend.
-const claimsOnlyMinDescription = 32
 
 var itemsCreateCmd = &cobra.Command{
 	Use:   "create [file]",
@@ -46,40 +42,62 @@ Truestamp supports two submission modes:
 
   Claims-as-source-of-truth mode:
     truestamp items create -n "Invention" -d "On this day I claim ..."
-  No external file. The claims content itself is timestamped. Requires
-  at least a 32-character description (or non-empty --metadata) so the
-  proof commits to meaningful content.
+  No external file. The claims content itself is timestamped. The server
+  requires a description of at least 32 characters (or non-empty
+  --metadata) so the proof commits to meaningful content.
 
---hash-type requires --data-hash. A bare --data-hash is accepted and hash_type
-defaults to "sha256". Omitting both selects claims-as-source-of-truth
-mode.
+The claims are sent exactly as given, and the server commits their
+canonical form (claims_jcs). A claims file (--claims) or claims on stdin
+(--claims-stdin) is sent byte for byte as given: it is read
+locally only to refuse a text no verifier reads alike (a member name
+repeated in one object, or a number outside the range every verifier
+reads exactly), and nothing in it is trimmed, reordered or filled in. The
+claim flags (--name, --data-hash, --hash-type, --description, --url,
+--timestamp, --metadata, --location) build the claims instead, so they are
+refused beside a claims file: put every claim in the file. A number
+longer than 1,024 characters is refused too, in any claims: the server
+reads no request that holds one, whatever its value.
+
+The server checks every claims rule and reports each one broken with its
+code, its JSON pointer into the claims and a message naming the fix.
+--data-hash and --hash-type go together: a bare --data-hash sends no
+hash_type, and the server refuses the half pair. On success the output
+shows claims_jcs, the claims in canonical form (RFC 8785) exactly as the
+server keeps them, and claims_hash, the hash computed over them.
 
 Input methods (resolved in priority order):
   truestamp items create document.pdf              External hash: hash file, filename as name
   truestamp items create --file=document.pdf       External hash: explicit file path
   truestamp items create --file                    External hash: interactive file picker
   cat doc.pdf | truestamp items create -F -n Doc   External hash: hash file content from stdin
-  truestamp items create -c=claims.json            Either mode: load claims from JSON file
+  truestamp items create -c=claims.json            Either mode: send claims from a JSON file
   truestamp items create --claims                  Interactive claims JSON file picker
-  cat claims.json | truestamp items create -C      Read claims JSON from stdin
-  truestamp items create -n Doc --data-hash <hex>  External hash: build claims from flags
+  cat claims.json | truestamp items create -C      Send claims JSON from stdin
+  truestamp items create -n Doc --data-hash <hex> --hash-type sha256
+                                                   External hash: build claims from flags
   truestamp items create -n "Doc" -d "long desc"   Claims-only: timestamp the claims content
 
-Flags override values from file/auto-hash, enabling combinations like:
+Beside a hashed file, --name replaces the file's name and the other claim
+flags add their members, enabling combinations like:
   truestamp items create report.pdf -n "Q1 Report" -v public -t finance
+--data-hash and --hash-type are refused beside a hashed file: the file
+supplies the hash and its hash_type.
 
 Requires authentication, run 'truestamp auth login', or set TRUESTAMP_API_KEY / --api-key for headless/CI use.`,
 	Args: cobra.MaximumNArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		// Resolve claims from input sources first so `truestamp items create`
 		// with no args shows help without requiring an API key.
-		claims, err := resolveCreateInput(cmd, args)
+		claimsText, err := resolveCreateInput(cmd, args)
 		if err != nil {
 			return err
 		}
-		if claims == nil {
+		if claimsText == nil {
 			cmd.Help()
 			return nil
+		}
+		if err := checkNumberLengths(claimsText); err != nil {
+			return err
 		}
 
 		cfg := appConfig
@@ -89,25 +107,6 @@ Requires authentication, run 'truestamp auth login', or set TRUESTAMP_API_KEY / 
 
 		jsonOutput, _ := outputMode(cmd)
 
-		// Overlay flag values onto claims
-		if err := overlayFlags(cmd, claims); err != nil {
-			return err
-		}
-
-		// Portability guard. Runs after the overlay so a value injected by
-		// --metadata is checked alongside one read from a claims file, and
-		// before any network call so the user never spends a round-trip to
-		// learn something we can prove locally.
-		if err := checkClaimsPortability(cmd, claims, jsonOutput); err != nil {
-			return err
-		}
-
-		// Client-side validation
-		if err := validateClaims(claims); err != nil {
-			return err
-		}
-
-		// Resolve visibility and tags
 		visibility, _ := cmd.Flags().GetString("visibility")
 		if err := items.ValidateVisibility(visibility); err != nil {
 			return err
@@ -115,20 +114,18 @@ Requires authentication, run 'truestamp auth login', or set TRUESTAMP_API_KEY / 
 		rawTags, _ := cmd.Flags().GetStringSlice("tags")
 		tags := items.NormalizeTags(rawTags)
 
-		// Create the item
 		appLogger.Info("create_request",
 			"visibility", visibility,
 			"tag_count", len(tags),
-			"claim_keys", len(claims),
+			"claims_octets", len(claimsText),
 		)
-		resp, err := items.CreateItemCtx(cmd.Context(), cfg.APIURL, cfg.Team, claims, visibility, tags)
+		resp, err := items.CreateItemCtx(cmd.Context(), cfg.APIURL, cfg.Team, claimsText, visibility, tags)
 		if err != nil {
 			appLogger.Error("create_failed", "err", err.Error())
-			return err
+			return explainCreateError(cmd, err)
 		}
 		appLogger.Info("create_completed", "id", resp.ID)
 
-		// Output
 		if jsonOutput {
 			return printCreateJSON(cmd.OutOrStdout(), resp)
 		}
@@ -137,9 +134,19 @@ Requires authentication, run 'truestamp auth login', or set TRUESTAMP_API_KEY / 
 	},
 }
 
-// resolveCreateInput determines claims from flags, file, stdin, or auto-hash.
+// claimFlags are the flags that build claims, in the order their members
+// are written. Each is refused beside a claims file or claims on stdin,
+// which are sent exactly as given.
+var claimFlags = []string{"name", "data-hash", "hash-type", "description", "url", "timestamp", "location", "metadata"}
+
+// fileHashFlags are the claim flags a hashed file supplies the members of
+// itself: its digest and that digest's type, sha256.
+var fileHashFlags = []string{"data-hash", "hash-type"}
+
+// resolveCreateInput returns the claims text to send, or nil when there is
+// no input (show help).
 // Priority: --claims > --claims-stdin > --file > --file-stdin > positional arg > flags-only > help
-func resolveCreateInput(cmd *cobra.Command, args []string) (map[string]any, error) {
+func resolveCreateInput(cmd *cobra.Command, args []string) ([]byte, error) {
 	claimsFlag, _ := cmd.Flags().GetString("claims")
 	claimsStdin, _ := cmd.Flags().GetBool("claims-stdin")
 	fileFlag, _ := cmd.Flags().GetString("file")
@@ -167,7 +174,21 @@ func resolveCreateInput(cmd *cobra.Command, args []string) (map[string]any, erro
 	}
 
 	switch {
-	// --claims: load claims JSON from file (picker if no path)
+	case claimsFlag != "" || claimsStdin:
+		if err := refuseClaimFlags(cmd); err != nil {
+			return nil, err
+		}
+	case fileFlag != "" || fileStdin || len(args) > 0:
+		if err := refuseHashFlags(cmd); err != nil {
+			return nil, err
+		}
+	}
+	withFlags := func(b *claimsBuilder, err error) ([]byte, error) {
+		return claimsFromFlags(cmd, b, err)
+	}
+
+	switch {
+	// --claims: send the claims JSON of a file (picker if no path)
 	case claimsFlag == inputsrc.FilePickSentinel:
 		path, err := pickFile("Select claims JSON file", ".json")
 		if err != nil {
@@ -178,7 +199,7 @@ func resolveCreateInput(cmd *cobra.Command, args []string) (map[string]any, erro
 	case claimsFlag != "":
 		return readClaimsFile(claimsFlag)
 
-	// --claims-stdin: read claims JSON from stdin
+	// --claims-stdin: send the claims JSON read from stdin
 	case claimsStdin:
 		return readClaimsStdin()
 
@@ -188,32 +209,212 @@ func resolveCreateInput(cmd *cobra.Command, args []string) (map[string]any, erro
 		if err != nil {
 			return nil, err
 		}
-		return autoHashFile(path)
+		return withFlags(autoHashFile(path))
 
 	case fileFlag != "":
-		return autoHashFileChecked(fileFlag)
+		return withFlags(autoHashFileChecked(fileFlag))
 
 	// --file-stdin: hash raw file content from stdin (requires --name)
 	case fileStdin:
-		return autoHashStdin()
+		return withFlags(autoHashStdin())
 
 	// Positional arg: auto-hash file
 	case len(args) > 0:
-		return autoHashFileChecked(args[0])
+		return withFlags(autoHashFileChecked(args[0]))
 
-	// Flag-only mode: build claims from --name + --data-hash
+	// Flag-only mode: build claims from the claim flags
 	default:
-		name, _ := cmd.Flags().GetString("name")
-		hash, _ := cmd.Flags().GetString("data-hash")
-		if name != "" || hash != "" {
-			return make(map[string]any), nil
+		for _, flag := range claimFlags {
+			if cmd.Flags().Changed(flag) {
+				return withFlags(&claimsBuilder{}, nil)
+			}
 		}
 		return nil, nil // no input = show help
 	}
 }
 
+// refuseClaimFlags refuses every claim flag given beside a claims file or
+// claims on stdin: those are sent exactly as given, and a flag would have
+// to rewrite them.
+func refuseClaimFlags(cmd *cobra.Command) error {
+	var given []string
+	for _, flag := range claimFlags {
+		if cmd.Flags().Changed(flag) {
+			given = append(given, "--"+flag)
+		}
+	}
+	if len(given) == 0 {
+		return nil
+	}
+	return fmt.Errorf("%s cannot be combined with --claims or --claims-stdin: the claims are sent exactly as given, so put every claim in the claims JSON itself",
+		strings.Join(given, ", "))
+}
+
+// refuseHashFlags refuses --data-hash and --hash-type beside a hashed file
+// (a file argument, --file or --file-stdin): the file supplies the hash
+// and its type, and either flag would pair one with a value that does not
+// describe it.
+func refuseHashFlags(cmd *cobra.Command) error {
+	var given []string
+	for _, flag := range fileHashFlags {
+		if cmd.Flags().Changed(flag) {
+			given = append(given, "--"+flag)
+		}
+	}
+	if len(given) == 0 {
+		return nil
+	}
+	return fmt.Errorf("%s cannot be combined with a hashed file (a file argument, --file or --file-stdin): the file supplies the hash and its hash_type, sha256",
+		strings.Join(given, ", "))
+}
+
+// checkNumberLengths refuses claims holding a number literal longer than
+// items.MaxNumberOctets, before anything is sent. That is a limit of the
+// service's request reader on what a request may carry, not a rule about
+// the value: the service refuses the whole request with a bare 400.
+func checkNumberLengths(claims []byte) error {
+	offset, length, found := items.LongNumber(claims)
+	if !found {
+		return nil
+	}
+	return fmt.Errorf("the claims hold a number of %d characters at octet %d: the Truestamp service reads no request "+
+		"holding a number longer than %d characters (its request reader, TruestampWeb.RequestJSON, holds every body "+
+		"to JSONNumbers.max_octets), a limit on what can be sent, not a rule about the value; send it as a string",
+		length, offset, items.MaxNumberOctets)
+}
+
+// claimsMember is one member of claims built from flags: its name and its
+// value as JSON text.
+type claimsMember struct {
+	name  string
+	value []byte
+}
+
+// claimsBuilder writes claims as a JSON text from members whose values are
+// already JSON text, in the order they are first set. Nothing is trimmed,
+// normalized or filled in: each value is the text the user gave.
+type claimsBuilder struct {
+	members []claimsMember
+}
+
+// set gives name the value text, replacing an earlier value in its place.
+func (b *claimsBuilder) set(name string, value []byte) {
+	for i := range b.members {
+		if b.members[i].name == name {
+			b.members[i].value = value
+			return
+		}
+	}
+	b.members = append(b.members, claimsMember{name: name, value: value})
+}
+
+// setString gives name the JSON string of s, which must be valid UTF-8 for
+// a JSON text to hold it unchanged. flag names the flag s came from.
+func (b *claimsBuilder) setString(name, s, flag string) error {
+	if !utf8.ValidString(s) {
+		return fmt.Errorf("%s is not valid UTF-8, so no JSON text can hold it as given", flag)
+	}
+	b.set(name, items.ClaimsJSONString(s))
+	return nil
+}
+
+// text is the claims object as a JSON text.
+func (b *claimsBuilder) text() []byte {
+	var out bytes.Buffer
+	out.WriteByte('{')
+	for i, m := range b.members {
+		if i > 0 {
+			out.WriteByte(',')
+		}
+		out.Write(items.ClaimsJSONString(m.name))
+		out.WriteByte(':')
+		out.Write(m.value)
+	}
+	out.WriteByte('}')
+	return out.Bytes()
+}
+
+// claimsFromFlags sets each claim flag given onto b, a later flag's
+// member replacing one b already holds (a hashed file's name, say), and
+// returns the claims text. err is the error that built b, if any.
+func claimsFromFlags(cmd *cobra.Command, b *claimsBuilder, err error) ([]byte, error) {
+	if err != nil {
+		return nil, err
+	}
+	stringMembers := []struct{ flag, member string }{
+		{"name", "name"},
+		{"data-hash", "hash"},
+		{"hash-type", "hash_type"},
+		{"description", "description"},
+		{"url", "url"},
+	}
+	for _, sm := range stringMembers {
+		if !cmd.Flags().Changed(sm.flag) {
+			continue
+		}
+		v, _ := cmd.Flags().GetString(sm.flag)
+		if err := b.setString(sm.member, v, "--"+sm.flag); err != nil {
+			return nil, err
+		}
+	}
+
+	if cmd.Flags().Changed("timestamp") {
+		raw, _ := cmd.Flags().GetString("timestamp")
+		if err := checkTimestamp(raw); err != nil {
+			return nil, err
+		}
+		if err := b.setString("timestamp", raw, "--timestamp"); err != nil {
+			return nil, err
+		}
+	}
+
+	// Location: "lat,lon", each a JSON number written into the claims as
+	// typed.
+	if cmd.Flags().Changed("location") {
+		locStr, _ := cmd.Flags().GetString("location")
+		lat, lon, ok := strings.Cut(locStr, ",")
+		if !ok {
+			return nil, fmt.Errorf("--location must be lat,lon (e.g. 37.7749,-122.4194)")
+		}
+		latText, err := jsonNumberText(lat, "--location latitude")
+		if err != nil {
+			return nil, err
+		}
+		lonText, err := jsonNumberText(lon, "--location longitude")
+		if err != nil {
+			return nil, err
+		}
+		b.set("location", []byte(`{"latitude":`+latText+`,"longitude":`+lonText+`}`))
+	}
+
+	// Metadata: a JSON text read with the strict reader and written into
+	// the claims as typed.
+	if cmd.Flags().Changed("metadata") {
+		metaStr, _ := cmd.Flags().GetString("metadata")
+		if _, err := strictjson.Decode([]byte(metaStr)); err != nil {
+			return nil, fmt.Errorf("--metadata must be valid JSON: %s", describeStrictRejection(err))
+		}
+		b.set("metadata", []byte(metaStr))
+	}
+
+	return b.text(), nil
+}
+
+// jsonNumberText returns s when it is one JSON number the strict reader
+// reads, which the claims then carry as typed.
+func jsonNumberText(s, what string) (string, error) {
+	v, err := strictjson.Decode([]byte(s))
+	if err != nil {
+		return "", fmt.Errorf("%s: %s", what, describeStrictRejection(err))
+	}
+	if _, ok := v.(strictjson.Number); !ok {
+		return "", fmt.Errorf("%s must be a JSON number, got %q", what, s)
+	}
+	return s, nil
+}
+
 // autoHashFileChecked validates the path then auto-hashes.
-func autoHashFileChecked(path string) (map[string]any, error) {
+func autoHashFileChecked(path string) (*claimsBuilder, error) {
 	info, err := os.Stat(path)
 	if err != nil {
 		return nil, fmt.Errorf("cannot access %q: %w", path, err)
@@ -224,9 +425,9 @@ func autoHashFileChecked(path string) (map[string]any, error) {
 	return autoHashFile(path)
 }
 
-// autoHashStdin reads raw content from stdin and computes SHA-256.
-// The caller must provide --name since there is no filename to derive it from.
-func autoHashStdin() (map[string]any, error) {
+// autoHashStdin reads raw content from stdin and computes its SHA-256.
+// The caller provides --name since there is no filename to derive it from.
+func autoHashStdin() (*claimsBuilder, error) {
 	data, err := io.ReadAll(io.LimitReader(os.Stdin, 100<<20)) // 100 MB limit
 	if err != nil {
 		return nil, fmt.Errorf("reading stdin: %w", err)
@@ -235,17 +436,16 @@ func autoHashStdin() (map[string]any, error) {
 		return nil, fmt.Errorf("no data received on stdin")
 	}
 
-	h := sha256.New()
-	h.Write(data)
-
-	return map[string]any{
-		"hash":      hex.EncodeToString(h.Sum(nil)),
-		"hash_type": "sha256",
-	}, nil
+	h := sha256.Sum256(data)
+	b := &claimsBuilder{}
+	b.set("hash", items.ClaimsJSONString(hex.EncodeToString(h[:])))
+	b.set("hash_type", items.ClaimsJSONString("sha256"))
+	return b, nil
 }
 
-// autoHashFile computes SHA-256 of a file and returns claims.
-func autoHashFile(path string) (map[string]any, error) {
+// autoHashFile computes the SHA-256 of a file and starts claims naming it
+// by its base name.
+func autoHashFile(path string) (*claimsBuilder, error) {
 	f, err := os.Open(path)
 	if err != nil {
 		return nil, fmt.Errorf("opening file: %w", err)
@@ -257,87 +457,76 @@ func autoHashFile(path string) (map[string]any, error) {
 		return nil, fmt.Errorf("hashing file: %w", err)
 	}
 
-	return map[string]any{
-		"hash":      hex.EncodeToString(h.Sum(nil)),
-		"hash_type": "sha256",
-		"name":      filepath.Base(path),
-	}, nil
-}
-
-// decodeUserJSON parses a user-supplied JSON object into a map, preserving
-// every number as the literal the user actually typed.
-//
-// This is the single reason the command does not use json.Unmarshal: without
-// UseNumber, encoding/json decodes every JSON number into a float64, which
-// silently rewrites any integer outside +/- 2^53 before a single line of
-// validation or presentation code can see it. A user timestamping a 64-bit id
-// would get a proof committing to a DIFFERENT number than the one they
-// submitted, 18446744073709551615 became 18446744073709552000 on the wire,
-// and a server-side portability rejection would name a value they never wrote.
-// json.Number carries the literal text and encoding/json re-emits it verbatim
-// when marshaling, so the bytes the user wrote are the bytes that get signed.
-//
-// Fixing the guard without fixing this would be worse than useless: the
-// validator in [checkClaimsPortability] would inspect the already-rounded
-// value and pass it.
-//
-// json.Decoder is also more permissive than json.Unmarshal about trailing
-// content, so the extra Token call restores Unmarshal's "exactly one document"
-// rule, a truncated or concatenated claims file must be an error, never a
-// silently accepted prefix.
-func decodeUserJSON(data []byte) (map[string]any, error) {
-	// json.Decoder reports empty input as a bare io.EOF, where json.Unmarshal
-	// said "unexpected end of JSON input". Keep the intelligible message.
-	if len(bytes.TrimSpace(data)) == 0 {
-		return nil, fmt.Errorf("unexpected end of JSON input")
-	}
-
-	dec := json.NewDecoder(bytes.NewReader(data))
-	dec.UseNumber()
-
-	var out map[string]any
-	if err := dec.Decode(&out); err != nil {
+	b := &claimsBuilder{}
+	b.set("hash", items.ClaimsJSONString(hex.EncodeToString(h.Sum(nil))))
+	b.set("hash_type", items.ClaimsJSONString("sha256"))
+	if err := b.setString("name", filepath.Base(path), "the file name"); err != nil {
 		return nil, err
 	}
-	if _, err := dec.Token(); !errors.Is(err, io.EOF) {
-		return nil, fmt.Errorf("unexpected trailing data after JSON document")
-	}
-	// A literal `null` unmarshals into a nil map without error, which then
-	// reads downstream as "no claims supplied" and exits successfully having
-	// done nothing. Claims must be an object.
-	if out == nil {
-		return nil, fmt.Errorf("expected a JSON object, got null")
-	}
-	return out, nil
+	return b, nil
 }
 
-// readClaimsFile reads and parses a JSON claims file.
-func readClaimsFile(path string) (map[string]any, error) {
-	data, err := os.ReadFile(path)
-	if err != nil {
-		return nil, fmt.Errorf("reading claims file: %w", err)
-	}
-	claims, err := decodeUserJSON(data)
-	if err != nil {
-		return nil, fmt.Errorf("parsing claims JSON: %w", err)
-	}
-	return claims, nil
+// checkClaimsText parses data, already read under J1, with the strict
+// reader (SPEC.md section 10.1, J2 to J6), so a text no two verifiers read
+// alike, such as one that repeats a member name or holds a number in J5's
+// integer gap, is refused before anything is sent. The text itself is what
+// is sent; the value read is discarded.
+func checkClaimsText(data []byte) error {
+	_, err := strictjson.Parse(data)
+	return err
 }
 
-// readClaimsStdin reads claims JSON from stdin.
-func readClaimsStdin() (map[string]any, error) {
-	data, err := io.ReadAll(io.LimitReader(os.Stdin, 1<<20))
+// describeStrictRejection names a strict reader's rejection and, for the
+// rules a hand-written JSON text most often breaks, what to do.
+func describeStrictRejection(err error) string {
+	var rej *strictjson.Rejection
+	if !errors.As(err, &rej) {
+		return err.Error()
+	}
+	switch rej.SubReason {
+	case specdata.SubReasonDuplicateName:
+		return rej.Error() + ": a member name appears twice in one object; keep one"
+	case specdata.SubReasonNumber:
+		return rej.Error() + fmt.Sprintf(": a number is outside what every verifier reads exactly "+
+			"(an integer of magnitude above %d and below 10^21, or one no binary64 value holds); send it as a string",
+			strictjson.MaxInteger)
+	case specdata.SubReasonDepth:
+		return rej.Error() + fmt.Sprintf(": the JSON is nested deeper than %d levels", strictjson.MaxDepth)
+	}
+	return rej.Error()
+}
+
+// readClaimsFile reads a claims file with the strict reader, which reads
+// at most MAX_READ_OCTETS + 1 octets (J1), and checks it.
+func readClaimsFile(path string) ([]byte, error) {
+	data, err := strictjson.ReadFile(path)
 	if err != nil {
-		return nil, fmt.Errorf("reading stdin: %w", err)
+		var pathErr *fs.PathError
+		if errors.As(err, &pathErr) {
+			return nil, fmt.Errorf("reading claims file: %w", pathErr)
+		}
+		return nil, fmt.Errorf("reading claims file: %s", describeStrictRejection(err))
+	}
+	if err := checkClaimsText(data); err != nil {
+		return nil, fmt.Errorf("parsing claims JSON: %s", describeStrictRejection(err))
+	}
+	return data, nil
+}
+
+// readClaimsStdin reads claims from stdin and checks them with the strict
+// reader.
+func readClaimsStdin() ([]byte, error) {
+	data, err := strictjson.Read(os.Stdin)
+	if err != nil {
+		return nil, fmt.Errorf("reading stdin: %s", describeStrictRejection(err))
 	}
 	if len(data) == 0 {
 		return nil, fmt.Errorf("no data received on stdin")
 	}
-	claims, err := decodeUserJSON(data)
-	if err != nil {
-		return nil, fmt.Errorf("parsing claims JSON from stdin: %w", err)
+	if err := checkClaimsText(data); err != nil {
+		return nil, fmt.Errorf("parsing claims JSON from stdin: %s", describeStrictRejection(err))
 	}
-	return claims, nil
+	return data, nil
 }
 
 // errNoTerminalForPicker is returned instead of opening a file picker when
@@ -358,308 +547,109 @@ func pickFile(title string, exts ...string) (string, error) {
 	return ui.PickFile(ui.PickFileOptions{Title: title, AllowedTypes: exts})
 }
 
-// normalizeTimestamp accepts the ISO 8601 forms documented on the
-// --timestamp flag and returns the value in canonical RFC3339 form. Date-only
-// inputs are promoted to midnight UTC to give the server a fully-specified
-// instant without silently dropping the user's intent.
-func normalizeTimestamp(raw string) (string, error) {
-	raw = strings.TrimSpace(raw)
-	if raw == "" {
-		return "", fmt.Errorf("--timestamp is empty")
+// claimedTimestamp is the grammar the server accepts for claims.timestamp:
+// YYYY, YYYY-MM, YYYY-MM-DD, or YYYY-MM-DDThh:mm with optional :ss and a
+// fraction of 1 to 9 digits, and an optional Z, +hh:mm or -hh:mm offset
+// (the colon optional).
+var claimedTimestamp = regexp.MustCompile(`\A([0-9]{4})(?:-(0[1-9]|1[0-2])(?:-(0[1-9]|[12][0-9]|3[01])(?:T(?:[01][0-9]|2[0-3]):[0-5][0-9](?::[0-5][0-9](?:\.[0-9]{1,9})?)?(?:Z|[+-](?:[01][0-9]|2[0-3]):?[0-5][0-9])?)?)?)?\z`)
+
+// checkTimestamp checks raw against the claimed-timestamp grammar and, when
+// it names a day, that the day exists. raw is then sent exactly as typed:
+// a claimed timestamp is the submitter's own statement, never parsed,
+// converted or normalized.
+func checkTimestamp(raw string) error {
+	m := claimedTimestamp.FindStringSubmatch(raw)
+	if m == nil {
+		return fmt.Errorf("--timestamp %q is not a date or time in an accepted form: YYYY, YYYY-MM, "+
+			"YYYY-MM-DD, or YYYY-MM-DDThh:mm with optional :ss, an optional fraction of 1 to 9 "+
+			"digits, and an optional Z, +hh:mm or -hh:mm offset", raw)
 	}
-	layouts := []string{
-		time.RFC3339Nano,
-		time.RFC3339,
-		"2006-01-02",
-	}
-	for _, layout := range layouts {
-		if t, err := time.Parse(layout, raw); err == nil {
-			return t.UTC().Format(time.RFC3339), nil
-		}
-	}
-	return "", fmt.Errorf("--timestamp %q is not a supported ISO 8601 form (try 2025-01-15 or 2025-01-15T14:30:00Z)", raw)
-}
-
-// overlayFlags applies flag values onto claims, overriding existing values.
-func overlayFlags(cmd *cobra.Command, claims map[string]any) error {
-	setIfChanged := func(flag, key string) {
-		if cmd.Flags().Changed(flag) {
-			v, _ := cmd.Flags().GetString(flag)
-			claims[key] = v
-		}
-	}
-
-	setIfChanged("name", "name")
-	setIfChanged("data-hash", "hash")
-	setIfChanged("hash-type", "hash_type")
-	setIfChanged("description", "description")
-	setIfChanged("url", "url")
-
-	// Timestamp: validate ISO 8601 locally and re-emit in canonical RFC3339
-	// form so the server sees a normalized value and the user gets a clear
-	// local error for typos.
-	if cmd.Flags().Changed("timestamp") {
-		raw, _ := cmd.Flags().GetString("timestamp")
-		normalized, err := normalizeTimestamp(raw)
-		if err != nil {
-			return err
-		}
-		claims["timestamp"] = normalized
-	}
-
-	// Metadata: parse JSON string. Decoded with the same literal-preserving
-	// reader as a claims file, a big integer injected through this flag is
-	// exactly as destructible as one read from disk.
-	if cmd.Flags().Changed("metadata") {
-		metaStr, _ := cmd.Flags().GetString("metadata")
-		meta, err := decodeUserJSON([]byte(metaStr))
-		if err != nil {
-			return fmt.Errorf("--metadata must be valid JSON: %w", err)
-		}
-		claims["metadata"] = meta
-	}
-
-	// Location: parse "lat,lon"
-	if cmd.Flags().Changed("location") {
-		locStr, _ := cmd.Flags().GetString("location")
-		parts := strings.SplitN(locStr, ",", 2)
-		if len(parts) != 2 {
-			return fmt.Errorf("--location must be lat,lon (e.g. 37.7749,-122.4194)")
-		}
-		lat, err := strconv.ParseFloat(strings.TrimSpace(parts[0]), 64)
-		if err != nil {
-			return fmt.Errorf("--location latitude: %w", err)
-		}
-		lon, err := strconv.ParseFloat(strings.TrimSpace(parts[1]), 64)
-		if err != nil {
-			return fmt.Errorf("--location longitude: %w", err)
-		}
-		claims["location"] = map[string]any{"latitude": lat, "longitude": lon}
-	}
-
-	// Default hash_type if hash is provided but hash_type is not set
-	if _, hasHash := claims["hash"]; hasHash {
-		if _, hasType := claims["hash_type"]; !hasType {
-			claims["hash_type"] = "sha256"
-		}
-	}
-
-	return nil
-}
-
-// validateClaims performs client-side validation before sending to the API.
-//
-// Two submission modes are supported, mirroring the server contract:
-//
-//   - External-hash mode: claims.hash + claims.hash_type are both present.
-//     Hash must be valid hex of the correct length for hash_type.
-//   - Claims-as-source-of-truth mode: claims.hash + claims.hash_type are
-//     both absent. The claims content itself is what gets timestamped.
-//     To prevent meaningless empty submissions, either claims.description
-//     must be >= claimsOnlyMinDescription non-whitespace characters or
-//     claims.metadata must be a non-empty object.
-//
-// Submitting exactly one of hash / hash_type is rejected here, but a bare
-// --data-hash never reaches that arm: overlayFlags runs first and supplies
-// hash_type = "sha256" when the hash_type KEY is absent. A claims document
-// carrying a present-but-blank hash_type skips that default and still trips
-// the hash-without-hash_type arm. Whitespace-only strings are treated as
-// absent, matching the server.
-func validateClaims(claims map[string]any) error {
-	name, _ := claims["name"].(string)
-	name = strings.TrimSpace(name)
-	if name == "" {
-		return fmt.Errorf("claims name is required (use --name or provide via file/auto-hash)")
-	}
-	claims["name"] = name
-
-	rawHash, _ := claims["hash"].(string)
-	rawHashType, _ := claims["hash_type"].(string)
-	hash := strings.TrimSpace(rawHash)
-	hashType := strings.TrimSpace(rawHashType)
-
-	// Treat whitespace-only as absent. Strip the keys so the outgoing
-	// payload doesn't carry empty strings, the server treats empty as
-	// nil but explicit omission is cleaner over the wire.
-	if hash == "" {
-		delete(claims, "hash")
-	}
-	if hashType == "" {
-		delete(claims, "hash_type")
-	}
-
-	switch {
-	// External-hash mode: both supplied.
-	case hash != "" && hashType != "":
-		hash = strings.ToLower(hash)
-		claims["hash"] = hash
-		if len(hash)%2 != 0 {
-			return fmt.Errorf("claims hash must be even-length hex string")
-		}
-		if _, err := hex.DecodeString(hash); err != nil {
-			return fmt.Errorf("claims hash contains invalid hex: %w", err)
-		}
-		// Same length-vs-algorithm check the verify path uses, so the two
-		// modes share the same hash-shape rule and "sha256 but 32 hex
-		// chars" is caught locally instead of at the server.
-		if err := tscrypto.ValidateClaimsHash(hash, hashType); err != nil {
-			return fmt.Errorf("claims hash: %w", err)
-		}
-
-	// Co-required violations: exactly one of the pair is supplied.
-	case hash != "" && hashType == "":
-		return fmt.Errorf("claims hash_type is required when hash is supplied")
-	case hash == "" && hashType != "":
-		return fmt.Errorf("claims hash is required when hash_type is supplied")
-
-	// Claims-as-source-of-truth mode: both absent. Mirror the server's
-	// "meaningful content" rule locally so users get inline feedback
-	// instead of a round-trip for an obvious mistake.
-	default:
-		if !hasMeaningfulClaimsContent(claims) {
-			return fmt.Errorf(
-				"claims content is required: provide --description of at least %d characters or non-empty --metadata "+
-					"(or pass --data-hash + --hash-type to use external-hash mode)",
-				claimsOnlyMinDescription)
-		}
-	}
-
-	// Validate URL if present (applies to both modes).
-	if urlStr, ok := claims["url"].(string); ok && urlStr != "" {
-		if !strings.HasPrefix(urlStr, "https://") {
-			return fmt.Errorf("claims url must start with https://")
-		}
-	}
-
-	return nil
-}
-
-// checkClaimsPortability rejects claims carrying an integer that JCS cannot
-// canonicalize portably, mirroring the server's ValidateClaimsSafeIntegers so
-// the failure lands locally with the same wording instead of as a 422.
-//
-// The threshold is jcs.MaxSafeInteger, MAX_INTEGER (2^53 - 1), the one
-// bound of SPEC.md section 9.
-//
-// Every violation is reported, not just the first the server would name, so a
-// claims file with several offenders is fixed in one pass.
-func checkClaimsPortability(cmd *cobra.Command, claims map[string]any, jsonOutput bool) error {
-	found := jcs.UnsafeIntegers("claims", claims)
-	if len(found) == 0 {
-		// The unsafe-integer walk is about values that survive canonicalization
-		// but mean something different afterwards. It says nothing about values
-		// that cannot be canonicalized at all, a float literal overflowing a
-		// double (1e1000) is legal JSON, passes the walk, and then fails
-		// jcs.Transform. Refusing to submit what we could never verify is the
-		// stronger invariant, so close the gap with the canonicalizer itself
-		// rather than a bespoke float check.
-		encoded, err := json.Marshal(claims)
-		if err != nil {
-			return fmt.Errorf("encoding claims: %w", err)
-		}
-		if _, err := jcs.Transform(encoded); err != nil {
-			return fmt.Errorf("claims cannot be canonicalized (RFC 8785), so the resulting proof could not be verified: %w", err)
-		}
+	if m[3] == "" {
 		return nil
 	}
-
-	paths := make([]string, len(found))
-	for i, v := range found {
-		paths[i] = v.Path
+	year, _ := strconv.Atoi(m[1])
+	month, _ := strconv.Atoi(m[2])
+	day, _ := strconv.Atoi(m[3])
+	if t := time.Date(year, time.Month(month), day, 0, 0, 0, 0, time.UTC); t.Day() != day {
+		return fmt.Errorf("--timestamp names %s-%s-%s, a date that does not exist", m[1], m[2], m[3])
 	}
-	appLogger.Error("create_rejected_unsafe_integers",
-		"count", len(found),
-		"paths", strings.Join(paths, ","),
-	)
+	return nil
+}
 
-	if jsonOutput {
-		if err := emitJSON(cmd.OutOrStdout(), buildUnsafeIntegerJSON(found)); err != nil {
-			return err
+// explainCreateError renders the two refusals of a create the CLI knows
+// how to explain, and returns any other error unchanged.
+//
+// A claims refusal lists every rule the server found broken, each with
+// its JSON pointer into the claims, its code and its message, which names
+// the fix. item_code_unavailable means nothing was created and the same
+// request may be sent again. Under --json each is one object on stdout;
+// under --silent nothing is printed.
+func explainCreateError(cmd *cobra.Command, err error) error {
+	jsonOutput, silent := outputMode(cmd)
+
+	var refused *items.ClaimsRefusedError
+	if errors.As(err, &refused) {
+		if jsonOutput {
+			out := map[string]any{
+				"error":          "claims_refused",
+				"message":        "the server refused the claims",
+				"claims_reasons": refused.Reasons,
+			}
+			if len(refused.Others) > 0 {
+				out["other_errors"] = refused.Others
+			}
+			if err := emitJSON(cmd.OutOrStdout(), out); err != nil {
+				return err
+			}
+			return errSilentFail
 		}
-		// The structured object above is the whole report; returning the
-		// sentinel exits 1 without also printing an English copy on stderr.
+		if silent {
+			return errSilentFail
+		}
+		w := cmd.ErrOrStderr()
+		ui.Fprintln(w, ui.FailureBanner("Claims refused"))
+		for _, r := range refused.Reasons {
+			ui.Fprintln(w, ui.FaintStyle().Render(fmt.Sprintf("    pointer %s, %s: %s", strconv.Quote(r.Pointer), r.Code, r.Message)))
+		}
+		for _, o := range refused.Others {
+			ui.Fprintln(w, ui.FaintStyle().Render("    "+o))
+		}
+		ui.Fprintln(w, ui.FaintStyle().Render(fmt.Sprintf("    Nothing was created. The server answered HTTP %d.", refused.Status)))
 		return errSilentFail
 	}
-	return errors.New(unsafeIntegerText(found))
-}
 
-// unsafeIntegerJSON is the --json shape for a portability rejection.
-type unsafeIntegerJSON struct {
-	Error      string               `json:"error"`
-	Message    string               `json:"message"`
-	Violations []unsafeIntegerEntry `json:"violations"`
-}
-
-// unsafeIntegerEntry locates one offending value.
-//
-// Value, Min and Max are JSON STRINGS on purpose. Emitting them as numbers
-// would hand a consumer that parses JSON with doubles, every JavaScript
-// caller, jq included, the rounded value, so the report warning about lossy
-// integers would itself be lossy.
-type unsafeIntegerEntry struct {
-	Path  string `json:"path"`
-	Value string `json:"value"`
-	Min   string `json:"min"`
-	Max   string `json:"max"`
-}
-
-func buildUnsafeIntegerJSON(found []jcs.UnsafeInteger) unsafeIntegerJSON {
-	minStr := strconv.FormatInt(-jcs.MaxSafeInteger, 10)
-	maxStr := strconv.FormatInt(jcs.MaxSafeInteger, 10)
-
-	entries := make([]unsafeIntegerEntry, len(found))
-	for i, v := range found {
-		entries[i] = unsafeIntegerEntry{
-			Path:  v.Path,
-			Value: v.Literal,
-			Min:   minStr,
-			Max:   maxStr,
+	if errors.Is(err, items.ErrItemCodeUnavailable) {
+		detail := "Could not issue an item code."
+		var apiErr *jsonapi.APIError
+		if errors.As(err, &apiErr) && apiErr.Detail != "" {
+			detail = apiErr.Detail
 		}
-	}
-	return unsafeIntegerJSON{
-		Error:      "unsafe_integer",
-		Message:    unsafeIntegerText(found),
-		Violations: entries,
-	}
-}
-
-// unsafeIntegerText renders the human-readable rejection.
-//
-// A single violation gets the server's sentence verbatim, so the local and
-// remote errors are byte-identical for the case the server also reports.
-// Several violations get one line each, repeating the shared explanation per
-// value would bury the paths, followed by that explanation once.
-func unsafeIntegerText(found []jcs.UnsafeInteger) string {
-	if len(found) == 1 {
-		return jcs.UnsafeIntegerMessage(found[0].Path, found[0].Literal)
-	}
-
-	var b strings.Builder
-	fmt.Fprintf(&b, "%d integers in claims are outside the range %d to %d (+/- 2^53 - 1):",
-		len(found), -jcs.MaxSafeInteger, jcs.MaxSafeInteger)
-	for _, v := range found {
-		fmt.Fprintf(&b, "\n  %s = %s", v.Path, v.Literal)
-	}
-	b.WriteString("\nA value outside this range cannot be reproduced by a verifier that parses " +
-		"JSON numbers as IEEE-754 doubles, which is most of them, so the resulting proof would " +
-		"not be portably verifiable. Send each value as a string instead.")
-	return b.String()
-}
-
-// hasMeaningfulClaimsContent reports whether a claims-only submission
-// carries enough content to be useful. Either description (>=
-// claimsOnlyMinDescription non-whitespace characters after trimming) or
-// non-empty metadata is required. Mirrors the server-side validator.
-func hasMeaningfulClaimsContent(claims map[string]any) bool {
-	if desc, _ := claims["description"].(string); strings.TrimSpace(desc) != "" {
-		if len(strings.TrimSpace(desc)) >= claimsOnlyMinDescription {
-			return true
+		if jsonOutput {
+			if err := emitJSON(cmd.OutOrStdout(), map[string]any{
+				"error":     items.CodeItemCodeUnavailable,
+				"message":   detail,
+				"retryable": true,
+			}); err != nil {
+				return err
+			}
+			return errSilentFail
 		}
+		if silent {
+			return errSilentFail
+		}
+		w := cmd.ErrOrStderr()
+		ui.Fprintln(w, ui.FailureBanner("Item not created yet"))
+		for _, l := range []string{
+			detail,
+			"Nothing was created. This clears on its own: run the same command again.",
+			"The server said " + items.CodeItemCodeUnavailable + " (HTTP 409).",
+		} {
+			ui.Fprintln(w, ui.FaintStyle().Render("    "+l))
+		}
+		return errSilentFail
 	}
-	if meta, ok := claims["metadata"].(map[string]any); ok && len(meta) > 0 {
-		return true
-	}
-	return false
+
+	return err
 }
 
 // printCreateJSON outputs the creation result as JSON for scripting.
@@ -668,10 +658,12 @@ func hasMeaningfulClaimsContent(claims map[string]any) bool {
 // convention and the styled table presenter.
 func printCreateJSON(w io.Writer, resp *items.CreateItemResponse) error {
 	out := map[string]any{
-		"id":         resp.ID,
-		"name":       resp.Name,
-		"visibility": resp.Visibility,
-		"team_id":    resp.TeamID,
+		"id":          resp.ID,
+		"name":        resp.Name,
+		"visibility":  resp.Visibility,
+		"team_id":     resp.TeamID,
+		"claims_jcs":  resp.ClaimsJCS,
+		"claims_hash": resp.ClaimsHash,
 	}
 	if resp.Hash != "" {
 		out["hash"] = resp.Hash
@@ -710,6 +702,8 @@ func presentCreate(w io.Writer, resp *items.CreateItemResponse) {
 	if resp.TeamID != "" {
 		tbl = tbl.Row("Team", resp.TeamID)
 	}
+	tbl = tbl.Row("Claims JCS", resp.ClaimsJCS).
+		Row("Claims hash", resp.ClaimsHash)
 
 	// Shareable public-web links as rows of the SAME table, they share
 	// the right-aligned-label / value column alignment. Note the verify
@@ -738,17 +732,17 @@ func init() {
 	f.BoolP("file-stdin", "F", false, "Hash raw file content from stdin (requires --name)")
 
 	// Input source: claims JSON
-	f.StringP("claims", "c", "", "Path to claims JSON file (interactive picker if no path given)")
+	f.StringP("claims", "c", "", "Path to claims JSON file, sent exactly as given (interactive picker if no path given)")
 	f.Lookup("claims").NoOptDefVal = inputsrc.FilePickSentinel
-	f.BoolP("claims-stdin", "C", false, "Read claims JSON from stdin")
+	f.BoolP("claims-stdin", "C", false, "Read claims JSON from stdin, sent exactly as given")
 
 	// Claims fields
 	f.StringP("name", "n", "", "Item name")
-	f.String("data-hash", "", "Hex hash of the data")
-	f.String("hash-type", "sha256", "Hash algorithm (sha256, sha512, md5, etc.)")
+	f.String("data-hash", "", "Hex hash of the data (with --hash-type)")
+	f.String("hash-type", "", "Hash algorithm of --data-hash (sha256, sha512, md5, etc.)")
 	f.StringP("description", "d", "", "Item description")
 	f.String("url", "", "HTTPS URL associated with the item")
-	f.String("timestamp", "", "ISO 8601 timestamp (e.g. 2025-01-15, 2025-01-15T14:30:00Z)")
+	f.String("timestamp", "", "claimed timestamp: your own statement; Truestamp checks only that it is a well-formed date")
 	f.String("metadata", "", "JSON string of freeform metadata")
 	f.String("location", "", "Geographic location as lat,lon (e.g. 37.7749,-122.4194)")
 
