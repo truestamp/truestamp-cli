@@ -24,7 +24,6 @@ import (
 
 	"github.com/truestamp/truestamp-cli/internal/config"
 	"github.com/truestamp/truestamp-cli/internal/strictjson"
-	"github.com/truestamp/truestamp-cli/internal/testfixtures"
 	"github.com/truestamp/truestamp-cli/internal/vectorcases"
 	"github.com/truestamp/truestamp-cli/internal/verifier"
 	"github.com/truestamp/truestamp-cli/internal/verify"
@@ -225,12 +224,6 @@ func stripANSI(s string) string {
 	}
 	return string(out)
 }
-
-// Fixture paths under the repository's shared testdata/, read by the
-// commands that still parse the earlier bundle layout (inspect, and the
-// bundle verify --remote posts).
-func prodPath(name string) string   { return testfixtures.Path(testfixtures.ProdDir, name) }
-func tamperPath(name string) string { return testfixtures.Path(testfixtures.TamperDir, name) }
 
 // runCLIText runs the binary and returns stdout+stderr (ANSI stripped) and
 // the exit code.

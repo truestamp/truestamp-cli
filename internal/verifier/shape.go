@@ -57,7 +57,9 @@
 //
 // When the checks pass, SHAPE reports one row, pass, with part null, and
 // the run takes the proof's type and subject id (SPEC.md section 10.5):
-// /subject/record/id, or /block/record/id for block and beacon. A failure
+// /subject/record/id, or /block/record/id for block and beacon; and what
+// check 6 found ([Constructions]), the mode and, in full mode, the d it
+// computed, so that a reader of the run need not name the member. A failure
 // ends the run (SPEC.md section 10.2): each later step up to EXPECTED_HASH
 // reports one row skip prior_failure, part null ([Run.EndRun]), the run's
 // type and subject id stay "", and the attribution SIGNATURE gave the run
@@ -141,7 +143,34 @@ func Shape(run *Run) {
 	}
 	run.Type = run.Proof["type"].(string)
 	run.SubjectID = valueAt(run.Proof, subjectIDPointer(run.Type)).(string)
-	run.AddRow(PassRow("SHAPE", nil, fmt.Sprintf("The proof has the shape its type, %s, gives it.", run.Type), constructions))
+	run.Constructions = constructions
+	run.AddRow(PassRow("SHAPE", nil, fmt.Sprintf("The proof has the shape its type, %s, gives it.", run.Type), constructions.values()))
+}
+
+// The modes of the constructions member (SPEC.md section 7.2), as check 6
+// tells them by the member's JSON type.
+const (
+	ConstructionsFull      = "full"
+	ConstructionsReference = "reference"
+	ConstructionsNone      = "none"
+)
+
+// Constructions is what check 6 found: Mode, one of [ConstructionsFull],
+// [ConstructionsReference] and [ConstructionsNone]; and Digest, in full
+// mode the d this run computed of the text, and "" in the other modes,
+// whose d, where there is one, is the proof's.
+type Constructions struct {
+	Mode   string
+	Digest string
+}
+
+// values are the pass row's values for c: the mode, and in full mode the d
+// this run computed.
+func (c Constructions) values() map[string]any {
+	if c.Digest == "" {
+		return map[string]any{"constructions": c.Mode}
+	}
+	return map[string]any{"constructions": c.Mode, "constructions_digest": c.Digest}
 }
 
 // subjectIDPointer is the pointer of the subject's id in a proof of typ
@@ -287,15 +316,15 @@ func shapeTimes(proof map[string]any) *shapeFailure {
 }
 
 // shapeConstructions is check 6, and the only read of constructions in any
-// step (SPEC.md sections 7.2 and 10.6, rule 1): the pass row's values, or
-// the failure. d of a full text is a content digest, the SHA-256 of its JCS
+// step (SPEC.md sections 7.2 and 10.6, rule 1): what it found, or the
+// failure. d of a full text is a content digest, the SHA-256 of its JCS
 // with no prefix byte (SPEC.md sections 4.1 and 7.2), so this is one of the
 // two functions of the new verifier outside internal/registry that
 // internal/registry/rule2_test.go lets use crypto/sha256.
-func shapeConstructions(proof map[string]any) (map[string]any, *shapeFailure) {
+func shapeConstructions(proof map[string]any) (Constructions, *shapeFailure) {
 	value, present := proof["constructions"]
 	if !present {
-		return map[string]any{"constructions": "none"}, nil
+		return Constructions{Mode: ConstructionsNone}, nil
 	}
 	switch text := value.(type) {
 	case map[string]any:
@@ -305,13 +334,12 @@ func shapeConstructions(proof map[string]any) (map[string]any, *shapeFailure) {
 			panic(fmt.Sprintf("verifier: SIGNATURE encoded all of P, and its constructions text does not encode: %v", err))
 		}
 		sum := sha256.Sum256(encoded)
-		digest := hex.EncodeToString(sum[:])
-		values := map[string]any{"constructions": "full", "constructions_digest": digest}
-		if specdata.IsAccepted(digest) {
-			return values, nil
+		found := Constructions{Mode: ConstructionsFull, Digest: hex.EncodeToString(sum[:])}
+		if specdata.IsAccepted(found.Digest) {
+			return found, nil
 		}
-		return nil, constructionMismatch("This proof carries a constructions text this verifier has not accepted, "+
-			"so it cannot vouch for the proof's explanation of itself.", values)
+		return Constructions{}, constructionMismatch("This proof carries a constructions text this verifier has not accepted, "+
+			"so it cannot vouch for the proof's explanation of itself.", found.values())
 	case string:
 		// Reference mode: d is the proof's, so only a failure gives it,
 		// marked as declared (SPEC.md section 10.5). Check 3 has held the
@@ -323,11 +351,11 @@ func shapeConstructions(proof map[string]any) (map[string]any, *shapeFailure) {
 			panic("verifier: check 3 passed a constructions reference off its pattern")
 		}
 		if specdata.IsAccepted(digest) {
-			return map[string]any{"constructions": "reference"}, nil
+			return Constructions{Mode: ConstructionsReference}, nil
 		}
-		return nil, constructionMismatch("This proof names by reference a constructions text this verifier has not accepted, "+
+		return Constructions{}, constructionMismatch("This proof names by reference a constructions text this verifier has not accepted, "+
 			"so it cannot vouch for the proof's explanation of itself.",
-			map[string]any{"constructions": "reference", "declared": digest})
+			map[string]any{"constructions": ConstructionsReference, "declared": digest})
 	}
 	panic("verifier: check 3 passed constructions that are neither an object nor a string")
 }

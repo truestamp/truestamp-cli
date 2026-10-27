@@ -101,6 +101,11 @@
 //     a fault in a test binary;
 //   - schema.go: the checker of spec/schema.json, SHAPE's check 3, which
 //     refuses a schema outside SPEC.md section 9's subset when it loads;
+//   - inspect.go: [Inspect], what `truestamp inspect` reads of a proof
+//     without verifying it: steps 1 to 3 and SHAPE, proof_hash, K's key id,
+//     and each member the proof carries by its value class, a CHECKED
+//     value beside what DERIVE's traced checks recompute for it and a time
+//     only as declared (sections 3.7, 10.2, 10.6, 11 and 11.5);
 //   - layout.go: where the proof holds its block nodes, commitment
 //     entries, entropy objects and genesis.bitcoin objects, and the value
 //     at a pointer into it (sections 3.3 to 3.6);

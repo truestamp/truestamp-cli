@@ -5,7 +5,10 @@ package cmd
 
 import (
 	"encoding/json"
+	"os"
 	"os/exec"
+	"path/filepath"
+	"regexp"
 	"slices"
 	"strconv"
 	"strings"
@@ -14,7 +17,7 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
 	"github.com/truestamp/truestamp-cli/internal/introspect"
-	"github.com/truestamp/truestamp-cli/internal/specdata"
+	"github.com/truestamp/truestamp-cli/internal/vectorcases"
 )
 
 // runSchema returns the parsed document, failing the test if the command
@@ -226,33 +229,101 @@ func completionValues(t *testing.T, args ...string) []string {
 	return values
 }
 
-// TestSchema_SubjectTypesAreFrozen guards the registry CLAUDE.md calls
-// frozen. If a code ever changes, every proof signature in existence
-// stops verifying, so a test that notices is cheap insurance.
-func TestSchema_SubjectTypesAreFrozen(t *testing.T) {
-	doc := runSchema(t, "subject-types")
-	raw, _ := doc["subject_types"].([]any)
-	got := map[string]float64{}
-	for _, e := range raw {
-		m := e.(map[string]any)
-		code, ok := m["code"].(float64)
-		if !ok {
-			t.Errorf("subject type %v has no code", m["name"])
-			continue
+// specFile is the bytes of the spec data file name, from the CLI's synced
+// copy of spec/ (SPEC.md section 9).
+func specFile(t *testing.T, name string) []byte {
+	t.Helper()
+	data, err := os.ReadFile(filepath.Join(vectorcases.Dir(), "..", "spec", name))
+	if err != nil {
+		t.Fatal(err)
+	}
+	return data
+}
+
+// schema lists exactly its four documents, algorithms, commands,
+// exit-codes and reason-codes: schema list names those, the shell offers
+// those as a document name, schema get refuses subject-types and
+// witnesses, and no flag of the command tree is --witnesses. Mutants
+// killed: a subject-types document added to schemaDocs (listed, gettable
+// and completed); a witnesses document added to schemaDocs (the same); a
+// --witnesses flag added to proofs get (the tree carries it).
+func TestSchema_ListsExactlyItsDocuments(t *testing.T) {
+	out, err := exec.Command(binaryPath, "schema", "list", "--json").CombinedOutput()
+	if err != nil {
+		t.Fatalf("schema list --json: %v\n%s", err, out)
+	}
+	var listed struct {
+		Schemas []struct {
+			Name string `json:"name"`
+		} `json:"schemas"`
+	}
+	if err := json.Unmarshal(out, &listed); err != nil {
+		t.Fatal(err)
+	}
+	var names []string
+	for _, s := range listed.Schemas {
+		names = append(names, s.Name)
+	}
+	if want := []string{"algorithms", "commands", "exit-codes", "reason-codes"}; !slices.Equal(names, want) {
+		t.Errorf("schema list names %q, want %q", names, want)
+	}
+	completed := completionValues(t, "schema", "get", "")
+	if want := []string{"algorithms", "commands", "exit-codes", "reason-codes"}; !slices.Equal(completed, want) {
+		t.Errorf("schema get completes %q, want %q", completed, want)
+	}
+	for _, gone := range []string{"subject-types", "witnesses"} {
+		if out, err := exec.Command(binaryPath, "schema", "get", gone, "--json").CombinedOutput(); err == nil {
+			t.Errorf("schema get %s succeeded: %s", gone, out)
 		}
-		got[m["name"].(string)] = code
 	}
-	want := map[string]float64{
-		"block": 10, "beacon": 11, "item": 20,
-		"entropy_nist": 30, "entropy_stellar": 31, "entropy_bitcoin": 32,
-	}
-	for name, code := range want {
-		if got[name] != code {
-			t.Errorf("frozen subject type %q: got code %v, want %v", name, got[name], code)
+	var walk func(c introspect.Command)
+	walk = func(c introspect.Command) {
+		for _, f := range c.Flags {
+			if f.Name == "witnesses" {
+				t.Errorf("%s carries a --witnesses flag", c.Path)
+			}
+		}
+		for _, sub := range c.Subcommands {
+			walk(sub)
 		}
 	}
-	if len(got) != len(want) {
-		t.Errorf("subject type registry changed size: got %d, want %d", len(got), len(want))
+	walk(schemaCommandTree(t))
+}
+
+// schema get reason-codes publishes SPEC.md section 12.1's table, exactly
+// spec/reason-codes.json: every code, in its order, with its step, status,
+// meaning and sub_reasons. Mutants killed: the document built from a table
+// that drops a code, or from one in another order; a sub_reasons list left
+// out; a code's status written as its step.
+func TestSchema_ReasonCodesAreTheSpecs(t *testing.T) {
+	type entry struct {
+		Code       string   `json:"code"`
+		Meaning    string   `json:"meaning"`
+		Status     string   `json:"status"`
+		Step       string   `json:"step"`
+		SubReasons []string `json:"sub_reasons"`
+	}
+	var want []entry
+	if err := json.Unmarshal(specFile(t, "reason-codes.json"), &want); err != nil {
+		t.Fatal(err)
+	}
+	if len(want) != 36 {
+		t.Fatalf("spec/reason-codes.json holds %d codes, want 36", len(want))
+	}
+	out, err := exec.Command(binaryPath, "schema", "get", "reason-codes", "--json").CombinedOutput()
+	if err != nil {
+		t.Fatalf("schema get reason-codes --json: %v\n%s", err, out)
+	}
+	var doc struct {
+		ReasonCodes []entry `json:"reason_codes"`
+	}
+	if err := json.Unmarshal(out, &doc); err != nil {
+		t.Fatal(err)
+	}
+	if !slices.EqualFunc(doc.ReasonCodes, want, func(a, b entry) bool {
+		return a.Code == b.Code && a.Meaning == b.Meaning && a.Status == b.Status && a.Step == b.Step && slices.Equal(a.SubReasons, b.SubReasons)
+	}) {
+		t.Errorf("reason_codes are\n%v\nwant\n%v", doc.ReasonCodes, want)
 	}
 }
 
@@ -283,12 +354,13 @@ func TestSchema_AlgorithmsMatchHashList(t *testing.T) {
 //
 // This checks the property directly: every value the JSON reports must
 // appear in the text. It is what catches a table that quietly stopped
-// showing a column after a field was added to the document.
+// showing a column after a field was added to the document. Mutant
+// killed: the reason-codes text leaving out each code's meaning.
 func TestSchema_TextAndJSONCarryTheSameFacts(t *testing.T) {
 	// The command tree is excluded: its JSON deliberately carries far more
 	// than the text outline (every flag, type, default and enum), which is
 	// what --json is for.
-	for _, name := range []string{"algorithms", "subject-types", "exit-codes"} {
+	for _, name := range []string{"algorithms", "reason-codes", "exit-codes"} {
 		t.Run(name, func(t *testing.T) {
 			text, err := exec.Command(binaryPath, "schema", "get", name).CombinedOutput()
 			if err != nil {
@@ -331,86 +403,116 @@ func TestSchema_TextAndJSONCarryTheSameFacts(t *testing.T) {
 	}
 }
 
-// TestSchema_ExitCodesComeFromTheConstants pins the numbers to the code
-// that produces them. The meanings were once written out twice — in the
-// JSON builder and again in the table — and had already drifted apart by
-// a clause. Now there is one slice, and the codes are the constants.
-func TestSchema_ExitCodesComeFromTheConstants(t *testing.T) {
-	doc := runSchema(t, "exit-codes")
-
-	read := func(key string) map[int]string {
-		out := map[int]string{}
-		raw, _ := doc[key].([]any)
-		for _, e := range raw {
-			m := e.(map[string]any)
-			out[int(m["code"].(float64))] = m["meaning"].(string)
+// schema get exit-codes keeps three tables apart: verify's own codes, 0 to
+// 8, exactly spec/exit-codes.json (SPEC.md section 12.2) in its order; the
+// codes of every other command, exactly 0, 1 and 2; and upgrade's under
+// --check --exit-code, exactly its four constants. The text renders each
+// under its own heading, its CODE and MEANING rows exactly that table's
+// JSON rows in their order. Mutants killed: verifyExitCodes dropping or
+// rewording a row of specdata.ExitCodes(); exitCodes given verify's rows 3
+// to 8 (the general table is not 0, 1 and 2); verify_exit_codes built from
+// the general table; the upgrade codes appended to verify's; the text
+// rendering the verify table under the general heading; the text's
+// general table rendered with verify's rows 3 to 8 after its own.
+func TestSchema_ExitCodesAreKeptApart(t *testing.T) {
+	type entry struct {
+		Code    int    `json:"code"`
+		Meaning string `json:"meaning"`
+	}
+	var spec []struct {
+		Code int    `json:"code"`
+		Run  string `json:"run"`
+	}
+	if err := json.Unmarshal(specFile(t, "exit-codes.json"), &spec); err != nil {
+		t.Fatal(err)
+	}
+	var wantVerify []entry
+	for _, e := range spec {
+		wantVerify = append(wantVerify, entry{e.Code, e.Run})
+	}
+	if len(wantVerify) != 9 || wantVerify[0].Code != 0 || wantVerify[8].Code != 8 {
+		t.Fatalf("spec/exit-codes.json holds %v, want the codes 0 to 8", wantVerify)
+	}
+	out, err := exec.Command(binaryPath, "schema", "get", "exit-codes", "--json").CombinedOutput()
+	if err != nil {
+		t.Fatalf("schema get exit-codes --json: %v\n%s", err, out)
+	}
+	var doc struct {
+		General []entry `json:"exit_codes"`
+		Verify  []entry `json:"verify_exit_codes"`
+		Upgrade []entry `json:"upgrade_check_exit_codes"`
+	}
+	if err := json.Unmarshal(out, &doc); err != nil {
+		t.Fatal(err)
+	}
+	if !slices.Equal(doc.Verify, wantVerify) {
+		t.Errorf("verify_exit_codes are %v, want %v", doc.Verify, wantVerify)
+	}
+	codes := func(list []entry) []int {
+		var out []int
+		for _, e := range list {
+			out = append(out, e.Code)
 		}
 		return out
 	}
-
-	general := read("exit_codes")
-	if general[panicExitCode] == "" {
-		t.Errorf("the panic exit code (%d) is missing from the document", panicExitCode)
+	if got := codes(doc.General); !slices.Equal(got, []int{0, 1, panicExitCode}) || panicExitCode != 2 {
+		t.Errorf("exit_codes are %v, want 0, 1 and 2", got)
 	}
-	if !strings.Contains(general[panicExitCode], "panic") {
-		t.Errorf("code %d should be described as a panic, got %q",
-			panicExitCode, general[panicExitCode])
+	if !strings.Contains(doc.General[2].Meaning, "panic") || strings.Contains(doc.General[1].Meaning, "verification") {
+		t.Errorf("exit_codes read %v: 2 is a panic, and 1 is not a failed verification", doc.General)
 	}
-
-	upgrade := read("upgrade_check_exit_codes")
+	if got := codes(doc.Upgrade); !slices.Equal(got, []int{checkExitUpToDate, checkExitUpgradeAvail, checkExitNetworkErr, checkExitPreRelease}) {
+		t.Errorf("upgrade_check_exit_codes are %v", got)
+	}
 	for code, want := range map[int]string{
 		checkExitUpToDate:     "up to date",
 		checkExitUpgradeAvail: "upgrade is available",
 		checkExitNetworkErr:   "network error",
 		checkExitPreRelease:   "pre-release",
 	} {
-		got, present := upgrade[code]
-		if !present {
-			t.Errorf("upgrade --check code %d is missing", code)
-			continue
+		if i := slices.IndexFunc(doc.Upgrade, func(e entry) bool { return e.Code == code }); i < 0 || !strings.Contains(doc.Upgrade[i].Meaning, want) {
+			t.Errorf("upgrade --check code %d does not mention %q: %v", code, want, doc.Upgrade)
 		}
-		if !strings.Contains(got, want) {
-			t.Errorf("upgrade --check code %d: got %q, want it to mention %q", code, got, want)
+	}
+
+	text, err := exec.Command(binaryPath, "schema", "get", "exit-codes").CombinedOutput()
+	if err != nil {
+		t.Fatalf("schema get exit-codes: %v\n%s", err, text)
+	}
+	headings := []string{"Exit codes of every other command", "verify (SPEC.md section 12.2)", "upgrade --check --exit-code"}
+	sections := map[string]string{}
+	rest := string(text)
+	for i, heading := range headings {
+		at := strings.Index(rest, heading)
+		if at < 0 {
+			t.Fatalf("the text has no heading %q after the one before it:\n%s", heading, text)
+		}
+		rest = rest[at+len(heading):]
+		end := len(rest)
+		if i+1 < len(headings) {
+			if next := strings.Index(rest, headings[i+1]); next >= 0 {
+				end = next
+			}
+		}
+		sections[heading] = rest[:end]
+	}
+	row := regexp.MustCompile(`^\s*([0-9]+)\s+(.*\S)\s*$`)
+	for heading, list := range map[string][]entry{headings[0]: doc.General, headings[1]: doc.Verify, headings[2]: doc.Upgrade} {
+		var rows []entry
+		for _, line := range strings.Split(stripANSI(sections[heading]), "\n") {
+			if m := row.FindStringSubmatch(line); m != nil {
+				code, _ := strconv.Atoi(m[1])
+				rows = append(rows, entry{code, m[2]})
+			}
+		}
+		if !slices.Equal(rows, list) {
+			t.Errorf("under %q the text's rows are %v, want its JSON rows %v", heading, rows, list)
 		}
 	}
 }
 
-// schema get exit-codes carries verify's own codes, SPEC.md section
-// 12.2's table, equal to internal/specdata's in its order, and the general
-// table no longer reads 1 as a failed verification, which verify exits 3
-// for. Mutants killed: verifyExitCodes dropping or rewording a row of
-// specdata.ExitCodes(); the general row 1 naming a failed verification.
-func TestSchema_TheVerifyExitCodesAreTheSpecs(t *testing.T) {
-	doc := runSchema(t, "exit-codes")
-	raw, _ := doc["verify_exit_codes"].([]any)
-	var got []specdata.ExitEntry
-	for _, e := range raw {
-		m := e.(map[string]any)
-		got = append(got, specdata.ExitEntry{Code: int(m["code"].(float64)), Run: m["meaning"].(string)})
-	}
-	if want := specdata.ExitCodes(); !slices.Equal(got, want) {
-		t.Errorf("verify_exit_codes are %v, want %v", got, want)
-	}
-	general, _ := doc["exit_codes"].([]any)
-	for _, e := range general {
-		m := e.(map[string]any)
-		if m["code"].(float64) == 1 && strings.Contains(m["meaning"].(string), "verification") {
-			t.Errorf("the general code 1 reads %q", m["meaning"])
-		}
-	}
-}
-
-// TestSchema_NotesDescribeTheirOwnDocument.
-//
-// A note is one line of context on a schema document. It must describe
-// that document's subject and nothing else.
-//
-// The subject-types note originally ended "`truestamp inspect` prints the
-// code beside the name". That was true when written and false a commit
-// later, when inspect stopped reporting the code — a claim about another
-// command's behaviour, sitting somewhere nobody would think to update.
-// Behaviour belongs next to the behaviour, in that command's own help,
-// where changing one without the other is obvious.
+// TestSchema_NotesDescribeTheirOwnDocument: a note describes its own
+// document's subject only; behaviour belongs in that command's help.
 func TestSchema_NotesDescribeTheirOwnDocument(t *testing.T) {
 	out, err := exec.Command(binaryPath, "schema", "list", "--json").CombinedOutput()
 	if err != nil {
@@ -440,9 +542,10 @@ func TestSchema_NotesDescribeTheirOwnDocument(t *testing.T) {
 }
 
 // TestSchema_TextSeparatesTableFromNote: a note butted against the last
-// table row reads as another row.
+// table row reads as another row. Mutant killed: the reason-codes text
+// without its closing blank line.
 func TestSchema_TextSeparatesTableFromNote(t *testing.T) {
-	for _, name := range []string{"subject-types", "commands"} {
+	for _, name := range []string{"exit-codes", "reason-codes", "commands"} {
 		t.Run(name, func(t *testing.T) {
 			doc := runSchema(t, name)
 			note, _ := doc["note"].(string)

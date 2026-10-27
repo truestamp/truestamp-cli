@@ -15,26 +15,7 @@ import (
 	"time"
 
 	"github.com/truestamp/truestamp-cli/internal/httpclient"
-	"github.com/truestamp/truestamp-cli/internal/proof"
-	"github.com/truestamp/truestamp-cli/internal/testfixtures"
 )
-
-// inspect --json writes a rejection of the earlier bundle parser with that
-// parser's code, its detail and its advice, passed false and no steps.
-// Mutant killed: BuildJSONRejection writing an empty code.
-func TestBuildJSONRejection_WritesTheParsersCode(t *testing.T) {
-	_, err := proof.ParseBytes(testfixtures.Read(t, testfixtures.TamperDir, "tamper-type.json"))
-	var rejection *proof.RejectionError
-	if !errors.As(err, &rejection) {
-		t.Fatalf("tamper-type.json: %v, want a rejection", err)
-	}
-	got := BuildJSONRejection(err)
-	want := Rejection{Code: proof.CodeUnexpectedSubjectFieldsForBlockLike, Detail: rejection.Detail,
-		Advice: proof.RejectionAdvice(proof.CodeUnexpectedSubjectFieldsForBlockLike)}
-	if got.Passed || got.Rejection == nil || *got.Rejection != want || got.Steps == nil || len(got.Steps) != 0 || got.Verifier != ThisVerifier() {
-		t.Fatalf("BuildJSONRejection = %+v, want the rejection %+v", got, want)
-	}
-}
 
 // posted is one request the stand-in for the raw verify route was sent.
 type posted struct {

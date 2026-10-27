@@ -16,7 +16,6 @@ import (
 	"github.com/truestamp/truestamp-cli/internal/hashing"
 	"github.com/truestamp/truestamp-cli/internal/introspect"
 	"github.com/truestamp/truestamp-cli/internal/proof"
-	"github.com/truestamp/truestamp-cli/internal/proof/ptype"
 	"github.com/truestamp/truestamp-cli/internal/specdata"
 	"github.com/truestamp/truestamp-cli/internal/ui"
 )
@@ -40,6 +39,8 @@ in-code registries, so it always describes the binary you are running.
   truestamp schema list                  the available documents
   truestamp schema get commands --json   the whole command tree
   truestamp schema get algorithms        the hash algorithm registry
+  truestamp schema get reason-codes      verify's reason codes
+  truestamp schema get exit-codes        each command's exit codes
 
 'schema get commands --json' is the one call that answers "what can this
 CLI do, and with which flags" without parsing help text.`,
@@ -111,7 +112,7 @@ Run 'truestamp schema list' for the available names.`,
 
 // A schema document has two renderings of one registry. Both read the
 // registry directly rather than one deriving from the other, so neither
-// can drift from it — and --json stays universal across the tree instead
+// can drift from it, and --json stays universal across the tree instead
 // of this command being the exception that has to be remembered.
 type schemaDoc struct {
 	description string
@@ -186,42 +187,50 @@ var schemaDocs = map[string]schemaDoc{
 			renderSchemaTable(w, "Hash algorithms", rows)
 		},
 	},
-	"subject-types": {
-		description: "The frozen proof subject type registry (name to wire code)",
-		// A note describes THIS document's subject. It deliberately makes no
-		// claim about what another command prints: the previous version said
-		// `truestamp inspect` showed the code beside the name, and went stale
-		// the moment inspect stopped reporting it. Behaviour is documented
-		// next to the behaviour, in that command's own help.
-		note: "The code is never on the wire: bundles carry the type NAME, " +
-			"and the server never returns the number. It exists only as the " +
-			"t(2) field of the signature preimage, so this mapping is needed only when " +
-			"reconstructing that payload by hand.",
+	"reason-codes": {
+		description: "The reason codes of a verify report row or bare rejection (SPEC.md section 12.1)",
+		note: "Every report row that does not pass carries exactly one of these codes, and a bare " +
+			"rejection one whose status is bare; sub_reasons are the names its sub_reason takes, in order.",
 		build: func() any {
-			out := make([]map[string]any, 0, len(proofTypeValues))
-			for _, name := range proofTypeValues {
-				entry := map[string]any{"name": name}
-				if code, ok := ptype.FromName(name); ok {
-					entry["code"] = uint16(code)
+			table := specdata.ReasonCodes()
+			out := make([]map[string]any, 0, len(table))
+			for _, r := range table {
+				entry := map[string]any{"code": string(r.Code), "step": r.Step, "status": string(r.Status), "meaning": r.Meaning}
+				if len(r.SubReasons) > 0 {
+					subs := make([]string, 0, len(r.SubReasons))
+					for _, sub := range r.SubReasons {
+						subs = append(subs, string(sub))
+					}
+					entry["sub_reasons"] = subs
 				}
 				out = append(out, entry)
 			}
-			return map[string]any{"subject_types": out}
+			return map[string]any{"reason_codes": out}
 		},
 		render: func(w io.Writer) {
-			rows := [][]string{{"SUBJECT TYPE", "WIRE CODE"}}
-			for _, name := range proofTypeValues {
-				code := ""
-				if c, ok := ptype.FromName(name); ok {
-					code = fmt.Sprintf("%d", uint16(c))
+			// A list, not a table: a meaning is a sentence, and a table
+			// cell that long reads worse than a line of its own.
+			ui.Fprintln(w, ui.AccentBoldStyle().Render("  Reason codes (SPEC.md section 12.1)"))
+			ui.Fprintln(w)
+			for _, r := range specdata.ReasonCodes() {
+				ui.Fprintf(w, "  %-30s %-15s %s\n", r.Code, r.Step, r.Status)
+				ui.Fprintf(w, "      %s\n", r.Meaning)
+				if len(r.SubReasons) > 0 {
+					subs := make([]string, 0, len(r.SubReasons))
+					for _, sub := range r.SubReasons {
+						subs = append(subs, string(sub))
+					}
+					ui.Fprintf(w, "      sub_reasons: %s\n", strings.Join(subs, ", "))
 				}
-				rows = append(rows, []string{name, code})
 			}
-			renderSchemaTable(w, "Subject types (frozen registry)", rows)
+			ui.Fprintln(w)
 		},
 	},
 	"exit-codes": {
-		description: "What each process exit status means",
+		description: "What each process exit status means, by command",
+		note: "exit_codes are every command's but verify's and upgrade's under --check --exit-code; " +
+			"verify exits only with verify_exit_codes (SPEC.md section 12.2), and upgrade under " +
+			"--check --exit-code only with upgrade_check_exit_codes.",
 		build: func() any {
 			return map[string]any{
 				"exit_codes":               exitCodes,
@@ -230,7 +239,7 @@ var schemaDocs = map[string]schemaDoc{
 			}
 		},
 		render: func(w io.Writer) {
-			renderSchemaTable(w, "Exit codes", exitCodeRows(exitCodes))
+			renderSchemaTable(w, "Exit codes of every other command", exitCodeRows(exitCodes))
 			renderSchemaTable(w, "verify (SPEC.md section 12.2)", exitCodeRows(verifyExitCodes()))
 			renderSchemaTable(w, "upgrade --check --exit-code", exitCodeRows(upgradeCheckExitCodes))
 		},
@@ -264,8 +273,8 @@ type exitCode struct {
 	Meaning string `json:"meaning"`
 }
 
-// exitCodes is the single declaration of what this binary's exit statuses
-// mean. The numbers come from the constants that actually produce them,
+// exitCodes is the single declaration of what the exit statuses of every
+// command but verify, and upgrade under --check --exit-code, mean. The numbers come from the constants that actually produce them,
 // so a change in behaviour cannot leave this describing the old contract,
 // and both the JSON and the text rendering read this one slice rather
 // than each carrying its own copy of the sentences.

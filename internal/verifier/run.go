@@ -101,6 +101,7 @@ const (
 //	| Attribution         | attribution (SPEC.md section 10.5): truestamp, keyring:<d> or unattributed when SIGNATURE passes, none when the gate fails, "" before | SIGNATURE, or a failure at steps 4 to 6 |
 //	| Type                | the proof's type, which SHAPE has held to the type registry; "" until SHAPE passes, which a report writes as null | SHAPE |
 //	| SubjectID           | the subject's id: /subject/record/id, or /block/record/id for block and beacon (SPEC.md section 10.5); "" until SHAPE passes, which a report writes as null | SHAPE |
+//	| Constructions       | what SHAPE's check 6 found of the constructions member: its mode and, in full mode, the d this run computed (shape.go); zero until SHAPE passes | SHAPE |
 //	| Trace               | the trace (SPEC.md section 10.6): one row for each DERIVE row whose part is a CHECKED value, other than a row of LINK_HEAD, LINK_KEY_EVENT or LINK_CHAIN_ORDER, in DERIVE's order; nil until DERIVE, for a run that ends before it, and after a fault in it | DERIVE |
 //	| ExternalGate        | the external gate (SPEC.md section 10.2): open, offline or prior_failure; "" before DERIVE ends, and in a run that ended before it or in it | DERIVE |
 //	| Candidates          | the candidate of each CHAIN and SOURCES row that passed with one, in row order, and the sources it rests on (chain.go) | CHAIN, SOURCES |
@@ -125,6 +126,7 @@ type Run struct {
 	Attribution        string
 	Type               string
 	SubjectID          string
+	Constructions      Constructions
 	Trace              []TraceRow
 	ExternalGate       ExternalGate
 	Candidates         []RowCandidate

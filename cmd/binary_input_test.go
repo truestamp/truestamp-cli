@@ -18,8 +18,6 @@ import (
 	"slices"
 	"strings"
 	"testing"
-
-	"github.com/truestamp/truestamp-cli/internal/testfixtures"
 )
 
 // rfc8949 encodes the JSON text doc in the binary encoding of RFC 8949
@@ -189,17 +187,21 @@ func TestCLI_Verify_RefusesABinaryEncodedProof(t *testing.T) {
 	}
 }
 
-// TestCLI_Inspect_RefusesABinaryEncodedProof: inspect reads a JSON
-// document, so the complete bundle it prints from JSON, given in RFC
+// TestCLI_Inspect_RefusesABinaryEncodedProof: inspect reads one JSON
+// document through the verifier's strict reader (SPEC.md section 10.1), so
+// the vectors' sound item proof, which it prints from JSON, given in RFC
 // 8949's binary encoding, bare or behind tag 55799, from a file or on
-// stdin, is the rejection not_a_json_object, exit 1, in text and in
-// --json alike, and is never decoded. Mutant killed: ParseBytes detecting
-// that encoding by its first octet and decoding it to JSON first (inspect
-// then prints the bundle, exit 0).
+// stdin, is the verifier's bare rejection malformed_json, sub_reason
+// invalid_utf8, at PARSE, exit 1, in text and in --json alike, and is
+// never decoded. Mutants killed: every bare rejection given the step
+// ENVELOPE (rejectionStep); the sub_reason left out of the rejection.
 func TestCLI_Inspect_RefusesABinaryEncodedProof(t *testing.T) {
-	doc := testfixtures.Read(t, testfixtures.ProdDir, testfixtures.ProdComplete)
-	if out, code := runCLIText(t, "inspect", prodPath(testfixtures.ProdComplete)); code != 0 {
-		t.Fatalf("the JSON bundle itself: exit %d\n%s", code, out)
+	doc, err := os.ReadFile(soundItem())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if out, code := runCLIText(t, "inspect", soundItem()); code != 0 {
+		t.Fatalf("the JSON proof itself: exit %d\n%s", code, out)
 	}
 	run := func(stdin []byte, args ...string) (string, int) {
 		cmd := exec.Command(binaryPath, append([]string{"inspect"}, args...)...)
@@ -225,20 +227,15 @@ func TestCLI_Inspect_RefusesABinaryEncodedProof(t *testing.T) {
 			{"stdin", nil, encoded},
 		} {
 			out, code := run(c.stdin, c.args...)
-			if code != 1 || !strings.Contains(out, "REJECTED: not_a_json_object\n  input is not a JSON object\n") {
-				t.Errorf("tagged=%v, %s: exit %d, want 1 and REJECTED: not_a_json_object\n%s", tagged, c.name, code, out)
+			if code != 1 || !strings.Contains(out, "Refused                  malformed_json (PARSE, invalid_utf8)\n") {
+				t.Errorf("tagged=%v, %s: exit %d, want 1 and the refusal malformed_json (PARSE, invalid_utf8)\n%s", tagged, c.name, code, out)
 			}
 			out, code = run(c.stdin, append(c.args, "--json")...)
-			var report struct {
-				Passed    *bool `json:"passed"`
-				Rejection struct {
-					Code   string `json:"code"`
-					Detail string `json:"detail"`
-				} `json:"rejection"`
-			}
-			if err := json.Unmarshal([]byte(out), &report); err != nil || code != 1 || report.Passed == nil || *report.Passed ||
-				report.Rejection.Code != "not_a_json_object" || report.Rejection.Detail != "input is not a JSON object" {
-				t.Errorf("tagged=%v, %s --json: exit %d, %v, want 1 and the rejection not_a_json_object\n%s", tagged, c.name, code, err, out)
+			var got InspectOutput
+			if err := json.Unmarshal([]byte(out), &got); err != nil || code != 1 || got.Rejection == nil ||
+				got.Rejection.Code != "malformed_json" || got.Rejection.SubReason != "invalid_utf8" || got.Rejection.Step != "PARSE" ||
+				got.Rejection.Part != nil || got.Proof != nil || got.Signature != nil {
+				t.Errorf("tagged=%v, %s --json: exit %d, %v, want 1 and the rejection malformed_json invalid_utf8\n%s", tagged, c.name, code, err, out)
 			}
 		}
 	}
