@@ -193,8 +193,8 @@ var schemaDocs = map[string]schemaDoc{
 		// `truestamp inspect` showed the code beside the name, and went stale
 		// the moment inspect stopped reporting it. Behaviour is documented
 		// next to the behaviour, in that command's own help.
-		note: "The code is never on the wire: bundles carry the type NAME, in both JSON " +
-			"and CBOR, and the server never returns the number. It exists only as the " +
+		note: "The code is never on the wire: bundles carry the type NAME, " +
+			"and the server never returns the number. It exists only as the " +
 			"t(2) field of the signature preimage, so this mapping is needed only when " +
 			"reconstructing that payload by hand.",
 		build: func() any {
@@ -367,10 +367,9 @@ func cliEnums() introspect.EnumValues {
 		// --format: a timestamp format.
 		"truestamp convert time|format": {"rfc3339", "unix-s", "unix-ms", "unix-us", "unix-ns"},
 
-		// --to: a wire format on one, a byte encoding on the other two.
-		"truestamp proofs convert|to": {"json", "cbor"},
-		"truestamp encode|to":         byteEncodings,
-		"truestamp decode|to":         byteEncodings,
+		// --to: a byte encoding.
+		"truestamp encode|to": byteEncodings,
+		"truestamp decode|to": byteEncodings,
 	}
 }
 

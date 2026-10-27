@@ -14,7 +14,7 @@ import (
 
 var errNoDocument = errors.New("bundle carries no JSON document")
 
-// Parse reads and parses a proof file in either wire format.
+// Parse reads and parses a JSON proof file.
 func Parse(filename string) (*Bundle, error) {
 	data, err := os.ReadFile(filename)
 	if err != nil {
@@ -23,40 +23,25 @@ func Parse(filename string) (*Bundle, error) {
 	return ParseBytes(data)
 }
 
-// ParseBytes parses a proof from raw bytes, dispatching to [ParseCBOR] for
-// CBOR input and to [ParseJSON] otherwise.
+// ParseBytes parses a JSON proof from raw bytes. Input that is not a JSON
+// object, whatever else it may encode, is the rejection
+// [CodeNotAJSONObject].
 //
 // Only the hard rejections Appendix E.6 enumerates abort here, in E.6's
 // order, so that two verifiers handed one malformed bundle name the same
 // first defect. Every abort returns a [RejectionError] carrying its E.23
 // identifier. Everything else parses cleanly for the pipeline to grade.
 func ParseBytes(data []byte) (*Bundle, error) {
-	if IsCBORProof(data) {
-		return ParseCBOR(data)
-	}
 	return ParseJSON(data)
 }
 
 // ParseJSON parses a JSON proof bundle.
 func ParseJSON(data []byte) (*Bundle, error) {
-	return parseDocument(data, false)
-}
-
-// ParseCBOR parses a CBOR proof bundle, tagged (55799) or bare. The input is
-// first converted to the JSON value space per Appendix E.3, which is where
-// the `invalid_subject_data` rejection is raised, and the result is then
-// gated and parsed exactly as a JSON bundle would be, so the two
-// serializations grade one logical bundle identically.
-func ParseCBOR(data []byte) (*Bundle, error) {
-	doc, err := CBORToJSON(data)
-	if err != nil {
-		return nil, err
-	}
-	return parseDocument(doc, true)
+	return parseDocument(data)
 }
 
 // parseDocument applies the E.6 gates in order and populates the model.
-func parseDocument(doc []byte, fromCBOR bool) (*Bundle, error) {
+func parseDocument(doc []byte) (*Bundle, error) {
 	if !isObject(doc) {
 		return nil, Rejectf(CodeNotAJSONObject, "input is not a JSON object")
 	}
@@ -130,7 +115,6 @@ func parseDocument(doc []byte, fromCBOR bool) (*Bundle, error) {
 
 	bundle := &Bundle{
 		JSON:            doc,
-		FromCBOR:        fromCBOR,
 		VersionLiteral:  fields.Raw("version"),
 		Type:            typeName,
 		Code:            code,

@@ -2,10 +2,10 @@
 // SPDX-License-Identifier: Apache-2.0
 
 // Package tscrypto holds the hash and encoding helpers of the earlier
-// bundle layout that inspect, convert keyid and convert merkle print, the
-// constant-time comparisons, the claims hash_type table of SPEC.md section
-// 10.2, step 13 (EXPECTED_HASH), that items create checks a hash against,
-// and the UUIDv7 and ULID time readers. This CLI's verifier, which takes
+// bundle layout that inspect and convert keyid print, the constant-time
+// comparisons, the claims hash_type table of SPEC.md section 10.2, step 13
+// (EXPECTED_HASH), that items create checks a hash against, and the UUIDv7
+// and ULID time readers. This CLI's verifier, which takes
 // its prefix bytes from SPEC.md section 4, is internal/verifier and
 // internal/registry.
 package tscrypto
@@ -14,54 +14,14 @@ import (
 	"crypto/sha256"
 	"crypto/subtle"
 	"encoding/hex"
-	"errors"
 	"fmt"
 )
-
-// ErrNotLowercaseHex is the sentinel every refusal of [ValidateLowercaseHex]
-// wraps, so a caller can tell "this field is not lowercase hex" from any
-// other failure with errors.Is rather than by matching an error string.
-var ErrNotLowercaseHex = errors.New("not lowercase hex")
 
 // PrefixKeyID is the domain-separation prefix of [ComputeKeyID], the key
 // id of the earlier bundle layout that `inspect` and `convert keyid` print.
 // It is not the key id of SPEC.md section 3.3, whose prefix the registry
 // of internal/registry holds.
 const PrefixKeyID = 0x51
-
-// ValidateLowercaseHex reports whether s is lowercase hex, the encoding
-// a proof gives every hash (the HEX classes of SPEC.md section 2.4
-// (Pattern classes)), which `proofs convert` holds each hash slot to
-// before it writes the slot's bytes. It returns nil for a conforming value
-// and, for a non-conforming one, an error naming the first offending byte
-// and its offset so a report can say which character is wrong rather than
-// only that the field "is invalid".
-//
-// Empty is accepted: an absent value is not an encoding defect, and
-// reporting "" here would claim the document carries a malformed value
-// where it carries none.
-//
-// Uppercase is called out separately from a non-hex byte because the two
-// are different mistakes with different fixes, and because uppercase is
-// the one Go would otherwise accept: hex.DecodeString is case-insensitive,
-// so "F2C39DF9" decodes to the same four bytes as "f2c39df9", and a value
-// the pattern classes refuse would be written as if it conformed.
-func ValidateLowercaseHex(s string) error {
-	if len(s)%2 != 0 {
-		return fmt.Errorf("%w: odd length %d", ErrNotLowercaseHex, len(s))
-	}
-	for i := range len(s) {
-		c := s[i]
-		if (c >= '0' && c <= '9') || (c >= 'a' && c <= 'f') {
-			continue
-		}
-		if c >= 'A' && c <= 'F' {
-			return fmt.Errorf("%w: uppercase %q at offset %d", ErrNotLowercaseHex, string(c), i)
-		}
-		return fmt.Errorf("%w: %q at offset %d is not a hex digit", ErrNotLowercaseHex, string(c), i)
-	}
-	return nil
-}
 
 // BytesToHex encodes bytes to lowercase hex string.
 func BytesToHex(b []byte) string {
@@ -91,8 +51,7 @@ func ComputeKeyID(pubkey []byte) string {
 //
 // Nothing is hex-decoded, so non-hex and odd-length operands compare on hex
 // TEXT rather than decoded bytes. In verify a proof's hex is held to lowercase
-// by SHAPE's pattern classes (SPEC.md section 2.4), and in proofs convert by
-// [ValidateLowercaseHex]; this fold accepts neither.
+// by SHAPE's pattern classes (SPEC.md section 2.4); this fold does not.
 func HexEqual(a, b string) bool {
 	if len(a) != len(b) {
 		return false

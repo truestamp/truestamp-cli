@@ -157,7 +157,7 @@ func TestCollectFlags_LocalBeforeInherited(t *testing.T) {
 // two commands must be able to say so.
 func TestEnums_CommandScopedBeatsGlobal(t *testing.T) {
 	enums := EnumValues{
-		"format":                {"json", "cbor"},
+		"format":                {"json", "text"},
 		"tool items get|format": {"only-this-one"},
 	}
 	tree := Walk(fixture(), enums, false)
@@ -173,10 +173,10 @@ func TestEnums_CommandScopedBeatsGlobal(t *testing.T) {
 }
 
 func TestEnums_GlobalAppliesWhenUnscoped(t *testing.T) {
-	tree := Walk(fixture(), EnumValues{"format": {"json", "cbor"}}, false)
+	tree := Walk(fixture(), EnumValues{"format": {"json", "text"}}, false)
 	get, _ := Find(tree, "tool items get")
 	for _, f := range get.Flags {
-		if f.Name == "format" && !slices.Equal(f.Values, []string{"json", "cbor"}) {
+		if f.Name == "format" && !slices.Equal(f.Values, []string{"json", "text"}) {
 			t.Errorf("global enum not applied: %v", f.Values)
 		}
 	}

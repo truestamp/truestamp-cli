@@ -22,10 +22,10 @@ import (
 var inspectCmd = &cobra.Command{
 	Use:   "inspect [file-or-url]",
 	Short: "Print a proof bundle's key fields without verifying it",
-	Long: `Parse a Truestamp proof bundle (JSON or CBOR) and print what it carries:
-the format version and subject type, the ids, the witnesses the subject
-metadata commits to and the witness details carried, the block, the
-commitments, and whether a signing key event rides along.
+	Long: `Parse a Truestamp proof bundle, a JSON document, and print what it
+carries: the format version and subject type, the ids, the witnesses the
+subject metadata commits to and the witness details carried, the block,
+the commitments, and whether a signing key event rides along.
 
 Nothing is verified: no hash is recomputed and no signature is checked.
 Use 'truestamp verify' for that. The structural gates of whitepaper
@@ -34,7 +34,7 @@ same identifier 'verify' would report.
 
 Examples:
   truestamp inspect proof.json
-  truestamp inspect proof.cbor --json
+  truestamp inspect proof.json --json
   cat proof.json | truestamp inspect
 
 Exit code 0 when the bundle parses, 1 when it is rejected.`,
@@ -57,7 +57,7 @@ Exit code 0 when the bundle parses, 1 when it is rejected.`,
 			AllowStdin:           true,
 			AutoDetectURL:        true,
 			PickerTitle:          "Select proof file",
-			PickerExts:           []string{".json", ".cbor"},
+			PickerExts:           proofPickerExts,
 			URLPromptTitle:       "Enter proof URL",
 			URLPromptPlaceholder: "https://example.com/proof.json",
 		})
@@ -168,17 +168,13 @@ type InspectKeyEvent struct {
 }
 
 func inspectSummary(b *proof.Bundle, source string, size int) InspectSummary {
-	format := "json"
-	if b.FromCBOR {
-		format = "cbor"
-	}
 	version := b.VersionLiteral
 	if len(version) == 0 {
 		version = json.RawMessage("null")
 	}
 	s := InspectSummary{
 		Source:      source,
-		Format:      format,
+		Format:      "json",
 		Bytes:       size,
 		Version:     version,
 		Type:        b.Type,

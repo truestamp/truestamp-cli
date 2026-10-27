@@ -317,9 +317,11 @@ func IsStdinTerminal() bool {
 }
 
 // IsStdoutTerminal reports whether stdout is attached to a terminal. Used
-// to refuse writing binary (CBOR) to a terminal, where it would garble the
-// session. Same term.IsTerminal contract as IsStdinTerminal, for the same
-// reason: the ModeCharDevice bit would also call /dev/null a terminal.
+// to warn before raw bytes (--to binary) are written to a terminal, where
+// they would garble the session, and to decide whether a listing prints
+// its trailing hints. Same term.IsTerminal contract as IsStdinTerminal, for
+// the same reason: the ModeCharDevice bit would also call /dev/null a
+// terminal.
 func IsStdoutTerminal() bool {
 	return term.IsTerminal(int(os.Stdout.Fd()))
 }

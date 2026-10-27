@@ -4,8 +4,7 @@
 // Package testfixtures locates the bundles of the earlier layout under the
 // repository's top-level testdata/ directory, which the commands that
 // still read that layout through internal/proof are tested with: inspect,
-// proofs convert, proofs get's CBOR download and the bundle verify
-// --remote posts, and internal/proof's own parser. The conformance cases
+// the bundle verify --remote posts, and internal/proof's own parser. The conformance cases
 // of SPEC.md section 13.2 are under testdata/verification/, which
 // internal/vectorcases locates.
 //
@@ -13,7 +12,6 @@
 //
 //	testdata/prod-2026-09-03/  a production item of the earlier layout:
 //	                           its complete, compact and partial bundles
-//	                           (JSON) and the complete bundle as CBOR
 //	testdata/tamper/           a mutation of the complete bundle
 //	                           (tamper-type.json) and one bundle of a layout
 //	                           before it (old-layout.json), each of which
@@ -58,7 +56,6 @@ const (
 	ProdComplete  = "proof-complete.json"
 	ProdCompact   = "proof-compact.json"
 	ProdPartial   = "proof-partial.json"
-	ProdCBOR      = "proof-complete.cbor"
 	TamperDir     = "tamper"
 	WhitepaperDir = "whitepaper"
 	AppendixD     = "bundle.json"

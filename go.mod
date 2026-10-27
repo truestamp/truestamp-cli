@@ -11,7 +11,6 @@ require (
 	github.com/charmbracelet/colorprofile v0.4.3
 	github.com/cli/browser v1.3.0
 	github.com/coder/websocket v1.8.15
-	github.com/fxamacker/cbor/v2 v2.9.4
 	github.com/gofrs/uuid/v5 v5.5.1
 	github.com/gowebpki/jcs v1.0.1
 	github.com/knadh/koanf/parsers/toml/v2 v2.2.2
@@ -58,7 +57,6 @@ require (
 	github.com/muesli/cancelreader v0.2.2 // indirect
 	github.com/pelletier/go-toml/v2 v2.4.3 // indirect
 	github.com/rivo/uniseg v0.4.7 // indirect
-	github.com/x448/float16 v0.8.4 // indirect
 	github.com/xo/terminfo v1.0.0 // indirect
 	golang.org/x/sync v0.22.0 // indirect
 	golang.org/x/sys v0.48.0 // indirect

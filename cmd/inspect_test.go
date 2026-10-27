@@ -16,11 +16,11 @@ import (
 // TestCLI_Inspect_ReportsOnlyWhatTheBundleCarries.
 //
 // inspect used to emit `type_code`, the numeric subject type. The bundle
-// does not carry it: it carries the type NAME, in both JSON and CBOR, and
-// the server never returns the number. The code exists only inside the
-// signature preimage and is reachable only through the frozen registry,
-// so reporting it here was inspect asserting something the bundle does
-// not say. `schema get subject-types` has the mapping.
+// does not carry it: it carries the type NAME, and the server never
+// returns the number. The code exists only inside the signature preimage
+// and is reachable only through the frozen registry, so reporting it here
+// was inspect asserting something the bundle does not say. `schema get
+// subject-types` has the mapping.
 func TestCLI_Inspect_ReportsOnlyWhatTheBundleCarries(t *testing.T) {
 	bundle := testfixtures.Path(testfixtures.ProdDir, testfixtures.ProdComplete)
 
@@ -142,7 +142,7 @@ func TestCLI_Inspect(t *testing.T) {
 		t.Error("inspect must not verify")
 	}
 
-	cmd := exec.Command(binaryPath, "inspect", prodPath(testfixtures.ProdCBOR), "--json")
+	cmd := exec.Command(binaryPath, "inspect", prodPath(testfixtures.ProdComplete), "--json")
 	cmd.Env = cleanEnv()
 	raw, err := cmd.Output()
 	if err != nil {
@@ -152,7 +152,7 @@ func TestCLI_Inspect(t *testing.T) {
 	if err := json.Unmarshal(raw, &m); err != nil {
 		t.Fatal(err)
 	}
-	if m["format"] != "cbor" || m["type"] != "item" || m["key_id"] != "3c19f776" {
+	if m["format"] != "json" || m["type"] != "item" || m["key_id"] != "3c19f776" {
 		t.Errorf("inspect json = %v", m)
 	}
 	subject := m["subject"].(map[string]any)

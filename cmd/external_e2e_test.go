@@ -369,29 +369,3 @@ func helpText(t *testing.T, sub string) string {
 	}
 	return string(out)
 }
-
-// rewriteBundle decodes a bundle, applies mutate, and writes it to a new
-// temp file, returning the path. Numbers are never rounded.
-func rewriteBundle(t *testing.T, path string, mutate func(map[string]any)) string {
-	t.Helper()
-	raw, err := os.ReadFile(path)
-	if err != nil {
-		t.Fatalf("reading %s: %v", path, err)
-	}
-	var m map[string]any
-	dec := json.NewDecoder(strings.NewReader(string(raw)))
-	dec.UseNumber()
-	if err := dec.Decode(&m); err != nil {
-		t.Fatalf("decoding %s: %v", path, err)
-	}
-	mutate(m)
-	encoded, err := json.Marshal(m)
-	if err != nil {
-		t.Fatalf("encoding bundle: %v", err)
-	}
-	out := filepath.Join(t.TempDir(), "rewritten.json")
-	if err := os.WriteFile(out, encoded, 0o600); err != nil {
-		t.Fatalf("writing %s: %v", out, err)
-	}
-	return out
-}

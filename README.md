@@ -269,7 +269,7 @@ See what a bundle carries without verifying it:
 
 ```sh
 truestamp inspect proof.json
-truestamp inspect proof.cbor --json
+truestamp inspect proof.json --json
 ```
 
 ## Commands
@@ -285,7 +285,6 @@ Truestamp resources:
   truestamp items get <id>              Show one item, including whether a proof can be generated
   truestamp items update <id>           Change visibility, tags, or the owning team (--to-team)
   truestamp proofs get <id>             Fetch a proof bundle to stdout (-o <path> or --to-file to write it)
-  truestamp proofs convert [file]       Convert a bundle between JSON and CBOR
   truestamp blocks list|get|latest|genesis    Read-only: the block chain (latest = head block)
   truestamp beacons list|get|latest     Read-only: public randomness over finalized blocks
   truestamp entropy list|get|latest     Read-only: public entropy observations (NIST, Stellar, Bitcoin)
@@ -300,7 +299,6 @@ Local tools:
   truestamp convert time [input]        Convert timestamps across zones / Unix formats
   truestamp convert id [value]          Extract the embedded timestamp from a ULID or UUIDv7
   truestamp convert keyid [pubkey]      Derive the 4-byte Truestamp kid from an Ed25519 public key
-  truestamp convert merkle [compact]    Decode a compact base64url Merkle proof
 
 Setup:
   truestamp auth login|logout|status    Manage authentication (browser OAuth; --api-key for CI)
@@ -324,7 +322,7 @@ Run `truestamp <command> --help` for per-command flags.
 
 ### Composable pipelines
 
-Every command reads stdin and prints to stdout, and the file-oriented ones (`verify`, `inspect`, `hash`, `encode`, `decode`, `jcs`, `proofs convert`) also take `--file` / `--url` with an optional path. So the commands compose as Unix pipes and replace a pile of external tools (`sha256sum`, `shasum`, `xxd`, `base64`, `jq`, `date`):
+Every command reads stdin and prints to stdout, and the file-oriented ones (`verify`, `inspect`, `hash`, `encode`, `decode`, `jcs`) also take `--file` / `--url` with an optional path. So the commands compose as Unix pipes and replace a pile of external tools (`sha256sum`, `shasum`, `xxd`, `base64`, `jq`, `date`):
 
 ```sh
 # SHA-256 a file, byte-identical to sha256sum / shasum output
@@ -338,9 +336,6 @@ truestamp hash -a sha3-256 --style bsd doc.pdf
 truestamp hash --prefix 0x11 --jcs -a sha256 --style bare --no-filename < claims.json
 # equivalently, as an explicit pipeline:
 truestamp jcs < claims.json | truestamp hash --prefix 0x11 -a sha256 --style bare --no-filename
-
-# verify reads JSON only, and proofs convert reads only the earlier proof
-# layout, so no CBOR proof verifies until the CLI reads the new format
 
 # Derive the 4-byte kid fingerprint from an Ed25519 pubkey
 truestamp convert keyid CTwMqDZnPd/QTLSq8aTeSD3a+j2DQxKcGfhhIYJQ65Y=
@@ -358,7 +353,7 @@ Every list (`items list`, `blocks list`, `beacons list`, `entropy list`) pages t
 
 `--json` (structured output for scripting) and `-s` / `--silent` (exit code only) are **CLI-wide, mutually exclusive settings**. Every command that renders a *record* carries them, including `auth status`, `config show`, `config path` and `version`. They can be set once via `config.toml`, `TRUESTAMP_JSON` or `TRUESTAMP_SILENT`.
 
-The exemptions are deliberate: the pipeline primitives (`encode`, `decode`, `jcs`, `convert time|id|keyid|merkle`, `hash`) still carry `--json` and `--silent` as explicit flags, but ignore the ambient config-file and environment setting. They print one bare value or raw bytes, and `truestamp hash` defaults to GNU `sha256sum`-compatible output with `--style bsd` for BSD `shasum --tag` format, so a `silent = true` in `config.toml` must not be able to silence a pipe built on them. `proofs get` emits a payload rather than a record and follows the stdout / `-o` / `--to-file` triad instead.
+The exemptions are deliberate: the pipeline primitives (`encode`, `decode`, `jcs`, `convert time|id|keyid`, `hash`) still carry `--json` and `--silent` as explicit flags, but ignore the ambient config-file and environment setting. They print one bare value or raw bytes, and `truestamp hash` defaults to GNU `sha256sum`-compatible output with `--style bsd` for BSD `shasum --tag` format, so a `silent = true` in `config.toml` must not be able to silence a pipe built on them. `proofs get` emits a payload rather than a record and follows the stdout / `-o` / `--to-file` triad instead.
 
 **More examples:** [EXAMPLES.md](./EXAMPLES.md) covers every sub-command with copy-pastable recipes, scripting patterns, CI conventions, and offline usage.
 

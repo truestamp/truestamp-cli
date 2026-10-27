@@ -4,8 +4,6 @@
 package cmd
 
 import (
-	"bytes"
-	"encoding/json"
 	"testing"
 	"time"
 )
@@ -98,52 +96,5 @@ func FuzzResolveZone(f *testing.F) {
 	}
 	f.Fuzz(func(t *testing.T, s string) {
 		_, _ = resolveZone(s)
-	})
-}
-
-// FuzzPrettyJSON: `proofs convert --to json` re-indents the marshaled
-// bundle without re-encoding it, so json.Indent is handed bytes derived
-// from an attacker-supplied proof. It must never panic, and, the whole
-// reason it replaced a round-trip through `any`, must never alter a
-// number literal, which is what a claims_hash is computed over. Seeds
-// cover the boundary Appendix C.2a pins (2^53 and 2^53 + 1), a uint64
-// that overflows float64, floats, and the shapes json.Indent rejects.
-func FuzzPrettyJSON(f *testing.F) {
-	for _, s := range []string{
-		`{}`,
-		`{"n":9007199254740992}`,
-		`{"n":9007199254740993}`,
-		`{"n":18446744073709551615}`,
-		`{"n":-9007199254740993}`,
-		`{"n":1.5e300,"m":-0.0}`,
-		`{"a":[1,2,{"b":"c"}]}`,
-		`[1,2,3]`,
-		`  {"a" : 1}  `,
-		`{`,
-		``,
-		"\x00",
-	} {
-		f.Add(s)
-	}
-	f.Fuzz(func(t *testing.T, s string) {
-		out, err := prettyJSON([]byte(s))
-		if err != nil {
-			return
-		}
-		// Indentation is whitespace-only, so stripping whitespace outside
-		// strings must return the input unchanged. Comparing the compacted
-		// forms is the cheap way to say that without a JSON walker.
-		var gotCompact, wantCompact bytes.Buffer
-		if err := json.Compact(&gotCompact, out); err != nil {
-			t.Fatalf("prettyJSON emitted bytes json.Compact rejects: %v", err)
-		}
-		if err := json.Compact(&wantCompact, []byte(s)); err != nil {
-			// json.Indent accepted it, so Compact must too.
-			t.Fatalf("json.Compact rejected input json.Indent accepted: %v", err)
-		}
-		if !bytes.Equal(gotCompact.Bytes(), wantCompact.Bytes()) {
-			t.Fatalf("prettyJSON altered the document: got %q, want %q",
-				gotCompact.String(), wantCompact.String())
-		}
 	})
 }

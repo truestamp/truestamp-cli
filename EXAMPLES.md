@@ -33,10 +33,8 @@ path, flag, type, default and enum - as machine-readable JSON.
 - [`truestamp encode` / `truestamp decode`](#truestamp-encode--truestamp-decode)
 - [`truestamp jcs`](#truestamp-jcs)
 - [`truestamp convert time`](#truestamp-convert-time)
-- [`truestamp proofs convert`](#truestamp-proofs-convert)
 - [`truestamp convert id`](#truestamp-convert-id)
 - [`truestamp convert keyid`](#truestamp-convert-keyid)
-- [`truestamp convert merkle`](#truestamp-convert-merkle)
 - [`truestamp beacons`](#truestamp-beacons)
 - [`truestamp items` (list, get, update)](#truestamp-items-list-get-update)
 - [`truestamp blocks`](#truestamp-blocks)
@@ -79,9 +77,8 @@ If you want to run the pipelines without installing `jq`, `truestamp`'s own
 
 ## Conventions
 
-`verify`, `inspect`, `encode`, `decode`, `jcs` and `proofs convert` share one
-input resolver and accept the same **six modes**, plus the Unix `-` alias for
-stdin:
+`verify`, `inspect`, `encode`, `decode` and `jcs` share one input resolver and
+accept the same **six modes**, plus the Unix `-` alias for stdin:
 
 | How | Syntax |
 | --- | --- |
@@ -98,8 +95,8 @@ Three families sit outside that resolver:
 - `hash` takes the same six modes (`truestamp hash -` included) but accepts
   **many** positional files (`truestamp hash a.txt b.txt`), so `--file` /
   `--url` must use the `=` form there — see below.
-- `convert time`, `convert id`, `convert keyid` and `convert merkle` take their
-  value positionally or on stdin only. They have no `--file` / `--url`, and `-`
+- `convert time`, `convert id` and `convert keyid` take their value
+  positionally or on stdin only. They have no `--file` / `--url`, and `-`
   is read as a value rather than as stdin.
 - `items create` has its own documented priority order
   (`truestamp items create --help`).
@@ -124,9 +121,9 @@ open the interactive picker. That has a consequence worth internalizing: a
 space-separated value is parsed as a **positional argument**, not as the flag's
 value.
 
-`verify`, `inspect`, `encode`, `decode`, `jcs` and `proofs convert` all fall
-back to the positional argument when `--file` / `--url` were given with no
-value, so both spellings work there:
+`verify`, `inspect`, `encode`, `decode` and `jcs` all fall back to the
+positional argument when `--file` / `--url` were given with no value, so both
+spellings work there:
 
 ```sh
 truestamp verify --file proof.json     # works (falls back to the positional)
@@ -192,7 +189,7 @@ Widely-available (per-command where meaningful) flags you'll see repeatedly:
 - Both are also CLI-wide *settings*: put `json = true` or `silent = true` at the
   top level of `config.toml`, or set `TRUESTAMP_JSON` / `TRUESTAMP_SILENT`, and
   record-rendering commands pick it up without the flag. The pipeline
-  primitives (`encode`, `decode`, `jcs`, `convert time|id|keyid|merkle`) and
+  primitives (`encode`, `decode`, `jcs`, `convert time|id|keyid`) and
   `hash` deliberately ignore the ambient setting — wrapping their output would
   break every pipe, and `hash --style` stays a byte-identical `sha256sum`
   drop-in. They still carry their own `--json` / `-s` flags when you ask
@@ -1020,7 +1017,7 @@ identifier `verify` would report.
 
 ```sh
 truestamp inspect proof.json
-truestamp inspect proof.cbor --json
+truestamp inspect proof.json --json
 cat proof.json | truestamp inspect
 
 # Which witness details does this bundle carry?
@@ -1089,8 +1086,7 @@ truestamp inspect proof.json --json | jq 'has("signing_key_event")'
 `--json` prints the same material as an object keyed
 `source`, `format`, `bytes`, `version`, `type`, `generated_at`,
 `public_key`, `key_id`, `subject`, `inclusion_proof`, `block`,
-`commitments` and (when carried) `signing_key_event`. A CBOR bundle
-reports `"format": "cbor"` and its own byte count. A compact bundle
+`commitments` and (when carried) `signing_key_event`. A compact bundle
 carries no signing key event, so the `has("signing_key_event")` probe
 prints `false` there and `true` on a complete one.
 
@@ -1701,63 +1697,6 @@ and `unix-ns`. `--format` accepts the same Unix variants plus `rfc3339`
 
 ---
 
-## `truestamp proofs convert`
-
-Convert a proof bundle between JSON and CBOR. The conversion applies
-Appendix E.3's field-type correspondence: `public_key` and `signature` are
-byte strings in CBOR and padded base64 in JSON; every hash slot
-(`signing_key_id`, `previous_block_hash`, `merkle_root`,
-`epoch_merkle_root`, `transaction_hash`, `block_merkle_root`) is a byte
-string in CBOR and lowercase hex in JSON; every map that is a JCS preimage
-(claims, entropy, both metadata maps, witness payloads) keeps the JSON value
-space in both. Every number survives exactly. The CBOR output uses **RFC 8949
-section 4.2 core deterministic encoding** and is prefixed with the
-self-describing tag 55799 so `truestamp verify` auto-detects it; JSON output
-preserves the input's key order.
-
-```sh
-# JSON to CBOR
-truestamp proofs convert --to cbor proof.json > proof.cbor
-# the first three bytes are the 55799 self-describing tag:
-#   $ xxd proof.cbor | head -1
-#   00000000: d9d9 f7aa 6474 7970 6564 6974 656d 6562  ....dtypeditemeb
-
-# CBOR to JSON (auto-detected input format)
-truestamp proofs convert --to json proof.cbor | jq .
-
-# Force the input format (error out if the bytes don't match)
-truestamp proofs convert --from json --to cbor < proof.json
-# feeding it the wrong format is a clean exit 1:
-#   $ truestamp proofs convert --from cbor --to json proof.json
-#   parsing CBOR proof: not_a_json_object: input is not a CBOR map
-
-# Compact JSON (minified; the default is a 2-space indent)
-truestamp proofs convert --to json --compact proof.cbor
-# {"type":"item","block":{"id":"01a0680e-42b6-712a-9137-5b59dc891f19",...
-
-# `truestamp verify` reads JSON only: a CBOR proof is a bare rejection,
-# malformed_json, exit 4. `proofs convert` reads only the earlier proof
-# layout, so no CBOR proof verifies until the CLI reads the new format.
-
-# Envelope mode: metadata plus the output as a base64url string
-truestamp proofs convert --to cbor --json proof.json
-# {
-#   "input_format": "json",
-#   "output_format": "cbor",
-#   "input_bytes": 4356,
-#   "output_bytes": 2961,
-#   "canonical_cbor": true,
-#   "output_wrapped": "2dn3qmR0eXBlZGl0ZW1lYmxvY2..."
-# }
-```
-
-`--to` is required (omitting it exits 1 with `--to is required (json or
-cbor)`). `--from` accepts `auto` (default), `json` or `cbor`. The input comes
-from the positional path, `--file`, `--url` or stdin, exactly as for
-`truestamp verify`.
-
----
-
 ## `truestamp convert id`
 
 Extract the embedded timestamp from a ULID (item IDs) or UUIDv7 (block,
@@ -1841,57 +1780,6 @@ jq -r .public_key proof.json | truestamp convert keyid
 ```
 
 `--from` accepts `auto` (default), `hex`, `base64` or `base64url`.
-
----
-
-## `truestamp convert merkle`
-
-Decode a compact base64url Merkle proof (the `inclusion_proof` field of an
-item or entropy proof, or the `epoch_proof` inside each commitment entry)
-into a human-readable sibling list.
-
-```sh
-# Positional argument
-truestamp convert merkle "$(jq -r .inclusion_proof proof.json)"
-# depth: 5
-#    0  right  7251f2b6c01afe3d1f1b4723566641f7f2590e8caa86be1706b8b291d71dc386
-#    1  right  9a56135841b89f111a2c9eb344c7023fdbc24eb3e7504a00f0bd67255a2dffe3
-#    2  right  265788d3f3f9a03ce8452be58c9cbfc85b739cf1f5216c0eef3b147309bd5f45
-#    3  right  845b98c0469e9bfc51fcd6756131c6b612624bffdb4d729808ab1359cc948647
-#    4  right  33010ae04a22ef2505c2e4079f633491eae67f6a39e828922935cf56776eb494
-
-# From stdin (common when fed from jq)
-jq -r .inclusion_proof proof.json | truestamp convert merkle
-
-# The epoch proof inside a commitment entry decodes the same way
-jq -r '.commitments[0].epoch_proof' proof.json | truestamp convert merkle
-# depth: 3
-#    0  right  f007826901b88c81414827f12ca8a01b85f7545de9e88c5dc714e7511847555a
-#    1  right  cce754aceea4171af6a274ae860db6ba9e04fc4a4a57d037a2645668aa528e0e
-#    2  right  0985f048a86ae95dfca0940bd06e69eaf39ce2ff9f524d28fdd164a0fec11ca6
-
-# JSON envelope (depth, siblings with position + hash)
-jq -r .inclusion_proof proof.json | truestamp convert merkle --json
-# {
-#   "compact_base64url": "BR9yUfK2wBr-PR8bRyNWZkH38lkOjKqGvhcGuLKR1x3D...",
-#   "depth": 5,
-#   "siblings": [
-#     {
-#       "position": "right",
-#       "hash_hex": "7251f2b6c01afe3d1f1b4723566641f7f2590e8caa86be17..."
-#     },
-#     ...
-#   ]
-# }
-```
-
-The text form prints `depth: N` followed by one indexed line per sibling with
-its `left` / `right` position and hex hash. The `--json` form carries
-`compact_base64url`, `depth`, and a `siblings` array of
-`{position, hash_hex}` objects. A value that is not valid base64url exits 1
-with `base64url decode failed: illegal base64 data at input byte N`; a value
-that decodes cleanly but is the wrong length for its declared depth exits 1
-with `expected 162 bytes for depth 5 proof, got 160`.
 
 ---
 
@@ -2442,13 +2330,6 @@ intermediate. Compare the file's plain SHA-256 against
 `subject.claims.hash`, or pass `--expected-hash <sha256-hex>` to
 `truestamp verify` (see the next two recipes).
 
-### A CBOR proof and `truestamp verify`
-
-`truestamp verify` reads one JSON document. A CBOR proof given to it is a
-bare rejection, `malformed_json`, exit code `4`. `proofs convert` reads
-only the earlier proof layout, so converting a CBOR proof to JSON does not
-help either: no CBOR proof verifies until the CLI reads the new format.
-
 ### Derive a kid from a proof's embedded public key, without `jq`
 
 Canonicalize first so the `"public_key"` field is guaranteed to be compact,
@@ -2569,19 +2450,6 @@ yields exactly the 14 canonical names, in registry order: `md5`, `sha1`,
 `md5` and `sha1` each print a "cryptographically broken" warning to
 **stderr** first; redirect with `2>/dev/null` if the loop's output is being
 parsed.
-
-### Round-trip test a proof you just received
-
-```sh
-# JSON to CBOR to JSON, then compare against the original (modulo
-# canonical key order)
-orig="$(truestamp jcs < proof.json)"
-round="$(truestamp proofs convert --to cbor proof.json \
-        | truestamp proofs convert --from cbor --to json \
-        | truestamp jcs)"
-[ "$orig" = "$round" ] && echo "round-trip stable" || echo "DRIFT"
-# round-trip stable
-```
 
 ### Convert every commitment timestamp to your local zone
 
@@ -2757,14 +2625,13 @@ truestamp verify proof.json --offline --keyring keyring.json
 
 # The convert / hash / encode / decode / jcs / inspect primitives compute
 # locally and make no network calls - unless you explicitly pass --url,
-# which downloads the input (hash, encode, decode, jcs, inspect and
-# proofs convert accept it; convert time / id / keyid / merkle have no
-# --url and are unconditionally offline).
+# which downloads the input (hash, encode, decode, jcs and inspect accept
+# it; convert time / id / keyid have no --url and are unconditionally
+# offline).
 truestamp hash -a sha256 contract.pdf
 truestamp jcs < claims.json
 truestamp convert id 01KNN33GX5E470CB9TRWAYF9DD
 # 2026-04-07T23:05:39.493Z
-truestamp proofs convert --to cbor proof.json
 truestamp inspect proof.json
 ```
 

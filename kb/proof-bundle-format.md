@@ -5,7 +5,7 @@ SPDX-License-Identifier: Apache-2.0
 
 # Proof Bundle Format
 
-Version 1 is the first published Truestamp proof bundle format. Normative reference: **Appendix E of `truestamp-v2/whitepaper/whitepaper.typ`** (E.3 serializations, E.5 the wire key reference, E.6 hard rejections, E.24 the type registry), with the field reference and a full example in `truestamp-v2/kb/verification/proof-bundle-format.md` and the CBOR schema in `truestamp-v2/priv/cddl/proof.cddl`. The model lives in [`internal/proof/types.go`](../internal/proof/types.go); the parsers in `parse.go` (JSON), `cbor_decode.go` and `cbor_encode.go`.
+Version 1 is the first published Truestamp proof bundle format. Normative reference: **Appendix E of `truestamp-v2/whitepaper/whitepaper.typ`** (E.3 serializations, E.5 the wire key reference, E.6 hard rejections, E.24 the type registry), with the field reference and a full example in `truestamp-v2/kb/verification/proof-bundle-format.md`. The model lives in [`internal/proof/types.go`](../internal/proof/types.go) and the parser in `parse.go`, which reads JSON only.
 
 ## No layout is recognized
 
@@ -118,30 +118,17 @@ An item proof carries the record of every witness its record names: there is no 
 A hard rejection aborts before any step result exists and produces an error, not a report. The order is normative so two verifiers name the same first defect. Every abort is a `proof.RejectionError` carrying its E.23 identifier, readable via `proof.RejectionCode(err)`, with operator advice from `proof.RejectionAdvice`.
 
 1. input does not decode, or is not a map: `not_a_json_object`
-2. (CBOR only) a value outside the JSON value space inside any hashed map: `invalid_subject_data`
-3. `type` absent, not a string, or not a registry name: `invalid_subject_type`
-4. `block` is not a map: `missing_block`
-5. a block-like type carries `subject` or `inclusion_proof`: `unexpected_subject_fields_for_block_like`
-6. a non-block-like type is missing `subject`: `missing_subject`
-7. a non-block-like type is missing `inclusion_proof` (or it is not a string): `missing_inclusion_proof`
-8. `block.metadata` is not a map: `missing_metadata`
-9. a non-block-like type whose `subject.metadata` is not a map: `missing_metadata`
-10. `commitments` is not a list, or is empty: `no_external_commitments`
-11. an entry is not a map, or its `chain` is not `"stellar"` or `"bitcoin"`, or it lacks `epoch_proof` (as a string), or it lacks `epoch_merkle_root`: `invalid_commitment_entry`
+2. `type` absent, not a string, or not a registry name: `invalid_subject_type`
+3. `block` is not a map: `missing_block`
+4. a block-like type carries `subject` or `inclusion_proof`: `unexpected_subject_fields_for_block_like`
+5. a non-block-like type is missing `subject`: `missing_subject`
+6. a non-block-like type is missing `inclusion_proof` (or it is not a string): `missing_inclusion_proof`
+7. `block.metadata` is not a map: `missing_metadata`
+8. a non-block-like type whose `subject.metadata` is not a map: `missing_metadata`
+9. `commitments` is not a list, or is empty: `no_external_commitments`
+10. an entry is not a map, or its `chain` is not `"stellar"` or `"bitcoin"`, or it lacks `epoch_proof` (as a string), or it lacks `epoch_merkle_root`: `invalid_commitment_entry`
 
 Everything else is graded, never rejected: a wrong or absent `version` (E.8), an undecodable `public_key` (E.9), a mis-cased hash (E.4), an undecodable proof (E.12), an unknown optional field (ignored), an unknown witness name (a visible `skip`).
-
-## CBOR
-
-A CBOR bundle is accepted wrapped in the self-describing tag 55799 (`d9 d9 f7`) or as a bare map, definite or indefinite length. `IsCBORProof` detects either by the first byte. Decoding converts the CBOR into the equivalent JSON document ([`CBORToJSON`](../internal/proof/cbor_decode.go)) and then runs the same JSON parser, so the two serializations grade one logical bundle identically. The correspondence is driven by the field's position, not its type:
-
-- `public_key` and `signature` byte strings become padded base64 text;
-- every hash slot (`signing_key_id` on the subject and on every block map; every block map's `previous_block_hash` and `merkle_root`; every commitment's `epoch_merkle_root`, `transaction_hash`, `block_merkle_root`, in `commitments` and in `signing_key_event.commitments`) becomes lowercase hex text. A text value in such a slot passes through unchanged, as the server's decoder does, and the E.4 sweep then grades it;
-- every map that is a JCS preimage (`subject.claims`, `subject.entropy`, `subject.metadata`, every block `metadata`, every entropy witness payload) is converted strictly within the JSON value space: integers exactly, floats per their IEEE-754 value, text as UTF-8, members in wire order. A byte string, a tag, `undefined`, a simple value other than true/false/null, a non-finite float, a non-text key or invalid UTF-8 inside one is `invalid_subject_data`, naming the path;
-- `inclusion_proof`, `epoch_proof`, `txoutproof` and `raw_transaction` are text on the wire (the server never emits them as byte strings). A byte string in one of those slots is not the field and renders as null, so the required two are refused by the E.6 gates the reference verifier applies (`missing_inclusion_proof`, `invalid_commitment_entry`) and the optional two read as absent, which the Bitcoin step reports as a skip;
-- everything else keeps its JSON type. Outside a hashed map a byte string renders as hex and a tag is unwrapped, so an unknown optional field is carried rather than refused. Duplicate map keys anywhere are `not_a_json_object` (RFC 8949 section 5.6).
-
-Encoding ([`JSONToCBOR`](../internal/proof/cbor_encode.go)) is the exact inverse: hex slots become byte strings (uppercase hex is refused rather than laundered into a byte string the verifier would accept), base64 slots become byte strings, every number is preserved exactly (an integer beyond 64 bits is an error naming the key), and the output is RFC 8949 core-deterministic with the tag prepended. `truestamp proofs convert` round-trips either way; `internal/proof/parse_test.go` pins that JSON to CBOR to JSON is value-identical and that `proof-complete.cbor` decodes to the same values as `proof-complete.json`.
 
 ## Hex encoding (E.4)
 

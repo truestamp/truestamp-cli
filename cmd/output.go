@@ -28,9 +28,7 @@ import (
 // `completion`, which render no record and would then advertise an output
 // mode they do not have. They are registered per command instead, from
 // here, so the set of commands that carry the pair is exactly the set
-// that says it does. `proofs convert` is the one command that registers
-// its own --json, because there the flag means "a JSON envelope" and
-// needs its own help text.
+// that says it does.
 
 // addRecordOutputFlags registers --json and --silent on a command.
 // config.Load enforces their mutual exclusion once, for every command, so

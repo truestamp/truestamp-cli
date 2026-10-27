@@ -15,7 +15,6 @@ import (
 // with the error rather than living in prose.
 const (
 	CodeNotAJSONObject                      = "not_a_json_object"
-	CodeInvalidSubjectData                  = "invalid_subject_data"
 	CodeInvalidSubjectType                  = "invalid_subject_type"
 	CodeMissingBlock                        = "missing_block"
 	CodeMissingMetadata                     = "missing_metadata"
@@ -66,10 +65,4 @@ func RejectionCode(err error) string {
 // Rejectf builds a RejectionError with a formatted detail.
 func Rejectf(code, format string, args ...any) error {
 	return &RejectionError{Code: code, Detail: fmt.Sprintf(format, args...)}
-}
-
-// rejectSubjectData builds the E.3 value-space rejection, matching the
-// reference implementation's message shape so the two are diffable.
-func rejectSubjectData(path, detail string) error {
-	return Rejectf(CodeInvalidSubjectData, "%s: %s cannot round-trip to JSON (whitepaper E.3)", path, detail)
 }

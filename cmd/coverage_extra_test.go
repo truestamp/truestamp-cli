@@ -8,7 +8,6 @@ import (
 	"encoding/json"
 	"errors"
 	"github.com/truestamp/truestamp-cli/internal/inputsrc"
-	"github.com/truestamp/truestamp-cli/internal/testfixtures"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -20,52 +19,9 @@ import (
 )
 
 // These tests plug the gaps the regular suite leaves uncovered, mostly
-// subprocess exercises of `convert merkle`, `upgrade --check`, `auth
-// status/login/logout`, and various convert-helper branches
-// that only fire on specific inputs (raw extract, zone fallback, etc.).
-
-// --- convert merkle ---
-
-func TestCLI_ConvertMerkle_Decode(t *testing.T) {
-	// Real compact Merkle proof captured from the sample proof bundle.
-	// Encodes depth=4 with alternating left/right siblings.
-	cmd := exec.Command(binaryPath, "convert", "merkle",
-		"BAKbGnC2S9wB-uoc-ipZtm3XQi4yTfzoJ104AWSYH_qt6Dr1KQpjCQnFZZQ3Cl1T8frYIxF5l4vtsIQQs0hHXAF2PSRdVsGXyGOzNQoz-R9QS2Gq7X30GQ8jAK3EJz1qgWHLUIBht8G0Sdl2Z7NFP-7KPCtcMMUawPiQCmvjVLQn_g")
-	out, err := cmd.Output()
-	if err != nil {
-		t.Fatal(err)
-	}
-	if !strings.Contains(string(out), "depth:") {
-		t.Errorf("expected depth info, got %q", out)
-	}
-}
-
-func TestCLI_ConvertMerkle_JSON(t *testing.T) {
-	cmd := exec.Command(binaryPath, "convert", "merkle", "--json",
-		"BAKbGnC2S9wB-uoc-ipZtm3XQi4yTfzoJ104AWSYH_qt6Dr1KQpjCQnFZZQ3Cl1T8frYIxF5l4vtsIQQs0hHXAF2PSRdVsGXyGOzNQoz-R9QS2Gq7X30GQ8jAK3EJz1qgWHLUIBht8G0Sdl2Z7NFP-7KPCtcMMUawPiQCmvjVLQn_g")
-	out, err := cmd.Output()
-	if err != nil {
-		t.Fatal(err)
-	}
-	var m map[string]any
-	if err := json.Unmarshal(out, &m); err != nil {
-		t.Fatal(err)
-	}
-	if m["depth"] == nil {
-		t.Errorf("expected depth key, got %+v", m)
-	}
-}
-
-func TestCLI_ConvertMerkle_Invalid(t *testing.T) {
-	cmd := exec.Command(binaryPath, "convert", "merkle", "not-valid-base64url")
-	if err := cmd.Run(); err == nil {
-		t.Error("expected error for invalid Merkle proof")
-	}
-}
-
-// (removed no-input test, stdin isn't a TTY in tests, so the command
-// would try to read an empty stdin and error; exercising that path is
-// already covered by gatherMerkleInput's stdin branch.)
+// subprocess exercises of `upgrade --check`, `auth status/login/logout`,
+// and various convert-helper branches that only fire on specific inputs
+// (raw extract, zone fallback, etc.).
 
 // --- upgrade --check ---
 
@@ -454,102 +410,6 @@ func TestCLI_ConvertKeyID_ExplicitFrom(t *testing.T) {
 		"CTwMqDZnPd/QTLSq8aTeSD3a+j2DQxKcGfhhIYJQ65Y=", "--from", "base64")
 	if err := cmd.Run(); err != nil {
 		t.Error(err)
-	}
-}
-
-// --- proofs convert: all branches ---
-
-func TestCLI_ProofsConvert_CBORtoJSON_JSONEnvelope(t *testing.T) {
-	src := testfixtures.Path(testfixtures.ProdDir, testfixtures.ProdCBOR)
-	if _, err := os.Stat(src); err != nil {
-		t.Skipf("no fixture: %v", err)
-	}
-	cmd := exec.Command(binaryPath, "proofs", "convert", "--to", "json", "--json", src)
-	out, err := cmd.Output()
-	if err != nil {
-		t.Fatal(err)
-	}
-	var m map[string]any
-	if err := json.Unmarshal(out, &m); err != nil {
-		t.Fatal(err)
-	}
-	if m["input_format"] != "cbor" {
-		t.Errorf("input_format: %v", m["input_format"])
-	}
-}
-
-func TestCLI_ProofsConvert_JSONtoCBOR_JSONEnvelope(t *testing.T) {
-	src := testfixtures.Path(testfixtures.ProdDir, testfixtures.ProdComplete)
-	if _, err := os.Stat(src); err != nil {
-		t.Skipf("no fixture: %v", err)
-	}
-	cmd := exec.Command(binaryPath, "proofs", "convert", "--to", "cbor", "--json", src)
-	out, err := cmd.Output()
-	if err != nil {
-		t.Fatal(err)
-	}
-	var m map[string]any
-	if err := json.Unmarshal(out, &m); err != nil {
-		t.Fatal(err)
-	}
-	if m["canonical_cbor"] != true {
-		t.Errorf("canonical_cbor flag missing: %+v", m)
-	}
-	if m["output_wrapped"] == "" {
-		t.Error("expected base64url-wrapped CBOR output")
-	}
-}
-
-func TestCLI_ProofsConvert_ExplicitFromJSON(t *testing.T) {
-	src := testfixtures.Path(testfixtures.ProdDir, testfixtures.ProdComplete)
-	if _, err := os.Stat(src); err != nil {
-		t.Skipf("no fixture: %v", err)
-	}
-	cmd := exec.Command(binaryPath, "proofs", "convert", "--from", "json", "--to", "json", "--compact", src)
-	if err := cmd.Run(); err != nil {
-		t.Error(err)
-	}
-}
-
-func TestCLI_ProofsConvert_ExplicitFromCBOR(t *testing.T) {
-	src := testfixtures.Path(testfixtures.ProdDir, testfixtures.ProdCBOR)
-	if _, err := os.Stat(src); err != nil {
-		t.Skipf("no fixture: %v", err)
-	}
-	cmd := exec.Command(binaryPath, "proofs", "convert", "--from", "cbor", "--to", "json", src)
-	if err := cmd.Run(); err != nil {
-		t.Error(err)
-	}
-}
-
-func TestCLI_ProofsConvert_InvalidFrom(t *testing.T) {
-	src := testfixtures.Path(testfixtures.ProdDir, testfixtures.ProdComplete)
-	if _, err := os.Stat(src); err != nil {
-		t.Skipf("no fixture: %v", err)
-	}
-	// Give it CBOR content but claim JSON, should error.
-	cmd := exec.Command(binaryPath, "proofs", "convert", "--from", "json", "--to", "cbor")
-	cborSrc := testfixtures.Path(testfixtures.ProdDir, testfixtures.ProdCBOR)
-	data, _ := os.ReadFile(cborSrc)
-	cmd.Stdin = strings.NewReader(string(data))
-	if err := cmd.Run(); err == nil {
-		t.Error("expected error for CBOR data with --from json")
-	}
-}
-
-func TestCLI_ProofsConvert_BadFromFlag(t *testing.T) {
-	cmd := exec.Command(binaryPath, "proofs", "convert", "--from", "yaml", "--to", "json")
-	cmd.Stdin = strings.NewReader("{}")
-	if err := cmd.Run(); err == nil {
-		t.Error("expected error for unknown --from")
-	}
-}
-
-func TestCLI_ProofsConvert_MissingTo(t *testing.T) {
-	cmd := exec.Command(binaryPath, "proofs", "convert")
-	cmd.Stdin = strings.NewReader("{}")
-	if err := cmd.Run(); err == nil {
-		t.Error("expected error when --to omitted")
 	}
 }
 
