@@ -132,7 +132,7 @@ func childRole(parent role, key string) role {
 			return roleWitnesses
 		}
 	case roleWitnesses:
-		if key == WitnessBlock {
+		if key == "block" {
 			return roleBlockMap
 		}
 		return roleHashed

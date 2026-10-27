@@ -12,9 +12,10 @@ import (
 )
 
 // IDType is the syntactic shape of a subject id. It is NOT the subject's
-// semantic kind (item / entropy / block / beacon): /proof/generate requires
-// an explicit `type` from the caller, there is no server-side auto
-// detection (see cmd/proofs_get.go's id-shape default). The
+// semantic kind (item / entropy / block / beacon): the raw proof route,
+// GET /proof/raw/{type}/{id}, takes the type in its path, and
+// ResolveSubjectType asks the server for it when the caller gives none
+// (see cmd/proofs_get.go's id-shape default). The
 // authoritative label for a bundle in hand is its own signed `t`, readable
 // only after ParseBytes / ParseCBOR. Use DetectIDType for pre-flight
 // validation and for sanity-checking positional args.

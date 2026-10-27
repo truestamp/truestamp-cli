@@ -94,9 +94,9 @@ Presence tiers are graded by consequence. A missing *required* field is the hard
 | `entropy_bitcoin` | when captured | the observation's payload map | same | `detail.time` seconds |
 | `signing_key_event` | never (top level) | `{block, commitments}` | block hash recomputed; epoch proofs walked | none |
 
-Payloads travel exactly as captured and are never reshaped (reshaping changes the JCS encoding and therefore the `0x21` hash). Entropy payloads may carry uppercase hex (the NIST `outputValue`) and large integers; both are canonicalized verbatim. The registry is in [`internal/proof/witnesses.go`](../internal/proof/witnesses.go). Extensibility is normative: an unknown name in `metadata.witnesses` or `subject.witnesses` is reported as a `skip` and never fails; names are never renamed or removed.
+Payloads travel exactly as captured and are never reshaped (reshaping changes the JCS encoding and therefore the `0x21` hash). Entropy payloads may carry uppercase hex (the NIST `outputValue`) and large integers; both are canonicalized verbatim. Extensibility is normative: an unknown name in `metadata.witnesses` or `subject.witnesses` is reported as a `skip` and never fails; names are never renamed or removed.
 
-Witness details are selectable at generation time (`truestamp proofs get --witnesses all|none|<list>`): absent means all (the **complete** bundle), `[]` means none (the **compact** bundle), a list selects a subset (a **partial** bundle). All three are ordinary version 1 bundles; the only difference a verifier sees is how many rows the Witnesses and Submitted After steps can report. Artifact filenames append `-compact` or `-partial`.
+An item proof carries the record of every witness its record names: there is no selection at generation, and the service refuses with `witness_unavailable` rather than serve a proof without one.
 
 ## Type registry (frozen; never renumbered)
 

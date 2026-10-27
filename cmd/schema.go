@@ -220,39 +220,6 @@ var schemaDocs = map[string]schemaDoc{
 			renderSchemaTable(w, "Subject types (frozen registry)", rows)
 		},
 	},
-	"witnesses": {
-		description: "Witness names accepted by `--witnesses`, and which are committed",
-		note: "signing_key_event witnesses the signature and rides at the bundle's top level, " +
-			"so the subject metadata never commits to it.",
-		build: func() any {
-			// One list with the distinguishing property on each entry,
-			// rather than two lists the reader has to diff. The property
-			// is derived from the registry, so it cannot drift from it.
-			//
-			// A witness is a public record that existed before the
-			// submission. Four of the five are committed by the subject's
-			// composite fingerprint, in subject.metadata.witnesses.
-			// signing_key_event witnesses the signature instead, rides at
-			// the bundle's top level, and is never in that metadata — which
-			// is the whole difference between the two sets.
-			out := make([]map[string]any, 0, len(proof.WitnessNames))
-			for _, name := range proof.WitnessNames {
-				out = append(out, map[string]any{
-					"name":                          name,
-					"committed_in_subject_metadata": proof.IsCommittedWitnessName(name),
-				})
-			}
-			return map[string]any{"witnesses": out}
-		},
-		render: func(w io.Writer) {
-			rows := [][]string{{"WITNESS", "COMMITTED IN SUBJECT METADATA"}}
-			for _, name := range proof.WitnessNames {
-				rows = append(rows, []string{name,
-					fmt.Sprintf("%v", proof.IsCommittedWitnessName(name))})
-			}
-			renderSchemaTable(w, "Witnesses", rows)
-		},
-	},
 	"exit-codes": {
 		description: "What each process exit status means",
 		build: func() any {
@@ -372,8 +339,8 @@ func cliEnums() introspect.EnumValues {
 
 	// A bare flag name applies to EVERY command that has a flag by that
 	// name. That is only safe when exactly one does, or when they all mean
-	// the same thing — --type, --format and --to each mean different things
-	// on different commands, so they are scoped by path.
+	// the same thing: --type and --to each mean different things on
+	// different commands, so they are scoped by path.
 	//
 	// This is the same hazard internal/config's flagKeyMap had, where a
 	// bare `json` mapped to verify.json for every command that registered
@@ -382,11 +349,11 @@ func cliEnums() introspect.EnumValues {
 	// fails if a bare key is used for a name more than one command carries.
 	return introspect.EnumValues{
 		// Same meaning wherever they appear.
-		"witnesses": append([]string{"all", "none"}, proof.WitnessNames...),
-		"algorithm": algNames,
-		"encoding":  {"hex", "base64", "base64url"},
-		"style":     {"gnu", "bsd", "bare"},
-		"log-level": {"debug", "info", "warn", "error"},
+		proof.ConstructionsParameter: proof.ConstructionsModes,
+		"algorithm":                  algNames,
+		"encoding":                   {"hex", "base64", "base64url"},
+		"style":                      {"gnu", "bsd", "bare"},
+		"log-level":                  {"debug", "info", "warn", "error"},
 
 		// --source: an entropy source, the same vocabulary as the entropy_*
 		// proof subject types.
@@ -397,8 +364,7 @@ func cliEnums() introspect.EnumValues {
 		"truestamp proofs get|type": proofTypeValues,
 		"truestamp convert id|type": {"auto", "ulid", "uuid7"},
 
-		// --format: a wire format on one, a timestamp format on the other.
-		"truestamp proofs get|format":   {"json", "cbor"},
+		// --format: a timestamp format.
 		"truestamp convert time|format": {"rfc3339", "unix-s", "unix-ms", "unix-us", "unix-ns"},
 
 		// --to: a wire format on one, a byte encoding on the other two.

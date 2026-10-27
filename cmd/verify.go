@@ -12,6 +12,7 @@ import (
 	"strings"
 
 	"github.com/spf13/cobra"
+	"github.com/truestamp/truestamp-cli/internal/config"
 	"github.com/truestamp/truestamp-cli/internal/inputsrc"
 	"github.com/truestamp/truestamp-cli/internal/jcs"
 	"github.com/truestamp/truestamp-cli/internal/specdata"
@@ -65,7 +66,8 @@ the configuration file or the environment, never the command line.
 The report is labelled verified, internally-consistent, supplied-keyring,
 unattributed or failed; --json writes it exactly as SPEC.md section 10.5
 gives it. --remote also asks the Truestamp service, whose verdict is
-printed beside the report and never changes the exit code.
+printed beside the report and never changes the exit code; it waits for
+the service's answer for the larger of --http-timeout and 75s.
 
 Exit codes (SPEC.md section 12.2): 0 verified; 1 a runtime error, such as
 an invalid command line or an input that cannot be read; 2 the verifier
@@ -249,26 +251,42 @@ func encodeOutcome(outcome verifier.Outcome) ([]byte, error) {
 	return outcome.Rejection.Encode()
 }
 
-// askRemote asks the Truestamp service to verify the proof too, and
-// prints its verdict on standard error, beside the report and never as a
-// row of it; it never changes the exit code, which is the local run's.
+// askRemote asks the Truestamp service to verify the proof too, posting
+// the bytes read, and prints its verdict, the label of its report, on
+// standard error, beside the report and never as a row of it or a reason
+// code. It never changes the exit code, which is the local run's: a
+// verdict that disagrees with the report and a request that gives no
+// verdict are printed and nothing more. Under --json standard output stays
+// exactly the report. The log line of a request that gives no verdict
+// carries the service's reason code when it refused the request; the
+// printed line never does.
 func askRemote(cmd *cobra.Command, data []byte, expectedHash *string, offline bool) {
 	cfg := appConfig
-	options := verify.RemoteOptions{APIURL: cfg.APIURL, Team: cfg.Team, SkipExternal: offline}
-	if expectedHash != nil {
-		options.ExpectedHash = strings.ToLower(*expectedHash)
+	label, err := verify.AskRemoteCtx(cmd.Context(), data, remoteOptions(cfg, expectedHash, offline))
+	if err != nil {
+		attrs := []any{"err", err.Error()}
+		var rejection *verify.RemoteRejectionError
+		if errors.As(err, &rejection) {
+			attrs = append(attrs, "code", rejection.Code)
+		}
+		appLogger.Info("verify_remote_no_verdict", attrs...)
+	} else {
+		appLogger.Info("verify_remote_verdict", "label", label)
 	}
-	report, err := verify.RunRemoteBytesCtx(cmd.Context(), data, options)
 	if cfg.Silent {
 		return
 	}
 	var w io.Writer = cmd.ErrOrStderr()
-	switch {
-	case err != nil:
-		_, _ = fmt.Fprintf(w, "The Truestamp service gave no verdict: %v. This does not change the report or the exit code.\n", err)
-	case report.Passed():
-		_, _ = fmt.Fprintln(w, "The Truestamp service's verdict, beside this report and not part of it: passed.")
-	default:
-		_, _ = fmt.Fprintln(w, "The Truestamp service's verdict, beside this report and not part of it: failed.")
+	if err != nil {
+		_, _ = fmt.Fprintf(w, "The Truestamp service gave no verdict, which changes neither the report nor the exit code: %v\n", err)
+		return
 	}
+	_, _ = fmt.Fprintf(w, "The Truestamp service's verdict, beside this report and not part of it: %s.\n", label)
+}
+
+// remoteOptions is what askRemote asks the service with: the configured
+// API, team and http_timeout (the request waits for the larger of it and
+// the service's floor), and the run's offline flag and expected hash.
+func remoteOptions(cfg *config.Config, expectedHash *string, offline bool) verify.RemoteOptions {
+	return verify.RemoteOptions{APIURL: cfg.APIURL, Team: cfg.Team, Offline: offline, ExpectedHash: expectedHash, HTTPTimeout: cfg.Timeout()}
 }

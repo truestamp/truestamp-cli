@@ -21,7 +21,7 @@ import (
 
 // These tests plug the gaps the regular suite leaves uncovered, mostly
 // subprocess exercises of `convert merkle`, `upgrade --check`, `auth
-// status/login/logout`, `proofs get`, and various convert-helper branches
+// status/login/logout`, and various convert-helper branches
 // that only fire on specific inputs (raw extract, zone fallback, etc.).
 
 // --- convert merkle ---
@@ -237,27 +237,6 @@ func TestCLI_ItemsCreate_WithMockAPI(t *testing.T) {
 	if m["tags"] == nil {
 		t.Errorf("tags missing")
 	}
-}
-
-// --- download ---
-
-func TestCLI_ProofsGet_BasicProof(t *testing.T) {
-	proofJSON := `{"v":1,"pk":"a","sig":"b","ts":"2026-01-01T00:00:00Z",
-		"s":{"src":"item","id":"01X","d":{},"mh":"cc","kid":"dd"},
-		"b":{"id":"x","ph":"p","mr":"m","mh":"mh","kid":"k"},"ip":"AA"}`
-
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		_, _ = w.Write([]byte(`{"result":` + proofJSON + `}`))
-	}))
-	defer srv.Close()
-
-	cmd := exec.Command(binaryPath, "proofs", "get",
-		"01HJHB01T8FYZ7YTR9P5N62K5B",
-		"-o", filepath.Join(t.TempDir(), "out.json"),
-		"--base-url", srv.URL, "--api-key", "key")
-	out, _ := cmd.CombinedOutput()
-	// Any outcome reaches presentDownload / formatSize.
-	_ = out
 }
 
 // --- convert_id: raw extract + local zone ---

@@ -221,6 +221,7 @@ var scannedPackages = map[string]scannedPackage{
 	"internal/verifier/ed25519": {imports: []string{"crypto/ed25519", "errors", "math/big", specdataPath}},
 	"internal/verifier/bitcoin": {imports: []string{"crypto/sha256", "encoding/binary", "encoding/hex", "errors", "math/big", specdataPath},
 		protocolLiterals: true},
+	"internal/itemcode": {imports: []string{registryPath}},
 }
 
 // contentDigest is a function of the new verifier outside the registry

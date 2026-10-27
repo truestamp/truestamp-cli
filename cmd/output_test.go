@@ -239,7 +239,7 @@ func TestCLI_JSONFlagIsNeverANoOp(t *testing.T) {
 		{"auth", "status"},
 		{"inspect", bundle},
 		{"hash", soundItem()},
-		{"schema", "get", "witnesses"},
+		{"schema", "get", "subject-types"},
 		{"schema", "get", "commands"},
 	} {
 		t.Run(strings.Join(args, "_"), func(t *testing.T) {
@@ -280,27 +280,27 @@ func TestCLI_SchemaGetRendersTextByDefault(t *testing.T) {
 		t.Error("--json is universal; schema get must offer it like everything else")
 	}
 
-	text, err := exec.Command(binaryPath, "schema", "get", "witnesses").Output()
+	text, err := exec.Command(binaryPath, "schema", "get", "subject-types").Output()
 	if err != nil {
-		t.Fatalf("schema get witnesses: %v", err)
+		t.Fatalf("schema get subject-types: %v", err)
 	}
 	if json.Valid(text) {
 		t.Errorf("the default rendering should be text, got JSON:\n%s", text)
 	}
-	if !strings.Contains(string(text), "WITNESS") {
+	if !strings.Contains(string(text), "SUBJECT TYPE") {
 		t.Errorf("the text rendering should be a table, got:\n%s", text)
 	}
 
-	asJSON, err := exec.Command(binaryPath, "schema", "get", "witnesses", "--json").Output()
+	asJSON, err := exec.Command(binaryPath, "schema", "get", "subject-types", "--json").Output()
 	if err != nil {
-		t.Fatalf("schema get witnesses --json: %v", err)
+		t.Fatalf("schema get subject-types --json: %v", err)
 	}
 	if !json.Valid(asJSON) {
 		t.Errorf("--json should emit JSON, got:\n%s", asJSON)
 	}
 
 	// --silent stays: "does this schema exist" has an exit code for an answer.
-	if err := exec.Command(binaryPath, "schema", "get", "witnesses", "--silent").Run(); err != nil {
+	if err := exec.Command(binaryPath, "schema", "get", "subject-types", "--silent").Run(); err != nil {
 		t.Errorf("schema get --silent should succeed quietly: %v", err)
 	}
 	if err := exec.Command(binaryPath, "schema", "get", "nope", "--silent").Run(); err == nil {

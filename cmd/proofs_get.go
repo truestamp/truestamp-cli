@@ -12,21 +12,17 @@ import (
 	"strings"
 
 	"github.com/spf13/cobra"
-	"github.com/truestamp/truestamp-cli/internal/inputsrc"
 	"github.com/truestamp/truestamp-cli/internal/jsonapi"
 	"github.com/truestamp/truestamp-cli/internal/proof"
 	"github.com/truestamp/truestamp-cli/internal/ui"
 )
 
-// Subject-type flag values for `truestamp proofs get --type`. These map 1:1 to the server's /proof/generate
-// `type` string enum. There is no "auto" and no bare "entropy", both were
-// removed in the server's strict-type cutover. Callers that don't pass
-// --type get a default: a ULID id is an item, and a UUIDv7 id is resolved
-// against the server in one extra round trip.
-//
-// Wire values preserve the underscore form (entropy_nist) to match the
-// server enum exactly; filename stems translate underscores to hyphens
-// for friendlier filenames (truestamp-entropy-nist-<id>.json).
+// Subject-type flag values for `truestamp proofs get --type`. These map 1:1
+// to the `type` of the server's raw proof route, the six type names of
+// SPEC.md section 3.2 (Members of `proof`). There is no "auto" and no bare
+// "entropy". Callers that don't pass --type get a default: a ULID id is an
+// item, and a UUIDv7 id is resolved against the server in one extra round
+// trip.
 const (
 	proofTypeItem           = "item"
 	proofTypeEntropyNIST    = "entropy_nist"
@@ -60,7 +56,9 @@ var proofTypesForUUIDv7 = []string{
 var proofsGetCmd = &cobra.Command{
 	Use:   "get <id>",
 	Short: "Fetch the proof bundle for a subject",
-	Long: `Download a cryptographic proof bundle for a Truestamp subject.
+	Long: `Download the proof Truestamp serves of a subject, its bytes exactly as
+served: one JSON document, the envelope of SPEC.md section 3.1, signed
+by Truestamp.
 
 --type is optional. A ULID is unambiguously an item. A UUIDv7 could be an
 entropy observation, a block or a beacon, so it is resolved against the
@@ -68,39 +66,30 @@ server in one extra round trip; pass --type to skip that call, or when an
 id is verifiable as more than one subject type, which is refused rather
 than guessed.
 
---witnesses selects which witness details an item bundle carries:
-'all' (the default, the complete bundle), 'none' (the compact bundle:
-the committed witness hashes stay in the subject metadata, the details
-are left out), or a comma-separated subset of block, entropy_stellar,
-entropy_nist, entropy_bitcoin, signing_key_event (a partial bundle).
-All three are ordinary version 1 bundles; the only difference a verifier
-sees is how many witness rows it can report.
+--constructions selects how the proof carries the constructions text
+(SPEC.md section 7.2): 'full' (the default) carries the text itself,
+'reference' its URL, which names its SHA-256, and 'none' neither. Each
+mode is its own signed document, and the verdict never depends on it.
 
-With no output flag the bundle is written to stdout, so it can be piped.
+With no output flag the proof is written to stdout, so it can be piped.
 -o/--out writes it to the path you name. --to-file writes it to a
-conventionally-named file in the current directory:
-truestamp-<stem>-<id><variant>.<ext>, where <stem> is the resolved type
-with underscores translated to hyphens and <variant> is empty, -compact,
-or -partial:
+conventionally-named file in the current directory, whatever the
+constructions mode:
 
-  --type item                      -> truestamp-item-<ulid>.<ext>
-  --type item --witnesses none     -> truestamp-item-<ulid>-compact.<ext>
-  --type item --witnesses block    -> truestamp-item-<ulid>-partial.<ext>
-  --type entropy_nist              -> truestamp-entropy-nist-<uuidv7>.<ext>
-  --type block                     -> truestamp-block-<uuidv7>.<ext>
-  --type beacon                    -> truestamp-beacon-<uuidv7>.<ext>
+  an item                          -> <CODE>.proof.json, CODE its item code
+  an entropy observation, a block
+  or a beacon                      -> <uuidv7>.proof.json
 
-The 'type' inside the file is authoritative; the filename never is.
+The 'type' inside the proof is authoritative; the filename never is.
 Block and beacon proofs share one structural shape but carry distinct
-type codes in the signed payload, so a block and a beacon proof for the
-same block have different signatures.
+types in the signed proof, so a block and a beacon proof for the same
+block have different signatures.
 
 Examples:
   truestamp proofs get 01KNN33GX5E470CB9TRWAYF9DD
-  truestamp proofs get --witnesses none 01KNN33GX5E470CB9TRWAYF9DD
-  truestamp proofs get --witnesses block,entropy_nist 01KNN33GX5E470CB9TRWAYF9DD
+  truestamp proofs get --constructions reference 01KNN33GX5E470CB9TRWAYF9DD
   truestamp proofs get --type block   019d6a32-13e6-72b0-97e5-3779231ea97b
-  truestamp proofs get --type beacon -f cbor 019d6a32-13e6-72b0-97e5-3779231ea97b
+  truestamp proofs get --type beacon --to-file 019d6a32-13e6-72b0-97e5-3779231ea97b
   truestamp proofs get --type entropy_stellar 019cf813-99b8-730a-84f1-5a711a9c355e
   truestamp proofs get -o proof.json 01KNN33GX5E470CB9TRWAYF9DD
 
@@ -122,29 +111,18 @@ output file).`,
 			return err
 		}
 
-		format, _ := cmd.Flags().GetString("format")
-		format = strings.ToLower(strings.TrimSpace(format))
-		if format != "json" && format != "cbor" {
-			return fmt.Errorf("--format must be \"json\" or \"cbor\", got %q", format)
-		}
-
 		// Everything that can be refused locally is refused before the
-		// first round trip: a bad --witnesses or a conflicting output
+		// first round trip: a bad --constructions or a conflicting output
 		// choice must not cost a resolve-id request.
-		witnessFlag, _ := cmd.Flags().GetString("witnesses")
-		witnesses, err := proof.ParseWitnessSelection(witnessFlag)
-		if err != nil {
-			return fmt.Errorf("--witnesses: %w", err)
+		constructions, _ := cmd.Flags().GetString(proof.ConstructionsParameter)
+		if !slices.Contains(proof.ConstructionsModes, constructions) {
+			return fmt.Errorf("--constructions must be one of %s, got %q",
+				strings.Join(proof.ConstructionsModes, " | "), constructions)
 		}
 		outPath, _ := cmd.Flags().GetString("out")
 		toFile, _ := cmd.Flags().GetBool("to-file")
 		if outPath != "" && toFile {
 			return fmt.Errorf("--out and --to-file are mutually exclusive: --out names a path, --to-file picks the conventional name")
-		}
-		if outPath == "" && !toFile && format == "cbor" && inputsrc.IsStdoutTerminal() {
-			// Refuse to spray CBOR at a terminal. The message names both
-			// ways out rather than just failing.
-			return fmt.Errorf("refusing to write CBOR to a terminal: redirect it, or pass -o <path> or --to-file")
 		}
 
 		typeFlag, _ := cmd.Flags().GetString("type")
@@ -162,12 +140,12 @@ output file).`,
 		//
 		// A ULID is unambiguously an item, so that case needs no help. A
 		// UUIDv7 could be a block, a beacon or an entropy observation, and
-		// nothing client-side can tell them apart — this is the one place
+		// nothing client-side can tell them apart: this is the one place
 		// id-shape dispatch cannot work. Rather than requiring --type, ask
 		// the server what the id refers to, at the cost of one round trip.
 		//
 		// The classification only decides which proof to REQUEST. The
-		// bundle that comes back is still verified against its own signed
+		// proof that comes back is still verified against its own signed
 		// type, so a wrong answer here cannot change a verdict.
 		if typeFlag == "" {
 			switch shape {
@@ -201,8 +179,8 @@ output file).`,
 			return err
 		}
 
-		appLogger.Info("download_request", "id", id, "type", typeFlag, "format", format, "witnesses", witnesses.String())
-		data, err := proof.GenerateCtx(cmd.Context(), cfg.APIURL, cfg.Team, id, typeFlag, format, witnesses)
+		appLogger.Info("download_request", "id", id, "type", typeFlag, "constructions_mode", constructions)
+		data, err := proof.FetchRawCtx(cmd.Context(), cfg.APIURL, cfg.Team, typeFlag, id, constructions)
 		if err != nil {
 			appLogger.Error("download_failed", "id", id, "type", typeFlag, "err", err.Error())
 			var apiErr *proof.GenerateAPIError
@@ -215,16 +193,16 @@ output file).`,
 			return err
 		}
 
-		stem := proofFileStem(typeFlag)
-
-		// R10's payload triad: no flag writes the bundle to stdout so it
+		// R10's payload triad: no flag writes the proof to stdout so it
 		// can be piped, -o/--out names a path, --to-file uses the
-		// conventional auto-name. Previously this command always wrote a
-		// file into the cwd, which made
-		// `truestamp proofs get <id> | truestamp verify` impossible without
-		// a temp file in a CLI that advertises pipeline recipes.
+		// conventional name. Every destination gets the served bytes
+		// unchanged.
 		if toFile {
-			outPath = fmt.Sprintf("truestamp-%s-%s%s.%s", stem, id, witnesses.FilenameSuffix(), format)
+			outPath, err = proof.FileName(typeFlag, id, data)
+			if err != nil {
+				appLogger.Error("download_failed", "id", id, "type", typeFlag, "stage", "name", "err", err.Error())
+				return err
+			}
 		}
 
 		if outPath == "" {
@@ -232,7 +210,7 @@ output file).`,
 				return fmt.Errorf("writing to stdout: %w", werr)
 			}
 			appLogger.Info("download_completed",
-				"id", id, "type", typeFlag, "format", format,
+				"id", id, "type", typeFlag, "constructions_mode", constructions,
 				"size_bytes", len(data), "output", "(stdout)",
 			)
 			return nil
@@ -246,23 +224,16 @@ output file).`,
 		appLogger.Info("download_completed",
 			"id", id,
 			"type", typeFlag,
-			"format", format,
+			"constructions_mode", constructions,
 			"size_bytes", len(data),
 			"output", outPath,
 		)
 
 		// The receipt card goes to stderr, so stdout stays usable even
 		// when a file was written.
-		presentDownload(cmd.ErrOrStderr(), outPath, format, id, typeFlag, witnesses.String(), len(data))
+		presentDownload(cmd.ErrOrStderr(), outPath, id, typeFlag, constructions, len(data))
 		return nil
 	},
-}
-
-// downloadStem converts a resolved --type value to a filename stem. Wire
-// values use underscores (entropy_nist) to match the server enum;
-// filename stems use hyphens (entropy-nist) for friendlier filenames.
-func proofFileStem(typeFlag string) string {
-	return strings.ReplaceAll(typeFlag, "_", "-")
 }
 
 // validProofType reports whether v is one of the six canonical --type
@@ -290,18 +261,16 @@ func validateTypeVsShape(typeFlag string, shape proof.IDType) error {
 	return nil
 }
 
-func presentDownload(w io.Writer, filename, format, id, typeFlag, witnesses string, size int) {
+func presentDownload(w io.Writer, filename, id, typeFlag, constructions string, size int) {
 	header := ui.AccentBoldStyle().Render("  Proof Downloaded")
-
-	formatDisplay := strings.ToUpper(format)
 
 	tbl := ui.CompactTable().
 		StyleFunc(ui.LabelValueStyleFunc()).
 		Row("File", filename).
-		Row("Format", fmt.Sprintf("%s (%s bytes)", formatDisplay, formatSize(size))).
+		Row("Size", formatSize(size)+" bytes").
 		Row("ID", id).
 		Row("Type", typeFlag).
-		Row("Witnesses", witnesses)
+		Row("Constructions", constructions)
 
 	// Append URL rows to the SAME table so they share the
 	// right-aligned-label / value column alignment. ui.SubjectDetailURL
@@ -316,9 +285,8 @@ func presentDownload(w io.Writer, filename, format, id, typeFlag, witnesses stri
 		tbl = tbl.Row("Verify", verify)
 	}
 
-	// Plain newline-join, see note in internal/verify/presenter.go
-	// Present(). Long filenames (e.g. truestamp-entropy-bitcoin-<uuidv7>.cbor)
-	// won't inflate every other table row on narrow terminals.
+	// Plain newline-join: a long file name does not inflate every other
+	// table row on narrow terminals.
 	ui.Fprintln(w, strings.Join([]string{header, "", tbl.String()}, "\n"))
 }
 
@@ -335,56 +303,68 @@ func formatSize(size int) string {
 
 func init() {
 	f := proofsGetCmd.Flags()
-	f.StringP("format", "f", "json", `Output format: "json" or "cbor"`)
-	f.StringP("out", "o", "", "Write the bundle to this path (default: stdout)")
-	f.Bool("to-file", false, "Write the bundle to a conventionally-named file in the current directory")
+	f.String(proof.ConstructionsParameter, proof.ConstructionsFull, "How the proof carries the constructions text (SPEC.md section 7.2): "+strings.Join(proof.ConstructionsModes, " | "))
+	f.StringP("out", "o", "", "Write the proof to this path (default: stdout)")
+	f.Bool("to-file", false, "Write the proof to <CODE>.proof.json (an item) or <id>.proof.json in the current directory")
 	f.String("type", "",
 		fmt.Sprintf(`Subject type. Optional: a ULID is an item, and a UUIDv7 is resolved against the server in one extra round trip. One of: %s`,
 			strings.Join(proofTypeValues, " | ")))
-	f.String("witnesses", "all", "Witness details to carry: all, none, or a comma-separated list of "+strings.Join(proof.WitnessNames, ","))
 	proofsCmd.AddCommand(proofsGetCmd)
 }
 
-// generateCodeAdvice is what a holder can do next for each /proof/generate
-// refusal code this CLI recognises: whether waiting helps, and the
+// generateCodeAdvice is what a holder can do next for each refusal of the
+// raw proof route this CLI recognises: whether waiting helps, and the
 // context worth adding to the server's own detail.
 //
 // Terminality is a property of the CODE, never of the wording of `detail`:
-// detail is human-readable text the server may reword at any time, and it
-// has been reworded once already. A code not in this table gets no verdict
-// at all, so a code added server-side before the CLI learns about it
-// renders plainly rather than inheriting a guess about whether waiting
-// helps. The transient set mirrors the server's own closed retryable set.
+// detail is human-readable text the server may reword at any time. A code
+// not in this table gets no verdict at all, so a code added server-side
+// before the CLI learns about it renders plainly rather than inheriting a
+// guess about whether waiting helps. The transient set mirrors the
+// server's own retryable set.
 var generateCodeAdvice = map[string]struct {
 	transient bool
 	advice    []string
 }{
-	proof.GenerateCodeNoExternalCommitments: {true, []string{
-		"A proof exists once the subject has its first public-chain commitment.",
+	proof.GenerateCodeNoBlockCommitment: {true, []string{
+		"A proof exists once the subject's block is committed to a public chain.",
 		"Items reach a Truestamp block within about a minute and Stellar within",
 		"about five.",
+	}},
+	proof.GenerateCodeCommitmentNotFinal: {true, []string{
+		"The block's commitment is on its chain and not final there yet.",
+	}},
+	proof.GenerateCodeEvidenceUnconfirmed: {true, []string{
+		"Truestamp signs a proof only once its own chain reads confirm the",
+		"evidence the proof carries.",
 	}},
 	proof.GenerateCodeSubjectNotReady: {true, []string{
 		"The subject is not yet in a state a proof can be built from.",
 	}},
-	proof.GenerateCodeSubjectNotRecomputable: {false, []string{
-		"The subject's commitment on the public chain is unaffected; what changed",
-		"is that its stored data no longer reproduces the hash that was",
-		"committed. Report the subject id to Truestamp.",
+	proof.GenerateCodeWitnessUnavailable: {true, []string{
+		"Truestamp never serves an item's proof without every witness its",
+		"fingerprint commits to.",
+	}},
+	proof.GenerateCodeSigningUnavailable: {true, nil},
+	proof.GenerateCodeLookupFailed:       {true, nil},
+	proof.GenerateCodeSubjectRedacted: {false, []string{
+		"Restoring the item makes its proof available again.",
+	}},
+	proof.GenerateCodeProofTooLarge: {false, []string{
+		"Report the subject id to Truestamp.",
 	}},
 	proof.GenerateCodeGenerationFailed: {false, nil},
 }
 
-// explainGenerateError renders a /proof/generate refusal the way every
-// other refusal in the tree is rendered: a banner naming the outcome, the
-// server's own detail, what the holder can do next, and the code to quote
-// in a bug report. Nothing under --silent.
+// explainGenerateError renders a refusal of the raw proof route the way
+// every other refusal in the tree is rendered: a banner naming the
+// outcome, the server's own detail, what the holder can do next, and the
+// code to quote in a bug report. Nothing under --silent.
 //
 // The server says accurately what went wrong; what it cannot say is what
 // the caller should do next, and the single most useful part of that is
-// whether waiting will help. `no_external_commitments` clears on its own
-// in minutes; `subject_not_recomputable` never clears. Reporting both as
-// "API error" left a holder polling forever against a permanent condition.
+// whether waiting will help. `no_block_commitment` clears on its own in
+// minutes; `subject_redacted` does not.
 func explainGenerateError(cmd *cobra.Command, e *proof.GenerateAPIError) error {
 	if _, silent := outputMode(cmd); silent {
 		return errSilentFail
@@ -401,19 +381,6 @@ func explainGenerateError(cmd *cobra.Command, e *proof.GenerateAPIError) error {
 	var lines []string
 	if e.Detail != "" {
 		lines = append(lines, e.Detail)
-	}
-	switch e.Code {
-	case proof.GenerateCodeSubjectNotRecomputable:
-		if e.Drifted != "" {
-			lines = append(lines, "What drifted: "+e.Drifted+".")
-		}
-	case proof.GenerateCodeGenerationFailed:
-		// Comparing two values the server sent, not sniffing its prose for
-		// a keyword: the steps are already inside `detail` today, and
-		// printing the identical list twice reads as two failures.
-		if e.FailedSteps != "" && !strings.Contains(e.Detail, e.FailedSteps) {
-			lines = append(lines, "Failed checks: "+e.FailedSteps)
-		}
 	}
 	lines = append(lines, a.advice...)
 	switch {
