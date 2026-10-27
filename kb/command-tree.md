@@ -169,7 +169,7 @@ on the `items get` card and a column in `items list`; the authoritative answer s
 - Binary to a TTY is refused, with a message naming both flags.
 - A managed local directory is always `--store <dir>`, never `-o`. Do not mix the two idioms.
 - **Exempt, explicitly:** pipeline primitives that print one bare value or raw bytes —
-  `convert time|id|keyid|merkle`, `encode`, `decode`, `jcs`. `hash --style gnu|bsd|bare` stays a
+  `convert time|id|keyid`, `encode`, `decode`, `jcs`. `hash --style gnu|bsd|bare` stays a
   byte-identical `sha256sum` drop-in. The primitives still carry the two flags, so an explicit
   `--json` or `--silent` works; what they ignore is the ambient config-file / environment setting, so a
   `silent = true` in `config.toml` cannot silence a pipe built on them.
@@ -362,7 +362,6 @@ A dash carries its reason. Cells marked **deferred** are designed but not built;
 | `create` | `items create` | `get` generates it | Truestamp writes the chain | Truestamp writes the chain | Truestamp captures them | Truestamp rotates keys | `teams create` |
 | `update` | `items update` | regenerate via `get` | append-only | append-only | append-only | append-only | deferred, no route |
 | `delete` | R4, committed | nothing stored | R4, chain history | R4, chain history | R4, committed | R4, retired not removed | deferred, no route |
-| `convert` | — | `proofs convert` | — | — | — | — | — |
 | `pull` | no local mirror | `get` writes one bundle | deferred | mirror lives in `blocks` | no local mirror | `pin` stores the keyring | no local mirror |
 | `verify` | verify its proof | root `verify` does this | deferred | verify its proof | verify its proof | via `blocks verify` | nothing to verify |
 | `pin` | no pinned document | bundle carries its key | `pull` stores the chain | — | — | deferred | — |
@@ -396,14 +395,12 @@ truestamp
 │   │   │                        --json --silent
 │   │   └── update <ulid>        --to-team --visibility --tags --json --silent
 │   │
-│   ├── proofs                   "Get and convert proof bundles"
-│   │   ├── get <id>             --type item|block|beacon|entropy_nist|entropy_stellar|
-│   │   │                               entropy_bitcoin        (optional; a UUIDv7 is
-│   │   │                                                       resolved server-side)
-│   │   │                        --constructions full|reference|none
-│   │   │                        -o/--out <path> --to-file
-│   │   └── convert [file|url|-] --file --url --from auto|json|cbor --to json|cbor --compact
-│   │                            --json --silent
+│   ├── proofs                   "Get proof bundles"
+│   │   └── get <id>             --type item|block|beacon|entropy_nist|entropy_stellar|
+│   │                                   entropy_bitcoin        (optional; a UUIDv7 is
+│   │                                                           resolved server-side)
+│   │                            --constructions full|reference|none
+│   │                            -o/--out <path> --to-file
 │   │
 │   ├── blocks                   "Read-only: Truestamp's block chain"
 │   │   ├── list                 --limit --after --before --oldest-first --max --count --json --silent
@@ -442,7 +439,7 @@ truestamp
 │   ├── encode [file|url|-]      --file --url --from --to --json --silent
 │   ├── decode [file|url|-]      --file --url --from --to --json --silent
 │   ├── jcs [file|url|-]         --file --url --newline --json --silent
-│   └── convert                  time · id · keyid · merkle      (each: --json --silent)
+│   └── convert                  time · id · keyid      (each: --json --silent)
 │
 ├── Setup
 │   ├── auth                     login · logout · status

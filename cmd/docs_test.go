@@ -205,8 +205,8 @@ func commandPath(args []string, known map[string]map[string]bool) (path []string
 // caught.
 // docTreeAndGroups also reports which paths are groups. A group is a
 // namespace, so any leftover plain word after one names a subcommand that does not
-// exist: `truestamp convert proof` is not "convert with an operand", it is
-// the retired spelling of `proofs convert`, and cobra rejects it at runtime.
+// exist: `truestamp convert proof` is not "convert with an operand", it
+// names no subcommand, and cobra rejects it at runtime.
 // After a runnable leaf the same word is a legitimate operand
 // (`truestamp verify proof.json`), which is why this distinction is needed
 // rather than a blanket "no leftover words" rule.
@@ -350,10 +350,31 @@ func TestDocs_FlagsExist(t *testing.T) {
 	t.Logf("checked %d documented flag uses", checked)
 }
 
+// retiredCommandPaths are command paths the tree does not have, written
+// without the `truestamp` prefix, and why. Prose says "`beacon list`
+// accepts 1..100" as often as it writes the whole invocation. The docs
+// sweep below and the help-text sweep in tree_test.go both read it.
+var retiredCommandPaths = map[string]string{
+	"beacon list":    "renamed to `beacons list`",
+	"beacon get":     "renamed to `beacons get`",
+	"beacon by-hash": "folded into `beacons get`",
+	"team show":      "split into `teams get` and `teams current`",
+	"team set":       "renamed to `teams use`",
+	"team unset":     "renamed to `teams use --clear`",
+	"team list":      "renamed to `teams list`",
+	"team create":    "renamed to `teams create`",
+	"convert proof":  "removed; proofs are JSON only",
+	"proofs convert": "removed; proofs are JSON only",
+	"convert merkle": "removed with the earlier proof layout",
+}
+
 // TestDocs_NoRetiredNames is the belt to TestDocs_CommandsExist's braces.
 // A retired name can survive in prose, a table, or a config snippet where
 // no `truestamp ` prefix makes it an invocation, and those are exactly the
-// places a reader copies from. CHANGELOG.md is exempt as history.
+// places a reader copies from. CHANGELOG.md is exempt as history. A path
+// written as one alternative of several (`convert time|id|keyid`) is
+// checked as each path it names. Mutant killed: `convert
+// time|id|keyid|merkle` put back in README.md.
 func TestDocs_NoRetiredNames(t *testing.T) {
 	// Each entry is a string that must not appear, and why.
 	retired := map[string]string{
@@ -367,18 +388,6 @@ func TestDocs_NoRetiredNames(t *testing.T) {
 		retiredSignatureFlag:   "removed; the signature is always checked",
 		retiredSignatureEnv:    "removed; the signature is always checked",
 		retiredSignatureConfig: "removed; the signature is always checked",
-		// Retired command PATHS, written without the `truestamp` prefix.
-		// Prose says "`beacon list` accepts 1..100" as often as it writes
-		// the whole invocation.
-		"beacon list":    "renamed to `beacons list`",
-		"beacon get":     "renamed to `beacons get`",
-		"beacon by-hash": "folded into `beacons get`",
-		"team show":      "split into `teams get` and `teams current`",
-		"team set":       "renamed to `teams use`",
-		"team unset":     "renamed to `teams use --clear`",
-		"team list":      "renamed to `teams list`",
-		"team create":    "renamed to `teams create`",
-		"convert proof":  "renamed to `proofs convert`",
 		// The binary carries no reference documentation: the three help
 		// topics that briefly existed were each a third copy of something
 		// owned elsewhere. `truestamp help <topic>` is an error for all of
@@ -386,6 +395,9 @@ func TestDocs_NoRetiredNames(t *testing.T) {
 		"truestamp help formatting": "removed; there are no help topics",
 		"truestamp help glossary":   "removed; there are no help topics",
 		"truestamp help exit-codes": "removed; there are no help topics",
+	}
+	for p, why := range retiredCommandPaths {
+		retired[p] = why
 	}
 	// Match on a trailing word boundary, not a bare substring. "beacon
 	// list" is a retired command; "the beacon listing card" is ordinary
@@ -395,26 +407,45 @@ func TestDocs_NoRetiredNames(t *testing.T) {
 		pat[needle] = regexp.MustCompile(regexp.QuoteMeta(needle) + `\b`)
 	}
 	for _, f := range docFiles(t) {
+		if recordsRetiredNames(f) {
+			continue
+		}
 		body, err := os.ReadFile(f)
 		if err != nil {
 			t.Fatalf("read %s: %v", f, err)
 		}
-		text := string(body)
-		for needle, why := range retired {
-			if !pat[needle].MatchString(text) {
-				continue
-			}
-			if recordsRetiredNames(f) {
-				continue
-			}
-			for i, line := range strings.Split(text, "\n") {
-				if pat[needle].MatchString(line) {
-					t.Errorf("%s:%d still mentions %q (%s)\n  %s",
-						f, i+1, needle, why, strings.TrimSpace(line))
+		for i, line := range strings.Split(string(body), "\n") {
+			variants := expandAlternations(line)
+			for needle, why := range retired {
+				for _, v := range variants {
+					if pat[needle].MatchString(v) {
+						t.Errorf("%s:%d still mentions %q (%s)\n  %s",
+							f, i+1, needle, why, strings.TrimSpace(line))
+						break
+					}
 				}
 			}
 		}
 	}
+}
+
+// alternationRe finds a command path whose last word is an alternation,
+// as prose writes `convert time|id|keyid`: one or more words, a space,
+// then two or more words joined by `|`.
+var alternationRe = regexp.MustCompile(`((?:[a-z][a-z0-9-]* )+)([a-z0-9-]+(?:\|[a-z0-9-]+)+)`)
+
+// expandAlternations returns the line itself and, for each alternation in
+// it, the command path spelled out once per alternative, so a retired
+// name written as one alternative (`convert time|id|keyid|merkle` naming
+// `convert merkle`) is seen as the path it names.
+func expandAlternations(line string) []string {
+	out := []string{line}
+	for _, m := range alternationRe.FindAllStringSubmatch(line, -1) {
+		for _, alt := range strings.Split(m[2], "|") {
+			out = append(out, m[1]+alt)
+		}
+	}
+	return out
 }
 
 func firstLine(s string) string {

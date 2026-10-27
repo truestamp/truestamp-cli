@@ -60,9 +60,9 @@ func TestTree_BareGroupPrintsHelp(t *testing.T) {
 // TestTree_GroupRejectsUnknownSubcommand is the other half of R0, and the
 // reason groups have a RunE at all. Cobra's default for a command with
 // subcommands and no Run is to print help and exit 0 EVEN WHEN handed an
-// argument it does not recognize — so after `proof` moved to
-// `proofs convert`, `truestamp convert proof` printed help and exited 0,
-// giving a reader following an old document no signal whatsoever.
+// argument it does not recognize, so `truestamp convert proof`, a path
+// that names nothing, printed help and exited 0, giving a reader following
+// an old document no signal whatsoever.
 func TestTree_GroupRejectsUnknownSubcommand(t *testing.T) {
 	for _, g := range allGroups() {
 		t.Run(g, func(t *testing.T) {
@@ -333,43 +333,68 @@ func TestTree_RootHelpLeadsWithCommands(t *testing.T) {
 
 // --- runtime strings ---------------------------------------------------
 
-// TestTree_NoRetiredNamesInRuntimeStrings scans every Short, Long and
-// Example in the tree for a retired command path.
+// binaryFormatName is the short name of RFC 8949's binary encoding, which
+// the CLI does not read. This guard is the one place in cmd/ and internal/
+// that names it.
+const binaryFormatName = "cbor"
+
+// TestTree_NoRetiredNamesInRuntimeStrings scans every command's Use,
+// Short, Long and Example, and every local flag's usage, for a retired
+// command path and for binaryFormatName in any case.
 //
 // The docs tests catch stale Markdown, but a stale hint printed by the
 // binary itself is worse: the user is already in the tool, following its
-// own instruction, and it names a command that no longer exists. This
-// found four such strings when it was written, including `teams current`
-// telling the reader to run `truestamp team set`.
+// own instruction, and it names a command that does not exist. A proof is
+// one JSON document, so help that offers a binary encoding offers a format
+// every command refuses.
+//
+// Mutants killed: inspect's Long naming RFC 8949's encoding beside JSON;
+// convert's Short naming `convert merkle`.
 func TestTree_NoRetiredNamesInRuntimeStrings(t *testing.T) {
 	retired := []string{
 		"truestamp team ", "truestamp beacon ", "truestamp create",
 		"truestamp download", "truestamp convert proof",
 		"truestamp team'", "truestamp beacon'",
 	}
+	paths := map[string]*regexp.Regexp{}
+	for p := range retiredCommandPaths {
+		paths[p] = regexp.MustCompile(`\b` + regexp.QuoteMeta(p) + `\b`)
+	}
+	check := func(where, text string) {
+		for _, bad := range retired {
+			if strings.Contains(text, bad) {
+				t.Errorf("%s mentions the retired %q", where, strings.TrimSpace(bad))
+			}
+		}
+		for p, re := range paths {
+			if re.MatchString(text) {
+				t.Errorf("%s names the retired command path %q", where, p)
+			}
+		}
+		if strings.Contains(strings.ToLower(text), binaryFormatName) {
+			t.Errorf("%s mentions %s; a proof is one JSON document", where, binaryFormatName)
+		}
+	}
+	checked := 0
 	var walk func(c *cobra.Command, path string)
 	walk = func(c *cobra.Command, path string) {
 		for field, text := range map[string]string{
-			"Short": c.Short, "Long": c.Long, "Example": c.Example,
+			"Use": c.Use, "Short": c.Short, "Long": c.Long, "Example": c.Example,
 		} {
-			for _, bad := range retired {
-				if strings.Contains(text, bad) {
-					t.Errorf("%s %s mentions the retired %q", path, field, strings.TrimSpace(bad))
-				}
-			}
+			check(path+" "+field, text)
 		}
 		c.LocalFlags().VisitAll(func(f *pflag.Flag) {
-			for _, bad := range retired {
-				if strings.Contains(f.Usage, bad) {
-					t.Errorf("%s --%s usage mentions the retired %q", path, f.Name, strings.TrimSpace(bad))
-				}
-			}
+			check(path+" --"+f.Name+" usage", f.Usage)
 		})
+		checked++
 		for _, sub := range c.Commands() {
 			walk(sub, path+" "+sub.Name())
 		}
 	}
 	walk(rootCmd, "truestamp")
+	if checked < 20 {
+		t.Fatalf("walked only %d commands; the walk is broken", checked)
+	}
 }
 
 // TestTree_HelpNeverAdvertisesWhatIsNotBuilt extends R12 from commands to
@@ -507,7 +532,7 @@ func TestTree_EveryCommandNamedInHelpTextExists(t *testing.T) {
 
 	// An INVOCATION, not prose. Two shapes count: quoted, as a hint does
 	// ("'truestamp teams use <id>'"), or INDENTED at the start of a line,
-	// as an example block does ("  truestamp convert merkle ...").
+	// as an example block does ("  truestamp convert keyid ...").
 	//
 	// The indentation matters. Unindented line-initial text is wrapped
 	// prose or an output message — "truestamp is up to date (%s)", or a
@@ -592,4 +617,51 @@ func TestTree_EveryCommandNamedInHelpTextExists(t *testing.T) {
 		t.Fatalf("only found %d invocations in string literals; the matcher is probably broken", checked)
 	}
 	t.Logf("checked %d invocations in string literals", checked)
+}
+
+// TestTree_ProofsConvertAndConvertMerkleAreUnknown: the tree has no
+// `proofs convert` and no `convert merkle`, so each is refused as an
+// unknown command, exit 1, with an argument or without, and neither
+// group's help lists it. Called with a flag, each is refused by cobra's
+// flag parsing before the path is resolved, so it exits 1 and says only
+// which flag is unknown. Mutants killed: either command registered again
+// (the command runs or prints its own help, and its group lists it); a
+// hidden `proofs convert` that takes --file and --to and exits 0; a flag
+// error worded differently.
+func TestTree_ProofsConvertAndConvertMerkleAreUnknown(t *testing.T) {
+	for _, c := range []struct {
+		args  []string
+		group string
+		want  string
+	}{
+		{[]string{"proofs", "convert"}, "proofs", `unknown command "convert" for "truestamp proofs"`},
+		{[]string{"proofs", "convert", "proof.json"}, "proofs", `unknown command "convert" for "truestamp proofs"`},
+		{[]string{"convert", "merkle"}, "convert", `unknown command "merkle" for "truestamp convert"`},
+		{[]string{"convert", "merkle", "AQEA"}, "convert", `unknown command "merkle" for "truestamp convert"`},
+	} {
+		out, code := runCLIText(t, c.args...)
+		if code != 1 || !strings.Contains(out, c.want) {
+			t.Errorf("%v: exit %d, want 1 and %s\n%s", c.args, code, c.want, out)
+		}
+	}
+	for _, c := range []struct {
+		args []string
+		want string
+	}{
+		{[]string{"proofs", "convert", "--file", "x"}, "unknown flag: --file"},
+		{[]string{"proofs", "convert", "--to", binaryFormatName, "x.json"}, "unknown flag: --to"},
+		{[]string{"convert", "merkle", "--json", "abc"}, "unknown flag: --json"},
+	} {
+		out, code := runCLIText(t, c.args...)
+		if code != 1 || strings.TrimSpace(out) != c.want {
+			t.Errorf("%v: exit %d, want 1 and exactly %q\n%s", c.args, code, c.want, out)
+		}
+	}
+	for group, sub := range map[string]string{"proofs": "convert", "convert": "merkle"} {
+		out, code := runCLIText(t, group, "--help")
+		listed := regexp.MustCompile(`(?m)^  ` + sub + `\s`)
+		if code != 0 || listed.MatchString(out) || !strings.Contains(out, "Available Commands:") {
+			t.Errorf("%s --help: exit %d, lists %q: %v\n%s", group, code, sub, listed.MatchString(out), out)
+		}
+	}
 }

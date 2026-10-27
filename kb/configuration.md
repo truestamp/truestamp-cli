@@ -66,7 +66,7 @@ When `--type` is omitted: a ULID id is an item (the only unambiguous shape); a U
 
 ## Encode / Decode / JCS / Convert
 
-Flags: `truestamp <encode|decode|jcs> --help` and `truestamp convert <time|id|keyid|merkle> --help` and `truestamp proofs convert --help`. `encode`, `decode` and `jcs` all use the same six-mode input convention as `verify`.
+Flags: `truestamp <encode|decode|jcs> --help` and `truestamp convert <time|id|keyid> --help`. `encode`, `decode` and `jcs` all use the same six-mode input convention as `verify`.
 
 Env vars: `TRUESTAMP_CONVERT_TIME_ZONE` sets the default `--to-zone` for `convert time` and `convert id`.
 

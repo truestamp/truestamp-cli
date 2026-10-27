@@ -164,7 +164,7 @@ var rootCmd = &cobra.Command{
 // of one alphabetical wall. The headings state what a reader most needs
 // before choosing — is this local, does it touch a Truestamp resource, is
 // it setup — and deliberately do NOT claim "offline" or "no credential":
-// encode, decode, jcs and proofs convert all accept a --url, and
+// encode, decode and jcs all accept a --url, and
 // verify --remote needs a credential. A heading that asserts a
 // security-relevant property and is wrong about it is worse than no
 // heading at all. The accurate per-command facts live in `schema get

@@ -78,48 +78,6 @@ func TestComputeKeyID_OfASecondKey(t *testing.T) {
 	}
 }
 
-// TestValidateLowercaseHex pins E.4's encoding rule, "hashes are lowercase
-// hex", as this package states it. The uppercase rows are the ones that
-// matter: Go's hex.DecodeString is case-insensitive, so every one of them
-// decoded to the same bytes as its lowercase spelling before this check
-// existed, and a bundle carrying any of them verified here while the
-// reference verifier's Base.decode16lower!/1 aborted on it.
-func TestValidateLowercaseHex(t *testing.T) {
-	t.Parallel()
-	for _, tc := range []struct {
-		name    string
-		in      string
-		wantErr bool
-		// substr, when set, must appear in the error so the message keeps
-		// naming the offending byte and its offset, a report that only
-		// says "invalid" cannot tell an operator which character to fix.
-		substr string
-	}{
-		{name: "empty is not an encoding defect", in: ""},
-		{name: "lowercase digits and a-f", in: "0123456789abcdef"},
-		{name: "32-byte lowercase digest", in: strings.Repeat("ab", 32)},
-		{name: "uppercase kid", in: "F2C39DF9", wantErr: true, substr: `uppercase "F" at offset 0`},
-		{name: "single uppercase byte late in the value", in: "abcdeF", wantErr: true, substr: `uppercase "F" at offset 5`},
-		{name: "mixed case", in: "AbCd", wantErr: true, substr: "uppercase"},
-		{name: "non-hex letter", in: "zzzz", wantErr: true, substr: "is not a hex digit"},
-		{name: "odd length", in: "abc", wantErr: true, substr: "odd length 3"},
-	} {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-			err := ValidateLowercaseHex(tc.in)
-			if tc.wantErr && err == nil {
-				t.Fatalf("ValidateLowercaseHex(%q) = nil, want an error", tc.in)
-			}
-			if !tc.wantErr && err != nil {
-				t.Fatalf("ValidateLowercaseHex(%q) = %v, want nil", tc.in, err)
-			}
-			if tc.substr != "" && !strings.Contains(err.Error(), tc.substr) {
-				t.Errorf("ValidateLowercaseHex(%q) = %q, want it to contain %q", tc.in, err, tc.substr)
-			}
-		})
-	}
-}
-
 // HexEqual folds the case of 'A' to 'F', for a value whose case another
 // party chooses, over an 8-character key id and a 128-character digest.
 // Mutant killed: foldASCIIHex returning its byte unchanged (both compare

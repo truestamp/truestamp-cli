@@ -13,7 +13,7 @@ import "github.com/spf13/cobra"
 // there is no collection to enumerate yet. See kb/command-tree.md R7.
 var proofsCmd = &cobra.Command{
 	Use:   "proofs",
-	Short: "Get and convert proof bundles",
+	Short: "Get proof bundles",
 	Long: `Proof bundles, generated on demand. 'get' emits bundle bytes.
 
 A proof is derived from a subject — an item, block, beacon, or entropy

@@ -1,10 +1,10 @@
 // Copyright (c) 2019-2026 Truestamp, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-// Package proof parses, downloads, and converts Truestamp proof bundles in
-// both JSON and CBOR wire formats. Proofs are the self-contained artifacts
-// consumers receive from the API; this package handles only serialization
-// and I/O. Cryptographic verification lives in internal/verify.
+// Package proof parses and downloads Truestamp proof bundles, which are
+// JSON documents. Proofs are the self-contained artifacts consumers receive
+// from the API; this package handles only parsing and I/O. Cryptographic
+// verification lives in internal/verify.
 //
 // The model deliberately keeps every hashed map (the subject's claims or
 // entropy payload, both metadata maps, every block metadata map, and every
@@ -31,13 +31,9 @@ import (
 // (a wrong `version`, an undecodable `public_key`, a mis-cased hash) parses
 // cleanly so the verification pipeline can grade it as a step result.
 type Bundle struct {
-	// JSON is the document this bundle was parsed from: the input bytes for
-	// JSON input, or the JSON-value-space conversion of the input for CBOR
-	// input. It is what MarshalJSON returns and what MarshalCBOR encodes.
+	// JSON is the document this bundle was parsed from, the input bytes
+	// unchanged. It is what MarshalJSON returns.
 	JSON []byte
-
-	// FromCBOR records which serialization the input arrived in.
-	FromCBOR bool
 
 	// Version is `version` when it is an exact JSON integer, else 0. The
 	// literal as carried is kept for the E.8 message.
@@ -96,10 +92,7 @@ func (b *Bundle) SubjectID() string {
 	return b.Block.ID
 }
 
-// MarshalJSON returns the bundle's JSON document. For a bundle parsed from
-// JSON this is the input verbatim; for CBOR input it is the JSON-value-space
-// conversion of the input, with byte-string fields rendered per Appendix E.3
-// and hashed maps kept exactly as decoded.
+// MarshalJSON returns the bundle's JSON document, the input verbatim.
 func (b *Bundle) MarshalJSON() ([]byte, error) {
 	if len(b.JSON) == 0 {
 		return nil, errNoDocument

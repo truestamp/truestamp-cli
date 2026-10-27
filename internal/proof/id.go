@@ -16,9 +16,11 @@ import (
 // GET /proof/raw/{type}/{id}, takes the type in its path, and
 // ResolveSubjectType asks the server for it when the caller gives none
 // (see cmd/proofs_get.go's id-shape default). The
-// authoritative label for a bundle in hand is its own signed `t`, readable
-// only after ParseBytes / ParseCBOR. Use DetectIDType for pre-flight
-// validation and for sanity-checking positional args.
+// authoritative label for a proof in hand is its own signed `type`
+// (SPEC.md section 3.2 (Members of `proof`)), which internal/verifier reads
+// once the strict reader of internal/strictjson has parsed the file, and
+// checks at SHAPE (SPEC.md section 10.2, step 7). Use DetectIDType for
+// pre-flight validation and for sanity-checking positional args.
 type IDType string
 
 const (

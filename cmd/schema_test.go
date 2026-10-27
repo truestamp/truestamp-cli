@@ -11,6 +11,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/spf13/cobra"
+	"github.com/spf13/pflag"
 	"github.com/truestamp/truestamp-cli/internal/introspect"
 	"github.com/truestamp/truestamp-cli/internal/specdata"
 )
@@ -477,12 +479,10 @@ func TestSchema_TextSeparatesTableFromNote(t *testing.T) {
 // command carrying a flag of that name. That is safe only when exactly
 // one command has it, or when they all mean the same thing.
 //
-// Three did not. --type is a proof subject type on `verify` and
-// `proofs get` but an id shape on `convert id`; --format is a wire format
-// on `proofs get` and a timestamp format on `convert time`; --to is a
-// wire format on `proofs convert` and a byte encoding on `encode` and
-// `decode`. Each bare entry made the shell offer values the other command
-// rejects — `convert id --type <TAB>` offered the six proof types.
+// --type does not: it is a proof subject type on `proofs get` but an id
+// shape on `convert id`, so a bare entry makes the shell offer values the
+// other command rejects (`convert id --type <TAB>` would offer the six
+// proof types).
 //
 // This is the same hazard internal/config's flagKeyMap had. There it was
 // inert because nothing read the value; here it is not.
@@ -519,6 +519,46 @@ func TestSchema_NoUnscopedEnumForACollidingFlag(t *testing.T) {
 	}
 }
 
+// TestSchema_EveryScopedEnumNamesARealFlag: each "<command path>|<flag>"
+// key in cliEnums names a command in the tree that has that local flag.
+// registerEnumCompletions looks a key up only for a flag that exists, so
+// an entry left behind by a removed command or flag is never read and
+// nothing else notices it. Mutant killed: the entry
+// "truestamp proofs convert|to" put back in cliEnums.
+func TestSchema_EveryScopedEnumNamesARealFlag(t *testing.T) {
+	local := map[string]map[string]bool{}
+	var walk func(c *cobra.Command, path string)
+	walk = func(c *cobra.Command, path string) {
+		flags := map[string]bool{}
+		c.LocalFlags().VisitAll(func(f *pflag.Flag) { flags[f.Name] = true })
+		local[path] = flags
+		for _, sub := range c.Commands() {
+			walk(sub, path+" "+sub.Name())
+		}
+	}
+	walk(rootCmd, rootCmd.Name())
+
+	scoped := 0
+	for key := range cliEnums() {
+		path, flag, ok := strings.Cut(key, "|")
+		if !ok {
+			continue
+		}
+		scoped++
+		flags, isCommand := local[path]
+		if !isCommand {
+			t.Errorf("cliEnums keys %q, but %q is not a command", key, path)
+			continue
+		}
+		if !flags[flag] {
+			t.Errorf("cliEnums keys %q, but %q has no local flag --%s", key, path, flag)
+		}
+	}
+	if scoped < 5 {
+		t.Fatalf("only %d scoped keys in cliEnums; this test checks almost nothing", scoped)
+	}
+}
+
 // TestSchema_CompletionOffersOnlyAcceptedValues is the behavioural half:
 // for the closed enums that can be checked offline, every value the shell
 // offers must be one the command's own help documents. Mutant killed: the
@@ -530,7 +570,6 @@ func TestSchema_CompletionOffersOnlyAcceptedValues(t *testing.T) {
 		{"encode", "to"},
 		{"decode", "to"},
 		{"proofs get", "constructions"},
-		{"proofs convert", "to"},
 		{"proofs get", "type"},
 	} {
 		t.Run(tc.path+"_"+tc.flag, func(t *testing.T) {

@@ -21,6 +21,10 @@ import (
 	"github.com/truestamp/truestamp-cli/internal/verify"
 )
 
+// proofPickerExts are the file types the interactive picker of verify and
+// inspect offers: a proof is one JSON document.
+var proofPickerExts = []string{".json"}
+
 var verifyCmd = &cobra.Command{
 	Use:   "verify [file-or-url]",
 	Short: "Verify a Truestamp proof",
@@ -149,7 +153,7 @@ func runVerify(cmd *cobra.Command, args []string) error {
 			AllowStdin:           true,
 			AutoDetectURL:        true,
 			PickerTitle:          "Select proof file",
-			PickerExts:           []string{".json"},
+			PickerExts:           proofPickerExts,
 			URLPromptTitle:       "Enter proof URL",
 			URLPromptPlaceholder: "https://example.com/proof.json",
 			ReadAtMost:           strictjson.MaxReadOctets + 1,
