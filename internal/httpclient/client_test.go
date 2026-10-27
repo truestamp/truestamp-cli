@@ -288,7 +288,7 @@ func TestTypedErrorMessages(t *testing.T) {
 }
 
 // TestCheckRedirect_RefusesHTTPSDowngrade pins the security property that
-// VerifyKeyring's threat note in internal/external/keyring.go relies on: a
+// FetchKeyring's trust model in internal/external/keyring.go relies on: a
 // server may not talk us out of TLS mid-redirect. Before this policy existed
 // the shared client used net/http's default, which follows an https -> http
 // redirect without complaint.

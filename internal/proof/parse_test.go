@@ -298,6 +298,9 @@ func rejectionOf(t *testing.T, data []byte) (string, error) {
 	return code, err
 }
 
+// tamper-type.json, the complete item bundle with its type made a block's,
+// is refused for the subject fields a block-like type must not carry.
+// Mutant killed: ParseBytes without that refusal (the bundle parses).
 func TestRejection_Fixtures(t *testing.T) {
 	cases := map[string]string{
 		"tamper-type.json": CodeUnexpectedSubjectFieldsForBlockLike,
@@ -306,12 +309,6 @@ func TestRejection_Fixtures(t *testing.T) {
 		data := testfixtures.Read(t, testfixtures.TamperDir, file)
 		if code, err := rejectionOf(t, data); code != want {
 			t.Errorf("%s: rejection %q, want %q (%v)", file, code, want, err)
-		}
-	}
-	// Every other tamper fixture is a well-formed bundle and parses.
-	for _, file := range []string{"tamper-claims.json", "tamper-witness-hash.json", "tamper-witness-detail.json", "tamper-root.json", "tamper-epoch-root.json", "drop-key-event.json"} {
-		if _, err := ParseBytes(testfixtures.Read(t, testfixtures.TamperDir, file)); err != nil {
-			t.Errorf("%s: unexpected rejection %v", file, err)
 		}
 	}
 }

@@ -1648,37 +1648,27 @@ echo '{"b":2,"a":1,"c":[3,1,2]}' | truestamp jcs --json
 
 ### Large integers
 
-Truestamp emits integers at full precision, so canonicalization preserves an
-integer literal exactly as written rather than round-tripping it through an
-IEEE-754 double the way a strict RFC 8785 reading would. Without that, every
-integer above 2^53 would silently change and the recomputed hash would be
-wrong.
+`truestamp jcs` reads its input as a Truestamp verifier reads a proof
+(SPEC.md section 10.1). A number is read as its nearest IEEE-754 double and
+written as RFC 8785 writes that double, and an integer of magnitude above
+2^53 - 1 and below 10^21 is refused however it is written, because no two
+verifiers would agree on it. Send such a value as a string instead.
 
 ```sh
+printf '{"n":9007199254740991}' | truestamp jcs
+# {"n":9007199254740991}
+
 printf '{"n":9007199254740992}' | truestamp jcs
-# {"n":9007199254740992}
+# stderr: JCS canonicalization: malformed_json (number) at octet 5
+# exit 1
 
-printf '{"n":9007199254740993}' | truestamp jcs
-# {"n":9007199254740993}
-# stderr: warning: preserved 1 integer literal(s) larger than 2^53,
-#         e.g. 9007199254740993; this JSON is not portably verifiable by a
-#         strict RFC 8785 implementation
+printf '{"n":1e16}' | truestamp jcs
+# stderr: JCS canonicalization: malformed_json (number) at octet 5
+# exit 1
 ```
 
-The warning is advisory. The digest is the correct one and the exit code
-stays `0`. It goes to stderr, so pipelines are unaffected. `--silent`
-suppresses all output including the warning; `--json` replaces it with an
-`oversized_integers` array and writes nothing to stderr:
-
-```sh
-printf '{"n":9007199254740993}' | truestamp jcs --json | jq -c .oversized_integers
-# ["9007199254740993"]
-```
-
-`truestamp hash --jcs` reports the same signal (labelled with the filename
-when several inputs are hashed, and as a per-input `oversized_integers` field
-under `--json`), and `truestamp verify` surfaces it as a warning row on the
-Subject Data step.
+`truestamp hash --jcs` reads its input the same way and refuses the same
+values, naming the input that holds one.
 
 ---
 

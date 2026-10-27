@@ -538,9 +538,8 @@ func validateClaims(claims map[string]any) error {
 // canonicalize portably, mirroring the server's ValidateClaimsSafeIntegers so
 // the failure lands locally with the same wording instead of as a 422.
 //
-// The threshold is the PRODUCER bound, jcs.MaxSafeInteger (2^53 - 1), one
-// stricter than the verifier's jcs.MaxExactInteger. See the comment on those
-// constants before touching either.
+// The threshold is jcs.MaxSafeInteger, MAX_INTEGER (2^53 - 1), the one
+// bound of SPEC.md section 9.
 //
 // Every violation is reported, not just the first the server would name, so a
 // claims file with several offenders is fixed in one pass.
@@ -551,15 +550,14 @@ func checkClaimsPortability(cmd *cobra.Command, claims map[string]any, jsonOutpu
 		// but mean something different afterwards. It says nothing about values
 		// that cannot be canonicalized at all, a float literal overflowing a
 		// double (1e1000) is legal JSON, passes the walk, and then fails
-		// jcs.Canonicalize, which is what verification runs over s.d. Refusing
-		// to submit what we could never verify is the stronger invariant, so
-		// close the gap with the canonicalizer itself rather than a bespoke
-		// float check.
+		// jcs.Transform. Refusing to submit what we could never verify is the
+		// stronger invariant, so close the gap with the canonicalizer itself
+		// rather than a bespoke float check.
 		encoded, err := json.Marshal(claims)
 		if err != nil {
 			return fmt.Errorf("encoding claims: %w", err)
 		}
-		if _, _, err := jcs.Canonicalize(encoded); err != nil {
+		if _, err := jcs.Transform(encoded); err != nil {
 			return fmt.Errorf("claims cannot be canonicalized (RFC 8785), so the resulting proof could not be verified: %w", err)
 		}
 		return nil

@@ -11,34 +11,15 @@ Canonicalization goes through **`internal/jcs`**, never through `github.com/gowe
 grep -rn 'gowebpki/jcs' --include='*.go' . | grep -v internal/jcs   # only test files may appear
 ```
 
-`internal/jcs.Canonicalize(raw) (canonical []byte, oversized []string, err error)` wraps the library rather than replacing it: for any document free of oversized integers the output is byte-identical to `jcs.Transform`, which is what makes adopting it incapable of moving an existing digest.
+`internal/jcs.Encode(value)` writes JCS of a value as `internal/strictjson` reads it under the parsing rules of SPEC.md section 10.1, with the library's `NumberToJSON` for numbers, and `internal/jcs.Transform(raw)` is that reader and `Encode` over bytes. `truestamp jcs` and `truestamp hash --jcs` canonicalize through `Transform`, so they read their input as a verifier reads a proof: a repeated member name, invalid UTF-8, a lone surrogate, nesting deeper than MAX_DEPTH or anything after the value is refused, and a number is read as its nearest binary64 value (rule J5), so `1` followed by 800 zeros and `e-800` is written `1`.
 
-The one deviation is deliberate and matches the Truestamp producer. RFC 8785 §3.2.2.3 defines every JSON number by parsing it into an IEEE-754 double and re-serializing, which silently rounds 2^53 + 1 down to 2^53. Truestamp emits integers at arbitrary precision, so reproducing a `claims_hash` means matching the producer. Appendix C.2a pins both halves as normative vectors: 2^53 and 2^53 + 1 canonicalize to distinct strings with distinct 0x11 digests. `Canonicalize` splices such literals out before handing the document to the library and restores them into the canonical output, so sorting, escaping and ES6 float formatting all still run on the library's unmodified code path. Floats are never flagged: they are lossy by construction.
+## One bound
 
-The cost of that choice is that such a bundle is not portably verifiable by a strict RFC 8785 implementation, which Appendix E.4 requires a verifier to **report** rather than hide. `oversized` carries the offending literals, ascending, and every caller surfaces them:
-
-| Surface | How the E.4 signal appears |
-| ------- | -------------------------- |
-| `truestamp verify` | one `warn` row under Subject Data / cryptographic. Does **not** skip or fail the dependent Inclusion Proof / Proof Signature steps. |
-| `truestamp jcs` | one stderr line; `oversized_integers` array under `--json`; nothing under `--silent`. Exit code stays 0. |
-| `truestamp hash --jcs` | same stderr line (labelled with the filename when several inputs are hashed); per-input `oversized_integers` under `--json`. |
-
-The parser preserves `json.RawMessage` for every hashed map: `subject.claims`, `subject.entropy`, `subject.metadata`, every block map's `metadata`, and every entropy witness payload under `subject.witnesses`. Each is passed straight to `Canonicalize` without re-marshaling through Go structs, which would change field ordering or number formatting. A CBOR bundle reaches the same code through `proof.CBORToJSON`, which renders integers exactly and floats per their IEEE-754 value. `Canonicalize` also reports every integer beyond 2^53 it met, which the verifier surfaces as the Subject Data "not portably verifiable" warn: this verifier and the producer both preserve such integers exactly, but a strictly conforming RFC 8785 implementation would round them and derive a different digest.
-
-## The two thresholds differ by one, on purpose
-
-`internal/jcs` carries **two** adjacent bounds. They are one apart, and unifying them is a bug in whichever direction it is done:
-
-| Constant | Value | Side | Rule |
-| -------- | ----- | ---- | ---- |
-| `MaxSafeInteger` | `2^53 - 1` = 9007199254740991 | **producer** (`truestamp items create`) | reject `\|n\| > 2^53 - 1` |
-| `MaxExactInteger` | `2^53` = 9007199254740992 | **verifier** (`truestamp verify`, `jcs`, `hash --jcs`) | warn at `\|n\| > 2^53` |
-
-The producer follows RFC 8785 Appendix B's SHOULD (JavaScript's `Number.MAX_SAFE_INTEGER`) and matches `Truestamp.SafeIntegers` server-side, so the CLI never emits a claim the server would 422. The verifier stops one value later because 2^53 itself round-trips through a double exactly; warning on it would raise a false alarm about a bundle every conforming implementation *can* check. **Be strict in what you emit, lenient in what you accept.** `internal/jcs.TestThresholdsDifferByOne` fails with an explanatory message if the gap ever closes.
+SPEC.md section 9's MAX_INTEGER, 2^53 - 1, is the one safe-integer bound in every path. Rule J5 refuses an integer of magnitude above it and below 10^21 however it is written (`9007199254740992`, `9007199254740992.0`, `1e16`), and `jcs` and `hash --jcs` refuse it as J5 does: `malformed_json (number)`, exit 1, nothing written. `jcs.MaxSafeInteger` is `strictjson.MaxInteger`, the same bound, which the producer-side guard below holds claims to.
 
 ## Producer-side guard in `truestamp items create`
 
-`jcs.UnsafeIntegers(root, decoded)` walks a decoded claims map and returns **every** offending integer with its dotted key path (`claims.metadata.rows[0].id`), numbers compared via `math/big` because a 64-bit id or a 400-digit nonce overflows `int64`. Object keys are walked in sorted order so the list is deterministic despite Go's randomized map iteration. Floats are never reported: a large-magnitude value *spelled* as a float (`1e21`) is not an integer literal, exactly as on the verifier side.
+`jcs.UnsafeIntegers(root, decoded)` walks a decoded claims map and returns **every** offending integer with its dotted key path (`claims.metadata.rows[0].id`), numbers compared via `math/big` because a 64-bit id or a 400-digit nonce overflows `int64`. Object keys are walked in sorted order so the list is deterministic despite Go's randomized map iteration. Floats are never reported: a large-magnitude value *spelled* as a float (`1e21`) is not an integer literal.
 
 `cmd/items_create.go`'s `checkClaimsPortability` runs it **after `overlayFlags`** (so a value injected by `--metadata` is caught alongside one read from `--claims`) and **before the network call**, across both submission modes and every input path. `jcs.UnsafeIntegerMessage` is a byte-for-byte mirror of `Truestamp.SafeIntegers.message/2` in truestamp-v2 (path, value, allowed range, and the "send the value as a string" remedy) so a user who trips the local guard and one who trips the server's read the same sentence. Under `--json` the rejection is `{"error":"unsafe_integer","message":…,"violations":[{path,value,min,max}]}` with the numbers as **strings**, so a consumer parsing with doubles cannot re-round the very value being complained about.
 

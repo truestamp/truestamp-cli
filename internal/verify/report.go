@@ -9,10 +9,10 @@ import (
 	"strings"
 )
 
-// Status represents the outcome of a verification step (Appendix E.22).
-// Only `fail` fails a proof: a warn is something worth knowing that is not
-// a defect, a skip is a check that did not run, an info is a recorded
-// value carrying no judgement.
+// Status is the outcome of a step the Truestamp service reports. Only
+// `fail` fails a proof: a warn is something worth knowing that is not a
+// defect, a skip is a check that did not run, an info is a recorded value
+// carrying no judgement.
 type Status int
 
 const (
@@ -23,8 +23,8 @@ const (
 	StatusInfo
 )
 
-// statusStrings maps Status values to their wire strings, which are the
-// server's and the reference verifier's vocabulary.
+// statusStrings maps Status values to their wire strings, the service's
+// vocabulary.
 var statusStrings = map[Status]string{
 	StatusPass: "pass",
 	StatusFail: "fail",
@@ -50,11 +50,6 @@ func (s Status) String() string {
 	return fmt.Sprintf("status(%d)", int(s))
 }
 
-// Badge returns the bracketed badge the reference verifier prints.
-func (s Status) Badge() string {
-	return "[" + strings.ToUpper(s.String()) + "]"
-}
-
 // MarshalJSON encodes a Status as a JSON string.
 func (s Status) MarshalJSON() ([]byte, error) {
 	str, ok := statusStrings[s]
@@ -65,9 +60,9 @@ func (s Status) MarshalJSON() ([]byte, error) {
 }
 
 // UnmarshalJSON decodes a JSON string into a Status. A string outside the
-// five-value vocabulary is an error, not a value: E.22's verdict rule
-// ("a proof passes when no step is fail") only holds when every status is
-// known, so a status this verifier cannot read is handled by
+// five-value vocabulary is an error, not a value: the verdict rule ("a
+// proof passes when no step is fail") only holds when every status is
+// known, so a status this CLI cannot read is handled by
 // [Step.UnmarshalJSON], which grades it fail and discloses it.
 func (s *Status) UnmarshalJSON(data []byte) error {
 	var str string
@@ -92,81 +87,22 @@ func StatusFromString(s string) (Status, error) {
 	return StatusFail, fmt.Errorf("unknown status %q", s)
 }
 
-// Category identifiers, in the wire spelling the server uses.
+// Category identifiers, in the wire spelling the service uses.
 const (
 	CatDataIntegrity = "data_integrity"
-	CatCryptographic = "cryptographic"
 	CatStructural    = "structural"
-	CatTiming        = "timing"
-	CatBlockchain    = "blockchain"
 )
 
-// CategoryOrder is Appendix E.22's fixed category display order.
-var CategoryOrder = []string{CatDataIntegrity, CatCryptographic, CatStructural, CatTiming, CatBlockchain}
-
-var categoryRanks = func() map[string]int {
-	m := make(map[string]int, len(CategoryOrder))
-	for i, c := range CategoryOrder {
-		m[c] = i
-	}
-	return m
-}()
-
-// categoryRank returns a category's position in [CategoryOrder]. An
-// unrecognized category sorts after every known one, so a category a
-// future server release adds never displaces E.22's fixed order.
-func categoryRank(cat string) int {
-	if n, ok := categoryRanks[cat]; ok {
-		return n
-	}
-	return len(CategoryOrder)
-}
-
-// CategoryLabel returns the display title of a category.
-func CategoryLabel(cat string) string {
-	switch cat {
-	case CatDataIntegrity:
-		return "Data Integrity"
-	case CatCryptographic:
-		return "Cryptographic"
-	case CatStructural:
-		return "Structural"
-	case CatTiming:
-		return "Timing"
-	case CatBlockchain:
-		return "Blockchain"
-	}
-	return cat
-}
-
-// Step group names. Every group Appendix E.22 defines carries E.22's
-// spelling verbatim, because a consumer that keys on a group name is
-// reading the appendix, not this file. groupServerVerdict is the one
-// CLI-specific group; it is reachable only on the --remote path and never
-// emits a pass or a warn.
+// Step group names: the service's spelling of the expected-hash
+// comparison, and the group of this CLI's own row when the service's
+// verdict and its steps disagree, which is never a pass or a warn.
 const (
-	groupHashComparison   = "Hash Comparison"
-	groupSigningKey       = "Signing Key"
-	groupSubjectData      = "Subject Data"
-	groupInclusion        = "Inclusion Proof"
-	groupBlockHash        = "Block Hash"
-	groupEpoch            = "Epoch Proof"
-	groupProof            = "Proof Signature"
-	groupKeyBinding       = "Key Binding"
-	groupSigningKeyEvent  = "Signing Key Event"
-	groupStructure        = "Structure"
-	groupWitnesses        = "Witnesses"
-	groupSubmissionWindow = "Submission Window"
-	groupSubmittedAfter   = "Submitted After"
-	groupSubmittedBefore  = "Submitted Before"
-	groupTemporalInfo     = "Temporal Info"
-	groupStellar          = "Stellar Commitment"
-	groupBitcoin          = "Bitcoin Commitment"
-	groupEntropySource    = "Entropy Source"
-	groupServerVerdict    = "Server Verdict"
+	groupHashComparison = "Hash Comparison"
+	groupServerVerdict  = "Server Verdict"
 )
 
-// Step is a single verification result.
+// Step is a single result the service reports, or one this CLI adds
+// beside them.
 type Step struct {
 	Group    string `json:"group"`
 	Status   Status `json:"status"`
@@ -183,11 +119,10 @@ type stepWire struct {
 	Message  string          `json:"message"`
 }
 
-// UnmarshalJSON decodes a step supplied by a remote verifier, failing
-// closed on any status this verifier cannot read as one of Appendix E.22's
-// five: an absent status key or an unknown word is graded fail and says so
-// in its own message, so a server-reported outcome can never be scored as
-// a pass by accident.
+// UnmarshalJSON decodes a step supplied by the service, failing closed on
+// any status this CLI cannot read as one of the five: an absent status
+// key or an unknown word is graded fail and says so in its own message,
+// so a server-reported outcome can never be scored as a pass by accident.
 func (s *Step) UnmarshalJSON(data []byte) error {
 	var w stepWire
 	if err := json.Unmarshal(data, &w); err != nil {
@@ -224,7 +159,7 @@ func annotateStep(msg, note string) string {
 }
 
 // truncateToken bounds an echoed wire token so a hostile or broken server
-// cannot inject an unbounded string into a rendered report.
+// cannot inject an unbounded string into a message.
 func truncateToken(s string) string {
 	const max = 40
 	if len(s) <= max {
@@ -233,9 +168,7 @@ func truncateToken(s string) string {
 	return s[:max] + "..."
 }
 
-// Temporal carries the submission window's recorded instants, in the
-// server's field names so a CLI report and an API report are directly
-// comparable. Every value is ISO 8601 at whole-second precision.
+// Temporal carries the instants the service reports, in its field names.
 type Temporal struct {
 	SubmittedAt   string `json:"submitted_at,omitempty"`
 	CommittedAt   string `json:"committed_at,omitempty"`
@@ -243,53 +176,17 @@ type Temporal struct {
 	BitcoinCommit string `json:"bitcoin_commit,omitempty"`
 }
 
-// IsZero reports whether no instant was recorded.
-func (t Temporal) IsZero() bool {
-	return t == Temporal{}
-}
-
-// CommitmentSummary describes one commitment entry for the report header.
-type CommitmentSummary struct {
-	Chain   string
-	Network string
-}
-
-// Report holds the complete verification results.
+// Report is the service's verdict on a proof: the steps it reports, with
+// the rows this CLI adds beside them.
 type Report struct {
-	Filename string
-	FileSize int64
-	Format   string // "json" or "cbor"
-
-	// Bundle facts for the header. VersionLiteral is the `version` value
-	// as carried, so a wrong one is shown as it is rather than as 0.
-	ProofVersion     int
-	VersionLiteral   string
-	SubjectType      string
-	SubjectID        string
-	BlockID          string
-	GeneratedAt      string
-	WitnessesCarried []string
-	Commitments      []CommitmentSummary
-	KeyEventCarried  bool
-
-	// KeyringSource says where the E.17 keyring came from: "pinned <file>",
-	// "fetched <url>", or "" when none was in hand.
-	KeyringSource string
-
-	Steps    []Step
-	Temporal Temporal
+	Steps []Step
 
 	// ExpectedHash is the caller's normalized expected hash, "" when none
-	// was supplied. Appendix E.7 requires "supplied" to be reportable
-	// separately from "matched".
+	// was supplied.
 	ExpectedHash string
-
-	SkippedExternal bool
-	Remote          bool
 }
 
-// Passed returns true if no step has StatusFail. This is Appendix E.22's
-// verdict rule and the predicate behind the process exit code.
+// Passed returns true if no step has StatusFail.
 func (r *Report) Passed() bool {
 	for _, s := range r.Steps {
 		if s.Status == StatusFail {
@@ -297,87 +194,6 @@ func (r *Report) Passed() bool {
 		}
 	}
 	return true
-}
-
-// HashProvided reports whether the caller supplied an expected hash that
-// reached a comparison against `subject.claims.hash`.
-func (r *Report) HashProvided() bool {
-	if r.ExpectedHash == "" {
-		return false
-	}
-	for _, s := range r.Steps {
-		if s.Group == groupHashComparison && (s.Status == StatusPass || s.Status == StatusFail) {
-			return true
-		}
-	}
-	return false
-}
-
-// HashMatched reports whether the supplied expected hash matched
-// `subject.claims.hash`. A fail anywhere in the group is decisive against
-// a match, so a remote row that reports a match this verifier refutes can
-// never publish hash_matched: true.
-func (r *Report) HashMatched() bool {
-	if r.ExpectedHash == "" {
-		return false
-	}
-	sawPass := false
-	for _, s := range r.Steps {
-		if s.Group != groupHashComparison {
-			continue
-		}
-		if s.Status == StatusFail {
-			return false
-		}
-		if s.Status == StatusPass {
-			sawPass = true
-		}
-	}
-	return sawPass
-}
-
-// StepCounts holds all step status counts computed in a single pass.
-type StepCounts struct {
-	Passed  int
-	Failed  int
-	Warned  int
-	Skipped int
-	Info    int
-	Total   int
-}
-
-// Counts computes all step status counts in a single pass.
-func (r *Report) Counts() StepCounts {
-	var c StepCounts
-	for _, s := range r.Steps {
-		switch s.Status {
-		case StatusPass:
-			c.Passed++
-		case StatusFail:
-			c.Failed++
-		case StatusWarn:
-			c.Warned++
-		case StatusSkip:
-			c.Skipped++
-		case StatusInfo:
-			c.Info++
-		}
-	}
-	c.Total = c.Passed + c.Failed + c.Warned + c.Skipped + c.Info
-	return c
-}
-
-// FailedCount returns the number of failed steps.
-func (r *Report) FailedCount() int { return r.Counts().Failed }
-
-// StepsByCategory returns the steps grouped in Appendix E.22's category
-// display order, each category's rows in emission order.
-func (r *Report) StepsByCategory() [][]Step {
-	out := make([][]Step, len(CategoryOrder)+1)
-	for _, s := range r.Steps {
-		out[categoryRank(s.Category)] = append(out[categoryRank(s.Category)], s)
-	}
-	return out
 }
 
 func (r *Report) add(group, category string, status Status, msg string) {
@@ -388,11 +204,9 @@ func (r *Report) pass(group, category, msg string) { r.add(group, category, Stat
 func (r *Report) fail(group, category, msg string) { r.add(group, category, StatusFail, msg) }
 func (r *Report) skip(group, category, msg string) { r.add(group, category, StatusSkip, msg) }
 func (r *Report) warn(group, category, msg string) { r.add(group, category, StatusWarn, msg) }
-func (r *Report) info(group, category, msg string) { r.add(group, category, StatusInfo, msg) }
 
-// check appends a pass carrying passMsg, or a fail carrying failMsg. The
-// two messages are separate on purpose: Appendix E.22 requires that a
-// failing message never read as a positive assertion.
+// check appends a pass carrying passMsg, or a fail carrying failMsg, so a
+// failing message never reads as a positive assertion.
 func (r *Report) check(group, category string, ok bool, passMsg, failMsg string) bool {
 	if ok {
 		r.pass(group, category, passMsg)

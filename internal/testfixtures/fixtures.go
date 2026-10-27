@@ -1,37 +1,24 @@
 // Copyright (c) 2019-2026 Truestamp, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-// Package testfixtures locates the shared golden test data under the
-// repository's top-level testdata/ directory, so tests in every package read
-// one copy of each fixture rather than carrying their own.
+// Package testfixtures locates the bundles of the earlier layout under the
+// repository's top-level testdata/ directory, which the commands that
+// still read that layout through internal/proof are tested with: inspect,
+// proofs convert, proofs get's CBOR download and the bundle verify
+// --remote posts, and internal/proof's own parser. The conformance cases
+// of SPEC.md section 13.2 are under testdata/verification/, which
+// internal/vectorcases locates.
 //
 // Layout:
 //
-//	testdata/prod-2026-09-03/  a real production item, end to end: the
-//	                           complete, compact and partial bundles (JSON),
-//	                           the complete bundle as CBOR, the production
-//	                           keyring, the offline reports (standalone-*.txt)
-//	                           of the Appendix E verifier
-//	                           whitepaper/verify_proof.exs in truestamp-v2,
-//	                           which is not the reference verifier of
-//	                           SPEC.md section 13.1, and the server's online
-//	                           reports
-//	testdata/tamper/           mutations of the complete bundle with the
-//	                           server's and that Appendix E verifier's reports;
-//	                           one mutation of the complete bundle with no
-//	                           reports, carrying the production key and a
-//	                           signature that does not verify; and one
-//	                           mutation of the Appendix D bundle with no
-//	                           reports: its Bitcoin entry carries a real,
-//	                           unrelated mainnet txoutproof and no raw
-//	                           transaction
-//	testdata/staging-2026-09-03/ a staging item whose bundle carries a real
-//	                           Bitcoin regtest commitment (raw transaction,
-//	                           txoutproof, block merkle root) ahead of its
-//	                           Stellar testnet one, the staging keyring, and
-//	                           the server's online report
-//	testdata/whitepaper/       the Appendix D worked bundle, its derivation
-//	                           trace, and the Appendix C vectors
+//	testdata/prod-2026-09-03/  a production item of the earlier layout:
+//	                           its complete, compact and partial bundles
+//	                           (JSON) and the complete bundle as CBOR
+//	testdata/tamper/           a mutation of the complete bundle
+//	                           (tamper-type.json) and one bundle of a layout
+//	                           before it (old-layout.json), each of which
+//	                           internal/proof's parser refuses
+//	testdata/whitepaper/       the earlier layout's worked bundle
 package testfixtures
 
 import (
@@ -72,30 +59,7 @@ const (
 	ProdCompact   = "proof-compact.json"
 	ProdPartial   = "proof-partial.json"
 	ProdCBOR      = "proof-complete.cbor"
-	ProdKeyring   = "keyring.json"
 	TamperDir     = "tamper"
-	StagingDir    = "staging-2026-09-03"
 	WhitepaperDir = "whitepaper"
 	AppendixD     = "bundle.json"
-
-	// BitcoinUnrelatedTxoutproof, in TamperDir, is the Appendix D bundle
-	// with its Bitcoin entry rewritten by a third party, none of whose
-	// changes touch the signature: transaction_hash names an unrelated
-	// transaction in mainnet block 870456 (the second in the block),
-	// txoutproof is that transaction's real proof from the chain
-	// (Blockstream's /tx/{txid}/merkleblock-proof), timestamp is
-	// 2001-01-01, and there is no raw transaction, so nothing ties the
-	// epoch root to that block.
-	BitcoinUnrelatedTxoutproof = "bitcoin-unrelated-txoutproof.json"
-
-	// CopiedKeyInvalidSignature, in TamperDir, is the complete production
-	// bundle with forged claims and every hash above them recomputed, so
-	// the chain is self-consistent: the subject hash is the block's only
-	// leaf (an empty inclusion proof, block.merkle_root rewritten) and the
-	// block hash is the only leaf of each epoch tree (empty epoch proofs,
-	// epoch_merkle_root rewritten). public_key is still Truestamp's
-	// production key, so the pinned production keyring binds it, and the
-	// signature is 64 zero bytes. Offline, only the signature check tells
-	// it from a real proof.
-	CopiedKeyInvalidSignature = "copied-key-invalid-signature.json"
 )

@@ -6,9 +6,13 @@
 // run them. It is test support: no command imports it.
 //
 // A case decodes into typed structs, the members of a case that section
-// 13.2 lists, and the per-step runner that compares each case's rejection
-// or rows through the last step built, as section 13.1 compares them, is
-// this package's runner_test.go, which runs every step built so far.
+// 13.2 lists. The one runner over the cases is this package's
+// runner_test.go, which runs every case through every step of section
+// 10.2, each online case answered from its replay file by the replay
+// adapter (replay.go). The conformance test of section 13.1,
+// conformance_test.go's TestConformance, runs every case through that
+// runner and compares exactly what section 13.1 compares; the per-step
+// tests beside it compare more.
 //
 // cases.json is decoded by encoding/json, which shares no code with the
 // strict reader the runner tests, so a defect in that reader cannot hide in

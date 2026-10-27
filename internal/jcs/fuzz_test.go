@@ -12,50 +12,35 @@ import (
 	"testing"
 
 	gojcs "github.com/gowebpki/jcs"
+
+	"github.com/truestamp/truestamp-cli/internal/strictjson"
 )
 
-// FuzzCanonicalize drives the canonicalizer with arbitrary bytes. Three
-// invariants are asserted, the last of which is the load-bearing one: a
-// document with no oversized integer must produce exactly what
-// github.com/gowebpki/jcs produces, so this package can never be the reason a
-// digest that verifies today stops verifying.
-func FuzzCanonicalize(f *testing.F) {
+// FuzzTransform drives Transform with arbitrary bytes, holding four
+// properties: it accepts exactly the texts strictjson.Parse accepts; every
+// text it accepts is valid JSON; its output is valid JSON that the strict
+// reader accepts; and its output transformed again is unchanged.
+func FuzzTransform(f *testing.F) {
 	seeds := []string{
-		// Appendix C.2a conformance vectors.
 		`{"a": null, "b": 1}`,
 		`{"c": "\u0001", "tab": "\t"}`,
-		// The same document with a raw U+0001 byte in the value. RFC 8259 §7
-		// forbids an unescaped control character, so this one is now rejected
-		// by the strict gate; it is kept as a seed because that rejection is
-		// itself an invariant worth fuzzing around.
 		"{\"c\": \"\x01\", \"tab\": \"\\t\"}",
 		`{"z": -0.0}`,
 		`{"big": 1.0e21, "small": 1.0e-7}`,
-		"{\"name\": \"Ávila\", \"emoji\": \"\U0001f600\"}",
-		"{\"\U0001f600\": 1, \"￿\": 2}",
+		"{\"name\": \"\u00c1vila\", \"emoji\": \"\U0001f600\"}",
+		"{\"\U0001f600\": 1, \"\uffff\": 2}",
+		`{"n": 9007199254740991}`,
 		`{"n": 9007199254740992}`,
-		`{"n": 9007199254740993}`,
-
-		// Subject-data shapes the verifier actually canonicalizes.
-		`{"description":"Appendix D worked example","hash":"b47cc0","hash_type":"sha256","name":"x"}`,
-		`{"chainIndex":2,"outputValue":"AB","pulseIndex":1234567,"timeStamp":"2026-04-06T23:00:00.000Z","version":"1.0"}`,
-
-		// Integers at and beyond the exactly representable range.
+		`{"n": 9007199254740992.0}`,
+		`{"n": 1e16}`,
+		`[1` + strings.Repeat("0", 800) + `e-800]`,
 		`{"ledgerSequence":18446744073709551615}`,
-		`{"neg":-9007199254740993,"dup":[9007199254740993,9007199254740993]}`,
-		`{"nested":{"deep":[{"x":123456789012345678901234567890}]}}`,
-		`{"s":"9007199254740993","n":9007199254740993}`,
 		`{"nonce":` + strings.Repeat("9", 400) + `}`,
-		`9007199254740993`,
-		`[9007199254740993]`,
-
-		// Inputs the two parsers disagree about, plus plain malformed bytes.
-		// The first four are the documents gowebpki/jcs silently rewrites into
-		// DIFFERENT valid documents; the strict gate has to catch every one.
 		`{"a":1 2,"b":9007199254740993}`,
 		`{"a":+1}`,
 		`{"a":0009}`,
 		`{"a":.5}`,
+		`{"a":1,"a":2}`,
 		`{"huge":1e400}`,
 		`{"a":1}{"b":2}`,
 		`{`,
@@ -66,42 +51,23 @@ func FuzzCanonicalize(f *testing.F) {
 	}
 
 	f.Fuzz(func(t *testing.T, data []byte) {
-		canonical, oversized, err := Canonicalize(data)
+		canonical, err := Transform(data)
+		_, parseErr := strictjson.Parse(data)
+		if (err == nil) != (parseErr == nil) {
+			t.Fatalf("Transform's error %v, the strict reader's %v", err, parseErr)
+		}
 		if err != nil {
-			if canonical != nil || oversized != nil {
-				t.Fatalf("error return carried a result: canonical=%q oversized=%v", canonical, oversized)
+			if canonical != nil {
+				t.Fatalf("an error with a result %q", canonical)
 			}
 			return
 		}
-
-		// The strict gate, as an invariant: nothing that is not a single
-		// well-formed RFC 8259 document may reach a caller as a digestible
-		// canonical form. gowebpki/jcs on its own rewrites several such inputs
-		// into different valid documents, so an accept here would be a silently
-		// wrong claims_hash rather than a crash.
-		if !json.Valid(data) {
-			t.Fatalf("accepted RFC-8259-invalid input %q as %q", data, canonical)
+		if !json.Valid(data) || !json.Valid(canonical) {
+			t.Fatalf("%q accepted as %q", data, canonical)
 		}
-		if !json.Valid(canonical) {
-			t.Fatalf("canonical output is not valid JSON: %q", canonical)
-		}
-
-		again, _, err := Canonicalize(canonical)
-		if err != nil {
-			t.Fatalf("re-canonicalizing %q failed: %v", canonical, err)
-		}
-		if !bytes.Equal(canonical, again) {
-			t.Fatalf("not idempotent: %q then %q", canonical, again)
-		}
-
-		if oversized == nil {
-			want, wantErr := gojcs.Transform(data)
-			if wantErr != nil {
-				t.Fatalf("gowebpki/jcs rejected input we accepted: %v", wantErr)
-			}
-			if !bytes.Equal(canonical, want) {
-				t.Fatalf("diverged from gowebpki/jcs with no oversized integer: got %q, want %q", canonical, want)
-			}
+		again, err := Transform(canonical)
+		if err != nil || !bytes.Equal(canonical, again) {
+			t.Fatalf("not idempotent: %q then %q, %v", canonical, again, err)
 		}
 	})
 }
@@ -191,30 +157,42 @@ func FuzzUnsafeIntegers(f *testing.F) {
 		// unsafe integer reaching the wire. So cross-check the value walk
 		// against an independent scan of the raw bytes.
 		//
-		// Canonicalize doubles as the duplicate-key filter. A shadowed key
+		// gowebpki/jcs is the duplicate-name filter: a shadowed name
 		// ({"a":<oversized>,"a":1}) leaves the literal in the bytes but not in
-		// the decoded map, which would make the comparison spuriously fail;
-		// gowebpki/jcs rejects duplicate keys outright, so a successful
-		// canonicalization means every literal in the input is also a value in
-		// the map.
-		if _, _, err := Canonicalize(data); err != nil {
-			return
-		}
-		spans, err := scanIntegers(data)
-		if err != nil {
+		// the decoded map, and the library refuses a repeated name, so a text
+		// it accepts holds every literal as a value of the map.
+		if _, err := gojcs.Transform(data); err != nil {
 			return
 		}
 		reported := make(map[string]bool, len(got))
 		for _, v := range got {
 			reported[v.Literal] = true
 		}
-		for _, sp := range spans {
-			if new(big.Int).Abs(sp.val).Cmp(maxSafeInteger) <= 0 {
-				continue
-			}
-			if !reported[string(sp.lit)] {
-				t.Fatalf("raw scan found oversized literal %q that the value walk did not report, the walker is skipping part of the document", sp.lit)
+		for _, lit := range integerLiterals(data) {
+			n, _ := new(big.Int).SetString(lit, 10)
+			if new(big.Int).Abs(n).Cmp(maxSafeInteger) > 0 && !reported[lit] {
+				t.Fatalf("raw scan found oversized literal %q that the value walk did not report, the walker is skipping part of the document", lit)
 			}
 		}
 	})
+}
+
+// integerLiterals returns every number of the JSON text data that is a
+// base-10 integer literal, as written, read by encoding/json's tokenizer,
+// or none when data is not a single JSON text.
+func integerLiterals(data []byte) []string {
+	dec := json.NewDecoder(bytes.NewReader(data))
+	dec.UseNumber()
+	var out []string
+	for {
+		tok, err := dec.Token()
+		if err != nil {
+			return out
+		}
+		if num, ok := tok.(json.Number); ok {
+			if _, isInt := new(big.Int).SetString(num.String(), 10); isInt {
+				out = append(out, num.String())
+			}
+		}
+	}
 }

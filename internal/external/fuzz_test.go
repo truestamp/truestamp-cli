@@ -4,19 +4,16 @@
 package external
 
 import (
-	"encoding/json"
-	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"sync"
 	"testing"
 
 	"github.com/truestamp/truestamp-cli/internal/strictjson"
-	"github.com/truestamp/truestamp-cli/internal/tscrypto"
 )
 
-// FuzzClassifyNetworkError: error-typing helper used when formatting
-// Horizon / Blockstream / keyring fetch failures for display.
+// FuzzClassifyNetworkError: the helper that words a keyring fetch failure
+// for display.
 func FuzzClassifyNetworkError(f *testing.F) {
 	for _, s := range []string{"", "dial tcp: connection refused", "timeout", "context deadline exceeded"} {
 		f.Add(s)
@@ -33,24 +30,6 @@ func FuzzCompactError(f *testing.F) {
 	}
 	f.Fuzz(func(t *testing.T, s string) {
 		_ = compactError(stringError(s))
-	})
-}
-
-// FuzzClassify: an error shape this package does not recognise must
-// always grade as "no answer obtained", never as a success and never as
-// a mismatch, E.22 forbids an unrecognised failure from failing a
-// proof.
-func FuzzClassify(f *testing.F) {
-	for _, s := range []string{"", "HTTP 404: nope", "memo mismatch: expected a, got b", "context deadline exceeded"} {
-		f.Add(s)
-	}
-	f.Fuzz(func(t *testing.T, msg string) {
-		if got := Classify(stringError(msg)); got != OutcomeUnavailable {
-			t.Errorf("Classify(%q) = %s, want unavailable", msg, got)
-		}
-		if got := Classify(fmt.Errorf("wrapped: %w", stringError(msg))); got != OutcomeUnavailable {
-			t.Errorf("Classify(wrapped %q) = %s, want unavailable", msg, got)
-		}
 	})
 }
 
@@ -86,17 +65,12 @@ func (b *bodyServer) serve(body []byte) {
 	b.mu.Unlock()
 }
 
-// FuzzVerifyKeyringBody pins E.17/E.22's separation: a 200 body may fail
-// a proof (KeyBindingError -> OutcomeMismatch) only when it really is a
-// keyring document, a JSON object carrying a `keys` array. Anything
-// else is an answer this client cannot read, and E.22 forbids it from
-// failing a sound proof. Before the `keys` gate, every JSON object
-// reached the per-key loop and returned "not found in keyring". A keyring
-// document is one the strict reader reads (SPEC.md section 10.1), so a
-// body that repeats `keys` is none. Mutant killed, by the seed that
-// repeats `keys`: VerifyKeyring decoding with encoding/json, which keeps
-// the second, empty list.
-func FuzzVerifyKeyringBody(f *testing.F) {
+// FuzzFetchKeyringBody: a 200 body gives a keyring only when it is a
+// keyring document, an object the strict reader reads (SPEC.md section
+// 10.1) carrying a keys list; any other body is an error and no keyring.
+// Mutant killed, by the seed that repeats keys: FetchKeyring decoding
+// with encoding/json, which keeps the second, empty list.
+func FuzzFetchKeyringBody(f *testing.F) {
 	for _, s := range []string{
 		`{}`, `null`, `{"version":"1"}`, `{"keys":null}`, `{"keys":[]}`,
 		`{"keys":"x"}`, `[]`, `not json`,
@@ -109,57 +83,19 @@ func FuzzVerifyKeyringBody(f *testing.F) {
 		srv := newBodyServer(t)
 		srv.serve([]byte(body))
 
-		err := VerifyKeyring(map[string]string{"aa": "bb"}, srv.srv.URL)
-		if Classify(err) != OutcomeMismatch {
+		keyring, err := FetchKeyring(srv.srv.URL)
+		if (keyring == nil) == (err == nil) {
+			t.Fatalf("body %q: keyring %+v and error %v", body, keyring, err)
+		}
+		if err != nil {
 			return
 		}
-		// The only bodies allowed to reach a verdict are real keyrings:
+		// The only bodies allowed to give a keyring are real keyrings:
 		// an object the strict reader reads, with a keys list.
 		value, parseErr := strictjson.Decode([]byte(body))
 		object, isObject := value.(map[string]any)
 		if _, isList := object["keys"].([]any); parseErr != nil || !isObject || !isList {
-			t.Fatalf("body %q is not a keyring document but graded mismatch: %v", body, err)
-		}
-	})
-}
-
-// FuzzVerifyBitcoinBlockBody pins E.19(b)'s binding: a 200 body may
-// produce a confirmable result only when it names the block that was
-// asked for and carries a height. Any other body must yield an error, so
-// the caller can never report "confirmed on <net>" for an answer about a
-// different block or for silence about the height.
-func FuzzVerifyBitcoinBlockBody(f *testing.F) {
-	const asked = "2222222222222222222222222222222222222222222222222222222222222222"
-	for _, s := range []string{
-		`{}`, `null`, `{"height":1}`, `{"id":"` + asked + `"}`,
-		`{"id":"` + asked + `","height":0}`,
-		`{"id":"dede","height":1}`, `not json`,
-	} {
-		f.Add(s)
-	}
-	f.Fuzz(func(t *testing.T, body string) {
-		srv := newBodyServer(t)
-		srv.serve([]byte(body))
-
-		orig := BlockstreamMainnetURL
-		BlockstreamMainnetURL = srv.srv.URL
-		defer func() { BlockstreamMainnetURL = orig }()
-
-		result, skipped, err := VerifyBitcoinBlock(asked, "mainnet")
-		if err != nil || skipped {
-			return
-		}
-		if result == nil {
-			t.Fatalf("body %q: no error, no skip, and no result", body)
-		}
-		var block struct {
-			ID     string `json:"id"`
-			Height *int   `json:"height"`
-		}
-		if json.Unmarshal([]byte(body), &block) != nil ||
-			!tscrypto.HexEqual(block.ID, asked) || block.Height == nil {
-			t.Fatalf("body %q yielded a confirmable result %+v without naming block %s at a height",
-				body, result, asked)
+			t.Fatalf("body %q is not a keyring document but gave the keyring %+v", body, keyring)
 		}
 	})
 }

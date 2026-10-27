@@ -10,10 +10,8 @@
 // (CONFIGURATION), do not use the shared client: each goes through a
 // [SingleRead], one attempt that follows no redirect and ends within one
 // deadline (SPEC.md sections 8.3 (External verifiers) and 10.4 (Chain and
-// source reads)). The verify
-// command's current path, internal/verify through internal/external, still
-// makes its keyring, chain and NIST Beacon reads through the shared client
-// and its redirect policy.
+// source reads)). The keys commands' keyring read, through
+// internal/external, uses the shared client and its redirect policy.
 package httpclient
 
 import (
@@ -36,8 +34,8 @@ var httpClient = newClient(10 * time.Second)
 // URL. Following such a redirect would strip TLS mid-chain, which for the
 // keyring fetch in particular is a total compromise: an attacker who can
 // substitute the keyring can substitute signing keys, and every downstream
-// signature then validates against their key. See VerifyKeyring's threat
-// note in internal/external/keyring.go.
+// signature then validates against their key. See FetchKeyring's trust
+// model in internal/external/keyring.go.
 var ErrRedirectDowngrade = errors.New("refusing redirect that downgrades https to http")
 
 // maxRedirects matches net/http's default cap. It is restated here because

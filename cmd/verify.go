@@ -169,7 +169,7 @@ func runVerify(cmd *cobra.Command, args []string) error {
 		return err
 	}
 	if cfg.Verify.Remote && data != nil {
-		askRemote(cmd, data, src, run.ExpectedHash, !run.Online)
+		askRemote(cmd, data, run.ExpectedHash, !run.Online)
 	}
 	return exitWith(outcome.ExitCode())
 }
@@ -252,13 +252,13 @@ func encodeOutcome(outcome verifier.Outcome) ([]byte, error) {
 // askRemote asks the Truestamp service to verify the proof too, and
 // prints its verdict on standard error, beside the report and never as a
 // row of it; it never changes the exit code, which is the local run's.
-func askRemote(cmd *cobra.Command, data []byte, src inputsrc.Source, expectedHash *string, offline bool) {
+func askRemote(cmd *cobra.Command, data []byte, expectedHash *string, offline bool) {
 	cfg := appConfig
 	options := verify.RemoteOptions{APIURL: cfg.APIURL, Team: cfg.Team, SkipExternal: offline}
 	if expectedHash != nil {
 		options.ExpectedHash = strings.ToLower(*expectedHash)
 	}
-	report, err := verify.RunRemoteBytesCtx(cmd.Context(), data, src.DisplayName(), options)
+	report, err := verify.RunRemoteBytesCtx(cmd.Context(), data, options)
 	if cfg.Silent {
 		return
 	}

@@ -25,18 +25,6 @@ func FuzzDecodeCompactMerkleProof(f *testing.F) {
 	})
 }
 
-// FuzzVerifyMerkleProof exercises the RFC 6962 walk with arbitrary
-// leaf/root hex + a single proof step. The walker takes attacker-
-// controlled strings so any panic is a security issue.
-func FuzzVerifyMerkleProof(f *testing.F) {
-	f.Add("deadbeef", "l:cafebabe", "abcdef01")
-	f.Add("", "", "")
-
-	f.Fuzz(func(t *testing.T, leafHex, step, rootHex string) {
-		_, _ = VerifyMerkleProof(leafHex, []string{step}, rootHex)
-	})
-}
-
 // FuzzExtractULIDTimestamp: ULID parse surface from untrusted proof
 // bundles.
 func FuzzExtractULIDTimestamp(f *testing.F) {
@@ -58,18 +46,6 @@ func FuzzExtractUUIDv7Timestamp(f *testing.F) {
 
 	f.Fuzz(func(t *testing.T, s string) {
 		_, _ = ExtractUUIDv7Timestamp(s)
-	})
-}
-
-// FuzzHexToBytes wraps the hex decoder used throughout the package.
-func FuzzHexToBytes(f *testing.F) {
-	f.Add("")
-	f.Add("deadbeef")
-	f.Add("DEADBEEF")
-	f.Add("zz")
-
-	f.Fuzz(func(t *testing.T, s string) {
-		_, _ = HexToBytes(s)
 	})
 }
 
@@ -143,53 +119,5 @@ func FuzzValidateClaimsHash(f *testing.F) {
 			}
 			t.Fatalf("ValidateClaimsHash accepted %q at offset %d of %q", string(c), i, hash)
 		}
-	})
-}
-
-// FuzzComputeItemHash: domain-prefixed length-prefixed hash builder.
-// Exercises the len-prefix arithmetic with arbitrary string lengths.
-func FuzzComputeItemHash(f *testing.F) {
-	f.Add("01HJHB01T8FYZ7YTR9P5N62K5B",
-		"deadbeef",
-		"deadbeef",
-		"4ceefa4a")
-
-	f.Fuzz(func(t *testing.T, id, claimsHex, metaHex, kidHex string) {
-		_, _ = ComputeItemHash(id, claimsHex, metaHex, kidHex)
-	})
-}
-
-// FuzzComputeObservationHash: same shape as ComputeItemHash but for
-// entropy proofs.
-func FuzzComputeObservationHash(f *testing.F) {
-	f.Add("019cf813-99b8-730a-84f1-5a711a9c355e",
-		"deadbeef",
-		"deadbeef",
-		"4ceefa4a")
-
-	f.Fuzz(func(t *testing.T, id, entHex, metaHex, kidHex string) {
-		_, _ = ComputeObservationHash(id, entHex, metaHex, kidHex)
-	})
-}
-
-// FuzzComputeBlockHash: same shape, but with an extra "previous block"
-// hash field.
-func FuzzComputeBlockHash(f *testing.F) {
-	f.Add("019cf813-99b8-730a-84f1-5a711a9c355e",
-		"deadbeef", "deadbeef", "deadbeef", "4ceefa4a")
-
-	f.Fuzz(func(t *testing.T, id, phHex, mrHex, mhHex, kidHex string) {
-		_, _ = ComputeBlockHash(id, phHex, mrHex, mhHex, kidHex)
-	})
-}
-
-// FuzzBuildCompactProofPayload: variadic-ish hex decoder that feeds
-// the signature construction. Fuzz to ensure no slice-bounds panic.
-func FuzzBuildCompactProofPayload(f *testing.F) {
-	f.Add(uint16(20), "4ceefa4a", uint64(1700000000000),
-		"deadbeef", "deadbeef", "cafebabe")
-
-	f.Fuzz(func(t *testing.T, typeCode uint16, kid string, ts uint64, subj, block, epoch string) {
-		_, _ = BuildCompactProofPayload(1, typeCode, kid, ts, subj, block, []string{epoch})
 	})
 }

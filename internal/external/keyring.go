@@ -1,8 +1,10 @@
 // Copyright (c) 2019-2026 Truestamp, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-// This file reads Truestamp's keyring, /.well-known/keyring.json, for the
-// keys commands and the verifier of internal/verify. A keyring's bytes are
+// Package external reads Truestamp's keyring, /.well-known/keyring.json,
+// for the keys commands (keys list, keys get and keys current). The
+// verifier of `truestamp verify` reads and loads its keyring itself, in
+// internal/verifier and internal/verifier/keyring. A keyring's bytes are
 // read through internal/strictjson, the reader of SPEC.md section 10.1
 // (Parsing) that every keyring a verifier loads goes through (section
 // 10.2, step 0), so a body that breaks any of its rules is not a keyring:
@@ -21,9 +23,7 @@
 // the keyring's members, and only key_id, public_key, sequence and active a
 // key's, so a member named in another case (KEYS, KEY_ID, Active) is a
 // member of no keyring and is ignored. A sequence is read by its value, so
-// an integral spelling of it (1.0, 1e0) is that integer. The new verifier
-// loads keyrings, with the load checks, in internal/verifier/keyring.
-
+// an integral spelling of it (1.0, 1e0) is that integer.
 package external
 
 import (
@@ -49,8 +49,7 @@ type KeyringResponse struct {
 // so an absent list is distinguishable from an empty one: `{}`, `null`,
 // `{"version":"1"}` and every other such object leave Keys nil, which must
 // not read as a keyring that published zero keys. Those are opposite
-// facts, nothing was published versus Truestamp published nothing that
-// vouches for this key, and only the second may fail a proof (E.22).
+// facts: nothing was published, against a keyring that publishes no key.
 type keyringDocument struct {
 	Version string
 	Keys    *[]KeyringKey
@@ -155,9 +154,8 @@ type KeyringKey struct {
 // keyringNetError wraps a raw network error with a friendlier message.
 // Error() returns the friendly text; Unwrap() returns the underlying
 // error so callers can errors.Is/errors.As against the original type
-// (net.DNSError, net.OpError, context.DeadlineExceeded, etc.) and so
-// [Classify] can still see the httpclient status/transport typing
-// underneath the friendly text.
+// (net.DNSError, net.OpError, context.DeadlineExceeded, etc.) and see the
+// httpclient status and transport typing underneath the friendly text.
 type keyringNetError struct {
 	friendly string
 	inner    error
@@ -227,7 +225,10 @@ func compactError(err error) string {
 	return err.Error()
 }
 
-// VerifyKeyring checks that all signing keys in the proof match the published keyring.
+// FetchKeyring retrieves and decodes the keyring document at keyringURL.
+// A transport failure or a non-2xx status is an error that keeps the
+// httpclient typing beneath a friendly message, and a body that is not a
+// keyring is a [MalformedResponseError].
 //
 // Trust model: the keyring's authenticity is rooted entirely in the TLS
 // chain presented by keyringURL. There is no in-band signature over the
@@ -255,52 +256,6 @@ func compactError(err error) string {
 // cosign/Sigstore signature over the keyring document itself. Until
 // then, treat the configured base URL as a root of trust that deserves
 // the same care as a CA root.
-func VerifyKeyring(signingKeys map[string]string, keyringURL string) error {
-	resp, err := httpclient.GetJSON(keyringURL)
-	if err != nil {
-		return &keyringNetError{friendly: classifyNetworkError(err), inner: err}
-	}
-
-	doc, err := decodeKeyring(resp)
-	if err != nil {
-		return &MalformedResponseError{Source: "keyring", Detail: "response is not a JSON keyring document", Err: err}
-	}
-
-	// E.17 gives this step exactly one job: report whether the published
-	// keyring vouches for the key. A 200 that is not a keyring at all,
-	// a captive portal, a CDN stub, an API gateway, a misconfigured
-	// origin, answers that question not at all, and falling through to
-	// the loop below would manufacture "not found in keyring" (a chain
-	// disagreement that fails a sound proof) out of a document that
-	// never had a keys list. E.22: an answer this client cannot read
-	// establishes nothing, so it must skip. The reference verifier
-	// gates the same way (`{:ok, %{"keys" => keys}} when is_list(keys)`).
-	if doc.Keys == nil {
-		return &MalformedResponseError{Source: "keyring", Detail: `response carries no "keys" list`}
-	}
-
-	keys := *doc.Keys
-	keyringMap := make(map[string]string, len(keys))
-	for _, k := range keys {
-		keyringMap[k.KeyID] = k.PublicKey
-	}
-
-	for keyID, pubkeyB64 := range signingKeys {
-		published, ok := keyringMap[keyID]
-		if !ok {
-			return &KeyBindingError{KeyID: keyID, Reason: "not found in keyring"}
-		}
-		if published != pubkeyB64 {
-			return &KeyBindingError{KeyID: keyID, Reason: "public key mismatch with keyring"}
-		}
-	}
-
-	return nil
-}
-
-// FetchKeyring retrieves and decodes a keyring document. Errors are typed
-// for [Classify]: an unreachable host or a body that is not a keyring
-// leaves the key binding unestablished rather than refuted.
 func FetchKeyring(keyringURL string) (*KeyringResponse, error) {
 	resp, err := httpclient.GetJSON(keyringURL)
 	if err != nil {
@@ -311,8 +266,7 @@ func FetchKeyring(keyringURL string) (*KeyringResponse, error) {
 
 // ParseKeyring decodes a keyring document through the strict reader. A
 // body without a `keys` list is not a keyring at all (a captive portal, a
-// CDN stub) and is graded malformed, so it can never manufacture "not
-// found in keyring" out of a document that never had a keys list.
+// CDN stub) and is malformed, never a keyring that publishes no key.
 func ParseKeyring(body []byte) (*KeyringResponse, error) {
 	doc, err := decodeKeyring(body)
 	if err != nil {
@@ -322,18 +276,6 @@ func ParseKeyring(body []byte) (*KeyringResponse, error) {
 		return nil, &MalformedResponseError{Source: "keyring", Detail: `response carries no "keys" list`}
 	}
 	return &KeyringResponse{Version: doc.Version, Keys: *doc.Keys}, nil
-}
-
-// Find returns the keyring entry whose key_id AND public_key both match,
-// which is what Appendix E.17 requires of a binding: a key id alone can be
-// chosen, a public key alone can be re-labelled.
-func (k *KeyringResponse) Find(keyID, publicKeyB64 string) (KeyringKey, bool) {
-	for _, entry := range k.Keys {
-		if entry.KeyID == keyID && entry.PublicKey == publicKeyB64 {
-			return entry, true
-		}
-	}
-	return KeyringKey{}, false
 }
 
 // FindByID returns the entry with the given key id. The id is hex, so the

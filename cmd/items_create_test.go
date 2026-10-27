@@ -644,11 +644,12 @@ func startCreateEchoServer(t *testing.T) (url string, body func() []byte) {
 // a value like 18446744073709551615 lives one layer down, in
 // items.TestCreateItemCtx_PreservesIntegerLiteralOnTheWire.
 //
-// Floats travel verbatim too, and this is where the old code still visibly
-// corrupts a submission end to end: a float is never a portability violation,
-// so it reaches the wire either way. 1e21 came back out as 1e+21 and
-// 9007199254740993.0 as 9.007199254740992e+15, different bytes, therefore a
-// different JCS canonicalization and a different claims_hash.
+// Floats travel verbatim too: a float whose nearest double is not an
+// integer in rule J5's gap is never a portability violation, so its text
+// reaches the wire as written, 1e21 not as 1e+21 and 1.50e300 not as
+// 1.5e+300, the same bytes and therefore the same JCS canonicalization.
+// Mutant killed: the claims re-encoded through float64 (1e21 is sent as
+// 1e+21).
 func TestCLI_ItemsCreate_PreservesLiteralsOnTheWire(t *testing.T) {
 	url, body := startCreateEchoServer(t)
 
@@ -657,7 +658,7 @@ func TestCLI_ItemsCreate_PreservesLiteralsOnTheWire(t *testing.T) {
 		`"neg":-9007199254740991,` +
 		`"as_string":"18446744073709551615",` +
 		`"exp":1e21,` +
-		`"wide_float":9007199254740993.0}}`
+		`"wide_float":1.50e300}}`
 	path := filepath.Join(t.TempDir(), "claims.json")
 	if err := os.WriteFile(path, []byte(claims), 0644); err != nil {
 		t.Fatal(err)
@@ -676,7 +677,7 @@ func TestCLI_ItemsCreate_PreservesLiteralsOnTheWire(t *testing.T) {
 		`"neg":-9007199254740991`,
 		`"as_string":"18446744073709551615"`,
 		`"exp":1e21`,
-		`"wide_float":9007199254740993.0`,
+		`"wide_float":1.50e300`,
 	} {
 		if !strings.Contains(got, literal) {
 			t.Errorf("request body missing %s\nbody: %s", literal, got)
@@ -685,7 +686,7 @@ func TestCLI_ItemsCreate_PreservesLiteralsOnTheWire(t *testing.T) {
 
 	// The exact rewrites the pre-fix float64 path produced. Their absence is
 	// the assertion that matters.
-	for _, corrupted := range []string{"1e+21", "9.007199254740992e+15", "9007199254740992"} {
+	for _, corrupted := range []string{"1e+21", "1.5e+300"} {
 		if strings.Contains(got, corrupted) {
 			t.Errorf("request body carries rewritten literal %s, the user's bytes were corrupted\nbody: %s", corrupted, got)
 		}
@@ -730,10 +731,13 @@ func TestCLI_ItemsCreate_UnsafeIntegerRejectedBeforeNetwork(t *testing.T) {
 	}
 }
 
-// TestCLI_ItemsCreate_UnsafeIntegerBoundary walks the producer threshold through
-// the real CLI, in both directions and both signs. 2^53 is the row that pins
-// the producer/verifier split: the verifier tolerates that value, `create`
-// must not.
+// TestCLI_ItemsCreate_UnsafeIntegerBoundary walks MAX_INTEGER, the one bound
+// of rule J5, through the real CLI, in both directions and both signs. 2^53 is
+// the first integer past it: `create` refuses it before sending, naming its
+// path, as every verifier and the Truestamp service refuse it, and an integral
+// float such as 9007199254740993.0 is refused too, by the J5 check of the
+// canonicalizer. Mutant killed: jcs.UnsafeIntegers bounded at MAX_INTEGER + 1
+// (2^53 is then refused only by the canonicalizer, whose error names no path).
 func TestCLI_ItemsCreate_UnsafeIntegerBoundary(t *testing.T) {
 	for _, tc := range []struct {
 		name   string
@@ -949,13 +953,28 @@ func TestCLI_ItemsCreate_UnsafeIntegerJSONOutput(t *testing.T) {
 }
 
 // TestCLI_ItemsCreate_FloatsAreNotFlagged confirms the producer rule is about
-// integer literals only. A geolocation or a scientific measurement with a huge
-// magnitude is legal and must reach the wire unchanged.
+// integers only. A geolocation or a scientific measurement with a huge
+// magnitude is legal and must reach the wire unchanged, while a float whose
+// nearest double is an integer of magnitude above 2^53 - 1 and below 10^21,
+// such as 9007199254740993.0, is refused as rule J5 refuses it (SPEC.md
+// section 10.1), before any request. Mutant killed: checkClaimsPortability
+// checking the claims with gowebpki/jcs's Transform (9007199254740993.0 is
+// sent).
 func TestCLI_ItemsCreate_FloatsAreNotFlagged(t *testing.T) {
+	refused, refusedBody := startCreateEchoServer(t)
+	gap := filepath.Join(t.TempDir(), "gap.json")
+	if err := os.WriteFile(gap, []byte(`{"name":"F","description":"`+longDesc+`","metadata":{"c":9007199254740993.0}}`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	out, err := exec.Command(binaryPath, "items", "create", "--claims="+gap, "--api-key", "fake", "--base-url", refused).CombinedOutput()
+	if err == nil || !strings.Contains(string(out), "malformed_json (number)") || len(refusedBody()) != 0 {
+		t.Errorf("9007199254740993.0: %v, %s; %d bytes sent", err, out, len(refusedBody()))
+	}
+
 	url, body := startCreateEchoServer(t)
 
 	claims := `{"name":"F","description":"` + longDesc + `",` +
-		`"metadata":{"a":1.5,"b":1e21,"c":9007199254740993.0}}`
+		`"metadata":{"a":1.5,"b":1e21,"c":1.50e300}}`
 	path := filepath.Join(t.TempDir(), "claims.json")
 	if err := os.WriteFile(path, []byte(claims), 0644); err != nil {
 		t.Fatal(err)
@@ -963,7 +982,7 @@ func TestCLI_ItemsCreate_FloatsAreNotFlagged(t *testing.T) {
 
 	cmd := exec.Command(binaryPath, "items", "create", "--claims="+path,
 		"--api-key", "fake", "--base-url", url)
-	out, err := cmd.CombinedOutput()
+	out, err = cmd.CombinedOutput()
 	if err != nil {
 		t.Fatalf("floats must not be rejected: %v\n%s", err, out)
 	}
