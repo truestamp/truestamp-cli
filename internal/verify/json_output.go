@@ -4,31 +4,29 @@
 package verify
 
 import (
-	"sort"
-
 	"github.com/truestamp/truestamp-cli/internal/proof"
 	"github.com/truestamp/truestamp-cli/internal/version"
 )
 
-// JSONReport is the machine-readable form of a report. Its field names are
-// the server's (/proof/verify), so a CLI report and an API report are
-// directly comparable, plus `verifier` naming this implementation and
-// `rejection` for an Appendix E.6 hard rejection.
+// JSONReport is the machine-readable form `inspect --json` writes for a
+// rejection of the earlier bundle parser: its field names are the
+// server's (/proof/verify), plus `verifier` naming this implementation and
+// `rejection` for the rejection.
 type JSONReport struct {
 	Verifier Verifier `json:"verifier"`
 
-	// Passed is the verdict: no step failed. False for a rejection.
+	// Passed is false: BuildJSONRejection, which writes every JSONReport,
+	// writes a rejection.
 	Passed bool `json:"passed"`
 
 	// Rejection is set, and every other result field is zero, when the
-	// bundle was refused before any step ran (E.6).
+	// bundle was refused before any step ran.
 	Rejection *Rejection `json:"rejection,omitempty"`
 
 	ID     string `json:"id,omitempty"`
 	Source string `json:"source,omitempty"`
 
-	// Steps is the complete step record in Appendix E.22's category order,
-	// each category's rows in emission order.
+	// Steps is the step record, empty for a rejection.
 	Steps []Step `json:"steps"`
 
 	Temporal *Temporal `json:"temporal,omitempty"`
@@ -40,8 +38,8 @@ type JSONReport struct {
 	InfoCount   int `json:"info_count"`
 
 	// HashProvided is the normalized expected hash when one reached a
-	// comparison, else null. ExpectedHashProvided and HashMatched are the
-	// two facts Appendix E.7 requires to be reportable separately.
+	// comparison, else null. ExpectedHashProvided and HashMatched are
+	// reported separately.
 	HashProvided         *string `json:"hash_provided"`
 	ExpectedHashProvided bool    `json:"expected_hash_provided"`
 	HashMatched          bool    `json:"hash_matched"`
@@ -60,7 +58,7 @@ type Verifier struct {
 	Version string `json:"version"`
 }
 
-// Rejection carries an Appendix E.23 rejection identifier.
+// Rejection carries the earlier bundle parser's rejection identifier.
 type Rejection struct {
 	Code   string `json:"code"`
 	Detail string `json:"detail"`
@@ -70,38 +68,6 @@ type Rejection struct {
 // ThisVerifier identifies this CLI build.
 func ThisVerifier() Verifier {
 	return Verifier{Name: "truestamp-cli", Version: version.Version}
-}
-
-// BuildJSONReport creates the machine-readable form of a report.
-func BuildJSONReport(r *Report) *JSONReport {
-	c := r.Counts()
-	out := &JSONReport{
-		Verifier:             ThisVerifier(),
-		Passed:               r.Passed(),
-		ID:                   r.SubjectID,
-		Source:               r.SubjectType,
-		Steps:                orderedSteps(r),
-		PassCount:            c.Passed,
-		FailedCount:          c.Failed,
-		WarnCount:            c.Warned,
-		SkipCount:            c.Skipped,
-		InfoCount:            c.Info,
-		ExpectedHashProvided: r.ExpectedHash != "",
-		HashMatched:          r.HashMatched(),
-		ProofVersion:         r.ProofVersion,
-		SkippedExternal:      r.SkippedExternal,
-		GeneratedAt:          r.GeneratedAt,
-		Remote:               r.Remote,
-	}
-	if r.HashProvided() {
-		h := r.ExpectedHash
-		out.HashProvided = &h
-	}
-	if !r.Temporal.IsZero() {
-		t := r.Temporal
-		out.Temporal = &t
-	}
-	return out
 }
 
 // BuildJSONRejection creates the machine-readable form of a hard rejection.
@@ -117,16 +83,4 @@ func BuildJSONRejection(err error) *JSONReport {
 		Rejection: &Rejection{Code: code, Detail: detail, Advice: proof.RejectionAdvice(code)},
 		Steps:     []Step{},
 	}
-}
-
-// orderedSteps returns every step in Appendix E.22's category order. The
-// sort is stable and keyed on the category alone, so emit order within a
-// category survives.
-func orderedSteps(r *Report) []Step {
-	steps := make([]Step, 0, len(r.Steps))
-	steps = append(steps, r.Steps...)
-	sort.SliceStable(steps, func(i, j int) bool {
-		return categoryRank(steps[i].Category) < categoryRank(steps[j].Category)
-	})
-	return steps
 }

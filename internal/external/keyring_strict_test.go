@@ -41,7 +41,7 @@ func TestParseKeyring_ReadsThroughTheStrictReader(t *testing.T) {
 	} {
 		_, err := ParseKeyring([]byte(body))
 		var malformed *MalformedResponseError
-		if !errors.As(err, &malformed) || Classify(err) != OutcomeMalformed {
+		if !errors.As(err, &malformed) || malformed.Detail != "response is not a JSON keyring document" {
 			t.Errorf("%s: %v, want malformed", name, err)
 		}
 	}
@@ -56,7 +56,8 @@ func TestParseKeyring_ReadsThroughTheStrictReader(t *testing.T) {
 		"keys null": `{"keys": null}`,
 		"KEYS":      `{"KEYS": []}`,
 	} {
-		if _, err := ParseKeyring([]byte(body)); err == nil || Classify(err) != OutcomeMalformed {
+		var malformed *MalformedResponseError
+		if _, err := ParseKeyring([]byte(body)); !errors.As(err, &malformed) || malformed.Detail != `response carries no "keys" list` {
 			t.Errorf("%s: %v, want no keys list", name, err)
 		}
 	}
@@ -78,13 +79,17 @@ func TestParseKeyring_ReadsThroughTheStrictReader(t *testing.T) {
 	}
 }
 
-// VerifyKeyring reads the body it fetches through the same reader: a body
-// that repeats the keys name is malformed, so it fails no proof. Mutant
-// killed: VerifyKeyring decoding with encoding/json (the second, empty
-// keys list grades mismatch).
-func TestVerifyKeyring_ARepeatedNameIsMalformed(t *testing.T) {
+// FetchKeyring reads the body it fetches through the same reader: a body
+// that repeats the keys name is malformed, the strict reader's rejection
+// kept, never the keyring its second, empty list would make. Mutant
+// killed: FetchKeyring decoding with encoding/json (it gives a keyring of
+// no keys).
+func TestFetchKeyring_ARepeatedNameIsMalformed(t *testing.T) {
 	srv := statusServer(t, 200, `{"version":"1.0","keys":[{"key_id":"aa","public_key":"bb"}],"keys":[]}`)
-	if got := Classify(VerifyKeyring(map[string]string{"cc": "dd"}, srv.URL)); got != OutcomeMalformed {
-		t.Fatalf("Classify = %s, want malformed", got)
+	keyring, err := FetchKeyring(srv.URL)
+	var malformed *MalformedResponseError
+	var rejection *strictjson.Rejection
+	if keyring != nil || !errors.As(err, &malformed) || !errors.As(err, &rejection) {
+		t.Fatalf("FetchKeyring = %+v, %v; want malformed, with the strict reader's rejection", keyring, err)
 	}
 }

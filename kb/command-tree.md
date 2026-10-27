@@ -629,7 +629,7 @@ discussion before implementation.
 
 | Deferred | Why it waits |
 | -------- | ------------ |
-| `keys pin`, `keys diff` | A keyring miss is a hard `fail` in `internal/verify/steps_signature.go`, so a keyring pinned today plus a legitimate rotation tomorrow reports FAIL on a good proof, with a message asserting the bundle was not signed by a published Truestamp key — which is false. Needs a design that survives rotation. See [Pinning](#pinning-what-it-buys-and-what-it-costs). |
+| `keys pin`, `keys diff` | A key the keyring that governs a run does not hold fails KEY_BINDING with `key_binding_failed` (SPEC.md section 10.2, step 5, in `internal/verifier`), so a keyring pinned today plus a legitimate rotation tomorrow fails a good proof, with a message saying no key of the keyring binds it, though Truestamp did sign it. Needs a design that survives rotation. See [Pinning](#pinning-what-it-buys-and-what-it-costs). |
 | `blocks pull`, `blocks verify` | The local-store design (`--store`, resumable keyset paging, the chain walk) needs its own pass, including whether `verify` gains `--chain <store>` so a bundle's carried `block_path` can be checked against a chain you mirrored. |
 | `keys events` | Key events live in the block `metadata` that `blocks pull` mirrors, so this is a **local** scan once the chain is on disk — and a local scan is the only form worth trusting, since the point is surfacing `emergency_rotation`. Follows `blocks pull`. |
 | `proofs list` | There is no proof table; bundles come from `POST /proof/generate` and are never stored. It becomes honest when a local bundle store exists, at which point it is a *local* listing and its help must say so in its first line. |
@@ -674,13 +674,16 @@ cannot tell you whether a new key arrived by scheduled or emergency rotation.
 
 ### `blocks verify`: the trap to write down before it is written
 
-The block-level signature is over the **raw 32 bytes of `block_hash`** — decode the hex and verify
-directly. That is **not** the proof-bundle rule, which is `Ed25519.verify(SHA256(0x61 ‖ payload))`
-over the fixed-width payload. Same key, different message. A `blocks verify` that reuses
-`internal/verify`'s signature path will reject every valid block.
+The block-level signature is over the **raw 32 bytes of `block_hash`**: decode the hex and verify
+directly. That is **not** the proof rule, which signs the 32 bytes of `proof_hash`,
+SHA-256(0x50 || JCS(proof)) (SPEC.md section 6.1 (The rule)). Same key, different message, so a
+`blocks verify` that verifies a block's signature by the proof rule will reject every valid block.
+A proof carries no block signature, so `internal/verifier` holds no block-signature check to reuse.
 
-Two primitives already do most of the work: `blockHashFromMap` in `internal/verify/steps_block.go`
-recomputes the 0x32 block hash from the same five fields, and `walkBlockPath` in
-`internal/verify/steps_witnesses.go` already walks a `previous_block_hash` chain oldest-first,
-recomputing each hash and threading it forward. The server ships `Verification.verify_chain/1` as a
+`internal/verifier`'s DERIVE (SPEC.md section 10.2, step 9) already recomputes each block hash a
+proof carries, so a `blocks verify` should reuse that construction rather than write its own.
+DERIVE does not walk a `previous_block_hash` chain: SPEC.md section 3.7 (Value classes) classes
+those values as RECORDED, and DERIVE checks only the genesis value, against H(0x30, genesis), and a
+rotation's, against the block record that carries it. So a `blocks verify` keeps its own walk of
+each block's `previous_block_hash` link. The server ships `Verification.verify_chain/1` as a
 reference oracle to test against.

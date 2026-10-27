@@ -22,7 +22,7 @@ What each document covers, and when to read it, is the table in [`CLAUDE.md`](..
 - [upgrade-and-install.md](upgrade-and-install.md), `truestamp upgrade`
 - [configuration.md](configuration.md), flags, env vars, config.toml
 - [authentication.md](authentication.md), OAuth, token storage, credential precedence
-- [jcs-canonicalization.md](jcs-canonicalization.md), RFC 8785 and the safe-integer thresholds
+- [jcs-canonicalization.md](jcs-canonicalization.md), RFC 8785 and the one safe-integer bound (rule J5)
 - [external-apis.md](external-apis.md), every third-party service this binary talks to
 - [team-management.md](team-management.md), `truestamp teams` and the console Teams pane
 - [console/](console/README.md), `truestamp console`, split by package

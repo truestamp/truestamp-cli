@@ -154,19 +154,6 @@ func runHash(cmd *cobra.Command, args []string) error {
 
 	results, hadError := runHashMany(cmd, sources, alg, prefixByte, prefixSet, useJCS, silent)
 
-	// E.4 portability signal, emitted before the digests so it reads as a
-	// caveat on what follows. Only --jcs can populate it.
-	for _, r := range results {
-		label := ""
-		if len(sources) > 1 {
-			label = r.Source.DisplayName()
-			if label == "" {
-				label = "-"
-			}
-		}
-		warnOversizedIntegers(cmd, label, r.OversizedIntegers, silent, jsonOut)
-	}
-
 	if silent {
 		if hadError {
 			return errSilentFail
@@ -193,11 +180,6 @@ type hashResult struct {
 	Source inputsrc.Source
 	Digest []byte
 	Size   int64
-	// OversizedIntegers carries the Appendix E.4 portability signal for
-	// this input's --jcs canonicalization. It is per-input rather than
-	// per-invocation because runHash may hash several files at once and
-	// only some of them may carry oversized integers.
-	OversizedIntegers []string
 }
 
 // parallelHashThreshold is the source count at which runHashMany switches
@@ -306,14 +288,12 @@ func runHashOne(ctx context.Context, opts inputsrc.Options, alg hashing.Algorith
 		return hashResult{}, err
 	}
 	payload := data
-	var oversized []string
 	if useJCS {
-		canonical, over, cErr := jcs.Canonicalize(data)
+		canonical, cErr := jcs.Transform(data)
 		if cErr != nil {
 			return hashResult{}, fmt.Errorf("%s: JCS canonicalization: %w", src.DisplayName(), cErr)
 		}
 		payload = canonical
-		oversized = over
 	}
 	h := alg.New()
 	if prefixSet {
@@ -321,7 +301,7 @@ func runHashOne(ctx context.Context, opts inputsrc.Options, alg hashing.Algorith
 	}
 	h.Write(payload)
 	digest := h.Sum(nil)
-	return hashResult{Source: src, Digest: digest, Size: int64(len(data)), OversizedIntegers: oversized}, nil
+	return hashResult{Source: src, Digest: digest, Size: int64(len(data))}, nil
 }
 
 // emitHashText writes sha256sum-style (or BSD/bare) lines to w.
@@ -387,11 +367,7 @@ type hashJSON struct {
 	SizeBytes int64      `json:"size_bytes"`
 	Prefix    string     `json:"prefix,omitempty"`
 	JCS       bool       `json:"jcs,omitempty"`
-	// OversizedIntegers is the machine-readable form of the stderr
-	// warning: --json suppresses that line, so the E.4 portability signal
-	// has to travel here or it is lost to scripted callers.
-	OversizedIntegers []string  `json:"oversized_integers,omitempty"`
-	Input             jsonInput `json:"input"`
+	Input     jsonInput  `json:"input"`
 }
 
 func emitHashJSON(w io.Writer, alg hashing.Algorithm, enc encoding.Encoding, prefix string, useJCS, multi bool, results []hashResult) error {
@@ -407,12 +383,11 @@ func emitHashJSON(w io.Writer, alg hashing.Algorithm, enc encoding.Encoding, pre
 				Base64:    string(b64Bytes),
 				Base64URL: string(b64URLBytes),
 			},
-			Encoded:           string(encBytes),
-			Encoding:          enc.Name(),
-			SizeBytes:         r.Size,
-			Prefix:            prefix,
-			JCS:               useJCS,
-			OversizedIntegers: r.OversizedIntegers,
+			Encoded:   string(encBytes),
+			Encoding:  enc.Name(),
+			SizeBytes: r.Size,
+			Prefix:    prefix,
+			JCS:       useJCS,
 			Input: jsonInput{
 				Type: string(r.Source.Type),
 				Path: r.Source.Path,

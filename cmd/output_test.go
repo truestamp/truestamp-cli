@@ -96,6 +96,9 @@ func offlineCommands(t *testing.T, baseURL string) func(args ...string) *exec.Cm
 // a lipgloss style somewhere; a command that only prints plain text would
 // make this test vacuous, so the set is deliberately drawn from the ones
 // that render cards, tables, banners, and reports.
+//
+// inspect reads only the earlier bundle layout, so it is given a bundle of
+// that layout; every other file an invocation reads is a vector.
 func offlineInvocations() [][]string {
 	bundle := testfixtures.Path(testfixtures.ProdDir, testfixtures.ProdComplete)
 	return [][]string{
@@ -108,7 +111,7 @@ func offlineInvocations() [][]string {
 		{"convert", "time", "2026-09-03T12:00:00Z"},
 		{"convert", "keyid", "CTwMqDZnPd/QTLSq8aTeSD3a+j2DQxKcGfhhIYJQ65Y="},
 		{"convert", "id", "01JBQ8Z9K2M4N6P8R0T2V4X6Y8"},
-		{"hash", bundle},
+		{"hash", soundItem()},
 	}
 }
 
@@ -235,7 +238,7 @@ func TestCLI_JSONFlagIsNeverANoOp(t *testing.T) {
 		{"schema", "list"},
 		{"auth", "status"},
 		{"inspect", bundle},
-		{"hash", bundle},
+		{"hash", soundItem()},
 		{"schema", "get", "witnesses"},
 		{"schema", "get", "commands"},
 	} {

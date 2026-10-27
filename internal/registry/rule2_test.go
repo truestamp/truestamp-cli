@@ -28,8 +28,8 @@ import (
 // section 5.3. It is the lint that rule asks of each of Truestamp's
 // verifiers, which forbids reading a prefix byte or a member set from a
 // document value, and parses every Go file of the module but its tests
-// (go/ast; nothing is compiled or run). Checks 1 to 5 and 9 read every file
-// of the module:
+// (go/ast; nothing is compiled or run). Checks 1 to 5, 9 and 13 read every
+// file of the module:
 //
 //  1. a file other than internal/registry/walk.go importing
 //     github.com/transparency-dev/merkle, whose RFC 6962 hasher applies
@@ -46,12 +46,17 @@ import (
 //     writes it, called or not, outside a test and its own declaration;
 //  9. a package that imports internal/registry and is not one of
 //     scannedPackages, so each package of the new verifier is scanned from
-//     its first commit.
+//     its first commit;
+// 13. outside the scanned packages, and in the one marked
+//     protocolLiterals, a hex integer literal whose value is 0 or 1, the
+//     Merkle leaf or node byte, so that only the table writes either (check
+//     6 refuses every hex integer literal in the other scanned packages). It
+//     reads hex literals only: a 0 or 1 written in decimal, or as byte(0),
+//     is beyond it.
 //
 // Checks 6, 8 and 11 read only the packages of scannedPackages, the new
 // verifier's, and checks 7 and 10 only those of them, or of their files,
-// it marks: older code, such as internal/tscrypto's walk, still applies
-// 0x00 and 0x01 itself. Check 12 reads the module, and holds the packages
+// it marks. Check 12 reads the module, and holds the packages
 // of the module a scanned package may import, directly or through another
 // of them (importableDirs), to the sites it names.
 //
@@ -139,9 +144,8 @@ import (
 //     merkle_block.go's traverse, bitcoin.TransactionHash only in
 //     derive_bitcoin.go's bitcoinEntryChecks, bitcoin.HeaderHash only there,
 //     in chain_bitcoin.go's bitcoinEntryOf and in header.go's MeetsTarget,
-//     specdata's acceptedDigests only in
-//     constructions.go's mustAcceptedDigests and jcs's placeholderFor only
-//     in jcs.go's Canonicalize; and, in a package of the module a scanned
+//     and specdata's acceptedDigests only in constructions.go's
+//     mustAcceptedDigests; and, in a package of the module a scanned
 //     package may import that is not itself scanned (check 6 holds those),
 //     crypto/sha256 used anywhere but in that package's importedDigests, at
 //     the top level or in any other function, exported or not, and an
@@ -250,12 +254,9 @@ func inContentDigest(f goFile, pos token.Pos) bool {
 // packages of the module a scanned package may import that are not
 // scanned (check 12), by their file and their name: specdata's
 // acceptedDigests, which checks that each embedded constructions text is
-// named by the SHA-256 of its bytes (SPEC.md section 7.2), and jcs's
-// placeholderFor, the token Canonicalize splices in for an oversized
-// integer and swaps back out, which no hash of the verifier reads.
+// named by the SHA-256 of its bytes (SPEC.md section 7.2).
 var importedDigests = []contentDigest{
 	{"internal/specdata/constructions.go", "acceptedDigests"},
-	{"internal/jcs/jcs.go", "placeholderFor"},
 }
 
 // wrappedDigests are the exported functions of the new verifier that
@@ -292,7 +293,6 @@ var digestCalls = map[contentDigest][]contentDigest{
 		{"internal/verifier/bitcoin/header.go", "MeetsTarget"},
 	},
 	importedDigests[0]: {{"internal/specdata/constructions.go", "mustAcceptedDigests"}},
-	importedDigests[1]: {{"internal/jcs/jcs.go", "Canonicalize"}},
 }
 
 // callSites writes calls as "file's function", joined by ", ".
@@ -524,6 +524,16 @@ func inTable(f goFile, pos token.Pos) bool {
 	return false
 }
 
+// leafOrNodeByte reports whether value, an integer literal as written, is
+// a hex literal whose value is 0 or 1, the Merkle leaf or node byte.
+func leafOrNodeByte(value string) bool {
+	if !strings.HasPrefix(strings.ToLower(value), "0x") {
+		return false
+	}
+	n, err := strconv.ParseUint(value, 0, 64)
+	return err == nil && n <= 1
+}
+
 // rule2Findings reports every site of files the rule refuses, sorted, with
 // scanned the packages checks 6 and 7 read.
 func rule2Findings(fset *token.FileSet, files []goFile, scanned map[string]scannedPackage) []finding {
@@ -621,7 +631,13 @@ func rule2Findings(fset *token.FileSet, files []goFile, scanned map[string]scann
 					report(f, n.Pos(), "names the Merkle leaf or node byte, %s, outside the table", n.Name)
 				}
 			case *ast.BasicLit:
-				if !inScanned || inTable(f, n.Pos()) {
+				if inTable(f, n.Pos()) {
+					break
+				}
+				if n.Kind == token.INT && leafOrNodeByte(n.Value) && (!inScanned || pkg.protocolLiterals) {
+					report(f, n.Pos(), "writes the leaf or node byte %s outside the table", n.Value)
+				}
+				if !inScanned {
 					break
 				}
 				if n.Kind == token.INT && strings.HasPrefix(strings.ToLower(n.Value), "0x") && !pkg.protocolLiterals {
@@ -1200,7 +1216,7 @@ func importableDirs(files []goFile, scanned map[string]scannedPackage) map[strin
 	return out
 }
 
-// The module holds to checks 1 to 5 and 9, and the scanned packages to
+// The module holds to checks 1 to 5, 9 and 13, and the scanned packages to
 // checks 6 to 8. The scan is not vacuous: it reads the commands and every
 // internal package, each scanned package, the walk's own use of the
 // library, and digest. Mutants killed: a 0x01 literal hashed in key_id.go;
@@ -1295,7 +1311,26 @@ var plantedFiles = map[string]string{
 func planted() {
 	_ = 0x6a
 	_ = []byte{0x6a} // want "writes bytes as a literal"
+	_ = 0x01 // want "writes the leaf or node byte 0x01"
 }
+`,
+	"internal/tscrypto/planted.go": `package tscrypto
+
+const (
+	PrefixMerkleLeaf     = 0x00 // want "writes the leaf or node byte 0x00"
+	PrefixMerkleInternal = 0X1 // want "writes the leaf or node byte 0X1"
+	PrefixKeyID          = 0x51
+)
+
+func node(left, right []byte) []byte {
+	return append(append([]byte{0x01}, left...), right...) // want "writes the leaf or node byte 0x01"
+}
+`,
+	"cmd/planted_leaf.go": `package cmd
+
+var leaf = byte(0x000) // want "writes the leaf or node byte 0x000"
+
+var other, decimal = 0x10, 1
 `,
 	"internal/verifier/ed25519/planted.go": `package ed25519
 
@@ -1570,7 +1605,11 @@ func assertFindings(t *testing.T, got []finding, want map[string][]string) {
 // literals of internal/verifier/bitcoin refused (its planted 0x6a gives a
 // finding), or allowed in every scanned package (the registry's planted
 // 0x6a passes) or in every one but the registry (ed25519's planted 0x6a
-// passes), or its byte slice literal allowed with them.
+// passes), or its byte slice literal allowed with them; check 13 held to
+// the scanned packages (the planted 0x00, 0X1 and 0x01 of
+// internal/tscrypto and cmd's 0x000 pass), left out of the package marked
+// protocolLiterals (bitcoin's planted 0x01 passes), or taking every hex
+// literal for the leaf or node byte (cmd's planted 0x10 gives a finding).
 func TestRule2_FindsEveryPlantedViolation(t *testing.T) {
 	fset, files, want := parsePlanted(t, plantedFiles, "want")
 	assertFindings(t, rule2Findings(fset, files, scannedPackages), want)
@@ -1580,16 +1619,28 @@ func TestRule2_FindsEveryPlantedViolation(t *testing.T) {
 }
 
 // A new package that imports the registry is reported until it is among
-// the scanned packages, and once it is, each shape it holds is reported.
-// Mutants killed: check 9 left out (the unlisted package gives no
-// finding); checks 6 and 7 held to internal/registry whatever the list
-// says (the listed package's shapes give none).
+// the scanned packages, with the leaf and node bytes it writes (check
+// 13), and once it is, each shape it holds is reported. Mutants killed:
+// check 9 left out (the unlisted package gives no finding); checks 6 and
+// 7 held to internal/registry whatever the list says (the listed
+// package's shapes give none); check 13 held to the scanned packages (the
+// unlisted package's 0x00 and 0x01 give none).
 func TestRule2_ScansEachNewPackageThatImportsTheRegistry(t *testing.T) {
 	sources := map[string]string{"internal/derive/derive.go": derivePlanted}
 
 	fset, files, unlisted := parsePlanted(t, sources, "unlisted")
 	if len(unlisted) != 1 {
 		t.Fatalf("%d unlisted lines, want the import alone", len(unlisted))
+	}
+	for i, line := range strings.Split(derivePlanted, "\n") {
+		for _, b := range []string{"0x00", "0x01"} {
+			if strings.Contains(line, "{"+b+"}") {
+				unlisted[fmt.Sprintf("internal/derive/derive.go:%d", i+1)] = []string{"writes the leaf or node byte " + b}
+			}
+		}
+	}
+	if len(unlisted) != 3 {
+		t.Fatalf("%d unlisted lines, want the import and the two bytes", len(unlisted))
 	}
 	assertFindings(t, rule2Findings(fset, files, scannedPackages), unlisted)
 
@@ -2606,19 +2657,6 @@ import (
 	"github.com/truestamp/truestamp-cli/internal/textutil"
 )
 
-func Canonicalize(data []byte) string {
-	return placeholderFor(data)
-}
-
-func placeholderFor(data []byte) string {
-	sum := sha256.Sum256(data)
-	return string(sum[:])
-}
-
-func Transform(data []byte) string {
-	return placeholderFor(data) // want "refers to the digest placeholderFor outside its calls"
-}
-
 func SumOf(data []byte) [32]byte {
 	return sumOf(data)
 }
@@ -2696,12 +2734,12 @@ func Hash(data []byte) ([32]byte, [64]byte) {
 // hash.go's imports pass); the dot import let through (hash.go's
 // crypto/sha256 passes); the dependency rule left out (hash.go's chainhash
 // and golang.org/x/crypto/sha3 imports pass, while its koanf import is on
-// the list); acceptedDigests or placeholderFor left off importedDigests
-// (their own uses give findings).
+// the list); acceptedDigests left off importedDigests (its own use gives
+// a finding).
 func TestRule2_TheImportablePackagesHashOnlyInTheirNamedDigests(t *testing.T) {
 	fset, files, want := parsePlanted(t, importedDigestPlanted, "want")
-	if len(want) != 12 {
-		t.Fatalf("%d planted lines, want 12", len(want))
+	if len(want) != 11 {
+		t.Fatalf("%d planted lines, want 11", len(want))
 	}
 	assertFindings(t, rule2Findings(fset, files, scannedPackages), want)
 

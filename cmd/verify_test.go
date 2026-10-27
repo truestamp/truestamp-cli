@@ -222,7 +222,8 @@ func stripANSI(s string) string {
 }
 
 // Fixture paths under the repository's shared testdata/, read by the
-// commands that still parse the earlier bundle layout (inspect).
+// commands that still parse the earlier bundle layout (inspect, and the
+// bundle verify --remote posts).
 func prodPath(name string) string   { return testfixtures.Path(testfixtures.ProdDir, name) }
 func tamperPath(name string) string { return testfixtures.Path(testfixtures.TamperDir, name) }
 
@@ -816,12 +817,12 @@ func TestCLI_Verify_RemoteRequiresAuth(t *testing.T) {
 // says passed exits as this run's own label says, and so does one the
 // service is not asked about. Mutants killed: the service's verdict
 // deciding the exit code (exit 0 for the passed answer); the verdict
-// written to stdout (the --json report does not parse).
+// written to stdout (the --json report does not parse). The service is a
+// loopback stub whose answer passes the proof with one step, and the proof
+// the earlier bundle parser posts is a bundle of its layout, which the
+// local run refuses as invalid_envelope.
 func TestCLI_Verify_Remote(t *testing.T) {
-	serverReport, err := os.ReadFile(prodPath("verify-complete.json"))
-	if err != nil {
-		t.Fatal(err)
-	}
+	serverReport := []byte(`{"result":{"passed":true,"steps":[{"category":"structural","group":"Structure","message":"Proof version 1 (expected 1)","status":"pass"}]}}`)
 	var posts atomic.Int32
 	mux := http.NewServeMux()
 	mux.HandleFunc("/api/json/proof/verify", func(w http.ResponseWriter, r *http.Request) {

@@ -6,6 +6,7 @@ package cmd
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -143,123 +144,64 @@ func TestCLI_JCS_HashEquivalence(t *testing.T) {
 	}
 }
 
-// --- Oversized integers (Appendix C.2a / E.4) -------------------------------
+// --- Integers past MAX_INTEGER (SPEC.md section 10.1, rule J5) -------------
 
-// TestCLI_JCS_PreservesOversizedInteger pins Appendix C.2a's normative pair:
-// 2^53 is exactly representable and 2^53 + 1 is not, and the two must
-// canonicalize to distinct strings. `truestamp jcs` is documented as the way
-// to recompute a claims_hash locally, so a strict RFC 8785 round-trip through
-// a float64 here silently returned the wrong digest for the second row.
-func TestCLI_JCS_PreservesOversizedInteger(t *testing.T) {
-	cases := []struct {
-		in         string
-		want       string
-		wantWarn   bool
-		warnNumber string
-	}{
-		{`{"n":9007199254740992}`, `{"n":9007199254740992}`, false, ""},
-		{`{"n":9007199254740993}`, `{"n":9007199254740993}`, true, "9007199254740993"},
-		{`{"n":-9007199254740993}`, `{"n":-9007199254740993}`, true, "-9007199254740993"},
-		{`{"n":18446744073709551615}`, `{"n":18446744073709551615}`, true, "18446744073709551615"},
-		// Floats are lossy by construction and are never flagged.
-		{`{"n":1.5}`, `{"n":1.5}`, false, ""},
-	}
-	for _, c := range cases {
-		cmd := exec.Command(binaryPath, "jcs")
-		cmd.Stdin = strings.NewReader(c.in)
-		var stdout, stderr bytes.Buffer
-		cmd.Stdout = &stdout
-		cmd.Stderr = &stderr
-		if err := cmd.Run(); err != nil {
-			t.Fatalf("%s: %v (stderr: %s)", c.in, err, stderr.String())
-		}
-		if stdout.String() != c.want {
-			t.Errorf("%s: got %q, want %q", c.in, stdout.String(), c.want)
-		}
-		gotWarn := strings.Contains(stderr.String(), "not portably verifiable")
-		if gotWarn != c.wantWarn {
-			t.Errorf("%s: portability warning = %v, want %v (stderr: %q)",
-				c.in, gotWarn, c.wantWarn, stderr.String())
-		}
-		if c.wantWarn && !strings.Contains(stderr.String(), c.warnNumber) {
-			t.Errorf("%s: warning should name %s, got: %q", c.in, c.warnNumber, stderr.String())
-		}
-	}
-}
-
-// TestCLI_JCS_OversizedWarningIsAdvisory: the digest above the warning is the
-// correct one, so the warning must not move the exit code, and it must stay
-// off stdout so `truestamp jcs | truestamp hash` is unaffected.
-func TestCLI_JCS_OversizedWarningIsAdvisory(t *testing.T) {
-	cmd := exec.Command(binaryPath, "jcs")
-	cmd.Stdin = strings.NewReader(`{"n":9007199254740993}`)
+// jcsRun runs `truestamp jcs` with args over stdin in and gives its
+// stdout, stderr and exit code.
+func jcsRun(t *testing.T, in string, args ...string) (string, string, int) {
+	t.Helper()
+	cmd := exec.Command(binaryPath, append([]string{"jcs"}, args...)...)
+	cmd.Stdin = strings.NewReader(in)
 	var stdout, stderr bytes.Buffer
-	cmd.Stdout = &stdout
-	cmd.Stderr = &stderr
+	cmd.Stdout, cmd.Stderr = &stdout, &stderr
+	code := 0
 	if err := cmd.Run(); err != nil {
-		t.Fatalf("exit should stay 0 for an advisory warning, got %v", err)
+		var exitErr *exec.ExitError
+		if !errors.As(err, &exitErr) {
+			t.Fatalf("%s: %v", in, err)
+		}
+		code = exitErr.ExitCode()
 	}
-	if strings.Contains(stdout.String(), "warning") {
-		t.Errorf("the warning leaked onto stdout: %q", stdout.String())
+	return stdout.String(), stderr.String(), code
+}
+
+// `truestamp jcs` refuses an integer of magnitude above MAX_INTEGER and
+// below 10^21 as rule J5 does, in each of J5's spellings and with --json
+// and --silent too: exit 1, nothing on stdout, and stderr naming
+// malformed_json (number). MAX_INTEGER itself, 1e21 and 1.5 are written.
+// Mutant killed: runJCS canonicalizing with gowebpki/jcs's Transform
+// (9007199254740992 is written, exit 0).
+func TestCLI_JCS_RefusesAnIntegerPastMaxInteger(t *testing.T) {
+	for _, in := range []string{`{"n":9007199254740992}`, `{"n":9007199254740992.0}`, `{"n":1e16}`, `[-9007199254740993]`} {
+		for _, args := range [][]string{nil, {"--json"}, {"--silent"}} {
+			stdout, stderr, code := jcsRun(t, in, args...)
+			if code != 1 || stdout != "" || !strings.Contains(stderr, "malformed_json (number)") {
+				t.Errorf("%s %v: exit %d, stdout %q, stderr %q", in, args, code, stdout, stderr)
+			}
+		}
+	}
+	for in, want := range map[string]string{`{"n":9007199254740991}`: `{"n":9007199254740991}`, `{"n":1e21}`: `{"n":1e+21}`, `{"n":1.5}`: `{"n":1.5}`} {
+		if stdout, stderr, code := jcsRun(t, in); code != 0 || stdout != want || stderr != "" {
+			t.Errorf("%s: exit %d, %q, stderr %q; want %s", in, code, stdout, stderr, want)
+		}
 	}
 }
 
-// TestCLI_JCS_OversizedSuppressedUnderSilentAndJSON: --silent means no
-// output at all, and --json routes the same fact through a structured field
-// so machine consumers do not have to scrape stderr.
-func TestCLI_JCS_OversizedSuppressedUnderSilentAndJSON(t *testing.T) {
-	const input = `{"n":9007199254740993}`
-
-	silent := exec.Command(binaryPath, "jcs", "--silent")
-	silent.Stdin = strings.NewReader(input)
-	var sOut, sErr bytes.Buffer
-	silent.Stdout = &sOut
-	silent.Stderr = &sErr
-	if err := silent.Run(); err != nil {
-		t.Fatalf("--silent: %v", err)
+// A number is written as its nearest double is, so 1 followed by 800
+// zeros and e-800 is written 1, and --json's envelope holds exactly
+// input_bytes, output_bytes and output. Mutant killed: the strict reader
+// placing a number's point by its first 800 digits, as strconv.ParseFloat's
+// decimal fallback does (the spelling is written [0.1]).
+func TestCLI_JCS_ANumberIsItsNearestDouble(t *testing.T) {
+	in := "[1" + strings.Repeat("0", 800) + "e-800]"
+	if stdout, stderr, code := jcsRun(t, in); code != 0 || stdout != "[1]" || stderr != "" {
+		t.Errorf("exit %d, %q, stderr %q; want [1]", code, stdout, stderr)
 	}
-	if sOut.Len() != 0 || sErr.Len() != 0 {
-		t.Errorf("--silent must emit nothing, got stdout=%q stderr=%q", sOut.String(), sErr.String())
-	}
-
-	jsonCmd := exec.Command(binaryPath, "jcs", "--json")
-	jsonCmd.Stdin = strings.NewReader(input)
-	var jOut, jErr bytes.Buffer
-	jsonCmd.Stdout = &jOut
-	jsonCmd.Stderr = &jErr
-	if err := jsonCmd.Run(); err != nil {
-		t.Fatalf("--json: %v", err)
-	}
-	if jErr.Len() != 0 {
-		t.Errorf("--json must not write the warning to stderr, got %q", jErr.String())
-	}
-	var parsed struct {
-		Output            string   `json:"output"`
-		OversizedIntegers []string `json:"oversized_integers"`
-	}
-	if err := json.Unmarshal(jOut.Bytes(), &parsed); err != nil {
-		t.Fatalf("parsing --json output: %v\n%s", err, jOut.String())
-	}
-	if parsed.Output != `{"n":9007199254740993}` {
-		t.Errorf("output: got %q", parsed.Output)
-	}
-	if len(parsed.OversizedIntegers) != 1 || parsed.OversizedIntegers[0] != "9007199254740993" {
-		t.Errorf("oversized_integers: got %v, want [9007199254740993]", parsed.OversizedIntegers)
-	}
-}
-
-// TestCLI_JCS_NoOversizedFieldWhenSafe: the field is omitempty so a document
-// inside the safe range produces no key at all, not an empty array a consumer
-// would have to distinguish from "not reported".
-func TestCLI_JCS_NoOversizedFieldWhenSafe(t *testing.T) {
-	cmd := exec.Command(binaryPath, "jcs", "--json")
-	cmd.Stdin = strings.NewReader(`{"b":2,"a":1}`)
-	out, err := cmd.Output()
-	if err != nil {
-		t.Fatal(err)
-	}
-	if bytes.Contains(out, []byte("oversized_integers")) {
-		t.Errorf("safe document should carry no oversized_integers key, got: %s", out)
+	stdout, _, code := jcsRun(t, in, "--json")
+	var envelope map[string]any
+	if err := json.Unmarshal([]byte(stdout), &envelope); err != nil || code != 0 || len(envelope) != 3 ||
+		envelope["output"] != "[1]" || envelope["output_bytes"] != float64(3) || envelope["input_bytes"] != float64(len(in)) {
+		t.Errorf("--json: exit %d, %v, %s", code, err, stdout)
 	}
 }
 

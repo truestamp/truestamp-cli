@@ -9,7 +9,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
-	"os"
+	"strings"
 
 	"github.com/truestamp/truestamp-cli/internal/auth"
 	"github.com/truestamp/truestamp-cli/internal/httpclient"
@@ -21,9 +21,8 @@ import (
 // credential is applied by the process-wide [auth.Authorizer]; only the
 // tenant scoping is carried here.
 //
-// The server's verifier is NOT part of the independence argument (Appendix
-// E.2) and this CLI's own verifier never depends on it; --remote is an
-// explicit "ask Truestamp too".
+// The service's verifier is no part of this CLI's own verification, which
+// never depends on it; --remote is an explicit "ask Truestamp too".
 type RemoteOptions struct {
 	APIURL       string
 	Team         string // team ID, sent as the tenant header
@@ -37,20 +36,14 @@ type apiEnvelope struct {
 	Errors []apiError `json:"errors"`
 }
 
-// apiResult is the verification result from the server, in its own field
-// names.
+// apiResult is the part of the server's verification result this CLI
+// reads, in the server's field names: its verdict, its steps, and the
+// expected hash it echoes with whether it matched.
 type apiResult struct {
-	ID                   *string  `json:"id"`
-	Source               *string  `json:"source"`
-	Passed               bool     `json:"passed"`
-	Steps                []Step   `json:"steps"`
-	Temporal             Temporal `json:"temporal"`
-	HashProvided         *string  `json:"hash_provided"`
-	ExpectedHashProvided bool     `json:"expected_hash_provided"`
-	HashMatched          bool     `json:"hash_matched"`
-	ProofVersion         *int     `json:"proof_version"`
-	SkippedExternal      bool     `json:"skipped_external"`
-	GeneratedAt          *string  `json:"generated_at"`
+	Passed       bool    `json:"passed"`
+	Steps        []Step  `json:"steps"`
+	HashProvided *string `json:"hash_provided"`
+	HashMatched  bool    `json:"hash_matched"`
 }
 
 // apiError represents an error from the JSON:API response.
@@ -65,25 +58,12 @@ type apiError struct {
 	} `json:"meta"`
 }
 
-// RunRemote calls [RunRemoteCtx] with [context.Background].
-func RunRemote(filename string, opts RemoteOptions) (*Report, error) {
-	return RunRemoteCtx(context.Background(), filename, opts)
-}
-
-// RunRemoteCtx sends the proof to the Truestamp API for server-side
-// verification and returns a Report compatible with the local output.
-func RunRemoteCtx(ctx context.Context, filename string, opts RemoteOptions) (*Report, error) {
-	data, err := os.ReadFile(filename)
-	if err != nil {
-		return nil, fmt.Errorf("reading proof file: %w", err)
-	}
-	return RunRemoteBytesCtx(ctx, data, filename, opts)
-}
-
-// RunRemoteBytesCtx is [RunRemoteCtx] over bytes already in hand.
-func RunRemoteBytesCtx(ctx context.Context, data []byte, displayName string, opts RemoteOptions) (*Report, error) {
-	// One parse, applying the same E.6 gates the local path applies, so a
-	// bundle this CLI would reject is never posted.
+// RunRemoteBytesCtx sends the proof in data to the Truestamp API for
+// server-side verification and returns the service's verdict, with this
+// CLI's own expected-hash comparison beside it.
+func RunRemoteBytesCtx(ctx context.Context, data []byte, opts RemoteOptions) (*Report, error) {
+	// One parse by the earlier bundle parser, so a bundle it refuses is
+	// never posted.
 	bundle, err := proof.ParseBytes(data)
 	if err != nil {
 		return nil, err
@@ -142,17 +122,13 @@ func RunRemoteBytesCtx(ctx context.Context, data []byte, displayName string, opt
 		return nil, fmt.Errorf("API response missing 'result' field")
 	}
 
-	localOpts := Options{ExpectedHash: opts.ExpectedHash, SkipExternal: opts.SkipExternal}
-	report := newReport(bundle, displayName, int64(len(data)), localOpts)
-	report.Remote = true
-	report.Steps = envelope.Result.Steps
-	report.Temporal = envelope.Result.Temporal
-	report.SkippedExternal = envelope.Result.SkippedExternal
-	if envelope.Result.ProofVersion != nil {
-		report.ProofVersion = *envelope.Result.ProofVersion
+	report := &Report{
+		Steps:        envelope.Result.Steps,
+		ExpectedHash: strings.ToLower(strings.TrimSpace(opts.ExpectedHash)),
 	}
 
-	// E.7 is enforced by this process, on the bundle it just parsed.
+	// The expected-hash comparison is made by this process, on the bundle
+	// it just parsed.
 	applyExpectedHash(report, bundle, envelope.Result)
 
 	// Reconcile the server's own top-level verdict with the step list it
@@ -161,9 +137,9 @@ func RunRemoteBytesCtx(ctx context.Context, data []byte, displayName string, opt
 	return report, nil
 }
 
-// applyExpectedHash performs Appendix E.7's comparison locally, on the same
-// two operands the local pipeline uses: the caller's expected hash and the
-// subject.claims.hash of the bundle this process parsed and posted. The
+// applyExpectedHash makes the expected-hash comparison locally, on the
+// caller's expected hash and the subject.claims.hash of the bundle this
+// process parsed and posted. The
 // answer to "is my local file the timestamped one" is computed here rather
 // than taken on trust, and a server row that disagrees with it fails the
 // run rather than being averaged away.
@@ -171,9 +147,8 @@ func applyExpectedHash(r *Report, bundle *proof.Bundle, result *apiResult) {
 	if r.ExpectedHash == "" {
 		return
 	}
-	var local Report
-	local.ExpectedHash = r.ExpectedHash
-	stepExpectedHash(&local, bundle, Options{ExpectedHash: r.ExpectedHash})
+	local := Report{ExpectedHash: r.ExpectedHash}
+	stepExpectedHash(&local, bundle)
 	if len(local.Steps) == 0 {
 		return
 	}
@@ -204,10 +179,10 @@ func applyExpectedHash(r *Report, bundle *proof.Bundle, result *apiResult) {
 }
 
 // applyServerVerdict reconciles the server's top-level `passed` field with
-// the step list it sent. E.22's verdict rule reads step statuses, so the
-// server's own verdict is given a step of its own rather than bypassing the
-// rule: a response reporting passed:false with no failing step, or no steps
-// at all, must not render as verified.
+// the step list it sent. [Report.Passed] reads step statuses, so the
+// server's own verdict is given a step of its own rather than bypassing
+// it: a response reporting passed:false with no failing step, or no steps
+// at all, must not read as passed.
 func applyServerVerdict(r *Report, result *apiResult) {
 	if len(result.Steps) == 0 {
 		r.fail(groupServerVerdict, CatStructural,
@@ -228,8 +203,8 @@ func applyServerVerdict(r *Report, result *apiResult) {
 }
 
 // RemoteRejectionError is a structured rejection returned by /proof/verify
-// (HTTP 400 with meta.code invalid_proof), carrying the Appendix E.23
-// identifier in Reason.
+// (HTTP 400 with meta.code invalid_proof), carrying the service's reason
+// in Reason.
 type RemoteRejectionError struct {
 	StatusCode int
 	Reason     string
