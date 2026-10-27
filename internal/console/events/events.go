@@ -19,10 +19,23 @@
 //	entropy.created  source=entropy_nist          → "entropy.nist"
 //	entropy.updated  source=entropy_stellar
 //	                 state=failed                 → "entropy.stellar.failed"
+//	commitment.created subject_kind=item          → "commitment.item"
+//	commitment.created subject_kind=observation   → "commitment.observation"
+//	commitment.created subject_kind=block         → "commitment.block"
 //	item.burst                                    → "item.burst"
 //	entropy.burst    stream=entropy.bitcoin       → "entropy.bitcoin.burst"
+//	commitment.burst stream=commitments.blocks    → "commitment.block.burst"
+//	commitment.burst stream=commitments.subjects  → "commitment.burst"
 //	block_healing.forward                         → "block_healing.forward"
 //	server.down / server.up                       → unchanged
+//
+// The server's two commitment streams, commitments.subjects (an item's
+// or an entropy observation's row in its block's tree) and
+// commitments.blocks (a block's row in an epoch's tree on a public
+// chain), both emit commitment.created, and the payload's subject_kind
+// says which level the row is, so it becomes the middle segment. A burst
+// on commitments.blocks holds only block rows and says so; one on
+// commitments.subjects may mix items and observations and names neither.
 //
 // The original server kind is preserved on Row.RawKind for the panel.
 package events
@@ -54,7 +67,7 @@ type Row struct {
 	Kind       string    // compact display kind (e.g. "entropy.nist.failed")
 	RawKind    string    // original server kind (e.g. "entropy.updated")
 	ID         string    // full ULID/UUID, count for bursts, duration for outages
-	Stream     string    // original stream id (e.g. "commitments.internal")
+	Stream     string    // original stream id (e.g. "commitments.subjects")
 	Severity   Severity
 	Payload    map[string]any // full decoded server payload (Push.Data), used by Detail Panel
 }
@@ -161,6 +174,13 @@ func compactKind(stream, kind string, payload map[string]any) string {
 	root, verb := splitKind(kind)
 	state := stringField(payload, "state")
 
+	// Commitment: subject_kind (item, observation or block) becomes
+	// the suffix, so the two streams' rows say which level they are.
+	// The server sends it on every commitment row.
+	if root == "commitment" && verb == "created" {
+		return "commitment." + stringField(payload, "subject_kind")
+	}
+
 	// Entropy: source becomes the middle segment; state (when
 	// non-default) becomes the suffix.
 	if root == "entropy" {
@@ -218,6 +238,9 @@ func burstKind(stream, kind string) string {
 			return "entropy." + source + ".burst"
 		}
 	}
+	if root == "commitment" && stream == "commitments.blocks" {
+		return "commitment.block.burst"
+	}
 	return kind
 }
 
@@ -230,9 +253,8 @@ func entropySourceFromStream(stream string) string {
 }
 
 // splitKind returns (root, verb) from "root.verb", splitting on the
-// last dot. Multi-word resource names (e.g.
-// "external_commitment.created", "block_healing.forward") split
-// correctly into root="external_commitment", verb="created", and a
+// last dot. A multi-word resource name such as "block_healing.forward"
+// splits into root="block_healing", verb="forward", and a
 // three-segment kind such as "entropy.nist.failed" yields
 // root="entropy.nist", verb="failed".
 func splitKind(kind string) (string, string) {

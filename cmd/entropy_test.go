@@ -5,9 +5,11 @@ package cmd
 
 import (
 	"encoding/json"
+	"maps"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"slices"
 	"strings"
 	"sync"
 	"testing"
@@ -20,12 +22,25 @@ const (
 	testEntropyNISTHash    = "5c5bc094d727186afce57af677ca17738f7ae1339be408a58c9b4ed02661eb5e"
 )
 
+// testObservation is an entropy observation as the server's JSON:API
+// serves it: a resource object whose attributes are exactly the public
+// attributes of Truestamp.Entropy.EntropyObservation (in
+// lib/truestamp/entropy/entropy_observation.ex of truestamp-v2), with no
+// signature, signing_key_id, metadata or metadata_hash
+// (test/truestamp_web/record_fields_surfaces_test.exs there), and network
+// null for NIST, which has none.
 func testObservation(id, source, hash string) string {
+	network := `null`
+	if source == "entropy_stellar" {
+		network = `"public"`
+	}
 	return `{"type":"entropy_observation","id":"` + id + `","attributes":{"source":"` + source + `",
-	  "state":"committed","entropy_hash":"` + hash + `","observation_hash":"oh","metadata_hash":"mh",
-	  "signing_key_id":"96b1cd2f","signature":"sig","capture_method":"http_sse",
+	  "network":` + network + `,"state":"committed","entropy_hash":"` + hash + `",
+	  "observation_hash":"812c6486dd17951b3cc4e091530a685b98488b1ffdddab08c867b84d5bc2172d","capture_method":"http_sse",
 	  "source_published_at":"2026-09-05T20:29:07.000000Z","inserted_at":"2026-09-05T20:29:07.848738Z",
-	  "block_id":null,"metadata":{},"entropy":{"closed_at":"2026-09-05T20:29:07Z","sequence":4523312,"pulse":{"pulseIndex":1928582}}}}`
+	  "block_id":null,"entropy":{"closed_at":"2026-09-05T20:29:07Z","sequence":4523312,"pulse":{"pulseIndex":1928582}}},
+	  "relationships":{"block":{"links":{},"meta":{}}},
+	  "links":{"self":"http://localhost/api/json/entropy_observations/` + id + `"},"meta":{}}`
 }
 
 // entropyServer is a mock of the two entropy routes that records what the
@@ -295,6 +310,75 @@ func TestCLI_Entropy_Get_Card(t *testing.T) {
 		"sequence", "4523312", "pulse.pulseIndex", "1928582", "/entropy/" + testEntropyStellarID, "/verify/entropy_stellar/" + testEntropyStellarID} {
 		if !strings.Contains(stdout, want) {
 			t.Errorf("card should show %q, got:\n%s", want, stdout)
+		}
+	}
+}
+
+// An observation is not signed: the card has no Signing Key row, and
+// --json carries exactly the server's public attributes and nothing the
+// server does not send. A Stellar observation has a network, shown as a
+// Network row and a network key; a NIST one has none (the server sends
+// network null), so it has neither. Mutants killed: the Signing Key row
+// put back (the card's labels change); the Network row dropped (the
+// Stellar labels change); the Network row's branch forced true (the
+// NIST card gains a Network row); an Observation field for
+// signing_key_id, signature, metadata or metadata_hash put back without
+// omitempty (--json gains a key); the network field dropped (the Stellar
+// --json loses one); omitempty dropped from the network tag (the NIST
+// --json gains a network key).
+func TestCLI_Entropy_Get_FollowsTheServersObservation(t *testing.T) {
+	srv := startEntropyServer(t)
+	for _, tc := range []struct {
+		id         string
+		wantLabels []string
+		wantRow    []string
+		wantKeys   []string
+		wantNet    any
+	}{
+		{
+			id: testEntropyStellarID,
+			wantLabels: []string{"ID", "Source", "Network", "State", "Entropy", "Published", "Captured",
+				"closed_at", "pulse.pulseIndex", "sequence", "Details", "Verify"},
+			wantRow: []string{"Network", "public"},
+			wantKeys: []string{"capture_method", "entropy", "entropy_hash", "id", "inserted_at", "network",
+				"observation_hash", "source", "source_published_at", "state"},
+			wantNet: "public",
+		},
+		{
+			id: testEntropyNISTID,
+			wantLabels: []string{"ID", "Source", "State", "Entropy", "Published", "Captured",
+				"closed_at", "pulse.pulseIndex", "sequence", "Details", "Verify"},
+			wantRow: nil,
+			wantKeys: []string{"capture_method", "entropy", "entropy_hash", "id", "inserted_at",
+				"observation_hash", "source", "source_published_at", "state"},
+			wantNet: nil,
+		},
+	} {
+		stdout, _, exit := runCLI(t, "--base-url", srv.URL, "--api-key", "test-key", "entropy", "get", tc.id)
+		if exit != 0 {
+			t.Fatalf("%s: exit=%d\n%s", tc.id, exit, stdout)
+		}
+		var labels, row []string
+		for _, line := range strings.Split(stdout, "\n")[2:] {
+			if fields := strings.Fields(line); len(fields) > 0 {
+				labels = append(labels, fields[0])
+				if fields[0] == "Network" {
+					row = fields
+				}
+			}
+		}
+		if !slices.Equal(labels, tc.wantLabels) || !slices.Equal(row, tc.wantRow) {
+			t.Errorf("%s: card labels %q, network row %q; want %q and %q\n%s", tc.id, labels, row, tc.wantLabels, tc.wantRow, stdout)
+		}
+
+		stdout, _, exit = runCLI(t, "--base-url", srv.URL, "--api-key", "test-key", "entropy", "get", tc.id, "--json")
+		var got map[string]any
+		if exit != 0 || json.Unmarshal([]byte(stdout), &got) != nil {
+			t.Fatalf("%s: exit=%d\n%s", tc.id, exit, stdout)
+		}
+		keys := slices.Sorted(maps.Keys(got))
+		if !slices.Equal(keys, tc.wantKeys) || got["network"] != tc.wantNet {
+			t.Errorf("%s: --json keys %q, network %v; want %q and %v", tc.id, keys, got["network"], tc.wantKeys, tc.wantNet)
 		}
 	}
 }

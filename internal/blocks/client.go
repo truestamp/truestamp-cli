@@ -10,7 +10,7 @@
 // row, and they are separate here for the same reason they are separate
 // commands: only finalized or committed blocks project as beacons, so
 // "the head block" and "the most recent beacon" are different questions
-// most of the time — the chain advances about once a minute and the head
+// most of the time: the chain advances about once a minute and the head
 // is routinely not yet finalized.
 //
 // Two things the server does not offer, and that this package therefore
@@ -19,7 +19,7 @@
 //   - There is no /blocks/latest or /blocks/genesis route, though the Ash
 //     actions exist. Both are a sort plus a limit of one.
 //   - There is no by-hash route. Addressing by hash goes through
-//     filter[block_hash], which — unlike the beacons by-hash action — has
+//     filter[block_hash], which, unlike the beacons by-hash action, has
 //     NO server-side shape guard, and an unguarded cast raises a
 //     Ecto.Query.CastError, a 500 that leaks SQL. So the hex shape is
 //     validated here, before the request is sent.
@@ -37,15 +37,17 @@ import (
 )
 
 // Block is the subset of a block's public attributes the CLI renders.
-// The server pins exactly eleven public attributes with a test; these are
-// the ones that identify a block and place it in the chain.
+// The server pins its twelve public attributes with a test; these are the
+// ones that identify a block and place it in the chain.
 //
-// There is deliberately no Height field. block_height is a runtime
-// COUNT(*) calculation, explicitly non-sortable and non-filterable, and
-// withheld from the wire. A block is addressed by UUIDv7, which is also
-// its ordering handle.
+// Height is the server's stored height, the block's position in the
+// chain: 0 at genesis, then one more per block. It orders the chain, so
+// the lists and the head and genesis reads sort by it, never by id: a
+// UUIDv7's time is when its id was minted, and the server orders blocks
+// by height whatever their ids. A block is addressed by its UUIDv7.
 type Block struct {
 	ID                string `json:"id"`
+	Height            int64  `json:"height"`
 	BlockHash         string `json:"block_hash"`
 	MerkleRoot        string `json:"merkle_root"`
 	State             string `json:"state"`
@@ -85,14 +87,15 @@ func ValidateHash(h string) error { return ids.ValidateHash64(h) }
 // ValidateUUIDv7 rejects an id that is not a UUIDv7.
 func ValidateUUIDv7(id string) error { return ids.ValidateUUIDv7(id) }
 
-// defaultLimit matches the beacons convention. The server's block :read
-// action declares no default_limit and no max_page_size, against a table
-// growing about 1,440 rows a day, so an unbounded GET /blocks is a real
-// hazard: always send one.
+// defaultLimit is the page size List asks for when the caller gives
+// none. The blocks index route's action requires pagination, defaults to
+// 25 and clamps to 250, so a request without a limit is still bounded;
+// sending one keeps the page size explicit.
 const defaultLimit = 25
 
 // ListOptions configures a list request; the paging fields are the ones
-// every keyset-paged list shares (jsonapi.SetPageQuery).
+// every keyset-paged list shares (jsonapi.SetPageQuery). The list is in
+// height order, highest first unless OldestFirst.
 type ListOptions struct {
 	Limit       int
 	After       string // continue forward from a Page.NextCursor
@@ -111,14 +114,25 @@ type Page struct {
 	Limit      int // the page size the server actually used
 }
 
-// List fetches one page of blocks, newest first.
+// The sorts the blocks route is asked for: by height, highest first or
+// lowest first.
+const (
+	sortHighestFirst = "-height"
+	sortLowestFirst  = "height"
+)
+
+// List fetches one page of blocks, highest first.
 func List(ctx context.Context, cfg Config, opts ListOptions) (*Page, error) {
 	if opts.Limit <= 0 {
 		opts.Limit = defaultLimit
 	}
 	// No client-side ceiling; the server owns it. See cmd/limits.go.
 	q := url.Values{}
-	q.Set("sort", jsonapi.SortByID(opts.OldestFirst))
+	sort := sortHighestFirst
+	if opts.OldestFirst {
+		sort = sortLowestFirst
+	}
+	q.Set("sort", sort)
 	jsonapi.SetPageQuery(q, opts.Limit, opts.After, opts.Before, opts.Count)
 	body, err := jsonapi.Get(ctx, cfg, "/blocks?"+q.Encode())
 	if err != nil {
@@ -172,17 +186,17 @@ func ByHash(ctx context.Context, cfg Config, hash string) (*Block, error) {
 	}
 }
 
-// Latest fetches the head block: the newest row, whatever its state. This
-// is NOT the same as the most recent beacon, which is the newest
-// *finalized* block.
+// Latest fetches the head block: the block with the greatest height,
+// whatever its state. This is NOT the same as the most recent beacon,
+// which is the newest *finalized* block.
 func Latest(ctx context.Context, cfg Config) (*Block, error) {
-	return firstOf(ctx, cfg, "-id")
+	return firstOf(ctx, cfg, sortHighestFirst)
 }
 
-// Genesis fetches the first block, the trust root every chain walk
-// terminates at. It is identifiable by id == previous_block_id.
+// Genesis fetches the first block, at height 0, the trust root every
+// chain walk terminates at. It is identifiable by id == previous_block_id.
 func Genesis(ctx context.Context, cfg Config) (*Block, error) {
-	b, err := firstOf(ctx, cfg, "id")
+	b, err := firstOf(ctx, cfg, sortLowestFirst)
 	if err != nil {
 		return nil, err
 	}

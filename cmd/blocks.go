@@ -6,6 +6,7 @@ package cmd
 import (
 	"fmt"
 	"io"
+	"strconv"
 	"strings"
 
 	"github.com/spf13/cobra"
@@ -34,7 +35,7 @@ Requires authentication, run 'truestamp auth login', or set TRUESTAMP_API_KEY / 
 
 var blocksListCmd = &cobra.Command{
 	Use:   "list",
-	Short: "Show the most recent blocks (newest first)",
+	Short: "Show the most recent blocks (highest first)",
 	Args:  cobra.NoArgs,
 	RunE: func(cmd *cobra.Command, _ []string) error {
 		paging, err := readPagingOptions(cmd)
@@ -66,8 +67,8 @@ var blocksGetCmd = &cobra.Command{
 	Short: "Show one block by UUIDv7 id or by 64-hex-char block hash",
 	Long: `Fetch one block, addressed either way.
 
-The two shapes are disjoint — a UUIDv7 has hyphens, a block hash is
-exactly 64 lowercase hex characters — so which you passed is unambiguous.
+The two shapes are disjoint: a UUIDv7 has hyphens, and a block hash is
+exactly 64 lowercase hex characters, so which you passed is unambiguous.
 
 There is no by-hash route on the server, so a hash lookup is a filter.
 Unlike the beacons by-hash action it carries no server-side shape guard,
@@ -105,7 +106,8 @@ Examples:
 var blocksLatestCmd = &cobra.Command{
 	Use:   "latest",
 	Short: "Show the head block",
-	Long: `Show the head block: the newest block, whatever its state.
+	Long: `Show the head block: the block with the greatest height, whatever
+its state.
 
 This is not the same as 'truestamp beacons latest', which shows the most
 recent *finalized* block. The head is routinely not yet finalized.`,
@@ -126,8 +128,8 @@ recent *finalized* block. The head is routinely not yet finalized.`,
 var blocksGenesisCmd = &cobra.Command{
 	Use:   "genesis",
 	Short: "Show the first block in the chain",
-	Long: `Show the genesis block: the first block, identifiable by its id being
-its own previous_block_id.
+	Long: `Show the genesis block: the first block, at height 0, identifiable by
+its id being its own previous_block_id.
 
 It is a distinguished object rather than merely the oldest row: it is the
 root every chain walk terminates at.`,
@@ -171,6 +173,7 @@ func renderBlockCard(w io.Writer, b *blocks.Block) {
 	tbl := ui.CompactTable().
 		StyleFunc(ui.LabelValueStyleFunc()).
 		Row("ID", b.ID).
+		Row("Height", strconv.FormatInt(b.Height, 10)).
 		Row("State", b.State).
 		Row("Block Hash", b.BlockHash).
 		Row("Merkle Root", b.MerkleRoot).
@@ -196,10 +199,13 @@ func renderBlockList(cmd *cobra.Command, list []blocks.Block, pg listPage) error
 		return nil
 	}
 	header := ui.AccentBoldStyle().Render(listHeading("Blocks", len(list), pg))
-	tbl := ui.CompactTable().StyleFunc(ui.LabelValueStyleFunc())
+	// Ids and hashes are rendered whole, and the height, the order the
+	// list is in, leads each row.
+	rows := [][]string{{"HEIGHT", "STATE", "ID", "HASH"}}
 	for _, b := range list {
-		tbl = tbl.Row(b.ID, fmt.Sprintf("%-9s %s", b.State, b.BlockHash))
+		rows = append(rows, []string{strconv.FormatInt(b.Height, 10), b.State, b.ID, b.BlockHash})
 	}
+	tbl := ui.CompactTable().StyleFunc(ui.HeaderRowStyleFunc()).Rows(rows...)
 	ui.Fprintln(w, strings.Join([]string{header, "", tbl.String()}, "\n"))
 	renderListHints(cmd.ErrOrStderr(), pg,
 		"Hint: 'truestamp blocks get <id>' shows one block; 'truestamp proofs get --type block <id>' fetches its proof bundle.")

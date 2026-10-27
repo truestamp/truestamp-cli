@@ -457,7 +457,7 @@ func TestTree_CaveatsLiveOnTheirCommands(t *testing.T) {
 		why  string
 	}{
 		{[]string{"items", "update", "--help"}, "immutable",
-			"no flag here can reach a signed field"},
+			"no flag here can reach a hashed field"},
 		{[]string{"teams", "use", "--help"}, "persists",
 			"it writes config.toml"},
 		{[]string{"proofs", "get", "--help"}, "stdout",

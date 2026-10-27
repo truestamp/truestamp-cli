@@ -36,7 +36,10 @@ import (
 	"github.com/truestamp/truestamp-cli/internal/jsonapi"
 )
 
-// Observation is the public shape of one entropy observation. Entropy is
+// Observation is the public shape of one entropy observation: the public
+// attributes the server's entropy_observation resource serves, by their
+// names. An observation is not signed, so it carries no signature and no
+// signing key id; Network is empty for NIST, which has none. Entropy is
 // the source's own record under its own field names (a Stellar ledger's
 // sequence and closed_at, a NIST pulse's index, a Bitcoin block's height)
 // and is rendered as published, never renamed. Its numbers are decoded as
@@ -44,18 +47,15 @@ import (
 type Observation struct {
 	ID                string         `json:"id"`
 	Source            string         `json:"source"`
+	Network           string         `json:"network,omitempty"`
 	State             string         `json:"state"`
 	EntropyHash       string         `json:"entropy_hash"`
 	ObservationHash   string         `json:"observation_hash"`
-	MetadataHash      string         `json:"metadata_hash"`
-	SigningKeyID      string         `json:"signing_key_id"`
-	Signature         string         `json:"signature"`
 	CaptureMethod     string         `json:"capture_method"`
 	SourcePublishedAt string         `json:"source_published_at"`
 	InsertedAt        string         `json:"inserted_at"`
 	BlockID           string         `json:"block_id,omitempty"`
 	Entropy           map[string]any `json:"entropy"`
-	Metadata          map[string]any `json:"metadata"`
 }
 
 // Sources is the closed set of entropy sources, in the order the CLI
