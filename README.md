@@ -277,7 +277,7 @@ truestamp inspect proof.json --json
 ```
 Verify a proof:
   truestamp verify [proof]              Verify a proof (one JSON document), offline or online
-  truestamp inspect [proof]             Print what a bundle carries, without verifying it
+  truestamp inspect [proof]             Print what a proof carries, without verifying it
 
 Truestamp resources:
   truestamp items create [file]         Create a timestamped item (claims, or a hash of a local file)

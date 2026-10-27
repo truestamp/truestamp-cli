@@ -8,7 +8,7 @@ Usage:
   truestamp [command]
 
 Verify a proof:
-  inspect     Print a proof bundle's key fields without verifying it
+  inspect     Print what a proof carries, without verifying it
   verify      Verify a Truestamp proof
 
 Truestamp resources:

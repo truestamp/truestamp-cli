@@ -12,8 +12,6 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
-
-	"github.com/truestamp/truestamp-cli/internal/testfixtures"
 )
 
 // escByte is what must never reach a redirected stream. `truestamp ... >
@@ -97,17 +95,15 @@ func offlineCommands(t *testing.T, baseURL string) func(args ...string) *exec.Cm
 // make this test vacuous, so the set is deliberately drawn from the ones
 // that render cards, tables, banners, and reports.
 //
-// inspect reads only the earlier bundle layout, so it is given a bundle of
-// that layout; every other file an invocation reads is a vector.
+// Every file an invocation reads is a vector.
 func offlineInvocations() [][]string {
-	bundle := testfixtures.Path(testfixtures.ProdDir, testfixtures.ProdComplete)
 	return [][]string{
 		{"version"},
 		{"config", "show"},
 		{"config", "path"},
 		{"auth", "status"},
 		{"verify", soundItem(), "--offline", "--environment", "test", "--keyring", testKeyring()},
-		{"inspect", bundle},
+		{"inspect", soundItem()},
 		{"convert", "time", "2026-09-03T12:00:00Z"},
 		{"convert", "keyid", "CTwMqDZnPd/QTLSq8aTeSD3a+j2DQxKcGfhhIYJQ65Y="},
 		{"convert", "id", "01JBQ8Z9K2M4N6P8R0T2V4X6Y8"},
@@ -117,8 +113,9 @@ func offlineInvocations() [][]string {
 
 // TestCLI_RedirectedOutput_HasNoANSI runs each invocation with its stdout
 // and stderr connected to pipes, i.e. exactly the shape of `truestamp ...
-// > file`, and asserts no escape byte survives. Mutant killed: verify's
-// text written with an ANSI escape of its own.
+// > file`, and asserts no escape byte survives. Mutants killed: verify's
+// text written with an ANSI escape of its own; inspect's text written
+// through fmt.Fprint, which keeps its styles' escapes.
 //
 // This is the regression that motivated internal/ui's Fprint helpers:
 // commands built a styled string with Style.Render and then handed it to
@@ -228,18 +225,19 @@ func snippet(s string, i int) string {
 // something, not to keep an inert flag as a courtesy.
 //
 // This checks the property rather than the instance: for every offline
-// command that offers --json, passing it must change the output.
+// command that offers --json, passing it must change the output. Mutant
+// killed: inspect writing its text under --json.
 func TestCLI_JSONFlagIsNeverANoOp(t *testing.T) {
-	bundle := testfixtures.Path(testfixtures.ProdDir, testfixtures.ProdComplete)
 	command := offlineCommands(t, startOfflineAPI(t).URL)
 	for _, args := range [][]string{
 		{"version"},
 		{"config", "show"},
 		{"schema", "list"},
 		{"auth", "status"},
-		{"inspect", bundle},
+		{"inspect", soundItem()},
 		{"hash", soundItem()},
-		{"schema", "get", "subject-types"},
+		{"schema", "get", "exit-codes"},
+		{"schema", "get", "reason-codes"},
 		{"schema", "get", "commands"},
 	} {
 		t.Run(strings.Join(args, "_"), func(t *testing.T) {
@@ -270,7 +268,8 @@ func TestCLI_JSONFlagIsNeverANoOp(t *testing.T) {
 // This briefly went the other way — the flag was dropped because the
 // output was JSON either way and an inert flag is worse than none. The
 // better fix was to give the command the text rendering every other
-// command has, so the contract stays uniform.
+// command has, so the contract stays uniform. Mutant killed: the
+// exit-codes text rendering writing the JSON document.
 func TestCLI_SchemaGetRendersTextByDefault(t *testing.T) {
 	help, err := exec.Command(binaryPath, "schema", "get", "--help").CombinedOutput()
 	if err != nil {
@@ -280,27 +279,27 @@ func TestCLI_SchemaGetRendersTextByDefault(t *testing.T) {
 		t.Error("--json is universal; schema get must offer it like everything else")
 	}
 
-	text, err := exec.Command(binaryPath, "schema", "get", "subject-types").Output()
+	text, err := exec.Command(binaryPath, "schema", "get", "exit-codes").Output()
 	if err != nil {
-		t.Fatalf("schema get subject-types: %v", err)
+		t.Fatalf("schema get exit-codes: %v", err)
 	}
 	if json.Valid(text) {
 		t.Errorf("the default rendering should be text, got JSON:\n%s", text)
 	}
-	if !strings.Contains(string(text), "SUBJECT TYPE") {
+	if !strings.Contains(string(text), "MEANING") {
 		t.Errorf("the text rendering should be a table, got:\n%s", text)
 	}
 
-	asJSON, err := exec.Command(binaryPath, "schema", "get", "subject-types", "--json").Output()
+	asJSON, err := exec.Command(binaryPath, "schema", "get", "exit-codes", "--json").Output()
 	if err != nil {
-		t.Fatalf("schema get subject-types --json: %v", err)
+		t.Fatalf("schema get exit-codes --json: %v", err)
 	}
 	if !json.Valid(asJSON) {
 		t.Errorf("--json should emit JSON, got:\n%s", asJSON)
 	}
 
 	// --silent stays: "does this schema exist" has an exit code for an answer.
-	if err := exec.Command(binaryPath, "schema", "get", "subject-types", "--silent").Run(); err != nil {
+	if err := exec.Command(binaryPath, "schema", "get", "exit-codes", "--silent").Run(); err != nil {
 		t.Errorf("schema get --silent should succeed quietly: %v", err)
 	}
 	if err := exec.Command(binaryPath, "schema", "get", "nope", "--silent").Run(); err == nil {

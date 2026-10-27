@@ -216,8 +216,12 @@ tasks:
       # gosec exclusions, justified:
       #   G104: unhandled lipgloss.Println / fmt.Fprintf to stdout — errors there
       #         are not actionable in a CLI.
-      #   G115: wire-format integer conversions where source values are bounded
-      #         by protocol constants (proof version byte, epoch-root counts).
+      #   G115: four conversions, each within its target type: a ULID's
+      #         millisecond time (48 bits) to int64 in convert id and in
+      #         internal/tscrypto/ulid.go; a node position of the Bitcoin
+      #         merkle-block parser (bounded by total_txs) to uint64; and
+      #         the constant-time hex case fold of internal/tscrypto, whose
+      #         int is one byte.
       #   G304: reading user-specified file paths IS the point of a CLI.
       #   G301/G302/G306: what the CLI writes for the user to read, a
       #         downloaded proof, a verify trace, an installed binary and

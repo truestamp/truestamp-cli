@@ -1,6 +1,12 @@
 // Copyright (c) 2019-2026 Truestamp, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+// Package proof fetches proofs from the Truestamp service: the exact bytes
+// of a proof from the raw proof route, the name `proofs get --to-file`
+// gives a proof, the service's refusals to serve one, and the shape of a
+// subject id and the server's resolution of an id to its subject type. It
+// reads no proof's members to verify or show it: `truestamp verify` and
+// `truestamp inspect` read a proof through internal/verifier.
 package proof
 
 import (
