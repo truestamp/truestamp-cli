@@ -275,96 +275,6 @@ func TestSchema_AlgorithmsMatchHashList(t *testing.T) {
 	}
 }
 
-// TestSchema_WitnessesAnswerTheCommittedQuestion. The document used to
-// emit two flat arrays — `witnesses` and `committed_witnesses` — leaving
-// the reader to diff them and then guess what the difference meant. It is
-// one list now, with the distinguishing property on each entry.
-//
-// The property is real and load-bearing: four witnesses are committed by
-// the subject's composite fingerprint in subject.metadata.witnesses, and
-// signing_key_event is not — it witnesses the signature, rides at the
-// bundle's top level, and never appears in that metadata.
-func TestSchema_WitnessesAnswerTheCommittedQuestion(t *testing.T) {
-	doc := runSchema(t, "witnesses")
-
-	if _, stale := doc["committed_witnesses"]; stale {
-		t.Error("the two-array shape is back; it makes the reader diff them and guess why")
-	}
-	raw, ok := doc["witnesses"].([]any)
-	if !ok || len(raw) == 0 {
-		t.Fatalf("no witnesses in the document: %v", doc)
-	}
-
-	committed := map[string]bool{}
-	for _, e := range raw {
-		m, ok := e.(map[string]any)
-		if !ok {
-			t.Fatalf("each entry should be an object, got %T", e)
-		}
-		name, _ := m["name"].(string)
-		flag, present := m["committed_in_subject_metadata"].(bool)
-		if !present {
-			t.Errorf("%q does not say whether it is committed, which is the only "+
-				"thing distinguishing the two sets", name)
-			continue
-		}
-		committed[name] = flag
-	}
-
-	// The registry is frozen: names are never renamed and never removed.
-	want := map[string]bool{
-		"block":             true,
-		"entropy_stellar":   true,
-		"entropy_nist":      true,
-		"entropy_bitcoin":   true,
-		"signing_key_event": false,
-	}
-	for name, wantCommitted := range want {
-		got, present := committed[name]
-		if !present {
-			t.Errorf("witness %q is missing from the registry", name)
-			continue
-		}
-		if got != wantCommitted {
-			t.Errorf("witness %q: committed_in_subject_metadata = %v, want %v",
-				name, got, wantCommitted)
-		}
-	}
-	if len(committed) != len(want) {
-		t.Errorf("the witness registry changed size: got %d, want %d", len(committed), len(want))
-	}
-}
-
-// TestSchema_WitnessEnumMatchesTheFlag: every name the schema lists must
-// be accepted by --witnesses, and the completion must offer the same set.
-// A value we advertise and then reject is worse than one we never named.
-func TestSchema_WitnessEnumMatchesTheFlag(t *testing.T) {
-	doc := runSchema(t, "witnesses")
-	raw, _ := doc["witnesses"].([]any)
-
-	for _, e := range raw {
-		name := e.(map[string]any)["name"].(string)
-		// --witnesses <name> must parse. Point at an unroutable host so
-		// the run fails at the network rather than at flag validation,
-		// which is what distinguishes the two outcomes.
-		out, err := exec.Command(binaryPath, "proofs", "get",
-			"--witnesses", name, "--api-key", "k",
-			"--base-url", "http://127.0.0.1:9",
-			"01HJHB01T8FYZ7YTR9P5N62K5B").CombinedOutput()
-		if err != nil && strings.Contains(string(out), "unknown witness") {
-			t.Errorf("the schema lists witness %q but --witnesses rejects it: %s", name, out)
-		}
-	}
-
-	completed := completionValues(t, "proofs", "get", "--witnesses", "")
-	for _, e := range raw {
-		name := e.(map[string]any)["name"].(string)
-		if !slices.Contains(completed, name) {
-			t.Errorf("witness %q is in the schema but not offered by completion", name)
-		}
-	}
-}
-
 // TestSchema_TextAndJSONCarryTheSameFacts. Both renderings read one
 // registry; the risk is that they drift anyway, because nothing stops a
 // contributor updating one and not the other.
@@ -376,7 +286,7 @@ func TestSchema_TextAndJSONCarryTheSameFacts(t *testing.T) {
 	// The command tree is excluded: its JSON deliberately carries far more
 	// than the text outline (every flag, type, default and enum), which is
 	// what --json is for.
-	for _, name := range []string{"algorithms", "subject-types", "witnesses", "exit-codes"} {
+	for _, name := range []string{"algorithms", "subject-types", "exit-codes"} {
 		t.Run(name, func(t *testing.T) {
 			text, err := exec.Command(binaryPath, "schema", "get", name).CombinedOutput()
 			if err != nil {
@@ -530,7 +440,7 @@ func TestSchema_NotesDescribeTheirOwnDocument(t *testing.T) {
 // TestSchema_TextSeparatesTableFromNote: a note butted against the last
 // table row reads as another row.
 func TestSchema_TextSeparatesTableFromNote(t *testing.T) {
-	for _, name := range []string{"subject-types", "witnesses", "commands"} {
+	for _, name := range []string{"subject-types", "commands"} {
 		t.Run(name, func(t *testing.T) {
 			doc := runSchema(t, name)
 			note, _ := doc["note"].(string)
@@ -619,7 +529,7 @@ func TestSchema_CompletionOffersOnlyAcceptedValues(t *testing.T) {
 		{"convert time", "format"},
 		{"encode", "to"},
 		{"decode", "to"},
-		{"proofs get", "format"},
+		{"proofs get", "constructions"},
 		{"proofs convert", "to"},
 		{"proofs get", "type"},
 	} {

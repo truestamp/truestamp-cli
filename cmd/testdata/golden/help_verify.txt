@@ -40,7 +40,8 @@ the configuration file or the environment, never the command line.
 The report is labelled verified, internally-consistent, supplied-keyring,
 unattributed or failed; --json writes it exactly as SPEC.md section 10.5
 gives it. --remote also asks the Truestamp service, whose verdict is
-printed beside the report and never changes the exit code.
+printed beside the report and never changes the exit code; it waits for
+the service's answer for the larger of --http-timeout and 75s.
 
 Exit codes (SPEC.md section 12.2): 0 verified; 1 a runtime error, such as
 an invalid command line or an input that cannot be read; 2 the verifier

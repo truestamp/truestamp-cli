@@ -109,14 +109,35 @@ func SetUserAgent(version string) {
 	userAgent = fmt.Sprintf("truestamp-cli/%s (%s/%s)", version, runtime.GOOS, runtime.GOARCH)
 }
 
+// ownBound marks a context made by [WithBound].
+type ownBound struct{}
+
+// WithBound returns a copy of ctx that ends after bound, and that [Do]
+// sends a request under alone: the shared client's timeout, the
+// configured http_timeout, does not apply to a request made with it,
+// whether bound is longer or shorter. The caller calls cancel once the
+// answer is read.
+func WithBound(ctx context.Context, bound time.Duration) (context.Context, context.CancelFunc) {
+	ctx, cancel := context.WithTimeout(ctx, bound)
+	return context.WithValue(ctx, ownBound{}, true), cancel
+}
+
 // Do executes an HTTP request using the shared client. The request's
 // existing [context.Context] (if any) is respected; callers that want
 // cancellation should attach one via [http.Request.WithContext] before
-// calling. If SetUserAgent has been called and the request has no
-// User-Agent header, the configured value is applied.
+// calling. A request whose context [WithBound] made is sent without the
+// shared client's timeout, under its context's bound alone, with the
+// same transport and redirect policy. If SetUserAgent has been called and
+// the request has no User-Agent header, the configured value is applied.
 func Do(req *http.Request) (*http.Response, error) {
 	stampUserAgent(req)
-	return httpClient.Do(req) // #nosec G704 -- the shared client sends the requests of the CLI's API commands to the base URL the user configures, which is their purpose; the verifier's reads never use it
+	client := httpClient
+	if req.Context().Value(ownBound{}) != nil {
+		bounded := *httpClient
+		bounded.Timeout = 0
+		client = &bounded
+	}
+	return client.Do(req) // #nosec G704 -- the shared client sends the requests of the CLI's API commands to the base URL the user configures, which is their purpose; the verifier's reads never use it
 }
 
 // stampUserAgent applies the shared User-Agent header when one is

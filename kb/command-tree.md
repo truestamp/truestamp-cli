@@ -400,7 +400,7 @@ truestamp
 │   │   ├── get <id>             --type item|block|beacon|entropy_nist|entropy_stellar|
 │   │   │                               entropy_bitcoin        (optional; a UUIDv7 is
 │   │   │                                                       resolved server-side)
-│   │   │                        -f/--format json|cbor --witnesses all|none|<list>
+│   │   │                        --constructions full|reference|none
 │   │   │                        -o/--out <path> --to-file
 │   │   └── convert [file|url|-] --file --url --from auto|json|cbor --to json|cbor --compact
 │   │                            --json --silent

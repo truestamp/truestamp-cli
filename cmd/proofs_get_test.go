@@ -4,70 +4,72 @@
 package cmd
 
 import (
-	"encoding/base64"
-	"encoding/json"
 	"fmt"
-	"io"
 	"net/http"
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
+	"sync"
 	"testing"
-
-	"github.com/truestamp/truestamp-cli/internal/testfixtures"
 )
 
-// Minimal bundles in the published layout: enough shape to pass the
-// download path's sniff. Nothing here is crypto-valid; verify is not
-// called. Unit coverage of verify lives in internal/verify.
 const (
-	testBlockMap = `{"id":"019db702-b08c-73dc-a7cd-2c5e011f1dad","previous_block_hash":"11","merkle_root":"22","metadata":{},"signing_key_id":"4ceefa4a"}`
-	testCommits  = `[{"chain":"stellar","network":"testnet","epoch_proof":"AA","epoch_merkle_root":"aa","transaction_hash":"bb","ledger":1}]`
-
-	testBlockProofJSON = `{"version":1,"type":"block",
-	  "public_key":"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=",
-	  "signature":"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==",
-	  "generated_at":"2026-04-22T21:05:00Z",
-	  "block":` + testBlockMap + `,"commitments":` + testCommits + `}`
-	testBeaconProofJSON = `{"version":1,"type":"beacon",
-	  "public_key":"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=",
-	  "signature":"BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB==",
-	  "generated_at":"2026-04-22T21:05:00Z",
-	  "block":` + testBlockMap + `,"commitments":` + testCommits + `}`
-	testItemProofJSON = `{"version":1,"type":"item",
-	  "public_key":"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=",
-	  "signature":"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==",
-	  "generated_at":"2026-04-22T21:05:00Z",
-	  "subject":{"id":"01HJHB01T8FYZ7YTR9P5N62K5B","claims":{"name":"x"},"metadata":{"witnesses":{"block":"33"}},"signing_key_id":"4ceefa4a"},
-	  "inclusion_proof":"AA",
-	  "block":` + testBlockMap + `,"commitments":` + testCommits + `}`
-	testEntropyStellarProofJSON = `{"version":1,"type":"entropy_stellar",
-	  "public_key":"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=",
-	  "signature":"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==",
-	  "generated_at":"2026-04-22T21:05:00Z",
-	  "subject":{"id":"019db702-b08c-73dc-a7cd-2c5e011f1dad","entropy":{"hash":"x"},"metadata":{},"signing_key_id":"4ceefa4a"},
-	  "inclusion_proof":"AA",
-	  "block":` + testBlockMap + `,"commitments":` + testCommits + `}`
+	testItemULID   = "01HJHB01T8FYZ7YTR9P5N62K5B"
+	testSubjectID  = "019db702-b08c-73dc-a7cd-2c5e011f1dad"
+	rawProofPrefix = "/api/json/proof/raw/"
+	// soundItemCode is the item code vectors/item-codes.json gives the
+	// sound item, positive/item.proof.json.
+	soundItemCode = "WX495M26THGQBJ68"
 )
 
-// startProofServer spins up an httptest server that records the last
-// request body so tests can assert what the client actually sent, and
-// responds with the provided proof envelope.
-func startProofServer(t *testing.T, responseBody string) (string, *string, func()) {
-	t.Helper()
-	var lastBody string
-	mux := http.NewServeMux()
-	mux.HandleFunc("/api/json/proof/generate", func(w http.ResponseWriter, r *http.Request) {
-		requireBearer(t, r)
-		b, _ := io.ReadAll(r.Body)
-		lastBody = string(b)
-		w.WriteHeader(http.StatusCreated)
-		_, _ = w.Write([]byte(`{"result":` + responseBody + `}`))
-	})
-	srv := httptest.NewServer(mux)
-	return srv.URL, &lastBody, srv.Close
+// servedBytes is a stand-in for the proof served in each constructions
+// mode: distinct bytes per mode, in the served form (no whitespace, no
+// final line feed), so a download that re-indents, re-encodes, adds a
+// line feed or asks for another mode writes other bytes.
+func servedBytes(mode string) []byte {
+	return []byte(`{"proof":{"constructions":"` + mode + `","type":"block","version":1},"signature":{"alg":"truestamp-ed25519-sha256-jcs","public_key":"k","value":"v"}}`)
 }
+
+// rawRequest is one request the stand-in for the raw proof route was sent.
+type rawRequest struct {
+	method, path, query string
+	bearer              bool
+}
+
+// rawProofServer is a loopback stand-in for the raw proof route. It
+// records every request and answers each with serve, given the request's
+// type, id and constructions parameter ("" when it has none).
+func rawProofServer(t *testing.T, serve func(typ, id, mode string) (int, []byte)) (string, func() []rawRequest) {
+	t.Helper()
+	var mu sync.Mutex
+	var seen []rawRequest
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		mu.Lock()
+		seen = append(seen, rawRequest{r.Method, r.URL.Path, r.URL.RawQuery, strings.HasPrefix(r.Header.Get("Authorization"), "Bearer ")})
+		mu.Unlock()
+		rest, ok := strings.CutPrefix(r.URL.Path, rawProofPrefix)
+		parts := strings.Split(rest, "/")
+		if !ok || len(parts) != 2 || r.Method != http.MethodGet {
+			w.WriteHeader(http.StatusNotFound)
+			return
+		}
+		status, body := serve(parts[0], parts[1], r.URL.Query().Get("constructions"))
+		w.Header().Set("Content-Type", "application/vnd.truestamp.proof+json")
+		w.WriteHeader(status)
+		_, _ = w.Write(body)
+	}))
+	t.Cleanup(srv.Close)
+	return srv.URL, func() []rawRequest {
+		mu.Lock()
+		defer mu.Unlock()
+		return slices.Clone(seen)
+	}
+}
+
+// byMode serves servedBytes of the mode the request names.
+func byMode(_, _, mode string) (int, []byte) { return http.StatusOK, servedBytes(mode) }
 
 func withTempCWD(t *testing.T) string {
 	t.Helper()
@@ -83,196 +85,240 @@ func withTempCWD(t *testing.T) string {
 	return dir
 }
 
-// postedData decodes the captured request's `data` object.
-func postedData(t *testing.T, body string) map[string]any {
+// dirEntries is the names in dir.
+func dirEntries(t *testing.T, dir string) []string {
 	t.Helper()
-	var parsed struct {
-		Data map[string]any `json:"data"`
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		t.Fatal(err)
 	}
-	if err := json.Unmarshal([]byte(body), &parsed); err != nil {
-		t.Fatalf("captured body not valid JSON: %v\nbody=%q", err, body)
+	var names []string
+	for _, e := range entries {
+		names = append(names, e.Name())
 	}
-	return parsed.Data
+	return names
 }
 
-func assertWireType(t *testing.T, body, want string) {
-	t.Helper()
-	if got := postedData(t, body)["type"]; got != want {
-		t.Errorf("wire type: want %q, got %v (full body: %s)", want, got, body)
-	}
-}
-
-func TestCLI_ProofsGet_SmartDefaultULIDItem(t *testing.T) {
-	url, lastBody, stop := startProofServer(t, testItemProofJSON)
-	defer stop()
-	dir := withTempCWD(t)
-
-	_, stderr, exit := runCLI(t, "--base-url", url, "--api-key", "test-key", "proofs", "get", "--to-file", "01HJHB01T8FYZ7YTR9P5N62K5B")
-	if exit != 0 {
-		t.Fatalf("exit=%d, stderr=%q", exit, stderr)
-	}
-	wantFile := filepath.Join(dir, "truestamp-item-01HJHB01T8FYZ7YTR9P5N62K5B.json")
-	if _, err := os.Stat(wantFile); err != nil {
-		t.Errorf("expected file %s: %v", wantFile, err)
-	}
-	assertWireType(t, *lastBody, "item")
-	if _, has := postedData(t, *lastBody)["witnesses"]; has {
-		t.Errorf("the default (all witnesses) must omit the argument, got %s", *lastBody)
-	}
-}
-
-func TestCLI_ProofsGet_Witnesses(t *testing.T) {
-	cases := []struct {
-		flag     string
-		wantList any
-		suffix   string
+// Each constructions mode is asked of the raw GET, in one request, as GET
+// /api/json/proof/raw/<type>/<id>?constructions=<mode> with the credential,
+// full when no mode is given, and the served bytes reach stdout exactly as
+// served, with nothing written to the working directory. Mutants killed:
+// the body re-indented (json.Indent) or given a
+// final line feed (stdout differs); the constructions parameter left out
+// (the query is empty, and reference and none are served full's bytes); a
+// default other than full.
+func TestCLI_ProofsGet_EachConstructionsModeIsTheServedBytes(t *testing.T) {
+	for _, tc := range []struct {
+		name, mode string
+		flag       []string
 	}{
-		{"none", []any{}, "-compact"},
-		{"block,entropy_nist", []any{"block", "entropy_nist"}, "-partial"},
-		{"all", nil, ""},
-	}
-	for _, tc := range cases {
-		t.Run(tc.flag, func(t *testing.T) {
-			url, lastBody, stop := startProofServer(t, testItemProofJSON)
-			defer stop()
+		{"default", "full", nil},
+		{"full", "full", []string{"--constructions", "full"}},
+		{"reference", "reference", []string{"--constructions", "reference"}},
+		{"none", "none", []string{"--constructions", "none"}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			url, requests := rawProofServer(t, byMode)
 			dir := withTempCWD(t)
-			_, stderr, exit := runCLI(t, "--base-url", url, "--api-key", "test-key", "proofs", "get", "--witnesses", tc.flag, "--to-file", "01HJHB01T8FYZ7YTR9P5N62K5B")
-			if exit != 0 {
-				t.Fatalf("exit=%d, stderr=%q", exit, stderr)
+			args := append([]string{"--base-url", url, "--api-key", "test-key", "proofs", "get", "--type", "block"}, tc.flag...)
+			stdout, stderr, exit := runCLI(t, append(args, testSubjectID)...)
+			if exit != 0 || stdout != string(servedBytes(tc.mode)) {
+				t.Fatalf("exit %d, stdout %q; want exit 0 and exactly %q\nstderr: %s", exit, stdout, servedBytes(tc.mode), stderr)
 			}
-			data := postedData(t, *lastBody)
-			got, has := data["witnesses"]
-			if tc.wantList == nil {
-				if has {
-					t.Errorf("witnesses argument should be omitted, got %v", got)
-				}
-			} else if !has || len(got.([]any)) != len(tc.wantList.([]any)) {
-				t.Errorf("witnesses = %v, want %v", got, tc.wantList)
+			want := rawRequest{http.MethodGet, rawProofPrefix + "block/" + testSubjectID, "constructions=" + tc.mode, true}
+			if got := requests(); len(got) != 1 || got[0] != want {
+				t.Errorf("requests %+v, want exactly [%+v]", got, want)
 			}
-			want := filepath.Join(dir, "truestamp-item-01HJHB01T8FYZ7YTR9P5N62K5B"+tc.suffix+".json")
-			if _, err := os.Stat(want); err != nil {
-				t.Errorf("expected file %s: %v", want, err)
+			if names := dirEntries(t, dir); len(names) != 0 {
+				t.Errorf("stdout mode wrote files: %v", names)
 			}
 		})
 	}
-	_, stderr, exit := runCLI(t, "--api-key", "test-key", "proofs", "get", "--witnesses", "block,nope", "01HJHB01T8FYZ7YTR9P5N62K5B")
-	if exit == 0 || !strings.Contains(stderr, "nope") {
-		t.Errorf("unknown witness accepted: exit=%d stderr=%q", exit, stderr)
+}
+
+// -o writes the served bytes exactly as served to the path it names, and
+// the receipt card, naming the mode, goes to stderr, never stdout. Mutant
+// killed: the file written re-indented (its bytes differ).
+func TestCLI_ProofsGet_OutWritesTheServedBytes(t *testing.T) {
+	url, _ := rawProofServer(t, byMode)
+	dir := withTempCWD(t)
+	path := filepath.Join(dir, "custom-name.json")
+	stdout, stderr, exit := runCLI(t, "--base-url", url, "--api-key", "test-key", "proofs", "get",
+		"--type", "beacon", "--constructions", "reference", "-o", path, testSubjectID)
+	got, err := os.ReadFile(path)
+	if exit != 0 || err != nil || string(got) != string(servedBytes("reference")) {
+		t.Fatalf("exit %d, %v, file %q; want exactly the served bytes\nstderr: %s", exit, err, got, stderr)
+	}
+	if stdout != "" || !strings.Contains(stderr, "Proof Downloaded") || !strings.Contains(stderr, "Constructions  reference") {
+		t.Errorf("stdout %q, stderr %q; want an empty stdout and the receipt, naming the mode, on stderr", stdout, stderr)
+	}
+	if names := dirEntries(t, dir); !slices.Equal(names, []string{"custom-name.json"}) {
+		t.Errorf("files %v, want only custom-name.json", names)
 	}
 }
 
-// TestCLI_ProofsGet_NoTypeUUIDv7ResolvesThenFails: a bare UUIDv7 no longer
-// fails outright — it is resolved against the server first. When
-// resolution itself cannot answer, the failure must still be actionable
-// and must not have generated a proof for a guessed type.
-func TestCLI_ProofsGet_NoTypeUUIDv7ResolvesThenFails(t *testing.T) {
-	var generateCalled bool
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if !strings.HasSuffix(r.URL.Path, "/utilities/resolve-id") {
-			generateCalled = true
+// unservedBytes is a proof answered in a form that is not the served
+// form: a leading space, two-space indentation, CRLF line endings and a
+// final line feed.
+const unservedBytes = " {\r\n  \"proof\": {\r\n    \"constructions\": \"full\",\r\n    \"type\": \"block\",\r\n    \"version\": 1\r\n  },\r\n" +
+	"  \"signature\": {\r\n    \"alg\": \"truestamp-ed25519-sha256-jcs\",\r\n    \"public_key\": \"k\",\r\n    \"value\": \"v\"\r\n  }\r\n}\r\n"
+
+// Bytes answered in any form reach stdout, the -o file and a block's
+// --to-file file exactly as answered, whitespace and line endings
+// included. Mutants killed: the download trimming the body
+// (strings.TrimSpace: the leading space and the final CRLF are gone); the
+// download canonicalizing it (jcs.Transform: the indentation and the CRLFs
+// are gone).
+func TestCLI_ProofsGet_EveryDestinationIsTheAnsweredBytes(t *testing.T) {
+	url, _ := rawProofServer(t, func(_, _, _ string) (int, []byte) { return http.StatusOK, []byte(unservedBytes) })
+	dir := withTempCWD(t)
+	base := []string{"--base-url", url, "--api-key", "test-key", "proofs", "get", "--type", "block"}
+
+	stdout, stderr, exit := runCLI(t, append(base, testSubjectID)...)
+	if exit != 0 || stdout != unservedBytes {
+		t.Errorf("stdout: exit %d, %q; want exit 0 and exactly %q\nstderr: %s", exit, stdout, unservedBytes, stderr)
+	}
+	if _, stderr, exit := runCLI(t, append(base, "-o", filepath.Join(dir, "out.json"), testSubjectID)...); exit != 0 {
+		t.Errorf("-o: exit %d\n%s", exit, stderr)
+	}
+	if _, stderr, exit := runCLI(t, append(base, "--to-file", testSubjectID)...); exit != 0 {
+		t.Errorf("--to-file: exit %d\n%s", exit, stderr)
+	}
+	for _, name := range []string{"out.json", testSubjectID + ".proof.json"} {
+		if got, err := os.ReadFile(filepath.Join(dir, name)); err != nil || string(got) != unservedBytes {
+			t.Errorf("%s: %q, %v; want exactly %q", name, got, err, unservedBytes)
 		}
-		w.WriteHeader(http.StatusBadRequest)
-		_, _ = w.Write([]byte(`{"errors":[{"detail":"nope"}]}`))
-	}))
-	defer srv.Close()
-	_ = withTempCWD(t)
-
-	_, stderr, exit := runCLI(t, "--base-url", srv.URL, "--api-key", "test-key",
-		"proofs", "get", "019db702-b08c-73dc-a7cd-2c5e011f1dad")
-	if exit == 0 {
-		t.Error("an unresolvable bare UUIDv7 should fail")
 	}
-	if generateCalled {
-		t.Error("no proof should be generated for a type that was never resolved")
-	}
-	if !strings.Contains(stderr, "--type") {
-		t.Errorf("the error should name the escape hatch, got %q", stderr)
+	if names := dirEntries(t, dir); !slices.Equal(names, []string{testSubjectID + ".proof.json", "out.json"}) {
+		t.Errorf("files %v, want exactly the two written", names)
 	}
 }
 
-func TestCLI_ProofsGet_Types(t *testing.T) {
-	cases := []struct {
-		typeFlag, id, body, format, wantFile string
-	}{
-		{"block", "019db702-b08c-73dc-a7cd-2c5e011f1dad", testBlockProofJSON, "json", "truestamp-block-019db702-b08c-73dc-a7cd-2c5e011f1dad.json"},
-		{"beacon", "019db702-b08c-73dc-a7cd-2c5e011f1dad", testBeaconProofJSON, "json", "truestamp-beacon-019db702-b08c-73dc-a7cd-2c5e011f1dad.json"},
-		{"item", "01HJHB01T8FYZ7YTR9P5N62K5B", testItemProofJSON, "json", "truestamp-item-01HJHB01T8FYZ7YTR9P5N62K5B.json"},
-		{"entropy_stellar", "019db702-b08c-73dc-a7cd-2c5e011f1dad", testEntropyStellarProofJSON, "json", "truestamp-entropy-stellar-019db702-b08c-73dc-a7cd-2c5e011f1dad.json"},
+// --to-file names an item's proof <CODE>.proof.json, CODE the item code of
+// its recomputed item_hash, and every other subject's <id>.proof.json,
+// whatever the constructions mode, and writes the served bytes exactly as
+// served. Mutants killed: a suffix for a constructions mode (the
+// reference files are named otherwise); a truestamp-<type>-<id>
+// name; the item named by its id; the file re-indented.
+func TestCLI_ProofsGet_ToFileNames(t *testing.T) {
+	item, err := os.ReadFile(soundItem())
+	if err != nil {
+		t.Fatal(err)
 	}
-	for _, tc := range cases {
-		t.Run(tc.typeFlag, func(t *testing.T) {
-			url, lastBody, stop := startProofServer(t, tc.body)
-			defer stop()
+	serve := func(typ, _, mode string) (int, []byte) {
+		if typ == "item" {
+			return http.StatusOK, item
+		}
+		return http.StatusOK, servedBytes(mode)
+	}
+	for _, tc := range []struct {
+		typ, id, mode, name string
+		want                []byte
+	}{
+		{"item", testItemULID, "full", soundItemCode + ".proof.json", item},
+		{"item", testItemULID, "reference", soundItemCode + ".proof.json", item},
+		{"block", testSubjectID, "full", testSubjectID + ".proof.json", servedBytes("full")},
+		{"beacon", testSubjectID, "none", testSubjectID + ".proof.json", servedBytes("none")},
+		{"entropy_stellar", testSubjectID, "reference", testSubjectID + ".proof.json", servedBytes("reference")},
+		{"entropy_nist", testSubjectID, "full", testSubjectID + ".proof.json", servedBytes("full")},
+		{"entropy_bitcoin", testSubjectID, "full", testSubjectID + ".proof.json", servedBytes("full")},
+	} {
+		t.Run(tc.typ+"_"+tc.mode, func(t *testing.T) {
+			url, _ := rawProofServer(t, serve)
 			dir := withTempCWD(t)
-			_, stderr, exit := runCLI(t, "--base-url", url, "--api-key", "test-key", "proofs", "get", "--type", tc.typeFlag, "-f", tc.format, "--to-file", tc.id)
+			_, stderr, exit := runCLI(t, "--base-url", url, "--api-key", "test-key", "proofs", "get",
+				"--type", tc.typ, "--constructions", tc.mode, "--to-file", tc.id)
 			if exit != 0 {
-				t.Fatalf("exit=%d, stderr=%q", exit, stderr)
+				t.Fatalf("exit %d\n%s", exit, stderr)
 			}
-			if _, err := os.Stat(filepath.Join(dir, tc.wantFile)); err != nil {
-				t.Errorf("expected file %s: %v", tc.wantFile, err)
+			if names := dirEntries(t, dir); !slices.Equal(names, []string{tc.name}) {
+				t.Fatalf("files %v, want exactly [%s]", names, tc.name)
 			}
-			assertWireType(t, *lastBody, tc.typeFlag)
+			if got, _ := os.ReadFile(filepath.Join(dir, tc.name)); string(got) != string(tc.want) {
+				t.Errorf("%s holds %d bytes that are not the %d served", tc.name, len(got), len(tc.want))
+			}
 		})
 	}
 }
 
-func TestCLI_ProofsGet_CBOR(t *testing.T) {
-	// The server answers CBOR as base64 of the bytes; the file must carry
-	// the decoded bytes, tag and all.
-	cborBytes, _ := os.ReadFile(testfixtures.Path(testfixtures.ProdDir, testfixtures.ProdCBOR))
-	b64, _ := json.Marshal(base64Std(cborBytes))
-	url, lastBody, stop := startProofServer(t, string(b64))
-	defer stop()
+// An item request whose served bytes are no item proof gets no file name:
+// it exits 1 and writes nothing. Mutant killed: FileName naming any
+// served proof by its id (a file is written).
+func TestCLI_ProofsGet_ToFileRefusesAnUnnamableItemProof(t *testing.T) {
+	url, _ := rawProofServer(t, byMode)
 	dir := withTempCWD(t)
-	_, stderr, exit := runCLI(t, "--base-url", url, "--api-key", "test-key", "proofs", "get", "-f", "cbor", "--to-file", "01M1M0V3SE3C5P32TRAJSNX6QF")
-	if exit != 0 {
-		t.Fatalf("exit=%d, stderr=%q", exit, stderr)
+	_, stderr, exit := runCLI(t, "--base-url", url, "--api-key", "test-key", "proofs", "get", "--to-file", testItemULID)
+	if exit != 1 || !strings.Contains(stderr, "no file name for the served proof: it is not an item proof") {
+		t.Errorf("exit %d, stderr %q; want exit 1 and the refusal", exit, stderr)
 	}
-	got, err := os.ReadFile(filepath.Join(dir, "truestamp-item-01M1M0V3SE3C5P32TRAJSNX6QF.cbor"))
-	if err != nil || string(got) != string(cborBytes) {
-		t.Errorf("cbor file: %v (%d bytes, want %d)", err, len(got), len(cborBytes))
-	}
-	if postedData(t, *lastBody)["format"] != "cbor" {
-		t.Errorf("format not posted: %s", *lastBody)
+	if names := dirEntries(t, dir); len(names) != 0 {
+		t.Errorf("files %v, want none", names)
 	}
 }
 
-// TestCLI_ProofsGet_PreservesNumbers pins that the pretty-printed JSON keeps
-// every number literal as the server wrote it.
-func TestCLI_ProofsGet_PreservesNumbers(t *testing.T) {
-	body := strings.Replace(testItemProofJSON, `"claims":{"name":"x"}`, `"claims":{"name":"x","big":9007199254740993}`, 1)
-	url, _, stop := startProofServer(t, body)
-	defer stop()
-	dir := withTempCWD(t)
-	if _, stderr, exit := runCLI(t, "--base-url", url, "--api-key", "test-key", "proofs", "get", "--to-file", "01HJHB01T8FYZ7YTR9P5N62K5B"); exit != 0 {
-		t.Fatalf("exit=%d, stderr=%q", exit, stderr)
+// A --constructions value that is not exactly one of the three is
+// refused before any request, and so are --witnesses and --format (-f),
+// which are not flags. Mutants killed: the mode check removed (the request
+// is sent); --witnesses or --format registered (the flag is accepted).
+func TestCLI_ProofsGet_UnknownAndInvalidFlagsAreRefused(t *testing.T) {
+	url, requests := rawProofServer(t, byMode)
+	_ = withTempCWD(t)
+	for _, tc := range []struct {
+		args []string
+		want string
+	}{
+		{[]string{"--constructions", "compact"}, `--constructions must be one of full | reference | none, got "compact"`},
+		{[]string{"--constructions", "Full"}, `--constructions must be one of full | reference | none, got "Full"`},
+		{[]string{"--witnesses", "none"}, "unknown flag: --witnesses"},
+		{[]string{"--format", "json"}, "unknown flag: --format"},
+		{[]string{"-f", "json"}, "unknown shorthand flag: 'f' in -f"},
+	} {
+		args := append([]string{"--base-url", url, "--api-key", "test-key", "proofs", "get", "--type", "block"}, tc.args...)
+		_, stderr, exit := runCLI(t, append(args, testSubjectID)...)
+		if exit == 0 || !strings.Contains(stderr, tc.want) {
+			t.Errorf("%v: exit %d, stderr %q; want a refusal naming %q", tc.args, exit, stderr, tc.want)
+		}
 	}
-	got, _ := os.ReadFile(filepath.Join(dir, "truestamp-item-01HJHB01T8FYZ7YTR9P5N62K5B.json"))
-	if !strings.Contains(string(got), "9007199254740993") {
-		t.Errorf("large integer was rounded:\n%s", got)
+	if n := len(requests()); n != 0 {
+		t.Errorf("%d requests sent, want none", n)
 	}
 }
 
-func TestCLI_ProofsGet_OutputFlagWins(t *testing.T) {
-	url, _, stop := startProofServer(t, testBeaconProofJSON)
-	defer stop()
-	dir := withTempCWD(t)
+// The bytes on stdout are a proof `verify` reads from stdin and labels:
+// the sound vector, under its test keyring, is supplied-keyring, exit 6.
+// Mutant killed: verify's stdin read as empty (the run is malformed_json,
+// exit 4).
+func TestCLI_ProofsGet_StdoutIsPipeable(t *testing.T) {
+	item, err := os.ReadFile(soundItem())
+	if err != nil {
+		t.Fatal(err)
+	}
+	url, _ := rawProofServer(t, func(_, _, _ string) (int, []byte) { return http.StatusOK, item })
+	withTempCWD(t)
+	stdout, stderr, exit := runCLI(t, "--base-url", url, "--api-key", "test-key", "proofs", "get", testItemULID)
+	if exit != 0 || stdout != string(item) {
+		t.Fatalf("download exit %d, %d bytes on stdout; want exit 0 and the %d served\n%s", exit, len(stdout), len(item), stderr)
+	}
+	out, errOut, code := verifyCLI(t, binaryPath, nil, strings.NewReader(stdout), append([]string{"-"}, underTest()...)...)
+	if code != 6 {
+		t.Errorf("piping download into verify: exit %d, want 6\n%s%s", code, out, errOut)
+	}
+}
 
-	custom := filepath.Join(dir, "custom-name.json")
-	_, _, exit := runCLI(t, "--base-url", url, "--api-key", "test-key", "proofs", "get", "--type", "beacon", "-o", custom, "019db702-b08c-73dc-a7cd-2c5e011f1dad")
-	if exit != 0 {
-		t.Fatalf("exit=%d", exit)
-	}
-	if _, err := os.Stat(custom); err != nil {
-		t.Errorf("custom output path not honoured: %v", err)
-	}
-	if _, err := os.Stat(filepath.Join(dir, "truestamp-beacon-019db702-b08c-73dc-a7cd-2c5e011f1dad.json")); err == nil {
-		t.Error("auto-named file should not exist when -o is set")
+// The two file destinations are mutually exclusive, and the error names
+// both rather than silently letting one win; no request is sent.
+func TestCLI_ProofsGet_OutAndToFileConflict(t *testing.T) {
+	url, requests := rawProofServer(t, byMode)
+	dir := withTempCWD(t)
+	_, stderr, exit := runCLI(t, "--base-url", url, "--api-key", "test-key", "proofs", "get",
+		"-o", filepath.Join(dir, "x.json"), "--to-file", testItemULID)
+	if exit == 0 || !strings.Contains(stderr, "--out and --to-file are mutually exclusive") || len(requests()) != 0 {
+		t.Errorf("exit %d, %d requests, stderr %q", exit, len(requests()), stderr)
 	}
 }
 
 func TestCLI_ProofsGet_InvalidType(t *testing.T) {
-	_, stderr, exit := runCLI(t, "--api-key", "test-key", "proofs", "get", "--type", "bogus", "019db702-b08c-73dc-a7cd-2c5e011f1dad")
+	_, stderr, exit := runCLI(t, "--api-key", "test-key", "proofs", "get", "--type", "bogus", testSubjectID)
 	if exit == 0 || !strings.Contains(stderr, "--type must be one of") {
 		t.Fatalf("exit=%d stderr=%q", exit, stderr)
 	}
@@ -281,425 +327,201 @@ func TestCLI_ProofsGet_InvalidType(t *testing.T) {
 			t.Errorf("want %q listed in error message, got %q", want, stderr)
 		}
 	}
-	_, stderr, exit = runCLI(t, "--api-key", "test-key", "proofs", "get", "--type", "entropy", "019db702-b08c-73dc-a7cd-2c5e011f1dad")
+	_, stderr, exit = runCLI(t, "--api-key", "test-key", "proofs", "get", "--type", "entropy", testSubjectID)
 	if exit == 0 || !strings.Contains(stderr, "--type must be one of") {
 		t.Errorf("bare entropy: exit=%d stderr=%q", exit, stderr)
 	}
 }
 
 func TestCLI_ProofsGet_ShapeVsType(t *testing.T) {
-	called := false
-	srv := httptest.NewServer(http.HandlerFunc(func(_ http.ResponseWriter, _ *http.Request) { called = true }))
-	defer srv.Close()
+	url, requests := rawProofServer(t, byMode)
 	_ = withTempCWD(t)
 
-	_, stderr, exit := runCLI(t, "--base-url", srv.URL, "--api-key", "test-key", "proofs", "get", "--type", "item", "019db702-b08c-73dc-a7cd-2c5e011f1dad")
-	if exit == 0 || called || !strings.Contains(stderr, "requires a ULID") {
-		t.Errorf("item+uuid: exit=%d called=%v stderr=%q", exit, called, stderr)
+	_, stderr, exit := runCLI(t, "--base-url", url, "--api-key", "test-key", "proofs", "get", "--type", "item", testSubjectID)
+	if exit == 0 || !strings.Contains(stderr, "requires a ULID") {
+		t.Errorf("item+uuid: exit=%d stderr=%q", exit, stderr)
 	}
-	_, stderr, exit = runCLI(t, "--base-url", srv.URL, "--api-key", "test-key", "proofs", "get", "--type", "block", "01HJHB01T8FYZ7YTR9P5N62K5B")
-	if exit == 0 || called || !strings.Contains(stderr, "requires a UUIDv7") {
-		t.Errorf("block+ulid: exit=%d called=%v stderr=%q", exit, called, stderr)
+	_, stderr, exit = runCLI(t, "--base-url", url, "--api-key", "test-key", "proofs", "get", "--type", "block", testItemULID)
+	if exit == 0 || !strings.Contains(stderr, "requires a UUIDv7") {
+		t.Errorf("block+ulid: exit=%d stderr=%q", exit, stderr)
 	}
-}
-
-// TestCLI_ProofsGet_NotCommittedError surfaces the server's
-// no_external_commitments answer with the wait-for-the-epoch advice.
-func TestCLI_ProofsGet_NotCommittedError(t *testing.T) {
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		w.WriteHeader(http.StatusBadRequest)
-		_, _ = w.Write([]byte(`{"errors":[{"detail":"Subject has not yet been committed to a public blockchain. Try again after the next epoch commit.","meta":{"code":"no_external_commitments"}}]}`))
-	}))
-	defer srv.Close()
-	_ = withTempCWD(t)
-
-	_, stderr, exit := runCLI(t, "--base-url", srv.URL, "--api-key", "test-key", "proofs", "get", "--type", "block", "019db702-b08c-73dc-a7cd-2c5e011f1dad")
-	if exit == 0 {
-		t.Fatalf("a refused generate must exit non-zero; stderr=%q", stderr)
-	}
-	// Assert on intent, not on a phrase that a line break can split: the
-	// server's own detail, the machine-readable code, and the one thing
-	// the server cannot say -- that waiting will fix this.
-	for _, want := range []string{"not yet been committed", "no_external_commitments", "clears on its own"} {
-		if !strings.Contains(stderr, want) {
-			t.Errorf("stderr missing %q\ngot: %s", want, stderr)
-		}
-	}
-}
-
-func TestCLI_ProofsGet_InvalidWitnessFromServer(t *testing.T) {
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		w.WriteHeader(http.StatusBadRequest)
-		_, _ = w.Write([]byte(`{"errors":[{"detail":"invalid witness: valid names are block, entropy_stellar, entropy_nist, entropy_bitcoin, signing_key_event","meta":{"code":"invalid_witness"}}]}`))
-	}))
-	defer srv.Close()
-	_ = withTempCWD(t)
-	_, stderr, exit := runCLI(t, "--base-url", srv.URL, "--api-key", "test-key", "proofs", "get", "01HJHB01T8FYZ7YTR9P5N62K5B")
-	if exit == 0 || !strings.Contains(stderr, "invalid_witness") {
-		t.Errorf("exit=%d stderr=%q", exit, stderr)
-	}
-}
-
-// TestCLI_ProofsGet_SubjectTypeMismatchError.
-//
-// 400, not 422. Every refusal on /proof/generate funnels through one
-// constructor that builds an Ash.Error.Changes.InvalidChanges, whose class
-// :invalid maps to 400 -- invalid_type, invalid_format, invalid_witness,
-// id_format_mismatch, subject_type_mismatch, subject_not_ready,
-// no_external_commitments, subject_not_recomputable and generation_failed
-// alike. The only other outcomes on this route are 201 for a generated
-// bundle and 404 for a subject that does not exist, both confirmed against
-// the live API. No fixture here should model any other status.
-func TestCLI_ProofsGet_SubjectTypeMismatchError(t *testing.T) {
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		w.WriteHeader(http.StatusBadRequest)
-		_, _ = w.Write([]byte(`{"errors":[{"code":"subject_type_mismatch","detail":"Requested type entropy_nist but subject 019db702-b08c-73dc-a7cd-2c5e011f1dad has source entropy_stellar","meta":{"code":"subject_type_mismatch"}}]}`))
-	}))
-	defer srv.Close()
-	_ = withTempCWD(t)
-
-	_, stderr, exit := runCLI(t, "--base-url", srv.URL, "--api-key", "test-key", "proofs", "get", "--type", "entropy_nist", "019db702-b08c-73dc-a7cd-2c5e011f1dad")
-	if exit == 0 || !strings.Contains(stderr, "Requested type entropy_nist") {
-		t.Errorf("exit=%d stderr=%q", exit, stderr)
-	}
-}
-
-// base64Std encodes bytes the way the API returns a CBOR bundle.
-func base64Std(b []byte) string { return base64.StdEncoding.EncodeToString(b) }
-
-// --- R10 payload triad -------------------------------------------------
-//
-// The default changed from "always write a conventionally-named file into
-// the cwd" to "write the bundle to stdout". That is what makes
-// `truestamp proofs get <id> | truestamp verify --offline` possible without
-// a temp file, in a CLI whose docs are built on pipelines. These tests pin
-// all three destinations and the two refusals.
-
-// TestCLI_ProofsGet_DefaultsToStdout is the behavior change itself: bytes on
-// stdout, and nothing written into the working directory.
-func TestCLI_ProofsGet_DefaultsToStdout(t *testing.T) {
-	url, _, stop := startProofServer(t, testItemProofJSON)
-	defer stop()
-	dir := withTempCWD(t)
-
-	stdout, stderr, exit := runCLI(t, "--base-url", url, "--api-key", "test-key",
-		"proofs", "get", "01HJHB01T8FYZ7YTR9P5N62K5B")
-	if exit != 0 {
-		t.Fatalf("exit=%d, stderr=%q", exit, stderr)
-	}
-	if !strings.Contains(stdout, `"signature"`) {
-		t.Errorf("bundle did not reach stdout, got %d bytes: %q", len(stdout), truncate(stdout, 200))
-	}
-	entries, err := os.ReadDir(dir)
-	if err != nil {
-		t.Fatalf("reading cwd: %v", err)
-	}
-	if len(entries) != 0 {
-		var names []string
-		for _, e := range entries {
-			names = append(names, e.Name())
-		}
-		t.Errorf("stdout mode must not write files, found: %v", names)
-	}
-}
-
-// TestCLI_ProofsGet_StdoutIsPipeable proves the point of the change: the
-// bytes on stdout are a proof `verify` reads from stdin and labels. A test
-// that only checked for a substring would not. Mutant killed: verify's
-// stdin read as empty (the run is malformed_json, exit 4).
-func TestCLI_ProofsGet_StdoutIsPipeable(t *testing.T) {
-	// A JSON-format download returns the proof object itself, so the
-	// fixture is the response body verbatim.
-	bundle, err := os.ReadFile(soundItem())
-	if err != nil {
-		t.Fatalf("reading fixture: %v", err)
-	}
-	url, _, stop := startProofServer(t, string(bundle))
-	defer stop()
-	withTempCWD(t)
-
-	stdout, stderr, exit := runCLI(t, "--base-url", url, "--api-key", "test-key",
-		"proofs", "get", "01HJHB01T8FYZ7YTR9P5N62K5B")
-	if exit != 0 {
-		t.Fatalf("download exit=%d, stderr=%q", exit, stderr)
-	}
-
-	// Feed exactly those bytes back to verify over stdin: the sound
-	// vector, under its test keyring, is supplied-keyring, exit 6.
-	out, errOut, code := verifyCLI(t, binaryPath, nil, strings.NewReader(stdout), append([]string{"-"}, underTest()...)...)
-	if code != 6 {
-		t.Errorf("piping download into verify: exit %d, want 6\n%s%s", code, out, errOut)
-	}
-}
-
-// TestCLI_ProofsGet_OutAndToFileConflict: the two file destinations are
-// mutually exclusive, and the error must name both rather than silently
-// letting one win.
-func TestCLI_ProofsGet_OutAndToFileConflict(t *testing.T) {
-	url, _, stop := startProofServer(t, testItemProofJSON)
-	defer stop()
-	dir := withTempCWD(t)
-
-	_, stderr, exit := runCLI(t, "--base-url", url, "--api-key", "test-key", "proofs", "get",
-		"-o", filepath.Join(dir, "x.json"), "--to-file", "01HJHB01T8FYZ7YTR9P5N62K5B")
-	if exit == 0 {
-		t.Fatal("--out with --to-file should fail")
-	}
-	for _, want := range []string{"--out", "--to-file"} {
-		if !strings.Contains(stderr, want) {
-			t.Errorf("error should name %s, got: %q", want, stderr)
-		}
-	}
-}
-
-// TestCLI_ProofsGet_ReceiptGoesToStderr keeps stdout usable when a file was
-// written: the card is a receipt for a human, not part of any pipeline.
-func TestCLI_ProofsGet_ReceiptGoesToStderr(t *testing.T) {
-	url, _, stop := startProofServer(t, testItemProofJSON)
-	defer stop()
-	withTempCWD(t)
-
-	stdout, stderr, exit := runCLI(t, "--base-url", url, "--api-key", "test-key",
-		"proofs", "get", "--to-file", "01HJHB01T8FYZ7YTR9P5N62K5B")
-	if exit != 0 {
-		t.Fatalf("exit=%d, stderr=%q", exit, stderr)
-	}
-	if !strings.Contains(stderr, "Proof Downloaded") {
-		t.Errorf("receipt card should be on stderr, got: %q", stderr)
-	}
-	if strings.Contains(stdout, "Proof Downloaded") {
-		t.Errorf("receipt card leaked into stdout: %q", stdout)
+	if n := len(requests()); n != 0 {
+		t.Errorf("%d requests sent, want none", n)
 	}
 }
 
 // --- --type resolution -------------------------------------------------
 
-// TestCLI_ProofsGet_ResolvesTypeForUUIDv7 pins the one place id-shape
-// dispatch cannot work: a ULID is unambiguously an item, but blocks,
-// beacons and entropy observations all use UUIDv7, so nothing client-side
-// can tell them apart. Rather than requiring --type, the CLI asks the
-// server, at the cost of one round trip.
-func TestCLI_ProofsGet_ResolvesTypeForUUIDv7(t *testing.T) {
-	var resolveCalls int
-	var proofBody string
+// resolvingServer answers /utilities/resolve-id with resolution and every
+// other request with servedBytes("full"), and records both.
+func resolvingServer(t *testing.T, resolution string) (string, func() int, func() []string) {
+	t.Helper()
+	var mu sync.Mutex
+	var resolves int
+	var proofs []string
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		body, _ := io.ReadAll(r.Body)
-		switch {
-		case strings.HasSuffix(r.URL.Path, "/utilities/resolve-id"):
-			resolveCalls++
-			// AshJsonApi generic routes take arguments under `data`; a flat
-			// body is refused. Assert we send the shape the server wants.
-			if !strings.Contains(string(body), `"data"`) {
-				t.Errorf("resolve-id body must wrap arguments in `data`, got %s", body)
-			}
-			_, _ = w.Write([]byte(`{"result":{"id_format":"uuidv7","matches":[
-			  {"kind":"block","proof_type":"block","verifiable":true}]}}`))
-		default:
-			proofBody = string(body)
-			_, _ = w.Write([]byte(`{"result":` + testBlockProofJSON + `}`))
+		mu.Lock()
+		defer mu.Unlock()
+		if strings.HasSuffix(r.URL.Path, "/utilities/resolve-id") {
+			resolves++
+			_, _ = w.Write([]byte(resolution))
+			return
 		}
+		proofs = append(proofs, r.URL.Path)
+		_, _ = w.Write(servedBytes("full"))
 	}))
-	defer srv.Close()
+	t.Cleanup(srv.Close)
+	return srv.URL,
+		func() int { mu.Lock(); defer mu.Unlock(); return resolves },
+		func() []string { mu.Lock(); defer mu.Unlock(); return slices.Clone(proofs) }
+}
 
-	stdout, stderr, exit := runCLI(t, "--base-url", srv.URL, "--api-key", "k",
-		"proofs", "get", "019db702-b08c-73dc-a7cd-2c5e011f1dad")
-	if exit != 0 {
-		t.Fatalf("exit=%d stderr=%q", exit, stderr)
+// A UUIDv7 with no --type is resolved against the server in one round
+// trip, and the resolved type is the one the raw GET asks for.
+func TestCLI_ProofsGet_ResolvesTypeForUUIDv7(t *testing.T) {
+	url, resolves, proofs := resolvingServer(t, `{"result":{"id_format":"uuidv7","matches":[
+	  {"kind":"block","proof_type":"block","verifiable":true}]}}`)
+	stdout, stderr, exit := runCLI(t, "--base-url", url, "--api-key", "k", "proofs", "get", testSubjectID)
+	if exit != 0 || stdout != string(servedBytes("full")) {
+		t.Fatalf("exit=%d stdout=%q stderr=%q", exit, stdout, stderr)
 	}
-	if resolveCalls != 1 {
-		t.Errorf("expected exactly one resolve-id call, got %d", resolveCalls)
-	}
-	if !strings.Contains(proofBody, `"block"`) {
-		t.Errorf("the resolved type should reach /proof/generate, got %s", proofBody)
-	}
-	if len(stdout) == 0 {
-		t.Error("the bundle should still reach stdout")
+	if resolves() != 1 || !slices.Equal(proofs(), []string{rawProofPrefix + "block/" + testSubjectID}) {
+		t.Errorf("%d resolve-id calls and the proof requests %v; want one, and the raw GET of the block", resolves(), proofs())
 	}
 }
 
-// TestCLI_ProofsGet_ExplicitTypeSkipsResolution: --type is one fewer round
-// trip and keeps an id-classification service out of the loop entirely.
+// --type is one fewer round trip and keeps an id-classification service
+// out of the loop entirely.
 func TestCLI_ProofsGet_ExplicitTypeSkipsResolution(t *testing.T) {
-	var resolveCalls int
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if strings.HasSuffix(r.URL.Path, "/utilities/resolve-id") {
-			resolveCalls++
-		}
-		_, _ = w.Write([]byte(`{"result":` + testBlockProofJSON + `}`))
-	}))
-	defer srv.Close()
-
-	_, _, exit := runCLI(t, "--base-url", srv.URL, "--api-key", "k",
-		"proofs", "get", "--type", "block", "019db702-b08c-73dc-a7cd-2c5e011f1dad")
-	if exit != 0 {
+	url, resolves, proofs := resolvingServer(t, `{"result":{"id_format":"uuidv7","matches":[]}}`)
+	if _, _, exit := runCLI(t, "--base-url", url, "--api-key", "k", "proofs", "get", "--type", "block", testSubjectID); exit != 0 {
 		t.Fatalf("exit=%d", exit)
 	}
-	if resolveCalls != 0 {
-		t.Errorf("an explicit --type must not trigger resolution, got %d calls", resolveCalls)
+	if resolves() != 0 || len(proofs()) != 1 {
+		t.Errorf("%d resolve-id calls and %d proof requests; want none and one", resolves(), len(proofs()))
 	}
 }
 
-// TestCLI_ProofsGet_AmbiguousResolutionRefuses: a subject verifiable as
-// more than one type must not be guessed at. Which one the caller meant
-// changes what the proof commits to, and a block signature does not verify
-// as a beacon signature.
-func TestCLI_ProofsGet_AmbiguousResolutionRefuses(t *testing.T) {
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		_, _ = w.Write([]byte(`{"result":{"id_format":"uuidv7","matches":[
-		  {"kind":"block","proof_type":"block"},
-		  {"kind":"beacon","proof_type":"beacon"}]}}`))
-	}))
-	defer srv.Close()
-
-	_, stderr, exit := runCLI(t, "--base-url", srv.URL, "--api-key", "k",
-		"proofs", "get", "019db702-b08c-73dc-a7cd-2c5e011f1dad")
-	if exit == 0 {
-		t.Fatal("an ambiguous id should be refused, not guessed")
-	}
-	if !strings.Contains(stderr, "--type") {
-		t.Errorf("the error should tell the caller to disambiguate, got %q", stderr)
-	}
-}
-
-// TestCLI_ProofsGet_UnresolvableIdSaysSo keeps the failure actionable: an
-// id the caller cannot see returns no match, and the message must point at
-// the escape hatch rather than just failing.
-func TestCLI_ProofsGet_UnresolvableIdSaysSo(t *testing.T) {
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		_, _ = w.Write([]byte(`{"result":{"id_format":"uuidv7","matches":[]}}`))
-	}))
-	defer srv.Close()
-
-	_, stderr, exit := runCLI(t, "--base-url", srv.URL, "--api-key", "k",
-		"proofs", "get", "019db702-b08c-73dc-a7cd-2c5e011f1dad")
-	if exit == 0 {
-		t.Fatal("an unresolvable id should fail")
-	}
-	if !strings.Contains(stderr, "--type") {
-		t.Errorf("the error should name the escape hatch, got %q", stderr)
-	}
-}
-
-// TestCLI_ProofsGet_ExplainsGenerateCodes.
-//
-// The status here is 400, not 422. These refusals are
-// Ash.Error.Changes.InvalidChanges, whose class :invalid maps to 400, and
-// the JSON:API `code` member is the generic "invalid" for all of them --
-// the Truestamp code is always in `meta.code`, which is what the parser
-// reads. The renderer does not branch on the status at all, so these
-// fixtures exist to model the wire shape truthfully rather than to drive
-// behaviour.
-//
-// The server can say what went wrong; it cannot say whether waiting will
-// help. That distinction is the whole difference between a caller polling
-// for five minutes and a caller polling forever, and it is what
-// `subject_not_recomputable` exists to make possible -- the condition it
-// names is permanent, where `no_external_commitments` clears on its own.
-func TestCLI_ProofsGet_ExplainsGenerateCodes(t *testing.T) {
-	for _, tc := range []struct {
-		name     string
-		status   int
-		meta     string
-		detail   string
-		wantAll  []string
-		wantNone []string
-	}{
-		{
-			name:   "subject_not_recomputable names what drifted and says it is permanent",
-			status: 400,
-			meta:   `"code":"subject_not_recomputable","drifted":"metadata"`,
-			detail: "The item's stored metadata no longer reproduces the hash committed at submission.",
-			wantAll: []string{
-				"subject_not_recomputable", "What drifted: metadata.",
-				"This will not clear on its own.",
-			},
-		},
-		{
-			// The verdict comes from meta.code, so it is unchanged when the
-			// server rewords `detail` -- which it has done once already.
-			// This case carries no permanence wording of its own.
-			name:   "the retry verdict survives a reworded detail",
-			status: 400,
-			meta:   `"code":"subject_not_recomputable","drifted":"claims and metadata"`,
-			detail: "Stored data no longer reproduces its committed hash.",
-			wantAll: []string{
-				"What drifted: claims and metadata.",
-				"This will not clear on its own.",
-			},
-		},
-		{
-			name:   "generation_failed surfaces the failing steps",
-			status: 400,
-			meta:   `"code":"generation_failed","failed_steps":"Inclusion proof INVALID (derived root does not match block merkle_root)"`,
-			detail: "Generated proof failed internal verification",
-			wantAll: []string{
-				"generation_failed",
-				"Failed checks: Inclusion proof INVALID (derived root does not match block merkle_root)",
-			},
-		},
-		{
-			// The server embeds the steps in detail as well; printing both
-			// reads as two separate failures.
-			name:    "generation_failed does not repeat steps already in the detail",
-			status:  400,
-			meta:    `"code":"generation_failed","failed_steps":"Inclusion proof INVALID"`,
-			detail:  "Generated proof failed internal verification: Inclusion proof INVALID",
-			wantAll: []string{"Inclusion proof INVALID"},
-			// "Failed checks:" would mean it was appended a second time.
-			wantNone: []string{"Failed checks:"},
-		},
-		{
-			// The server's retryable set is closed and has two members;
-			// this is the other one. Everything else is terminal by
-			// omission, so a code with no case must not claim retryability.
-			name:    "subject_not_ready is reported as transient",
-			status:  400,
-			meta:    `"code":"subject_not_ready"`,
-			detail:  "Subject is not yet ready for proof generation.",
-			wantAll: []string{"subject_not_ready", "Proof not available yet", "This clears on its own: try again shortly."},
-		},
-		{
-			// A code the CLI has no case for must render plainly: no
-			// invented retry advice, no invented permanence.
-			name:     "an unknown code gets no invented advice",
-			status:   400,
-			meta:     `"code":"some_future_code"`,
-			detail:   "Something the CLI has never seen.",
-			wantAll:  []string{"some_future_code", "Something the CLI has never seen."},
-			wantNone: []string{"clears on its own", "will not clear", "try again"},
-		},
-		{
-			name:    "no_external_commitments is reported as transient",
-			status:  400,
-			meta:    `"code":"no_external_commitments"`,
-			detail:  "Subject has not yet been committed to a public blockchain.",
-			wantAll: []string{"Proof not available yet", "This clears on its own: try again shortly."},
-		},
+// A subject verifiable as more than one type is not guessed at, and an id
+// with no match, or a resolution the server refuses, says how to state
+// the type; none of them asks for a proof.
+func TestCLI_ProofsGet_UnresolvedTypesAreRefused(t *testing.T) {
+	for name, resolution := range map[string]string{
+		"ambiguous": `{"result":{"id_format":"uuidv7","matches":[
+		  {"kind":"block","proof_type":"block"},{"kind":"beacon","proof_type":"beacon"}]}}`,
+		"no match": `{"result":{"id_format":"uuidv7","matches":[]}}`,
+		"refused":  `{"errors":[{"detail":"nope"}]}`,
 	} {
-		t.Run(tc.name, func(t *testing.T) {
-			srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-				w.Header().Set("Content-Type", "application/vnd.api+json")
-				w.WriteHeader(tc.status)
-				fmt.Fprintf(w, `{"errors":[{"code":"invalid","status":"%d","detail":%q,"meta":{%s}}]}`,
-					tc.status, tc.detail, tc.meta)
-			}))
-			defer srv.Close()
+		url, _, proofs := resolvingServer(t, resolution)
+		_, stderr, exit := runCLI(t, "--base-url", url, "--api-key", "k", "proofs", "get", testSubjectID)
+		if exit == 0 || !strings.Contains(stderr, "--type") || len(proofs()) != 0 {
+			t.Errorf("%s: exit %d, %d proof requests, stderr %q; want a refusal naming --type and no proof request", name, exit, len(proofs()), stderr)
+		}
+	}
+}
 
-			_, stderr, exit := runCLI(t, "--base-url", srv.URL, "--api-key", "k",
-				"proofs", "get", "--type", "item", "01KNN33GX5E470CB9TRWAYF9DD")
-			if exit == 0 {
-				t.Fatal("a refused generate must exit non-zero")
+// --- refusals ----------------------------------------------------------
+
+// Each refusal of the raw proof route is rendered from its meta.code alone,
+// line for line: a banner, the server's detail, the code's advice, whether
+// it clears on its own, and the code to quote. Retryable are
+// no_block_commitment, commitment_not_final, evidence_unconfirmed,
+// subject_not_ready, witness_unavailable, signing_unavailable and
+// lookup_failed; subject_redacted, proof_too_large and generation_failed
+// are not; a code the table does not hold gets no verdict and no advice.
+// The status is 400, as the server answers these. Mutants killed: any one
+// code's retryable flag flipped (its banner and verdict line change); any
+// one code dropped from the table (it gets no verdict); a code's advice
+// dropped or changed.
+func TestCLI_ProofsGet_ExplainsEachRefusal(t *testing.T) {
+	const (
+		transient = "This clears on its own: try again shortly."
+		terminal  = "This will not clear on its own."
+		waitFor   = "Proof not available yet"
+		never     = "Proof cannot be generated"
+	)
+	for _, tc := range []struct {
+		code, banner, verdict string
+		advice                []string
+	}{
+		{"no_block_commitment", waitFor, transient, []string{
+			"A proof exists once the subject's block is committed to a public chain.",
+			"Items reach a Truestamp block within about a minute and Stellar within",
+			"about five.",
+		}},
+		{"commitment_not_final", waitFor, transient, []string{"The block's commitment is on its chain and not final there yet."}},
+		{"evidence_unconfirmed", waitFor, transient, []string{
+			"Truestamp signs a proof only once its own chain reads confirm the",
+			"evidence the proof carries.",
+		}},
+		{"subject_not_ready", waitFor, transient, []string{"The subject is not yet in a state a proof can be built from."}},
+		{"witness_unavailable", waitFor, transient, []string{
+			"Truestamp never serves an item's proof without every witness its",
+			"fingerprint commits to.",
+		}},
+		{"signing_unavailable", waitFor, transient, nil},
+		{"lookup_failed", waitFor, transient, nil},
+		{"subject_redacted", never, terminal, []string{"Restoring the item makes its proof available again."}},
+		{"proof_too_large", never, terminal, []string{"Report the subject id to Truestamp."}},
+		{"generation_failed", never, terminal, nil},
+		{"some_future_code", "Proof request refused", "", nil},
+	} {
+		t.Run(tc.code, func(t *testing.T) {
+			detail := "The server's own words for " + tc.code + "."
+			url, _ := rawProofServer(t, func(_, _, _ string) (int, []byte) {
+				return http.StatusBadRequest, []byte(fmt.Sprintf(`{"errors":[{"code":"invalid","status":"400","detail":%q,"meta":{"code":%q}}]}`, detail, tc.code))
+			})
+			stdout, stderr, exit := runCLI(t, "--base-url", url, "--api-key", "k", "proofs", "get", "--type", "item", testItemULID)
+			if exit != 1 || stdout != "" {
+				t.Fatalf("exit %d, stdout %q; want exit 1 and nothing on stdout", exit, stdout)
 			}
-			for _, want := range tc.wantAll {
-				if !strings.Contains(stderr, want) {
-					t.Errorf("stderr missing %q\ngot: %s", want, stderr)
-				}
+			var got []string
+			for _, l := range strings.Split(strings.TrimRight(stderr, "\n"), "\n") {
+				got = append(got, strings.TrimSpace(l))
 			}
-			for _, none := range tc.wantNone {
-				if strings.Contains(stderr, none) {
-					t.Errorf("stderr should not contain %q\ngot: %s", none, stderr)
-				}
+			want := append([]string{tc.banner, detail}, tc.advice...)
+			if tc.verdict != "" {
+				want = append(want, tc.verdict)
+			}
+			want = append(want, "The server said "+tc.code+" (HTTP 400).")
+			if !slices.Equal(got, want) {
+				t.Errorf("stderr lines\n%q\nwant\n%q", got, want)
 			}
 		})
+	}
+}
+
+// A refusal that is not a generate refusal, here the subject type
+// mismatch, still surfaces the server's detail and its code.
+func TestCLI_ProofsGet_SubjectTypeMismatchError(t *testing.T) {
+	url, _ := rawProofServer(t, func(_, _, _ string) (int, []byte) {
+		return http.StatusBadRequest, []byte(`{"errors":[{"code":"invalid","detail":"Requested type entropy_nist but subject 019db702-b08c-73dc-a7cd-2c5e011f1dad has source entropy_stellar","meta":{"code":"subject_type_mismatch"}}]}`)
+	})
+	_ = withTempCWD(t)
+	_, stderr, exit := runCLI(t, "--base-url", url, "--api-key", "test-key", "proofs", "get", "--type", "entropy_nist", testSubjectID)
+	if exit == 0 || !strings.Contains(stderr, "Requested type entropy_nist") || !strings.Contains(stderr, "The server said subject_type_mismatch (HTTP 400).") {
+		t.Errorf("exit=%d stderr=%q", exit, stderr)
+	}
+}
+
+// A 200 with an empty body is not a proof: exit 1, nothing on stdout.
+// Mutant killed: FetchRawCtx without its empty-body check (exit 0).
+func TestCLI_ProofsGet_AnEmptyAnswerIsNoProof(t *testing.T) {
+	url, _ := rawProofServer(t, func(_, _, _ string) (int, []byte) { return http.StatusOK, nil })
+	stdout, stderr, exit := runCLI(t, "--base-url", url, "--api-key", "k", "proofs", "get", "--type", "block", testSubjectID)
+	if exit != 1 || stdout != "" || !strings.Contains(stderr, "the server answered with an empty proof") {
+		t.Errorf("exit %d, stdout %q, stderr %q", exit, stdout, stderr)
+	}
+}
+
+// A body over MAX_READ_OCTETS is no proof a verifier reads: exit 1,
+// nothing written. Mutant killed: FetchRawCtx without its size check
+// (exit 0 and the bytes on stdout).
+func TestCLI_ProofsGet_AnOversizedAnswerIsNoProof(t *testing.T) {
+	big := []byte(strings.Repeat(" ", 262_145))
+	url, _ := rawProofServer(t, func(_, _, _ string) (int, []byte) { return http.StatusOK, big })
+	stdout, stderr, exit := runCLI(t, "--base-url", url, "--api-key", "k", "proofs", "get", "--type", "block", testSubjectID)
+	if exit != 1 || stdout != "" || !strings.Contains(stderr, "the served proof is over 262144 octets") {
+		t.Errorf("exit %d, %d bytes on stdout, stderr %q", exit, len(stdout), stderr)
 	}
 }

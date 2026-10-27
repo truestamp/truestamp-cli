@@ -622,24 +622,6 @@ func TestHalfToFloat64(t *testing.T) {
 	}
 }
 
-func TestWitnessSelection(t *testing.T) {
-	all, err := ParseWitnessSelection("all")
-	if err != nil || !all.IsAll() || all.FilenameSuffix() != "" || all.String() != "all" {
-		t.Errorf("all: %+v %v", all, err)
-	}
-	none, err := ParseWitnessSelection("none")
-	if err != nil || !none.IsNone() || none.FilenameSuffix() != "-compact" || none.String() != "none" {
-		t.Errorf("none: %+v %v", none, err)
-	}
-	some, err := ParseWitnessSelection("block, entropy_nist,block")
-	if err != nil || some.IsAll() || some.IsNone() || some.FilenameSuffix() != "-partial" || some.String() != "block,entropy_nist" {
-		t.Errorf("subset: %+v %v", some, err)
-	}
-	if _, err := ParseWitnessSelection("block,nope"); err == nil || !strings.Contains(err.Error(), "nope") {
-		t.Errorf("unknown name accepted: %v", err)
-	}
-}
-
 func TestObjectHelpers(t *testing.T) {
 	o, ok := parseObject([]byte(`{"s":"x","n":5,"f":1.5,"nul":null,"o":{},"l":[1]}`))
 	if !ok {

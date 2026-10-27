@@ -27,13 +27,22 @@ import (
 // member's name: a string literal "constructions", or any expression whose
 // constant value is that string, so a key built by concatenation, in
 // parentheses or from a constant of any package of the module is seen. The
-// one exemption is internal/specdata/constructions.go's constant
+// exemptions are two. internal/specdata/constructions.go's constant
 // constructionsDir, the directory of the texts under spec/ (section 9), its
 // declaration and its one use, as an argument of the call of
 // acceptedDigests in mustAcceptedDigests, matched by the file, the
-// constant's name and that call. A name built at run time, from values
-// that are not constants, is out of the test's sight; planted files show
-// each shape it refuses.
+// constant's name and that call. And internal/proof/download.go's constant
+// ConstructionsParameter, the name of the raw proof route's query
+// parameter and of the `proofs get` flag that sets it, which name a
+// request's parameter and never the proof's member: its declaration in
+// that file, and each use of the constant itself, by its name, that is not
+// a read, a key or a part, in the three files that name the parameter or
+// the flag, download.go, cmd/proofs_get.go and cmd/schema.go, each with
+// its exact count. A use of the constant in any other file, a comparison,
+// a case or an accessor's argument as much as a read, is refused. A name
+// built at run time, from
+// values that are not constants, is out of the test's sight; planted files
+// show each shape it refuses.
 
 // constructionsMember is the member's name.
 const constructionsMember = "constructions"
@@ -47,6 +56,57 @@ const (
 	constructionsDirCallee = "acceptedDigests"
 )
 
+// The second exemption: the constant ConstructionsParameter of its file,
+// in internal/proof, and each use of it by name that is not a read, a key
+// or a part, in the files of constructionsParameterUses alone.
+const (
+	constructionsParameterFile = "internal/proof/download.go"
+	constructionsParameterName = "ConstructionsParameter"
+)
+
+// constructionsParameterUses is each file whose uses of
+// ConstructionsParameter by name are exempt, with the exact count of
+// them: download.go's declaration and its use as the query parameter,
+// cmd/proofs_get.go's two as the flag's name, where the flag is read and
+// where it is declared, and cmd/schema.go's one, the key of the flag's
+// values in shell completion.
+var constructionsParameterUses = map[string]int{
+	constructionsParameterFile: 2,
+	"cmd/proofs_get.go":        2,
+	"cmd/schema.go":            1,
+}
+
+// constructionsParameter is the object of the constant
+// ConstructionsParameter of internal/proof in m, or nil when m has no such
+// constant.
+func constructionsParameter(m *typedModule) types.Object {
+	pkg := m.packages[modulePath+"/internal/proof"]
+	if pkg == nil {
+		return nil
+	}
+	if object, ok := pkg.Scope().Lookup(constructionsParameterName).(*types.Const); ok {
+		return object
+	}
+	return nil
+}
+
+// refersTo reports whether e is object by its name: an identifier, a
+// package-qualified selector or either in parentheses.
+func refersTo(m *typedModule, e ast.Expr, object types.Object) bool {
+	if object == nil {
+		return false
+	}
+	switch x := e.(type) {
+	case *ast.Ident:
+		return m.info.Uses[x] == object
+	case *ast.SelectorExpr:
+		return m.info.Uses[x.Sel] == object
+	case *ast.ParenExpr:
+		return refersTo(m, x.X, object)
+	}
+	return false
+}
+
 // memberUses sorts the uses of the member's name in one file:
 //
 //   - reads: an index of a map, as proof["constructions"], each with the
@@ -57,9 +117,13 @@ const (
 //     part, as a failure's part Pointer{Name("constructions")};
 //   - exempt: the declaration of constructionsDir in its file, and its one
 //     use there, as an argument of acceptedDigests in mustAcceptedDigests;
+//     the declaration of ConstructionsParameter in its file, and each use
+//     of it by name that is none of the three above, in a file of
+//     constructionsParameterUses;
 //   - unclassified: any other place, such as a constant, a comparison, a
 //     case, or a Name given to valueAt, each a read this test cannot
-//     classify, and so refuses.
+//     classify, and so refuses, and every use of ConstructionsParameter
+//     by name in any other file.
 type memberUses struct {
 	reads                      []string
 	keys, parts, exempt, other int
@@ -98,6 +162,24 @@ func classifyMemberUses(m *typedModule, f moduleFile) memberUses {
 					if name.Name == constructionsDirName && i < len(value.Values) {
 						exempt[value.Values[i]] = true
 						dir = m.info.Defs[name]
+					}
+				}
+			}
+		}
+	}
+	parameter := constructionsParameter(m)
+	_, parameterFile := constructionsParameterUses[f.rel]
+	if f.rel == constructionsParameterFile && parameter != nil {
+		for _, decl := range f.file.Decls {
+			gen, ok := decl.(*ast.GenDecl)
+			if !ok || gen.Tok != token.CONST {
+				continue
+			}
+			for _, spec := range gen.Specs {
+				value := spec.(*ast.ValueSpec)
+				for i, name := range value.Names {
+					if m.info.Defs[name] == parameter && i < len(value.Values) {
+						exempt[value.Values[i]] = true
 					}
 				}
 			}
@@ -170,7 +252,7 @@ func classifyMemberUses(m *typedModule, f moduleFile) memberUses {
 		ident, isIdent := e.(*ast.Ident)
 		switch {
 		case classified[e]:
-		case exempt[e] || isIdent && use[ident]:
+		case exempt[e] || isIdent && use[ident] || parameterFile && refersTo(m, e, parameter):
 			uses.exempt++
 		default:
 			uses.other++
@@ -182,9 +264,13 @@ func classifyMemberUses(m *typedModule, f moduleFile) memberUses {
 
 // No non-test file of the module but internal/verifier/shape.go uses the
 // member's name, beside constructionsDir's exemption, whose declaration and
-// one use are both in place; and shape.go reads the member exactly once,
-// at check 6 (shapeConstructions), every other use there being a key of a
-// row's values or the part of a failure. Mutants killed: a second use of
+// one use are both in place, and ConstructionsParameter's, declared in its
+// file and used there once, as the query parameter, twice in
+// cmd/proofs_get.go, as the flag's name, and once in cmd/schema.go, as the
+// key of the flag's values; no other file has an exempt use, and each of
+// those files has exactly its count; and shape.go reads the member exactly
+// once, at check 6 (shapeConstructions), every other use there being a key
+// of a row's values or the part of a failure. Mutants killed: a second use of
 // constructionsDir in specdata (its file's uses are not the two); a
 // specdata use of constructionsDir outside mustAcceptedDigests's call (an
 // unclassified use); Policy reading the member (policy.go holds the
@@ -194,7 +280,13 @@ func classifyMemberUses(m *typedModule, f moduleFile) memberUses {
 // with Pointer{Name("constructions")} (an unclassified use); a read in
 // cmd/ or in internal/registry/ (the file holds the name); the walk held
 // to internal/verifier (it finds no internal/registry/walk.go or
-// cmd/verify.go, and those two reads pass).
+// cmd/verify.go, and those two reads pass); the flag named by a literal
+// in cmd/proofs_get.go (the file holds the name); a comparison, a case
+// and an accessor's argument through proof.ConstructionsParameter planted
+// in a file of internal/verifier (the file holds the name), and with the
+// exemption covering every file as well (the file has exempt uses); a
+// second use of ConstructionsParameter in cmd/schema.go (its count is not
+// one).
 func TestConstructions_ReadOnlyAtShape(t *testing.T) {
 	m := typedModuleOf(t)
 	byPath := map[string]moduleFile{}
@@ -202,7 +294,8 @@ func TestConstructions_ReadOnlyAtShape(t *testing.T) {
 		byPath[f.rel] = f
 	}
 	for _, rel := range []string{"internal/verifier/shape.go", "internal/verifier/policy.go", "internal/verifier/keyring/keyring.go",
-		"internal/registry/walk.go", constructionsDirFile, "internal/jcs/jcs.go", "cmd/verify.go", "cmd/truestamp/main.go"} {
+		"internal/registry/walk.go", constructionsDirFile, constructionsParameterFile, "internal/jcs/jcs.go", "cmd/verify.go",
+		"cmd/proofs_get.go", "cmd/schema.go", "cmd/truestamp/main.go"} {
 		if _, ok := byPath[rel]; !ok {
 			t.Fatalf("the walk found %d files, without %s", len(m.files), rel)
 		}
@@ -213,8 +306,12 @@ func TestConstructions_ReadOnlyAtShape(t *testing.T) {
 		if len(uses.reads)+uses.keys+uses.parts+uses.other > 0 {
 			holders = append(holders, f.rel)
 		}
-		if f.rel == constructionsDirFile && (uses.exempt != 2 || len(uses.reads)+uses.keys+uses.parts+uses.other > 0) {
-			t.Errorf("%s: %+v, want the declaration of %s and its one use alone", f.rel, uses, constructionsDirName)
+		exempt := constructionsParameterUses[f.rel]
+		if f.rel == constructionsDirFile {
+			exempt = 2
+		}
+		if uses.exempt != exempt || exempt > 0 && len(uses.reads)+uses.keys+uses.parts+uses.other > 0 {
+			t.Errorf("%s: %+v, want %d exempt uses and no other", f.rel, uses, exempt)
 		}
 	}
 	if !slices.Equal(holders, []string{"internal/verifier/shape.go"}) {
@@ -317,15 +414,75 @@ const member = "constructions"`}, map[string]memberUses{constructionsDirFile: {e
 const constructionsDir = "constructions"
 func open(dir string) {}
 func load() { open(constructionsDir) }`}, map[string]memberUses{"internal/registry/dir.go": {other: 2}}},
+	{"ConstructionsParameter and its uses by name in its three files", map[string]string{
+		constructionsParameterFile: `package proof
+const ConstructionsParameter = "constructions"
+func query(name string) {}
+func get() { query(ConstructionsParameter) }`,
+		"cmd/proofs_get.go": `package cmd
+` + proofImport + `
+func flag(name string) {}
+func a() { flag(proof.ConstructionsParameter); flag((proof.ConstructionsParameter)) }`,
+		"cmd/schema.go": `package cmd
+` + proofImport + `
+type values map[string][]string
+var completion = values{proof.ConstructionsParameter: nil}`,
+	}, map[string]memberUses{constructionsParameterFile: {exempt: 2}, "cmd/proofs_get.go": {exempt: 2}, "cmd/schema.go": {exempt: 1}}},
+	{"reads through ConstructionsParameter in a third file", map[string]string{
+		constructionsParameterFile: `package proof
+const ConstructionsParameter = "constructions"`,
+		"internal/verifier/read.go": `package verifier
+` + proofImport + `
+type object map[string]any
+func (o object) value(name string) any { return o[name] }
+func a(doc object) any {
+	for k, v := range doc {
+		if k == proof.ConstructionsParameter {
+			return v
+		}
+		switch k {
+		case proof.ConstructionsParameter:
+			return v
+		}
+	}
+	return doc.value(proof.ConstructionsParameter)
+}`,
+	}, map[string]memberUses{constructionsParameterFile: {exempt: 1}, "internal/verifier/read.go": {other: 3}}},
+	{"a read, a key and a part through ConstructionsParameter", map[string]string{
+		constructionsParameterFile: `package proof
+const ConstructionsParameter = "constructions"`,
+		"internal/p/p.go": `package p
+` + proofImport + `
+func a(doc map[string]any) { _ = doc[proof.ConstructionsParameter] }
+var b = map[string]any{proof.ConstructionsParameter: 1}
+var c = f{part: Pointer{Name(proof.ConstructionsParameter)}}`,
+	}, map[string]memberUses{constructionsParameterFile: {exempt: 1}, "internal/p/p.go": {reads: []string{"a"}, keys: 1, parts: 1}}},
+	{"another constant in ConstructionsParameter's file", map[string]string{constructionsParameterFile: `package proof
+const ConstructionsParameter = "constructions"
+const member = "construct" + "ions"`}, map[string]memberUses{constructionsParameterFile: {exempt: 1, other: 1}}},
+	{"a ConstructionsParameter in another package", map[string]string{
+		constructionsParameterFile: `package proof
+const ConstructionsParameter = "constructions"`,
+		"internal/registry/parameter.go": `package registry
+const ConstructionsParameter = "constructions"
+func flag(name string) {}
+func a() { flag(ConstructionsParameter) }`,
+	}, map[string]memberUses{constructionsParameterFile: {exempt: 1}, "internal/registry/parameter.go": {other: 2}}},
 }
+
+// proofImport is the import of internal/proof, for the planted files.
+const proofImport = `import "` + modulePath + `/internal/proof"`
 
 // The classifier sorts each planted shape: shape.go's three shapes, a
 // read in each of two functions, five reads it cannot classify, and a key
 // built by concatenation, in parentheses or from a constant of its file or
 // of another package, each a read, even in a function declared twice;
 // constructionsDir's declaration and its one use, as acceptedDigests's
-// argument in mustAcceptedDigests, alone are exempt, never as a key; and a
-// string that only holds the word is no use of the member.
+// argument in mustAcceptedDigests, alone are exempt, never as a key;
+// ConstructionsParameter's declaration and its uses by name are exempt in
+// its three files alone, and a comparison, a case and an accessor's
+// argument through it in a third file are each unclassified; and a string
+// that only holds the word is no use of the member.
 // Mutants killed: classifyMemberUses counting a Name argument as a part
 // whatever field it is given to (the planted at passes); the walk counting
 // only index reads (the constant passes); isMemberName reading string
@@ -336,7 +493,12 @@ func load() { open(constructionsDir) }`}, map[string]memberUses{"internal/regist
 // a key (the read through constructionsDir passes) or covering every use in
 // its file (Member's, load's and other's pass, and mustAcceptedDigests's
 // open); a use counted again inside a concatenation (member's literals
-// count).
+// count); ConstructionsParameter's exemption matched by the constant's name
+// alone (the registry's ConstructionsParameter passes), by its file alone
+// (its file's member passes), covering a read, a key or a part (those
+// through it pass) or blind to a use in parentheses (that use counts), or
+// covering every file (the third file's comparison, case and accessor's
+// argument are exempt).
 func TestConstructions_TheClassifierSortsEachPlantedShape(t *testing.T) {
 	for _, c := range constructionsPlanted {
 		m := typedSources(t, c.sources)

@@ -741,21 +741,17 @@ item.
 
 ```sh
 # Written to the conventional filename in the cwd,
-# truestamp-item-<ulid>.json
+# <CODE>.proof.json, CODE the item's item code
 truestamp proofs get 01KNN33GX5E470CB9TRWAYF9DD --to-file
 
 # Same, with the type stated rather than inferred (identical behaviour)
 truestamp proofs get --type item --to-file 01KNN33GX5E470CB9TRWAYF9DD
 
-# The compact and a partial variant (-compact / -partial filename suffixes)
-truestamp proofs get --witnesses none --to-file 01KNN33GX5E470CB9TRWAYF9DD
-truestamp proofs get --witnesses block,entropy_nist --to-file 01KNN33GX5E470CB9TRWAYF9DD
+# The constructions text by reference rather than in full; the same file name
+truestamp proofs get --constructions reference --to-file 01KNN33GX5E470CB9TRWAYF9DD
 
 # Override the auto-generated filename
 truestamp proofs get 01KNN33GX5E470CB9TRWAYF9DD -o contract.proof.json
-
-# CBOR: smaller, deterministic, ideal for embedding in another file
-truestamp proofs get 01KNN33GX5E470CB9TRWAYF9DD -f cbor -o contract.proof.cbor
 ```
 
 **Block, beacon and entropy proofs.** Blocks and beacons share one
@@ -768,51 +764,27 @@ have different signatures. The bundle's own `type` says which one you got.
 truestamp proofs get --type block 01a06cfc-c5b6-77d5-a9c6-4ed42fef6429 --to-file
 #   Proof Downloaded
 #
-#        File  truestamp-block-01a06cfc-c5b6-77d5-a9c6-4ed42fef6429.json
-#      Format  JSON (5,304 bytes)
-#          ID  01a06cfc-c5b6-77d5-a9c6-4ed42fef6429
-#        Type  block
-#   Witnesses  all
-#     Details  https://.../blocks/01a06cfc-c5b6-77d5-a9c6-4ed42fef6429
-#      Verify  https://.../verify/block/01a06cfc-c5b6-77d5-a9c6-4ed42fef6429
+#            File  01a06cfc-c5b6-77d5-a9c6-4ed42fef6429.proof.json
+#            Size  ... bytes
+#              ID  01a06cfc-c5b6-77d5-a9c6-4ed42fef6429
+#            Type  block
+#   Constructions  full
+#         Details  https://.../blocks/01a06cfc-c5b6-77d5-a9c6-4ed42fef6429
+#          Verify  https://.../verify/block/01a06cfc-c5b6-77d5-a9c6-4ed42fef6429
 
-# Beacon proof for the same block
-truestamp proofs get --type beacon 01a06cfc-c5b6-77d5-a9c6-4ed42fef6429 --to-file
-#        File  truestamp-beacon-01a06cfc-c5b6-77d5-a9c6-4ed42fef6429.json
-#      Format  JSON (5,305 bytes)
-#          ID  01a06cfc-c5b6-77d5-a9c6-4ed42fef6429
-#        Type  beacon
-#   ...
-
-# Same subject, CBOR: the extension follows --format
-truestamp proofs get --type beacon -f cbor 01a06cfc-c5b6-77d5-a9c6-4ed42fef6429 --to-file
-#        File  truestamp-beacon-01a06cfc-c5b6-77d5-a9c6-4ed42fef6429.cbor
-#      Format  CBOR (4,031 bytes)
-#   ...
-
-# --witnesses applies to the filename for every type; a block-like bundle
-# has only the signing key event to drop, which takes it from 5,304 bytes
-# down to 2,656
-truestamp proofs get --type block --witnesses none 01a06cfc-c5b6-77d5-a9c6-4ed42fef6429 --to-file
-#        File  truestamp-block-01a06cfc-c5b6-77d5-a9c6-4ed42fef6429-compact.json
-#      Format  JSON (2,656 bytes)
-#          ID  01a06cfc-c5b6-77d5-a9c6-4ed42fef6429
-#        Type  block
-#   Witnesses  none
-#   ...
-
-truestamp proofs get --type block --witnesses block,entropy_nist 01a06cfc-c5b6-77d5-a9c6-4ed42fef6429 --to-file
-#        File  truestamp-block-01a06cfc-c5b6-77d5-a9c6-4ed42fef6429-partial.json
-#      Format  JSON (2,656 bytes)
-#          ID  01a06cfc-c5b6-77d5-a9c6-4ed42fef6429
-#        Type  block
-#   Witnesses  block,entropy_nist
+# Beacon proof for the same block: the same file name, so name one with -o
+# when you keep both
+truestamp proofs get --type beacon 01a06cfc-c5b6-77d5-a9c6-4ed42fef6429 -o beacon.proof.json
+#            File  beacon.proof.json
+#            Size  ... bytes
+#              ID  01a06cfc-c5b6-77d5-a9c6-4ed42fef6429
+#            Type  beacon
 #   ...
 
 # -o names the path yourself
 truestamp proofs get --type block 01a06cfc-c5b6-77d5-a9c6-4ed42fef6429 -o block.proof.json
-#        File  block.proof.json
-#      Format  JSON (5,304 bytes)
+#            File  block.proof.json
+#            Size  ... bytes
 #   ...
 
 # Bare UUIDv7: one extra round trip resolves it, then the proof is fetched.
@@ -831,7 +803,7 @@ truestamp proofs get 01a06cfc-c5b6-77d5-a9c6-4ed42fef6429 | truestamp verify --o
 # Entropy proofs take the UUIDv7 id of an entropy observation. The id below
 # is illustrative only — no CLI command lists observation ids, so substitute
 # one you already hold. Under --to-file each subtype writes
-# truestamp-entropy-<subtype>-<uuidv7>.json.
+# <uuidv7>.proof.json.
 truestamp proofs get --type entropy_stellar 019cf813-99b8-730a-84f1-5a711a9c355e
 truestamp proofs get --type entropy_nist    019cf813-99b8-730a-84f1-5a711a9c355e
 truestamp proofs get --type entropy_bitcoin 019cf813-99b8-730a-84f1-5a711a9c355e
@@ -2346,13 +2318,11 @@ truestamp schema list
 #        commands  The full command tree: every path, flag, type, default and enum
 #      exit-codes  What each process exit status means
 #   subject-types  The frozen proof subject type registry (name to wire code)
-#       witnesses  Witness names accepted by `--witnesses`, and which are committed
 
 truestamp schema get commands --json | jq -r '.subcommands[].path'
 truestamp schema get algorithms --json | jq -r '.algorithms[].name'
 truestamp schema get subject-types
 truestamp schema get exit-codes
-truestamp schema get witnesses
 ```
 
 `schema get commands --json` is the one call that answers "what can this

@@ -9,8 +9,8 @@ import (
 )
 
 // JSONReport is the machine-readable form `inspect --json` writes for a
-// rejection of the earlier bundle parser: its field names are the
-// server's (/proof/verify), plus `verifier` naming this implementation and
+// rejection of the earlier bundle parser: the field names of that
+// parser's report, plus `verifier` naming this implementation and
 // `rejection` for the rejection.
 type JSONReport struct {
 	Verifier Verifier `json:"verifier"`
@@ -47,9 +47,6 @@ type JSONReport struct {
 	ProofVersion    int    `json:"proof_version"`
 	SkippedExternal bool   `json:"skipped_external"`
 	GeneratedAt     string `json:"generated_at,omitempty"`
-
-	// Remote is true when the steps were reported by the Truestamp server.
-	Remote bool `json:"remote,omitempty"`
 }
 
 // Verifier names the implementation that produced a report.

@@ -200,18 +200,14 @@ truestamp proofs get 01KNN33GX5E470CB9TRWAYF9DD > proof.json
 Or name a path with `-o` / `--out`, or let `--to-file` pick the conventional name in the current directory. The two are mutually exclusive, and the receipt card is written to stderr so stdout stays pipeable:
 
 ```sh
-truestamp proofs get -f cbor -o proof.cbor 01KNN33GX5E470CB9TRWAYF9DD
 truestamp proofs get -o /tmp/proof.json 01KNN33GX5E470CB9TRWAYF9DD
-truestamp proofs get --to-file 01KNN33GX5E470CB9TRWAYF9DD          # truestamp-item-<id>.json
+truestamp proofs get --to-file 01KNN33GX5E470CB9TRWAYF9DD          # <CODE>.proof.json
 ```
 
-Writing CBOR to a terminal is refused rather than garbling the session; redirect it, or pass `-o` or `--to-file`.
-
-Choose which witness details the bundle carries. The default is the **complete** bundle (every witness the item's metadata commits to: the head block and the entropy observations captured at submission); `--witnesses none` is the **compact** bundle (the committed hashes stay in the subject metadata, the details are left out); a list selects a subset. All three verify; the compact one just cannot establish the submitted-after edge on its own.
+Choose how the proof carries the constructions text (SPEC.md section 7.2): `full`, the default, carries the text itself, `reference` its URL, which names its SHA-256, and `none` neither. Each mode is its own signed document, the verdict never depends on it, and `--to-file` names them alike.
 
 ```sh
-truestamp proofs get --witnesses none --to-file 01KNN33GX5E470CB9TRWAYF9DD            # truestamp-item-<id>-compact.json
-truestamp proofs get --witnesses block,entropy_nist --to-file 01KNN33GX5E470CB9TRWAYF9DD   # truestamp-item-<id>-partial.json
+truestamp proofs get --constructions reference --to-file 01KNN33GX5E470CB9TRWAYF9DD   # <CODE>.proof.json
 ```
 
 Every other subject type uses a UUIDv7, and entropy observations, blocks and beacons are indistinguishable by id shape, so `--type` cannot be inferred from a UUIDv7's shape. Omitting it costs one extra round trip: the CLI asks the server what the id refers to. Passing `--type` skips that call, and is required when an id is verifiable as more than one subject type (a block is also verifiable as a beacon):
@@ -222,7 +218,7 @@ truestamp proofs get --type block  019db7cd-efc0-7196-b763-682a84d71919
 truestamp proofs get --type beacon 019db7cd-efc0-7196-b763-682a84d71919
 ```
 
-Valid `--type` values are exactly `item | entropy_nist | entropy_stellar | entropy_bitcoin | block | beacon`. There is no `auto` and no bare `entropy`, and the hyphenated spellings (`entropy-nist`) are rejected: flag values use underscores. Generated filenames go the other way and use hyphens, so `--type entropy_nist --to-file` writes `truestamp-entropy-nist-<id>.json`. The `type` inside the file is authoritative; the filename never is.
+Valid `--type` values are exactly `item | entropy_nist | entropy_stellar | entropy_bitcoin | block | beacon`. There is no `auto` and no bare `entropy`, and the hyphenated spellings (`entropy-nist`) are rejected: flag values use underscores. `--to-file` names an item's proof `<CODE>.proof.json`, by its item code, and every other subject's `<id>.proof.json`. The `type` inside the file is authoritative; the filename never is.
 
 The id shape is checked before any network call: `--type item` requires a ULID, and every other type requires a UUIDv7.
 

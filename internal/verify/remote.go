@@ -9,225 +9,154 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
-	"strings"
+	"net/url"
+	"slices"
+	"time"
 
 	"github.com/truestamp/truestamp-cli/internal/auth"
 	"github.com/truestamp/truestamp-cli/internal/httpclient"
 	"github.com/truestamp/truestamp-cli/internal/jsonapi"
-	"github.com/truestamp/truestamp-cli/internal/proof"
+	"github.com/truestamp/truestamp-cli/internal/verifier"
 )
 
-// RemoteOptions holds configuration for server-side verification. The
-// credential is applied by the process-wide [auth.Authorizer]; only the
-// tenant scoping is carried here.
+// RemoteOptions configures one request for the Truestamp service's
+// verdict. The credential is applied by the process-wide auth.Authorizer;
+// only the tenant scoping is carried here.
 //
 // The service's verifier is no part of this CLI's own verification, which
 // never depends on it; --remote is an explicit "ask Truestamp too".
 type RemoteOptions struct {
-	APIURL       string
-	Team         string // team ID, sent as the tenant header
-	ExpectedHash string
-	SkipExternal bool
+	APIURL string
+	// Team is the team ID, sent as the tenant header.
+	Team string
+	// Offline asks for a run that reads nothing, `offline=true`.
+	Offline bool
+	// ExpectedHash, when not nil, is sent exactly as given as
+	// `expected_hash`, the caller's hash for EXPECTED_HASH.
+	ExpectedHash *string
+	// HTTPTimeout is the configured http_timeout. The request waits for
+	// the larger of it and remoteFloor.
+	HTTPTimeout time.Duration
 }
 
-// apiEnvelope wraps the top-level API response.
-type apiEnvelope struct {
-	Result *apiResult `json:"result"`
-	Errors []apiError `json:"errors"`
+// remoteFloor is the least time the request waits for the service's
+// answer: the 60 seconds the service gives an online run, and a margin
+// for the transfer. A variable so this package's tests can shorten it.
+var remoteFloor = 75 * time.Second
+
+// proofMediaType is the media type SPEC.md section 3.1 (The envelope)
+// gives a served proof.
+const proofMediaType = "application/vnd.truestamp.proof+json"
+
+// remoteLabels are the labels of SPEC.md section 10.5 (Verdict and report),
+// the only verdicts a report of the service can give.
+var remoteLabels = []string{
+	verifier.LabelVerified, verifier.LabelInternallyConsistent, verifier.LabelSuppliedKeyring,
+	verifier.LabelUnattributed, verifier.LabelFailed,
 }
 
-// apiResult is the part of the server's verification result this CLI
-// reads, in the server's field names: its verdict, its steps, and the
-// expected hash it echoes with whether it matched.
-type apiResult struct {
-	Passed       bool    `json:"passed"`
-	Steps        []Step  `json:"steps"`
-	HashProvided *string `json:"hash_provided"`
-	HashMatched  bool    `json:"hash_matched"`
-}
-
-// apiError represents an error from the JSON:API response.
-type apiError struct {
-	Status string `json:"status"`
-	Code   string `json:"code"`
-	Title  string `json:"title"`
-	Detail string `json:"detail"`
-	Meta   struct {
-		Code   string `json:"code"`
-		Reason string `json:"reason"`
-	} `json:"meta"`
-}
-
-// RunRemoteBytesCtx sends the proof in data to the Truestamp API for
-// server-side verification and returns the service's verdict, with this
-// CLI's own expected-hash comparison beside it.
-func RunRemoteBytesCtx(ctx context.Context, data []byte, opts RemoteOptions) (*Report, error) {
-	// One parse by the earlier bundle parser, so a bundle it refuses is
-	// never posted.
-	bundle, err := proof.ParseBytes(data)
+// AskRemoteCtx asks the Truestamp service to verify the proof file whose
+// bytes are data, and returns the label of the report it answers with. It
+// posts data exactly as given, never parsed or re-encoded, as the body of
+//
+//	POST {APIURL}/proof/raw/verify[?offline=true][&expected_hash=...]
+//
+// whose 200 is the service's report of SPEC.md section 10.5 (Verdict and
+// report). Only a 200 whose report carries one of that section's labels is
+// a verdict. Any other answer is an error: a 429 the [*jsonapi.APIError]
+// of the rate limit, a refusal naming a `meta.code` a
+// [*RemoteRejectionError], and every other status an error naming the
+// status and the body. The request, its one retry of a rate limit
+// included, waits for the larger of opts.HTTPTimeout and 75 seconds, and
+// no answer within that is an error.
+func AskRemoteCtx(ctx context.Context, data []byte, opts RemoteOptions) (string, error) {
+	ctx, cancel := httpclient.WithBound(ctx, max(opts.HTTPTimeout, remoteFloor))
+	defer cancel()
+	query := url.Values{}
+	if opts.Offline {
+		query.Set("offline", "true")
+	}
+	if opts.ExpectedHash != nil {
+		query.Set("expected_hash", *opts.ExpectedHash)
+	}
+	target := opts.APIURL + "/proof/raw/verify"
+	if len(query) > 0 {
+		target += "?" + query.Encode()
+	}
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, target, bytes.NewReader(data))
 	if err != nil {
-		return nil, err
+		return "", fmt.Errorf("creating request: %w", err)
 	}
-
-	// The server takes JSON; a CBOR input is posted as its JSON conversion.
-	jsonData, err := bundle.MarshalJSON()
-	if err != nil {
-		return nil, err
-	}
-
-	dataFields := map[string]any{
-		"proof":         json.RawMessage(jsonData),
-		"skip_external": opts.SkipExternal,
-	}
-	if opts.ExpectedHash != "" {
-		dataFields["expected_hash"] = opts.ExpectedHash
-	}
-	bodyBytes, err := json.Marshal(map[string]any{"data": dataFields})
-	if err != nil {
-		return nil, fmt.Errorf("encoding request body: %w", err)
-	}
-
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, opts.APIURL+"/proof/verify", bytes.NewReader(bodyBytes))
-	if err != nil {
-		return nil, fmt.Errorf("creating request: %w", err)
-	}
-	req.Header.Set("Content-Type", "application/vnd.api+json")
-	req.Header.Set("Accept", "application/vnd.api+json")
+	req.Header.Set("Content-Type", proofMediaType)
+	req.Header.Set("Accept", "application/json, application/vnd.api+json")
 	if err := auth.AuthorizeRequest(ctx, req); err != nil {
-		return nil, err
+		return "", err
 	}
 	if opts.Team != "" {
 		req.Header.Set("tenant", opts.Team)
 	}
 
-	// jsonapi.Send carries the one retry of a rate-limited request; the
-	// request itself is built here rather than by jsonapi.DoRaw so the
-	// credential handling of this path stays exactly as it was.
-	resp, respBody, err := jsonapi.Send(req)
+	// jsonapi.Send carries the one retry of a rate-limited request.
+	resp, body, err := jsonapi.Send(req)
 	if err != nil {
-		return nil, fmt.Errorf("API request failed: %w", err)
+		return "", fmt.Errorf("API request failed: %w", err)
 	}
 	if resp.StatusCode == http.StatusTooManyRequests {
-		return nil, jsonapi.ErrorFromResponse(resp, respBody)
+		return "", jsonapi.ErrorFromResponse(resp, body)
 	}
-	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return nil, parseAPIError(resp.StatusCode, respBody)
+	if resp.StatusCode != http.StatusOK {
+		return "", parseAPIError(resp.StatusCode, body)
 	}
-
-	var envelope apiEnvelope
-	if err := json.Unmarshal(respBody, &envelope); err != nil {
-		return nil, fmt.Errorf("parsing API response: %w", err)
+	var report struct {
+		Label *string `json:"label"`
 	}
-	if envelope.Result == nil {
-		return nil, fmt.Errorf("API response missing 'result' field")
+	if err := json.Unmarshal(body, &report); err != nil {
+		return "", fmt.Errorf("the service's answer is not a report: %w", err)
 	}
-
-	report := &Report{
-		Steps:        envelope.Result.Steps,
-		ExpectedHash: strings.ToLower(strings.TrimSpace(opts.ExpectedHash)),
+	if report.Label == nil {
+		return "", fmt.Errorf("the service's report carries no label")
 	}
-
-	// The expected-hash comparison is made by this process, on the bundle
-	// it just parsed.
-	applyExpectedHash(report, bundle, envelope.Result)
-
-	// Reconcile the server's own top-level verdict with the step list it
-	// sent alongside it.
-	applyServerVerdict(report, envelope.Result)
-	return report, nil
+	if !slices.Contains(remoteLabels, *report.Label) {
+		return "", fmt.Errorf("the service's report carries the label %q, which SPEC.md section 10.5 does not define", truncateToken(*report.Label))
+	}
+	return *report.Label, nil
 }
 
-// applyExpectedHash makes the expected-hash comparison locally, on the
-// caller's expected hash and the subject.claims.hash of the bundle this
-// process parsed and posted. The
-// answer to "is my local file the timestamped one" is computed here rather
-// than taken on trust, and a server row that disagrees with it fails the
-// run rather than being averaged away.
-func applyExpectedHash(r *Report, bundle *proof.Bundle, result *apiResult) {
-	if r.ExpectedHash == "" {
-		return
-	}
-	local := Report{ExpectedHash: r.ExpectedHash}
-	stepExpectedHash(&local, bundle)
-	if len(local.Steps) == 0 {
-		return
-	}
-	mine := local.Steps[0]
-
-	agrees, serverClaimsMatch := false, false
-	for _, s := range r.Steps {
-		if s.Group != groupHashComparison {
-			continue
-		}
-		agrees = agrees || s.Status == mine.Status
-		serverClaimsMatch = serverClaimsMatch || s.Status == StatusPass
-	}
-	if !agrees {
-		r.Steps = append(r.Steps, mine)
-	}
-
-	echoed := result.HashProvided != nil && *result.HashProvided != ""
-	serverClaimsMatch = serverClaimsMatch || (echoed && result.HashMatched)
-	switch {
-	case serverClaimsMatch && mine.Status != StatusPass:
-		r.fail(groupHashComparison, CatDataIntegrity, fmt.Sprintf(
-			"Expected-hash disagreement: the server reports the supplied hash as matching, this verifier's own comparison against the posted bundle reports %s", mine.Status))
-	case echoed && mine.Status == StatusPass && !result.HashMatched:
-		r.fail(groupHashComparison, CatDataIntegrity,
-			"Expected-hash disagreement: the server reports the supplied hash as NOT matching, this verifier's own comparison against the posted bundle reports pass")
-	}
-}
-
-// applyServerVerdict reconciles the server's top-level `passed` field with
-// the step list it sent. [Report.Passed] reads step statuses, so the
-// server's own verdict is given a step of its own rather than bypassing
-// it: a response reporting passed:false with no failing step, or no steps
-// at all, must not read as passed.
-func applyServerVerdict(r *Report, result *apiResult) {
-	if len(result.Steps) == 0 {
-		r.fail(groupServerVerdict, CatStructural,
-			"Server returned no verification steps: this run establishes nothing about the proof")
-		return
-	}
-	serverFailed := false
-	for _, s := range result.Steps {
-		if s.Status == StatusFail {
-			serverFailed = true
-			break
-		}
-	}
-	if !result.Passed && !serverFailed {
-		r.fail(groupServerVerdict, CatStructural,
-			"Server reported the proof as NOT verified (passed: false) but sent no failing step: the reported outcome and the reported steps disagree")
-	}
-}
-
-// RemoteRejectionError is a structured rejection returned by /proof/verify
-// (HTTP 400 with meta.code invalid_proof), carrying the service's reason
-// in Reason.
+// RemoteRejectionError is the service's refusal of a request: an error
+// whose `meta.code` names why, such as a proof file it refuses before any
+// check. Code is that code and Detail the error's detail.
 type RemoteRejectionError struct {
 	StatusCode int
-	Reason     string
+	Code       string
 	Detail     string
 }
 
 func (e *RemoteRejectionError) Error() string {
-	return fmt.Sprintf("the server rejected the proof (HTTP %d): %s: %s", e.StatusCode, e.Reason, e.Detail)
+	return fmt.Sprintf("the service refused the request (HTTP %d): %s", e.StatusCode, e.Detail)
 }
 
 // parseAPIError extracts a meaningful error from the API response body.
 func parseAPIError(statusCode int, body []byte) error {
-	var envelope apiEnvelope
+	var envelope struct {
+		Errors []struct {
+			Title  string `json:"title"`
+			Detail string `json:"detail"`
+			Meta   struct {
+				Code string `json:"code"`
+			} `json:"meta"`
+		} `json:"errors"`
+	}
 	if err := json.Unmarshal(body, &envelope); err == nil && len(envelope.Errors) > 0 {
 		first := envelope.Errors[0]
-		if first.Meta.Code == "invalid_proof" && first.Meta.Reason != "" {
-			return &RemoteRejectionError{StatusCode: statusCode, Reason: first.Meta.Reason, Detail: first.Detail}
+		detail := first.Detail
+		if detail == "" {
+			detail = first.Title
 		}
-		if first.Detail != "" {
-			return fmt.Errorf("API error (HTTP %d): %s", statusCode, first.Detail)
+		if first.Meta.Code != "" && detail != "" {
+			return &RemoteRejectionError{StatusCode: statusCode, Code: first.Meta.Code, Detail: httpclient.Truncate(detail, 200)}
 		}
-		if first.Title != "" {
-			return fmt.Errorf("API error (HTTP %d): %s", statusCode, first.Title)
+		if detail != "" {
+			return fmt.Errorf("API error (HTTP %d): %s", statusCode, httpclient.Truncate(detail, 200))
 		}
 	}
 	bodyStr := string(body)
@@ -235,4 +164,14 @@ func parseAPIError(statusCode int, body []byte) error {
 		return fmt.Errorf("API error (HTTP %d): server returned HTML error page", statusCode)
 	}
 	return fmt.Errorf("API error (HTTP %d): %s", statusCode, httpclient.Truncate(bodyStr, 200))
+}
+
+// truncateToken bounds an echoed wire token so a hostile or broken server
+// cannot inject an unbounded string into a message.
+func truncateToken(s string) string {
+	const max = 40
+	if len(s) <= max {
+		return s
+	}
+	return s[:max] + "..."
 }

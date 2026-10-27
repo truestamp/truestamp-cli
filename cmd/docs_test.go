@@ -360,9 +360,7 @@ func TestDocs_NoRetiredNames(t *testing.T) {
 		"TRUESTAMP_VERIFY_SILENT":        "--silent is CLI-wide; the env var is TRUESTAMP_SILENT",
 		"TRUESTAMP_VERIFY_JSON":          "--json is CLI-wide; the env var is TRUESTAMP_JSON",
 		"TRUESTAMP_VERIFY_SKIP_EXTERNAL": "renamed to TRUESTAMP_VERIFY_OFFLINE",
-		// Only the config-key spelling. A bare `skip_external` is also the
-		// server's own wire field on POST /proof/verify, which is correct
-		// and must keep its name.
+		// Only the config key's spelling: the key is verify.offline.
 		"verify.skip_external": "the config key is verify.offline",
 		"--skip-external":      "removed; the flag is --offline",
 		// The Ed25519 signature check has no switch that skips it.

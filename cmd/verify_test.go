@@ -9,20 +9,25 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"maps"
 	"net/http"
 	"net/http/httptest"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"reflect"
 	"slices"
 	"strings"
 	"sync/atomic"
 	"testing"
+	"time"
 
+	"github.com/truestamp/truestamp-cli/internal/config"
 	"github.com/truestamp/truestamp-cli/internal/strictjson"
 	"github.com/truestamp/truestamp-cli/internal/testfixtures"
 	"github.com/truestamp/truestamp-cli/internal/vectorcases"
 	"github.com/truestamp/truestamp-cli/internal/verifier"
+	"github.com/truestamp/truestamp-cli/internal/verify"
 )
 
 // These tests build the actual binary and run it as a subprocess to verify
@@ -811,41 +816,193 @@ func TestCLI_Verify_RemoteRequiresAuth(t *testing.T) {
 	}
 }
 
-// Under --remote the exit code and stdout are the local run's alone, and
-// the Truestamp service's verdict, or why there is none, is printed on
-// stderr beside the report, never as a row of it: a proof the service
-// says passed exits as this run's own label says, and so does one the
-// service is not asked about. Mutants killed: the service's verdict
-// deciding the exit code (exit 0 for the passed answer); the verdict
-// written to stdout (the --json report does not parse). The service is a
-// loopback stub whose answer passes the proof with one step, and the proof
-// the earlier bundle parser posts is a bundle of its layout, which the
-// local run refuses as invalid_envelope.
+// remotePost is one request the stand-in for the raw verify route was
+// sent.
+type remotePost struct {
+	path, query, contentType string
+	body                     []byte
+}
+
+// remoteVerifyServer is a loopback stand-in for the raw verify route that
+// answers every request with the status and body answer gives at the
+// time, and records each request.
+func remoteVerifyServer(t *testing.T, answer *atomic.Pointer[[2]string]) (*httptest.Server, func() []remotePost) {
+	t.Helper()
+	var posts atomic.Pointer[[]remotePost]
+	posts.Store(&[]remotePost{})
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		body, _ := io.ReadAll(r.Body)
+		seen := append(slices.Clone(*posts.Load()), remotePost{r.URL.Path, r.URL.RawQuery, r.Header.Get("Content-Type"), body})
+		posts.Store(&seen)
+		reply := answer.Load()
+		status := http.StatusOK
+		if reply[0] != "200" {
+			status = http.StatusInternalServerError
+			if reply[0] == "400" {
+				status = http.StatusBadRequest
+			}
+		}
+		w.WriteHeader(status)
+		_, _ = w.Write([]byte(reply[1]))
+	}))
+	t.Cleanup(srv.Close)
+	return srv, func() []remotePost { return slices.Clone(*posts.Load()) }
+}
+
+// remoteLogRecord is the last record of the JSON log file at logPath whose
+// message is verify_remote_verdict or verify_remote_no_verdict, nil when
+// there is none.
+func remoteLogRecord(t *testing.T, logPath string) map[string]any {
+	t.Helper()
+	data, err := os.ReadFile(logPath)
+	if err != nil {
+		t.Fatalf("reading the log: %v", err)
+	}
+	var last map[string]any
+	for line := range strings.SplitSeq(string(data), "\n") {
+		var record map[string]any
+		if json.Unmarshal([]byte(line), &record) == nil && (record["msg"] == "verify_remote_verdict" || record["msg"] == "verify_remote_no_verdict") {
+			last = record
+		}
+	}
+	return last
+}
+
+// Under --remote the exit code and standard output are the local run's
+// alone. The proof file is posted exactly as read, a reformatted file
+// here, to POST /api/json/proof/raw/verify as the proof media type, with
+// offline=true for an offline run and expected_hash exactly as given; the
+// service's verdict, the label of its report, or why there is none, is
+// printed on stderr beside the report and never as a row of it or a
+// reason code. A verdict that disagrees with the local label, a failed
+// verdict, a refusal, a server error and a request that reaches no server
+// each leave stdout, under --json and in text, byte for byte the run's
+// without --remote, and the exit code the local run's: 6, supplied-keyring,
+// or 3, failed, where the expected hash given does not match. A file the
+// local run rejects bare is posted as read too, once per run, and the
+// exit code stays 4 and stdout the rejection. The log records the
+// verdict's label, or why there is none, and the service's reason code
+// when it refused the request. Mutants killed: the service's verdict
+// deciding the exit code (exit 0 for verified, 3 for failed); a failed
+// request changing it (exit 1); the verdict written to stdout (stdout
+// differs); the file parsed and re-encoded before it is posted (the posted
+// bytes are not the file's); offline=true or expected_hash not sent (the
+// query differs); the refusal's reason code printed (stderr names
+// invalid_envelope); the service asked only about a file the local run
+// gives a report of (the bare rejection is never posted); the reason code
+// left out of the log line (the record has no code).
 func TestCLI_Verify_Remote(t *testing.T) {
-	serverReport := []byte(`{"result":{"passed":true,"steps":[{"category":"structural","group":"Structure","message":"Proof version 1 (expected 1)","status":"pass"}]}}`)
-	var posts atomic.Int32
-	mux := http.NewServeMux()
-	mux.HandleFunc("/api/json/proof/verify", func(w http.ResponseWriter, r *http.Request) {
-		posts.Add(1)
-		w.WriteHeader(http.StatusCreated)
-		_, _ = w.Write(serverReport)
-	})
-	srv := httptest.NewServer(mux)
-	defer srv.Close()
-	remote := []string{"--remote", "--base-url", srv.URL, "--api-key", "test-key", "--offline"}
-
-	stdout, stderr, code := verifyCLI(t, binaryPath, nil, nil, append([]string{prodPath(testfixtures.ProdComplete), "--json"}, remote...)...)
-	var rejection map[string]string
-	if err := json.Unmarshal([]byte(stdout), &rejection); err != nil || code != 4 || rejection["code"] != "invalid_envelope" {
-		t.Errorf("a proof the service passes: exit %d, %v, %s", code, err, stdout)
+	sound, err := os.ReadFile(soundItem())
+	if err != nil {
+		t.Fatal(err)
 	}
-	if !strings.Contains(stderr, "The Truestamp service's verdict, beside this report and not part of it: passed.") || posts.Load() != 1 {
-		t.Errorf("the service's verdict (%d posts): %s", posts.Load(), stderr)
+	var pretty bytes.Buffer
+	if err := json.Indent(&pretty, sound, "", "  "); err != nil {
+		t.Fatal(err)
 	}
+	file := filepath.Join(t.TempDir(), "item.proof.json")
+	if err := os.WriteFile(file, pretty.Bytes(), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	notAProof := []byte("{\"not\": \"a proof\"}\n")
+	rejected := filepath.Join(t.TempDir(), "not-a-proof.json")
+	if err := os.WriteFile(rejected, notAProof, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	var answer atomic.Pointer[[2]string]
+	srv, posts := remoteVerifyServer(t, &answer)
+	closed := httptest.NewServer(http.NotFoundHandler())
+	closed.Close()
 
-	stdout, stderr, code = verifyCLI(t, binaryPath, nil, nil, append(append([]string{soundItem(), "--json"}, remote...), "--environment", "test", "--keyring", testKeyring())...)
-	if report := parseReport(t, stdout); code != 6 || report.Label != "supplied-keyring" || !strings.Contains(stderr, "The Truestamp service gave no verdict") {
-		t.Errorf("a proof the service is not asked about: exit %d, %s\n%s", code, report.Label, stderr)
+	const (
+		verdict  = "The Truestamp service's verdict, beside this report and not part of it: "
+		noAnswer = "The Truestamp service gave no verdict, which changes neither the report nor the exit code: "
+	)
+	refusal := "the service refused the request (HTTP 400): This file is not a Truestamp proof."
+	hash := "AB00"
+	for _, tc := range []struct {
+		name, status, body, base, stderr string
+		extra                            []string
+		query                            string
+		code                             int
+		file                             string
+		bytes                            []byte
+		log                              map[string]any
+	}{
+		{"a verdict that disagrees", "200", `{"label":"verified","verified":true}`, srv.URL,
+			verdict + "verified.\n", nil, "offline=true", 6, file, pretty.Bytes(),
+			map[string]any{"msg": "verify_remote_verdict", "label": "verified"}},
+		{"a failed verdict", "200", `{"code":"signature_invalid","label":"failed","verified":false}`, srv.URL,
+			verdict + "failed.\n", nil, "offline=true", 6, file, pretty.Bytes(),
+			map[string]any{"msg": "verify_remote_verdict", "label": "failed"}},
+		{"a verified verdict over a local failure", "200", `{"label":"verified"}`, srv.URL,
+			verdict + "verified.\n", []string{"--expected-hash", hash}, "expected_hash=" + hash + "&offline=true", 3, file, pretty.Bytes(),
+			map[string]any{"msg": "verify_remote_verdict", "label": "verified"}},
+		{"a verdict on a file the local run rejects bare", "200", `{"label":"failed"}`, srv.URL,
+			verdict + "failed.\n", nil, "offline=true", 4, rejected, notAProof,
+			map[string]any{"msg": "verify_remote_verdict", "label": "failed"}},
+		{"a refusal", "400", `{"errors":[{"detail":"This file is not a Truestamp proof.","meta":{"code":"invalid_envelope"}}]}`, srv.URL,
+			noAnswer + refusal + "\n", nil, "offline=true", 6, file, pretty.Bytes(),
+			map[string]any{"msg": "verify_remote_no_verdict", "err": refusal, "code": "invalid_envelope"}},
+		{"a server error", "500", `oops`, srv.URL,
+			noAnswer + "API error (HTTP 500): oops\n", nil, "offline=true", 6, file, pretty.Bytes(),
+			map[string]any{"msg": "verify_remote_no_verdict", "err": "API error (HTTP 500): oops"}},
+		{"no server", "200", `{"label":"verified"}`, closed.URL, noAnswer, nil, "", 6, file, pretty.Bytes(), nil},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			answer.Store(&[2]string{tc.status, tc.body})
+			before := len(posts())
+			for _, mode := range [][]string{{"--json"}, nil} {
+				args := append(append(append([]string{tc.file}, mode...), underTest()...), tc.extra...)
+				args = append(args, "--base-url", tc.base, "--api-key", "test-key")
+				logPath := filepath.Join(t.TempDir(), "truestamp.log")
+				wantOut, _, wantCode := verifyCLI(t, binaryPath, nil, nil, args...)
+				stdout, stderr, code := verifyCLI(t, binaryPath, nil, nil, append(args, "--remote", "--log-file", logPath)...)
+				if wantCode != tc.code || code != tc.code || stdout != wantOut {
+					t.Errorf("%v: exit %d (without --remote %d), stdout the same: %v; want exit %d and the same stdout\n%s",
+						mode, code, wantCode, stdout == wantOut, tc.code, stderr)
+				}
+				record := remoteLogRecord(t, logPath)
+				if tc.base == closed.URL {
+					if !strings.HasPrefix(stderr, noAnswer+"API request failed: ") || strings.Count(stderr, "\n") != 1 {
+						t.Errorf("%v: stderr %q, want that the request failed", mode, stderr)
+					}
+					if err, _ := record["err"].(string); record["msg"] != "verify_remote_no_verdict" || !strings.HasPrefix(err, "API request failed: ") || record["code"] != nil {
+						t.Errorf("%v: log record %v, want that the request failed, with no code", mode, record)
+					}
+				} else {
+					if stderr != tc.stderr {
+						t.Errorf("%v: stderr %q, want exactly %q", mode, stderr, tc.stderr)
+					}
+					got := map[string]any{}
+					for _, key := range []string{"msg", "label", "err", "code"} {
+						if value, ok := record[key]; ok {
+							got[key] = value
+						}
+					}
+					if !maps.Equal(got, tc.log) {
+						t.Errorf("%v: log record %v, want exactly %v", mode, got, tc.log)
+					}
+				}
+			}
+			if tc.base == closed.URL {
+				if n := len(posts()) - before; n != 0 {
+					t.Errorf("%d posts reached the live stand-in, want none", n)
+				}
+				return
+			}
+			sent := posts()[before:]
+			if len(sent) != 2 {
+				t.Fatalf("%d posts, want one per run", len(sent))
+			}
+			for _, p := range sent {
+				if p.path != "/api/json/proof/raw/verify" || p.query != tc.query ||
+					p.contentType != "application/vnd.truestamp.proof+json" || !bytes.Equal(p.body, tc.bytes) {
+					t.Errorf("posted %s?%s as %q, the file's bytes: %v; want /api/json/proof/raw/verify?%s, the proof media type and the file's bytes",
+						p.path, p.query, p.contentType, bytes.Equal(p.body, tc.bytes), tc.query)
+				}
+			}
+		})
 	}
 }
 
@@ -938,5 +1095,19 @@ func TestCLI_NothingSkipsTheSignature(t *testing.T) {
 	}
 	if help := helpText(t, "verify"); strings.Contains(help, retiredSignatureFlag) {
 		t.Errorf("verify --help still offers %s", retiredSignatureFlag)
+	}
+}
+
+// TestRemoteOptions_CarryTheConfiguredTimeout pins what askRemote asks the
+// service with. An http_timeout above the service's floor must reach
+// verify.AskRemoteCtx, or --http-timeout would not govern --remote as
+// verify --help says. Mutant: the HTTPTimeout field left out.
+func TestRemoteOptions_CarryTheConfiguredTimeout(t *testing.T) {
+	hash := "ab"
+	cfg := &config.Config{APIURL: "http://127.0.0.1:1/api/json", Team: "team-x", HTTPTimeout: "90s"}
+	got := remoteOptions(cfg, &hash, true)
+	want := verify.RemoteOptions{APIURL: cfg.APIURL, Team: "team-x", Offline: true, ExpectedHash: &hash, HTTPTimeout: 90 * time.Second}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("remoteOptions = %+v, want %+v", got, want)
 	}
 }
