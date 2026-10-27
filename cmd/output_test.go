@@ -106,7 +106,7 @@ func offlineInvocations() [][]string {
 		{"inspect", soundItem()},
 		{"convert", "time", "2026-09-03T12:00:00Z"},
 		{"convert", "keyid", "CTwMqDZnPd/QTLSq8aTeSD3a+j2DQxKcGfhhIYJQ65Y="},
-		{"convert", "id", "01JBQ8Z9K2M4N6P8R0T2V4X6Y8"},
+		{"convert", "id", "01a0db66-c2e0-78a4-b8cc-12b11bc97493"},
 		{"hash", soundItem()},
 	}
 }

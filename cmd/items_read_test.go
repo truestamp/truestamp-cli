@@ -221,10 +221,10 @@ func TestCLI_Items_List_ExposesCursorWithoutMax(t *testing.T) {
 // attribute the caller did not ask to change would be a silent write.
 func TestCLI_Items_Update_SendsOnlyChangedAttributes(t *testing.T) {
 	s := startItemsServer(t, func(w http.ResponseWriter, r *http.Request) {
-		_, _ = w.Write([]byte(itemDoc("01AAA")))
+		_, _ = w.Write([]byte(itemDoc(testItemID)))
 	})
 	_, stderr, exit := runCLI(t, "--base-url", s.URL, "--api-key", "k",
-		"items", "update", "01AAA", "--visibility", "public")
+		"items", "update", testItemID, "--visibility", "public")
 	if exit != 0 {
 		t.Fatalf("exit=%d stderr=%q", exit, stderr)
 	}
@@ -252,7 +252,7 @@ func TestCLI_Items_Update_SendsOnlyChangedAttributes(t *testing.T) {
 // `--name` here would be a cryptographic hazard rather than a feature.
 func TestCLI_Items_Update_CannotReachAHashedField(t *testing.T) {
 	for _, flag := range []string{"--claims", "--name", "--description", "--data-hash"} {
-		out, code := runCLIText(t, "items", "update", "01AAA", flag, "x")
+		out, code := runCLIText(t, "items", "update", testItemID, flag, "x")
 		if code == 0 {
 			t.Errorf("items update must not accept %s: claims are immutable", flag)
 		}
@@ -271,10 +271,10 @@ func TestCLI_Items_Update_NoOpIsRejectedClientSide(t *testing.T) {
 	var calls int
 	s := startItemsServer(t, func(w http.ResponseWriter, r *http.Request) {
 		calls++
-		_, _ = w.Write([]byte(itemDoc("01AAA")))
+		_, _ = w.Write([]byte(itemDoc(testItemID)))
 	})
 	_, stderr, exit := runCLI(t, "--base-url", s.URL, "--api-key", "k",
-		"items", "update", "01AAA", "--team", "")
+		"items", "update", testItemID, "--team", "")
 	if exit == 0 {
 		t.Fatal("an update with nothing to change should fail")
 	}
@@ -290,10 +290,10 @@ func TestCLI_Items_Update_NoOpIsRejectedClientSide(t *testing.T) {
 // destination is --to-team, and the root --team keeps scoping the request.
 func TestCLI_Items_Update_ToTeamIsSeparateFromRequestScope(t *testing.T) {
 	s := startItemsServer(t, func(w http.ResponseWriter, r *http.Request) {
-		_, _ = w.Write([]byte(itemDoc("01AAA")))
+		_, _ = w.Write([]byte(itemDoc(testItemID)))
 	})
 	_, _, exit := runCLI(t, "--base-url", s.URL, "--api-key", "k",
-		"items", "update", "01AAA", "--team", "scope-team", "--to-team", "dest-team")
+		"items", "update", testItemID, "--team", "scope-team", "--to-team", "dest-team")
 	if exit != 0 {
 		t.Fatalf("exit=%d", exit)
 	}
@@ -318,7 +318,7 @@ func TestCLI_Items_Get_ReportsCommitmentPlainly(t *testing.T) {
 	s := startItemsServer(t, func(w http.ResponseWriter, r *http.Request) {
 		_, _ = w.Write([]byte(`{"data":{"type":"item","id":"01AAA","attributes":{"state":"processing","visibility":"private"}}}`))
 	})
-	stdout, _, exit := runCLI(t, "--base-url", s.URL, "--api-key", "k", "items", "get", "01AAA")
+	stdout, _, exit := runCLI(t, "--base-url", s.URL, "--api-key", "k", "items", "get", testItemID)
 	if exit != 0 {
 		t.Fatalf("exit=%d", exit)
 	}
@@ -349,7 +349,7 @@ func TestCLI_Items_Get_CommittedSaysTheProofFollowsTheBlock(t *testing.T) {
 			s := startItemsServer(t, func(w http.ResponseWriter, r *http.Request) {
 				_, _ = w.Write([]byte(`{"data":{"type":"item","id":"01AAA","attributes":{"state":"` + tc.state + `","visibility":"private"}}}`))
 			})
-			stdout, _, exit := runCLI(t, "--base-url", s.URL, "--api-key", "k", "items", "get", "01AAA")
+			stdout, _, exit := runCLI(t, "--base-url", s.URL, "--api-key", "k", "items", "get", testItemID)
 			if exit != 0 {
 				t.Fatalf("exit=%d\n%s", exit, stdout)
 			}
@@ -396,8 +396,8 @@ func TestCLI_Items_List_CommittedHelpSaysTheProofFollowsTheBlock(t *testing.T) {
 // must say so rather than surfacing a raw 401.
 func TestCLI_Items_RequireAuth(t *testing.T) {
 	for _, args := range [][]string{
-		{"items", "list"}, {"items", "get", "01AAA"},
-		{"items", "update", "01AAA", "--visibility", "public"},
+		{"items", "list"}, {"items", "get", testItemID},
+		{"items", "update", testItemID, "--visibility", "public"},
 	} {
 		out, code := runCLIText(t, args...)
 		if code == 0 {

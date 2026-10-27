@@ -5,10 +5,12 @@ package cmd
 
 import (
 	"errors"
+	"fmt"
 	"io"
 	"strings"
 
 	"github.com/spf13/cobra"
+	"github.com/truestamp/truestamp-cli/internal/ids"
 	"github.com/truestamp/truestamp-cli/internal/teams"
 	"github.com/truestamp/truestamp-cli/internal/ui"
 )
@@ -59,9 +61,15 @@ func runTeamsGet(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
+	// A team id given as an argument is read exactly as typed: nothing is
+	// trimmed, and a value that is no UUIDv7, the id of every team, is
+	// refused before any request.
 	teamID := cfg.Team
 	if len(args) > 0 {
 		teamID = args[0]
+		if !ids.IsUUIDv7Text(teamID) {
+			return fmt.Errorf("%q is no team id: teams get takes a team's UUIDv7 id (e.g. 019dbd00-0000-7000-8000-000000000000)", teamID)
+		}
 	}
 	if teamID == "" {
 		if !silent {

@@ -10,7 +10,7 @@ import (
 // convertCmd is the parent of the domain-specific conversion sub-commands:
 //
 //	convert time   , ISO 8601 ↔ Unix ↔ timezone
-//	convert id     , ULID / UUIDv7 → embedded timestamp
+//	convert id     , UUIDv7 → the time recorded inside it
 //	convert keyid  , Ed25519 public key → Truestamp 4-byte kid fingerprint
 //
 // Generic byte-encoding conversion (hex/base64/base64url/binary) lives
@@ -23,7 +23,7 @@ var convertCmd = &cobra.Command{
 	Long: `Convert between formats for Truestamp-domain values:
 
   convert time   , parse and re-format timestamps across zones and Unix formats
-  convert id     , extract the embedded timestamp from a ULID or UUIDv7
+  convert id     , read the time recorded inside a UUIDv7 id
   convert keyid  , derive the 4-byte Truestamp kid fingerprint from an Ed25519 key
 
 For generic byte-encoding conversion use 'truestamp encode' / 'truestamp decode'.

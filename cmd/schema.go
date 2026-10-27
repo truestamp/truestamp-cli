@@ -371,7 +371,7 @@ func cliEnums() introspect.EnumValues {
 
 		// --type: a proof subject type on one command, an id shape on another.
 		"truestamp proofs get|type": proofTypeValues,
-		"truestamp convert id|type": {"auto", "ulid", "uuid7"},
+		"truestamp convert id|type": {"auto", "uuid7"},
 
 		// --format: a timestamp format.
 		"truestamp convert time|format": {"rfc3339", "unix-s", "unix-ms", "unix-us", "unix-ns"},

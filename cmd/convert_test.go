@@ -52,20 +52,6 @@ func TestCLI_Convert_Time_UnixMS(t *testing.T) {
 	}
 }
 
-// TestCLI_Convert_ID_ULIDTimestamp extracts the ULID millisecond time.
-// The fixture ULID 01HJHB01T8FYZ7YTR9P5N62K5B encodes 2023-12-25T20:34:54.408Z.
-func TestCLI_Convert_ID_ULIDTimestamp(t *testing.T) {
-	out, err := exec.Command(binaryPath, "convert", "id",
-		"01HJHB01T8FYZ7YTR9P5N62K5B").Output()
-	if err != nil {
-		t.Fatalf("%v", err)
-	}
-	got := strings.TrimSpace(string(out))
-	if !strings.HasPrefix(got, "2023-12-25T20:34:54") {
-		t.Errorf("unexpected ULID timestamp: %q", got)
-	}
-}
-
 // TestCLI_Convert_ID_UUIDv7_RejectsV4 ensures a wrong-version UUID is
 // flagged rather than silently producing garbage.
 func TestCLI_Convert_ID_UUIDv7_RejectsV4(t *testing.T) {

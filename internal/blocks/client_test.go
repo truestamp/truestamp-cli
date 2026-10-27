@@ -82,7 +82,7 @@ func TestValidateUUIDv7(t *testing.T) {
 	}
 	for name, bad := range map[string]string{
 		"not a uuid":   "nope",
-		"a ULID":       "01KNN33GX5E470CB9TRWAYF9DD",
+		"26 Crockford": "01KNN33GX5E470CB9TRWAYF9DD",
 		"a v4 uuid":    "9f1c2f7e-0b6e-4d1e-9f2a-2c5e011f1dad",
 		"a block hash": validHash,
 		"empty":        "",

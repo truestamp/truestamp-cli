@@ -15,6 +15,8 @@ import (
 // TestRenderWaterfallShape exercises the 3-column scan view: each
 // rendered row carries Time + compact Kind + full ID, and no row
 // surfaces the (deleted) Detail content. The headers row is present.
+// Mutant killed: an id cut to 26 characters (the ID is not the whole
+// UUIDv7).
 func TestRenderWaterfallShape(t *testing.T) {
 	t.Parallel()
 
@@ -23,7 +25,7 @@ func TestRenderWaterfallShape(t *testing.T) {
 
 	rows := []events.Row{
 		mustProject(t, "blocks", "block.created", "2026-04-29T13:58:00.123Z", map[string]any{
-			"id":         "01KQ88MP3GTM6XNHSCBVR12345",
+			"id":         "019dd4a0-6a10-7c3e-9b2f-5d8e1a7c4b30",
 			"state":      "finalized",
 			"block_hash": "f4b30a22775deadbeef000000000000000000000000000000000000000000000000",
 		}),
@@ -33,7 +35,7 @@ func TestRenderWaterfallShape(t *testing.T) {
 			"previous_hash": "1c4812bdfec2bf29333136d86bc996f866e38177acc90565a0554c7ec698029b",
 		}),
 		mustProject(t, "items.team", "item.updated", "2026-04-29T13:58:01.001Z", map[string]any{
-			"id":    "01KQ88MP3GTM6IIIIIIIIIIIII",
+			"id":    "019dd4a0-6b22-7d41-a8c3-0e6f2b9d5a17",
 			"state": "committed",
 			"claims": map[string]any{
 				"name": "doc-A",
@@ -45,7 +47,7 @@ func TestRenderWaterfallShape(t *testing.T) {
 			"by_kind":   map[string]any{"item.created": 18, "item.updated": 9},
 		}),
 		mustProject(t, "blocks.healing", "block_healing.forward", "2026-04-29T13:58:02.000Z", map[string]any{
-			"block_id":   "01KQ88MP3GTM6BBBBBBBBBBBBB",
+			"block_id":   "019dd4a0-6c35-7e52-b9d4-1f7a3cae6b28",
 			"from_state": "finalized",
 			"to_state":   "committed",
 			"reason":     "all_commitments_valid",
@@ -73,10 +75,10 @@ func TestRenderWaterfallShape(t *testing.T) {
 
 	// Full IDs preserved
 	for _, want := range []string{
-		"01KQ88MP3GTM6XNHSCBVR12345",           // block ULID
+		"019dd4a0-6a10-7c3e-9b2f-5d8e1a7c4b30", // block id
 		"019db702-b08c-73dc-a7cd-2c5e011f1dad", // beacon UUIDv7
-		"01KQ88MP3GTM6IIIIIIIIIIIII",           // item ULID
-		"01KQ88MP3GTM6BBBBBBBBBBBBB",           // healing block ULID
+		"019dd4a0-6b22-7d41-a8c3-0e6f2b9d5a17", // item id
+		"019dd4a0-6c35-7e52-b9d4-1f7a3cae6b28", // healing block id
 	} {
 		if !strings.Contains(out, want) {
 			t.Errorf("waterfall missing full ID %q", want)
@@ -211,6 +213,8 @@ func TestRenderDetailPanelOutageRow(t *testing.T) {
 // TestRenderWaterfallWithDetailPanelOpen: with the panel visible, the
 // waterfall body uses fewer rows. Both the table and the panel must
 // be present in the output.
+// Mutant killed: an id cut to 26 characters (the ID is not the whole
+// UUIDv7).
 func TestRenderWaterfallWithDetailPanelOpen(t *testing.T) {
 	t.Parallel()
 
@@ -219,7 +223,7 @@ func TestRenderWaterfallWithDetailPanelOpen(t *testing.T) {
 
 	m.events = []events.Row{
 		mustProject(t, "items.team", "item.created", "2026-04-29T13:58:01.001Z", map[string]any{
-			"id":    "01KQ88MP3GTM6IIIIIIIIIIIII",
+			"id":    "019dd4a0-6b22-7d41-a8c3-0e6f2b9d5a17",
 			"state": "created",
 			"claims": map[string]any{
 				"name": "doc-A",
@@ -231,7 +235,7 @@ func TestRenderWaterfallWithDetailPanelOpen(t *testing.T) {
 	out := plain(m.renderWaterfall(120, 30))
 
 	// Header + row + panel rule + panel field
-	for _, want := range []string{"Time", "item", "01KQ88MP3GTM6IIIIIIIIIIIII", "Selected", "kind"} {
+	for _, want := range []string{"Time", "item", "019dd4a0-6b22-7d41-a8c3-0e6f2b9d5a17", "Selected", "kind"} {
 		if !strings.Contains(out, want) {
 			t.Errorf("missing %q in combined render:\n%s", want, out)
 		}

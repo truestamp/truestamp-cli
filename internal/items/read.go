@@ -136,7 +136,7 @@ func List(ctx context.Context, apiURL, team string, opts ListOptions) (*Page, er
 	return page, nil
 }
 
-// Get fetches one item by ULID.
+// Get fetches one item by its UUIDv7 id.
 func Get(ctx context.Context, apiURL, team, id string) (*Item, error) {
 	q := url.Values{}
 	q.Set("fields[item]", requestFields)

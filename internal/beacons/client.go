@@ -197,5 +197,6 @@ func validateShape(b *Beacon) error {
 // ValidateHash returns nil iff s is exactly 64 lowercase hex characters.
 func ValidateHash(s string) error { return ids.ValidateHash64(s) }
 
-// ValidateUUIDv7 returns nil iff s parses as a UUID whose version is 7.
+// ValidateUUIDv7 returns nil iff s is the 36-character text of a UUIDv7
+// (ids.IsUUIDv7Text), exactly as given.
 func ValidateUUIDv7(s string) error { return ids.ValidateUUIDv7(s) }

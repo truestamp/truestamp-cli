@@ -1,0 +1,1622 @@
+{
+  "description": "Known answers for Truestamp.IdShape: each input is the hex of its bytes; class is classify/1's class, value its payload (hex of the input for text and item_code_typo, the integer for integer, null for empty and invalid), and item_ref is item_ref/1's result.",
+  "rows": [
+    {
+      "about": "a UUIDv7 in lowercase",
+      "input": "30313865393064382d303665382d376639662d626664372d363733306261393861353162",
+      "class": "uuid7",
+      "value": "018e90d8-06e8-7f9f-bfd7-6730ba98a51b",
+      "item_ref": "id"
+    },
+    {
+      "about": "a UUIDv7 in uppercase, given back in lowercase",
+      "input": "30313845393044382d303645382d374639462d424644372d363733304241393841353142",
+      "class": "uuid7",
+      "value": "018e90d8-06e8-7f9f-bfd7-6730ba98a51b",
+      "item_ref": "id"
+    },
+    {
+      "about": "a UUIDv7 in mixed case",
+      "input": "30313845393064382d303665382d374639662d424664372d363733306261393841353162",
+      "class": "uuid7",
+      "value": "018e90d8-06e8-7f9f-bfd7-6730ba98a51b",
+      "item_ref": "id"
+    },
+    {
+      "about": "a UUIDv7 with variant nibble 8",
+      "input": "30313865393064382d303665382d376639662d386664372d363733306261393861353162",
+      "class": "uuid7",
+      "value": "018e90d8-06e8-7f9f-8fd7-6730ba98a51b",
+      "item_ref": "id"
+    },
+    {
+      "about": "a UUIDv7 with variant nibble 9",
+      "input": "30313865393064382d303665382d376639662d396664372d363733306261393861353162",
+      "class": "uuid7",
+      "value": "018e90d8-06e8-7f9f-9fd7-6730ba98a51b",
+      "item_ref": "id"
+    },
+    {
+      "about": "a UUIDv7 with variant nibble a",
+      "input": "30313865393064382d303665382d376639662d616664372d363733306261393861353162",
+      "class": "uuid7",
+      "value": "018e90d8-06e8-7f9f-afd7-6730ba98a51b",
+      "item_ref": "id"
+    },
+    {
+      "about": "a UUIDv7 with uppercase variant nibble B",
+      "input": "30313865393064382d303665382d376639662d426664372d363733306261393861353162",
+      "class": "uuid7",
+      "value": "018e90d8-06e8-7f9f-bfd7-6730ba98a51b",
+      "item_ref": "id"
+    },
+    {
+      "about": "a version 4 UUID, never an item",
+      "input": "35353065383430302d653239622d343164342d613731362d343436363535343430303030",
+      "class": "uuid_other",
+      "value": "550e8400-e29b-41d4-a716-446655440000",
+      "item_ref": "invalid"
+    },
+    {
+      "about": "a version 4 UUID in uppercase",
+      "input": "35353045383430302d453239422d343144342d413731362d343436363535343430303030",
+      "class": "uuid_other",
+      "value": "550e8400-e29b-41d4-a716-446655440000",
+      "item_ref": "invalid"
+    },
+    {
+      "about": "a version 1 UUID",
+      "input": "63323332616230302d393431342d313165632d623363382d396636626465636564383436",
+      "class": "uuid_other",
+      "value": "c232ab00-9414-11ec-b3c8-9f6bdeced846",
+      "item_ref": "invalid"
+    },
+    {
+      "about": "the nil UUID",
+      "input": "30303030303030302d303030302d303030302d303030302d303030303030303030303030",
+      "class": "uuid_other",
+      "value": "00000000-0000-0000-0000-000000000000",
+      "item_ref": "invalid"
+    },
+    {
+      "about": "the max UUID",
+      "input": "66666666666666662d666666662d666666662d666666662d666666666666666666666666",
+      "class": "uuid_other",
+      "value": "ffffffff-ffff-ffff-ffff-ffffffffffff",
+      "item_ref": "invalid"
+    },
+    {
+      "about": "version nibble 7 with variant nibble 7, not RFC 9562",
+      "input": "30313865393064382d303665382d376639662d376664372d363733306261393861353162",
+      "class": "uuid_other",
+      "value": "018e90d8-06e8-7f9f-7fd7-6730ba98a51b",
+      "item_ref": "invalid"
+    },
+    {
+      "about": "version nibble 7 with variant nibble c",
+      "input": "30313865393064382d303665382d376639662d636664372d363733306261393861353162",
+      "class": "uuid_other",
+      "value": "018e90d8-06e8-7f9f-cfd7-6730ba98a51b",
+      "item_ref": "invalid"
+    },
+    {
+      "about": "version nibble 8",
+      "input": "30313865393064382d303665382d386639662d626664372d363733306261393861353162",
+      "class": "uuid_other",
+      "value": "018e90d8-06e8-8f9f-bfd7-6730ba98a51b",
+      "item_ref": "invalid"
+    },
+    {
+      "about": "the urn:uuid: form of a UUIDv7",
+      "input": "75726e3a757569643a30313865393064382d303665382d376639662d626664372d363733306261393861353162",
+      "class": "text",
+      "value": "75726e3a757569643a30313865393064382d303665382d376639662d626664372d363733306261393861353162",
+      "item_ref": "invalid"
+    },
+    {
+      "about": "a braced UUIDv7",
+      "input": "7b30313865393064382d303665382d376639662d626664372d3637333062613938613531627d",
+      "class": "text",
+      "value": "7b30313865393064382d303665382d376639662d626664372d3637333062613938613531627d",
+      "item_ref": "invalid"
+    },
+    {
+      "about": "a UUIDv7 with a non-hex character in the last group",
+      "input": "30313865393064382d303665382d376639662d626664372d363733306261393861353167",
+      "class": "text",
+      "value": "30313865393064382d303665382d376639662d626664372d363733306261393861353167",
+      "item_ref": "invalid"
+    },
+    {
+      "about": "a UUIDv7 with its groups misplaced",
+      "input": "3031386539306438302d3665382d376639662d626664372d363733306261393861353162",
+      "class": "text",
+      "value": "3031386539306438302d3665382d376639662d626664372d363733306261393861353162",
+      "item_ref": "invalid"
+    },
+    {
+      "about": "32 hex characters: a UUIDv7 without its hyphens",
+      "input": "3031386539306438303665383766396662666437363733306261393861353162",
+      "class": "hex",
+      "value": "018e90d806e87f9fbfd76730ba98a51b",
+      "item_ref": "invalid"
+    },
+    {
+      "about": "32 hex characters in uppercase: a UUIDv4 without its hyphens",
+      "input": "3535304538343030453239423431443441373136343436363535343430303030",
+      "class": "hex",
+      "value": "550e8400e29b41d4a716446655440000",
+      "item_ref": "invalid"
+    },
+    {
+      "about": "an item_hash: 64 lowercase hex characters",
+      "input": "34663137363964373637636232633833656666316334383136353933393039306434326661633433336335656162653666303263356366396430323531383162",
+      "class": "hex64",
+      "value": "4f1769d767cb2c83eff1c48165939090d42fac433c5eabe6f02c5cf9d025181b",
+      "item_ref": "item_hash"
+    },
+    {
+      "about": "64 hex characters in uppercase, given back in lowercase",
+      "input": "34463137363944373637434232433833454646314334383136353933393039304434324641433433334335454142453646303243354346394430323531383142",
+      "class": "hex64",
+      "value": "4f1769d767cb2c83eff1c48165939090d42fac433c5eabe6f02c5cf9d025181b",
+      "item_ref": "item_hash"
+    },
+    {
+      "about": "64 hex characters in mixed case",
+      "input": "34463137363944373637434232433833454646314334383136353933393039306434326661633433336335656162653666303263356366396430323531383162",
+      "class": "hex64",
+      "value": "4f1769d767cb2c83eff1c48165939090d42fac433c5eabe6f02c5cf9d025181b",
+      "item_ref": "item_hash"
+    },
+    {
+      "about": "40 hex characters",
+      "input": "30623530663762643135353335313764666536366133313361363966656139633633613937373836",
+      "class": "hex",
+      "value": "0b50f7bd1553517dfe66a313a69fea9c63a97786",
+      "item_ref": "invalid"
+    },
+    {
+      "about": "63 hex characters",
+      "input": "346631373639643736376362326338336566663163343831363539333930393064343266616334333363356561626536663032633563663964303235313831",
+      "class": "hex",
+      "value": "4f1769d767cb2c83eff1c48165939090d42fac433c5eabe6f02c5cf9d025181",
+      "item_ref": "invalid"
+    },
+    {
+      "about": "65 hex characters",
+      "input": "3466313736396437363763623263383365666631633438313635393339303930643432666163343333633565616265366630326335636639643032353138316230",
+      "class": "hex",
+      "value": "4f1769d767cb2c83eff1c48165939090d42fac433c5eabe6f02c5cf9d025181b0",
+      "item_ref": "invalid"
+    },
+    {
+      "about": "128 hex characters",
+      "input": "3836376236316464316339623231623233633063323231306433313964333234646333643362333031386337636361616564653935333263363035393931373862366434646665383162623836656135393866343039396139653265343962356665303662613638633962623035366463386231393330333532623562386562",
+      "class": "hex",
+      "value": "867b61dd1c9b21b23c0c2210d319d324dc3d3b3018c7ccaaede9532c60599178b6d4dfe81bb86ea598f4099a9e2e49b5fe06ba68c9bb056dc8b1930352b5b8eb",
+      "item_ref": "invalid"
+    },
+    {
+      "about": "128 hex characters in uppercase",
+      "input": "3836374236314444314339423231423233433043323231304433313944333234444333443342333031384337434341414544453935333243363035393931373842364434444645383142423836454135393846343039394139453245343942354645303642413638433942423035364443384231393330333532423542384542",
+      "class": "hex",
+      "value": "867b61dd1c9b21b23c0c2210d319d324dc3d3b3018c7ccaaede9532c60599178b6d4dfe81bb86ea598f4099a9e2e49b5fe06ba68c9bb056dc8b1930352b5b8eb",
+      "item_ref": "invalid"
+    },
+    {
+      "about": "an item_hash from the item-code known answers",
+      "input": "39376335666362376639666430626236383065623762333032663638323661313661326532316333323639356666383265643832376236373438633836623935",
+      "class": "hex64",
+      "value": "97c5fcb7f9fd0bb680eb7b302f6826a16a2e21c32695ff82ed827b6748c86b95",
+      "item_ref": "item_hash"
+    },
+    {
+      "about": "64 zeros: the all-zero item_hash of the item-code known answers",
+      "input": "30303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030",
+      "class": "hex64",
+      "value": "0000000000000000000000000000000000000000000000000000000000000000",
+      "item_ref": "item_hash"
+    },
+    {
+      "about": "64 f's: the all-ones item_hash of the item-code known answers",
+      "input": "66666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666",
+      "class": "hex64",
+      "value": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+      "item_ref": "item_hash"
+    },
+    {
+      "about": "31 hex characters, below the hex rows",
+      "input": "34663137363964373637636232633833656666316334383136353933393039",
+      "class": "text",
+      "value": "34663137363964373637636232633833656666316334383136353933393039",
+      "item_ref": "invalid"
+    },
+    {
+      "about": "129 hex characters, above the hex rows",
+      "input": "383637623631646431633962323162323363306332323130643331396433323464633364336233303138633763636161656465393533326336303539393137386236643464666538316262383665613539386634303939613965326534396235666530366261363863396262303536646338623139333033353262356238656230",
+      "class": "text",
+      "value": "383637623631646431633962323162323363306332323130643331396433323464633364336233303138633763636161656465393533326336303539393137386236643464666538316262383665613539386634303939613965326534396235666530366261363863396262303536646338623139333033353262356238656230",
+      "item_ref": "invalid"
+    },
+    {
+      "about": "a 0x prefix on 64 hex characters",
+      "input": "307834663137363964373637636232633833656666316334383136353933393039306434326661633433336335656162653666303263356366396430323531383162",
+      "class": "text",
+      "value": "307834663137363964373637636232633833656666316334383136353933393039306434326661633433336335656162653666303263356366396430323531383162",
+      "item_ref": "invalid"
+    },
+    {
+      "about": "an item code in its one spelling",
+      "input": "395742504b4e56375343503837565a57",
+      "class": "item_code",
+      "value": "9WBPKNV7SCP87VZW",
+      "item_ref": "item_code"
+    },
+    {
+      "about": "hyphens between the groups",
+      "input": "395742502d4b4e56372d534350382d37565a57",
+      "class": "item_code",
+      "value": "9WBPKNV7SCP87VZW",
+      "item_ref": "item_code"
+    },
+    {
+      "about": "lowercase with spaces between the groups",
+      "input": "39776270206b6e763720736370382037767a77",
+      "class": "item_code",
+      "value": "9WBPKNV7SCP87VZW",
+      "item_ref": "item_code"
+    },
+    {
+      "about": "underscores between the groups",
+      "input": "395742505f4b4e56375f534350385f37565a57",
+      "class": "item_code",
+      "value": "9WBPKNV7SCP87VZW",
+      "item_ref": "item_code"
+    },
+    {
+      "about": "all lowercase",
+      "input": "397762706b6e76377363703837767a77",
+      "class": "item_code",
+      "value": "9WBPKNV7SCP87VZW",
+      "item_ref": "item_code"
+    },
+    {
+      "about": "mixed separators",
+      "input": "397762702d6b6e76375f736370382037767a77",
+      "class": "item_code",
+      "value": "9WBPKNV7SCP87VZW",
+      "item_ref": "item_code"
+    },
+    {
+      "about": "one separator at a single boundary",
+      "input": "395742504b4e56372d5343503837565a57",
+      "class": "item_code",
+      "value": "9WBPKNV7SCP87VZW",
+      "item_ref": "item_code"
+    },
+    {
+      "about": "lowercase o read as 0",
+      "input": "6a7a327a73647a737a6d3576646f3733",
+      "class": "item_code",
+      "value": "JZ2ZSDZSZM5VD073",
+      "item_ref": "item_code"
+    },
+    {
+      "about": "I, L and O read as 1, 1 and 0",
+      "input": "4f4c3233343536373839414243444534",
+      "class": "item_code",
+      "value": "0123456789ABCDE4",
+      "item_ref": "item_code"
+    },
+    {
+      "about": "lowercase o everywhere: the zero code",
+      "input": "6f6f6f6f6f6f6f6f6f6f6f6f6f6f6f6f",
+      "class": "item_code",
+      "value": "0000000000000000",
+      "item_ref": "item_code"
+    },
+    {
+      "about": "the zero code in its one spelling",
+      "input": "30303030303030303030303030303030",
+      "class": "item_code",
+      "value": "0000000000000000",
+      "item_ref": "item_code"
+    },
+    {
+      "about": "the code of 32 ff bytes",
+      "input": "5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a4e",
+      "class": "item_code",
+      "value": "ZZZZZZZZZZZZZZZN",
+      "item_ref": "item_code"
+    },
+    {
+      "about": "the known answer of illustrative item_hash 3",
+      "input": "4a5a325a53445a535a4d355644303733",
+      "class": "item_code",
+      "value": "JZ2ZSDZSZM5VD073",
+      "item_ref": "item_code"
+    },
+    {
+      "about": "a lowercased code that also fits the username pattern",
+      "input": "6a7a327a73647a737a6d357664303733",
+      "class": "item_code",
+      "value": "JZ2ZSDZSZM5VD073",
+      "item_ref": "item_code"
+    },
+    {
+      "about": "a 16-digit number that is a valid code",
+      "input": "31303030303030303030303030313939",
+      "class": "item_code",
+      "value": "1000000000000199",
+      "item_ref": "item_code"
+    },
+    {
+      "about": "one wrong symbol",
+      "input": "395742504b4e56375343503837565a58",
+      "class": "item_code_typo",
+      "value": "395742504b4e56375343503837565a58",
+      "item_ref": "typo"
+    },
+    {
+      "about": "neighbours exchanged",
+      "input": "395742504b4e56375343503856375a57",
+      "class": "item_code_typo",
+      "value": "395742504b4e56375343503856375a57",
+      "item_ref": "typo"
+    },
+    {
+      "about": "an exchange across a group boundary",
+      "input": "395742504b4e56375343503738565a57",
+      "class": "item_code_typo",
+      "value": "395742504b4e56375343503738565a57",
+      "item_ref": "typo"
+    },
+    {
+      "about": "the last data symbol and the check exchanged",
+      "input": "395742504b4e5637534350383756575a",
+      "class": "item_code_typo",
+      "value": "395742504b4e5637534350383756575a",
+      "item_ref": "typo"
+    },
+    {
+      "about": "a U, which is not in the alphabet",
+      "input": "395742554b4e56375343503837565a57",
+      "class": "item_code_typo",
+      "value": "395742554b4e56375343503837565a57",
+      "item_ref": "typo"
+    },
+    {
+      "about": "a lowercase u",
+      "input": "397762756b6e76377363703837767a77",
+      "class": "item_code_typo",
+      "value": "397762756b6e76377363703837767a77",
+      "item_ref": "typo"
+    },
+    {
+      "about": "the code without the final m",
+      "input": "395742504b4e56375343503837565a45",
+      "class": "item_code_typo",
+      "value": "395742504b4e56375343503837565a45",
+      "item_ref": "typo"
+    },
+    {
+      "about": "a U as the check, with hyphens",
+      "input": "395742502d4b4e56372d534350382d37565a55",
+      "class": "item_code_typo",
+      "value": "395742502d4b4e56372d534350382d37565a55",
+      "item_ref": "typo"
+    },
+    {
+      "about": "a phrase with the shape of a code",
+      "input": "636f6f6c20626c6f6720666f6f6420676f6f64",
+      "class": "item_code_typo",
+      "value": "636f6f6c20626c6f6720666f6f6420676f6f64",
+      "item_ref": "typo"
+    },
+    {
+      "about": "a 16-digit number that fails the check",
+      "input": "31323334353637383930313233343536",
+      "class": "item_code_typo",
+      "value": "31323334353637383930313233343536",
+      "item_ref": "typo"
+    },
+    {
+      "about": "16 hex characters, below the hex rows",
+      "input": "30313233343536373839616263646566",
+      "class": "item_code_typo",
+      "value": "30313233343536373839616263646566",
+      "item_ref": "typo"
+    },
+    {
+      "about": "periods between the groups",
+      "input": "395742502e4b4e56372e534350382e37565a57",
+      "class": "text",
+      "value": "395742502e4b4e56372e534350382e37565a57",
+      "item_ref": "invalid"
+    },
+    {
+      "about": "spaces inside groups",
+      "input": "39574220504b4e5637534350203837565a57",
+      "class": "text",
+      "value": "39574220504b4e5637534350203837565a57",
+      "item_ref": "invalid"
+    },
+    {
+      "about": "blockchain proof: 15 letters",
+      "input": "626c6f636b636861696e2070726f6f66",
+      "class": "text",
+      "value": "626c6f636b636861696e2070726f6f66",
+      "item_ref": "invalid"
+    },
+    {
+      "about": "notarized contract: 17 letters",
+      "input": "6e6f746172697a656420636f6e7472616374",
+      "class": "text",
+      "value": "6e6f746172697a656420636f6e7472616374",
+      "item_ref": "invalid"
+    },
+    {
+      "about": "a code with a trailing line feed",
+      "input": "395742504b4e56375343503837565a570a",
+      "class": "text",
+      "value": "395742504b4e56375343503837565a570a",
+      "item_ref": "invalid"
+    },
+    {
+      "about": "a code with a trailing carriage return and line feed",
+      "input": "395742504b4e56375343503837565a570d0a",
+      "class": "text",
+      "value": "395742504b4e56375343503837565a570d0a",
+      "item_ref": "invalid"
+    },
+    {
+      "about": "a code with a line feed between the groups",
+      "input": "395742504b4e56370a5343503837565a57",
+      "class": "text",
+      "value": "395742504b4e56370a5343503837565a57",
+      "item_ref": "invalid"
+    },
+    {
+      "about": "a code with a tab between the groups",
+      "input": "395742504b4e5637095343503837565a57",
+      "class": "text",
+      "value": "395742504b4e5637095343503837565a57",
+      "item_ref": "invalid"
+    },
+    {
+      "about": "a code with a trailing tab",
+      "input": "395742504b4e56375343503837565a5709",
+      "class": "text",
+      "value": "395742504b4e56375343503837565a5709",
+      "item_ref": "invalid"
+    },
+    {
+      "about": "a code with a leading space",
+      "input": "20395742504b4e56375343503837565a57",
+      "class": "text",
+      "value": "20395742504b4e56375343503837565a57",
+      "item_ref": "invalid"
+    },
+    {
+      "about": "a code with a trailing space",
+      "input": "395742504b4e56375343503837565a5720",
+      "class": "text",
+      "value": "395742504b4e56375343503837565a5720",
+      "item_ref": "invalid"
+    },
+    {
+      "about": "a code with a trailing hyphen",
+      "input": "395742502d4b4e56372d534350382d37565a572d",
+      "class": "text",
+      "value": "395742502d4b4e56372d534350382d37565a572d",
+      "item_ref": "invalid"
+    },
+    {
+      "about": "a code with two hyphens together",
+      "input": "395742502d2d4b4e56375343503837565a57",
+      "class": "text",
+      "value": "395742502d2d4b4e56375343503837565a57",
+      "item_ref": "invalid"
+    },
+    {
+      "about": "a code with a fifth group",
+      "input": "395742504b4e56375343503837565a5730303030",
+      "class": "text",
+      "value": "395742504b4e56375343503837565a5730303030",
+      "item_ref": "invalid"
+    },
+    {
+      "about": "15 symbols of a code",
+      "input": "395742504b4e56375343503837565a",
+      "class": "text",
+      "value": "395742504b4e56375343503837565a",
+      "item_ref": "invalid"
+    },
+    {
+      "about": "a code with VT between the groups",
+      "input": "395742500b4b4e56370b534350380b37565a57",
+      "class": "text",
+      "value": "395742500b4b4e56370b534350380b37565a57",
+      "item_ref": "invalid"
+    },
+    {
+      "about": "a code with VT at one boundary",
+      "input": "395742504b4e56370b5343503837565a57",
+      "class": "text",
+      "value": "395742504b4e56370b5343503837565a57",
+      "item_ref": "invalid"
+    },
+    {
+      "about": "a code with a trailing VT",
+      "input": "395742504b4e56375343503837565a570b",
+      "class": "text",
+      "value": "395742504b4e56375343503837565a570b",
+      "item_ref": "invalid"
+    },
+    {
+      "about": "a UUIDv7 with a leading VT",
+      "input": "0b30313865393064382d303665382d376639662d626664372d363733306261393861353162",
+      "class": "text",
+      "value": "0b30313865393064382d303665382d376639662d626664372d363733306261393861353162",
+      "item_ref": "invalid"
+    },
+    {
+      "about": "an item_hash with a trailing VT",
+      "input": "346631373639643736376362326338336566663163343831363539333930393064343266616334333363356561626536663032633563663964303235313831620b",
+      "class": "text",
+      "value": "346631373639643736376362326338336566663163343831363539333930393064343266616334333363356561626536663032633563663964303235313831620b",
+      "item_ref": "invalid"
+    },
+    {
+      "about": "an integer with a trailing VT",
+      "input": "34320b",
+      "class": "text",
+      "value": "34320b",
+      "item_ref": "invalid"
+    },
+    {
+      "about": "a code with FF between the groups",
+      "input": "395742500c4b4e56370c534350380c37565a57",
+      "class": "text",
+      "value": "395742500c4b4e56370c534350380c37565a57",
+      "item_ref": "invalid"
+    },
+    {
+      "about": "a code with FF at one boundary",
+      "input": "395742504b4e56370c5343503837565a57",
+      "class": "text",
+      "value": "395742504b4e56370c5343503837565a57",
+      "item_ref": "invalid"
+    },
+    {
+      "about": "a code with a trailing FF",
+      "input": "395742504b4e56375343503837565a570c",
+      "class": "text",
+      "value": "395742504b4e56375343503837565a570c",
+      "item_ref": "invalid"
+    },
+    {
+      "about": "a UUIDv7 with a leading FF",
+      "input": "0c30313865393064382d303665382d376639662d626664372d363733306261393861353162",
+      "class": "text",
+      "value": "0c30313865393064382d303665382d376639662d626664372d363733306261393861353162",
+      "item_ref": "invalid"
+    },
+    {
+      "about": "an item_hash with a trailing FF",
+      "input": "346631373639643736376362326338336566663163343831363539333930393064343266616334333363356561626536663032633563663964303235313831620c",
+      "class": "text",
+      "value": "346631373639643736376362326338336566663163343831363539333930393064343266616334333363356561626536663032633563663964303235313831620c",
+      "item_ref": "invalid"
+    },
+    {
+      "about": "an integer with a trailing FF",
+      "input": "34320c",
+      "class": "text",
+      "value": "34320c",
+      "item_ref": "invalid"
+    },
+    {
+      "about": "a code with U+2009 thin space between the groups",
+      "input": "39574250e280894b4e5637e2808953435038e2808937565a57",
+      "class": "text",
+      "value": "39574250e280894b4e5637e2808953435038e2808937565a57",
+      "item_ref": "invalid"
+    },
+    {
+      "about": "a code with U+2009 thin space at one boundary",
+      "input": "395742504b4e5637e280895343503837565a57",
+      "class": "text",
+      "value": "395742504b4e5637e280895343503837565a57",
+      "item_ref": "invalid"
+    },
+    {
+      "about": "a code with a trailing U+2009 thin space",
+      "input": "395742504b4e56375343503837565a57e28089",
+      "class": "text",
+      "value": "395742504b4e56375343503837565a57e28089",
+      "item_ref": "invalid"
+    },
+    {
+      "about": "a UUIDv7 with a leading U+2009 thin space",
+      "input": "e2808930313865393064382d303665382d376639662d626664372d363733306261393861353162",
+      "class": "text",
+      "value": "e2808930313865393064382d303665382d376639662d626664372d363733306261393861353162",
+      "item_ref": "invalid"
+    },
+    {
+      "about": "an item_hash with a trailing U+2009 thin space",
+      "input": "34663137363964373637636232633833656666316334383136353933393039306434326661633433336335656162653666303263356366396430323531383162e28089",
+      "class": "text",
+      "value": "34663137363964373637636232633833656666316334383136353933393039306434326661633433336335656162653666303263356366396430323531383162e28089",
+      "item_ref": "invalid"
+    },
+    {
+      "about": "an integer with a trailing U+2009 thin space",
+      "input": "3432e28089",
+      "class": "text",
+      "value": "3432e28089",
+      "item_ref": "invalid"
+    },
+    {
+      "about": "a code with U+3000 ideographic space between the groups",
+      "input": "39574250e380804b4e5637e3808053435038e3808037565a57",
+      "class": "text",
+      "value": "39574250e380804b4e5637e3808053435038e3808037565a57",
+      "item_ref": "invalid"
+    },
+    {
+      "about": "a code with U+3000 ideographic space at one boundary",
+      "input": "395742504b4e5637e380805343503837565a57",
+      "class": "text",
+      "value": "395742504b4e5637e380805343503837565a57",
+      "item_ref": "invalid"
+    },
+    {
+      "about": "a code with a trailing U+3000 ideographic space",
+      "input": "395742504b4e56375343503837565a57e38080",
+      "class": "text",
+      "value": "395742504b4e56375343503837565a57e38080",
+      "item_ref": "invalid"
+    },
+    {
+      "about": "a UUIDv7 with a leading U+3000 ideographic space",
+      "input": "e3808030313865393064382d303665382d376639662d626664372d363733306261393861353162",
+      "class": "text",
+      "value": "e3808030313865393064382d303665382d376639662d626664372d363733306261393861353162",
+      "item_ref": "invalid"
+    },
+    {
+      "about": "an item_hash with a trailing U+3000 ideographic space",
+      "input": "34663137363964373637636232633833656666316334383136353933393039306434326661633433336335656162653666303263356366396430323531383162e38080",
+      "class": "text",
+      "value": "34663137363964373637636232633833656666316334383136353933393039306434326661633433336335656162653666303263356366396430323531383162e38080",
+      "item_ref": "invalid"
+    },
+    {
+      "about": "an integer with a trailing U+3000 ideographic space",
+      "input": "3432e38080",
+      "class": "text",
+      "value": "3432e38080",
+      "item_ref": "invalid"
+    },
+    {
+      "about": "a code with U+2010 hyphen between the groups",
+      "input": "39574250e280904b4e5637e2809053435038e2809037565a57",
+      "class": "text",
+      "value": "39574250e280904b4e5637e2809053435038e2809037565a57",
+      "item_ref": "invalid"
+    },
+    {
+      "about": "a code with U+2010 hyphen at one boundary",
+      "input": "395742504b4e5637e280905343503837565a57",
+      "class": "text",
+      "value": "395742504b4e5637e280905343503837565a57",
+      "item_ref": "invalid"
+    },
+    {
+      "about": "a code with a trailing U+2010 hyphen",
+      "input": "395742504b4e56375343503837565a57e28090",
+      "class": "text",
+      "value": "395742504b4e56375343503837565a57e28090",
+      "item_ref": "invalid"
+    },
+    {
+      "about": "a UUIDv7 with a leading U+2010 hyphen",
+      "input": "e2809030313865393064382d303665382d376639662d626664372d363733306261393861353162",
+      "class": "text",
+      "value": "e2809030313865393064382d303665382d376639662d626664372d363733306261393861353162",
+      "item_ref": "invalid"
+    },
+    {
+      "about": "an item_hash with a trailing U+2010 hyphen",
+      "input": "34663137363964373637636232633833656666316334383136353933393039306434326661633433336335656162653666303263356366396430323531383162e28090",
+      "class": "text",
+      "value": "34663137363964373637636232633833656666316334383136353933393039306434326661633433336335656162653666303263356366396430323531383162e28090",
+      "item_ref": "invalid"
+    },
+    {
+      "about": "an integer with a trailing U+2010 hyphen",
+      "input": "3432e28090",
+      "class": "text",
+      "value": "3432e28090",
+      "item_ref": "invalid"
+    },
+    {
+      "about": "a code with U+2011 non-breaking hyphen between the groups",
+      "input": "39574250e280914b4e5637e2809153435038e2809137565a57",
+      "class": "text",
+      "value": "39574250e280914b4e5637e2809153435038e2809137565a57",
+      "item_ref": "invalid"
+    },
+    {
+      "about": "a code with U+2011 non-breaking hyphen at one boundary",
+      "input": "395742504b4e5637e280915343503837565a57",
+      "class": "text",
+      "value": "395742504b4e5637e280915343503837565a57",
+      "item_ref": "invalid"
+    },
+    {
+      "about": "a code with a trailing U+2011 non-breaking hyphen",
+      "input": "395742504b4e56375343503837565a57e28091",
+      "class": "text",
+      "value": "395742504b4e56375343503837565a57e28091",
+      "item_ref": "invalid"
+    },
+    {
+      "about": "a UUIDv7 with a leading U+2011 non-breaking hyphen",
+      "input": "e2809130313865393064382d303665382d376639662d626664372d363733306261393861353162",
+      "class": "text",
+      "value": "e2809130313865393064382d303665382d376639662d626664372d363733306261393861353162",
+      "item_ref": "invalid"
+    },
+    {
+      "about": "an item_hash with a trailing U+2011 non-breaking hyphen",
+      "input": "34663137363964373637636232633833656666316334383136353933393039306434326661633433336335656162653666303263356366396430323531383162e28091",
+      "class": "text",
+      "value": "34663137363964373637636232633833656666316334383136353933393039306434326661633433336335656162653666303263356366396430323531383162e28091",
+      "item_ref": "invalid"
+    },
+    {
+      "about": "an integer with a trailing U+2011 non-breaking hyphen",
+      "input": "3432e28091",
+      "class": "text",
+      "value": "3432e28091",
+      "item_ref": "invalid"
+    },
+    {
+      "about": "a code with U+2012 figure dash between the groups",
+      "input": "39574250e280924b4e5637e2809253435038e2809237565a57",
+      "class": "text",
+      "value": "39574250e280924b4e5637e2809253435038e2809237565a57",
+      "item_ref": "invalid"
+    },
+    {
+      "about": "a code with U+2012 figure dash at one boundary",
+      "input": "395742504b4e5637e280925343503837565a57",
+      "class": "text",
+      "value": "395742504b4e5637e280925343503837565a57",
+      "item_ref": "invalid"
+    },
+    {
+      "about": "a code with a trailing U+2012 figure dash",
+      "input": "395742504b4e56375343503837565a57e28092",
+      "class": "text",
+      "value": "395742504b4e56375343503837565a57e28092",
+      "item_ref": "invalid"
+    },
+    {
+      "about": "a UUIDv7 with a leading U+2012 figure dash",
+      "input": "e2809230313865393064382d303665382d376639662d626664372d363733306261393861353162",
+      "class": "text",
+      "value": "e2809230313865393064382d303665382d376639662d626664372d363733306261393861353162",
+      "item_ref": "invalid"
+    },
+    {
+      "about": "an item_hash with a trailing U+2012 figure dash",
+      "input": "34663137363964373637636232633833656666316334383136353933393039306434326661633433336335656162653666303263356366396430323531383162e28092",
+      "class": "text",
+      "value": "34663137363964373637636232633833656666316334383136353933393039306434326661633433336335656162653666303263356366396430323531383162e28092",
+      "item_ref": "invalid"
+    },
+    {
+      "about": "an integer with a trailing U+2012 figure dash",
+      "input": "3432e28092",
+      "class": "text",
+      "value": "3432e28092",
+      "item_ref": "invalid"
+    },
+    {
+      "about": "a code with U+2013 en dash between the groups",
+      "input": "39574250e280934b4e5637e2809353435038e2809337565a57",
+      "class": "text",
+      "value": "39574250e280934b4e5637e2809353435038e2809337565a57",
+      "item_ref": "invalid"
+    },
+    {
+      "about": "a code with U+2013 en dash at one boundary",
+      "input": "395742504b4e5637e280935343503837565a57",
+      "class": "text",
+      "value": "395742504b4e5637e280935343503837565a57",
+      "item_ref": "invalid"
+    },
+    {
+      "about": "a code with a trailing U+2013 en dash",
+      "input": "395742504b4e56375343503837565a57e28093",
+      "class": "text",
+      "value": "395742504b4e56375343503837565a57e28093",
+      "item_ref": "invalid"
+    },
+    {
+      "about": "a UUIDv7 with a leading U+2013 en dash",
+      "input": "e2809330313865393064382d303665382d376639662d626664372d363733306261393861353162",
+      "class": "text",
+      "value": "e2809330313865393064382d303665382d376639662d626664372d363733306261393861353162",
+      "item_ref": "invalid"
+    },
+    {
+      "about": "an item_hash with a trailing U+2013 en dash",
+      "input": "34663137363964373637636232633833656666316334383136353933393039306434326661633433336335656162653666303263356366396430323531383162e28093",
+      "class": "text",
+      "value": "34663137363964373637636232633833656666316334383136353933393039306434326661633433336335656162653666303263356366396430323531383162e28093",
+      "item_ref": "invalid"
+    },
+    {
+      "about": "an integer with a trailing U+2013 en dash",
+      "input": "3432e28093",
+      "class": "text",
+      "value": "3432e28093",
+      "item_ref": "invalid"
+    },
+    {
+      "about": "a code with U+2014 between the groups",
+      "input": "39574250e280944b4e5637e2809453435038e2809437565a57",
+      "class": "text",
+      "value": "39574250e280944b4e5637e2809453435038e2809437565a57",
+      "item_ref": "invalid"
+    },
+    {
+      "about": "a code with U+2014 at one boundary",
+      "input": "395742504b4e5637e280945343503837565a57",
+      "class": "text",
+      "value": "395742504b4e5637e280945343503837565a57",
+      "item_ref": "invalid"
+    },
+    {
+      "about": "a code with a trailing U+2014",
+      "input": "395742504b4e56375343503837565a57e28094",
+      "class": "text",
+      "value": "395742504b4e56375343503837565a57e28094",
+      "item_ref": "invalid"
+    },
+    {
+      "about": "a UUIDv7 with a leading U+2014",
+      "input": "e2809430313865393064382d303665382d376639662d626664372d363733306261393861353162",
+      "class": "text",
+      "value": "e2809430313865393064382d303665382d376639662d626664372d363733306261393861353162",
+      "item_ref": "invalid"
+    },
+    {
+      "about": "an item_hash with a trailing U+2014",
+      "input": "34663137363964373637636232633833656666316334383136353933393039306434326661633433336335656162653666303263356366396430323531383162e28094",
+      "class": "text",
+      "value": "34663137363964373637636232633833656666316334383136353933393039306434326661633433336335656162653666303263356366396430323531383162e28094",
+      "item_ref": "invalid"
+    },
+    {
+      "about": "an integer with a trailing U+2014",
+      "input": "3432e28094",
+      "class": "text",
+      "value": "3432e28094",
+      "item_ref": "invalid"
+    },
+    {
+      "about": "a code with U+2015 horizontal bar between the groups",
+      "input": "39574250e280954b4e5637e2809553435038e2809537565a57",
+      "class": "text",
+      "value": "39574250e280954b4e5637e2809553435038e2809537565a57",
+      "item_ref": "invalid"
+    },
+    {
+      "about": "a code with U+2015 horizontal bar at one boundary",
+      "input": "395742504b4e5637e280955343503837565a57",
+      "class": "text",
+      "value": "395742504b4e5637e280955343503837565a57",
+      "item_ref": "invalid"
+    },
+    {
+      "about": "a code with a trailing U+2015 horizontal bar",
+      "input": "395742504b4e56375343503837565a57e28095",
+      "class": "text",
+      "value": "395742504b4e56375343503837565a57e28095",
+      "item_ref": "invalid"
+    },
+    {
+      "about": "a UUIDv7 with a leading U+2015 horizontal bar",
+      "input": "e2809530313865393064382d303665382d376639662d626664372d363733306261393861353162",
+      "class": "text",
+      "value": "e2809530313865393064382d303665382d376639662d626664372d363733306261393861353162",
+      "item_ref": "invalid"
+    },
+    {
+      "about": "an item_hash with a trailing U+2015 horizontal bar",
+      "input": "34663137363964373637636232633833656666316334383136353933393039306434326661633433336335656162653666303263356366396430323531383162e28095",
+      "class": "text",
+      "value": "34663137363964373637636232633833656666316334383136353933393039306434326661633433336335656162653666303263356366396430323531383162e28095",
+      "item_ref": "invalid"
+    },
+    {
+      "about": "an integer with a trailing U+2015 horizontal bar",
+      "input": "3432e28095",
+      "class": "text",
+      "value": "3432e28095",
+      "item_ref": "invalid"
+    },
+    {
+      "about": "a code with U+2212 minus sign between the groups",
+      "input": "39574250e288924b4e5637e2889253435038e2889237565a57",
+      "class": "text",
+      "value": "39574250e288924b4e5637e2889253435038e2889237565a57",
+      "item_ref": "invalid"
+    },
+    {
+      "about": "a code with U+2212 minus sign at one boundary",
+      "input": "395742504b4e5637e288925343503837565a57",
+      "class": "text",
+      "value": "395742504b4e5637e288925343503837565a57",
+      "item_ref": "invalid"
+    },
+    {
+      "about": "a code with a trailing U+2212 minus sign",
+      "input": "395742504b4e56375343503837565a57e28892",
+      "class": "text",
+      "value": "395742504b4e56375343503837565a57e28892",
+      "item_ref": "invalid"
+    },
+    {
+      "about": "a UUIDv7 with a leading U+2212 minus sign",
+      "input": "e2889230313865393064382d303665382d376639662d626664372d363733306261393861353162",
+      "class": "text",
+      "value": "e2889230313865393064382d303665382d376639662d626664372d363733306261393861353162",
+      "item_ref": "invalid"
+    },
+    {
+      "about": "an item_hash with a trailing U+2212 minus sign",
+      "input": "34663137363964373637636232633833656666316334383136353933393039306434326661633433336335656162653666303263356366396430323531383162e28892",
+      "class": "text",
+      "value": "34663137363964373637636232633833656666316334383136353933393039306434326661633433336335656162653666303263356366396430323531383162e28892",
+      "item_ref": "invalid"
+    },
+    {
+      "about": "an integer with a trailing U+2212 minus sign",
+      "input": "3432e28892",
+      "class": "text",
+      "value": "3432e28892",
+      "item_ref": "invalid"
+    },
+    {
+      "about": "a code with U+00A0 no-break space between the groups",
+      "input": "39574250c2a04b4e5637c2a053435038c2a037565a57",
+      "class": "text",
+      "value": "39574250c2a04b4e5637c2a053435038c2a037565a57",
+      "item_ref": "invalid"
+    },
+    {
+      "about": "a code with U+00A0 no-break space at one boundary",
+      "input": "395742504b4e5637c2a05343503837565a57",
+      "class": "text",
+      "value": "395742504b4e5637c2a05343503837565a57",
+      "item_ref": "invalid"
+    },
+    {
+      "about": "a code with a trailing U+00A0 no-break space",
+      "input": "395742504b4e56375343503837565a57c2a0",
+      "class": "text",
+      "value": "395742504b4e56375343503837565a57c2a0",
+      "item_ref": "invalid"
+    },
+    {
+      "about": "a UUIDv7 with a leading U+00A0 no-break space",
+      "input": "c2a030313865393064382d303665382d376639662d626664372d363733306261393861353162",
+      "class": "text",
+      "value": "c2a030313865393064382d303665382d376639662d626664372d363733306261393861353162",
+      "item_ref": "invalid"
+    },
+    {
+      "about": "an item_hash with a trailing U+00A0 no-break space",
+      "input": "34663137363964373637636232633833656666316334383136353933393039306434326661633433336335656162653666303263356366396430323531383162c2a0",
+      "class": "text",
+      "value": "34663137363964373637636232633833656666316334383136353933393039306434326661633433336335656162653666303263356366396430323531383162c2a0",
+      "item_ref": "invalid"
+    },
+    {
+      "about": "an integer with a trailing U+00A0 no-break space",
+      "input": "3432c2a0",
+      "class": "text",
+      "value": "3432c2a0",
+      "item_ref": "invalid"
+    },
+    {
+      "about": "a code with U+202F narrow no-break space between the groups",
+      "input": "39574250e280af4b4e5637e280af53435038e280af37565a57",
+      "class": "text",
+      "value": "39574250e280af4b4e5637e280af53435038e280af37565a57",
+      "item_ref": "invalid"
+    },
+    {
+      "about": "a code with U+202F narrow no-break space at one boundary",
+      "input": "395742504b4e5637e280af5343503837565a57",
+      "class": "text",
+      "value": "395742504b4e5637e280af5343503837565a57",
+      "item_ref": "invalid"
+    },
+    {
+      "about": "a code with a trailing U+202F narrow no-break space",
+      "input": "395742504b4e56375343503837565a57e280af",
+      "class": "text",
+      "value": "395742504b4e56375343503837565a57e280af",
+      "item_ref": "invalid"
+    },
+    {
+      "about": "a UUIDv7 with a leading U+202F narrow no-break space",
+      "input": "e280af30313865393064382d303665382d376639662d626664372d363733306261393861353162",
+      "class": "text",
+      "value": "e280af30313865393064382d303665382d376639662d626664372d363733306261393861353162",
+      "item_ref": "invalid"
+    },
+    {
+      "about": "an item_hash with a trailing U+202F narrow no-break space",
+      "input": "34663137363964373637636232633833656666316334383136353933393039306434326661633433336335656162653666303263356366396430323531383162e280af",
+      "class": "text",
+      "value": "34663137363964373637636232633833656666316334383136353933393039306434326661633433336335656162653666303263356366396430323531383162e280af",
+      "item_ref": "invalid"
+    },
+    {
+      "about": "an integer with a trailing U+202F narrow no-break space",
+      "input": "3432e280af",
+      "class": "text",
+      "value": "3432e280af",
+      "item_ref": "invalid"
+    },
+    {
+      "about": "a code with U+0085 next line between the groups",
+      "input": "39574250c2854b4e5637c28553435038c28537565a57",
+      "class": "text",
+      "value": "39574250c2854b4e5637c28553435038c28537565a57",
+      "item_ref": "invalid"
+    },
+    {
+      "about": "a code with U+0085 next line at one boundary",
+      "input": "395742504b4e5637c2855343503837565a57",
+      "class": "text",
+      "value": "395742504b4e5637c2855343503837565a57",
+      "item_ref": "invalid"
+    },
+    {
+      "about": "a code with a trailing U+0085 next line",
+      "input": "395742504b4e56375343503837565a57c285",
+      "class": "text",
+      "value": "395742504b4e56375343503837565a57c285",
+      "item_ref": "invalid"
+    },
+    {
+      "about": "a UUIDv7 with a leading U+0085 next line",
+      "input": "c28530313865393064382d303665382d376639662d626664372d363733306261393861353162",
+      "class": "text",
+      "value": "c28530313865393064382d303665382d376639662d626664372d363733306261393861353162",
+      "item_ref": "invalid"
+    },
+    {
+      "about": "an item_hash with a trailing U+0085 next line",
+      "input": "34663137363964373637636232633833656666316334383136353933393039306434326661633433336335656162653666303263356366396430323531383162c285",
+      "class": "text",
+      "value": "34663137363964373637636232633833656666316334383136353933393039306434326661633433336335656162653666303263356366396430323531383162c285",
+      "item_ref": "invalid"
+    },
+    {
+      "about": "an integer with a trailing U+0085 next line",
+      "input": "3432c285",
+      "class": "text",
+      "value": "3432c285",
+      "item_ref": "invalid"
+    },
+    {
+      "about": "a UUIDv7 with a trailing line feed",
+      "input": "30313865393064382d303665382d376639662d626664372d3637333062613938613531620a",
+      "class": "text",
+      "value": "30313865393064382d303665382d376639662d626664372d3637333062613938613531620a",
+      "item_ref": "invalid"
+    },
+    {
+      "about": "a UUIDv7 with a leading space",
+      "input": "2030313865393064382d303665382d376639662d626664372d363733306261393861353162",
+      "class": "text",
+      "value": "2030313865393064382d303665382d376639662d626664372d363733306261393861353162",
+      "item_ref": "invalid"
+    },
+    {
+      "about": "a UUIDv7 with a trailing tab",
+      "input": "30313865393064382d303665382d376639662d626664372d36373330626139386135316209",
+      "class": "text",
+      "value": "30313865393064382d303665382d376639662d626664372d36373330626139386135316209",
+      "item_ref": "invalid"
+    },
+    {
+      "about": "an item_hash with a trailing line feed",
+      "input": "346631373639643736376362326338336566663163343831363539333930393064343266616334333363356561626536663032633563663964303235313831620a",
+      "class": "text",
+      "value": "346631373639643736376362326338336566663163343831363539333930393064343266616334333363356561626536663032633563663964303235313831620a",
+      "item_ref": "invalid"
+    },
+    {
+      "about": "an item_hash with a leading space",
+      "input": "2034663137363964373637636232633833656666316334383136353933393039306434326661633433336335656162653666303263356366396430323531383162",
+      "class": "text",
+      "value": "2034663137363964373637636232633833656666316334383136353933393039306434326661633433336335656162653666303263356366396430323531383162",
+      "item_ref": "invalid"
+    },
+    {
+      "about": "a version 4 UUID with a trailing space",
+      "input": "35353065383430302d653239622d343164342d613731362d34343636353534343030303020",
+      "class": "text",
+      "value": "35353065383430302d653239622d343164342d613731362d34343636353534343030303020",
+      "item_ref": "invalid"
+    },
+    {
+      "about": "an integer with a trailing line feed, two characters",
+      "input": "370a",
+      "class": "invalid",
+      "value": null,
+      "item_ref": "invalid"
+    },
+    {
+      "about": "an integer with a leading space",
+      "input": "203432",
+      "class": "text",
+      "value": "203432",
+      "item_ref": "invalid"
+    },
+    {
+      "about": "an integer with a trailing line feed",
+      "input": "34320a",
+      "class": "text",
+      "value": "34320a",
+      "item_ref": "invalid"
+    },
+    {
+      "about": "a code with U+017F long s in place of S",
+      "input": "395742504b4e5637c5bf43503837565a57",
+      "class": "text",
+      "value": "395742504b4e5637c5bf43503837565a57",
+      "item_ref": "invalid"
+    },
+    {
+      "about": "a lowercase code with U+017F long s in place of s",
+      "input": "397762706b6e7637c5bf63703837767a77",
+      "class": "text",
+      "value": "397762706b6e7637c5bf63703837767a77",
+      "item_ref": "invalid"
+    },
+    {
+      "about": "a code with U+0131 dotless i in place of 1",
+      "input": "30c4b13233343536373839414243444534",
+      "class": "text",
+      "value": "30c4b13233343536373839414243444534",
+      "item_ref": "invalid"
+    },
+    {
+      "about": "a code with U+212A Kelvin sign in place of K",
+      "input": "39574250e284aa4e56375343503837565a57",
+      "class": "text",
+      "value": "39574250e284aa4e56375343503837565a57",
+      "item_ref": "invalid"
+    },
+    {
+      "about": "a code with a leading U+0085 next line",
+      "input": "c285395742504b4e56375343503837565a57",
+      "class": "text",
+      "value": "c285395742504b4e56375343503837565a57",
+      "item_ref": "invalid"
+    },
+    {
+      "about": "a UUIDv7 with a trailing U+0085 next line",
+      "input": "30313865393064382d303665382d376639662d626664372d363733306261393861353162c285",
+      "class": "text",
+      "value": "30313865393064382d303665382d376639662d626664372d363733306261393861353162c285",
+      "item_ref": "invalid"
+    },
+    {
+      "about": "1 then the Arabic-Indic digits two and three",
+      "input": "31d9a2d9a3",
+      "class": "text",
+      "value": "31d9a2d9a3",
+      "item_ref": "invalid"
+    },
+    {
+      "about": "the Arabic-Indic digits one to three",
+      "input": "d9a1d9a2d9a3",
+      "class": "text",
+      "value": "d9a1d9a2d9a3",
+      "item_ref": "invalid"
+    },
+    {
+      "about": "the fullwidth digits one to three",
+      "input": "efbc91efbc92efbc93",
+      "class": "text",
+      "value": "efbc91efbc92efbc93",
+      "item_ref": "invalid"
+    },
+    {
+      "about": "an item code in fullwidth forms",
+      "input": "efbc99efbcb7efbca2efbcb0efbcabefbcaeefbcb6efbc97efbcb3efbca3efbcb0efbc98efbc97efbcb6efbcbaefbcb7",
+      "class": "text",
+      "value": "efbc99efbcb7efbca2efbcb0efbcabefbcaeefbcb6efbc97efbcb3efbca3efbcb0efbc98efbc97efbcb6efbcbaefbcb7",
+      "item_ref": "invalid"
+    },
+    {
+      "about": "64 fullwidth a characters, 192 bytes that look like hex",
+      "input": "efbd81efbd81efbd81efbd81efbd81efbd81efbd81efbd81efbd81efbd81efbd81efbd81efbd81efbd81efbd81efbd81efbd81efbd81efbd81efbd81efbd81efbd81efbd81efbd81efbd81efbd81efbd81efbd81efbd81efbd81efbd81efbd81efbd81efbd81efbd81efbd81efbd81efbd81efbd81efbd81efbd81efbd81efbd81efbd81efbd81efbd81efbd81efbd81efbd81efbd81efbd81efbd81efbd81efbd81efbd81efbd81efbd81efbd81efbd81efbd81efbd81efbd81efbd81efbd81",
+      "class": "text",
+      "value": "efbd81efbd81efbd81efbd81efbd81efbd81efbd81efbd81efbd81efbd81efbd81efbd81efbd81efbd81efbd81efbd81efbd81efbd81efbd81efbd81efbd81efbd81efbd81efbd81efbd81efbd81efbd81efbd81efbd81efbd81efbd81efbd81efbd81efbd81efbd81efbd81efbd81efbd81efbd81efbd81efbd81efbd81efbd81efbd81efbd81efbd81efbd81efbd81efbd81efbd81efbd81efbd81efbd81efbd81efbd81efbd81efbd81efbd81efbd81efbd81efbd81efbd81efbd81efbd81",
+      "item_ref": "invalid"
+    },
+    {
+      "about": "zero",
+      "input": "30",
+      "class": "integer",
+      "value": 0,
+      "item_ref": "invalid"
+    },
+    {
+      "about": "one digit",
+      "input": "37",
+      "class": "integer",
+      "value": 7,
+      "item_ref": "invalid"
+    },
+    {
+      "about": "two digits",
+      "input": "3432",
+      "class": "integer",
+      "value": 42,
+      "item_ref": "invalid"
+    },
+    {
+      "about": "12 digits, the most row 6 takes",
+      "input": "393939393939393939393939",
+      "class": "integer",
+      "value": 999999999999,
+      "item_ref": "invalid"
+    },
+    {
+      "about": "12 digits with trailing zeros",
+      "input": "313030303030303030303030",
+      "class": "integer",
+      "value": 100000000000,
+      "item_ref": "invalid"
+    },
+    {
+      "about": "13 digits, over row 6",
+      "input": "31323334353637383930313233",
+      "class": "text",
+      "value": "31323334353637383930313233",
+      "item_ref": "invalid"
+    },
+    {
+      "about": "leading zeros",
+      "input": "303037",
+      "class": "text",
+      "value": "303037",
+      "item_ref": "invalid"
+    },
+    {
+      "about": "two zeros",
+      "input": "3030",
+      "class": "invalid",
+      "value": null,
+      "item_ref": "invalid"
+    },
+    {
+      "about": "a minus sign and one digit",
+      "input": "2d31",
+      "class": "invalid",
+      "value": null,
+      "item_ref": "invalid"
+    },
+    {
+      "about": "a negative number",
+      "input": "2d3132",
+      "class": "text",
+      "value": "2d3132",
+      "item_ref": "invalid"
+    },
+    {
+      "about": "a plus sign and one digit",
+      "input": "2b35",
+      "class": "invalid",
+      "value": null,
+      "item_ref": "invalid"
+    },
+    {
+      "about": "exponent notation",
+      "input": "316533",
+      "class": "text",
+      "value": "316533",
+      "item_ref": "invalid"
+    },
+    {
+      "about": "a 16-digit number is code-shaped, never an integer or text",
+      "input": "39393939393939393939393939393939",
+      "class": "item_code_typo",
+      "value": "39393939393939393939393939393939",
+      "item_ref": "typo"
+    },
+    {
+      "about": "a TypeID of a UUIDv7",
+      "input": "6974656d5f30316874386467317138667966767a6e76373632783968393876",
+      "class": "text",
+      "value": "6974656d5f30316874386467317138667966767a6e76373632783968393876",
+      "item_ref": "invalid"
+    },
+    {
+      "about": "the 26-character suffix of a TypeID",
+      "input": "30316874386467317138667966767a6e76373632783968393876",
+      "class": "text",
+      "value": "30316874386467317138667966767a6e76373632783968393876",
+      "item_ref": "invalid"
+    },
+    {
+      "about": "26-character Crockford text in uppercase",
+      "input": "30314854384447315138465946565a4e56373632583948393856",
+      "class": "text",
+      "value": "30314854384447315138465946565a4e56373632583948393856",
+      "item_ref": "invalid"
+    },
+    {
+      "about": "26-character Crockford text in mixed case",
+      "input": "30314854384447315138465946767a6e76373632783968393876",
+      "class": "text",
+      "value": "30314854384447315138465946767a6e76373632783968393876",
+      "item_ref": "invalid"
+    },
+    {
+      "about": "an API key in the app's format",
+      "input": "747275657374616d705f6464547445375856544a6546377a4679385a64486b624e7a50674b48634a4a46424a31553659666a67384a326c486f7756666f7a626b56674d4c484d76466a734f5f636d58637435",
+      "class": "text",
+      "value": "747275657374616d705f6464547445375856544a6546377a4679385a64486b624e7a50674b48634a4a46424a31553659666a67384a326c486f7756666f7a626b56674d4c484d76466a734f5f636d58637435",
+      "item_ref": "invalid"
+    },
+    {
+      "about": "a 300-character phrase",
+      "input": "70726f6f66206120737472616e6765722063616e20636865636b2070726f6f66206120737472616e6765722063616e20636865636b2070726f6f66206120737472616e6765722063616e20636865636b2070726f6f66206120737472616e6765722063616e20636865636b2070726f6f66206120737472616e6765722063616e20636865636b2070726f6f66206120737472616e6765722063616e20636865636b2070726f6f66206120737472616e6765722063616e20636865636b2070726f6f66206120737472616e6765722063616e20636865636b2070726f6f66206120737472616e6765722063616e20636865636b2070726f6f66206120737472616e6765722063616e20636865636b2070726f6f66206120737472616e6765722063616e20636865636b2070726f",
+      "class": "text",
+      "value": "70726f6f66206120737472616e6765722063616e20636865636b2070726f6f66206120737472616e6765722063616e20636865636b2070726f6f66206120737472616e6765722063616e20636865636b2070726f6f66206120737472616e6765722063616e20636865636b2070726f6f66206120737472616e6765722063616e20636865636b2070726f6f66206120737472616e6765722063616e20636865636b2070726f6f66206120737472616e6765722063616e20636865636b2070726f6f66206120737472616e6765722063616e20636865636b2070726f6f66206120737472616e6765722063616e20636865636b2070726f6f66206120737472616e6765722063616e20636865636b2070726f6f66206120737472616e6765722063616e20636865636b2070726f",
+      "item_ref": "invalid"
+    },
+    {
+      "about": "a username",
+      "input": "676c656e6e2d72656d7065",
+      "class": "text",
+      "value": "676c656e6e2d72656d7065",
+      "item_ref": "invalid"
+    },
+    {
+      "about": "a short username",
+      "input": "616c696365",
+      "class": "text",
+      "value": "616c696365",
+      "item_ref": "invalid"
+    },
+    {
+      "about": "three characters",
+      "input": "616263",
+      "class": "text",
+      "value": "616263",
+      "item_ref": "invalid"
+    },
+    {
+      "about": "three spaces: nothing is trimmed",
+      "input": "202020",
+      "class": "text",
+      "value": "202020",
+      "item_ref": "invalid"
+    },
+    {
+      "about": "three NUL characters",
+      "input": "000000",
+      "class": "text",
+      "value": "000000",
+      "item_ref": "invalid"
+    },
+    {
+      "about": "two characters",
+      "input": "6162",
+      "class": "invalid",
+      "value": null,
+      "item_ref": "invalid"
+    },
+    {
+      "about": "one character",
+      "input": "61",
+      "class": "invalid",
+      "value": null,
+      "item_ref": "invalid"
+    },
+    {
+      "about": "one space",
+      "input": "20",
+      "class": "invalid",
+      "value": null,
+      "item_ref": "invalid"
+    },
+    {
+      "about": "a line feed",
+      "input": "0a",
+      "class": "invalid",
+      "value": null,
+      "item_ref": "invalid"
+    },
+    {
+      "about": "one two-byte character",
+      "input": "c3a9",
+      "class": "invalid",
+      "value": null,
+      "item_ref": "invalid"
+    },
+    {
+      "about": "two four-byte characters",
+      "input": "f09f9880f09f9880",
+      "class": "invalid",
+      "value": null,
+      "item_ref": "invalid"
+    },
+    {
+      "about": "three four-byte characters",
+      "input": "f09f9880f09f9880f09f9880",
+      "class": "text",
+      "value": "f09f9880f09f9880f09f9880",
+      "item_ref": "invalid"
+    },
+    {
+      "about": "a, carriage return and line feed: 3 code points in 2 graphemes",
+      "input": "610d0a",
+      "class": "text",
+      "value": "610d0a",
+      "item_ref": "invalid"
+    },
+    {
+      "about": "e, U+0301 combining acute accent and x: 3 code points in 2 graphemes",
+      "input": "65cc8178",
+      "class": "text",
+      "value": "65cc8178",
+      "item_ref": "invalid"
+    },
+    {
+      "about": "two regional-indicator flags: 4 code points in 2 graphemes",
+      "input": "f09f87baf09f87b8f09f87acf09f87a7",
+      "class": "text",
+      "value": "f09f87baf09f87b8f09f87acf09f87a7",
+      "item_ref": "invalid"
+    },
+    {
+      "about": "Hangul jamo L, V and T: 3 code points in 1 grapheme",
+      "input": "e18480e185a1e186a8",
+      "class": "text",
+      "value": "e18480e185a1e186a8",
+      "item_ref": "invalid"
+    },
+    {
+      "about": "the Devanagari conjunct U+0915 U+094D U+0937 then Z: 4 code points in 2 graphemes",
+      "input": "e0a495e0a58de0a4b75a",
+      "class": "text",
+      "value": "e0a495e0a58de0a4b75a",
+      "item_ref": "invalid"
+    },
+    {
+      "about": "256 bytes: rows 1 to 6 are tried and none match",
+      "input": "61616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161",
+      "class": "text",
+      "value": "61616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161",
+      "item_ref": "invalid"
+    },
+    {
+      "about": "257 bytes: rows 1 to 6 are skipped",
+      "input": "6161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161",
+      "class": "text",
+      "value": "6161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161",
+      "item_ref": "invalid"
+    },
+    {
+      "about": "256 bytes of hex characters",
+      "input": "30303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030",
+      "class": "text",
+      "value": "30303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030",
+      "item_ref": "invalid"
+    },
+    {
+      "about": "257 bytes in 65 characters",
+      "input": "f09f9880f09f9880f09f9880f09f9880f09f9880f09f9880f09f9880f09f9880f09f9880f09f9880f09f9880f09f9880f09f9880f09f9880f09f9880f09f9880f09f9880f09f9880f09f9880f09f9880f09f9880f09f9880f09f9880f09f9880f09f9880f09f9880f09f9880f09f9880f09f9880f09f9880f09f9880f09f9880f09f9880f09f9880f09f9880f09f9880f09f9880f09f9880f09f9880f09f9880f09f9880f09f9880f09f9880f09f9880f09f9880f09f9880f09f9880f09f9880f09f9880f09f9880f09f9880f09f9880f09f9880f09f9880f09f9880f09f9880f09f9880f09f9880f09f9880f09f9880f09f9880f09f9880f09f9880f09f988061",
+      "class": "text",
+      "value": "f09f9880f09f9880f09f9880f09f9880f09f9880f09f9880f09f9880f09f9880f09f9880f09f9880f09f9880f09f9880f09f9880f09f9880f09f9880f09f9880f09f9880f09f9880f09f9880f09f9880f09f9880f09f9880f09f9880f09f9880f09f9880f09f9880f09f9880f09f9880f09f9880f09f9880f09f9880f09f9880f09f9880f09f9880f09f9880f09f9880f09f9880f09f9880f09f9880f09f9880f09f9880f09f9880f09f9880f09f9880f09f9880f09f9880f09f9880f09f9880f09f9880f09f9880f09f9880f09f9880f09f9880f09f9880f09f9880f09f9880f09f9880f09f9880f09f9880f09f9880f09f9880f09f9880f09f9880f09f988061",
+      "item_ref": "invalid"
+    },
+    {
+      "about": "256 bytes in 64 characters",
+      "input": "f09f9880f09f9880f09f9880f09f9880f09f9880f09f9880f09f9880f09f9880f09f9880f09f9880f09f9880f09f9880f09f9880f09f9880f09f9880f09f9880f09f9880f09f9880f09f9880f09f9880f09f9880f09f9880f09f9880f09f9880f09f9880f09f9880f09f9880f09f9880f09f9880f09f9880f09f9880f09f9880f09f9880f09f9880f09f9880f09f9880f09f9880f09f9880f09f9880f09f9880f09f9880f09f9880f09f9880f09f9880f09f9880f09f9880f09f9880f09f9880f09f9880f09f9880f09f9880f09f9880f09f9880f09f9880f09f9880f09f9880f09f9880f09f9880f09f9880f09f9880f09f9880f09f9880f09f9880f09f9880",
+      "class": "text",
+      "value": "f09f9880f09f9880f09f9880f09f9880f09f9880f09f9880f09f9880f09f9880f09f9880f09f9880f09f9880f09f9880f09f9880f09f9880f09f9880f09f9880f09f9880f09f9880f09f9880f09f9880f09f9880f09f9880f09f9880f09f9880f09f9880f09f9880f09f9880f09f9880f09f9880f09f9880f09f9880f09f9880f09f9880f09f9880f09f9880f09f9880f09f9880f09f9880f09f9880f09f9880f09f9880f09f9880f09f9880f09f9880f09f9880f09f9880f09f9880f09f9880f09f9880f09f9880f09f9880f09f9880f09f9880f09f9880f09f9880f09f9880f09f9880f09f9880f09f9880f09f9880f09f9880f09f9880f09f9880f09f9880",
+      "item_ref": "invalid"
+    },
+    {
+      "about": "a and 128 copies of U+0301: 257 bytes in 129 code points and 1 grapheme",
+      "input": "61cc81cc81cc81cc81cc81cc81cc81cc81cc81cc81cc81cc81cc81cc81cc81cc81cc81cc81cc81cc81cc81cc81cc81cc81cc81cc81cc81cc81cc81cc81cc81cc81cc81cc81cc81cc81cc81cc81cc81cc81cc81cc81cc81cc81cc81cc81cc81cc81cc81cc81cc81cc81cc81cc81cc81cc81cc81cc81cc81cc81cc81cc81cc81cc81cc81cc81cc81cc81cc81cc81cc81cc81cc81cc81cc81cc81cc81cc81cc81cc81cc81cc81cc81cc81cc81cc81cc81cc81cc81cc81cc81cc81cc81cc81cc81cc81cc81cc81cc81cc81cc81cc81cc81cc81cc81cc81cc81cc81cc81cc81cc81cc81cc81cc81cc81cc81cc81cc81cc81cc81cc81cc81cc81cc81cc81cc81cc81cc81",
+      "class": "text",
+      "value": "61cc81cc81cc81cc81cc81cc81cc81cc81cc81cc81cc81cc81cc81cc81cc81cc81cc81cc81cc81cc81cc81cc81cc81cc81cc81cc81cc81cc81cc81cc81cc81cc81cc81cc81cc81cc81cc81cc81cc81cc81cc81cc81cc81cc81cc81cc81cc81cc81cc81cc81cc81cc81cc81cc81cc81cc81cc81cc81cc81cc81cc81cc81cc81cc81cc81cc81cc81cc81cc81cc81cc81cc81cc81cc81cc81cc81cc81cc81cc81cc81cc81cc81cc81cc81cc81cc81cc81cc81cc81cc81cc81cc81cc81cc81cc81cc81cc81cc81cc81cc81cc81cc81cc81cc81cc81cc81cc81cc81cc81cc81cc81cc81cc81cc81cc81cc81cc81cc81cc81cc81cc81cc81cc81cc81cc81cc81cc81cc81",
+      "item_ref": "invalid"
+    },
+    {
+      "about": "a space, Proof, a space, 250 A, U+2013 en dash and a line feed: 261 bytes, as given",
+      "input": "2050726f6f662041414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141e280930a",
+      "class": "text",
+      "value": "2050726f6f662041414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141e280930a",
+      "item_ref": "invalid"
+    },
+    {
+      "about": "the empty string",
+      "input": "",
+      "class": "empty",
+      "value": null,
+      "item_ref": "invalid"
+    },
+    {
+      "about": "a lone 0xff byte",
+      "input": "ff",
+      "class": "invalid",
+      "value": null,
+      "item_ref": "invalid"
+    },
+    {
+      "about": "an overlong encoding of NUL",
+      "input": "c080",
+      "class": "invalid",
+      "value": null,
+      "item_ref": "invalid"
+    },
+    {
+      "about": "a UTF-16 surrogate encoded as UTF-8",
+      "input": "eda080",
+      "class": "invalid",
+      "value": null,
+      "item_ref": "invalid"
+    },
+    {
+      "about": "a code followed by a 0xff byte",
+      "input": "395742504b4e56375343503837565a57ff",
+      "class": "invalid",
+      "value": null,
+      "item_ref": "invalid"
+    },
+    {
+      "about": "a truncated two-byte sequence after three letters",
+      "input": "616263c3",
+      "class": "invalid",
+      "value": null,
+      "item_ref": "invalid"
+    },
+    {
+      "about": "257 bytes that are not UTF-8",
+      "input": "61616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161ff",
+      "class": "invalid",
+      "value": null,
+      "item_ref": "invalid"
+    },
+    {
+      "about": "a UUIDv7 followed by a 0x80 byte",
+      "input": "30313865393064382d303665382d376639662d626664372d36373330626139386135316280",
+      "class": "invalid",
+      "value": null,
+      "item_ref": "invalid"
+    }
+  ]
+}

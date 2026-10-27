@@ -13,26 +13,34 @@ import (
 	"time"
 
 	"github.com/gofrs/uuid/v5"
-	"github.com/oklog/ulid/v2"
 	"github.com/spf13/cobra"
 	"github.com/truestamp/truestamp-cli/internal/inputsrc"
+	"github.com/truestamp/truestamp-cli/internal/proof"
 	"github.com/truestamp/truestamp-cli/internal/tscrypto"
 	"github.com/truestamp/truestamp-cli/internal/ui"
 )
 
 var convertIDCmd = &cobra.Command{
 	Use:   "id [value]",
-	Short: "Extract the embedded timestamp from a ULID or UUIDv7",
-	Long: `Both ULID (used for Truestamp item IDs) and UUIDv7 (used for block IDs)
-carry a millisecond timestamp in their first 48 bits. This sub-command
-parses either form and emits the timestamp, useful when inspecting
-proof bundles.
+	Short: "Read the time recorded inside a UUIDv7 id",
+	Long: `Every Truestamp id, of an item, a block, an entropy observation or a
+beacon, is a UUIDv7, whose leftmost 48 bits are a time: the milliseconds
+since the Unix epoch at which Truestamp recorded the id (SPEC.md section
+11.3). It is a recorded time, never a proven one: a proof's submission
+window comes from its commitments and witnesses, not from its id. This
+sub-command reads that time and prints it.
+
+The value is read exactly as typed: nothing is trimmed, and a UUID's
+32-hex, braced and urn: forms and every other version are refused. Read
+from a pipe, the one line ending that ends the line, a line feed or a
+carriage return and line feed, is not part of the value. An item code
+carries no time, and is refused with that reason.
 
 Examples:
-  truestamp convert id 01KNN33GX5E470CB9TRWAYF9DD
+  truestamp convert id 01a0db66-c2e0-78a4-b8cc-12b11bc97493
   truestamp convert id 019cf813-99b8-730a-84f1-5a711a9c355e --to-zone Local
   truestamp convert id 019cf813-99b8-730a-84f1-5a711a9c355e --extract raw
-  echo 01KNN33GX5E470CB9TRWAYF9DD | truestamp convert id --json`,
+  echo 01a0db66-c2e0-78a4-b8cc-12b11bc97493 | truestamp convert id --json`,
 	RunE: runConvertID,
 }
 
@@ -46,54 +54,58 @@ func runConvertID(cmd *cobra.Command, args []string) error {
 	jsonOut, _ := cmd.Flags().GetBool("json")
 	silent, _ := cmd.Flags().GetBool("silent")
 
+	switch strings.ToLower(strings.TrimSpace(typeName)) {
+	case "", "auto", "uuid7":
+	default:
+		return fmt.Errorf("--type must be auto or uuid7 (got %q)", typeName)
+	}
+
 	raw, err := gatherIDInput(cmd, args)
 	if err != nil {
 		return err
 	}
-
-	kind := strings.ToLower(strings.TrimSpace(typeName))
-	if kind == "" || kind == "auto" {
-		kind = detectIDKind(raw)
-		if kind == "" {
-			return fmt.Errorf("cannot auto-detect %q as a ULID or UUIDv7 (use --type)", raw)
-		}
+	id, err := uuidv7WithTime(raw)
+	if err != nil {
+		return err
 	}
-
-	switch kind {
-	case "ulid":
-		return emitULIDInfo(cmd, raw, extract, toZone, jsonOut, silent)
-	case "uuid7", "uuid", "uuidv7":
-		return emitUUIDv7Info(cmd, raw, extract, toZone, jsonOut, silent)
-	}
-	return fmt.Errorf("--type must be ulid or uuid7 (got %q)", typeName)
+	return emitUUIDv7Info(cmd, id, extract, toZone, jsonOut, silent)
 }
 
-// detectIDKind classifies common formats by shape. ULID is 26 chars of
-// Crockford base32; UUID is either 32 hex chars or 8-4-4-4-12 dashed.
-func detectIDKind(s string) string {
-	s = strings.TrimSpace(s)
-	if len(s) == 26 && !strings.ContainsRune(s, '-') {
-		return "ulid"
+// uuidv7WithTime reads raw exactly as given, as proof.DetectIDType
+// classifies it, and returns the UUIDv7 in its canonical lowercase form.
+// An item code and an item_hash are refused for what they are: neither
+// carries a time.
+func uuidv7WithTime(raw string) (string, error) {
+	shape, id, err := proof.DetectIDType(raw)
+	if err != nil {
+		return "", nameTheFormTaken(err, "convert id takes a UUIDv7 (e.g. 019d6a32-13e6-72b0-97e5-3779231ea97b)")
 	}
-	if strings.Count(s, "-") == 4 && len(s) == 36 {
-		return "uuid7"
+	switch shape {
+	case proof.IDTypeItemCode:
+		return "", fmt.Errorf("%s is an item code: an item code carries no time", id)
+	case proof.IDTypeItemHash:
+		return "", fmt.Errorf("%q is 64 hex characters, an item_hash at most: a hash carries no time", raw)
 	}
-	if len(s) == 32 && !strings.ContainsRune(s, '-') {
-		return "uuid7"
-	}
-	return ""
+	return id, nil
 }
 
+// gatherIDInput is the positional value exactly as typed or, with none
+// and a pipe on stdin, the line read from it: the one line ending that
+// ends it, "\r\n" or "\n", is not part of the value, and nothing else is
+// removed.
 func gatherIDInput(cmd *cobra.Command, args []string) (string, error) {
 	if len(args) > 0 {
-		return strings.TrimSpace(args[0]), nil
+		return args[0], nil
 	}
 	if inputsrc.IsStdinPipe() {
 		data, err := io.ReadAll(io.LimitReader(os.Stdin, 256))
 		if err != nil {
 			return "", fmt.Errorf("reading stdin: %w", err)
 		}
-		s := strings.TrimSpace(string(data))
+		s, crlf := strings.CutSuffix(string(data), "\r\n")
+		if !crlf {
+			s = strings.TrimSuffix(s, "\n")
+		}
 		if s == "" {
 			return "", fmt.Errorf("empty stdin input")
 		}
@@ -105,65 +117,12 @@ func gatherIDInput(cmd *cobra.Command, args []string) (string, error) {
 
 var errConvertNoIDInput = errors.New("no ID input provided")
 
-func emitULIDInfo(cmd *cobra.Command, raw, extract, toZone string, jsonOut, silent bool) error {
-	parsed, err := ulid.ParseStrict(raw)
-	if err != nil {
-		return fmt.Errorf("ULID parse: %w", err)
-	}
-	ms := parsed.Time()
-	t := time.UnixMilli(int64(ms))
-	tz, err := resolveZone(toZone)
-	if err != nil {
-		return err
-	}
-	localized := t.In(tz.loc)
-
-	if extract == "raw" {
-		if jsonOut {
-			return emitJSON(cmd.OutOrStdout(), struct {
-				Type string `json:"type"`
-				Raw  string `json:"raw_hex"`
-			}{
-				Type: "ulid",
-				Raw:  hex.EncodeToString(parsed[:]),
-			})
-		}
-		if !silent {
-			ui.Fprintln(cmd.OutOrStdout(), hex.EncodeToString(parsed[:]))
-		}
-		return nil
-	}
-
-	if jsonOut {
-		return emitJSON(cmd.OutOrStdout(), struct {
-			Type         string `json:"type"`
-			Value        string `json:"value"`
-			TimestampMS  uint64 `json:"timestamp_ms"`
-			TimestampUTC string `json:"timestamp_utc"`
-			Zone         string `json:"zone"`
-			Local        string `json:"local"`
-		}{
-			Type:         "ulid",
-			Value:        raw,
-			TimestampMS:  ms,
-			TimestampUTC: t.UTC().Format(time.RFC3339Nano),
-			Zone:         tz.name,
-			Local:        localized.Format(time.RFC3339Nano),
-		})
-	}
-	if !silent {
-		ui.Fprintln(cmd.OutOrStdout(), localized.Format(time.RFC3339Nano))
-	}
-	return nil
-}
-
-func emitUUIDv7Info(cmd *cobra.Command, raw, extract, toZone string, jsonOut, silent bool) error {
-	parsed, err := uuid.FromString(raw)
+func emitUUIDv7Info(cmd *cobra.Command, id, extract, toZone string, jsonOut, silent bool) error {
+	parsed, err := uuid.FromString(id)
 	if err != nil {
 		return fmt.Errorf("UUID parse: %w", err)
 	}
-	// Prefer the shared helper for interop with the existing verifier.
-	t, err := tscrypto.ExtractUUIDv7Timestamp(raw)
+	t, err := tscrypto.ExtractUUIDv7Timestamp(id)
 	if err != nil {
 		return err
 	}
@@ -199,7 +158,7 @@ func emitUUIDv7Info(cmd *cobra.Command, raw, extract, toZone string, jsonOut, si
 			Local        string `json:"local"`
 		}{
 			Type:         "uuid7",
-			Value:        raw,
+			Value:        id,
 			TimestampMS:  t.UnixMilli(),
 			TimestampUTC: t.UTC().Format(time.RFC3339Nano),
 			Zone:         tz.name,
@@ -237,7 +196,7 @@ func resolveZone(zone string) (zoneInfo, error) {
 
 func init() {
 	f := convertIDCmd.Flags()
-	f.String("type", "auto", "ID type: auto, ulid, uuid7")
+	f.String("type", "auto", "ID type: auto, uuid7")
 	f.String("extract", "time", "What to extract: time, raw")
 	f.String("to-zone", "UTC", "Target IANA zone for time output (default UTC)")
 	addRecordOutputFlags(convertIDCmd)

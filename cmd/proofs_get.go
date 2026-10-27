@@ -20,9 +20,9 @@ import (
 // Subject-type flag values for `truestamp proofs get --type`. These map 1:1
 // to the `type` of the server's raw proof route, the six type names of
 // SPEC.md section 3.2 (Members of `proof`). There is no "auto" and no bare
-// "entropy". Callers that don't pass --type get a default: a ULID id is an
-// item, and a UUIDv7 id is resolved against the server in one extra round
-// trip.
+// "entropy". Callers that don't pass --type get a default: an item code
+// names an item, and a UUIDv7 id is resolved against the server in one
+// extra round trip.
 const (
 	proofTypeItem           = "item"
 	proofTypeEntropyNIST    = "entropy_nist"
@@ -43,16 +43,6 @@ var proofTypeValues = []string{
 	proofTypeBeacon,
 }
 
-// proofTypesForUUIDv7 lists the --type values that may be used with a
-// UUIDv7 id (everything except "item").
-var proofTypesForUUIDv7 = []string{
-	proofTypeEntropyNIST,
-	proofTypeEntropyStellar,
-	proofTypeEntropyBitcoin,
-	proofTypeBlock,
-	proofTypeBeacon,
-}
-
 var proofsGetCmd = &cobra.Command{
 	Use:   "get <id>",
 	Short: "Fetch the proof bundle for a subject",
@@ -60,11 +50,13 @@ var proofsGetCmd = &cobra.Command{
 served: one JSON document, the envelope of SPEC.md section 3.1, signed
 by Truestamp.
 
---type is optional. A ULID is unambiguously an item. A UUIDv7 could be an
-entropy observation, a block or a beacon, so it is resolved against the
-server in one extra round trip; pass --type to skip that call, or when an
-id is verifiable as more than one subject type, which is refused rather
-than guessed.
+The id is a UUIDv7, read exactly as typed: nothing is trimmed, and a
+UUID's 32-hex, braced and urn: forms are refused. --type is optional: a
+UUIDv7 could be an item, an entropy observation, a block or a beacon, so it
+is resolved against the server in one extra round trip; pass --type to
+skip that call, or when an id is verifiable as more than one subject type,
+which is refused rather than guessed. An item is fetched by its UUIDv7 id,
+not by its item code or its item_hash.
 
 --constructions selects how the proof carries the constructions text
 (SPEC.md section 7.2): 'full' (the default) carries the text itself,
@@ -86,12 +78,12 @@ types in the signed proof, so a block and a beacon proof for the same
 block have different signatures.
 
 Examples:
-  truestamp proofs get 01KNN33GX5E470CB9TRWAYF9DD
-  truestamp proofs get --constructions reference 01KNN33GX5E470CB9TRWAYF9DD
+  truestamp proofs get 01a0db66-c2e0-78a4-b8cc-12b11bc97493
+  truestamp proofs get --type item --constructions reference 01a0db66-c2e0-78a4-b8cc-12b11bc97493
   truestamp proofs get --type block   019d6a32-13e6-72b0-97e5-3779231ea97b
   truestamp proofs get --type beacon --to-file 019d6a32-13e6-72b0-97e5-3779231ea97b
   truestamp proofs get --type entropy_stellar 019cf813-99b8-730a-84f1-5a711a9c355e
-  truestamp proofs get -o proof.json 01KNN33GX5E470CB9TRWAYF9DD
+  truestamp proofs get -o proof.json 01a0db66-c2e0-78a4-b8cc-12b11bc97493
 
 Requires authentication, run 'truestamp auth login', or set TRUESTAMP_API_KEY / --api-key for headless/CI use.
 
@@ -105,7 +97,8 @@ output file).`,
 		}
 
 		cfg := appConfig
-		id := args[0]
+		// The id exactly as typed: DetectIDType trims nothing.
+		typed := args[0]
 
 		if err := requireAuth(cmd); err != nil {
 			return err
@@ -130,27 +123,31 @@ output file).`,
 
 		// Pre-flight id-shape validation, catches obvious typos before
 		// the network round-trip and is also the basis for the smart
-		// --type default.
-		shape, err := proof.DetectIDType(id)
+		// --type default. From here on the id is its canonical form.
+		shape, id, err := proof.DetectIDType(typed)
 		if err != nil {
-			return err
+			return nameTheFormTaken(err, "proofs get takes a UUIDv7 id (e.g. 019d6a32-13e6-72b0-97e5-3779231ea97b)")
 		}
 
 		// Resolve --type when not specified.
 		//
-		// A ULID is unambiguously an item, so that case needs no help. A
-		// UUIDv7 could be a block, a beacon or an entropy observation, and
-		// nothing client-side can tell them apart: this is the one place
-		// id-shape dispatch cannot work. Rather than requiring --type, ask
-		// the server what the id refers to, at the cost of one round trip.
+		// An item code names only an item. A UUIDv7 could be an item, a
+		// block, a beacon or an entropy observation, and nothing
+		// client-side can tell them apart: this is the one place id-shape
+		// dispatch cannot work. Rather than requiring --type, ask the
+		// server what the id refers to, at the cost of one round trip. 64
+		// hex characters name a subject only as an item's item_hash, and
+		// this command fetches an item only by its UUIDv7 id.
 		//
 		// The classification only decides which proof to REQUEST. The
 		// proof that comes back is still verified against its own signed
 		// type, so a wrong answer here cannot change a verdict.
 		if typeFlag == "" {
 			switch shape {
-			case proof.IDTypeULID:
+			case proof.IDTypeItemCode:
 				typeFlag = proofTypeItem
+			case proof.IDTypeItemHash:
+				return refuseItemRefNotFetched(shape)
 			case proof.IDTypeUUIDv7:
 				resolved, rErr := proof.ResolveSubjectType(cmd.Context(), cfg.APIURL, cfg.Team, id)
 				if rErr != nil {
@@ -158,7 +155,7 @@ output file).`,
 						return renderAPIError(cmd, rErr, "proof")
 					}
 					return fmt.Errorf("%w\n(or pass --type explicitly: %s)",
-						rErr, strings.Join(proofTypesForUUIDv7, " | "))
+						rErr, strings.Join(proofTypeValues, " | "))
 				}
 				typeFlag = resolved
 				appLogger.Info("proof_type_resolved", "id", id, "type", typeFlag)
@@ -176,6 +173,9 @@ output file).`,
 		// Shape vs type cross-check, surfaces obvious mismatches locally
 		// before the server refuses them with id_format_mismatch.
 		if err := validateTypeVsShape(typeFlag, shape); err != nil {
+			return err
+		}
+		if err := refuseItemRefNotFetched(shape); err != nil {
 			return err
 		}
 
@@ -243,22 +243,45 @@ func validProofType(v string) bool {
 }
 
 // validateTypeVsShape ensures --type matches the syntactic shape of the
-// positional id. `item` requires a ULID; every other type requires a
-// UUIDv7. Runs locally before the network call so users get a targeted
-// error rather than a generic server 422.
+// positional id. `item` takes a UUIDv7, an item code or an item_hash, the
+// three references the app's raw proof route reads for an item; every
+// other type takes only a UUIDv7, as that route requires. Runs locally
+// before the network call so users get a targeted error rather than the
+// server's id_format_mismatch.
 func validateTypeVsShape(typeFlag string, shape proof.IDType) error {
-	switch typeFlag {
-	case proofTypeItem:
-		if shape != proof.IDTypeULID {
-			return fmt.Errorf("--type %s requires a ULID id (e.g. 01KNN33GX5E470CB9TRWAYF9DD); got a UUIDv7", typeFlag)
-		}
-	default:
-		// entropy_*, block, beacon, all UUIDv7.
-		if shape != proof.IDTypeUUIDv7 {
-			return fmt.Errorf("--type %s requires a UUIDv7 id (e.g. 019d6a32-13e6-72b0-97e5-3779231ea97b); got a ULID", typeFlag)
-		}
+	if typeFlag == proofTypeItem || shape == proof.IDTypeUUIDv7 {
+		return nil
+	}
+	got := "an item code"
+	if shape == proof.IDTypeItemHash {
+		got = "64 hex characters, an item_hash"
+	}
+	return fmt.Errorf("--type %s requires a UUIDv7 id (e.g. 019d6a32-13e6-72b0-97e5-3779231ea97b); got %s, which names only an item", typeFlag, got)
+}
+
+// refuseItemRefNotFetched refuses an item named by its item code or its
+// item_hash: this command fetches an item's proof only by its UUIDv7 id.
+// A proof fetched by code or hash would be written with no check that the
+// item it is of is the one named, so the command takes neither until it
+// makes that check of the proof it fetches.
+func refuseItemRefNotFetched(shape proof.IDType) error {
+	switch shape {
+	case proof.IDTypeItemCode:
+		return fmt.Errorf("proofs get takes an item by its UUIDv7 id (e.g. 01a0db66-c2e0-78a4-b8cc-12b11bc97493), not by its item code")
+	case proof.IDTypeItemHash:
+		return fmt.Errorf("proofs get takes an item by its UUIDv7 id (e.g. 01a0db66-c2e0-78a4-b8cc-12b11bc97493), not by its item_hash")
 	}
 	return nil
+}
+
+// nameTheFormTaken adds to a refusal of proof.DetectIDType, which says
+// what a value is, the form the command takes, so each command names only
+// what it reads. Any other error is returned as it is.
+func nameTheFormTaken(err error, takes string) error {
+	if errors.Is(err, proof.ErrNotAnID) {
+		return fmt.Errorf("%w: %s", err, takes)
+	}
+	return err
 }
 
 func presentDownload(w io.Writer, filename, id, typeFlag, constructions string, size int) {
@@ -307,7 +330,7 @@ func init() {
 	f.StringP("out", "o", "", "Write the proof to this path (default: stdout)")
 	f.Bool("to-file", false, "Write the proof to <CODE>.proof.json (an item) or <id>.proof.json in the current directory")
 	f.String("type", "",
-		fmt.Sprintf(`Subject type. Optional: a ULID is an item, and a UUIDv7 is resolved against the server in one extra round trip. One of: %s`,
+		fmt.Sprintf(`Subject type. Optional: a UUIDv7 is resolved against the server in one extra round trip. One of: %s`,
 			strings.Join(proofTypeValues, " | ")))
 	proofsCmd.AddCommand(proofsGetCmd)
 }
