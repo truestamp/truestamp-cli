@@ -9,6 +9,7 @@ import (
 
 	"github.com/spf13/cobra"
 	"github.com/truestamp/truestamp-cli/internal/items"
+	"github.com/truestamp/truestamp-cli/internal/proof"
 	"github.com/truestamp/truestamp-cli/internal/ui"
 )
 
@@ -64,7 +65,9 @@ evidence, and the authoritative answer is:
 var itemsGetCmd = &cobra.Command{
 	Use:   "get <id>",
 	Short: "Show one item by id",
-	Long: `Show one item by its ULID.
+	Long: `Show one item by its UUIDv7 id, read exactly as typed: nothing is
+trimmed, and a UUID's 32-hex, braced and urn: forms are refused. An item
+is shown by its id, not by its item code or its item_hash.
 
 The card includes commitment state. For the authoritative answer, fetch
 the proof and check it yourself:
@@ -75,7 +78,11 @@ the proof and check it yourself:
 		if err := requireAuth(cmd); err != nil {
 			return err
 		}
-		it, err := items.Get(cmd.Context(), appConfig.APIURL, appConfig.Team, strings.TrimSpace(args[0]))
+		id, err := itemIDArg("get", args[0])
+		if err != nil {
+			return err
+		}
+		it, err := items.Get(cmd.Context(), appConfig.APIURL, appConfig.Team, id)
 		if err != nil {
 			return renderAPIError(cmd, err, "item")
 		}
@@ -87,6 +94,10 @@ var itemsUpdateCmd = &cobra.Command{
 	Use:   "update <id>",
 	Short: "Update an item's mutable attributes",
 	Long: `Update the attributes of an item that are not covered by its hash.
+
+The item is named by its UUIDv7 id, read exactly as typed: nothing is
+trimmed, and a UUID's 32-hex, braced and urn: forms are refused. An item
+is updated by its id, not by its item code or its item_hash.
 
 Only three attributes are mutable, and the server enforces this:
 visibility, tags, and the owning team. An item's claims, including its
@@ -103,12 +114,16 @@ request, silently mean "move this item to team ''". One word, one
 meaning.
 
 Examples:
-  truestamp items update 01KNN33GX5E470CB9TRWAYF9DD --visibility public
-  truestamp items update 01KNN33GX5E470CB9TRWAYF9DD --tags q3,contracts
-  truestamp items update 01KNN33GX5E470CB9TRWAYF9DD --to-team 019dbd00-0000-7000-8000-000000000000`,
+  truestamp items update 01a0db66-c2e0-78a4-b8cc-12b11bc97493 --visibility public
+  truestamp items update 01a0db66-c2e0-78a4-b8cc-12b11bc97493 --tags q3,contracts
+  truestamp items update 01a0db66-c2e0-78a4-b8cc-12b11bc97493 --to-team 019dbd00-0000-7000-8000-000000000000`,
 	Args: cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		if err := requireAuth(cmd); err != nil {
+			return err
+		}
+		id, err := itemIDArg("update", args[0])
+		if err != nil {
 			return err
 		}
 		var opts items.UpdateOptions
@@ -128,13 +143,32 @@ Examples:
 			v, _ := cmd.Flags().GetString("to-team")
 			opts.TeamID = &v
 		}
-		it, err := items.Update(cmd.Context(), appConfig.APIURL, appConfig.Team,
-			strings.TrimSpace(args[0]), opts)
+		it, err := items.Update(cmd.Context(), appConfig.APIURL, appConfig.Team, id, opts)
 		if err != nil {
 			return renderAPIError(cmd, err, "item")
 		}
 		return renderItem(cmd, it)
 	},
+}
+
+// itemIDArg reads the item argument of `items <verb>` exactly as typed, as
+// proof.DetectIDType classifies it, and returns the UUIDv7 in its
+// canonical lowercase form. An item code or an item_hash is refused: these
+// commands take an item by its id, and the app's update route reads only a
+// UUIDv7, so a code or a hash would first have to be resolved to the id the
+// item's own record gives.
+func itemIDArg(verb, typed string) (string, error) {
+	shape, id, err := proof.DetectIDType(typed)
+	if err != nil {
+		return "", nameTheFormTaken(err, fmt.Sprintf("items %s takes an item's UUIDv7 id (e.g. 01a0db66-c2e0-78a4-b8cc-12b11bc97493)", verb))
+	}
+	switch shape {
+	case proof.IDTypeItemCode:
+		return "", fmt.Errorf("items %s takes an item's UUIDv7 id (e.g. 01a0db66-c2e0-78a4-b8cc-12b11bc97493), not its item code", verb)
+	case proof.IDTypeItemHash:
+		return "", fmt.Errorf("items %s takes an item's UUIDv7 id (e.g. 01a0db66-c2e0-78a4-b8cc-12b11bc97493), not its item_hash", verb)
+	}
+	return id, nil
 }
 
 func renderItem(cmd *cobra.Command, it *items.Item) error {

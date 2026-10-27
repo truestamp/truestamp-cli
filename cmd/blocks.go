@@ -85,7 +85,8 @@ Examples:
 		if err != nil {
 			return err
 		}
-		arg := strings.TrimSpace(args[0])
+		// The id exactly as typed: nothing is trimmed.
+		arg := args[0]
 
 		var b *blocks.Block
 		switch {

@@ -10,14 +10,16 @@ import (
 	"time"
 )
 
-// TestProjectBlock checks the canonical block row: full ULID in ID,
+// TestProjectBlock checks the canonical block row: full id in ID,
 // compact kind reflecting the state-as-suffix rule.
+// Mutant killed: an id cut to 26 characters (the ID is not the whole
+// UUIDv7).
 func TestProjectBlock(t *testing.T) {
 	t.Parallel()
 
 	now := time.Date(2026, 4, 27, 16, 39, 0, 0, time.UTC)
 	p := makePush(t, "blocks", "block.created", map[string]any{
-		"id":         "01KQ88MP3GTM6XNHSCBVR12345",
+		"id":         "019dd4a0-6a10-7c3e-9b2f-5d8e1a7c4b30",
 		"state":      "finalized",
 		"block_hash": "f4b30a22775deadbeef000000000000000000000000000000000000000000000000",
 	})
@@ -31,8 +33,8 @@ func TestProjectBlock(t *testing.T) {
 	if row.RawKind != "block.created" {
 		t.Errorf("RawKind = %q, want block.created", row.RawKind)
 	}
-	if got, want := row.ID, "01KQ88MP3GTM6XNHSCBVR12345"; got != want {
-		t.Errorf("ID = %q, want %q (full ULID, untruncated)", got, want)
+	if got, want := row.ID, "019dd4a0-6a10-7c3e-9b2f-5d8e1a7c4b30"; got != want {
+		t.Errorf("ID = %q, want %q (the full id, untruncated)", got, want)
 	}
 	if row.Severity != SeverityNormal {
 		t.Errorf("Severity = %v, want SeverityNormal", row.Severity)
@@ -44,12 +46,15 @@ func TestProjectBlock(t *testing.T) {
 }
 
 // TestProjectBlockCreatedDefault: when state matches the default
-// "created", the verb is dropped and the kind is just the bare root.
+// "created", the verb is dropped and the kind is just the bare root, and
+// the ID is the full id.
+// Mutant killed: an id cut to 26 characters (the ID is not the whole
+// UUIDv7).
 func TestProjectBlockCreatedDefault(t *testing.T) {
 	t.Parallel()
 
 	p := makePush(t, "blocks", "block.created", map[string]any{
-		"id":    "01KQ88MP3GTM6XNHSCBVR12345",
+		"id":    "019dd4a0-6a10-7c3e-9b2f-5d8e1a7c4b30",
 		"state": "created",
 	})
 
@@ -57,6 +62,9 @@ func TestProjectBlockCreatedDefault(t *testing.T) {
 
 	if row.Kind != "block" {
 		t.Errorf("Kind = %q, want bare 'block' when state=created", row.Kind)
+	}
+	if row.ID != "019dd4a0-6a10-7c3e-9b2f-5d8e1a7c4b30" {
+		t.Errorf("ID = %q, want the full id", row.ID)
 	}
 }
 
@@ -152,11 +160,13 @@ func TestProjectCommitmentEachSubjectKind(t *testing.T) {
 
 // TestProjectEntropySource: source is encoded into the kind as a
 // middle segment; entropy_ prefix is stripped.
+// Mutant killed: an id cut to 26 characters (the ID is not the whole
+// UUIDv7).
 func TestProjectEntropySource(t *testing.T) {
 	t.Parallel()
 
 	p := makePush(t, "entropy.stellar", "entropy.created", map[string]any{
-		"id":               "01KQ88MP3GTM6EEEEEEEEEEEEEE",
+		"id":               "019dd4a0-6d48-7f63-8ae5-2a8b4dbf7c39",
 		"source":           "entropy_stellar",
 		"state":            "created",
 		"observation_hash": "812c6486dd17951b3cc4e091530a685b98488b1ffdddab08c867b84d5bc2172d",
@@ -167,17 +177,20 @@ func TestProjectEntropySource(t *testing.T) {
 	if row.Kind != "entropy.stellar" {
 		t.Errorf("Kind = %q, want entropy.stellar", row.Kind)
 	}
-	if row.ID != "01KQ88MP3GTM6EEEEEEEEEEEEEE" {
-		t.Errorf("ID = %q, want entropy ULID", row.ID)
+	if row.ID != "019dd4a0-6d48-7f63-8ae5-2a8b4dbf7c39" {
+		t.Errorf("ID = %q, want the entropy id", row.ID)
 	}
 }
 
-// TestProjectEntropyFailedState: non-default state becomes the suffix.
+// TestProjectEntropyFailedState: non-default state becomes the suffix,
+// and the ID is the full id.
+// Mutant killed: an id cut to 26 characters (the ID is not the whole
+// UUIDv7).
 func TestProjectEntropyFailedState(t *testing.T) {
 	t.Parallel()
 
 	p := makePush(t, "entropy.bitcoin", "entropy.updated", map[string]any{
-		"id":     "01KQ88MP3GTM6EEEEEEEEEEEEEE",
+		"id":     "019dd4a0-6d48-7f63-8ae5-2a8b4dbf7c39",
 		"source": "entropy_bitcoin",
 		"state":  "failed",
 	})
@@ -187,12 +200,17 @@ func TestProjectEntropyFailedState(t *testing.T) {
 	if row.Kind != "entropy.bitcoin.failed" {
 		t.Errorf("Kind = %q, want entropy.bitcoin.failed", row.Kind)
 	}
+	if row.ID != "019dd4a0-6d48-7f63-8ae5-2a8b4dbf7c39" {
+		t.Errorf("ID = %q, want the full id", row.ID)
+	}
 }
 
 // TestProjectItemStateTransitions: item.created (state=created) →
 // "item"; item.updated (state=processing) → "item.processing";
 // item.updated (state=committed) → "item.committed";
 // item.deleted → "item.deleted".
+// Mutant killed: an id cut to 26 characters (the ID is not the whole
+// UUIDv7).
 func TestProjectItemStateTransitions(t *testing.T) {
 	t.Parallel()
 
@@ -212,7 +230,7 @@ func TestProjectItemStateTransitions(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			p := makePush(t, "items.team", tc.kind, map[string]any{
-				"id":    "01KQ88MP3GTM6IIIIIIIIIIIII",
+				"id":    "019dd4a0-6b22-7d41-a8c3-0e6f2b9d5a17",
 				"state": tc.state,
 				"claims": map[string]any{
 					"name": "doc-A",
@@ -222,8 +240,8 @@ func TestProjectItemStateTransitions(t *testing.T) {
 			if row.Kind != tc.wantKind {
 				t.Errorf("Kind = %q, want %q", row.Kind, tc.wantKind)
 			}
-			if row.ID != "01KQ88MP3GTM6IIIIIIIIIIIII" {
-				t.Errorf("ID = %q, want full ULID", row.ID)
+			if row.ID != "019dd4a0-6b22-7d41-a8c3-0e6f2b9d5a17" {
+				t.Errorf("ID = %q, want the full id", row.ID)
 			}
 		})
 	}
@@ -284,11 +302,13 @@ func TestProjectEntropyBurstSourceFromStream(t *testing.T) {
 // block_healing.reverse on the blocks.healing stream. The CLI now
 // projects them with block_id as the ID and the verb preserved in
 // the kind.
+// Mutant killed: an id cut to 26 characters (the ID is not the whole
+// UUIDv7).
 func TestProjectBlockHealing(t *testing.T) {
 	t.Parallel()
 
 	p := makePush(t, "blocks.healing", "block_healing.forward", map[string]any{
-		"block_id":   "01KQ88MP3GTM6BBBBBBBBBBBBB",
+		"block_id":   "019dd4a0-6c35-7e52-b9d4-1f7a3cae6b28",
 		"from_state": "finalized",
 		"to_state":   "committed",
 		"direction":  "forward",
@@ -301,7 +321,7 @@ func TestProjectBlockHealing(t *testing.T) {
 	if row.Kind != "block_healing.forward" {
 		t.Errorf("Kind = %q, want block_healing.forward", row.Kind)
 	}
-	if row.ID != "01KQ88MP3GTM6BBBBBBBBBBBBB" {
+	if row.ID != "019dd4a0-6c35-7e52-b9d4-1f7a3cae6b28" {
 		t.Errorf("ID = %q, want block_id (key the row to the block being healed)", row.ID)
 	}
 	if got, _ := row.Payload["reason"].(string); got != "all_commitments_valid" {

@@ -65,7 +65,7 @@ func TestFileName_AnItemIsNamedByItsRecomputedCode(t *testing.T) {
 			t.Fatalf("%s: the carried item_hash was not replaced", path)
 		}
 		for _, doc := range [][]byte{served, []byte(altered)} {
-			got, err := FileName("item", "01HJHB01T8FYZ7YTR9P5N62K5B", doc)
+			got, err := FileName("item", "01a0db66-c2e0-78a4-b8cc-12b11bc97493", doc)
 			if err != nil || got != code+".proof.json" {
 				t.Errorf("%s: FileName = %q, %v; want %q", path, got, err, code+".proof.json")
 			}
@@ -102,7 +102,7 @@ func TestFileName_OtherSubjectsAndRefusals(t *testing.T) {
 		"not JSON":                      []byte(`{"proof":`),
 		"an array of proof":             []byte(`[{"proof":{"type":"item"}}]`),
 	} {
-		if got, err := FileName("item", "01HJHB01T8FYZ7YTR9P5N62K5B", served); err == nil || !strings.HasPrefix(err.Error(), "no file name for the served proof: ") {
+		if got, err := FileName("item", "01a0db66-c2e0-78a4-b8cc-12b11bc97493", served); err == nil || !strings.HasPrefix(err.Error(), "no file name for the served proof: ") {
 			t.Errorf("%s: FileName = %q, %v; want a refusal", name, got, err)
 		}
 	}

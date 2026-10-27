@@ -8,11 +8,11 @@ import (
 	"fmt"
 	"github.com/truestamp/truestamp-cli/internal/inputsrc"
 	"sort"
-	"strings"
 
 	"charm.land/huh/v2"
 	"github.com/spf13/cobra"
 	"github.com/truestamp/truestamp-cli/internal/config"
+	"github.com/truestamp/truestamp-cli/internal/ids"
 	"github.com/truestamp/truestamp-cli/internal/teams"
 	"github.com/truestamp/truestamp-cli/internal/ui"
 )
@@ -57,9 +57,14 @@ func runTeamsUse(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
+	// The team id exactly as typed: nothing is trimmed, and an id that is
+	// no UUIDv7, the id of every team, is refused before any request.
 	var targetID string
 	if len(args) > 0 {
-		targetID = strings.TrimSpace(args[0])
+		targetID = args[0]
+	}
+	if targetID != "" && !ids.IsUUIDv7Text(targetID) {
+		return fmt.Errorf("%q is no team id: teams use takes a team's UUIDv7 id (e.g. 019dbd00-0000-7000-8000-000000000000)", targetID)
 	}
 
 	if targetID == "" {

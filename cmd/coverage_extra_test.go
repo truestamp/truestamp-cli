@@ -197,20 +197,6 @@ func TestCLI_ItemsCreate_WithMockAPI(t *testing.T) {
 
 // --- convert_id: raw extract + local zone ---
 
-func TestCLI_ConvertID_RawULID(t *testing.T) {
-	cmd := exec.Command(binaryPath, "convert", "id",
-		"01HJHB01T8FYZ7YTR9P5N62K5B", "--extract", "raw")
-	out, err := cmd.Output()
-	if err != nil {
-		t.Fatal(err)
-	}
-	// Raw hex is 32 chars + newline.
-	got := strings.TrimSpace(string(out))
-	if len(got) != 32 {
-		t.Errorf("raw ULID hex length: got %d, want 32", len(got))
-	}
-}
-
 func TestCLI_ConvertID_RawUUID(t *testing.T) {
 	cmd := exec.Command(binaryPath, "convert", "id",
 		"019cf813-99b8-730a-84f1-5a711a9c355e", "--extract", "raw")
@@ -221,22 +207,6 @@ func TestCLI_ConvertID_RawUUID(t *testing.T) {
 	got := strings.TrimSpace(string(out))
 	if len(got) != 32 {
 		t.Errorf("raw UUID hex length: got %d, want 32", len(got))
-	}
-}
-
-func TestCLI_ConvertID_RawULID_JSON(t *testing.T) {
-	cmd := exec.Command(binaryPath, "convert", "id",
-		"01HJHB01T8FYZ7YTR9P5N62K5B", "--extract", "raw", "--json")
-	out, err := cmd.Output()
-	if err != nil {
-		t.Fatal(err)
-	}
-	var m map[string]any
-	if err := json.Unmarshal(out, &m); err != nil {
-		t.Fatal(err)
-	}
-	if m["type"] != "ulid" {
-		t.Errorf("type: %v", m["type"])
 	}
 }
 
@@ -258,7 +228,7 @@ func TestCLI_ConvertID_RawUUID_JSON(t *testing.T) {
 
 func TestCLI_ConvertID_Local(t *testing.T) {
 	cmd := exec.Command(binaryPath, "convert", "id",
-		"01HJHB01T8FYZ7YTR9P5N62K5B", "--to-zone", "Local")
+		"019cf813-99b8-730a-84f1-5a711a9c355e", "--to-zone", "Local")
 	if err := cmd.Run(); err != nil {
 		t.Error(err)
 	}
@@ -266,7 +236,7 @@ func TestCLI_ConvertID_Local(t *testing.T) {
 
 func TestCLI_ConvertID_BadZone(t *testing.T) {
 	cmd := exec.Command(binaryPath, "convert", "id",
-		"01HJHB01T8FYZ7YTR9P5N62K5B", "--to-zone", "Not/A/Zone")
+		"019cf813-99b8-730a-84f1-5a711a9c355e", "--to-zone", "Not/A/Zone")
 	if err := cmd.Run(); err == nil {
 		t.Error("expected error for bad zone")
 	}

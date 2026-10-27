@@ -9,6 +9,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"regexp"
 	"slices"
 	"strings"
 	"sync"
@@ -16,12 +17,16 @@ import (
 )
 
 const (
-	testItemULID   = "01HJHB01T8FYZ7YTR9P5N62K5B"
+	// testItemID is the id of the sound item, positive/item.proof.json.
+	testItemID     = "01a0db66-c2e0-78a4-b8cc-12b11bc97493"
 	testSubjectID  = "019db702-b08c-73dc-a7cd-2c5e011f1dad"
 	rawProofPrefix = "/api/json/proof/raw/"
 	// soundItemCode is the item code vectors/item-codes.json gives the
 	// sound item, positive/item.proof.json.
 	soundItemCode = "WX495M26THGQBJ68"
+	// soundItemHash is that item's recomputed item_hash, from the same
+	// file.
+	soundItemHash = "e74892d046d46175c8dbdecbbbc705a36816df58e65a2ee1861c100c16eb5f8c"
 )
 
 // servedBytes is a stand-in for the proof served in each constructions
@@ -38,9 +43,44 @@ type rawRequest struct {
 	bearer              bool
 }
 
+// standInUUIDv7, standInItemCode and standInItemHash are the forms of an
+// id the stand-in for the raw proof route takes: the canonical text of a
+// UUIDv7, of an item code and of an item_hash, the forms this CLI sends.
+var (
+	standInUUIDv7   = regexp.MustCompile(`\A[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\z`)
+	standInItemCode = regexp.MustCompile(`\A[0-9A-HJKMNP-TV-Z]{16}\z`)
+	standInItemHash = regexp.MustCompile(`\A[0-9a-f]{64}\z`)
+)
+
+// idFormatMismatch is the app's refusal of an id the raw proof route
+// cannot read for the type requested (Truestamp.Proofs.Actions.Generate):
+// a 400 whose meta.code is id_format_mismatch.
+func idFormatMismatch(typ, detail string) []byte {
+	return []byte(fmt.Sprintf(`{"errors":[{"code":"invalid","status":"400","detail":%q,"meta":{"code":"id_format_mismatch","requested_type":%q}}]}`, detail, typ))
+}
+
+// standInRefusal is the app's answer to a raw proof request for an id its
+// route cannot read for typ, or nil for an id it reads.
+func standInRefusal(typ, id string) []byte {
+	switch {
+	case typ == "item" && !standInUUIDv7.MatchString(id) && !standInItemCode.MatchString(id) && !standInItemHash.MatchString(id):
+		return idFormatMismatch(typ, "type=item needs an item id (UUIDv7), item code or item_hash")
+	case typ != "item" && !standInUUIDv7.MatchString(id):
+		return idFormatMismatch(typ, "ID is not a valid UUIDv7 for type="+typ)
+	}
+	return nil
+}
+
 // rawProofServer is a loopback stand-in for the raw proof route. It
 // records every request and answers each with serve, given the request's
-// type, id and constructions parameter ("" when it has none).
+// type, id and constructions parameter ("" when it has none), once the id
+// is one it reads for that type: for an item a UUIDv7, an item code or an
+// item_hash, and for every other type a UUIDv7, each only in the canonical
+// form this CLI sends (standInUUIDv7, standInItemCode, standInItemHash).
+// That is stricter than the app's route, whose Truestamp.IdShape.item_ref/1
+// also reads an uppercase UUIDv7 or item_hash and every spelling of a
+// code. Any other id, 26 characters of Crockford base32 among them, is
+// answered with the app's 400 id_format_mismatch.
 func rawProofServer(t *testing.T, serve func(typ, id, mode string) (int, []byte)) (string, func() []rawRequest) {
 	t.Helper()
 	var mu sync.Mutex
@@ -55,7 +95,14 @@ func rawProofServer(t *testing.T, serve func(typ, id, mode string) (int, []byte)
 			w.WriteHeader(http.StatusNotFound)
 			return
 		}
-		status, body := serve(parts[0], parts[1], r.URL.Query().Get("constructions"))
+		typ, id := parts[0], parts[1]
+		if refusal := standInRefusal(typ, id); refusal != nil {
+			w.Header().Set("Content-Type", "application/vnd.api+json")
+			w.WriteHeader(http.StatusBadRequest)
+			_, _ = w.Write(refusal)
+			return
+		}
+		status, body := serve(typ, id, r.URL.Query().Get("constructions"))
 		w.Header().Set("Content-Type", "application/vnd.truestamp.proof+json")
 		w.WriteHeader(status)
 		_, _ = w.Write(body)
@@ -215,8 +262,8 @@ func TestCLI_ProofsGet_ToFileNames(t *testing.T) {
 		typ, id, mode, name string
 		want                []byte
 	}{
-		{"item", testItemULID, "full", soundItemCode + ".proof.json", item},
-		{"item", testItemULID, "reference", soundItemCode + ".proof.json", item},
+		{"item", testItemID, "full", soundItemCode + ".proof.json", item},
+		{"item", testItemID, "reference", soundItemCode + ".proof.json", item},
 		{"block", testSubjectID, "full", testSubjectID + ".proof.json", servedBytes("full")},
 		{"beacon", testSubjectID, "none", testSubjectID + ".proof.json", servedBytes("none")},
 		{"entropy_stellar", testSubjectID, "reference", testSubjectID + ".proof.json", servedBytes("reference")},
@@ -247,7 +294,7 @@ func TestCLI_ProofsGet_ToFileNames(t *testing.T) {
 func TestCLI_ProofsGet_ToFileRefusesAnUnnamableItemProof(t *testing.T) {
 	url, _ := rawProofServer(t, byMode)
 	dir := withTempCWD(t)
-	_, stderr, exit := runCLI(t, "--base-url", url, "--api-key", "test-key", "proofs", "get", "--to-file", testItemULID)
+	_, stderr, exit := runCLI(t, "--base-url", url, "--api-key", "test-key", "proofs", "get", "--type", "item", "--to-file", testItemID)
 	if exit != 1 || !strings.Contains(stderr, "no file name for the served proof: it is not an item proof") {
 		t.Errorf("exit %d, stderr %q; want exit 1 and the refusal", exit, stderr)
 	}
@@ -295,7 +342,7 @@ func TestCLI_ProofsGet_StdoutIsPipeable(t *testing.T) {
 	}
 	url, _ := rawProofServer(t, func(_, _, _ string) (int, []byte) { return http.StatusOK, item })
 	withTempCWD(t)
-	stdout, stderr, exit := runCLI(t, "--base-url", url, "--api-key", "test-key", "proofs", "get", testItemULID)
+	stdout, stderr, exit := runCLI(t, "--base-url", url, "--api-key", "test-key", "proofs", "get", "--type", "item", testItemID)
 	if exit != 0 || stdout != string(item) {
 		t.Fatalf("download exit %d, %d bytes on stdout; want exit 0 and the %d served\n%s", exit, len(stdout), len(item), stderr)
 	}
@@ -311,7 +358,7 @@ func TestCLI_ProofsGet_OutAndToFileConflict(t *testing.T) {
 	url, requests := rawProofServer(t, byMode)
 	dir := withTempCWD(t)
 	_, stderr, exit := runCLI(t, "--base-url", url, "--api-key", "test-key", "proofs", "get",
-		"-o", filepath.Join(dir, "x.json"), "--to-file", testItemULID)
+		"-o", filepath.Join(dir, "x.json"), "--to-file", testItemID)
 	if exit == 0 || !strings.Contains(stderr, "--out and --to-file are mutually exclusive") || len(requests()) != 0 {
 		t.Errorf("exit %d, %d requests, stderr %q", exit, len(requests()), stderr)
 	}
@@ -333,17 +380,21 @@ func TestCLI_ProofsGet_InvalidType(t *testing.T) {
 	}
 }
 
+// An item code or an item_hash given with a --type other than item is
+// refused before any request, naming the UUIDv7 the type takes. Mutant
+// killed: validateTypeVsShape accepting every shape (the refusal names
+// the item's UUIDv7 instead).
 func TestCLI_ProofsGet_ShapeVsType(t *testing.T) {
 	url, requests := rawProofServer(t, byMode)
 	_ = withTempCWD(t)
-
-	_, stderr, exit := runCLI(t, "--base-url", url, "--api-key", "test-key", "proofs", "get", "--type", "item", testSubjectID)
-	if exit == 0 || !strings.Contains(stderr, "requires a ULID") {
-		t.Errorf("item+uuid: exit=%d stderr=%q", exit, stderr)
-	}
-	_, stderr, exit = runCLI(t, "--base-url", url, "--api-key", "test-key", "proofs", "get", "--type", "block", testItemULID)
-	if exit == 0 || !strings.Contains(stderr, "requires a UUIDv7") {
-		t.Errorf("block+ulid: exit=%d stderr=%q", exit, stderr)
+	for _, tc := range []struct{ typ, id, want string }{
+		{"block", "9WBPKNV7SCP87VZW", "--type block requires a UUIDv7 id (e.g. 019d6a32-13e6-72b0-97e5-3779231ea97b); got an item code, which names only an item"},
+		{"entropy_nist", soundItemHash, "--type entropy_nist requires a UUIDv7 id (e.g. 019d6a32-13e6-72b0-97e5-3779231ea97b); got 64 hex characters, an item_hash, which names only an item"},
+	} {
+		_, stderr, exit := runCLI(t, "--base-url", url, "--api-key", "test-key", "proofs", "get", "--type", tc.typ, tc.id)
+		if exit != 1 || !strings.Contains(stderr, tc.want) {
+			t.Errorf("--type %s %s: exit %d, stderr %q; want exit 1 and %q", tc.typ, tc.id, exit, stderr, tc.want)
+		}
 	}
 	if n := len(requests()); n != 0 {
 		t.Errorf("%d requests sent, want none", n)
@@ -471,7 +522,7 @@ func TestCLI_ProofsGet_ExplainsEachRefusal(t *testing.T) {
 			url, _ := rawProofServer(t, func(_, _, _ string) (int, []byte) {
 				return http.StatusBadRequest, []byte(fmt.Sprintf(`{"errors":[{"code":"invalid","status":"400","detail":%q,"meta":{"code":%q}}]}`, detail, tc.code))
 			})
-			stdout, stderr, exit := runCLI(t, "--base-url", url, "--api-key", "k", "proofs", "get", "--type", "item", testItemULID)
+			stdout, stderr, exit := runCLI(t, "--base-url", url, "--api-key", "k", "proofs", "get", "--type", "item", testItemID)
 			if exit != 1 || stdout != "" {
 				t.Fatalf("exit %d, stdout %q; want exit 1 and nothing on stdout", exit, stdout)
 			}

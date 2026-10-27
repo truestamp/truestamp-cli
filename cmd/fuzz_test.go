@@ -4,6 +4,7 @@
 package cmd
 
 import (
+	"strings"
 	"testing"
 	"time"
 )
@@ -61,17 +62,30 @@ func FuzzDecodePublicKey(f *testing.F) {
 	})
 }
 
-// FuzzDetectIDKind: `convert id` auto-detection.
-func FuzzDetectIDKind(f *testing.F) {
+// FuzzUUIDv7WithTime: `convert id`'s reading of its value. Whatever it is
+// given, it returns a UUIDv7 in its canonical lowercase form, which reads
+// again as itself, or an error. Mutant killed: the value returned as
+// typed (the uppercase seed comes back in uppercase).
+func FuzzUUIDv7WithTime(f *testing.F) {
 	for _, s := range []string{
-		"", "01HJHB01T8FYZ7YTR9P5N62K5B",
-		"019cf813-99b8-730a-84f1-5a711a9c355e",
-		"not-an-id",
+		"", "019cf813-99b8-730a-84f1-5a711a9c355e",
+		"019CF813-99B8-730A-84F1-5A711A9C355E",
+		" 019cf813-99b8-730a-84f1-5a711a9c355e",
+		"9WBPKNV7SCP87VZW", "not-an-id",
 	} {
 		f.Add(s)
 	}
 	f.Fuzz(func(t *testing.T, s string) {
-		_ = detectIDKind(s)
+		id, err := uuidv7WithTime(s)
+		if err != nil {
+			return
+		}
+		if id != strings.ToLower(id) {
+			t.Fatalf("uuidv7WithTime(%q) = %q, which is not lowercase", s, id)
+		}
+		if again, err := uuidv7WithTime(id); err != nil || again != id {
+			t.Fatalf("uuidv7WithTime(%q) = %q, but %q reads as %q, %v", s, id, id, again, err)
+		}
 	})
 }
 

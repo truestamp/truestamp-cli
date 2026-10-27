@@ -110,7 +110,8 @@ Examples:
   truestamp entropy get 4142459a2859a57a5e5d6540579b977215d6329110adc0a890fdce6f05054f2d --json`,
 	Args: cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
-		arg := strings.TrimSpace(args[0])
+		// The id exactly as typed: nothing is trimmed.
+		arg := args[0]
 		if !ids.LooksLikeHash64(arg) && !strings.Contains(arg, "-") {
 			return fmt.Errorf("%q is neither a UUIDv7 id nor a 64-hex-char entropy hash", arg)
 		}

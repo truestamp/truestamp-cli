@@ -66,7 +66,7 @@ type Row struct {
 	ReceivedAt time.Time // local receive time, used for "(received +Nms)" skew display
 	Kind       string    // compact display kind (e.g. "entropy.nist.failed")
 	RawKind    string    // original server kind (e.g. "entropy.updated")
-	ID         string    // full ULID/UUID, count for bursts, duration for outages
+	ID         string    // full UUIDv7, count for bursts, duration for outages
 	Stream     string    // original stream id (e.g. "commitments.subjects")
 	Severity   Severity
 	Payload    map[string]any // full decoded server payload (Push.Data), used by Detail Panel
@@ -269,8 +269,8 @@ func splitKind(kind string) (string, string) {
 // =============================================================================
 
 // projectID returns the value that goes into the ID column. For
-// individual events that's the resource's primary identifier (full
-// ULID or UUIDv7). For bursts it's the integer count rendered as a
+// individual events that's the resource's primary identifier (a full
+// UUIDv7). For bursts it's the integer count rendered as a
 // plain number. The renderer styles burst counts differently from
 // real IDs.
 func projectID(kind string, payload map[string]any) string {

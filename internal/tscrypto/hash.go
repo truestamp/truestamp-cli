@@ -3,7 +3,7 @@
 
 // Package tscrypto holds the hash and encoding helpers of the earlier
 // bundle layout that inspect and convert keyid print, the constant-time
-// comparisons, and the UUIDv7 and ULID time readers. This CLI's verifier,
+// comparisons, and the UUIDv7 time reader. This CLI's verifier,
 // which takes its prefix bytes from SPEC.md section 4, is internal/verifier
 // and internal/registry.
 package tscrypto

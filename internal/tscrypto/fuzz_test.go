@@ -22,18 +22,6 @@ func FuzzDecodeCompactMerkleProof(f *testing.F) {
 	})
 }
 
-// FuzzExtractULIDTimestamp: ULID parse surface from untrusted proof
-// bundles.
-func FuzzExtractULIDTimestamp(f *testing.F) {
-	f.Add("01HJHB01T8FYZ7YTR9P5N62K5B")
-	f.Add("")
-	f.Add("not-a-ulid")
-
-	f.Fuzz(func(t *testing.T, s string) {
-		_, _ = ExtractULIDTimestamp(s)
-	})
-}
-
 // FuzzExtractUUIDv7Timestamp: UUIDv7 parse surface.
 func FuzzExtractUUIDv7Timestamp(f *testing.F) {
 	f.Add("019cf813-99b8-730a-84f1-5a711a9c355e")

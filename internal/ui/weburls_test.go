@@ -10,7 +10,7 @@ import "testing"
 // with every *URL helper in this file).
 func TestSubjectDetailURL(t *testing.T) {
 	const (
-		ulid = "01HJHB01T8FYZ7YTR9P5N62K5B"
+		item = "01a0db66-c2e0-78a4-b8cc-12b11bc97493"
 		uuid = "019db702-b08c-73dc-a7cd-2c5e011f1dad"
 		prod = "https://www.truestamp.com/api/json"
 	)
@@ -20,7 +20,7 @@ func TestSubjectDetailURL(t *testing.T) {
 		id           string
 		want         string
 	}{
-		{"item", prod, "item", ulid, "https://www.truestamp.com/items/" + ulid},
+		{"item", prod, "item", item, "https://www.truestamp.com/items/" + item},
 		{"entropy_nist", prod, "entropy_nist", uuid, "https://www.truestamp.com/entropy/" + uuid},
 		{"entropy_stellar", prod, "entropy_stellar", uuid, "https://www.truestamp.com/entropy/" + uuid},
 		{"entropy_bitcoin", prod, "entropy_bitcoin", uuid, "https://www.truestamp.com/entropy/" + uuid},
@@ -31,19 +31,19 @@ func TestSubjectDetailURL(t *testing.T) {
 		{"beacon routes to /blocks/<id>", prod, "beacon", uuid, "https://www.truestamp.com/blocks/" + uuid},
 
 		// Unknown type yields empty (only path-level failure).
-		{"unknown type", prod, "bogus", ulid, ""},
-		{"empty type", prod, "", ulid, ""},
+		{"unknown type", prod, "bogus", item, ""},
+		{"empty type", prod, "", item, ""},
 
 		// Dev hosts render URLs too, no suppression. Users asked to
 		// see local URLs when pointing at their dev server; the small
 		// transcript-leak risk is accepted.
-		{"plain http renders", "http://www.truestamp.com/api/json", "item", ulid, "http://www.truestamp.com/items/" + ulid},
-		{"localhost renders", "https://localhost:4000/api/json", "item", ulid, "https://localhost:4000/items/" + ulid},
-		{"127.0.0.1 renders", "https://127.0.0.1:4000/api/json", "item", ulid, "https://127.0.0.1:4000/items/" + ulid},
+		{"plain http renders", "http://www.truestamp.com/api/json", "item", item, "http://www.truestamp.com/items/" + item},
+		{"localhost renders", "https://localhost:4000/api/json", "item", item, "https://localhost:4000/items/" + item},
+		{"127.0.0.1 renders", "https://127.0.0.1:4000/api/json", "item", item, "https://127.0.0.1:4000/items/" + item},
 		{"localhost plain http renders", "http://localhost:4000/api/json", "beacon", uuid, "http://localhost:4000/blocks/" + uuid},
 
 		// Trailing slash + api/json stripping, covered uniformly via publicWebBase.
-		{"trailing slash", "https://www.truestamp.com/api/json/", "item", ulid, "https://www.truestamp.com/items/" + ulid},
+		{"trailing slash", "https://www.truestamp.com/api/json/", "item", item, "https://www.truestamp.com/items/" + item},
 		{"no /api/json suffix", "https://www.truestamp.com", "block", uuid, "https://www.truestamp.com/blocks/" + uuid},
 	}
 	for _, c := range cases {
@@ -60,14 +60,14 @@ func TestSubjectDetailURL(t *testing.T) {
 // matrix is simpler than the detail map.
 func TestSubjectVerifyURL(t *testing.T) {
 	const (
-		ulid = "01HJHB01T8FYZ7YTR9P5N62K5B"
+		item = "01a0db66-c2e0-78a4-b8cc-12b11bc97493"
 		uuid = "019db702-b08c-73dc-a7cd-2c5e011f1dad"
 		prod = "https://www.truestamp.com/api/json"
 	)
 	cases := []struct {
 		kind, id, want string
 	}{
-		{"item", ulid, "https://www.truestamp.com/verify/item/" + ulid},
+		{"item", item, "https://www.truestamp.com/verify/item/" + item},
 		{"entropy_nist", uuid, "https://www.truestamp.com/verify/entropy_nist/" + uuid},
 		{"entropy_stellar", uuid, "https://www.truestamp.com/verify/entropy_stellar/" + uuid},
 		{"entropy_bitcoin", uuid, "https://www.truestamp.com/verify/entropy_bitcoin/" + uuid},
@@ -82,10 +82,10 @@ func TestSubjectVerifyURL(t *testing.T) {
 
 	// localhost renders (no suppression); only the empty-type case
 	// returns the empty string.
-	if got := SubjectVerifyURL("https://localhost:4000/api/json", "item", ulid); got != "https://localhost:4000/verify/item/"+ulid {
+	if got := SubjectVerifyURL("https://localhost:4000/api/json", "item", item); got != "https://localhost:4000/verify/item/"+item {
 		t.Errorf("localhost should render: got %q", got)
 	}
-	if got := SubjectVerifyURL(prod, "", ulid); got != "" {
+	if got := SubjectVerifyURL(prod, "", item); got != "" {
 		t.Errorf("empty type should yield empty URL, got %q", got)
 	}
 }

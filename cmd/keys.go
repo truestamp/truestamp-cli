@@ -6,6 +6,7 @@ package cmd
 import (
 	"fmt"
 	"io"
+	"regexp"
 	"strings"
 
 	"github.com/spf13/cobra"
@@ -76,7 +77,12 @@ characters. To derive it from a public key you already hold, use
 'truestamp convert keyid'.`,
 	Args: cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
-		want := strings.TrimSpace(args[0])
+		// The key id exactly as typed: nothing is trimmed, and a value that
+		// is no key id is refused before the keyring is read.
+		want := args[0]
+		if !keyIDText.MatchString(want) {
+			return fmt.Errorf("%q is no key id: keys get takes an 8-hex key id (e.g. 96b1cd2f)", want)
+		}
 		kr, err := external.FetchKeyring(appConfig.KeyringURL)
 		if err != nil {
 			return err
@@ -88,6 +94,10 @@ characters. To derive it from a public key you already hold, use
 		return renderOneKey(cmd, k)
 	},
 }
+
+// keyIDText is the text of a key id, 8 hex characters, in either case as
+// the keyring lookup compares it.
+var keyIDText = regexp.MustCompile(`\A[0-9a-fA-F]{8}\z`)
 
 var keysCurrentCmd = &cobra.Command{
 	Use:   "current",

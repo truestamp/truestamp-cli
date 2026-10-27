@@ -703,7 +703,7 @@ func (m *monitorModel) renderWaterfall(width, height int) string {
 
 // renderDetailPanel draws the fixed-height panel below the waterfall
 // that shows the FULL payload of the currently-selected row with no
-// truncation. Long values (64-char hashes, ULID/UUID lists, etc.) wrap
+// truncation. Long values (64-char hashes, UUIDv7 lists, etc.) wrap
 // onto continuation lines indented under their field name. The panel
 // is bounded by `height` body rows; if the selected row has more
 // content than fits, a faint "(N more lines, d hides panel)" footer

@@ -148,10 +148,11 @@ func TestGolden_ConvertTimeJSON(t *testing.T) {
 	goldenAssert(t, "convert_time_json.json", canonicalJSON(t, out))
 }
 
-// TestGolden_ConvertIDJSON pins the ULID-extraction JSON envelope.
+// TestGolden_ConvertIDJSON pins the JSON envelope of the time recorded
+// inside a UUIDv7, the id of positive/item.proof.json.
 func TestGolden_ConvertIDJSON(t *testing.T) {
 	cmd := exec.Command(binaryPath, "convert", "id",
-		"01HJHB01T8FYZ7YTR9P5N62K5B", "--to-zone", "UTC", "--json")
+		"01a0db66-c2e0-78a4-b8cc-12b11bc97493", "--to-zone", "UTC", "--json")
 	out, err := cmd.Output()
 	if err != nil {
 		t.Fatal(err)

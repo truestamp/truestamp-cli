@@ -36,7 +36,8 @@ func runBeaconsGet(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return err
 	}
-	arg := strings.TrimSpace(args[0])
+	// The id exactly as typed: nothing is trimmed.
+	arg := args[0]
 
 	cfg, err := beaconConfig(cmd)
 	if err != nil {

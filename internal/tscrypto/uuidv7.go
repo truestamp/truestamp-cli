@@ -29,13 +29,3 @@ func ExtractUUIDv7Timestamp(id string) (time.Time, error) {
 
 	return t.UTC(), nil
 }
-
-// FormatBlockTime extracts and formats the timestamp from a UUIDv7 block ID.
-// Returns "unknown" if extraction fails.
-func FormatBlockTime(blockID string) string {
-	t, err := ExtractUUIDv7Timestamp(blockID)
-	if err != nil {
-		return "unknown"
-	}
-	return t.Format(time.RFC3339)
-}

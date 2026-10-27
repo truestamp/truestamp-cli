@@ -309,13 +309,22 @@ func TestValidateHash(t *testing.T) {
 	}
 }
 
+// A beacon id is the 36-character text of a UUIDv7, read exactly as
+// given: its 32-hex, braced and urn: forms and a padded value are
+// refused. Mutant killed: ValidateUUIDv7 reading a UUID by gofrs
+// FromString (the 32-hex, braced and urn: rows are taken).
 func TestValidateUUIDv7(t *testing.T) {
 	cases := []struct {
 		in string
 		ok bool
 	}{
 		{validID, true},
-		{"019db702b08c73dca7cd2c5e011f1dad", true},      // no hyphens
+		{strings.ToUpper(validID), true},
+		{"019db702b08c73dca7cd2c5e011f1dad", false}, // no hyphens
+		{"{" + validID + "}", false},
+		{"urn:uuid:" + validID, false},
+		{" " + validID, false},
+		{validID + "\n", false},
 		{"00000000-0000-4000-8000-000000000000", false}, // v4, not v7
 		{"not-a-uuid", false},
 		{"", false},

@@ -15,11 +15,12 @@ import (
 // ResolveSubjectType asks the server what a bare id refers to, so
 // `proofs get <id>` does not have to require --type.
 //
-// This is the one place id-shape dispatch cannot work. A ULID is
-// unambiguously an item, but blocks, beacons and entropy observations all
-// use UUIDv7, so nothing client-side can tell them apart. The server can:
-// POST /utilities/resolve-id returns each match's `proof_type`, which is
-// exactly the value --type takes.
+// This is the one place id-shape dispatch cannot work. Items, blocks,
+// beacons and entropy observations all use UUIDv7, so nothing client-side
+// can tell them apart. The server can: POST /utilities/resolve-id returns
+// each match's `proof_type`, which is exactly the value --type takes, and
+// an item's is `item`. id is sent as the caller gives it, which
+// cmd/proofs_get.go makes the UUIDv7's canonical lowercase text.
 //
 // It is deliberately a fallback, not the default path. Passing --type is
 // one fewer round trip, and it keeps an id-classification service out of
