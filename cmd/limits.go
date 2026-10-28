@@ -26,13 +26,12 @@ func addLimitFlag(cmd *cobra.Command, noun string) {
 //
 // The OpenAPI document at /api/json/open_api declares `page.limit` with
 // `"minimum": 1` and no maximum: the string `"maximum"` does not appear
-// anywhere in it. The 100-row ceiling is real, but it lives only in the
-// server's runtime validation, so a constant here is a second and unbacked
-// source of truth that goes stale silently the day the server moves it --
-// and it had already been copied into three packages. The server owns the
-// ceiling and names its own cap when it refuses
-// ("must be less than or equal to 100"); this owns the floor, which the
-// contract does state.
+// anywhere in it. The ceiling belongs to the server: every list route,
+// beacons included, lowers a page[limit] above its action's max_page_size
+// (250) to that size instead of refusing it, and the listing says so
+// (paging.go). A ceiling held here as well would be a second source of
+// truth that goes stale silently the day the server moves it, so this owns
+// only the floor, which the contract does state.
 //
 // An unset flag yields the default registered by addLimitFlag, which is
 // always above the floor, so `--limit 0` is the error it always should

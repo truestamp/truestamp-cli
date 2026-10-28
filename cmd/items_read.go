@@ -256,7 +256,7 @@ func renderItem(cmd *cobra.Command, it *items.Item) error {
 		tbl = tbl.Row("Team", it.TeamID)
 	}
 	if it.InsertedAt != "" {
-		tbl = tbl.Row("Created", timestampWithRelative(it.InsertedAt))
+		tbl = tbl.Row("Submitted", timestampWithRelative(it.InsertedAt))
 	}
 	if it.ExpiresAt != "" {
 		tbl = tbl.Row("Expires", timestampWithRelative(it.ExpiresAt))

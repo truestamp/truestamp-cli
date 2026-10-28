@@ -89,13 +89,13 @@ func TestGet_SendsFields(t *testing.T) {
 	}
 }
 
-// TestList_ForwardsAnOversizeLimitToTheServer pins the decision that the
-// ceiling belongs to the server. This client used to reject anything over a
-// local MaxLimit = 100, but the server's OpenAPI document declares
-// page.limit with "minimum": 1 and no maximum anywhere, so that constant was
-// an unbacked second source of truth -- copied into three packages -- that
-// would go stale silently the day the cap moved. The server refuses an
-// over-large page and names its own cap.
+// TestList_ForwardsAnOversizeLimitToTheServer pins that the page ceiling
+// belongs to the server. The server's OpenAPI document declares page.limit
+// with "minimum": 1 and no maximum, so a local cap would be a second source
+// of truth with nothing behind it, stale the day the server's cap moves.
+// The server lowers a page above its action's max_page_size (250) to that
+// size rather than refusing it. Mutant killed: List refusing or lowering a
+// limit above 250 itself.
 func TestList_ForwardsAnOversizeLimitToTheServer(t *testing.T) {
 	apiURL, rec := serveItems(t, `{"data":[]}`)
 	if _, err := List(context.Background(), apiURL, "", ListOptions{Limit: 5000}); err != nil {
