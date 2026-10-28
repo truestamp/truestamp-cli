@@ -235,7 +235,7 @@ func writeVerification(cmd *cobra.Command, outcome verifier.Outcome, trace strin
 	case cfg.JSON:
 		_, written = stdout.Write(append(encoded, '\n'))
 	case outcome.Report != nil:
-		written = renderReport(stdout, outcome.Report)
+		written = renderReport(stdout, outcome.Report, recomputedItemHash(outcome.Trace))
 	default:
 		written = renderRejection(stdout, outcome.Rejection)
 	}

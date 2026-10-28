@@ -14,6 +14,7 @@ import (
 	"github.com/truestamp/truestamp-cli/internal/beacons"
 	"github.com/truestamp/truestamp-cli/internal/blocks"
 	"github.com/truestamp/truestamp-cli/internal/entropy"
+	"github.com/truestamp/truestamp-cli/internal/items"
 )
 
 // Hashes and ids are rendered whole, everywhere, in every output mode.
@@ -82,6 +83,17 @@ func TestListRenderers_RenderHashesAndIDsWhole(t *testing.T) {
 				return render(t, func(c *cobra.Command, _ *bytes.Buffer) error {
 					return renderBlockList(c, []blocks.Block{{
 						ID: idB, State: "committed", BlockHash: hashB, MerkleRoot: hashC,
+					}}, listPage{})
+				})
+			},
+		},
+		{
+			name: "items list",
+			want: []string{idA, "WX495M26THGQBJ68"},
+			out: func(t *testing.T) string {
+				return render(t, func(c *cobra.Command, _ *bytes.Buffer) error {
+					return renderItemList(c, []items.Item{{
+						ID: idA, ItemCode: "WX495M26THGQBJ68", State: "committed", ItemHash: hashA,
 					}}, listPage{})
 				})
 			},

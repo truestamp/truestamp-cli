@@ -4,10 +4,12 @@
 package cmd
 
 import (
+	"errors"
 	"fmt"
 	"strings"
 
 	"github.com/spf13/cobra"
+	"github.com/truestamp/truestamp-cli/internal/ids"
 	"github.com/truestamp/truestamp-cli/internal/items"
 	"github.com/truestamp/truestamp-cli/internal/proof"
 	"github.com/truestamp/truestamp-cli/internal/ui"
@@ -27,7 +29,12 @@ following pages. --count adds the total.
 
 --committed and --pending filter on commitment state, which is the
 question most often asked of this list: a proof can only be generated for
-a committed item.
+a committed item. --pending keeps the items still on their way into a
+block, those created or processing; a redacted or deleted item is neither.
+
+Each row gives the item's id and its item code, whole: the code, from the
+API, names the item on its web pages and in 'items get', 'items update'
+and 'proofs get'.
 
 Commitment state is a column here rather than a separate 'status'
 command. A server-reported state is a claim; a verified proof is
@@ -63,11 +70,13 @@ evidence, and the authoritative answer is:
 }
 
 var itemsGetCmd = &cobra.Command{
-	Use:   "get <id>",
-	Short: "Show one item by id",
-	Long: `Show one item by its UUIDv7 id, read exactly as typed: nothing is
-trimmed, and a UUID's 32-hex, braced and urn: forms are refused. An item
-is shown by its id, not by its item code or its item_hash.
+	Use:   "get <id-code-or-hash>",
+	Short: "Show one item by id, item code or item_hash",
+	Long: `Show one item, named by its UUIDv7 id, its item code (e.g.
+9WBPKNV7SCP87VZW) or its item_hash (64 hex characters), each read exactly
+as typed: nothing is trimmed, and a UUID's 32-hex, braced and urn: forms
+are refused. One GET reads the item by whichever is given, and the item
+the server answers with must carry the code or the whole item_hash given.
 
 The card includes commitment state. For the authoritative answer, fetch
 the proof and check it yourself:
@@ -78,26 +87,29 @@ the proof and check it yourself:
 		if err := requireAuth(cmd); err != nil {
 			return err
 		}
-		id, err := itemIDArg("get", args[0])
+		shape, ref, err := itemRefArg("get", args[0])
 		if err != nil {
 			return err
 		}
-		it, err := items.Get(cmd.Context(), appConfig.APIURL, appConfig.Team, id)
+		it, err := getItemByRef(cmd, shape, ref)
 		if err != nil {
-			return renderAPIError(cmd, err, "item")
+			return err
 		}
 		return renderItem(cmd, it)
 	},
 }
 
 var itemsUpdateCmd = &cobra.Command{
-	Use:   "update <id>",
+	Use:   "update <id-code-or-hash>",
 	Short: "Update an item's mutable attributes",
 	Long: `Update the attributes of an item that are not covered by its hash.
 
-The item is named by its UUIDv7 id, read exactly as typed: nothing is
-trimmed, and a UUID's 32-hex, braced and urn: forms are refused. An item
-is updated by its id, not by its item code or its item_hash.
+The item is named by its UUIDv7 id, its item code (e.g. 9WBPKNV7SCP87VZW)
+or its item_hash (64 hex characters), each read exactly as typed: nothing
+is trimmed, and a UUID's 32-hex, braced and urn: forms are refused. The
+server updates an item only by its UUIDv7 id, so a code or an item_hash is
+first read with one GET, whose item must carry that code or that whole
+item_hash, and the update is then sent by the id that item gives.
 
 Only three attributes are mutable, and the server enforces this:
 visibility, tags, and the owning team. An item's claims, including its
@@ -115,6 +127,7 @@ meaning.
 
 Examples:
   truestamp items update 01a0db66-c2e0-78a4-b8cc-12b11bc97493 --visibility public
+  truestamp items update 9WBPKNV7SCP87VZW --visibility team
   truestamp items update 01a0db66-c2e0-78a4-b8cc-12b11bc97493 --tags q3,contracts
   truestamp items update 01a0db66-c2e0-78a4-b8cc-12b11bc97493 --to-team 019dbd00-0000-7000-8000-000000000000`,
 	Args: cobra.ExactArgs(1),
@@ -122,7 +135,7 @@ Examples:
 		if err := requireAuth(cmd); err != nil {
 			return err
 		}
-		id, err := itemIDArg("update", args[0])
+		shape, ref, err := itemRefArg("update", args[0])
 		if err != nil {
 			return err
 		}
@@ -143,6 +156,17 @@ Examples:
 			v, _ := cmd.Flags().GetString("to-team")
 			opts.TeamID = &v
 		}
+		if opts.Empty() {
+			return items.ErrNothingToUpdate
+		}
+		id := ref
+		if shape != proof.IDTypeUUIDv7 {
+			named, err := getItemByRef(cmd, shape, ref)
+			if err != nil {
+				return err
+			}
+			id = strings.ToLower(named.ID)
+		}
 		it, err := items.Update(cmd.Context(), appConfig.APIURL, appConfig.Team, id, opts)
 		if err != nil {
 			return renderAPIError(cmd, err, "item")
@@ -151,24 +175,45 @@ Examples:
 	},
 }
 
-// itemIDArg reads the item argument of `items <verb>` exactly as typed, as
-// proof.DetectIDType classifies it, and returns the UUIDv7 in its
-// canonical lowercase form. An item code or an item_hash is refused: these
-// commands take an item by its id, and the app's update route reads only a
-// UUIDv7, so a code or a hash would first have to be resolved to the id the
-// item's own record gives.
-func itemIDArg(verb, typed string) (string, error) {
-	shape, id, err := proof.DetectIDType(typed)
+// itemRefArg reads the item argument of `items <verb>` exactly as typed,
+// as proof.DetectIDType classifies it, and returns its shape and its
+// canonical form: a UUIDv7 or an item_hash in lowercase, an item code in
+// its one uppercase spelling. These are the three references the app's
+// item read route takes (GET /items/:id, its :read_by_ref action).
+func itemRefArg(verb, typed string) (proof.IDType, string, error) {
+	shape, ref, err := proof.DetectIDType(typed)
 	if err != nil {
-		return "", nameTheFormTaken(err, fmt.Sprintf("items %s takes an item's UUIDv7 id (e.g. 01a0db66-c2e0-78a4-b8cc-12b11bc97493)", verb))
+		return "", "", nameTheFormTaken(err, fmt.Sprintf("items %s takes an item's UUIDv7 id (e.g. 01a0db66-c2e0-78a4-b8cc-12b11bc97493), "+
+			"its item code (e.g. 9WBPKNV7SCP87VZW) or its item_hash", verb))
 	}
-	switch shape {
-	case proof.IDTypeItemCode:
-		return "", fmt.Errorf("items %s takes an item's UUIDv7 id (e.g. 01a0db66-c2e0-78a4-b8cc-12b11bc97493), not its item code", verb)
-	case proof.IDTypeItemHash:
-		return "", fmt.Errorf("items %s takes an item's UUIDv7 id (e.g. 01a0db66-c2e0-78a4-b8cc-12b11bc97493), not its item_hash", verb)
+	return shape, ref, nil
+}
+
+// errDifferentItem is an item the server answered a code or an item_hash
+// with that does not carry it.
+var errDifferentItem = errors.New("the server returned a different item")
+
+// getItemByRef reads the item ref names, of shape shape, with one GET by
+// ref as given, and returns it once it is the item named: for an item
+// code, an item whose item_code is ref; for an item_hash, one whose
+// item_hash is ref, all of it; and for either, one whose id is a UUIDv7,
+// the only reference the app's update route reads. Any other answer is
+// errDifferentItem. A refusal of the GET is rendered as every API
+// refusal is.
+func getItemByRef(cmd *cobra.Command, shape proof.IDType, ref string) (*items.Item, error) {
+	it, err := items.Get(cmd.Context(), appConfig.APIURL, appConfig.Team, ref)
+	if err != nil {
+		return nil, renderAPIError(cmd, err, "item")
 	}
-	return id, nil
+	switch {
+	case shape == proof.IDTypeItemCode && it.ItemCode != ref:
+		return nil, fmt.Errorf("%w: asked for the item code %s, answered with an item whose item code is %q", errDifferentItem, ref, it.ItemCode)
+	case shape == proof.IDTypeItemHash && it.ItemHash != ref:
+		return nil, fmt.Errorf("%w: asked for the item_hash %s, answered with an item whose item_hash is %q", errDifferentItem, ref, it.ItemHash)
+	case shape != proof.IDTypeUUIDv7 && !ids.IsUUIDv7Text(it.ID):
+		return nil, fmt.Errorf("%w: asked for %s, answered with an item whose id %q is not a UUIDv7", errDifferentItem, ref, it.ID)
+	}
+	return it, nil
 }
 
 func renderItem(cmd *cobra.Command, it *items.Item) error {
@@ -193,10 +238,13 @@ func renderItem(cmd *cobra.Command, it *items.Item) error {
 		tbl = tbl.Row("Tags", strings.Join(it.Tags, ", "))
 	}
 	if it.ClaimsHash != "" {
-		tbl = tbl.Row("Claims Hash", it.ClaimsHash)
+		tbl = tbl.Row("Claims hash", it.ClaimsHash)
 	}
 	if it.ItemHash != "" {
-		tbl = tbl.Row("Item Hash", it.ItemHash)
+		tbl = tbl.Row("Item hash", it.ItemHash)
+	}
+	if it.ItemCode != "" {
+		tbl = tbl.Row("Item code", it.ItemCode)
 	}
 	if it.TeamID != "" {
 		tbl = tbl.Row("Team", it.TeamID)
@@ -207,11 +255,11 @@ func renderItem(cmd *cobra.Command, it *items.Item) error {
 	if it.ExpiresAt != "" {
 		tbl = tbl.Row("Expires", timestampWithRelative(it.ExpiresAt))
 	}
-	if detail := ui.SubjectDetailURL(appConfig.APIURL, "item", it.ID); detail != "" {
+	if detail := ui.SubjectDetailURL(appConfig.APIURL, "item", it.ItemCode); detail != "" {
 		tbl = tbl.Row("Details", detail)
 	}
 	ui.Fprintln(w, strings.Join([]string{header, "", tbl.String()}, "\n"))
-	if it.State == "created" || it.State == "processing" {
+	if it.Pending() {
 		ui.Fprintln(w, ui.FaintStyle().Render(
 			"    Not yet committed: a proof cannot be generated until it is."))
 	}
@@ -243,17 +291,23 @@ func renderItemList(cmd *cobra.Command, list []items.Item, pg listPage) error {
 		return nil
 	}
 	header := ui.AccentBoldStyle().Render(listHeading("Items", len(list), pg))
-	tbl := ui.CompactTable().StyleFunc(ui.LabelValueStyleFunc())
+	// The id and the item code are rendered whole, each in a column of
+	// its own: the code is a value of its own, never a short form of the
+	// id or of item_hash.
+	rows := [][]string{{"ID", "CODE", "STATE", "NAME"}}
 	for _, it := range list {
-		tbl = tbl.Row(it.ID, itemListLine(it))
+		rows = append(rows, itemListRow(it))
 	}
+	tbl := ui.CompactTable().StyleFunc(ui.HeaderRowStyleFunc()).Rows(rows...)
 	ui.Fprintln(w, strings.Join([]string{header, "", tbl.String()}, "\n"))
 	renderListHints(cmd.ErrOrStderr(), pg,
-		"Hint: 'truestamp items get <id>' shows one item; 'truestamp proofs get <id>' fetches its proof bundle.")
+		"Hint: 'truestamp items get <id | code>' shows one item; 'truestamp proofs get <id | code>' fetches its proof.")
 	return nil
 }
 
-func itemListLine(it items.Item) string {
+// itemListRow is one item's row of the list: its id, its item code, its
+// state, marked when committed, and its name.
+func itemListRow(it items.Item) []string {
 	mark := " "
 	if it.Committed() {
 		mark = "✓"
@@ -262,14 +316,14 @@ func itemListLine(it items.Item) string {
 	if name == "" {
 		name = "(no name)"
 	}
-	return fmt.Sprintf("%s %-10s %s", mark, it.State, name)
+	return []string{it.ID, it.ItemCode, mark + " " + it.State, name}
 }
 
 func init() {
 	lf := itemsListCmd.Flags()
 	addPagingFlags(itemsListCmd, "items")
 	lf.Bool("committed", false, "Only items committed in a block (a proof follows once the block is committed to a public chain)")
-	lf.Bool("pending", false, "Only items not yet committed")
+	lf.Bool("pending", false, "Only items not yet in a block: those created or processing")
 
 	uf := itemsUpdateCmd.Flags()
 	uf.String("visibility", "", `Item visibility: "private", "team", or "public"`)

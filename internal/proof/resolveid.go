@@ -6,27 +6,44 @@ package proof
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
-	"github.com/truestamp/truestamp-cli/internal/jsonapi"
 	"net/http"
+	"slices"
 	"strings"
+
+	"github.com/truestamp/truestamp-cli/internal/jsonapi"
 )
 
-// ResolveSubjectType asks the server what a bare id refers to, so
+// ErrSeveralTypes is a subject the server says is verifiable as more
+// than one subject type: [ResolveSubjectType] refuses rather than picks.
+var ErrSeveralTypes = errors.New("verifiable as more than one subject type")
+
+// ResolveSubjectType asks the server what a bare UUIDv7 refers to, so
 // `proofs get <id>` does not have to require --type.
 //
 // This is the one place id-shape dispatch cannot work. Items, blocks,
 // beacons and entropy observations all use UUIDv7, so nothing client-side
 // can tell them apart. The server can: POST /utilities/resolve-id returns
-// each match's `proof_type`, which is exactly the value --type takes, and
-// an item's is `item`. id is sent as the caller gives it, which
+// one match for a UUIDv7 it can show, the first of an item, a block, an
+// entropy observation and a team, with its `proof_type`, exactly the
+// value --type takes, and `also_verifiable_as`, the other types the same
+// subject is verifiable as: a block's is ["beacon"], since a block is
+// also verifiable as a beacon. id is sent as the caller gives it, which
 // cmd/proofs_get.go makes the UUIDv7's canonical lowercase text.
+//
+// The types a match names, its proof_type and then each of its
+// also_verifiable_as, are the answer: one is the type returned, and more
+// than one, a block's, is refused with [ErrSeveralTypes], since which
+// proof the caller meant changes what the proof commits to: a block id
+// needs --type block or --type beacon. A match with no proof_type, a
+// team, names none.
 //
 // It is deliberately a fallback, not the default path. Passing --type is
 // one fewer round trip, and it keeps an id-classification service out of
 // the loop for a tool whose whole thesis is not taking the server's word
 // for things. The classification only decides which proof to ASK for; the
-// bundle that comes back is still verified against its own signed type.
+// proof that comes back is still verified against its own signed type.
 //
 // Resolution is visibility-gated server-side: an id you cannot see
 // returns no match rather than revealing that it exists.
@@ -55,8 +72,9 @@ func ResolveSubjectType(ctx context.Context, apiURL, team, id string) (string, e
 	var env struct {
 		Result struct {
 			Matches []struct {
-				Kind      string  `json:"kind"`
-				ProofType *string `json:"proof_type"`
+				Kind             string   `json:"kind"`
+				ProofType        *string  `json:"proof_type"`
+				AlsoVerifiableAs []string `json:"also_verifiable_as"`
 			} `json:"matches"`
 		} `json:"result"`
 	}
@@ -66,8 +84,13 @@ func ResolveSubjectType(ctx context.Context, apiURL, team, id string) (string, e
 
 	var types []string
 	for _, m := range env.Result.Matches {
-		if m.ProofType != nil && *m.ProofType != "" {
-			types = append(types, *m.ProofType)
+		if m.ProofType == nil || *m.ProofType == "" {
+			continue
+		}
+		for _, typ := range append([]string{*m.ProofType}, m.AlsoVerifiableAs...) {
+			if typ != "" && !slices.Contains(types, typ) {
+				types = append(types, typ)
+			}
 		}
 	}
 	switch len(types) {
@@ -78,11 +101,7 @@ func ResolveSubjectType(ctx context.Context, apiURL, team, id string) (string, e
 	case 1:
 		return types[0], nil
 	default:
-		// A block is also verifiable as a beacon, so more than one match is
-		// legitimate. Refuse rather than pick: which one the caller meant
-		// changes what the proof commits to.
-		return "", fmt.Errorf(
-			"%s is verifiable as more than one subject type (%s); pass --type to say which you want",
-			id, strings.Join(types, ", "))
+		return "", fmt.Errorf("%s is %w, %s, which is refused rather than guessed: pass --type %s",
+			id, ErrSeveralTypes, strings.Join(types, " | "), strings.Join(types, " or --type "))
 	}
 }

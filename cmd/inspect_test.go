@@ -19,6 +19,7 @@ import (
 	"sync"
 	"testing"
 
+	"github.com/truestamp/truestamp-cli/internal/itemcode"
 	"github.com/truestamp/truestamp-cli/internal/specdata"
 	"github.com/truestamp/truestamp-cli/internal/strictjson"
 	"github.com/truestamp/truestamp-cli/internal/vectorcases"
@@ -230,9 +231,10 @@ func textSection(t *testing.T, text, title string) []string {
 // left out (an item's /subject/record/witness_hashes/entropy_X and block);
 // the Bitcoin rows left out (transaction_hash, header_hash and
 // header_merkle_root); the carried value given as the recomputed one; the
-// text printing a value without its part. A handover_signature's row is
-// labelled as the carried signature and the signed message
-// (TestCLI_Inspect_LabelsTheHandoverSignatureRow).
+// text printing a value without its part; the Item code row left out of
+// the text, or placed before the recomputed item_hash row. A
+// handover_signature's row is labelled as the carried signature and the
+// signed message (TestCLI_Inspect_LabelsTheHandoverSignatureRow).
 func TestCLI_Inspect_GivesTheTracesRecomputedValues(t *testing.T) {
 	witnesses, bitcoin := 0, 0
 	for _, v := range soundVectors(t) {
@@ -266,6 +268,9 @@ func TestCLI_Inspect_GivesTheTracesRecomputedValues(t *testing.T) {
 			lines := []string{textRow("proof_hash", *got.ProofHash), textRow("key id of the public key", *got.KeyID)}
 			for _, r := range want {
 				lines = append(lines, recomputedLines(r)...)
+				if isItemHashRow(r) && got.ItemCode != nil {
+					lines = append(lines, textRow("  Item code", *got.ItemCode+" (of the recomputed item_hash: a name for the item, not a check)"))
+				}
 			}
 			if section := textSection(t, text, "Recomputed from what the proof carries"); !slices.Equal(section, lines) {
 				t.Errorf("the recomputed section reads\n%s\nwant\n%s", strings.Join(section, "\n"), strings.Join(lines, "\n"))
@@ -695,7 +700,7 @@ func timeText(v any) string {
 }
 
 // inspectTop are the members of inspect --json.
-var inspectTop = []string{"declared_times", "key_id", "octets", "proof", "proof_hash", "recomputed", "recorded", "rejection", "signature", "source"}
+var inspectTop = []string{"declared_times", "item_code", "key_id", "octets", "proof", "proof_hash", "recomputed", "recorded", "rejection", "signature", "source"}
 
 // sortedKeys are m's names, sorted.
 func sortedKeys(m map[string]any) []string {
@@ -707,15 +712,19 @@ func sortedKeys(m map[string]any) []string {
 	return out
 }
 
-// inspect --json's shape: exactly its ten members, and exactly the proof
-// members of each type's layout (SPEC.md section 3.6), with the signature
-// as carried, the environment marker, the constructions mode and digest,
-// and the source and its size; the text's header gives the format, the
-// type and the marker; a bare rejection has the same ten members, null
-// and empty where nothing was read; and no item code. Mutants killed: a
-// member added (item_code beside proof_hash); witnesses written for every
-// type; the environment marker read as production, in --json or in the
-// text's marker line; the octets written as 0.
+// inspect --json's shape: exactly its eleven members, item_code among
+// them, and exactly the proof members of each type's layout (SPEC.md
+// section 3.6), with the signature as carried, the environment marker,
+// the constructions mode and digest, and the source and its size; the
+// text's header gives the format, the type and the marker; item_code is a
+// string for an item proof, the code of the item_hash of its record, and
+// null for every other type; a bare rejection has the same eleven
+// members, null and empty where nothing was read, item_code null. Mutants
+// killed: a member added beside proof_hash; item_code given omitempty (a
+// bare rejection lacks it); item_code set for a bare rejection; item_code
+// null for an item proof; witnesses written for every type; the
+// environment marker read as production, in --json or in the text's
+// marker line; the octets written as 0.
 func TestCLI_Inspect_JSONShape(t *testing.T) {
 	common := []string{"block", "commitments", "constructions", "environment", "format", "signing_key_event", "type", "version"}
 	byType := map[string][]string{
@@ -739,6 +748,15 @@ func TestCLI_Inspect_JSONShape(t *testing.T) {
 			s := signature.(map[string]any)
 			if got.Signature == nil || got.Signature.Alg != s["alg"] || got.Signature.PublicKey != s["public_key"] || got.Signature.Value != s["value"] {
 				t.Errorf("signature %+v, want %v", got.Signature, s)
+			}
+			if typ == "item" {
+				record, _ := atPointer(doc, "/proof/subject/record")
+				code, err := itemcode.OfItemRecord(record.(map[string]any))
+				if err != nil || raw["item_code"] != code {
+					t.Errorf("item_code %v, want %q (%v)", raw["item_code"], code, err)
+				}
+			} else if raw["item_code"] != nil {
+				t.Errorf("item_code %v for a %v proof, want null", raw["item_code"], typ)
 			}
 			marker, _ := atPointer(doc, "/proof/environment")
 			p := got.Proof
@@ -772,7 +790,7 @@ func TestCLI_Inspect_JSONShape(t *testing.T) {
 	got, raw, code := inspectJSON(t, vectorcases.Path("negative/envelope-document-array.proof.json"))
 	if k := sortedKeys(raw); code != 1 || !slices.Equal(k, inspectTop) || got.Rejection == nil || got.Rejection.Code != "invalid_envelope" ||
 		got.Signature != nil || got.KeyID != nil || got.ProofHash != nil || got.Proof != nil || got.Recomputed == nil || got.DeclaredTimes == nil ||
-		got.Recorded == nil {
+		got.Recorded == nil || got.ItemCode != nil {
 		t.Errorf("a bare rejection: exit %d, members %q, %+v", code, k, got)
 	}
 }

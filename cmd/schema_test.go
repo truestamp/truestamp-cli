@@ -240,13 +240,14 @@ func specFile(t *testing.T, name string) []byte {
 	return data
 }
 
-// schema lists exactly its four documents, algorithms, commands,
-// exit-codes and reason-codes: schema list names those, the shell offers
-// those as a document name, schema get refuses subject-types and
-// witnesses, and no flag of the command tree is --witnesses. Mutants
+// schema lists exactly its five documents, algorithms, commands,
+// exit-codes, item-code and reason-codes: schema list names those, the
+// shell offers those as a document name, schema get refuses subject-types
+// and witnesses, and no flag of the command tree is --witnesses. Mutants
 // killed: a subject-types document added to schemaDocs (listed, gettable
 // and completed); a witnesses document added to schemaDocs (the same); a
-// --witnesses flag added to proofs get (the tree carries it).
+// --witnesses flag added to proofs get (the tree carries it); the
+// item-code document left out (it is not listed).
 func TestSchema_ListsExactlyItsDocuments(t *testing.T) {
 	out, err := exec.Command(binaryPath, "schema", "list", "--json").CombinedOutput()
 	if err != nil {
@@ -264,11 +265,11 @@ func TestSchema_ListsExactlyItsDocuments(t *testing.T) {
 	for _, s := range listed.Schemas {
 		names = append(names, s.Name)
 	}
-	if want := []string{"algorithms", "commands", "exit-codes", "reason-codes"}; !slices.Equal(names, want) {
+	if want := []string{"algorithms", "commands", "exit-codes", "item-code", "reason-codes"}; !slices.Equal(names, want) {
 		t.Errorf("schema list names %q, want %q", names, want)
 	}
 	completed := completionValues(t, "schema", "get", "")
-	if want := []string{"algorithms", "commands", "exit-codes", "reason-codes"}; !slices.Equal(completed, want) {
+	if want := []string{"algorithms", "commands", "exit-codes", "item-code", "reason-codes"}; !slices.Equal(completed, want) {
 		t.Errorf("schema get completes %q, want %q", completed, want)
 	}
 	for _, gone := range []string{"subject-types", "witnesses"} {
@@ -354,13 +355,15 @@ func TestSchema_AlgorithmsMatchHashList(t *testing.T) {
 //
 // This checks the property directly: every value the JSON reports must
 // appear in the text. It is what catches a table that quietly stopped
-// showing a column after a field was added to the document. Mutant
-// killed: the reason-codes text leaving out each code's meaning.
+// showing a column after a field was added to the document. Mutants
+// killed: the reason-codes text leaving out each code's meaning; the
+// item-code text leaving out its FROM column, which the JSON gives as
+// each field's from.
 func TestSchema_TextAndJSONCarryTheSameFacts(t *testing.T) {
 	// The command tree is excluded: its JSON deliberately carries far more
 	// than the text outline (every flag, type, default and enum), which is
 	// what --json is for.
-	for _, name := range []string{"algorithms", "reason-codes", "exit-codes"} {
+	for _, name := range []string{"algorithms", "reason-codes", "exit-codes", "item-code"} {
 		t.Run(name, func(t *testing.T) {
 			text, err := exec.Command(binaryPath, "schema", "get", name).CombinedOutput()
 			if err != nil {

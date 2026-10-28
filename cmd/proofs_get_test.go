@@ -288,15 +288,17 @@ func TestCLI_ProofsGet_ToFileNames(t *testing.T) {
 	}
 }
 
-// An item request whose served bytes are no item proof gets no file name:
-// it exits 1 and writes nothing. Mutant killed: FileName naming any
-// served proof by its id (a file is written).
+// An item request by UUIDv7 whose served bytes are no item proof is
+// refused before anything is written, since it has no record whose id
+// could be the one asked for: it exits 1 with that refusal alone and
+// writes nothing. Mutant killed: the UUIDv7 not checked (FileName's
+// refusal, "no file name for the served proof", is given instead).
 func TestCLI_ProofsGet_ToFileRefusesAnUnnamableItemProof(t *testing.T) {
 	url, _ := rawProofServer(t, byMode)
 	dir := withTempCWD(t)
 	_, stderr, exit := runCLI(t, "--base-url", url, "--api-key", "test-key", "proofs", "get", "--type", "item", "--to-file", testItemID)
-	if exit != 1 || !strings.Contains(stderr, "no file name for the served proof: it is not an item proof") {
-		t.Errorf("exit %d, stderr %q; want exit 1 and the refusal", exit, stderr)
+	if want := "the served proof cannot be checked against " + testItemID + ", so nothing was written: it is not an item proof\n"; exit != 1 || stderr != want {
+		t.Errorf("exit %d, stderr %q; want exit 1 and %q", exit, stderr, want)
 	}
 	if names := dirEntries(t, dir); len(names) != 0 {
 		t.Errorf("files %v, want none", names)
@@ -427,17 +429,57 @@ func resolvingServer(t *testing.T, resolution string) (string, func() int, func(
 		func() []string { mu.Lock(); defer mu.Unlock(); return slices.Clone(proofs) }
 }
 
+// entropyResolution and blockResolution are the app's answers to
+// resolve-id for an entropy observation's UUIDv7 and for a block's
+// (Truestamp.AI.IdResolver.resolve/2, its entropy_match/1 and
+// block_match/1): one match each, the observation's proof_type its source
+// with no other type, and the block's proof_type block, also verifiable as
+// a beacon.
+const (
+	entropyResolution = `{"result":{"id":"` + testSubjectID + `","normalized_id":"` + testSubjectID + `","id_format":"uuidv7","matches":[` +
+		`{"kind":"entropy_observation","verifiable":true,"proof_type":"entropy_stellar","also_verifiable_as":[],` +
+		`"summary":{"id":"` + testSubjectID + `","source":"entropy_stellar","state":"committed"}}]}}`
+	blockResolution = `{"result":{"id":"` + testSubjectID + `","normalized_id":"` + testSubjectID + `","id_format":"uuidv7","matches":[` +
+		`{"kind":"block","verifiable":true,"proof_type":"block","also_verifiable_as":["beacon"],` +
+		`"summary":{"id":"` + testSubjectID + `","state":"committed","block_hash":"` + soundItemHash + `"}}]}}`
+)
+
 // A UUIDv7 with no --type is resolved against the server in one round
-// trip, and the resolved type is the one the raw GET asks for.
+// trip, and the resolved type is the one the raw GET asks for: an entropy
+// observation, verifiable as one type, is fetched as that type. Mutant
+// killed: the resolved type ignored (the raw GET is not of
+// entropy_stellar).
 func TestCLI_ProofsGet_ResolvesTypeForUUIDv7(t *testing.T) {
-	url, resolves, proofs := resolvingServer(t, `{"result":{"id_format":"uuidv7","matches":[
-	  {"kind":"block","proof_type":"block","verifiable":true}]}}`)
+	url, resolves, proofs := resolvingServer(t, entropyResolution)
 	stdout, stderr, exit := runCLI(t, "--base-url", url, "--api-key", "k", "proofs", "get", testSubjectID)
 	if exit != 0 || stdout != string(servedBytes("full")) {
 		t.Fatalf("exit=%d stdout=%q stderr=%q", exit, stdout, stderr)
 	}
-	if resolves() != 1 || !slices.Equal(proofs(), []string{rawProofPrefix + "block/" + testSubjectID}) {
-		t.Errorf("%d resolve-id calls and the proof requests %v; want one, and the raw GET of the block", resolves(), proofs())
+	if resolves() != 1 || !slices.Equal(proofs(), []string{rawProofPrefix + "entropy_stellar/" + testSubjectID}) {
+		t.Errorf("%d resolve-id calls and the proof requests %v; want one, and the raw GET of the observation", resolves(), proofs())
+	}
+}
+
+// A block's id, which the app answers with proof_type block and
+// also_verifiable_as ["beacon"], is refused rather than guessed, naming
+// both types and the --type that picks each, with no proof request; with
+// --type block or --type beacon it is fetched as that type with no
+// resolution. Mutant killed: also_verifiable_as not read (the block's
+// proof is fetched, exit 0).
+func TestCLI_ProofsGet_ABlockIdIsABlockOrABeacon(t *testing.T) {
+	url, resolves, proofs := resolvingServer(t, blockResolution)
+	stdout, stderr, exit := runCLI(t, "--base-url", url, "--api-key", "k", "proofs", "get", testSubjectID)
+	want := testSubjectID + " is verifiable as more than one subject type, block | beacon, which is refused rather than guessed: pass --type block or --type beacon\n"
+	if exit != 1 || stdout != "" || stderr != want || resolves() != 1 || len(proofs()) != 0 {
+		t.Errorf("exit %d, stdout %q, stderr %q, %d resolve-id calls, proof requests %v; want exit 1, %q, one call and none", exit, stdout, stderr, resolves(), proofs(), want)
+	}
+	for _, typ := range []string{"block", "beacon"} {
+		if _, stderr, exit := runCLI(t, "--base-url", url, "--api-key", "k", "proofs", "get", "--type", typ, testSubjectID); exit != 0 {
+			t.Errorf("--type %s: exit %d\n%s", typ, exit, stderr)
+		}
+	}
+	if got, want := proofs(), []string{rawProofPrefix + "block/" + testSubjectID, rawProofPrefix + "beacon/" + testSubjectID}; resolves() != 1 || !slices.Equal(got, want) {
+		t.Errorf("%d resolve-id calls, proof requests %v; want one and %v", resolves(), got, want)
 	}
 }
 
@@ -454,12 +496,16 @@ func TestCLI_ProofsGet_ExplicitTypeSkipsResolution(t *testing.T) {
 }
 
 // A subject verifiable as more than one type is not guessed at, and an id
-// with no match, or a resolution the server refuses, says how to state
-// the type; none of them asks for a proof.
+// with no match, one that names a team, whose proof_type is null, or a
+// resolution the server refuses, says how to state the type; none of them
+// asks for a proof. Mutants killed: a null proof_type read as item (the
+// team's id is fetched as an item proof); the block's also_verifiable_as
+// ignored (the block's proof is requested).
 func TestCLI_ProofsGet_UnresolvedTypesAreRefused(t *testing.T) {
 	for name, resolution := range map[string]string{
-		"ambiguous": `{"result":{"id_format":"uuidv7","matches":[
-		  {"kind":"block","proof_type":"block"},{"kind":"beacon","proof_type":"beacon"}]}}`,
+		"a block": blockResolution,
+		"a team": `{"result":{"id_format":"uuidv7","matches":[{"kind":"team","verifiable":false,"proof_type":null,"also_verifiable_as":[],` +
+			`"summary":{"id":"` + testSubjectID + `","name":"T","personal":false,"role":"team_owner"}}]}}`,
 		"no match": `{"result":{"id_format":"uuidv7","matches":[]}}`,
 		"refused":  `{"errors":[{"detail":"nope"}]}`,
 	} {

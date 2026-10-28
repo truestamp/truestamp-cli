@@ -25,7 +25,7 @@ import (
 // rendered is the text renderReport writes for report.
 func rendered(report *verifier.Report) string {
 	var b strings.Builder
-	_ = renderReport(&b, report)
+	_ = renderReport(&b, report, "")
 	return b.String()
 }
 

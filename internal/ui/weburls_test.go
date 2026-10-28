@@ -6,11 +6,13 @@ package ui
 import "testing"
 
 // TestSubjectDetailURL covers the six-way mapping from wire-type to
-// server detail-page path plus the dev-host suppression rules (shared
-// with every *URL helper in this file).
+// server detail-page path, and that every host renders URLs, localhost
+// and plain http included, as every *URL helper in this file does. An
+// item's page is named by its item code. Mutant killed: pageRef refusing
+// every item ref (the item rows are empty).
 func TestSubjectDetailURL(t *testing.T) {
 	const (
-		item = "01a0db66-c2e0-78a4-b8cc-12b11bc97493"
+		item = "WX495M26THGQBJ68"
 		uuid = "019db702-b08c-73dc-a7cd-2c5e011f1dad"
 		prod = "https://www.truestamp.com/api/json"
 	)
@@ -56,11 +58,13 @@ func TestSubjectDetailURL(t *testing.T) {
 }
 
 // TestSubjectVerifyURL covers the verify-page URL for all six canonical
-// types. Path pattern is uniform (`/verify/<type>/<id>`) so the coverage
-// matrix is simpler than the detail map.
+// types. Path pattern is uniform (`/verify/<type>/<ref>`) so the coverage
+// matrix is simpler than the detail map; an item's ref is its item code.
+// Mutant killed: pageRef refusing every item ref (the item rows are
+// empty).
 func TestSubjectVerifyURL(t *testing.T) {
 	const (
-		item = "01a0db66-c2e0-78a4-b8cc-12b11bc97493"
+		item = "WX495M26THGQBJ68"
 		uuid = "019db702-b08c-73dc-a7cd-2c5e011f1dad"
 		prod = "https://www.truestamp.com/api/json"
 	)
@@ -87,5 +91,42 @@ func TestSubjectVerifyURL(t *testing.T) {
 	}
 	if got := SubjectVerifyURL(prod, "", item); got != "" {
 		t.Errorf("empty type should yield empty URL, got %q", got)
+	}
+}
+
+// An item's pages are named only by its item code in its one spelling:
+// its UUIDv7 id, its item_hash, the code in lowercase or with separators,
+// a typo and the empty ref give no URL, for the detail page and the verify
+// page alike, while every other subject's id still does. Mutants killed:
+// pageRef taking any item ref (the id, the hash and the loose spellings
+// give a URL); pageRef taking a code in any spelling Parse reads (the
+// lowercase and hyphenated codes give a URL); pageRef refusing every
+// other type's ref (the block's URLs are empty).
+func TestSubjectURLs_AnItemPageIsNamedByItsCode(t *testing.T) {
+	const prod = "https://www.truestamp.com/api/json"
+	for _, ref := range []string{
+		"01a0db66-c2e0-78a4-b8cc-12b11bc97493",
+		"e74892d046d46175c8dbdecbbbc705a36816df58e65a2ee1861c100c16eb5f8c",
+		"wx495m26thgqbj68", "WX49-5M26-THGQ-BJ68", "WX495M26THGQBJ69", "",
+	} {
+		if got := SubjectDetailURL(prod, "item", ref); got != "" {
+			t.Errorf("SubjectDetailURL(item, %q) = %q, want none", ref, got)
+		}
+		if got := SubjectVerifyURL(prod, "item", ref); got != "" {
+			t.Errorf("SubjectVerifyURL(item, %q) = %q, want none", ref, got)
+		}
+	}
+	if got, want := SubjectDetailURL(prod, "item", "WX495M26THGQBJ68"), "https://www.truestamp.com/items/WX495M26THGQBJ68"; got != want {
+		t.Errorf("SubjectDetailURL(item, code) = %q, want %q", got, want)
+	}
+	if got, want := SubjectVerifyURL(prod, "item", "WX495M26THGQBJ68"), "https://www.truestamp.com/verify/item/WX495M26THGQBJ68"; got != want {
+		t.Errorf("SubjectVerifyURL(item, code) = %q, want %q", got, want)
+	}
+	const block = "019db702-b08c-73dc-a7cd-2c5e011f1dad"
+	if got, want := SubjectVerifyURL(prod, "block", block), "https://www.truestamp.com/verify/block/"+block; got != want {
+		t.Errorf("SubjectVerifyURL(block) = %q, want %q", got, want)
+	}
+	if got, want := SubjectDetailURL(prod, "block", block), "https://www.truestamp.com/blocks/"+block; got != want {
+		t.Errorf("SubjectDetailURL(block) = %q, want %q", got, want)
 	}
 }
