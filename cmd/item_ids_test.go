@@ -156,42 +156,6 @@ func TestCLI_RawProofStandIn_RefusesWhatTheAppRefuses(t *testing.T) {
 	}
 }
 
-// An item named by its item code or its item_hash is refused before any
-// request: `proofs get` takes an item by its UUIDv7 id, refusing the code
-// in its one spelling and in lowercase with hyphens and the hash in either
-// case, with --type item or with no --type, naming only the UUIDv7 id it
-// takes. Mutants killed: the refusal of codes and hashes removed (the
-// stand-in serves the request, exit 0); a code taken as a block when
-// --type is absent (the refusal is the --type block one); the no --type
-// hash branch removed (the refusal is the unrecognised shape one); the
-// no --type hash branch giving a --type item hint (the refusal is that
-// hint).
-func TestCLI_ProofsGet_RefusesAnItemByItsCodeOrHash(t *testing.T) {
-	const byCode = "proofs get takes an item by its UUIDv7 id (e.g. 01a0db66-c2e0-78a4-b8cc-12b11bc97493), not by its item code"
-	const byHash = "proofs get takes an item by its UUIDv7 id (e.g. 01a0db66-c2e0-78a4-b8cc-12b11bc97493), not by its item_hash"
-	url, requests := rawProofServer(t, byMode)
-	for _, tc := range []struct {
-		args []string
-		want string
-	}{
-		{[]string{soundItemCode}, byCode},
-		{[]string{"wx49-5m26-thgq-bj68"}, byCode},
-		{[]string{"--type", "item", soundItemCode}, byCode},
-		{[]string{"--type", "item", soundItemHash}, byHash},
-		{[]string{"--type", "item", strings.ToUpper(soundItemHash)}, byHash},
-		{[]string{soundItemHash}, byHash},
-		{[]string{strings.ToUpper(soundItemHash)}, byHash},
-	} {
-		stdout, stderr, exit := runCLI(t, append([]string{"--base-url", url, "--api-key", "k", "proofs", "get"}, tc.args...)...)
-		if exit != 1 || stdout != "" || stderr != tc.want+"\n" {
-			t.Errorf("%v: exit %d, stdout %q, stderr %q; want exit 1 and %q", tc.args, exit, stdout, stderr, tc.want)
-		}
-	}
-	if got := requests(); len(got) != 0 {
-		t.Errorf("requests %+v, want none", got)
-	}
-}
-
 // countingServer answers every request 404 and counts them.
 func countingServer(t *testing.T) (string, func() int) {
 	t.Helper()
@@ -212,12 +176,14 @@ func countingServer(t *testing.T) (string, func() int) {
 // UUID's 32-hex, braced and urn: forms, a UUID of another version and 26
 // characters of Crockford base32, each with the value quoted as given and
 // before any request, and each refusal names only the form its command
-// takes, a UUIDv7 id. Mutants killed: a strings.TrimSpace on the argument
-// of items get, items update, proofs get or convert id (the padded values
-// are sent, or convert id prints a time); a UUIDv7 read in the forms gofrs
-// FromString takes, 32 hex characters, braces and urn:uuid: (those values
-// are sent, or convert id prints a time); the refusal naming an item code
-// or an item_hash as a form taken (the message differs).
+// takes: proofs get, items get and items update a UUIDv7 id, an item code
+// and an item_hash, and convert id a UUIDv7. Mutants killed: a
+// strings.TrimSpace on the argument of items get, items update, proofs get
+// or convert id (the padded values are sent, or convert id prints a time);
+// a UUIDv7 read in the forms gofrs FromString takes, 32 hex characters,
+// braces and urn:uuid: (those values are sent, or convert id prints a
+// time); a refusal naming a form its command does not take, or leaving
+// out one it does (the message differs).
 func TestCLI_ItemIDsAreReadExactlyAsTyped(t *testing.T) {
 	cases := map[string]string{
 		" " + testItemID:                       `invalid ID format " ` + testItemID + `"`,
@@ -235,10 +201,10 @@ func TestCLI_ItemIDsAreReadExactlyAsTyped(t *testing.T) {
 		command []string
 		takes   string
 	}{
-		{[]string{"proofs", "get"}, "proofs get takes a UUIDv7 id (e.g. 019d6a32-13e6-72b0-97e5-3779231ea97b)"},
-		{[]string{"proofs", "get", "--type", "item"}, "proofs get takes a UUIDv7 id (e.g. 019d6a32-13e6-72b0-97e5-3779231ea97b)"},
-		{[]string{"items", "get"}, "items get takes an item's UUIDv7 id (e.g. 01a0db66-c2e0-78a4-b8cc-12b11bc97493)"},
-		{[]string{"items", "update", "--visibility", "public"}, "items update takes an item's UUIDv7 id (e.g. 01a0db66-c2e0-78a4-b8cc-12b11bc97493)"},
+		{[]string{"proofs", "get"}, "proofs get takes a UUIDv7 id (e.g. 019d6a32-13e6-72b0-97e5-3779231ea97b), an item code (e.g. 9WBPKNV7SCP87VZW) or, with --type item, an item_hash"},
+		{[]string{"proofs", "get", "--type", "item"}, "proofs get takes a UUIDv7 id (e.g. 019d6a32-13e6-72b0-97e5-3779231ea97b), an item code (e.g. 9WBPKNV7SCP87VZW) or, with --type item, an item_hash"},
+		{[]string{"items", "get"}, "items get takes an item's UUIDv7 id (e.g. 01a0db66-c2e0-78a4-b8cc-12b11bc97493), its item code (e.g. 9WBPKNV7SCP87VZW) or its item_hash"},
+		{[]string{"items", "update", "--visibility", "public"}, "items update takes an item's UUIDv7 id (e.g. 01a0db66-c2e0-78a4-b8cc-12b11bc97493), its item code (e.g. 9WBPKNV7SCP87VZW) or its item_hash"},
 		{[]string{"convert", "id"}, "convert id takes a UUIDv7 (e.g. 019d6a32-13e6-72b0-97e5-3779231ea97b)"},
 	} {
 		for typed, value := range cases {
@@ -281,31 +247,6 @@ func TestCLI_ItemsGetAndUpdate_SendTheCanonicalUUIDv7(t *testing.T) {
 	}
 	if err := json.Unmarshal([]byte(s.body()), &sent); err != nil || sent.Data.ID != testItemID {
 		t.Errorf("update body %s: data.id %q, %v; want %q", s.body(), sent.Data.ID, err, testItemID)
-	}
-}
-
-// items get and items update take an item by its UUIDv7 id, and refuse its
-// item code and its item_hash, naming the form they take, before any
-// request. Mutant killed: itemIDArg returning the canonical value of every
-// shape (the code and the hash are sent).
-func TestCLI_ItemsGetAndUpdate_RefuseAnItemByItsCodeOrHash(t *testing.T) {
-	url, requests := countingServer(t)
-	for _, tc := range []struct {
-		args []string
-		want string
-	}{
-		{[]string{"items", "get", soundItemCode}, "items get takes an item's UUIDv7 id (e.g. 01a0db66-c2e0-78a4-b8cc-12b11bc97493), not its item code"},
-		{[]string{"items", "get", soundItemHash}, "items get takes an item's UUIDv7 id (e.g. 01a0db66-c2e0-78a4-b8cc-12b11bc97493), not its item_hash"},
-		{[]string{"items", "update", "wx49 5m26 thgq bj68", "--visibility", "public"}, "items update takes an item's UUIDv7 id (e.g. 01a0db66-c2e0-78a4-b8cc-12b11bc97493), not its item code"},
-		{[]string{"items", "update", soundItemHash, "--visibility", "public"}, "items update takes an item's UUIDv7 id (e.g. 01a0db66-c2e0-78a4-b8cc-12b11bc97493), not its item_hash"},
-	} {
-		stdout, stderr, exit := runCLI(t, append([]string{"--base-url", url, "--api-key", "k"}, tc.args...)...)
-		if exit != 1 || stdout != "" || stderr != tc.want+"\n" {
-			t.Errorf("%v: exit %d, stdout %q, stderr %q; want exit 1 and %q", tc.args, exit, stdout, stderr, tc.want)
-		}
-	}
-	if n := requests(); n != 0 {
-		t.Errorf("%d requests sent, want none", n)
 	}
 }
 

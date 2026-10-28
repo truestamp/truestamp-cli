@@ -39,9 +39,11 @@ and 7), and print every member it carries, each by its value class
     never checked as true;
   - every other member as carried.
 
-It also prints proof_hash and the key id of the signer's key. Every
-value is printed whole, in the text and in --json, a raw_transaction
-and a txoutproof among them.
+It also prints proof_hash and the key id of the signer's key, and, for
+an item proof, its item code (SPEC.md section 3.9), computed from the
+recomputed item_hash and printed beside it: a name for the item, not a
+check. Every value is printed whole, in the text and in --json, a
+raw_transaction and a txoutproof among them.
 
 Nothing is verified: the key and the signature are not checked, no chain
 or source is read, and no verdict is given. Use 'truestamp verify' for
@@ -146,6 +148,12 @@ func runInspect(cmd *cobra.Command, args []string) error {
 // before, with it. Each member of the proof is given once, by its value
 // class (SPEC.md section 3.7): a CHECKED value in Recomputed, a time in
 // DeclaredTimes, a RECORDED value in Recorded, and every other in Proof.
+// ItemCode is no member of the proof: it is the item code of SPEC.md
+// section 3.9 (The item code), computed from the item_hash recomputed from
+// an item proof's record, its Recomputed row at /subject/item_hash, and
+// null for any other proof, before SHAPE passes, and when that item_hash
+// cannot be recomputed. A match of codes shows only that two item_hash
+// values begin with the same 75 bits.
 type InspectOutput struct {
 	Source        string                `json:"source"`
 	Octets        *int                  `json:"octets"`
@@ -157,6 +165,7 @@ type InspectOutput struct {
 	Recomputed    []InspectRecomputed   `json:"recomputed"`
 	DeclaredTimes []InspectDeclaredTime `json:"declared_times"`
 	Recorded      []InspectRecorded     `json:"recorded"`
+	ItemCode      *string               `json:"item_code"`
 }
 
 // InspectRejection is the verifier's refusal: a bare rejection of READ,
@@ -311,6 +320,12 @@ func inspectOutputOf(in *verifier.Inspection, source string, octets int) Inspect
 			row.CarriedIs, row.ValueIs = carriedIsSignature, valueIsSignedMessage
 		}
 		out.Recomputed = append(out.Recomputed, row)
+		if in.Type == "item" && isItemHashRow(row) {
+			recomputed, _ := r.Value.(string)
+			if code, ok := itemCodeOfHex(recomputed); ok {
+				out.ItemCode = &code
+			}
+		}
 	}
 	for _, d := range in.DeclaredTimes {
 		out.DeclaredTimes = append(out.DeclaredTimes, InspectDeclaredTime{Part: d.Part, Class: d.Class, Value: d.Value})
@@ -319,6 +334,12 @@ func inspectOutputOf(in *verifier.Inspection, source string, octets int) Inspect
 		out.Recorded = append(out.Recorded, InspectRecorded{Part: r.Part, Value: r.Value})
 	}
 	return out
+}
+
+// isItemHashRow reports whether r is the recomputed item_hash of an item
+// proof's subject, the row the item code is computed from.
+func isItemHashRow(r InspectRecomputed) bool {
+	return r.Construction == "item_hash" && r.Part == "/subject/item_hash"
 }
 
 // rejectionStep is the step of SPEC.md section 10.2 a bare rejection comes
@@ -450,6 +471,9 @@ func renderInspect(out InspectOutput) string {
 			row(r.Construction, "at "+r.Part)
 			row(carried, inspectValueText(r.Carried))
 			row(recomputed, inspectRecomputedText(r.Value))
+			if out.ItemCode != nil && isItemHashRow(r) {
+				row("  Item code", *out.ItemCode+" (of the recomputed item_hash: a name for the item, not a check)")
+			}
 		}
 	}
 	if p != nil {

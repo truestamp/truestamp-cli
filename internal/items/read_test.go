@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"slices"
 	"strings"
 	"testing"
 
@@ -114,12 +115,19 @@ func TestList_CommittedAndPendingConflict(t *testing.T) {
 }
 
 // TestList_PendingFiltersClientSide: the server has no "not committed"
-// filter, so this is an exclusion after the fetch. Worth pinning because
-// it is the one filter whose semantics are not the server's.
+// filter, so this is an exclusion after the fetch, and it keeps exactly
+// the items still on their way into a block, those created or
+// processing: a committed, redacted or deleted item is not pending, and
+// the page keeps the server's order. Mutant killed: the exclusion kept as
+// "every state but committed" (the redacted and deleted items are kept).
 func TestList_PendingFiltersClientSide(t *testing.T) {
 	body := `{"data":[
-	  {"type":"item","id":"01AAA","attributes":{"state":"committed"}},
-	  {"type":"item","id":"01BBB","attributes":{"state":"processing"}}]}`
+      {"type":"item","id":"01AAA","attributes":{"state":"committed"}},
+      {"type":"item","id":"01BBB","attributes":{"state":"processing"}},
+      {"type":"item","id":"01CCC","attributes":{"state":"redacted"}},
+      {"type":"item","id":"01DDD","attributes":{"state":"created"}},
+      {"type":"item","id":"01EEE","attributes":{"state":"deleted_user"}},
+      {"type":"item","id":"01FFF","attributes":{"state":"deleted_expired"}}]}`
 	apiURL, rec := serveItems(t, body)
 	page, err := List(context.Background(), apiURL, "", ListOptions{Pending: true})
 	if err != nil {
@@ -128,8 +136,42 @@ func TestList_PendingFiltersClientSide(t *testing.T) {
 	if rec.query.Get("filter[state]") != "" {
 		t.Error("there is no server-side pending filter; none should be sent")
 	}
-	if len(page.Items) != 1 || page.Items[0].ID != "01BBB" {
-		t.Errorf("committed items should be excluded, got %+v", page.Items)
+	var kept []string
+	for _, it := range page.Items {
+		kept = append(kept, it.ID)
+	}
+	if want := []string{"01BBB", "01DDD"}; !slices.Equal(kept, want) {
+		t.Errorf("pending kept %v, want %v", kept, want)
+	}
+}
+
+// Pending is true for created and processing alone. Mutant killed:
+// Pending written as !Committed (redacted is pending).
+func TestPending_OnlyCreatedAndProcessing(t *testing.T) {
+	for state, want := range map[string]bool{
+		"created": true, "processing": true, "committed": false, "redacted": false,
+		"deleted_user": false, "deleted_expired": false, "": false,
+	} {
+		if got := (Item{State: state}).Pending(); got != want {
+			t.Errorf("Item{State: %q}.Pending() = %v, want %v", state, got, want)
+		}
+	}
+}
+
+// Get asks for the item_code with the other attributes it renders, and
+// reads it back. Mutant killed: item_code left out of requestFields (the
+// server sends only the fields asked for, so the code is empty).
+func TestGet_AsksForAndReadsTheItemCode(t *testing.T) {
+	apiURL, rec := serveItems(t, `{"data":{"type":"item","id":"01AAA","attributes":{"item_code":"WX495M26THGQBJ68"}}}`)
+	it, err := Get(context.Background(), apiURL, "", "WX495M26THGQBJ68")
+	if err != nil {
+		t.Fatalf("Get: %v", err)
+	}
+	if fields := strings.Split(rec.query.Get("fields[item]"), ","); !slices.Contains(fields, "item_code") {
+		t.Errorf("fields[item] %q does not ask for item_code", rec.query.Get("fields[item]"))
+	}
+	if it.ItemCode != "WX495M26THGQBJ68" || rec.path != "/items/WX495M26THGQBJ68" {
+		t.Errorf("item code %q, path %q", it.ItemCode, rec.path)
 	}
 }
 

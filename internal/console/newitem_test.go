@@ -538,3 +538,34 @@ func TestParseCreateReply_ClaimsJCSAndHash(t *testing.T) {
 		}
 	}
 }
+
+// TestParseCreateReply_ItemCodeBesideItemHash: a success carries the
+// reply item's item_code, and the watching pane gives it whole, as its own
+// "Item code" row on the line after the whole "Item hash" row, never in
+// its place. Mutants killed: item_code not read from the reply (no Item
+// code row); the Item code row left out of the pane; the code put in the
+// Item hash row's place (the Item hash row holds the code).
+func TestParseCreateReply_ItemCodeBesideItemHash(t *testing.T) {
+	t.Parallel()
+
+	const itemHash = "e74892d046d46175c8dbdecbbbc705a36816df58e65a2ee1861c100c16eb5f8c"
+	const code = "WX495M26THGQBJ68"
+	reply := parseCreateReply("ok", json.RawMessage(`{"item":{"id":"019a0000-0000-7000-8000-000000000001","state":"created",`+
+		`"claims":{"name":"Doc"},"claims_hash":"ch","item_hash":"`+itemHash+`","item_code":"`+code+`"},"watched":true,`+
+		`"claims_jcs":"{\"name\":\"Doc\"}","claims_hash":"ch"}`))
+	if reply.err != nil || reply.item == nil || reply.item.ItemCode != code {
+		t.Fatalf("reply %+v", reply)
+	}
+
+	m := newNewItemModel(nil)
+	m.Update(reply)
+	var rows []string
+	for _, line := range strings.Split(m.View(200, 60), "\n") {
+		if fields := strings.Fields(strings.ReplaceAll(line, "│", " ")); len(fields) >= 3 && fields[0] == "Item" && (fields[1] == "hash" || fields[1] == "code") {
+			rows = append(rows, strings.Join(fields[:3], " "))
+		}
+	}
+	if want := []string{"Item hash " + itemHash, "Item code " + code}; !reflect.DeepEqual(rows, want) {
+		t.Errorf("rows %q, want %q", rows, want)
+	}
+}

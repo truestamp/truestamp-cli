@@ -3,27 +3,32 @@
 
 package ui
 
-import "strings"
+import (
+	"strings"
+
+	"github.com/truestamp/truestamp-cli/internal/itemcode"
+)
 
 // This file centralizes the construction of public-web URLs that the
 // CLI surfaces in its post-action "card" output (after beacons get,
 // download, create, etc.). Two flavours per subject:
 //
 //   - Details URL, the subject's own detail page (item / block /
-//     entropy / beacon). Keyed by id for everything except beacon,
-//     which has a hash-keyed detail route the server exposes at
-//     /beacons/<hash>. Callers with only the id can still link via the
-//     underlying block's page (see SubjectDetailURL's beacon row).
+//     entropy / beacon). An item's is keyed by its item code, the one
+//     form its page canonicalizes to (/items/<CODE>); every other
+//     subject's by its id, except beacon, which has a hash-keyed detail
+//     route the server exposes at /beacons/<hash>. Callers with only the
+//     id can still link via the underlying block's page (see
+//     SubjectDetailURL's beacon row).
 //
-//   - Verify URL, the typed sub-path `/verify/<type>/<id>` route
-//     introduced in the t=11 cutover. Always id-keyed and always
-//     available for all six subject types.
+//   - Verify URL, the typed sub-path `/verify/<type>/<ref>` route,
+//     available for all six subject types: an item's is keyed by its
+//     item code (/verify/item/<CODE>, the page's canonical URL), every
+//     other subject's by its id.
 //
-// URLs are emitted unconditionally, localhost and plain-http hosts
-// render URLs too. The earlier "suppress dev hosts" filter was removed
-// so developers can see the card URLs against their local server. The
-// corresponding small risk (a dev-host URL in a shared transcript) is
-// considered acceptable by the CLI maintainers.
+// URLs are emitted for every host, localhost and plain-http included, so
+// developers see the card URLs against a local server. The small risk
+// this carries, a dev-host URL in a shared transcript, is accepted.
 
 // publicWebBase derives the public web origin from the configured API
 // URL by stripping a trailing `/api/json` and any trailing slash.
@@ -53,31 +58,48 @@ var subjectDetailPath = map[string]string{
 
 // SubjectDetailURL returns the subject detail page URL for a download
 // or items create card. `typeName` must be one of the six canonical wire
-// values; `id` is the subject's UUIDv7. Returns
-// "" for an unknown type or an empty apiURL. Dev hosts are NOT filtered:
-// see the package comment above for why that filter was removed.
-func SubjectDetailURL(apiURL, typeName, id string) string {
+// values; `ref` is an item's item code (SPEC.md section 3.9 (The item
+// code)), from the API or computed from its recomputed item_hash, and
+// every other subject's UUIDv7. Returns "" for an unknown type, an empty
+// apiURL, or an item ref that is not an item code in its one spelling,
+// so no item page is ever linked by its id, a short form or a typo. Dev
+// hosts are not filtered: see the package comment above.
+func SubjectDetailURL(apiURL, typeName, ref string) string {
 	base := publicWebBase(apiURL)
-	if base == "" {
+	if base == "" || !pageRef(typeName, ref) {
 		return ""
 	}
 	path, ok := subjectDetailPath[typeName]
 	if !ok {
 		return ""
 	}
-	return base + path + id
+	return base + path + ref
 }
 
 // SubjectVerifyURL returns the typed sub-path verify URL
-// (`{host}/verify/<type>/<id>`). Accepts any of the six canonical
-// types; server-side also accepts bare `entropy` as a convenience
-// form but this CLI sticks to strict subtypes end-to-end.
-func SubjectVerifyURL(apiURL, typeName, id string) string {
+// (`{host}/verify/<type>/<ref>`), `ref` as SubjectDetailURL takes it: an
+// item's item code in its one spelling, and every other subject's id.
+// Accepts any of the six canonical types; server-side also accepts bare
+// `entropy` as a convenience form but this CLI sticks to strict subtypes
+// end-to-end. Returns "" for an empty type or apiURL, and for an item ref
+// that is not an item code in its one spelling.
+func SubjectVerifyURL(apiURL, typeName, ref string) string {
 	base := publicWebBase(apiURL)
-	if base == "" || typeName == "" {
+	if base == "" || typeName == "" || !pageRef(typeName, ref) {
 		return ""
 	}
-	return base + "/verify/" + typeName + "/" + id
+	return base + "/verify/" + typeName + "/" + ref
+}
+
+// pageRef reports whether ref can name a page of a subject of typeName:
+// for an item, only its item code in its one spelling, which
+// itemcode.Parse gives back unchanged; for every other type, any ref.
+func pageRef(typeName, ref string) bool {
+	if typeName != "item" {
+		return true
+	}
+	code, err := itemcode.Parse(ref)
+	return err == nil && code == ref
 }
 
 // BeaconDetailURL is the hash-keyed variant used only by the beacon

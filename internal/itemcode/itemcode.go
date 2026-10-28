@@ -49,11 +49,20 @@ func FromItemHash(h [32]byte) string {
 // SPEC.md section 4.3 (The table), never a hash a document carries. It
 // returns the registry's refusal of a record it cannot hash.
 func OfItemRecord(record map[string]any) (string, error) {
-	itemHash, err := registry.RecordHash(registry.ItemHash, record)
+	itemHash, err := ItemHashOfRecord(record)
 	if err != nil {
 		return "", err
 	}
 	return FromItemHash(itemHash), nil
+}
+
+// ItemHashOfRecord returns the item_hash of the item whose record is
+// record, recomputed as H(0x11, JCS(record)), the row item_hash of SPEC.md
+// section 4.3 (The table) that DERIVE recomputes (SPEC.md section 10.2,
+// step 9), the one input of the item code. It returns the registry's
+// refusal of a record it cannot hash.
+func ItemHashOfRecord(record map[string]any) ([32]byte, error) {
+	return registry.RecordHash(registry.ItemHash, record)
 }
 
 // fiveBits returns the 5 bits of h that start at bit offset, counted from

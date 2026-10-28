@@ -23,8 +23,11 @@ type CreateItemResponse struct {
 	ClaimsHash string
 	// ClaimsJCS is the server's claims_jcs: the canonical form (RFC 8785)
 	// of the claims it accepted, the bytes ClaimsHash is computed over.
-	ClaimsJCS  string
-	ItemHash   string
+	ClaimsJCS string
+	ItemHash  string
+	// ItemCode is the item code the server issued the item (SPEC.md
+	// section 3.9 (The item code)), in its one spelling.
+	ItemCode   string
 	Visibility string
 	Tags       []string
 	TeamID     string
@@ -217,6 +220,7 @@ func parseResponse(body []byte) (*CreateItemResponse, error) {
 		ClaimsHash: getString(attrs, "claims_hash"),
 		ClaimsJCS:  getString(attrs, "claims_jcs"),
 		ItemHash:   getString(attrs, "item_hash"),
+		ItemCode:   getString(attrs, "item_code"),
 		Visibility: getString(attrs, "visibility"),
 		TeamID:     getString(attrs, "team_id"),
 		Name:       getString(attrs, "display_name"),

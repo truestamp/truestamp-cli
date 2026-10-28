@@ -653,9 +653,11 @@ func explainCreateError(cmd *cobra.Command, err error) error {
 }
 
 // printCreateJSON outputs the creation result as JSON for scripting.
-// hash and hash_type are omitted when the response carries no external
-// hash (claims-as-source-of-truth mode), matching the verify JSON output
-// convention and the styled table presenter.
+// item_hash and item_code are given when the response carries them, as
+// the styled table presenter gives them. hash and hash_type are omitted
+// when the response carries no external hash (claims-as-source-of-truth
+// mode), matching the verify JSON output convention and the styled table
+// presenter.
 func printCreateJSON(w io.Writer, resp *items.CreateItemResponse) error {
 	out := map[string]any{
 		"id":          resp.ID,
@@ -664,6 +666,12 @@ func printCreateJSON(w io.Writer, resp *items.CreateItemResponse) error {
 		"team_id":     resp.TeamID,
 		"claims_jcs":  resp.ClaimsJCS,
 		"claims_hash": resp.ClaimsHash,
+	}
+	if resp.ItemHash != "" {
+		out["item_hash"] = resp.ItemHash
+	}
+	if resp.ItemCode != "" {
+		out["item_code"] = resp.ItemCode
 	}
 	if resp.Hash != "" {
 		out["hash"] = resp.Hash
@@ -704,16 +712,23 @@ func presentCreate(w io.Writer, resp *items.CreateItemResponse) {
 	}
 	tbl = tbl.Row("Claims JCS", resp.ClaimsJCS).
 		Row("Claims hash", resp.ClaimsHash)
+	if resp.ItemHash != "" {
+		tbl = tbl.Row("Item hash", resp.ItemHash)
+	}
+	if resp.ItemCode != "" {
+		tbl = tbl.Row("Item code", resp.ItemCode)
+	}
 
 	// Shareable public-web links as rows of the SAME table, they share
-	// the right-aligned-label / value column alignment. Note the verify
-	// link will render "not yet committed" until the item lands in a
-	// finalized block, still useful to surface the stable URL format
+	// the right-aligned-label / value column alignment, each named by the
+	// item code the server issued, the form the pages canonicalize to.
+	// Note the verify link will render "not yet committed" until the item
+	// lands in a finalized block, still useful to surface the stable URL
 	// so the user can come back later.
-	if detail := ui.SubjectDetailURL(appConfig.APIURL, "item", resp.ID); detail != "" {
+	if detail := ui.SubjectDetailURL(appConfig.APIURL, "item", resp.ItemCode); detail != "" {
 		tbl = tbl.Row("Details", detail)
 	}
-	if verify := ui.SubjectVerifyURL(appConfig.APIURL, "item", resp.ID); verify != "" {
+	if verify := ui.SubjectVerifyURL(appConfig.APIURL, "item", resp.ItemCode); verify != "" {
 		tbl = tbl.Row("Verify", verify)
 	}
 

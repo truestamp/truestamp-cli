@@ -6,6 +6,7 @@ package items
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/url"
@@ -19,18 +20,22 @@ import (
 // the resource's json_api default_fields, so every request that wants
 // them must ask for them explicitly via fields[item]. See requestFields.
 type Item struct {
-	ID          string         `json:"id"`
-	State       string         `json:"state"`
-	Claims      map[string]any `json:"claims,omitempty"`
-	ClaimsHash  string         `json:"claims_hash,omitempty"`
-	ItemHash    string         `json:"item_hash,omitempty"`
-	Visibility  string         `json:"visibility,omitempty"`
-	Tags        []string       `json:"tags,omitempty"`
-	TeamID      string         `json:"team_id,omitempty"`
-	DisplayName string         `json:"display_name,omitempty"`
-	InsertedAt  string         `json:"inserted_at,omitempty"`
-	UpdatedAt   string         `json:"updated_at,omitempty"`
-	ExpiresAt   string         `json:"expires_at,omitempty"`
+	ID         string         `json:"id"`
+	State      string         `json:"state"`
+	Claims     map[string]any `json:"claims,omitempty"`
+	ClaimsHash string         `json:"claims_hash,omitempty"`
+	ItemHash   string         `json:"item_hash,omitempty"`
+	// ItemCode is the item code the server issued the item (SPEC.md
+	// section 3.9 (The item code)), in its one spelling: a name for the
+	// item, never a stand-in for ItemHash where identity is compared.
+	ItemCode    string   `json:"item_code,omitempty"`
+	Visibility  string   `json:"visibility,omitempty"`
+	Tags        []string `json:"tags,omitempty"`
+	TeamID      string   `json:"team_id,omitempty"`
+	DisplayName string   `json:"display_name,omitempty"`
+	InsertedAt  string   `json:"inserted_at,omitempty"`
+	UpdatedAt   string   `json:"updated_at,omitempty"`
+	ExpiresAt   string   `json:"expires_at,omitempty"`
 }
 
 // Committed reports whether the item is in a block. Proof generation
@@ -39,6 +44,11 @@ type Item struct {
 // on a public chain yet with no_block_commitment, or with
 // commitment_not_final while none of its commitments is final.
 func (i Item) Committed() bool { return i.State == "committed" }
+
+// Pending reports whether the item is still on its way into a block: it
+// is created or processing. A committed item is not, and neither is a
+// redacted or deleted one, which no block will take.
+func (i Item) Pending() bool { return i.State == "created" || i.State == "processing" }
 
 // Page is one page of a list response plus the cursor for the next.
 type Page struct {
@@ -61,7 +71,7 @@ const DefaultLimit = 25
 // updated_at and expires_at are absent from the resource's
 // json_api default_fields, so omitting this leaves them empty with no
 // error: a silent hole rather than a failure.
-const requestFields = "claims,claims_hash,item_hash,visibility,state,tags,team_id,display_name,inserted_at,updated_at,expires_at"
+const requestFields = "claims,claims_hash,item_hash,item_code,visibility,state,tags,team_id,display_name,inserted_at,updated_at,expires_at"
 
 // ListOptions configures a list request.
 type ListOptions struct {
@@ -111,9 +121,10 @@ func List(ctx context.Context, apiURL, team string, opts ListOptions) (*Page, er
 	case opts.Committed:
 		q.Set("filter[state]", "committed")
 	case opts.Pending:
-		// "Pending" is every state that is not yet committed. The server
-		// has no such filter, so this is a client-side exclusion after the
-		// fetch rather than a query the server can index.
+		// "Pending" is the two states before a block, created and
+		// processing (Item.Pending). The server has no such filter, so
+		// this is a client-side exclusion after the fetch rather than a
+		// query the server can index.
 	}
 
 	body, err := jsonapi.Do(ctx, jsonapi.Config{APIURL: apiURL, Team: team}, http.MethodGet, "/items?"+q.Encode(), nil)
@@ -127,7 +138,7 @@ func List(ctx context.Context, apiURL, team string, opts ListOptions) (*Page, er
 	if opts.Pending {
 		kept := page.Items[:0]
 		for _, it := range page.Items {
-			if !it.Committed() {
+			if it.Pending() {
 				kept = append(kept, it)
 			}
 		}
@@ -136,11 +147,13 @@ func List(ctx context.Context, apiURL, team string, opts ListOptions) (*Page, er
 	return page, nil
 }
 
-// Get fetches one item by its UUIDv7 id.
-func Get(ctx context.Context, apiURL, team, id string) (*Item, error) {
+// Get fetches one item by ref, its UUIDv7 id, its item code or its
+// item_hash, sent as given: the app's item read route (GET /items/:id,
+// its :read_by_ref action) reads each of the three.
+func Get(ctx context.Context, apiURL, team, ref string) (*Item, error) {
 	q := url.Values{}
 	q.Set("fields[item]", requestFields)
-	body, err := jsonapi.Do(ctx, jsonapi.Config{APIURL: apiURL, Team: team}, http.MethodGet, "/items/"+url.PathEscape(id)+"?"+q.Encode(), nil)
+	body, err := jsonapi.Do(ctx, jsonapi.Config{APIURL: apiURL, Team: team}, http.MethodGet, "/items/"+url.PathEscape(ref)+"?"+q.Encode(), nil)
 	if err != nil {
 		return nil, err
 	}
@@ -164,10 +177,15 @@ func (o UpdateOptions) Empty() bool {
 	return o.Visibility == nil && o.Tags == nil && o.TeamID == nil
 }
 
-// Update patches an item's mutable attributes.
+// ErrNothingToUpdate is an update that asks for no change.
+var ErrNothingToUpdate = errors.New("nothing to update: pass --visibility, --tags or --to-team")
+
+// Update patches an item's mutable attributes. id is the item's UUIDv7
+// id: the app's update route (PATCH /items/:id, read through :read_by_id)
+// reads no other reference.
 func Update(ctx context.Context, apiURL, team, id string, opts UpdateOptions) (*Item, error) {
 	if opts.Empty() {
-		return nil, fmt.Errorf("nothing to update: pass --visibility, --tags or --to-team")
+		return nil, ErrNothingToUpdate
 	}
 	attrs := map[string]any{}
 	if opts.Visibility != nil {

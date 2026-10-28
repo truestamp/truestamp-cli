@@ -11,6 +11,7 @@ package proof
 
 import (
 	"context"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -96,9 +97,8 @@ func FetchRawCtx(ctx context.Context, apiURL, team, subjectType, id, constructio
 // extension SPEC.md section 3.1 (The envelope) gives a proof file. The
 // constructions mode adds nothing to the name.
 //
-// An item's code is computed from its recomputed item_hash, H(0x11,
-// JCS(proof.subject.record)) as SPEC.md section 4.3 (The table) gives
-// it, of the served bytes, never from the id given or from any hash the
+// An item's code is computed from its recomputed item_hash
+// ([ServedItemHash]), never from the id given or from any hash the
 // document carries; a served document that is not an item proof with a
 // record gives no name. An id that holds a path separator, or is empty,
 // "." or "..", gives no name either, so a file is only ever written in
@@ -110,31 +110,103 @@ func FileName(subjectType, id string, served []byte) (string, error) {
 		}
 		return id + ".proof.json", nil
 	}
-	code, err := servedItemCode(served)
+	itemHash, err := ServedItemHash(served)
 	if err != nil {
 		return "", fmt.Errorf("no file name for the served proof: %w", err)
 	}
-	return code + ".proof.json", nil
+	return itemcode.FromItemHash(itemHash) + ".proof.json", nil
 }
 
-// servedItemCode is the item code of the item proof served, from the
-// item_hash recomputed over its subject's record.
-func servedItemCode(served []byte) (string, error) {
+// ServedItemHash is the item_hash of the item proof served, recomputed
+// from its subject's record as H(0x11, JCS(proof.subject.record)), the
+// row item_hash of SPEC.md section 4.3 (The table) that DERIVE recomputes
+// (SPEC.md section 10.2, step 9), never the item_hash the document
+// carries. A served document the strict reader refuses, or that is not an
+// item proof with a record, gives an error.
+func ServedItemHash(served []byte) ([32]byte, error) {
+	record, err := servedItemRecord(served)
+	if err != nil {
+		return [32]byte{}, err
+	}
+	return itemcode.ItemHashOfRecord(record)
+}
+
+// servedItemRecord is /proof/subject/record of the item proof served, as
+// the strict reader parses it. A served document the strict reader
+// refuses, or that is not an item proof with a record, gives an error.
+func servedItemRecord(served []byte) (map[string]any, error) {
 	value, err := strictjson.Parse(served)
 	if err != nil {
-		return "", err
+		return nil, err
 	}
 	envelope, _ := value.(map[string]any)
 	document, _ := envelope["proof"].(map[string]any)
 	if document["type"] != "item" {
-		return "", errors.New("it is not an item proof")
+		return nil, errors.New("it is not an item proof")
 	}
 	subject, _ := document["subject"].(map[string]any)
 	record, _ := subject["record"].(map[string]any)
 	if record == nil {
-		return "", errors.New("it carries no item record")
+		return nil, errors.New("it carries no item record")
 	}
-	return itemcode.OfItemRecord(record)
+	return record, nil
+}
+
+// ErrDifferentItem is a served item proof that is not of the item asked
+// for: [CheckServedItem]'s refusal.
+var ErrDifferentItem = errors.New("the server returned a proof for a different item")
+
+// CheckServedItem checks that served, the proof served for a subject of
+// subjectType named by ref, is a proof of that item, before anything is
+// written. shape is ref's shape and ref its canonical form, as
+// [DetectIDType] gives them. Only an item is checked: for any other
+// subjectType it gives nil. For a UUIDv7, the id of the served record,
+// /proof/subject/record/id (SPEC.md section 3.6 (Layouts by type)), must
+// equal ref, and nothing else of the proof is read; for an item code, the
+// item code of the recomputed item_hash ([ServedItemHash]) must; for an
+// item_hash, the recomputed item_hash itself must, all 64 hex characters.
+// The item_hash the document carries is never read. A mismatch is
+// [ErrDifferentItem]. A served document that is not an item proof with a
+// record is an error too, and so is a record with no string id, for a
+// UUIDv7, or one whose item_hash cannot be recomputed, for a code or an
+// item_hash.
+//
+// A matching code shows only that the recomputed item_hash begins with
+// the 75 bits the code is written from (SPEC.md section 3.9), so a code
+// checks the item a person named, and an item_hash checks it whole.
+func CheckServedItem(subjectType string, shape IDType, ref string, served []byte) error {
+	if subjectType != "item" {
+		return nil
+	}
+	if shape == IDTypeUUIDv7 {
+		record, err := servedItemRecord(served)
+		if err != nil {
+			return fmt.Errorf("the served proof cannot be checked against %s, so nothing was written: %w", ref, err)
+		}
+		id, ok := record["id"].(string)
+		if !ok {
+			return fmt.Errorf("the served proof cannot be checked against %s, so nothing was written: its item record has no string id", ref)
+		}
+		if id != ref {
+			return fmt.Errorf("%w: its record's id is %q, not %s; nothing was written", ErrDifferentItem, id, ref)
+		}
+		return nil
+	}
+	itemHash, err := ServedItemHash(served)
+	if err != nil {
+		return fmt.Errorf("the served proof cannot be checked against %s, so nothing was written: %w", ref, err)
+	}
+	recomputed := hex.EncodeToString(itemHash[:])
+	if shape == IDTypeItemHash {
+		if recomputed != ref {
+			return fmt.Errorf("%w: its recomputed item_hash is %s, not %s; nothing was written", ErrDifferentItem, recomputed, ref)
+		}
+		return nil
+	}
+	if code := itemcode.FromItemHash(itemHash); code != ref {
+		return fmt.Errorf("%w: its recomputed item_hash %s has the item code %s, not %s; nothing was written", ErrDifferentItem, recomputed, code, ref)
+	}
+	return nil
 }
 
 // Codes the server sends in `meta.code` when it refuses to serve a proof,

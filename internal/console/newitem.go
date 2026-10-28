@@ -158,6 +158,10 @@ type createdItem struct {
 	} `json:"claims"`
 	ClaimsHash string `json:"claims_hash"`
 	ItemHash   string `json:"item_hash"`
+	// ItemCode is the item code the server issued the item (SPEC.md
+	// section 3.9 (The item code)), the reply's item_code: a name for the
+	// item, shown beside ItemHash and never in its place.
+	ItemCode string `json:"item_code"`
 	// ClaimsJCS is the reply's claims_jcs: the claims in canonical form
 	// (RFC 8785), exactly as the server keeps them and ClaimsHash covers.
 	ClaimsJCS string `json:"-"`
@@ -673,8 +677,11 @@ func (m *newItemModel) renderWatching(width, height int) string {
 			cardField{label: "Hash", value: h},
 		)
 	}
+	fields = append(fields, cardField{label: "Item hash", value: m.created.ItemHash})
+	if m.created.ItemCode != "" {
+		fields = append(fields, cardField{label: "Item code", value: m.created.ItemCode})
+	}
 	fields = append(fields,
-		cardField{label: "Item hash", value: m.created.ItemHash},
 		cardField{label: "Claims JCS", value: m.created.ClaimsJCS},
 		cardField{label: "Claims hash", value: m.created.ClaimsHash},
 	)

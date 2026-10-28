@@ -15,6 +15,7 @@ import (
 	"github.com/truestamp/truestamp-cli/internal/entropy"
 	"github.com/truestamp/truestamp-cli/internal/hashing"
 	"github.com/truestamp/truestamp-cli/internal/introspect"
+	"github.com/truestamp/truestamp-cli/internal/itemcode"
 	"github.com/truestamp/truestamp-cli/internal/proof"
 	"github.com/truestamp/truestamp-cli/internal/specdata"
 	"github.com/truestamp/truestamp-cli/internal/ui"
@@ -41,6 +42,7 @@ in-code registries, so it always describes the binary you are running.
   truestamp schema get algorithms        the hash algorithm registry
   truestamp schema get reason-codes      verify's reason codes
   truestamp schema get exit-codes        each command's exit codes
+  truestamp schema get item-code         where the item code is read and written
 
 'schema get commands --json' is the one call that answers "what can this
 CLI do, and with which flags" without parsing help text.`,
@@ -226,6 +228,32 @@ var schemaDocs = map[string]schemaDoc{
 			ui.Fprintln(w)
 		},
 	},
+	"item-code": {
+		description: "The item code (SPEC.md section 3.9): its alphabet, and each member, row and name that carries it",
+		note: "A code is a name for an item, written whole in its one spelling and never in place of " +
+			"item_hash: equal codes show only that two item_hash values begin with the same 75 bits.",
+		build: func() any {
+			return map[string]any{
+				"alphabet": itemcode.Alphabet,
+				"length":   itemcode.Length,
+				"taken_by": itemCodeTakenBy,
+				"fields":   itemCodeFields,
+			}
+		},
+		render: func(w io.Writer) {
+			ui.Fprintln(w, ui.AccentBoldStyle().Render("  The item code (SPEC.md section 3.9)"))
+			ui.Fprintln(w)
+			ui.Fprintf(w, "  alphabet  %s\n", itemcode.Alphabet)
+			ui.Fprintf(w, "  length    %d\n", itemcode.Length)
+			ui.Fprintf(w, "  taken by  %s\n", strings.Join(itemCodeTakenBy, ", "))
+			ui.Fprintln(w)
+			rows := [][]string{{"COMMAND", "WHERE", "FROM"}}
+			for _, f := range itemCodeFields {
+				rows = append(rows, []string{f.Command, f.Where, f.From})
+			}
+			renderSchemaTable(w, "Where the item code is written", rows)
+		},
+	},
 	"exit-codes": {
 		description: "What each process exit status means, by command",
 		note: "exit_codes are every command's but verify's and upgrade's under --check --exit-code; " +
@@ -244,6 +272,41 @@ var schemaDocs = map[string]schemaDoc{
 			renderSchemaTable(w, "upgrade --check --exit-code", exitCodeRows(upgradeCheckExitCodes))
 		},
 	},
+}
+
+// itemCodeField is one place a command writes the item code: the
+// command, the member, row, column or name that carries it, and what it
+// is computed from.
+type itemCodeField struct {
+	Command string `json:"command"`
+	Where   string `json:"where"`
+	From    string `json:"from"`
+}
+
+// The two sources of an item code this CLI writes: the code the server
+// issued, or the one computed from the item_hash recomputed from an item
+// proof's record (SPEC.md section 3.9).
+const (
+	itemCodeFromAPI        = "the item_code the API gives"
+	itemCodeFromRecomputed = "computed from the item_hash recomputed from the proof's record"
+)
+
+// itemCodeTakenBy are the commands that take an item code as an item's
+// reference, each besides its UUIDv7 id and its item_hash.
+var itemCodeTakenBy = []string{"items get", "items update", "proofs get"}
+
+// itemCodeFields is every place a command writes the item code.
+// TestSchema_ItemCodeFieldsAreTheCommands checks each command and each
+// --json member against the binary.
+var itemCodeFields = []itemCodeField{
+	{"items list", "--json: each item's item_code; text: the CODE column", itemCodeFromAPI},
+	{"items get", "--json: item_code; text: the Item code row, and the Details URL", itemCodeFromAPI},
+	{"items update", "--json: item_code; text: the Item code row, and the Details URL", itemCodeFromAPI},
+	{"items create", "--json: item_code; text: the Item code row, and the Details and Verify URLs", itemCodeFromAPI},
+	{"console", "the Item code row of a new item's card", itemCodeFromAPI},
+	{"proofs get", "the <CODE>.proof.json name of --to-file; the receipt's Item code row, and its Details and Verify URLs", itemCodeFromRecomputed},
+	{"inspect", "--json: item_code, null but for an item proof; text: the Item code row after the recomputed item_hash", itemCodeFromRecomputed},
+	{"verify", "text only: the Item code line after the Item hash line; never a member or row of the --json report", itemCodeFromRecomputed},
 }
 
 // withNote attaches a document's note to its JSON form, so the note is

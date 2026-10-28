@@ -4,10 +4,12 @@
 package cmd
 
 import (
+	"encoding/hex"
 	"fmt"
 	"io"
 	"strings"
 
+	"github.com/truestamp/truestamp-cli/internal/itemcode"
 	"github.com/truestamp/truestamp-cli/internal/specdata"
 	"github.com/truestamp/truestamp-cli/internal/verifier"
 )
@@ -31,6 +33,11 @@ import (
 //   - no time the proof carries is shown, and no marker the proof carries
 //     is quoted (section 6.4): only the rows' messages, which the verifier
 //     writes, say what a check found;
+//   - an item proof's item code (section 3.9) is computed only from the
+//     item_hash DERIVE recomputed, the trace row of /subject/item_hash,
+//     captioned "Item code" on the line after that whole item_hash, never
+//     in its place and never with a status; it is no member or row of the
+//     report, and a run with no trace shows neither;
 //   - every row that does not pass is listed, after a count of each
 //     status; a WINDOW row without its message where the message names
 //     an instant: a failed run's, which names the edges WINDOW drew, and
@@ -51,8 +58,10 @@ var labelSays = map[string]string{
 }
 
 // renderReport writes report as text (see the file's doc) in one write,
-// and gives that write's error.
-func renderReport(w io.Writer, report *verifier.Report) error {
+// and gives that write's error. itemHash is the item_hash the run
+// recomputed, as recomputedItemHash gives it from the run's trace, or ""
+// when there is none.
+func renderReport(w io.Writer, report *verifier.Report, itemHash string) error {
 	var b strings.Builder
 	beside := ""
 	if report.Environment != "prod" {
@@ -77,10 +86,43 @@ func renderReport(w io.Writer, report *verifier.Report) error {
 		fmt.Fprintf(&b, "Type:         %s\n", report.Type)
 		fmt.Fprintf(&b, "Subject id:   %s\n", report.SubjectID)
 	}
+	if code, ok := itemCodeOfHex(itemHash); ok && report.Type == "item" {
+		fmt.Fprintf(&b, "Item hash:    %s (recomputed from the subject's record)\n", itemHash)
+		fmt.Fprintf(&b, "Item code:    %s (of that item_hash: a name for the item, not a check)\n", code)
+	}
 	b.WriteString(windowText(report))
 	b.WriteString(rowsText(report.Rows, report.Label == verifier.LabelFailed))
 	_, err := io.WriteString(w, b.String())
 	return err
+}
+
+// recomputedItemHash is the item_hash a run recomputed from an item
+// proof's record, the recomputed value of the trace row of the
+// constructions row item_hash at /subject/item_hash (SPEC.md section
+// 10.6), whatever that row's status, or "" when the trace holds none.
+func recomputedItemHash(trace []verifier.TraceRow) string {
+	for _, row := range trace {
+		if row.Construction == "item_hash" && row.Part == "/subject/item_hash" {
+			recomputed, _ := row.Recomputed.(string)
+			return recomputed
+		}
+	}
+	return ""
+}
+
+// itemCodeOfHex is the item code (SPEC.md section 3.9) of the item whose
+// item_hash is text, the HEX64 text the verifier writes a recomputed
+// item_hash in (SPEC.md section 2.4): 64 lowercase hex characters. Any
+// other text gives no code.
+func itemCodeOfHex(text string) (string, bool) {
+	if len(text) != 64 || strings.ToLower(text) != text {
+		return "", false
+	}
+	raw, err := hex.DecodeString(text)
+	if err != nil {
+		return "", false
+	}
+	return itemcode.FromItemHash([32]byte(raw)), true
 }
 
 // trustRootText is trust_root in words: its kind, where its keys came
