@@ -501,3 +501,71 @@ func TestDocs_ConformanceClaimIsReadFromTheFiles(t *testing.T) {
 		}
 	}
 }
+
+// retiredProofFormatTerms names, case-insensitively, what the proof format
+// and this CLI no longer have: the binary encoding and its `proofs
+// convert`, the switch that skipped the signature, the earlier appendix
+// steps and their numbers, the epoch proof, the two kinds of commitment,
+// the layout reason code, the compact and partial proofs with their
+// --witnesses flag and file names, the earlier proof routes and offline
+// key, the 26-symbol Crockford base32 time-sortable ids, and the local
+// claims checks the CLI no longer makes. The name of those ids is written
+// [u]lid, so that this file never holds it.
+var retiredProofFormatTerms = regexp.MustCompile(`(?i)skip.?signatures|cbor|proofs convert|Appendix [CDE]|\bE\.[0-9]|epoch_proof|external.?commitment|unsupported_layout|[u]lid|witnesses (all|none)|compact bundle|partial bundle|block_height|server verdict|FuzzParseCBOR|/proof/generate|/proof/verify|skip_external|truestamp-<stem>|truestamp-(item|block|beacon|entropy)-|-compact\.json|-partial\.json|--witnesses|checkClaimsPortability|overlayFlags|unsafe_integer|default of .sha256|fills in .hash_type|caught client-side|checks this locally`)
+
+// timeSortableIDValue is one of those ids written out, which carries no
+// name: 26 symbols of Crockford base32 whose time field begins 01.
+var timeSortableIDValue = regexp.MustCompile(`\b01[0-9A-HJKMNP-TV-Z]{24}\b`)
+
+// TestDocs_NoRetiredProofFormatNames holds the prose a reader takes as the
+// CLI as it is, README.md, EXAMPLES.md, CONTRIBUTING.md, kb/ and .github/,
+// to the proof format and the CLI of today: none names a term of
+// retiredProofFormatTerms or writes a 26-symbol time-sortable id.
+// CHANGELOG.md is history and is not read. Mutants killed: `--witnesses
+// all` restored in EXAMPLES.md; a 26-symbol time-sortable id value
+// restored in README.md; "caught client-side" restored in EXAMPLES.md; the
+// name of those ids restored in .github/ISSUE_TEMPLATE/bug_report.yml.
+func TestDocs_NoRetiredProofFormatNames(t *testing.T) {
+	root := repoRoot(t)
+	files := []string{
+		filepath.Join(root, "README.md"),
+		filepath.Join(root, "EXAMPLES.md"),
+		filepath.Join(root, "CONTRIBUTING.md"),
+	}
+	for _, dir := range []string{"kb", ".github"} {
+		err := filepath.Walk(filepath.Join(root, dir), func(path string, info os.FileInfo, err error) error {
+			if err != nil {
+				return err
+			}
+			if !info.IsDir() {
+				files = append(files, path)
+			}
+			return nil
+		})
+		if err != nil {
+			t.Fatalf("walking %s: %v", dir, err)
+		}
+	}
+	read := 0
+	for _, f := range files {
+		body, err := os.ReadFile(f)
+		if err != nil {
+			t.Fatalf("read %s: %v", f, err)
+		}
+		read++
+		for i, line := range strings.Split(string(body), "\n") {
+			if m := retiredProofFormatTerms.FindString(line); m != "" {
+				t.Errorf("%s:%d names %q, which the proof format and this CLI no longer have\n  %s",
+					f, i+1, m, strings.TrimSpace(line))
+			}
+			if m := timeSortableIDValue.FindString(line); m != "" {
+				t.Errorf("%s:%d writes %s, a 26-symbol Crockford base32 time-sortable id; Truestamp ids are UUIDv7\n  %s",
+					f, i+1, m, strings.TrimSpace(line))
+			}
+		}
+	}
+	// A walk that found nothing would pass while checking nothing.
+	if read < 20 {
+		t.Fatalf("read only %d files", read)
+	}
+}

@@ -378,12 +378,13 @@ func TestCLI_Hash_List(t *testing.T) {
 	}
 }
 
-// The claims_hash examples of `hash --help`, `jcs --help` and README.md
-// give the claims_hash byte of SPEC.md section 4.3: each `--prefix 0xNN`
-// they show, run with --jcs over the claims of the vector item proof,
-// prints that proof's /proof/subject/record/claims_hash. Mutant killed:
-// 0x11, item_hash's byte, restored in any one of the three (that example
-// prints cf38faec..., not the proof's claims_hash).
+// The claims_hash examples of `hash --help`, `jcs --help`, README.md and
+// EXAMPLES.md give the claims_hash byte of SPEC.md section 4.3: each
+// `--prefix 0xNN` they show, run with --jcs over the claims of the vector
+// item proof, prints that proof's /proof/subject/record/claims_hash.
+// Mutants killed: 0x11, item_hash's byte, restored in any one of the four
+// (that example prints another digest, not the proof's claims_hash); an
+// EXAMPLES.md claims_hash example dropped (the count changes).
 func TestCLI_ClaimsHashExamplesGiveTheProofsClaimsHash(t *testing.T) {
 	var doc struct {
 		Proof struct {
@@ -415,6 +416,10 @@ func TestCLI_ClaimsHashExamplesGiveTheProofsClaimsHash(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	examples, err := os.ReadFile(filepath.Join(repoRoot(t), "EXAMPLES.md"))
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	prefixArg := regexp.MustCompile(`--prefix (0x[0-9A-Fa-f]{2})\b`)
 	for _, src := range []struct {
@@ -424,6 +429,7 @@ func TestCLI_ClaimsHashExamplesGiveTheProofsClaimsHash(t *testing.T) {
 		{"hash --help", hashHelp, 1},
 		{"jcs --help", jcsHelp, 2},
 		{"README.md", string(readme), 2},
+		{"EXAMPLES.md", string(examples), 6},
 	} {
 		found := prefixArg.FindAllStringSubmatch(src.text, -1)
 		if len(found) != src.examples {

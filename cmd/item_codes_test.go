@@ -360,6 +360,37 @@ func TestCLI_ItemsGet_TheCardGivesTheCodeBesideTheHash(t *testing.T) {
 	}
 }
 
+// The item card labels the time the item was submitted "Submitted", since
+// Truestamp proves submission timing, never creation timing, and gives it
+// in the card's order of rows. Mutants killed: the row labelled "Created"
+// (the labels differ); the row left out (Submitted is missing); the
+// expiry time given in it (its first field differs).
+func TestCLI_ItemsGet_LabelsTheSubmissionTimeSubmitted(t *testing.T) {
+	doc := strings.Replace(soundItemDoc(testItemID, soundItemCode, soundItemHash), `"display_name":`,
+		`"inserted_at":"2026-09-26T01:49:00Z","expires_at":"2027-09-26T01:49:00Z","display_name":`, 1)
+	url, _ := itemRefServer(t, doc)
+	stdout, stderr, exit := runCLI(t, "--base-url", url, "--api-key", "k", "items", "get", soundItemCode)
+	if exit != 0 {
+		t.Fatalf("exit %d\n%s", exit, stderr)
+	}
+	var labels []string
+	submitted := ""
+	for _, line := range strings.Split(stdout, "\n")[2:] {
+		label, value, ok := strings.Cut(strings.TrimSpace(line), "  ")
+		if !ok {
+			continue
+		}
+		labels = append(labels, label)
+		if label == "Submitted" {
+			submitted = strings.Fields(value)[0]
+		}
+	}
+	want := []string{"ID", "State", "Visibility", "Name", "Item hash", "Item code", "Submitted", "Expires", "Details"}
+	if !slices.Equal(labels, want) || submitted != "2026-09-26T01:49:00Z" {
+		t.Errorf("card labels %q, Submitted %q; want %q and 2026-09-26T01:49:00Z\n%s", labels, submitted, want, stdout)
+	}
+}
+
 // items list has a CODE column beside the ID column, under a header, with
 // each id and each code whole; an item the API sends no code for has an
 // empty cell, never another value. Mutants killed: the CODE column left
