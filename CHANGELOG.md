@@ -177,6 +177,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Security
 
+- **Go toolchain bumped to 1.27.3.** Go 1.26.8 carried ten standard
+  library vulnerabilities this binary reaches: GO-2026-6809, distrusting
+  compromised intermediate certificates in `crypto/x509` (fixed in
+  1.26.10), and nine fixed in 1.26.9 (GO-2026-6617, GO-2026-6613,
+  GO-2026-6612, GO-2026-6611, GO-2026-6610, GO-2026-6605 and GO-2026-6603
+  in `net/http`, GO-2026-6608 in `net/textproto` and GO-2026-6607 in
+  `crypto/tls`). staticcheck moves to 2026.2.2 and govulncheck to 1.9.0,
+  built with Go 1.27.3, the releases that read Go 1.27's packages.
 - **An OAuth session's access token is no longer sent to GitHub.** Since
   0.9.0, with an OAuth session signed in and a stale `GITHUB_TOKEN` set,
   GitHub's 401 to the upgrade check (the passive notice or `truestamp
