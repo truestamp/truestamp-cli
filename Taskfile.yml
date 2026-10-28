@@ -211,10 +211,10 @@ tasks:
       - staticcheck ./...
 
   gosec:
-    desc: "Run the gosec security scanner (pinned in .tool-versions, installed by `mise install`). CI runs this exact task, so both the version AND the exclusion list below are single-sourced here — do not duplicate them in ci.yml."
+    desc: "Run the gosec security scanner (pinned in .tool-versions, installed by `mise install`). CI runs this exact task, so both the version AND the exclusion list below are single-sourced here: do not duplicate them in ci.yml."
     cmds:
       # gosec exclusions, justified:
-      #   G104: unhandled lipgloss.Println / fmt.Fprintf to stdout — errors there
+      #   G104: unhandled lipgloss.Println / fmt.Fprintf to stdout; errors there
       #         are not actionable in a CLI.
       #   G115: two conversions, each within its target type: a node
       #         position of the Bitcoin merkle-block parser (merkle_block.go),
@@ -232,7 +232,7 @@ tasks:
       #         values (mirrors the Truestamp backend registry); runtime
       #         emits a stderr warning when either is used.
       #   G204: subprocess invocations (xattr, cosign) use hard-coded binary
-      #         names resolved via PATH LookPath — no user-controlled command.
+      #         names resolved via PATH LookPath, with no user-controlled command.
       # G704 (SSRF) is enabled: URLs are user- and operator-supplied by design
       # (the configured base URL, the verifier's --horizon, --esplora and
       # --bitcoin-core), so each site it reports is settled in the code with a
@@ -276,7 +276,7 @@ tasks:
       - go test -run=^Fuzz ./...
 
   fuzz-deep:
-    desc: "Actively fuzz every FuzzXxx for DURATION (default 15s) each. Use for manual hardening; very chatty. Failing targets are retried once to absorb the Go fuzz engine's known shutdown-boundary flake where an in-flight input reports 'context deadline exceeded' when fuzztime expires. A real bug writes a reproducer under the owning package's testdata/fuzz/FuzzXxx/ directory and reproduces on replay instantly. IMPORTANT: any files written under */testdata/fuzz/* must be committed — they are the permanent corpus that `task test` replays as regression tests. Run `find . -path '*/testdata/fuzz/*' -type f` after this task to list new reproducers, and `git add` (or `jj file track`) them before you commit."
+    desc: "Actively fuzz every FuzzXxx for DURATION (default 15s) each. Use for manual hardening; very chatty. Failing targets are retried once to absorb the Go fuzz engine's known shutdown-boundary flake where an in-flight input reports 'context deadline exceeded' when fuzztime expires. A real bug writes a reproducer under the owning package's testdata/fuzz/FuzzXxx/ directory and reproduces on replay instantly. IMPORTANT: any files written under */testdata/fuzz/* must be committed: they are the permanent corpus that `task test` replays as regression tests. Run `find . -path '*/testdata/fuzz/*' -type f` after this task to list new reproducers, and `git add` (or `jj file track`) them before you commit."
     vars:
       DURATION: '{{.DURATION | default "15s"}}'
     cmds:
@@ -288,7 +288,7 @@ tasks:
           for t in $tests; do
             echo "==> $pkg :: $t ({{.DURATION}})"
             if ! go test -run=^$ -fuzz="^${t}$" -fuzztime={{.DURATION}} "$pkg"; then
-              echo "==> $pkg :: $t — first attempt failed; retrying once to rule out fuzz-engine shutdown flake"
+              echo "==> $pkg :: $t: first attempt failed; retrying once to rule out fuzz-engine shutdown flake"
               if ! go test -run=^$ -fuzz="^${t}$" -fuzztime={{.DURATION}} "$pkg"; then
                 failed=$((failed+1))
               fi
@@ -340,6 +340,123 @@ tasks:
       - task: fuzz
       - task: vuln-check
       - task: build-all
+
+  # The gate that closes a change, with a verdict on disk. It deletes the
+  # last verdict, tmp/gate/latest.status, before its first step, so a stale
+  # PASS is never read as this run's, and a run that is killed or never
+  # finishes leaves none. Each step runs unpiped, its output in its own
+  # tmp/gate/<step>.log and its exit code recorded, and a failed step never
+  # stops the next, so every step reports. The tests, the race run, the fuzz
+  # seed replay, the chaos tests, lint and the cross-compiles run under the
+  # no-network guard, set up as test-nonet sets it up, so each of their logs
+  # shows the guard's control and its count of recorded attempts, and nonet's
+  # own code (3 the control failed, 4 a recorded attempt) is the step's.
+  # vuln-check runs outside the guard and runs no tests: govulncheck reading
+  # vuln.go.dev is the gate's only network read, and GOPROXY=off with
+  # GOTOOLCHAIN=local keeps the go command it starts from fetching a module
+  # or a toolchain. Then the go.mod check. The
+  # verdict file is written last of all, from a .new file renamed into
+  # place: one GATE_STEP line per step with its exit code, then
+  # GATE_VERDICT=PASS when every step exited 0, else GATE_VERDICT=FAIL. The
+  # same lines end the gate's output. Task's cmd shell runs with errexit, so
+  # every step's status is caught with || rather than left to end the
+  # script. A step runs task with -x, so its code is the failing command's
+  # and not Task's 201.
+  gate:
+    desc: "The CLI's full gate, the check that closes a change (precommit stays the quick check before a commit), with its verdict in tmp/gate/latest.status (read it with task gate-status). It deletes the last verdict first, then runs each step unpiped, its output in tmp/gate/<step>.log, carrying on past a failed step: the no-network guard's recorder (macOS only, as test-nonet); under the guard, go test -count=1 ./..., the same under -race, the fuzz seed replay, the chaos tests, task lint and build-all's six cross-compiles; then vuln-check (govulncheck ./..., with GOPROXY=off and GOTOOLCHAIN=local, so the go command it starts fetches no module and no toolchain) outside the guard, running no tests, the gate's only network read; then the go.mod check (no oklog/ulid, no fxamacker/cbor, transparency-dev/merkle present). It writes one GATE_STEP line per step with its exit code and GATE_VERDICT=PASS only when every step exited 0, else GATE_VERDICT=FAIL, and exits non-zero on FAIL."
+    silent: true
+    cmds:
+      - |
+        set -u
+        dir="tmp/gate"
+        names="guard test race fuzz chaos lint build-all vuln-check go-mod"
+        mkdir -p "$dir"
+        rm -f "$dir/latest.status"
+        for name in $names; do rm -f "$dir/$name.log"; done
+        out="$dir/latest.status.new"
+        : > "$out"
+        failed=0
+
+        # step NAME CMD...: runs CMD with its output in tmp/gate/NAME.log and
+        # records its exit code.
+        step() {
+          name="$1"
+          shift
+          echo "gate: $name: $*"
+          rc=0
+          "$@" > "$dir/$name.log" 2>&1 || rc=$?
+          echo "gate: $name exited $rc ($dir/$name.log)"
+          printf 'GATE_STEP %s %s\n' "$name" "$rc" >> "$out"
+          if [ "$rc" -ne 0 ]; then failed=1; fi
+        }
+
+        # The guard as test-nonet sets it up: its work directory outside the
+        # tree, and the recorder built there. The old recorder is removed
+        # first, so a failed build leaves none for the guarded steps to load.
+        work="${NONET_WORK:-${TMPDIR:-/tmp}}"
+        work="${work%/}/truestamp-cli-nonet-$(printf %s "{{.ROOT_DIR}}" | shasum | cut -c1-8)"
+        recorder() {
+          test "$(uname -s)" = Darwin && command -v sandbox-exec && command -v clang \
+            && mkdir -p "$work" && rm -f "$work/netrec.dylib" \
+            && clang -dynamiclib -O2 -o "$work/netrec.dylib" tools/nonet/netrec.c
+        }
+        guarded() { NONET_WORK="$work" tools/nonet/nonet.sh "$@"; }
+
+        # go.mod names neither of the modules the CLI dropped and still names
+        # the Merkle walk's.
+        gomod() {
+          bad=0
+          if grep -n 'oklog/ulid' go.mod; then echo "go.mod names oklog/ulid"; bad=1; fi
+          if grep -n 'fxamacker/cbor' go.mod; then echo "go.mod names fxamacker/cbor"; bad=1; fi
+          if grep -n 'transparency-dev/merkle' go.mod; then :; else echo "go.mod does not name transparency-dev/merkle"; bad=1; fi
+          if [ "$bad" -eq 0 ]; then echo "go.mod names transparency-dev/merkle, and neither oklog/ulid nor fxamacker/cbor"; fi
+          return "$bad"
+        }
+
+        step guard recorder
+        step test guarded go test -count=1 ./...
+        step race guarded go test -race -count=1 ./...
+        step fuzz guarded go test -count=1 -run=^Fuzz ./...
+        step chaos guarded go test -tags=chaos -count=1 -race -timeout=120s ./internal/wschannel/...
+        step lint guarded "{{.TASK_EXE}}" -x lint
+        step build-all guarded "{{.TASK_EXE}}" -x build-all
+        step vuln-check env GOPROXY=off GOTOOLCHAIN=local govulncheck ./...
+        step go-mod gomod
+
+        if [ "$failed" -eq 0 ]; then verdict=PASS; else verdict=FAIL; fi
+        printf 'GATE_VERDICT=%s\n' "$verdict" >> "$out"
+        echo
+        cat "$out"
+        mv "$out" "$dir/latest.status"
+        exit "$failed"
+
+  gate-status:
+    desc: "Print the verdict of the last finished task gate, read from tmp/gate/latest.status: its GATE_STEP lines and GATE_VERDICT=PASS or GATE_VERDICT=FAIL, or GATE_VERDICT=UNKNOWN when the file is absent (a run still going, killed or never finished leaves none) or malformed. Exits 0 only on PASS; task -x gate-status exits 1 on FAIL and 2 on UNKNOWN, where Task alone reports 201."
+    silent: true
+    cmds:
+      - |
+        set -u
+        f="tmp/gate/latest.status"
+        if [ ! -f "$f" ]; then
+          echo "GATE_VERDICT=UNKNOWN"
+          echo "No verdict: $f is absent. A gate run that is still going, was killed or never finished leaves none."
+          exit 2
+        fi
+        verdict="$(sed -n 's/^GATE_VERDICT=//p' "$f")"
+        steps="$(awk '$1 == "GATE_STEP" { n++ } END { print n+0 }' "$f")"
+        nonzero="$(awk '$1 == "GATE_STEP" && $3 != "0" { n++ } END { print n+0 }' "$f")"
+        if [ "$verdict" = PASS ] && [ "$steps" -gt 0 ] && [ "$nonzero" -eq 0 ]; then
+          cat "$f"
+          exit 0
+        fi
+        if [ "$verdict" = FAIL ] && [ "$nonzero" -gt 0 ]; then
+          cat "$f"
+          exit 1
+        fi
+        grep '^GATE_STEP ' "$f" || true
+        echo "GATE_VERDICT=UNKNOWN"
+        echo "No verdict: $f is malformed (GATE_VERDICT='$verdict', $steps step lines, $nonzero of them non-zero)."
+        exit 2
 
   # =============================================================================
   # Proof specification (truestamp-verification)
@@ -946,7 +1063,7 @@ tasks:
       - mise exec -- goreleaser check
 
   release-snapshot:
-    desc: "Local snapshot release into dist/ — skips cosign signing (keyless requires the CI OIDC token) and GitHub publishing, so this runs fully offline and is safe for pre-release inspection."
+    desc: "Local snapshot release into dist/, skipping cosign signing (keyless requires the CI OIDC token) and GitHub publishing, so this runs fully offline and is safe for pre-release inspection."
     cmds:
       - mise exec -- goreleaser release --snapshot --clean --skip=sign,publish
       - 'echo "✅ Snapshot artifacts in dist/"'

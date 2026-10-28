@@ -510,8 +510,9 @@ func TestDocs_ConformanceClaimIsReadFromTheFiles(t *testing.T) {
 // --witnesses flag and file names, the earlier proof routes and offline
 // key, the 26-symbol Crockford base32 time-sortable ids, and the local
 // claims checks the CLI no longer makes. The name of those ids is written
-// [u]lid, so that this file never holds it.
-var retiredProofFormatTerms = regexp.MustCompile(`(?i)skip.?signatures|cbor|proofs convert|Appendix [CDE]|\bE\.[0-9]|epoch_proof|external.?commitment|unsupported_layout|[u]lid|witnesses (all|none)|compact bundle|partial bundle|block_height|server verdict|FuzzParseCBOR|/proof/generate|/proof/verify|skip_external|truestamp-<stem>|truestamp-(item|block|beacon|entropy)-|-compact\.json|-partial\.json|--witnesses|checkClaimsPortability|overlayFlags|unsafe_integer|default of .sha256|fills in .hash_type|caught client-side|checks this locally`)
+// [u]lid and the binary encoding's c[b]or, so that this file never holds
+// either.
+var retiredProofFormatTerms = regexp.MustCompile(`(?i)skip.?signatures|c[b]or|proofs convert|Appendix [CDE]|\bE\.[0-9]|epoch_proof|external.?commitment|unsupported_layout|[u]lid|witnesses (all|none)|compact bundle|partial bundle|block_height|server verdict|/proof/generate|/proof/verify|skip_external|truestamp-<stem>|truestamp-(item|block|beacon|entropy)-|-compact\.json|-partial\.json|--witnesses|checkClaimsPortability|overlayFlags|unsafe_integer|default of .sha256|fills in .hash_type|caught client-side|checks this locally`)
 
 // timeSortableIDValue is one of those ids written out, which carries no
 // name: 26 symbols of Crockford base32 whose time field begins 01.
@@ -524,7 +525,8 @@ var timeSortableIDValue = regexp.MustCompile(`\b01[0-9A-HJKMNP-TV-Z]{24}\b`)
 // CHANGELOG.md is history and is not read. Mutants killed: `--witnesses
 // all` restored in EXAMPLES.md; a 26-symbol time-sortable id value
 // restored in README.md; "caught client-side" restored in EXAMPLES.md; the
-// name of those ids restored in .github/ISSUE_TEMPLATE/bug_report.yml.
+// name of those ids restored in .github/ISSUE_TEMPLATE/bug_report.yml;
+// the binary encoding named in README.md.
 func TestDocs_NoRetiredProofFormatNames(t *testing.T) {
 	root := repoRoot(t)
 	files := []string{
