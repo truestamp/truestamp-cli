@@ -9,19 +9,18 @@ import (
 	"testing"
 )
 
-// BenchmarkDomainHash measures SHA-256 of a one-byte prefix + payload, the
-// call ComputeKeyID makes.
+// BenchmarkDomainHash measures SHA-256 of a one-byte prefix + payload.
 func BenchmarkDomainHash(b *testing.B) {
 	data := bytes.Repeat([]byte{0x5a}, 128)
 	b.SetBytes(int64(len(data) + 1))
 	b.ReportAllocs()
 	for i := 0; i < b.N; i++ {
-		_ = DomainHash(PrefixKeyID, data)
+		_ = DomainHash(0x5a, data)
 	}
 }
 
 // BenchmarkDecodeCompactMerkleProof measures decoding of the binary
-// compact proof format read from every proof bundle's `ip` field.
+// compact Merkle proof format.
 func BenchmarkDecodeCompactMerkleProof(b *testing.B) {
 	// A real depth-4 compact proof captured from the sample bundle.
 	const proof = "BAKbGnC2S9wB-uoc-ipZtm3XQi4yTfzoJ104AWSYH_qt6Dr1KQpjCQnFZZQ3Cl1T8frYIxF5l4vtsIQQs0hHXAF2PSRdVsGXyGOzNQoz-R9QS2Gq7X30GQ8jAK3EJz1qgWHLUIBht8G0Sdl2Z7NFP-7KPCtcMMUawPiQCmvjVLQn_g"
@@ -30,15 +29,6 @@ func BenchmarkDecodeCompactMerkleProof(b *testing.B) {
 		if _, err := DecodeCompactMerkleProof(proof); err != nil {
 			b.Fatal(err)
 		}
-	}
-}
-
-// BenchmarkComputeKeyID profiles the Ed25519 -> 4-byte kid derivation.
-func BenchmarkComputeKeyID(b *testing.B) {
-	key := bytes.Repeat([]byte{0xaa}, 32)
-	b.ReportAllocs()
-	for i := 0; i < b.N; i++ {
-		_ = ComputeKeyID(key)
 	}
 }
 

@@ -11,6 +11,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"testing"
 )
@@ -373,6 +374,74 @@ func TestCLI_Hash_List(t *testing.T) {
 	for _, expect := range []string{"md5", "sha256", "sha3-256", "blake2b-512"} {
 		if !strings.Contains(out, expect) {
 			t.Errorf("--list missing %q", expect)
+		}
+	}
+}
+
+// The claims_hash examples of `hash --help`, `jcs --help` and README.md
+// give the claims_hash byte of SPEC.md section 4.3: each `--prefix 0xNN`
+// they show, run with --jcs over the claims of the vector item proof,
+// prints that proof's /proof/subject/record/claims_hash. Mutant killed:
+// 0x11, item_hash's byte, restored in any one of the three (that example
+// prints cf38faec..., not the proof's claims_hash).
+func TestCLI_ClaimsHashExamplesGiveTheProofsClaimsHash(t *testing.T) {
+	var doc struct {
+		Proof struct {
+			Subject struct {
+				Claims json.RawMessage `json:"claims"`
+				Record struct {
+					ClaimsHash string `json:"claims_hash"`
+				} `json:"record"`
+			} `json:"subject"`
+		} `json:"proof"`
+	}
+	if err := json.Unmarshal(readVector(t, "positive/item.proof.json"), &doc); err != nil {
+		t.Fatal(err)
+	}
+	claims, want := doc.Proof.Subject.Claims, doc.Proof.Subject.Record.ClaimsHash
+	if len(claims) == 0 || len(want) != 64 {
+		t.Fatalf("vector item proof: claims %q, claims_hash %q", claims, want)
+	}
+
+	hashHelp, _, code := runCLI(t, "hash", "--help")
+	if code != 0 {
+		t.Fatalf("hash --help exited %d", code)
+	}
+	jcsHelp, _, code := runCLI(t, "jcs", "--help")
+	if code != 0 {
+		t.Fatalf("jcs --help exited %d", code)
+	}
+	readme, err := os.ReadFile(filepath.Join(repoRoot(t), "README.md"))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	prefixArg := regexp.MustCompile(`--prefix (0x[0-9A-Fa-f]{2})\b`)
+	for _, src := range []struct {
+		name, text string
+		examples   int
+	}{
+		{"hash --help", hashHelp, 1},
+		{"jcs --help", jcsHelp, 2},
+		{"README.md", string(readme), 2},
+	} {
+		found := prefixArg.FindAllStringSubmatch(src.text, -1)
+		if len(found) != src.examples {
+			t.Errorf("%s shows %d --prefix examples, want %d", src.name, len(found), src.examples)
+		}
+		for _, m := range found {
+			cmd := exec.Command(binaryPath, "hash", "--prefix", m[1], "--jcs",
+				"-a", "sha256", "--style", "bare", "--no-filename")
+			cmd.Env = cleanEnv()
+			cmd.Stdin = bytes.NewReader(claims)
+			out, err := cmd.Output()
+			if err != nil {
+				t.Fatalf("%s: hash --prefix %s --jcs: %v", src.name, m[1], err)
+			}
+			if got := strings.TrimSpace(string(out)); got != want {
+				t.Errorf("%s: --prefix %s gives %s over the vector claims, want the proof's claims_hash %s",
+					src.name, m[1], got, want)
+			}
 		}
 	}
 }

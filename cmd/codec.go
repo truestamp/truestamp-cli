@@ -209,8 +209,8 @@ deeper than 32 is refused, and so is an integer of magnitude above
 number is written as its nearest IEEE-754 double is, as RFC 8785 says.
 
 Examples:
-  truestamp jcs < claims.json | truestamp hash -a sha256
-  truestamp hash --prefix 0x11 --jcs < claims.json   # equivalent one-liner`,
+  truestamp jcs < claims.json | truestamp hash --prefix 0x10 -a sha256
+  truestamp hash --prefix 0x10 --jcs < claims.json   # equivalent one-liner`,
 	RunE: runJCS,
 }
 

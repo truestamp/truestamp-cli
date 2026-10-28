@@ -30,7 +30,7 @@ since the Unix epoch at which Truestamp recorded the id (SPEC.md section
 window comes from its commitments and witnesses, not from its id. This
 sub-command reads that time and prints it.
 
-The value is read exactly as typed: nothing is trimmed, and a UUID's
+Nothing is trimmed from the value, a UUIDv7 is read in either case, and a UUID's
 32-hex, braced and urn: forms and every other version are refused. Read
 from a pipe, the one line ending that ends the line, a line feed or a
 carriage return and line feed, is not part of the value. An item code

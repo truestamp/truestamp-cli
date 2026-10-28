@@ -11,7 +11,7 @@ body:
       value: |
         Thanks for taking the time to file a report.
 
-        If this is a suggestion rather than something broken, [the feedback board](https://truestamp.userjot.com/board/features) is the better home — ideas there are votable and show up on the [roadmap](https://truestamp.userjot.com/roadmap). Posting needs a UserJot account; the Feedback popup on [truestamp.com/support](https://www.truestamp.com/support) doesn't.
+        If this is a suggestion rather than something broken, [the feedback board](https://truestamp.userjot.com/board/features) is the better home: ideas there are votable and show up on the [roadmap](https://truestamp.userjot.com/roadmap). Posting needs a UserJot account; the Feedback popup on [truestamp.com/support](https://www.truestamp.com/support) doesn't.
 
         **Please don't paste API keys, private keys, or claims data you consider sensitive.** `truestamp config show` masks the API key for you.
 
@@ -58,4 +58,4 @@ body:
     attributes:
       label: Anything else
       description: |
-        Optional. Steps to reproduce, whether it's consistent or intermittent, an unusual network (proxy, firewall), or the ID of the item, proof, block, beacon or entropy record involved — a ULID or UUIDv7 lets us correlate with server-side logs.
+        Optional. Steps to reproduce, whether it's consistent or intermittent, an unusual network (proxy, firewall), or the id of the item, block, beacon or entropy observation involved. Its UUIDv7 id, or an item's item code, lets us correlate with server-side logs.

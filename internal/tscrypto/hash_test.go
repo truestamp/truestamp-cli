@@ -4,7 +4,6 @@
 package tscrypto
 
 import (
-	"encoding/base64"
 	"strings"
 	"testing"
 )
@@ -48,32 +47,6 @@ func TestDomainHash_DifferentPrefixesDiffer(t *testing.T) {
 	h21 := BytesToHex(DomainHash(0x21, data))
 	if h11 == h12 || h11 == h21 || h12 == h21 {
 		t.Error("different domain prefixes should produce different hashes")
-	}
-}
-
-func TestComputeKeyID(t *testing.T) {
-	t.Parallel()
-	// Test vector: known public key -> key_id
-	pubkeyB64 := "CTwMqDZnPd/QTLSq8aTeSD3a+j2DQxKcGfhhIYJQ65Y="
-	pubkey, _ := base64.StdEncoding.DecodeString(pubkeyB64)
-	result := ComputeKeyID(pubkey)
-	expected := "4ceefa4a"
-	if result != expected {
-		t.Errorf("key_id: got %s, want %s", result, expected)
-	}
-}
-
-// A second key and its key id, so that ComputeKeyID is held to more than
-// one answer. Mutant killed: ComputeKeyID under the prefix 0x60 of SPEC.md
-// section 3.3's key id (both answers change).
-func TestComputeKeyID_OfASecondKey(t *testing.T) {
-	t.Parallel()
-	pubkey, err := base64.StdEncoding.DecodeString("IVL40Zt5HSRFMkLhXy6rbLfP+ntqXtMAl5YOBpiB2xI=")
-	if err != nil {
-		t.Fatalf("decoding pk: %s", err)
-	}
-	if got := ComputeKeyID(pubkey); got != "f2c39df9" {
-		t.Errorf("key_id = %s, want f2c39df9", got)
 	}
 }
 

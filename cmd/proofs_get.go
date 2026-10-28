@@ -47,14 +47,17 @@ var proofTypeValues = []string{
 
 var proofsGetCmd = &cobra.Command{
 	Use:   "get <id-code-or-hash>",
-	Short: "Fetch the proof bundle for a subject",
+	Short: "Fetch the proof for a subject",
 	Long: `Download the proof Truestamp serves of a subject, its bytes exactly as
 served: one JSON document, the envelope of SPEC.md section 3.1, signed
 by Truestamp.
 
 The subject is named by its UUIDv7 id, and an item also by its item code
-or its item_hash, each read exactly as typed: nothing is trimmed, and a
-UUID's 32-hex, braced and urn: forms are refused. --type is optional:
+or its item_hash. Nothing is trimmed: a UUIDv7 or an item_hash is read in
+either case, and an item code as SPEC.md section 3.9 lets it be typed (any
+case, I and L read as 1 and O as 0, and one space, hyphen or underscore
+allowed between its groups of four); a UUID's 32-hex, braced and urn:
+forms are refused. --type is optional:
 
   an item code (e.g. 9WBPKNV7SCP87VZW)  names only an item: --type item,
                                         with no round trip
@@ -89,6 +92,10 @@ constructions mode:
   an item                          -> <CODE>.proof.json, CODE its item code
   an entropy observation, a block
   or a beacon                      -> <uuidv7>.proof.json
+
+These are the names the app gives its downloads. A block's proof and its beacon's proof
+share one id, so --to-file gives them the same name and the later write
+replaces the earlier: pass -o to keep both.
 
 The 'type' inside the proof is authoritative; the filename never is.
 Block and beacon proofs share one structural shape but carry distinct

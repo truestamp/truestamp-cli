@@ -7,7 +7,7 @@ on:
   push:
     branches: [main]
   pull_request:
-  # Reusable — release.yml calls this workflow as a quality gate before
+  # Reusable: release.yml calls this workflow as a quality gate before
   # GoReleaser runs, so a failing lint/test/vuln check blocks a release
   # at the tagged SHA instead of producing a half-published state.
   workflow_call:
@@ -46,8 +46,8 @@ jobs:
       # Lint / vuln steps invoke the Taskfile tasks so CI and local dev share a
       # single source of truth: tool versions come from .tool-versions (mise
       # installed them above), and invocations/exclusions live in Taskfile.yml.
-      # No `go install ...@latest` here — that shadowed the mise pins and made
-      # CI break on unchanged code when a new tool release shipped a new rule.
+      # No `go install ...@latest` here: it would shadow the mise pins and
+      # break CI on unchanged code whenever a new tool release ships a new rule.
       - name: gofmt
         run: task fmt-check
 
@@ -77,7 +77,7 @@ jobs:
         run: go test -tags=chaos -count=1 -race -timeout=120s ./internal/wschannel/...
 
       - name: Fuzz (codec)
-        # Active mutation fuzzing — the seed corpus is already replayed
+        # Active mutation fuzzing; the seed corpus is already replayed
         # by the regular Test step above. 30s per target × 3 targets is
         # the upper bound on wall-clock impact. Linux only: macOS would
         # double runner-minutes for the same coverage signal.

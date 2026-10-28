@@ -17,7 +17,7 @@ Input modes follow the same convention as 'truestamp verify':
   cat doc.pdf | truestamp hash             Pipe from stdin
 
 Truestamp-domain extras:
-  truestamp hash --prefix 0x11 --jcs < claims.json
+  truestamp hash --prefix 0x10 --jcs < claims.json
       Canonicalize (RFC 8785) then hash with a one-byte domain prefix.
       Matches what the Truestamp backend computes for a claims_hash.
   truestamp hash --list

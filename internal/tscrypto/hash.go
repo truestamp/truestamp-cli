@@ -1,11 +1,11 @@
 // Copyright (c) 2019-2026 Truestamp, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-// Package tscrypto holds the hash and encoding helpers of the earlier
-// bundle layout that inspect and convert keyid print, the constant-time
-// comparisons, and the UUIDv7 time reader. This CLI's verifier,
-// which takes its prefix bytes from SPEC.md section 4, is internal/verifier
-// and internal/registry.
+// Package tscrypto holds small hash and encoding helpers: a one-byte
+// domain-separated SHA-256, the constant-time comparisons, and the UUIDv7
+// time reader convert id uses.
+// It verifies nothing: this CLI's verifier, which takes its prefix bytes
+// from SPEC.md section 4, is internal/verifier and internal/registry.
 package tscrypto
 
 import (
@@ -13,12 +13,6 @@ import (
 	"crypto/subtle"
 	"encoding/hex"
 )
-
-// PrefixKeyID is the domain-separation prefix of [ComputeKeyID], the key
-// id of the earlier bundle layout that `inspect` and `convert keyid` print.
-// It is not the key id of SPEC.md section 3.3, whose prefix the registry
-// of internal/registry holds.
-const PrefixKeyID = 0x51
 
 // BytesToHex encodes bytes to lowercase hex string.
 func BytesToHex(b []byte) string {
@@ -31,12 +25,6 @@ func DomainHash(prefix byte, data []byte) []byte {
 	h.Write([]byte{prefix})
 	h.Write(data)
 	return h.Sum(nil)
-}
-
-// ComputeKeyID derives key_id from public key: truncate4(SHA256(0x51 || pubkey)).
-func ComputeKeyID(pubkey []byte) string {
-	hash := DomainHash(PrefixKeyID, pubkey)
-	return BytesToHex(hash[:4])
 }
 
 // HexEqual reports whether two hex strings are equal, ignoring ASCII case in
@@ -69,11 +57,9 @@ func foldASCIIHex(c byte) byte {
 }
 
 // SecureEqual reports whether two strings are byte-for-byte equal, in
-// constant time for equal-length inputs. It is the comparison Appendix E.4
-// requires for every hash and digest a verifier derives against one the
-// bundle carries: exact, with no case folding, so a mis-cased wire value
-// never compares equal to a derived one (the E.4 sweep names the encoding
-// defect; this refuses to paper over it).
+// constant time for equal-length inputs. It is exact, with no case
+// folding: a hash is lowercase hex (SPEC.md section 2.4 (Pattern
+// classes)), so a mis-cased value never compares equal to a derived one.
 func SecureEqual(a, b string) bool {
 	if len(a) != len(b) {
 		return false

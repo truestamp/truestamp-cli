@@ -25,7 +25,7 @@ exactly one team, and only the command group is plural.
 
 'current' and 'use' are a pair: 'current' reads the ambient team, 'use'
 sets it. That is why there is no bare 'get' that silently falls back to
-the configured team — the same command line would mean different things
+the configured team: the same command line would mean different things
 on different machines.`,
 }
 

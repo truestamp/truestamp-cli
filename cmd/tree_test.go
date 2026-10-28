@@ -145,8 +145,9 @@ func TestTree_NoBannedVerbs(t *testing.T) {
 			t.Errorf("%s uses the banned verb %q: %s", path, c.Name(), why)
 		}
 		// `status` is reserved for credential liveness. auth status is the
-		// one legitimate use; anything else collides with the Appendix E.22
-		// per-step vocabulary and puts a server claim where evidence belongs.
+		// one legitimate use; anything else collides with the status a
+		// report row carries (SPEC.md section 10.5) and puts a server claim
+		// where evidence belongs.
 		if c.Name() == "status" && path != "truestamp auth status" {
 			t.Errorf("%s uses `status`, which means credential liveness only (R9)", path)
 		}
@@ -223,7 +224,7 @@ func TestTree_ReadOnlyGroupsHaveNoWriteVerbs(t *testing.T) {
 	}
 }
 
-// TestTree_NoProofVerbOnSourceNouns pins R7: a proof bundle is a derived
+// TestTree_NoProofVerbOnSourceNouns pins R7: a proof is a derived
 // artifact and lives in one place. `items proof` and `blocks proof` would
 // each bring their own --type vocabulary and filename convention.
 func TestTree_NoProofVerbOnSourceNouns(t *testing.T) {

@@ -58,8 +58,9 @@ refused beside a claims file: put every claim in the file. A number
 longer than 1,024 characters is refused too, in any claims: the server
 reads no request that holds one, whatever its value.
 
-The server checks every claims rule and reports each one broken with its
-code, its JSON pointer into the claims and a message naming the fix.
+The server checks every claims rule the CLI does not and reports each one
+broken with its code, its JSON pointer into the claims and a message
+naming the fix.
 --data-hash and --hash-type go together: a bare --data-hash sends no
 hash_type, and the server refuses the half pair. On success the output
 shows claims_jcs, the claims in canonical form (RFC 8785) exactly as the
@@ -79,7 +80,7 @@ Input methods (resolved in priority order):
 
 Beside a hashed file, --name replaces the file's name and the other claim
 flags add their members, enabling combinations like:
-  truestamp items create report.pdf -n "Q1 Report" -v public -t finance
+  truestamp items create report.pdf -n "Q1 Report" -v public --tags finance
 --data-hash and --hash-type are refused beside a hashed file: the file
 supplies the hash and its hash_type.
 
@@ -547,10 +548,12 @@ func pickFile(title string, exts ...string) (string, error) {
 	return ui.PickFile(ui.PickFileOptions{Title: title, AllowedTypes: exts})
 }
 
-// claimedTimestamp is the grammar the server accepts for claims.timestamp:
-// YYYY, YYYY-MM, YYYY-MM-DD, or YYYY-MM-DDThh:mm with optional :ss and a
-// fraction of 1 to 9 digits, and an optional Z, +hh:mm or -hh:mm offset
-// (the colon optional).
+// claimedTimestamp is the grammar the server checks claims.timestamp
+// against: YYYY, YYYY-MM, YYYY-MM-DD, or YYYY-MM-DDThh:mm with optional
+// :ss, a fraction of 1 to 9 digits after the seconds, and an optional Z,
+// +hh:mm or -hh:mm offset whose colon may be left out (+hhmm). A time
+// follows only a whole date; hours, the offset's included, run 00 to 23,
+// minutes and seconds 00 to 59, and T and Z are uppercase.
 var claimedTimestamp = regexp.MustCompile(`\A([0-9]{4})(?:-(0[1-9]|1[0-2])(?:-(0[1-9]|[12][0-9]|3[01])(?:T(?:[01][0-9]|2[0-3]):[0-5][0-9](?::[0-5][0-9](?:\.[0-9]{1,9})?)?(?:Z|[+-](?:[01][0-9]|2[0-3]):?[0-5][0-9])?)?)?)?\z`)
 
 // checkTimestamp checks raw against the claimed-timestamp grammar and, when
@@ -757,7 +760,7 @@ func init() {
 	f.String("hash-type", "", "Hash algorithm of --data-hash (sha256, sha512, md5, etc.)")
 	f.StringP("description", "d", "", "Item description")
 	f.String("url", "", "HTTPS URL associated with the item")
-	f.String("timestamp", "", "claimed timestamp: your own statement; Truestamp checks only that it is a well-formed date")
+	f.String("timestamp", "", "claimed timestamp: your own statement; the CLI and Truestamp check only that it is a well-formed, real date or time")
 	f.String("metadata", "", "JSON string of freeform metadata")
 	f.String("location", "", "Geographic location as lat,lon (e.g. 37.7749,-122.4194)")
 

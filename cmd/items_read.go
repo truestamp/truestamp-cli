@@ -73,10 +73,13 @@ var itemsGetCmd = &cobra.Command{
 	Use:   "get <id-code-or-hash>",
 	Short: "Show one item by id, item code or item_hash",
 	Long: `Show one item, named by its UUIDv7 id, its item code (e.g.
-9WBPKNV7SCP87VZW) or its item_hash (64 hex characters), each read exactly
-as typed: nothing is trimmed, and a UUID's 32-hex, braced and urn: forms
-are refused. One GET reads the item by whichever is given, and the item
-the server answers with must carry the code or the whole item_hash given.
+9WBPKNV7SCP87VZW) or its item_hash (64 hex characters). Nothing is
+trimmed: a UUIDv7 or an item_hash is read in either case, and an item
+code as SPEC.md section 3.9 lets it be typed (any case, I and L read as 1
+and O as 0, and one space, hyphen or underscore allowed between its
+groups of four); a UUID's 32-hex, braced and urn: forms are refused. One
+GET reads the item by whichever is given, and the item the server answers
+with must carry the code or the whole item_hash given.
 
 The card includes commitment state. For the authoritative answer, fetch
 the proof and check it yourself:
@@ -105,8 +108,11 @@ var itemsUpdateCmd = &cobra.Command{
 	Long: `Update the attributes of an item that are not covered by its hash.
 
 The item is named by its UUIDv7 id, its item code (e.g. 9WBPKNV7SCP87VZW)
-or its item_hash (64 hex characters), each read exactly as typed: nothing
-is trimmed, and a UUID's 32-hex, braced and urn: forms are refused. The
+or its item_hash (64 hex characters). Nothing is trimmed: a UUIDv7 or an
+item_hash is read in either case, and an item code as SPEC.md section 3.9
+lets it be typed (any case, I and L read as 1 and O as 0, and one space,
+hyphen or underscore allowed between its groups of four); a UUID's
+32-hex, braced and urn: forms are refused. The
 server updates an item only by its UUIDv7 id, so a code or an item_hash is
 first read with one GET, whose item must carry that code or that whole
 item_hash, and the update is then sent by the id that item gives.

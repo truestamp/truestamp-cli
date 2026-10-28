@@ -60,7 +60,8 @@ The one exception is annotated tags: jj does not create them, so the release flo
 | ---- | ------------ | ---------------- | -------------- |
 | `task build` | Builds `./cmd/truestamp` with version ldflags to `build/truestamp` | ~1 s | Iterating on the binary |
 | `task build-all` | Cross-compiles all 6 release targets into `build/` | ~10 s | Checking a platform-specific change |
-| `task test` | `go test ./...`, every `TestXxx` plus `FuzzXxx` seed replay across 29 test packages | ~11 s cold, <1 s fully cached | While iterating on code |
+| `task test` | `go test ./...`, every `TestXxx` plus `FuzzXxx` seed replay across 42 test packages | ~11 s cold, <1 s fully cached | While iterating on code |
+| `task test-nonet` | The whole suite (`go test -count=1 ./...`), or the command after `--`, under the macOS no-network guard in `tools/nonet/`: every connection off loopback, loopback ports 4000 to 4003, 5432 and 4369, DNS, the Docker and Postgres sockets and the keychain tool refused, after a control that must see each refusal; a run that passes with a recorded attempt fails | ~40 s | Before pushing a change to any test; an agent runs every test this way (`task test-nonet -- go vet ./...` for one command) |
 | `task precommit` | `fmt` + `lint` + `vuln-check` + `test` + `build` | seconds on a hot cache | Before every commit |
 | `task precommit-full` | `fmt` + `lint` + `test-race` + `fuzz` (seed corpus) + `vuln-check` + `build-all` | seconds hot cache, minutes cold | Before opening a PR or cutting a release |
 | `task test-race` | Full suite under the race detector (`-race`) | ~15 s | When touching goroutines or package-level state |
@@ -71,10 +72,13 @@ The one exception is annotated tags: jj does not create them, so the release flo
 | `task bench-compare` | Same, with `-count=5`, writes a baseline file for `benchstat` | ~2 min | A/B comparing performance between branches |
 | `task fuzz` | Smoke-runs every `FuzzXxx` with its seed corpus (no mutation) | ~2 s | Explicit fuzz-seed pass (subsumed by `task test`) |
 | `task fuzz-codec` | Active mutation fuzzing of the 3 `wschannel` codec/redactor targets, 30 s each | ~90 s | When touching the Phoenix frame codec or redactor |
-| `task fuzz-deep` | Active mutation fuzzing, default 15 s per target across 79 targets | ~20 min | Hardening pass before a release; override with `DURATION=1m task fuzz-deep` |
+| `task fuzz-deep` | Active mutation fuzzing, default 15 s per target across 54 targets | ~15 min | Hardening pass before a release; override with `DURATION=1m task fuzz-deep` |
 | `task fuzz-list` | Print the fuzz-target inventory | instant | Discover what's covered |
 | `task lint` | `task vet` + `task fmt-check` + `task staticcheck` + `task gosec` | ~3 s | Part of `precommit`; the four sub-tasks also run standalone |
 | `task vuln-check` | `govulncheck ./...` against `go.mod` plus the stdlib | ~5 s | After a `go.mod` change or Go toolchain bump |
+| `task verification-sync` | Copies the proof spec at one commit on its main into `testdata/verification/` and `internal/specdata/verification/`, each with a `SOURCE` naming the commit (`SPEC_REPO`, default `../truestamp-verification`; `SPEC_REV`, default its main) | seconds | When the spec or its vectors change; never edit a copied file by hand |
+| `task verification-check` | Compares both copies with the spec commit their `SOURCE` names, read again from `SPEC_REPO` | seconds | By hand before landing a sync; not in CI |
+| `task merkle-vectors-sync` / `task merkle-vectors-check` | The same pair for `testdata/merkle/`, the known answers of truestamp-merkle-ex's `vectors/merkle.json` | seconds | When the Merkle vectors change |
 | `task release-check` | Validate `.goreleaser.yaml` | <1 s | Maintainer pre-release gate |
 | `task release-snapshot` | Local GoReleaser dry-run into `dist/` | ~60 s | Maintainer pre-release gate |
 
@@ -85,13 +89,15 @@ CI ([`ci.yml`](./.github/workflows/ci.yml)) invokes `task fmt-check`, `task vet`
 Run a single test or a focused subset:
 
 ```sh
-go test ./internal/verify/...                 # Every test in a package subtree
-go test ./internal/verify -run TestVerifyInclusionProof
+go test ./internal/verifier/...               # Every test in a package subtree
+go test ./internal/verifier -run TestDerive_AWalkThatGivesNoRootIsRecomputedNull
 go test ./internal/hashing -bench=. -benchmem
-go test -run=^$ -fuzz='^FuzzParseCBOR$' -fuzztime=30s ./internal/proof/
+go test -run=^$ -fuzz='^FuzzExtractBinary$' -fuzztime=30s ./internal/selfupgrade/
 ```
 
-`-fuzz` takes an unbounded regex and must resolve to exactly one target, so bound it with `^` and `$`: bare `-fuzz=FuzzParseCBOR` also matches `FuzzParseCBOR_WellFormed` and Go refuses to fuzz. `task fuzz-deep` bounds its pattern for the same reason.
+`-fuzz` takes an unbounded regex and must resolve to exactly one target, so bound it with `^` and `$`: bare `-fuzz=FuzzExtractBinary` also matches `FuzzExtractBinary_Raw` and Go refuses to fuzz. `task fuzz-deep` bounds its pattern for the same reason.
+
+The conformance cases of SPEC.md section 13 run in `internal/vectorcases` from the copy under `testdata/verification/`, every case through the one runner and through the command's own verifier path; `go test -count=1 -run '^TestConformance$' -v ./internal/vectorcases/` logs the claim of conformance, the spec commit `testdata/verification/SOURCE` names and the SHA-256 of `testdata/verification/MANIFEST.sha256`. A test of the CLI never reaches the network: it talks only to an `httptest` server on loopback, or to a binary whose endpoints are set to a loopback port at link time, and `task test-nonet` fails a run that tries anything else.
 
 ## Commit conventions
 
@@ -105,7 +111,7 @@ New code is expected to ship with tests. The repo has **eight categories** of te
 
 ### Unit and integration tests (`TestXxx`)
 
-- **~1,230 functions across 29 test packages.** Plain `go test` semantics, one test per invariant.
+- **~1,440 functions across 42 test packages.** Plain `go test` semantics, one test per invariant.
 - Table-driven tests are preferred for parser / validator / encoder code.
 - `cmd/` integration tests use a `TestMain` (in `cmd/verify_test.go`) that builds the CLI binary in a tempdir once and then runs it as a subprocess for each test. This gives real exit-code plus real stdout/stderr assertions without paying subprocess build costs per-test.
 - New `internal/*` packages should ship at least one `_test.go` file alongside them.
@@ -119,7 +125,7 @@ New code is expected to ship with tests. The repo has **eight categories** of te
 
 ### Fuzz tests (`FuzzXxx`)
 
-- **79 targets across 20 packages** covering every parser that touches attacker-controlled bytes: proof JSON and CBOR, encoding decoders, compact Merkle proofs, Bitcoin tx and txoutproof, TOML config, tar.gz extraction (path-traversal defense), OAuth discovery and session decoding, Phoenix frames, and ID / timestamp / URL / public-key parsers. Run `task fuzz-list` for the current inventory.
+- **54 targets across 19 packages** covering every parser that touches attacker-controlled bytes: the strict JSON reader every proof, keyring and claims text goes through, the keyring and API response bodies, encoding decoders, compact Merkle proofs, TOML config, tar.gz extraction (path-traversal defense), OAuth discovery and session decoding, Phoenix frames, and ID / timestamp / URL / public-key parsers. Run `task fuzz-list` for the current inventory.
 - Go's native fuzz framework calls your target in-process (no subprocess cost). Seed corpus lives in `f.Add()` calls; `go test` replays it as regression tests on every run. Active mutation kicks in only with `-fuzz=...`.
 - Add a fuzz target whenever you write a parser that consumes external bytes. Assert at minimum "no panic"; add stronger invariants (round-trip, bounded output, and so on) where the semantics support it. See `internal/selfupgrade/fuzz_test.go`'s `FuzzExtractBinary` for a direct path-traversal assertion inside the fuzz callback.
 - Crashing inputs discovered during fuzzing are auto-saved under `<pkg>/testdata/fuzz/FuzzXxx/` and become permanent regression seeds. Commit these. After a `task fuzz-deep` session, `find . -path '*/testdata/fuzz/*' -type f` lists what to track.
@@ -131,7 +137,7 @@ New code is expected to ship with tests. The repo has **eight categories** of te
 
 ### Benchmarks (`BenchmarkXxx`)
 
-- **20 targets across 4 packages** on hot paths: hashing across all 14 algorithms (`internal/hashing`), proof parse / marshal for JSON and CBOR (`internal/proof`), encoding round-trip (`internal/encoding`), and Merkle proof decode / verify plus domain-prefixed hashing (`internal/tscrypto`).
+- **13 targets across 3 packages** on hot paths: hashing across all 14 algorithms (`internal/hashing`), encoding round-trip (`internal/encoding`), and compact Merkle proof decode, domain-prefixed hashing, key ids and constant-time hex comparison (`internal/tscrypto`).
 - Run with `task bench` or `go test -bench=.`. `b.SetBytes` is used where throughput matters so `go test` reports MB/s alongside ns/op.
 - Before merging a change to any parser or crypto primitive, capture a baseline with `task bench-compare` and diff with [`benchstat`](https://pkg.go.dev/golang.org/x/perf/cmd/benchstat).
 
@@ -142,9 +148,9 @@ New code is expected to ship with tests. The repo has **eight categories** of te
 
 ### Coverage (`task test-coverage` / `task test-coverage-full`)
 
-- `task test-coverage` is a fast per-package summary with no subprocess instrumentation. It **understates `cmd/` badly** (~23%), because the CLI integration tests exercise a subprocess whose coverage it cannot see.
+- `task test-coverage` is a fast per-package summary with no subprocess instrumentation. It **understates `cmd/` badly** (~24%), because the CLI integration tests exercise a subprocess whose coverage it cannot see.
 - `task test-coverage-full` builds the CLI binary with `-cover` so those subprocess runs are counted too, merges the test-process and subprocess covdata, and emits `coverage.out` plus `coverage.html`. This is the honest number: it moves `cmd/` to ~71% and reports a repo total around 72%.
-- Coverage is uneven by design rather than uniformly high. The crypto, parsing, and wire-format packages that decide a proof's verdict sit at 90% and above (`tscrypto`, `bitcoin`, `proof`, `external`, `httpclient`, `items`, `encoding`, `config`, `jcs`, `verify`). The packages that sit lower are dominated by interactive TTY rendering, platform-specific branches, and long-lived network sessions (`console/*`, `ui`, `wschannel`, `auth`, `selfupgrade`). When adding tests, prefer raising a verdict-bearing package over chasing a repo-wide percentage.
+- Coverage is uneven by design rather than uniformly high. The packages that decide a proof's verdict, and the readers and registries they rest on, sit at 90% and above (`verifier` and its `bitcoin`, `ed25519`, `keyring` and `source` packages, `strictjson`, `registry`, `specdata`, `jcs`, `itemcode`, `tscrypto`, `encoding`). The packages that sit lower are dominated by interactive TTY rendering, platform-specific branches, and long-lived network sessions (`console/*`, `ui`, `wschannel`, `auth`, `selfupgrade`), or are the fetch and API clients whose paths the `cmd/` subprocess tests exercise (`proof`, `items`, `external`). When adding tests, prefer raising a verdict-bearing package over chasing a repo-wide percentage.
 
 ### Static analysis (`task lint`) and vulnerability scan (`task vuln-check`)
 

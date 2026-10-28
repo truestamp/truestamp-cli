@@ -78,8 +78,9 @@ the wire shape changes, that repo changes first; this document trails.
 The architecture has deliberate hooks for future growth without
 touching the wire shape:
 
-- **New stream id**. Add to `ConsoleStreams.@global_streams` (server)
-  plus the `pubsub_topics/2` mapping. Client picks it up automatically
+- **New stream id**. Add to `ConsoleStreams.@base_streams` (server),
+  the streams every signed-in scope may subscribe to, plus the
+  `pubsub_topics/2` mapping. Client picks it up automatically
   from the welcome envelope and renders any matching `<resource>.*`
   events using the existing color scheme.
 - **New burst-eligible stream**. Already universal: every stream

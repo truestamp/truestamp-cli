@@ -72,8 +72,8 @@ func TestAppKeysAreSurfacedInEveryPane(t *testing.T) {
 	}
 }
 
-// TestTabKeyIsClaimedByNewItemPaneNotApp verifies the bug fix from
-// Phase 1: pane-switch bindings deliberately do NOT include "tab", so
+// TestTabKeyIsClaimedByNewItemPaneNotApp pins that the pane-switch
+// bindings deliberately do NOT include "tab", so
 // the New Item form's tab-between-fields binding can win when the
 // form pane has focus.
 func TestTabKeyIsClaimedByNewItemPaneNotApp(t *testing.T) {

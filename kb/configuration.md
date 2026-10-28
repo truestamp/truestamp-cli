@@ -23,7 +23,7 @@ Run `truestamp --help` for the full persistent-flag list. What `--help` does not
 - `--json` / `-s, --silent` are **not root persistent flags**: each record-rendering command registers the pair itself (`cmd/output.go`), so they go after the command name. `TRUESTAMP_JSON` / `TRUESTAMP_SILENT` and the top-level `json` / `silent` config keys set them CLI-wide; they are mutually exclusive, enforced once in `config.Load`. The pipeline primitives (`encode`, `decode`, `jcs`, `convert *`, `hash`) carry the flags but read them directly, so the ambient setting cannot silence a pipe (kb/command-tree.md R10).
 - `cosign_path` (TOML) / `TRUESTAMP_COSIGN_PATH` has **no flag**. Absolute path to the cosign binary used by `truestamp upgrade`; empty = `$PATH` lookup; relative paths are rejected at config load.
 
-There is **no `--api-url` and no `--keyring-url`**: both flags, and the `api_url` / `keyring_url` TOML keys, were retired in favour of the single `base_url`. `config.Load` warns once ("no longer recognized") when it finds the old TOML keys, and cobra rejects the old flags outright with `unknown flag`.
+There is **no `--api-url` and no `--keyring-url`**, and no `api_url` / `keyring_url` TOML key: the single `base_url` is the origin the API commands derive every URL from, so no second setting can point one of them elsewhere. It never moves verify's keyring read, which is read from another origin only when the run is given an explicit `--base-url` (below). `config.Load` warns once ("no longer recognized") when it finds either TOML key, and cobra rejects either flag with `unknown flag`.
 
 ## Verify options, and where each may come from
 
@@ -41,7 +41,7 @@ The keyring that governs, for a run: `--no-keyring`, keyless; else `--keyring FI
 
 `--expected-hash` is read by its Changed state: `--expected-hash ""` is a value given, and fails EXPECTED_HASH. The value is lowercased and never trimmed (SPEC.md section 10.2, step 13).
 
-`--remote` also asks the server's `/proof/verify` and prints its verdict on stderr; stdout and the exit code are the local run's.
+`--remote` also posts the file's bytes to the service's `POST /api/json/proof/raw/verify` and prints the label of its report on stderr; stdout, `--json` and the exit code are the local run's. The request waits for the larger of `--http-timeout` and 75 seconds.
 
 ## Hash subcommand
 
@@ -51,18 +51,20 @@ MD5 and SHA-1 emit a one-line stderr warning when selected, suppressed under `--
 
 ## proofs get
 
-Flags: `truestamp proofs get --help`. `--type` is sent verbatim to the server's `/proof/generate` `type` field. The bundle goes to stdout unless `-o/--out <path>` names a file or `--to-file` picks the conventional `truestamp-<stem>-<id>.<ext>` name; the two are mutually exclusive and the receipt card goes to stderr (kb/command-tree.md R10).
+Flags: `truestamp proofs get --help`. The proof is read from `GET /api/json/proof/raw/{type}/{ref}?constructions={full|reference|none}`, `--type` in the path, and its bytes are written exactly as served: to stdout unless `-o/--out <path>` names a file or `--to-file` picks the conventional name, `<CODE>.proof.json` for an item (by its item code, whatever the constructions mode) and `<uuidv7>.proof.json` for every other subject, as the app names its downloads. A block's proof and its beacon's proof share one id and so one name, and the later write replaces the earlier (`os.WriteFile`); `-o` keeps both. The two flags are mutually exclusive and the receipt card goes to stderr (kb/command-tree.md R10).
 
-When `--type` is omitted: a ULID id is an item (the only unambiguous shape); a UUIDv7 id is resolved against `POST /utilities/resolve-id` in one extra round trip, and an id verifiable as more than one subject type (a block is also verifiable as a beacon) is refused with the candidates listed rather than guessed. Passing `--type` skips the round trip. There is no `"auto"`: the server's strict-type cutover rejects it, and the CLI follows the same contract.
+**What names a subject.** Nothing is trimmed: a UUIDv7 or an `item_hash` is read in either case, and an item code as SPEC.md section 3.9 lets it be typed (any case, `I` and `L` read as `1` and `O` as `0`, and one space, hyphen or underscore allowed between its groups of four) and is sent in its one spelling; a UUID's 32-hex, braced and `urn:` forms are refused before any request. An item code (16 symbols of SPEC.md section 3.9) is an item, with no round trip; a 64-hex value is an item's `item_hash` and needs `--type item` (without it, it is refused with that hint); a UUIDv7 with no `--type` is resolved against `POST /api/json/utilities/resolve-id` in one extra round trip, and one verifiable as more than one subject type, a block's id (a block is also verifiable as a beacon), is refused as `block | beacon` rather than guessed. Passing `--type` skips the round trip. `--type item` takes a UUIDv7, a code or an `item_hash`; every other type takes a UUIDv7, and a code or a hash with it is refused before the request. There is no `"auto"` and no bare `entropy`: flag values are exactly the six types, with underscores.
 
-**Filename stem convention**: wire values use underscores (`entropy_nist`) to match the server enum; filename stems translate `_` → `-` for readable filenames (`truestamp-entropy-nist-<id>.json`). Other types (`item`, `block`, `beacon`) contain no underscores and pass through unchanged.
+**The served item is checked before anything is written**: for an item proof asked for by its UUIDv7, the record it carries must have that id; by its code, the `item_hash` recomputed from its record must give that code; by its `item_hash`, it must be that whole value. Otherwise the run refuses with "the server returned a proof for a different item" and writes nothing (`internal/proof.CheckServedItem`). A matching code shows only that the recomputed `item_hash` begins with the 75 bits the code is written from.
 
-**Pre-flight id-shape validation**: `--type item` requires a ULID; every other type requires a UUIDv7. Mismatches are caught client-side before the network call with a targeted error instead of a server refusal.
+**Receipt card** (on stderr when a file is written) gives the file, its size, for an item the recomputed `item_hash` with its item code, the type, the constructions mode, and two public-web lines:
 
-**Receipt card** (on stderr when a file is written) emits two public-web hint lines:
+- `Details`: the subject's own detail page, `/items/<CODE>` for an item and `/entropy/<id>` or `/blocks/<id>` otherwise. Beacon proofs route to `/blocks/<id>`, because the hash-keyed `/beacons/<hash>` form needs the block hash; the beacon listing card uses that form, since it has the hash from the API.
+- `Verify`: the typed verify page, `/verify/<type>/<CODE>` for an item and `/verify/<type>/<id>` otherwise, as the `items create` card gives it.
 
-- `Details → {host}/<subject-path>/<id>`: the subject's own detail page (`/items/`, `/entropy/`, `/blocks/`). Beacon proofs route to `/blocks/<id>` because the hash-keyed `/beacons/<hash>` form requires computing the block hash from bundle bytes; the beacon listing card uses that form instead since it has the hash directly from the API.
-- `Verify → {host}/verify/<type>/<id>`: the typed-sub-path verify landing page from the t=11 cutover. Same URL format the `items create` card and the `verify` report emit.
+## items get and items update
+
+Each takes an item by its UUIDv7 id, its item code or its `item_hash`, read as `proofs get` reads it. `items get` reads `GET /api/json/items/{ref}` by whichever is given, and the item the server answers with must carry the code or the whole `item_hash` given. `items update` sends `PATCH /api/json/items/{id}` by the UUIDv7 only: a code or an `item_hash` is first read with one GET, held to the same check, and the update is sent by the id that item gives.
 
 ## Encode / Decode / JCS / Convert
 

@@ -17,8 +17,8 @@ var beaconsGetCmd = &cobra.Command{
 	Short: "Show a beacon by UUIDv7 id or by 64-hex-char hash",
 	Long: `Fetch a single beacon, addressed either way.
 
-The two id shapes are disjoint — a UUIDv7 has hyphens and is 36
-characters, a beacon hash is exactly 64 lowercase hex characters — so
+The two id shapes are disjoint: a UUIDv7 has hyphens and is 36
+characters, and a beacon hash is exactly 64 lowercase hex characters, so
 which one you passed is unambiguous and there is no separate command for
 each. Users address records, not routes.
 

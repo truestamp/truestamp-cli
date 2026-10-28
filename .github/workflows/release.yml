@@ -17,8 +17,8 @@ permissions:
 jobs:
   # Quality gate: re-runs the full CI job (lint + staticcheck + gosec +
   # govulncheck + race-enabled test matrix + build) on the tagged SHA.
-  # If anything fails here, goreleaser never starts — no half-published
-  # state to clean up. The duplicate work vs. the ci.yml run on main is
+  # If anything fails here, goreleaser never starts, so there is no
+  # half-published state to clean up. The duplicate work vs. the ci.yml run on main is
   # cheap insurance against drift between the main-push and the tag.
   ci:
     name: CI gate
@@ -54,7 +54,7 @@ jobs:
       - name: goreleaser release --snapshot (dry run)
         run: |
           mise exec -- goreleaser release --snapshot --clean
-          # Discard snapshot artifacts — the real release below starts fresh.
+          # Discard snapshot artifacts: the real release below starts fresh.
           rm -rf dist/
 
       - name: Run GoReleaser
@@ -82,7 +82,7 @@ jobs:
           # pushes, so nothing gates mergeability. `--auto` requires
           # a pending status check or review to queue against and
           # rejects clean PRs with "Pull request is in clean status".
-          # The direct merge also arrives faster — no queue round-trip.
+          # The direct merge also arrives faster, with no queue round-trip.
           tag="${GITHUB_REF_NAME#v}"
           branch="goreleaser-${tag}"
           echo "Merging PR from branch ${branch}"

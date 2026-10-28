@@ -6,8 +6,8 @@
 // users do not have to shell out to those tools for a one-off digest.
 //
 // This registry is deliberately NOT the backend's `hash_type` wire
-// registry: it is a differently-named superset of the twelve Appendix
-// E.11 types in internal/tscrypto/hash.go (blake2b-256 and blake2b-384
+// registry: it is a differently-named superset of the twelve hash_type
+// names of SPEC.md section 10.2, step 13 (EXPECTED_HASH), in internal/verifier (blake2b-256 and blake2b-384
 // have no `hash_type` counterpart at all), and the two must not be
 // reconciled, see kb/architecture.md. The backend spellings
 // (sha3_256, blake2s, blake2b) are reachable here only as aliases, and

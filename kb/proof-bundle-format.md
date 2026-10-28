@@ -3,135 +3,65 @@ Copyright (c) 2019-2026 Truestamp, Inc.
 SPDX-License-Identifier: Apache-2.0
 -->
 
-# Proof Bundle Format
+# Proof format
 
-Version 1 is the first published Truestamp proof bundle format. Normative reference: **Appendix E of `truestamp-v2/whitepaper/whitepaper.typ`** (E.3 serializations, E.5 the wire key reference, E.6 hard rejections, E.24 the type registry), with the field reference and a full example in `truestamp-v2/kb/verification/proof-bundle-format.md`. The model lives in [`internal/proof/types.go`](../internal/proof/types.go) and the parser in `parse.go`, which reads JSON only.
+A Truestamp proof is one JSON document, SPEC.md's `version` 1, and nothing older is recognized. Normative reference: **SPEC.md section 3 (The proof document)** in [`truestamp/truestamp-verification`](https://github.com/truestamp/truestamp-verification), with its schema, `spec/schema.json`, and its value classes, `spec/value-classes.json`. The CLI holds every file of `spec/` as the embedded copy in `internal/specdata` (synced by `task verification-sync`, never edited by hand). This page says where the CLI reads each part of the document; SPEC.md says what each part is, and governs wherever the two differ.
 
 ## No layout is recognized
 
-A document is graded by the gates below whatever it resembles. No member's name selects a layout, no identifier names one, and no code path exists for an earlier one: a file in another layout is refused by the first gate it fails, like any other malformed document.
+A document that is not exactly the envelope of SPEC.md section 3.1 is the bare rejection `invalid_envelope`, whose `sub_reason` names the first check of SPEC.md section 10.2, step 3 (ENVELOPE), that fails (`document`, `proof`, `signature`, `alg`, `public_key`, `value`), with the message "This file is not a Truestamp proof." (`internal/verifier/gate.go`). No member's name selects a layout, no reason code names an earlier one, and no code path exists for one: a file in another layout is refused by the first check it fails, like any other malformed document. A binary encoding of a proof is not JSON, so the reader refuses it at PARSE (`malformed_json`).
 
-## Nothing is opaque
+## The envelope
 
-The bundle carries `subject.metadata` and every block's `metadata` (the maps themselves) and carries **no** `metadata_hash` and **no** block hash anywhere. A verifier recomputes every hash from bytes the bundle carries: the subject metadata hash under `0x12` (item) or `0x22` (entropy), each block metadata hash under `0x33`, each block hash under `0x32`, each witness hash under `0x32` or `0x21`. The one hash a bundle does state, `epoch_merkle_root`, is not taken on trust either: E.15 walks the epoch proof to it and E.18/E.19 compare it against the on-chain value. If you find yourself holding a digest you cannot recompute, you have misread the format.
-
-## Top-level keys
-
-| Key | Type | Presence | Rule |
-| --- | ---- | -------- | ---- |
-| `version` | integer | always | must equal 1 (graded by E.8, not a rejection) |
-| `type` | string | always | a registry name: `block`, `beacon`, `item`, `entropy_nist`, `entropy_stellar`, `entropy_bitcoin`; anything else is `invalid_subject_type` |
-| `generated_at` | string | always | ISO 8601, whole seconds; supplies `ts_ms` in the signed payload |
-| `public_key` | string / bstr | always | padded base64 in JSON, 32 raw bytes in CBOR |
-| `signature` | string / bstr | always | padded base64 in JSON, 64 raw bytes in CBOR; Ed25519 over `SHA-256(0x61 || payload)` |
-| `subject` | map | absent for `block` and `beacon` | see below |
-| `inclusion_proof` | string | absent for `block` and `beacon` | compact proof, base64url without padding, subject hash to `block.merkle_root` |
-| `block` | map | always | a block map; the block hash is never carried |
-| `block_path` | array of block maps | optional | ordered oldest first; walked in E.17a |
-| `commitments` | array | always, non-empty | commitment entries; empty or absent is `no_external_commitments` |
-| `signing_key_event` | map | optional | `{block, commitments}`: the key-event block plus its own commitments |
-
-Block-like subjects (`block`, `beacon`) carry no `subject` and no `inclusion_proof`: the block is its own subject, so the subject hash equals the block hash. Carrying either is `unexpected_subject_fields_for_block_like`.
-
-## The subject map
-
-| Key | Presence | Rule |
-| --- | -------- | ---- |
-| `id` | always | 26-character ULID for `item`, 36-character UUIDv7 for an entropy subject |
-| `claims` | `item` only | the claims map, hashed under `0x11` |
-| `entropy` | entropy only | the captured source payload map, hashed under `0x21` |
-| `metadata` | always | the metadata map itself, hashed under `0x12` (item) or `0x22` (entropy; always `{}`) |
-| `signing_key_id` | always | 8 lowercase hex characters, consumed verbatim in the composite preimage |
-| `witnesses` | optional, `item` only | witness name to witness detail |
-
-An item's `metadata` is the **witness map** and is never empty (`block` is always present): `{"witnesses": {"block": <hex>, "entropy_stellar": <hex>, "entropy_nist": <hex>, "entropy_bitcoin": <hex>}}`. Each value is the hash of a public record that existed before the submission and that the composite fingerprint commits to. An entropy witness key is present only when that source had a captured observation at submission time; it is absent, never null. The values are lowercase hex **text** in both JSON and CBOR, because the map around them is a JCS preimage.
-
-## Block maps
-
-The top-level `block`, each `block_path` entry, the head block carried as `subject.witnesses.block`, and `signing_key_event.block` all have exactly this shape and derive their hash by one procedure (`blockHashFromMap` in `internal/verify`):
-
-| Key | Rule |
-| --- | ---- |
-| `id` | 36-character UUIDv7 |
-| `previous_block_hash` | 64 lowercase hex (JSON) / 32 bytes (CBOR) |
-| `merkle_root` | 64 lowercase hex / 32 bytes |
-| `metadata` | the block metadata map, hashed under `0x33`: `{}` for an ordinary block, `{"key_event": {...}}` for a key-event block |
-| `signing_key_id` | 8 lowercase hex / 4 bytes |
-
-```text
-metadata_hash = SHA-256(0x33 || JCS(metadata))
-block_hash    = SHA-256(0x32 || len32(id) || id || len32(ph) || ph || len32(mr) || mr
-                          || len32(metadata_hash) || metadata_hash || len32(kid) || kid)
+```
+{"proof": {...}, "signature": {"alg": "truestamp-ed25519-sha256-jcs", "public_key": K, "value": V}}
 ```
 
-The preimage is 157 bytes. The empty-metadata constant `SHA-256(0x33 || "{}")` is `14fe55ee...e582ebe1`; it is derived, never substituted. `block_path`, when present, links the head block to the containing block: `block_path[0].previous_block_hash` is the head block hash, each later entry's is the hash of the entry before it, and `block.previous_block_hash` is the hash of the last entry. It is absent when the head block is the direct predecessor (the common case).
+- `proof` holds all signed content; `signature` is closed and has exactly its three members. `alg` is compared with its literal and never selects behavior. `public_key` and `value` are matched against their pattern classes, B64U32 and B64U64 (SPEC.md section 2.4), before they are decoded.
+- The signature is Ed25519 over the 32 bytes of `proof_hash` = SHA-256(0x50 || JCS(proof)) (SPEC.md section 6.1). `proof_hash` is computed from the parsed `proof` value and is never carried, so every formatting of one value verifies alike, and a proof is identified by its `proof_hash`, never by its file or its signature string (SPEC.md section 3.1).
+- **Served form.** Truestamp serves JCS(envelope), at most 65,536 octets (MAX_DOCUMENT_OCTETS), as `application/vnd.truestamp.proof+json` with the extension `.proof.json`. `truestamp proofs get` writes the served bytes unchanged, to stdout, to `-o`'s path, or under `--to-file` to `<CODE>.proof.json` (an item, by its item code) or `<uuidv7>.proof.json` (every other subject) (`internal/proof/download.go`). A verifier reads at most 262,144 octets (MAX_READ_OCTETS, rule J1), so a reformatted proof still reads.
+- The only other signature a proof carries is a rotation's `handover_signature`, inside its key event (SPEC.md section 3.3). Nothing else in a proof is signed: no block signature, no commitment signature and no signature on an item or an entropy observation.
 
-## Commitment entries
+## Members of `proof`
 
-| Key | Tier | Chains | Rule |
-| --- | ---- | ------ | ---- |
-| `chain` | required | both | `"stellar"` or `"bitcoin"` |
-| `epoch_merkle_root` | required | both | 64 lowercase hex / 32 bytes: the value written on chain (Stellar memo, Bitcoin `OP_RETURN`) |
-| `epoch_proof` | required | both | compact proof, base64url no padding, block hash to epoch root |
-| `transaction_hash` | confirmation | both | 64 lowercase hex / 32 bytes, display byte order |
-| `network` | optional | both | `public` or `testnet` (Stellar); `mainnet`, `testnet`, `regtest` (Bitcoin) |
-| `timestamp` | optional | both | ISO 8601: the Stellar ledger close time or the Bitcoin header time |
-| `ledger` | optional | Stellar | ledger sequence, an integer |
-| `block_height` | confirmation | Bitcoin | an integer |
-| `txoutproof` | optional | Bitcoin | text, hex or base64url: the `CMerkleBlock` |
-| `raw_transaction` | optional | Bitcoin | text, hex or base64url: the full raw transaction |
-| `block_merkle_root` | optional | Bitcoin | 64 lowercase hex / 32 bytes, display byte order |
+SPEC.md section 3.2 is the table. In short: `format` (`"truestamp-proof"`), `version` (`1`), `type`, `block` (a BLOCK_NODE: the block that includes the subject, or for `block` and `beacon` the subject itself), `commitments`, and, by type, `subject`, `witnesses` (an item) and `observations` (a beacon); optionally `environment` (present exactly when a non-production environment signed the proof, SPEC.md section 6.4), `constructions` (the text, its reference URL, or absent, SPEC.md section 7) and `signing_key_event` (`{block, commitments}`: the committed block whose key event introduced `signature.public_key`, provenance only). A proof carries no generation time, no issuer, no proof-level key id, no `proof_hash`, no download variant, no ledger or block close time, and no chain of blocks between `/witnesses/block` and `/block`.
 
-Presence tiers are graded by consequence. A missing *required* field is the hard rejection `invalid_commitment_entry`. A missing *confirmation* field means the chain's confirmation step has nothing to look up and reports `skip`, never `fail`. A missing *optional* field narrows what a confirmation can establish and is never a failure. **One root key on both chains**: `chain` is the only field that says which chain an entry belongs to; never dispatch on which root key is present. A present `ledger` or `block_height` that is not a JSON integer is not coerced: the parser records it as unusable and the E.18 confirmation row fails on it (the server grades it the same way).
+Every object is closed (SPEC.md section 2.3): it has exactly the members SPEC.md lists for it. The only open region is `subject.claims`. An optional member with no value is absent, never `null`.
 
-## The witness registry
+## Types and layouts
 
-| Name | Committed in item metadata | Detail carried | Hash rule | Published time |
-| ---- | -------------------------- | -------------- | --------- | -------------- |
-| `block` | always | the head block map | block hash (0x32) of the map | UUIDv7 ms of `detail.id` |
-| `entropy_stellar` | when captured | the observation's payload map | `SHA-256(0x21 \|\| JCS(payload))` | `detail.closed_at` |
-| `entropy_nist` | when captured | the observation's payload map | same | `detail.pulse.timeStamp` |
-| `entropy_bitcoin` | when captured | the observation's payload map | same | `detail.time` seconds |
-| `signing_key_event` | never (top level) | `{block, commitments}` | block hash recomputed; epoch proofs walked | none |
+A proof's `type` is one of the six names of the schema's closed registry, `item`, `entropy_nist`, `entropy_stellar`, `entropy_bitcoin`, `block` and `beacon` (SPEC.md section 3.2), compared exactly. A type is its name: it has no number, and nothing maps it to one. It is the only member that selects what runs, and only once SHAPE has checked it (SPEC.md section 10.6, rule 3). Every other member that varies, an entropy object's `source`, a key event's `type` or the chain a commitment entry is keyed by, chooses only among the alternatives the schema lists for its position, and the alternative chosen is checked in full. The filename is never consulted.
 
-Payloads travel exactly as captured and are never reshaped (reshaping changes the JCS encoding and therefore the `0x21` hash). Entropy payloads may carry uppercase hex (the NIST `outputValue`) and large integers; both are canonicalized verbatim. Extensibility is normative: an unknown name in `metadata.witnesses` or `subject.witnesses` is reported as a `skip` and never fails; names are never renamed or removed.
+The layouts (SPEC.md section 3.6):
 
-An item proof carries the record of every witness its record names: there is no selection at generation, and the service refuses with `witness_unavailable` rather than serve a proof without one.
+| Type | Beside the common members |
+| ---- | ------------------------- |
+| `item` | `subject`: `claims` (SUBMITTED, never checked as true), `record` (`claims_hash`, `id`, `witness_hashes`), `item_hash` = H(0x11, record), and `inclusion_proof` from the recomputed `item_hash` to `/block/record/merkle_root`; `witnesses`: exactly the names of `witness_hashes`, `block` always, each `entropy_X` when that source had a current observation |
+| `entropy_nist`, `entropy_stellar`, `entropy_bitcoin` | `subject`: `entropy` (the ENTROPY_OBJECT, its `source` matching the type), `record` (`entropy_hash`, `id`), `observation_hash` = H(0x21, record), and `inclusion_proof` |
+| `block` | nothing: the subject is `block.record`, and only the submitted-before edge applies |
+| `beacon` | `observations`: for each source with a leaf in the block, the leaf with the latest source time; an empty object leaves the submitted-after edge absent |
 
-## Type registry (frozen; never renumbered)
+Block and beacon proofs of one block carry the same `block`, `commitments` and `signing_key_event`, and differ in `type` (and a beacon's `observations`), which the signature covers, so relabelling one as the other breaks the signature.
 
-| Name | Code | Where |
-| ---- | ---- | ----- |
-| `block` | 10 | `type`; code in the signed payload |
-| `beacon` | 11 | `type`; code in the signed payload |
-| `item` | 20 | `type`; code in the signed payload |
-| `entropy_nist` | 30 | `type`; code in the signed payload |
-| `entropy_stellar` | 31 | `type`; code in the signed payload |
-| `entropy_bitcoin` | 32 | `type`; code in the signed payload |
-| `stellar` | 40 | `commitments[].chain`; code reserved, never on the wire |
-| `bitcoin` | 41 | `commitments[].chain`; code reserved, never on the wire |
+## Records and their hashes
 
-`type` travels as a name; the signed payload carries the frozen integer. The registry is [`internal/proof/ptype/ptype.go`](../internal/proof/ptype/ptype.go) (`ptype.FromName`, `ptype.Name`). Block and beacon share one wire shape and are distinguished only by the code bound into the signature, so relabelling one as the other without re-signing breaks verification. Read `type` from the bundle, never from the filename (E.24): a file named `truestamp-beacon-<id>.json` may carry `type: block`.
+Each node is a record and its hash, and no record contains its own hash (SPEC.md section 3.7). A BLOCK_NODE is `{block_hash, record}` with `block_hash` = H(0x31, record) and a record of `height`, `id`, `leaf_count`, `merkle_root`, `metadata` (`{}`, `{"key_event": ...}`, or at genesis `{"genesis": ..., "key_event": ...}`) and `previous_block_hash` and `signing_key_id` (SPEC.md section 3.3). The server stores and sends a block's `height`; `blocks list` shows it as a column and `blocks get` as a row. An ENTROPY_OBJECT is exactly the preimage of its `entropy_hash`, H(0x20, object) (SPEC.md section 3.5). The byte prefixes are SPEC.md section 4's registry, held in `internal/registry` and pinned to `spec/prefixes.json`.
 
-## Hard rejections (E.6), in this order
+An item's, an observation's and a block's id are each a UUIDv7 in lowercase (the UUID7 class). An item also has an **item code** (SPEC.md section 3.9), written from the leftmost 75 bits of its recomputed `item_hash` and a check symbol: no proof carries it, no step reads it, and it is never evidence (`internal/itemcode`).
 
-A hard rejection aborts before any step result exists and produces an error, not a report. The order is normative so two verifiers name the same first defect. Every abort is a `proof.RejectionError` carrying its E.23 identifier, readable via `proof.RejectionCode(err)`, with operator advice from `proof.RejectionAdvice`.
+## Commitments: one kind, at two levels
 
-1. input does not decode, or is not a map: `not_a_json_object`
-2. `type` absent, not a string, or not a registry name: `invalid_subject_type`
-3. `block` is not a map: `missing_block`
-4. a block-like type carries `subject` or `inclusion_proof`: `unexpected_subject_fields_for_block_like`
-5. a non-block-like type is missing `subject`: `missing_subject`
-6. a non-block-like type is missing `inclusion_proof` (or it is not a string): `missing_inclusion_proof`
-7. `block.metadata` is not a map: `missing_metadata`
-8. a non-block-like type whose `subject.metadata` is not a map: `missing_metadata`
-9. `commitments` is not a list, or is empty: `no_external_commitments`
-10. an entry is not a map, or its `chain` is not `"stellar"` or `"bitcoin"`, or it lacks `epoch_proof` (as a string), or it lacks `epoch_merkle_root`: `invalid_commitment_entry`
+A commitment binds a record into the Merkle tree one level up, and there is one kind of it:
 
-Everything else is graded, never rejected: a wrong or absent `version` (E.8), an undecodable `public_key` (E.9), a mis-cased hash (E.4), an undecodable proof (E.12), an unknown optional field (ignored), an unknown witness name (a visible `skip`).
+- an item's or entropy observation's record into its block: the subject's `inclusion_proof`, walked from the recomputed `item_hash` or `observation_hash` to `/block/record/merkle_root`;
+- a block into an epoch: each entry of `commitments`, an object keyed by chain (`stellar`, `bitcoin` or both), whose entry carries the epoch as an EPOCH_NODE (`{epoch_hash, record: {leaf_count, merkle_root}}`, `epoch_hash` = H(0x40, record)) and the `inclusion_proof` of the recomputed `block_hash` in that epoch's tree (SPEC.md section 3.4). The `epoch_hash` is the value written to the chain: a Stellar transaction's hash memo, a Bitcoin transaction's OP_RETURN output.
 
-## Hex encoding (E.4)
+`/commitments` holds the commitments of `/block`, and `/signing_key_event/commitments` those of the key-event block, with the same shape at both. Only `/commitments` feeds the submitted-before edge. Every member of an entry is required: a Stellar entry adds `ledger`, `network` and `transaction_hash`; a Bitcoin entry, present only once final, adds `header_hash`, `header_merkle_root`, `header_time`, `height`, `network`, `raw_transaction`, `transaction_hash` and `txoutproof`, whose consistency DERIVE checks offline (SPEC.md section 10.2, step 9 (d), `internal/verifier/bitcoin`). Nothing in a commitment is signed, and a block's commitment to a public chain is not a second kind of commitment.
 
-The closed list of hex fields that MUST be lowercase: every `signing_key_id` (subject and every block map), every block map's `previous_block_hash` and `merkle_root` (top-level `block`, each `block_path` entry, `signing_key_event.block`), every value of `subject.metadata.witnesses`, and every commitment's `epoch_merkle_root`, `transaction_hash` and `block_merkle_root` (in `commitments` and in `signing_key_event.commitments`). A violation is a graded `fail` carrying `invalid_hex_encoding`, reported once under **Structure** naming every offender in wire order (the reference verifier's names: `subject.signing_key_id`, `block.merkle_root`, `commitments[0].transaction_hash`, `subject.metadata.witnesses.block`, ...) and again at the point of use in the consuming step. The sweep emits no row on a conforming bundle.
+## Value classes and pattern classes
 
-The head block carried as the `block` witness is deliberately not swept; its hex fields are graded where its hash is derived, in E.17a, as `witness_hash_mismatch`. The exclusions are normative too: `public_key`/`signature` (base64) and `inclusion_proof`/`epoch_proof` (base64url) are case-significant; `raw_transaction` and `txoutproof` carry either base64url or hex, so a lowercase rule there is undefined (pinned by `TestCLI_RawTxAndTxOutProof_CaseIsNotGraded`); ids, `type`, `chain`, `network` and timestamps are not hashes; and everything inside a hashed map is canonicalized verbatim, `subject.claims.hash` included (the E.7 comparison of a caller-supplied expected hash is the one case-insensitive comparison, because that argument is an operator's typed input).
+Every value outside `subject.claims` matches the pattern class SPEC.md section 2.4 gives its member (HEX64, KID, B64U32, B64U64, TIME, UUID7, INT and the rest), checked at SHAPE, so a hash is lowercase hex because its class says so, and an uppercase one fails SHAPE's row for its member. The NIST `outputValue` is NISTHEX, uppercase as NIST publishes it. Each value is also treated as its value class says (SPEC.md section 3.7): PINNED values are compared with pinned values before anything uses them, CHECKED values are recomputed and compared, CHAIN POINTER values support a pass only after a read made in the run, and RECORDED values are never a verdict input. `truestamp inspect` prints every member by its class (`internal/verifier/inspect.go`), and `cmd/inspect_test.go` holds those classes to `spec/value-classes.json`.
+
+## Size
+
+SPEC.md section 3.8 gives the typical and worst sizes of each type in each constructions mode; every committed subject has a proof under MAX_DOCUMENT_OCTETS.

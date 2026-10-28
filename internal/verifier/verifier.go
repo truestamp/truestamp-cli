@@ -2,8 +2,8 @@
 // SPDX-License-Identifier: Apache-2.0
 
 // Package verifier is the CLI's verifier of SPEC.md section 10 (The
-// verification algorithm), built beside internal/verify from SPEC.md and
-// its conformance vectors (section 13.2 (The vectors)), each file naming
+// verification algorithm), built from SPEC.md and its conformance
+// vectors (section 13.2 (The vectors)), each file naming
 // the sections of SPEC.md it implements.
 //
 // It holds steps 0 to 6 of SPEC.md section 10.2 (Steps), the gate. Steps 0

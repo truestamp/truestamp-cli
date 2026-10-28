@@ -211,10 +211,9 @@ func Truncate(s string, maxLen int) string {
 // TransportError wraps a failure that happened before any HTTP response
 // was received: request construction, DNS resolution, dial, TLS
 // handshake, client timeout, context cancellation, or a body that could
-// not be read. A verifier must report these as `skip` rather than
-// `fail` (whitepaper Appendix E.17/E.18/E.21/E.22), so the distinction
-// has to survive to the call site instead of collapsing into one opaque
-// error.
+// not be read. It is kept apart from a *StatusError so that a caller can
+// tell a server that never answered from one that refused ([IsTransport]),
+// instead of the two collapsing into one opaque error.
 type TransportError struct {
 	URL string
 	Err error

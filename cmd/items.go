@@ -15,12 +15,12 @@ var itemsCmd = &cobra.Command{
 	Short: "Create, list, and update timestamped items",
 	Long: `An item is what Truestamp timestamps.
 
-You submit claims — optionally including a hash of a file you keep
-locally — Truestamp commits them to a Merkle tree, and the commitment is
+You submit claims, optionally including a hash of a file you keep
+locally; Truestamp commits them to a Merkle tree, and the commitment is
 written to Bitcoin and Stellar. Truestamp proves submission timing,
 never creation timing.
 
-The proof for an item is not a verb on this group: proof bundles are
+The proof for an item is not a verb on this group: proofs are
 derived artifacts and live under 'truestamp proofs'.
 
   truestamp proofs get <item-id> | truestamp verify --offline`,

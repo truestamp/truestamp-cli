@@ -14,23 +14,24 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/truestamp/truestamp-cli/internal/encoding"
 	"github.com/truestamp/truestamp-cli/internal/inputsrc"
-	"github.com/truestamp/truestamp-cli/internal/tscrypto"
 	"github.com/truestamp/truestamp-cli/internal/ui"
+	"github.com/truestamp/truestamp-cli/internal/verifier"
 )
 
 var convertKeyIDCmd = &cobra.Command{
 	Use:   "keyid [pubkey]",
 	Short: "Derive the 4-byte Truestamp kid fingerprint from an Ed25519 public key",
-	Long: `The Truestamp kid ("key ID") is computed as
-truncate4(SHA256(0x51 || pubkey)), the first 4 bytes of the SHA-256
-digest of the key with domain prefix 0x51. Each proof's "signing_key_id" field is
-this value rendered as 8 hex characters; deriving it locally lets you
-cross-check the signing key your proof was issued against.
+	Long: `A key's key id (SPEC.md section 3.3) is the hex of the first 4 bytes of
+SHA-256(0x60 || its 32 bytes), the prefix 0x60 of SPEC.md section 4's
+registry. A proof's signing_key_id and each key event's key_id are this
+value, 8 hex characters; deriving it locally lets you match a key to the
+key id a proof or the keyring gives it. A key id is only an index: verify
+binds the signer by the whole key, never by its key id.
 
 Examples:
-  truestamp convert keyid 38fa3a80ba5....base64...=
-  truestamp convert keyid --from hex 09a3c7ee...deadbeef...
-  cat pubkey.b64 | truestamp convert keyid`,
+  truestamp convert keyid IVL40Zt5HSRFMkLhXy6rbLfP-ntqXtMAl5YOBpiB2xI
+  truestamp convert keyid --from hex 2152f8d19b791d24453242e15f2eab6cb7cffa7b6a5ed30097960e069881db12
+  jq -r .signature.public_key proof.json | truestamp convert keyid`,
 	RunE: runConvertKeyID,
 }
 
@@ -52,7 +53,7 @@ func runConvertKeyID(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("Ed25519 public key must be 32 bytes (got %d)", len(pubkey))
 	}
 
-	kid := tscrypto.ComputeKeyID(pubkey)
+	kid := verifier.KeyID([32]byte(pubkey))
 
 	if jsonOut {
 		b64Std := base64.StdEncoding.EncodeToString(pubkey)

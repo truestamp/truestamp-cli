@@ -68,7 +68,7 @@ func runBeaconsList(cmd *cobra.Command, _ []string) error {
 	// The tip is suppressed when stdout is piped so shell pipelines stay
 	// clean; renderListHints applies that gate.
 	renderListHints(cmd.ErrOrStderr(), pg,
-		"Hint: 'truestamp proofs get --type beacon <id>' fetches a verifiable proof bundle.")
+		"Hint: 'truestamp proofs get --type beacon <id>' fetches a verifiable proof.")
 	return nil
 }
 

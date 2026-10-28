@@ -17,7 +17,7 @@ Truestamp resources:
   entropy     Read-only: public entropy observations (NIST, Stellar, Bitcoin)
   items       Create, list, and update timestamped items
   keys        Read-only: Truestamp's published signing keys
-  proofs      Get proof bundles
+  proofs      Get proofs
   teams       List, create, and switch teams
 
 Local tools (stdin → stdout primitives):

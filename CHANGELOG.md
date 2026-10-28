@@ -12,6 +12,169 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **Every item has an item code.** An item code is 16 characters, such as
+  `WX495M26THGQBJ68` (SPEC.md section 3.9): a short name for the item,
+  written from the leftmost 75 bits of its `item_hash` and a check symbol.
+  `items get`, `items update` and `proofs get` take an item by its code as
+  well as by its UUIDv7 id or its whole `item_hash`; `items list` has a
+  CODE column; the `items create`, `items get`, `items update`,
+  `proofs get` and console cards show it; and an item's Details and Verify
+  URLs use it (`/items/<CODE>`, `/verify/item/<CODE>`). `verify` and
+  `inspect` print it beside the whole `item_hash` they recompute, `verify`
+  in text only and `inspect --json` as `item_code`, and
+  `schema get item-code` lists everywhere it appears. A code is a name,
+  never a check: two equal codes show only that two `item_hash` values
+  begin with the same 75 bits.
+
+- **`proofs get --constructions full|reference|none`** chooses how the
+  proof carries the constructions text (SPEC.md section 7.2): the text
+  itself (the default), its URL, which names its SHA-256, or neither. Each
+  mode is its own signed document, and the verdict never depends on it.
+
+- **`proofs get` checks the served proof is of the item asked for.**
+  Before anything is written, an item proof's record must carry the UUIDv7
+  given, or the `item_hash` recomputed from its record must give the code
+  given or be the whole `item_hash` given. Otherwise the run refuses with
+  "the server returned a proof for a different item" and writes nothing.
+
+- **`schema get reason-codes`** publishes the 36 reason codes of SPEC.md
+  section 12.1, each with its step and status, and `schema get exit-codes`
+  gives `verify`'s codes 0 to 8 apart from every other command's and from
+  `upgrade --check --exit-code`'s.
+
+- **`items create` shows what the server committed.** The card and
+  `--json` carry `claims_jcs`, the claims in canonical form exactly as the
+  server keeps them, and `claims_hash`, the hash computed over them,
+  beside `item_hash` and `item_code`. A claims refusal prints each rule
+  broken with its code and its JSON pointer into the claims, in text and
+  under `--json`.
+
+- **Blocks carry their height.** `blocks list` lists by height, highest
+  first, with HEIGHT as its first column, and the `blocks get`,
+  `blocks latest` and `blocks genesis` cards have a Height row.
+
+### Changed
+
+- **`truestamp verify` is a verifier of SPEC.md, held to its conformance
+  vectors.** BREAKING for scripts that read the earlier report or its exit
+  codes. A proof is one JSON document, the `{proof, signature}` envelope
+  of SPEC.md's `version` 1, and `verify` makes the steps of SPEC.md
+  section 10.2: online by default, reading Truestamp's keyring, the
+  Stellar and Bitcoin commitments and the entropy sources, and with
+  `--offline` reading nothing, each check that needs a read a skip. A run
+  ends in a bare rejection or a report labelled `verified`,
+  `internally-consistent`, `supplied-keyring`, `unattributed` or `failed`,
+  `--json` writes it exactly as SPEC.md section 10.5 gives it, and the
+  exit code is SPEC.md section 12.2's, 0 to 8: only 0 says that Truestamp
+  signed the proof and that its submission window is established. The CLI
+  passes every case of the conformance vectors at the spec commit
+  `testdata/verification/SOURCE` names, and the conformance test logs that
+  commit and the SHA-256 of `testdata/verification/MANIFEST.sha256`.
+
+- **`verify --remote` sends the file as it is.** It posts the file's bytes
+  to the service's raw verify route and prints the label of the service's
+  report on stderr, beside this run's report. The service's verdict never
+  changes the report, `--json` or the exit code, and the request waits for
+  the larger of `--http-timeout` and 75 seconds.
+
+- **`proofs get` writes the proof exactly as served.** The bytes the raw
+  proof route answers with go to stdout, to `-o`'s path or, under
+  `--to-file`, to `<CODE>.proof.json` for an item and
+  `<uuidv7>.proof.json` for every other subject, with nothing re-indented
+  and no line feed added. Each refusal to serve a proof is explained, and
+  the ones that clear on their own say so.
+
+- **`inspect` reads a proof as `verify` does, and verifies nothing.** It
+  runs the verifier's reader, envelope check and SHAPE, and prints every
+  member the proof carries by its value class (SPEC.md section 3.7): a
+  checked value beside the value recomputed from the proof, recorded
+  values and every time only under "Declared by the signer (not attributed
+  to Truestamp)", the claims as member names, and every value whole. It
+  also prints `proof_hash` and the signer's key id. A file it refuses is
+  reported with the verifier's bare rejection or SHAPE's row.
+
+- **Nothing is trimmed from an id.** Item ids are UUIDv7s, like every
+  other Truestamp id. No command trims an id argument; a UUIDv7 or an
+  `item_hash` is read in either case, an item code as SPEC.md section 3.9
+  lets it be typed (any case, `I` and `L` as `1`, `O` as `0`, one space,
+  hyphen or underscore between its groups of four) and sent in its one
+  spelling, and a UUID's 32-hex, braced and `urn:` forms are refused
+  before any request.
+  `proofs get` resolves a bare UUIDv7 against the server, items included,
+  and refuses a block's id, which is verifiable as a block and as a
+  beacon, rather than guess. `items update` sends its change by the UUIDv7
+  only: a code or an `item_hash` is first read with one GET and checked.
+
+- **`convert id` reads a UUIDv7 only.** It prints the time Truestamp
+  recorded in the id, a recorded time and never a proven one. `--type`
+  takes `auto` or `uuid7`, an item code is refused as carrying no time,
+  and from a pipe exactly one line ending is stripped.
+
+- **`items create` sends claims exactly as given.** A claims file or
+  claims on stdin goes byte for byte, read first only to refuse a text no
+  verifier reads alike, and the claim flags are refused beside it. Claims
+  built from flags are written as typed: nothing is trimmed, lowercased or
+  filled in, so a bare `--data-hash` sends no `hash_type`, and the server
+  refuses the half pair. `--data-hash` and `--hash-type` are refused
+  beside a hashed file, which supplies both. `--timestamp` is checked
+  against the service's grammar and sent verbatim, and a number longer
+  than 1,024 characters is refused before sending, since the service reads
+  no request holding one. Every other claims rule is the server's. The
+  console's New Item pane sends its claims the same way, with no hash type
+  chosen until one is picked.
+
+- **`items list --pending`** keeps the items still on their way into a
+  block, those created or processing.
+
+- **Entropy observations are shown as the server keeps them.** An
+  observation is not signed, so `entropy get` and `entropy latest` show no
+  Signing Key row, and their `--json` carries no `signature`,
+  `signing_key_id`, `metadata` or `metadata_hash`. A Network row is shown
+  when the observation has a network.
+
+- **The console names each commitment by its level.** A
+  `commitment.created` row is `commitment.item`, `commitment.observation`
+  or `commitment.block`, a burst on the blocks stream is
+  `commitment.block.burst`, and the detail panel leads with the subject
+  kind, the tree kind and the chain.
+
+- **A committed item's card says what comes next.** The card and
+  `items list --committed`'s help say a committed item is in a block and
+  its proof follows once the block is committed to a public chain, and the
+  Not yet committed hint shows only for an item still waiting for its
+  block.
+
+### Removed
+
+- **The earlier proof layout and the earlier `verify` report.** A document
+  that is not exactly the SPEC.md envelope is refused as
+  `invalid_envelope` ("This file is not a Truestamp proof."), whatever it
+  resembles. The report's PASSED and FAILED verdict, its groups,
+  categories and counts, and its `steps` JSON are gone.
+
+- **`verify --skip-signatures` and `verify --type`.** Each is an unknown
+  flag, exit 1. No option skips the signature, and the type is read only
+  from the proof's signed `type`.
+
+- **CBOR.** `verify` and `inspect` read JSON only, refuse a binary-encoded
+  proof as not JSON (`malformed_json`) from a file or from stdin, and
+  offer only `.json` in the file picker.
+
+- **`proofs convert` and `convert merkle`.** Each is an unknown command,
+  exit 1.
+
+- **`proofs get --witnesses` and `--format`**, with the compact and
+  partial downloads, their file-name suffixes and `schema get witnesses`.
+  An item proof carries the record of every witness its item names.
+
+- **ULID item ids.** No command reads a ULID, and `convert id` has no
+  `ulid` type.
+
+- **`schema get subject-types`.** A proof type is its name, with no
+  number.
+
 ### Security
 
 - **An OAuth session's access token is no longer sent to GitHub.** Since
@@ -33,6 +196,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   500 ms. The attempt is now recorded before it is made, keeping the
   latest version an earlier check found, so it counts for the 24 hours
   however it ends, and a check that fails ends the wait at once.
+
+- **`convert keyid` now gives the key id proofs carry.** It derived a
+  key's id under the prefix 0x51, a value no proof or keyring holds. It
+  now derives the key id of SPEC.md section 3.3, the hex of the first 4
+  bytes of SHA-256(0x60 || the key's 32 bytes), so the id it prints for a
+  proof's signer equals the `signing_key_id` that proof gives it and the
+  `key_id` the keyring lists for that key.
 
 ## [0.16.1] - 2026-09-18
 

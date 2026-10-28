@@ -5,6 +5,8 @@ package cmd
 
 import (
 	"bufio"
+	"crypto/sha256"
+	"encoding/hex"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -453,4 +455,49 @@ func firstLine(s string) string {
 		return s[:i]
 	}
 	return s
+}
+
+// TestDocs_ConformanceClaimIsReadFromTheFiles holds README.md's claim of
+// conformance (SPEC.md section 13.1, which names the spec commit and the
+// digest of MANIFEST.sha256) to the files that make it: README.md cites
+// testdata/verification/SOURCE and testdata/verification/MANIFEST.sha256
+// and writes neither the commit SOURCE holds nor the manifest's SHA-256,
+// whole or as an 8-character prefix, so syncing the spec never leaves the
+// README naming an older copy. Mutants killed: every mention of
+// testdata/verification/SOURCE, or of testdata/verification/MANIFEST.sha256,
+// dropped from README.md; the manifest's digest, or SOURCE's commit as its
+// short form, written into README.md.
+func TestDocs_ConformanceClaimIsReadFromTheFiles(t *testing.T) {
+	root := repoRoot(t)
+	readme, err := os.ReadFile(filepath.Join(root, "README.md"))
+	if err != nil {
+		t.Fatalf("read README.md: %v", err)
+	}
+	text := strings.ToLower(string(readme))
+	for _, cited := range []string{"testdata/verification/SOURCE", "testdata/verification/MANIFEST.sha256"} {
+		if !strings.Contains(string(readme), cited) {
+			t.Errorf("README.md does not cite %s, which the claim of conformance is read from", cited)
+		}
+	}
+	source, err := os.ReadFile(filepath.Join(root, "testdata", "verification", "SOURCE"))
+	if err != nil {
+		t.Fatalf("read SOURCE: %v", err)
+	}
+	commit := strings.TrimSuffix(string(source), "\n")
+	if !regexp.MustCompile(`^[0-9a-f]{40}$`).MatchString(commit) {
+		t.Fatalf("SOURCE holds %q, not a commit", source)
+	}
+	manifest, err := os.ReadFile(filepath.Join(root, "testdata", "verification", "MANIFEST.sha256"))
+	if err != nil {
+		t.Fatalf("read MANIFEST.sha256: %v", err)
+	}
+	sum := sha256.Sum256(manifest)
+	for what, value := range map[string]string{
+		"the spec commit SOURCE names":   commit,
+		"the SHA-256 of MANIFEST.sha256": hex.EncodeToString(sum[:]),
+	} {
+		if strings.Contains(text, value[:8]) {
+			t.Errorf("README.md writes %s (%s): cite the file instead, so a sync cannot leave it stale", what, value[:8])
+		}
+	}
 }
