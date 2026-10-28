@@ -5,12 +5,13 @@ The run makes the steps of SPEC.md section 10.2 in order: it fixes the
 environment it checks, the network pins, the sources and the keyring
 before the file is read; reads and parses the file; checks the envelope,
 the environment marker, the signer's key against the keyring and the
-signature; then the schema, every network, and every hash, inclusion
-proof and link, recomputed from the values the proof carries. Online, it
-reads each Stellar and Bitcoin commitment and each entropy source, and
-draws the submitted-after and submitted-before edges of the submission
-window from what it read. --offline reads nothing: each check that needs
-a read is a skip, never a failure.
+signature; then the schema, every network, and every value a check
+compares and every inclusion walk, recomputed from the values the proof
+carries, and every link. Online, it reads each Stellar and Bitcoin
+commitment and each entropy source, and draws the submitted-after and
+submitted-before edges of the submission window from what it read.
+--offline reads nothing: each check that needs a read is a skip, never a
+failure.
 
 Proof input can be provided as:
   truestamp verify proof.json           Local file path
@@ -27,6 +28,8 @@ The keyring that governs the signer's key, for this run only:
   --keyring FILE         a keyring file you supply
   --no-keyring           keyless: the signature is checked only against
                          the key the proof carries
+  --base-url URL         online, a host other than www.truestamp.com: the
+                         keyring read from that origin, a supplied keyring
   --environment NAME     check proofs of Truestamp's dev, staging or test
                          environment, with --keyring FILE, a keyring
                          configured for it, or --no-keyring

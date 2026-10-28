@@ -140,6 +140,12 @@ var keyIntroducingEvents = []string{"genesis", "rotation", "emergency_rotation",
 // but the header_time, which is among the declared times.
 var bitcoinHeaderMembers = []string{"header_hash", "header_merkle_root"}
 
+// KeyID returns the key id of the 32-octet public key key, the hex of the
+// first 4 bytes of SHA-256(0x60 || its 32 bytes) (SPEC.md section 3.3),
+// as 8 lowercase hex characters: the id `convert keyid` prints and the one
+// [Inspection] gives the signer.
+func KeyID(key [32]byte) string { return registry.KeyIDOf(key) }
+
 // Inspect reads data as `truestamp inspect` does (see the file's doc). It
 // gives an error only for a fault: a proof_hash or a DERIVE value that
 // cannot be computed over a value the strict reader and SHAPE passed.

@@ -117,8 +117,8 @@ func TestCLI_ItemsCreate_NoArgs_ShowsHelp(t *testing.T) {
 
 // TestCLI_ItemsCreate_Help_ShowsAllFlags pins the flag set, the
 // --timestamp help text and --hash-type's lack of a default. Mutants
-// killed: --timestamp's help left as the ISO 8601 forms it once
-// normalized, and --hash-type given the default sha256.
+// killed: --timestamp's help naming ISO 8601 forms the CLI would
+// normalize, and --hash-type given the default sha256.
 func TestCLI_ItemsCreate_Help_ShowsAllFlags(t *testing.T) {
 	cmd := exec.Command(binaryPath, "items", "create", "--help")
 	out, err := cmd.CombinedOutput()
@@ -131,7 +131,7 @@ func TestCLI_ItemsCreate_Help_ShowsAllFlags(t *testing.T) {
 			t.Errorf("help output missing flag %s", flag)
 		}
 	}
-	const timestampHelp = "claimed timestamp: your own statement; Truestamp checks only that it is a well-formed date"
+	const timestampHelp = "claimed timestamp: your own statement; the CLI and Truestamp check only that it is a well-formed, real date or time"
 	if !containsString(output, timestampHelp) {
 		t.Errorf("help output missing the --timestamp text %q:\n%s", timestampHelp, output)
 	}

@@ -32,15 +32,15 @@ func statusServer(t *testing.T, status int, body string) *httptest.Server {
 // keyringKeyOf dropping active (the first key reads inactive).
 func TestFetchKeyring_ReadsAPublishedKeyring(t *testing.T) {
 	srv := statusServer(t, 200, `{"version":"1.0","keys":[`+
-		`{"key_id":"4ceefa4a","public_key":"CTwMqDZnPd_QTLSq8aTeSD3a-j2DQxKcGfhhIYJQ65Y","sequence":0,"active":true},`+
-		`{"key_id":"f2c39df9","public_key":"pk2","sequence":1,"active":false}]}`)
+		`{"key_id":"97223329","public_key":"CTwMqDZnPd_QTLSq8aTeSD3a-j2DQxKcGfhhIYJQ65Y","sequence":0,"active":true},`+
+		`{"key_id":"fbd680e8","public_key":"pk2","sequence":1,"active":false}]}`)
 	keyring, err := FetchKeyring(srv.URL)
 	if err != nil {
 		t.Fatal(err)
 	}
 	want := []KeyringKey{
-		{KeyID: "4ceefa4a", PublicKey: "CTwMqDZnPd_QTLSq8aTeSD3a-j2DQxKcGfhhIYJQ65Y", Sequence: 0, Active: true},
-		{KeyID: "f2c39df9", PublicKey: "pk2", Sequence: 1, Active: false},
+		{KeyID: "97223329", PublicKey: "CTwMqDZnPd_QTLSq8aTeSD3a-j2DQxKcGfhhIYJQ65Y", Sequence: 0, Active: true},
+		{KeyID: "fbd680e8", PublicKey: "pk2", Sequence: 1, Active: false},
 	}
 	if keyring.Version != "1.0" || len(keyring.Keys) != len(want) || keyring.Keys[0] != want[0] || keyring.Keys[1] != want[1] {
 		t.Fatalf("FetchKeyring = %+v, want version 1.0 and %+v", keyring, want)
@@ -64,7 +64,7 @@ func TestFetchKeyring_NotAKeyringDocumentIsMalformed(t *testing.T) {
 		`{"ok":true}`,
 		`{"keys":null}`,
 		`{"version":"1.0","keys":"not-a-list"}`,
-		`{"version":"1.0","keys":{"key_id":"f2c39df9"}}`,
+		`{"version":"1.0","keys":{"key_id":"fbd680e8"}}`,
 	} {
 		t.Run(body, func(t *testing.T) {
 			keyring, err := FetchKeyring(statusServer(t, 200, body).URL)

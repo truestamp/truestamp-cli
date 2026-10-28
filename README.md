@@ -10,7 +10,7 @@ SPDX-License-Identifier: Apache-2.0
 [![Go Reference](https://pkg.go.dev/badge/github.com/truestamp/truestamp-cli.svg)](https://pkg.go.dev/github.com/truestamp/truestamp-cli)
 [![License: Apache 2.0](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](./LICENSE)
 
-Standalone Go CLI for cryptographic timestamping with [Truestamp](https://www.truestamp.com). Verifies Truestamp proof bundles end to end: user claims, hash chains, Merkle inclusion, Ed25519 signatures, and commitments to public blockchains. Every hash, Merkle walk and signature check is recomputed locally, so a proof can be checked without running or trusting the Truestamp application.
+Standalone Go CLI for cryptographic timestamping with [Truestamp](https://www.truestamp.com). Verifies Truestamp proofs end to end, as SPEC.md in [truestamp/truestamp-verification](https://github.com/truestamp/truestamp-verification) defines them: the envelope and its Ed25519 signature, the signer's key, every value a check compares, every Merkle inclusion walk and every link, the commitments to Stellar and Bitcoin, and the entropy sources behind the submission window. Every value a check compares and every Merkle inclusion walk is recomputed locally from what the proof carries, and the signature is verified locally. A `verified` result needs the keyring read from www.truestamp.com in that run: offline, or with a keyring you supply, the proof is attributed to the keys built into this CLI or to that keyring, and offline no submission window is established.
 
 Ships as a single self-contained binary. Release builds are pure Go with cgo disabled, so there is no interpreter or language runtime to install.
 
@@ -153,8 +153,9 @@ truestamp items create -n "Invention" \
 
 The server requires the claims content to be meaningful in this
 mode: at least a 32-character description (or non-empty
-`--metadata`). The CLI checks this locally before any network
-round-trip.
+`--metadata`). The server checks every claims rule the CLI does not
+(below) and reports each one broken with its code, its JSON pointer
+into the claims and a message naming the fix.
 
 Other input styles:
 
@@ -163,18 +164,37 @@ truestamp items create --file=document.pdf                     # External hash: 
 truestamp items create --file                                  # External hash: interactive picker
 truestamp items create -c=claims.json                          # Either mode: claims from JSON file
 cat claims.json | truestamp items create -C                    # Either mode: claims from stdin
-truestamp items create -n "Q1 Report" --data-hash <64-hex> \        # External hash: build from flags
-  -v public -t finance,reports
+# External hash: build from flags
+truestamp items create -n "Q1 Report" --data-hash <64-hex> \
+  --hash-type sha256 -v public --tags finance,reports
 truestamp items create -n "Title" --metadata '{"k":"v"}'       # Claims-only: metadata satisfies the rule
 ```
 
-`--data-hash` and `--hash-type` travel together in the submitted claims:
+The claims are sent exactly as given, and the server commits their
+canonical form (`claims_jcs`). A claims file (`-c`) or claims on stdin
+(`-C`) goes byte for byte: the CLI reads it only to refuse a text no
+verifier reads alike (a member name repeated in one object, or a number
+outside the range every verifier reads exactly), and trims, reorders and
+fills in nothing. The claim flags build the claims instead, so they are
+refused beside a claims file. Before sending, the CLI also refuses a
+number longer than 1,024 characters in any claims, since the service
+reads no request that holds one, and a `--timestamp` outside the
+grammar the service checks it against or naming a day that does not
+exist. That grammar is `YYYY`, `YYYY-MM`, `YYYY-MM-DD`, or
+`YYYY-MM-DDThh:mm` with optional `:ss`, a fraction of 1 to 9 digits
+after the seconds, and an optional `Z`, `+hh:mm` or `-hh:mm` offset
+whose colon may be left out (`+hhmm`): a time follows only a whole date,
+hours (the offset's too) run `00` to `23`, minutes and seconds `00` to
+`59`, and `T` and `Z` are uppercase. A `--timestamp` it accepts is sent
+as typed.
+
+`--data-hash` and `--hash-type` go together in the submitted claims:
 both present selects external-hash mode, both absent selects
-claims-as-source-of-truth mode. `--hash-type` on its own is rejected
-(`claims hash is required when hash_type is supplied`). `--data-hash` on
-its own is accepted: the CLI fills in `hash_type = "sha256"` for you,
-which is also the flag's default, and then validates that the hash is
-hex of the right length for that algorithm.
+claims-as-source-of-truth mode. Neither is filled in for the other: a
+bare `--data-hash` sends no `hash_type`, and the server refuses the half
+pair, as it refuses a hash that is not hex of the length its algorithm
+gives. Beside a hashed file both are refused, since the file supplies
+the hash and its `hash_type`.
 
 JSON output for scripting:
 
@@ -184,43 +204,55 @@ truestamp items create document.pdf --json
 
 In claims-as-source-of-truth mode the JSON output omits the `hash`
 and `hash_type` keys; scripts can use `jq 'has("hash")'` to branch
-on the mode.
+on the mode. Both modes carry the item's `id`, its `item_hash` and its
+`item_code`.
 
-### Download a proof bundle
+Every item has a UUIDv7 `id` and an **item code**, 16 characters such as `WX495M26THGQBJ68` (SPEC.md section 3.9): a short name for the item, for people and links, written from the leftmost 75 bits of its `item_hash` and a check symbol. `items get`, `items update` and `proofs get` take an item by its UUIDv7, its code or its whole `item_hash`. Nothing is trimmed: a UUIDv7 or an `item_hash` is read in either case, and an item code as SPEC.md section 3.9 lets it be typed (any case, `I` and `L` read as `1` and `O` as `0`, and one space, hyphen or underscore allowed between its groups of four) and is sent in its one spelling. A code is a name, not a check: two items whose `item_hash` values begin with the same 75 bits share one, so where identity matters compare the whole `item_hash`.
 
-After an item has been committed to a block and to a public chain, download its proof by ID. Item IDs are ULIDs, so a ULID with no `--type` defaults to `--type item`.
+### Download a proof
 
-The bundle goes to **stdout** by default, so it composes:
+After an item has been committed to a block and to a public chain, download its proof by its item code, its UUIDv7 id or its `item_hash`. An item code names only an item, so it needs no `--type` and no round trip.
+
+The proof goes to **stdout** by default, so it composes:
 
 ```sh
-truestamp proofs get 01KNN33GX5E470CB9TRWAYF9DD | truestamp verify --offline
-truestamp proofs get 01KNN33GX5E470CB9TRWAYF9DD > proof.json
+truestamp proofs get WX495M26THGQBJ68 | truestamp verify --offline
+truestamp proofs get WX495M26THGQBJ68 > proof.json
 ```
 
 Or name a path with `-o` / `--out`, or let `--to-file` pick the conventional name in the current directory. The two are mutually exclusive, and the receipt card is written to stderr so stdout stays pipeable:
 
 ```sh
-truestamp proofs get -o /tmp/proof.json 01KNN33GX5E470CB9TRWAYF9DD
-truestamp proofs get --to-file 01KNN33GX5E470CB9TRWAYF9DD          # <CODE>.proof.json
+truestamp proofs get -o /tmp/proof.json WX495M26THGQBJ68
+truestamp proofs get --to-file WX495M26THGQBJ68          # WX495M26THGQBJ68.proof.json
 ```
 
 Choose how the proof carries the constructions text (SPEC.md section 7.2): `full`, the default, carries the text itself, `reference` its URL, which names its SHA-256, and `none` neither. Each mode is its own signed document, the verdict never depends on it, and `--to-file` names them alike.
 
 ```sh
-truestamp proofs get --constructions reference --to-file 01KNN33GX5E470CB9TRWAYF9DD   # <CODE>.proof.json
+truestamp proofs get --constructions reference --to-file WX495M26THGQBJ68   # WX495M26THGQBJ68.proof.json
 ```
 
-Every other subject type uses a UUIDv7, and entropy observations, blocks and beacons are indistinguishable by id shape, so `--type` cannot be inferred from a UUIDv7's shape. Omitting it costs one extra round trip: the CLI asks the server what the id refers to. Passing `--type` skips that call, and is required when an id is verifiable as more than one subject type (a block is also verifiable as a beacon):
+An item's whole `item_hash`, 64 hex characters, needs `--type item`, since nothing else is named by a hash here:
 
 ```sh
+truestamp proofs get --type item e74892d046d46175c8dbdecbbbc705a36816df58e65a2ee1861c100c16eb5f8c
+```
+
+Before anything is written, the served proof is checked against the item asked for: its record must carry the UUIDv7 given, or the `item_hash` recomputed from its record must give the item code given, or be the whole `item_hash` given. Otherwise the run refuses with "the server returned a proof for a different item" and writes nothing.
+
+Items, entropy observations, blocks and beacons all have UUIDv7 ids, so `--type` cannot be inferred from a UUIDv7's shape. Omitting it costs one extra round trip: the CLI asks the server what the id refers to. Passing `--type` skips that call, and is required when an id is verifiable as more than one subject type (a block is also verifiable as a beacon, so a block's id is refused rather than guessed):
+
+```sh
+truestamp proofs get 01a0db66-c2e0-78a4-b8cc-12b11bc97493
 truestamp proofs get --type entropy_stellar 019d6a32-13e6-72b0-97e5-3779231ea97b
 truestamp proofs get --type block  019db7cd-efc0-7196-b763-682a84d71919
 truestamp proofs get --type beacon 019db7cd-efc0-7196-b763-682a84d71919
 ```
 
-Valid `--type` values are exactly `item | entropy_nist | entropy_stellar | entropy_bitcoin | block | beacon`. There is no `auto` and no bare `entropy`, and the hyphenated spellings (`entropy-nist`) are rejected: flag values use underscores. `--to-file` names an item's proof `<CODE>.proof.json`, by its item code, and every other subject's `<id>.proof.json`. The `type` inside the file is authoritative; the filename never is.
+Valid `--type` values are exactly `item | entropy_nist | entropy_stellar | entropy_bitcoin | block | beacon`. There is no `auto` and no bare `entropy`, and the hyphenated spellings (`entropy-nist`) are rejected: flag values use underscores. `--to-file` names an item's proof `<CODE>.proof.json`, by its item code, and every other subject's `<id>.proof.json`, as the app names its downloads. A block's proof and its beacon's proof share one id, so they share that name, and the later write replaces the earlier: pass `-o` to keep both. The `type` inside the file is authoritative; the filename never is.
 
-The id shape is checked before any network call: `--type item` requires a ULID, and every other type requires a UUIDv7.
+The id is checked before any network call. Nothing is trimmed: a UUIDv7 or an `item_hash` is read in either case, and an item code as SPEC.md section 3.9 lets it be typed (any case, `I` and `L` read as `1` and `O` as `0`, and one space, hyphen or underscore allowed between its groups of four) and is sent in its one spelling; a UUID's 32-hex, braced and `urn:` forms are refused. `--type item` takes a UUIDv7, an item code or an `item_hash`, and every other type a UUIDv7; a 64-hex value with no `--type` is refused with a hint to pass `--type item`.
 
 ### Verify a proof
 
@@ -265,7 +297,7 @@ truestamp verify --url                             # Interactive URL prompt
 cat proof.json | truestamp verify                  # stdin pipe
 ```
 
-See what a bundle carries without verifying it:
+See what a proof carries without verifying it:
 
 ```sh
 truestamp inspect proof.json
@@ -282,9 +314,9 @@ Verify a proof:
 Truestamp resources:
   truestamp items create [file]         Create a timestamped item (claims, or a hash of a local file)
   truestamp items list                  List items, newest first (--limit/--after/--before/--oldest-first/--max/--count, --committed/--pending)
-  truestamp items get <id>              Show one item, including whether a proof can be generated
-  truestamp items update <id>           Change visibility, tags, or the owning team (--to-team)
-  truestamp proofs get <id>             Fetch a proof bundle to stdout (-o <path> or --to-file to write it)
+  truestamp items get <id-code-or-hash>      Show one item, including whether a proof can be generated
+  truestamp items update <id-code-or-hash>   Change visibility, tags, or the owning team (--to-team)
+  truestamp proofs get <id-code-or-hash>     Fetch a proof to stdout (-o <path> or --to-file to write it)
   truestamp blocks list|get|latest|genesis    Read-only: the block chain (latest = head block)
   truestamp beacons list|get|latest     Read-only: public randomness over finalized blocks
   truestamp entropy list|get|latest     Read-only: public entropy observations (NIST, Stellar, Bitcoin)
@@ -297,7 +329,7 @@ Local tools:
   truestamp decode [file]               Decode hex / base64 / base64url into raw bytes
   truestamp jcs [file]                  Canonicalize JSON per RFC 8785
   truestamp convert time [input]        Convert timestamps across zones / Unix formats
-  truestamp convert id [value]          Extract the embedded timestamp from a ULID or UUIDv7
+  truestamp convert id [value]          Extract the time Truestamp recorded in a UUIDv7 id
   truestamp convert keyid [pubkey]      Derive the 4-byte Truestamp kid from an Ed25519 public key
 
 Setup:
@@ -310,6 +342,7 @@ Other:
   truestamp upgrade                     Upgrade the CLI in place (install-method aware)
   truestamp version                     Detailed build and runtime info
   truestamp completion <shell>          Shell completions (bash, zsh, fish, powershell)
+```
 
 A bare group prints help: `truestamp items` tells you what you can do with items,
 and works before you have signed in.
@@ -333,20 +366,23 @@ truestamp hash -a blake2b-512 doc.pdf
 truestamp hash -a sha3-256 --style bsd doc.pdf
 
 # Recompute a Truestamp claims_hash locally: the flagship use case
-truestamp hash --prefix 0x11 --jcs -a sha256 --style bare --no-filename < claims.json
+truestamp hash --prefix 0x10 --jcs -a sha256 --style bare --no-filename < claims.json
 # equivalently, as an explicit pipeline:
-truestamp jcs < claims.json | truestamp hash --prefix 0x11 -a sha256 --style bare --no-filename
+truestamp jcs < claims.json | truestamp hash --prefix 0x10 -a sha256 --style bare --no-filename
 
-# Derive the 4-byte kid fingerprint from an Ed25519 pubkey
-truestamp convert keyid CTwMqDZnPd/QTLSq8aTeSD3a+j2DQxKcGfhhIYJQ65Y=
+# Derive a key's key id, SHA-256(0x60 || its 32 bytes) cut to 4 bytes, the
+# signing_key_id a proof gives its signer (this key's is fbd680e8)
+truestamp convert keyid IVL40Zt5HSRFMkLhXy6rbLfP-ntqXtMAl5YOBpiB2xI
 
 # Timezone math without shelling out to `date`
 truestamp convert time 1700000000 --to-zone America/New_York
 truestamp convert time "2024-06-15T12:00:00Z" --to-zone Asia/Kolkata
 
-# ULID / UUIDv7 timestamp extraction
-truestamp convert id 01KNN33GX5E470CB9TRWAYF9DD
+# The time recorded in a UUIDv7 id (a recorded time, never a proven one)
+truestamp convert id 01a0db66-c2e0-78a4-b8cc-12b11bc97493
 truestamp convert id 019cf813-99b8-730a-84f1-5a711a9c355e --to-zone Local
+# Name the id type (auto or uuid7); an item code carries no time and is refused
+truestamp convert id --type uuid7 01a0db66-c2e0-78a4-b8cc-12b11bc97493
 ```
 
 Every list (`items list`, `blocks list`, `beacons list`, `entropy list`) pages the same way: `--limit` is the page size (a page above 250 is clamped, and the listing says so); `--after <cursor>` and `--before <cursor>` continue from a cursor a previous page printed, forward or back toward the start (`More: --after …` and `Back: --before …` on **stderr**, printed only when stdout is a terminal, so a pipe or a redirect carries rows and nothing else; `next_cursor` and `prev_cursor` in `--json`); `--oldest-first` starts at the beginning instead of the newest row; `--max N` follows cursors in the chosen direction until N rows have been fetched; and `--count` adds the server's total. There is no unbounded `--all`: the tables behind these lists grow by the minute, so following pages costs a cap you wrote down. Their `--json` is one envelope, `{"<noun>": [...], "next_cursor": "...", "prev_cursor": "..."}`, plus `"total"` under `--count` and `"page_limit"` whenever the server used a smaller page than `--limit` asked for (the human listing mentions the clamp only when a page follows; the JSON key reports the page size used, whether or not one does).
@@ -460,7 +496,7 @@ Settings are resolved in this order (later overrides earlier):
 
 `--expected-hash` is the hash of a file you hold, compared with the proof's `claims.hash` (SPEC.md section 10.2, step 13). Given, even empty, it is a value: a proof with no `claims.hash` of a listed type, a value that is not hex of the type's length, and a hash that differs each fail the row. Without it the row is skipped.
 
-The keyring that governs the signer's key is chosen for the run only, never by the configuration file or an environment variable: `--keyring FILE`, a keyring file you supply; `--no-keyring`, keyless mode, which checks the signature only against the key the proof carries and says so in every report; and otherwise, online, the keyring read from www.truestamp.com, and offline the keys built into this CLI. `--environment` (`prod`, `dev`, `staging` or `test`) names the Truestamp environment whose proofs the run checks, again for the run only. A run under another environment than `prod` needs `--keyring FILE`, `--no-keyring`, or a keyring configured for that environment under `[verify.keyrings]` in `config.toml`, which is used only when `--environment` names it.
+The keyring that governs the signer's key is chosen for the run only, never by the configuration file or an environment variable: `--keyring FILE`, a keyring file you supply; `--no-keyring`, keyless mode, which checks the signature only against the key the proof carries and says so in every report; online, with an explicit `--base-url` whose host is not www.truestamp.com, the keyring read from that origin, a supplied keyring, whose best label is `supplied-keyring`; and otherwise, online, the keyring read from www.truestamp.com, and offline the keys built into this CLI. A `base_url` set in `config.toml` or `TRUESTAMP_BASE_URL` points the API commands and never moves the keyring read. `--environment` (`prod`, `dev`, `staging` or `test`) names the Truestamp environment whose proofs the run checks, again for the run only. A run under another environment than `prod` needs `--keyring FILE`, `--no-keyring`, or a keyring configured for that environment under `[verify.keyrings]` in `config.toml`, which is used only when `--environment` names it.
 
 `--horizon`, `--esplora` and `--bitcoin-core` read Stellar and Bitcoin from servers you name, each in place of the built-in source of the network its identity read shows; regtest has no built-in source. A flag overrides the environment, which overrides the file. A Bitcoin Core node's RPC credentials come from the configuration file or the environment only, never the command line, and a source URL that carries a user name or password is refused. Several sources for one network, in an order and under a policy (`first`, `at_least N` or `all`), are set in `config.toml` alone:
 
@@ -484,20 +520,30 @@ Because `--offline` and `--remote` are also config keys, an ambient `TRUESTAMP_V
 - Step 0, **CONFIGURATION**: the environment the run checks, the network pins, the sources and the keyring that governs, before the file is read. Online, each Stellar and Bitcoin source's network is confirmed first: a source that answers for the wrong network is `configuration_error`.
 - Steps 1 to 3, **READ**, **PARSE** and **ENVELOPE**: the file is at most 262,144 octets, is one strict JSON text, and is exactly the envelope `{proof, signature}`. A failure at these steps is a bare rejection: `{code, message, sub_reason}` and no report.
 - Steps 4 to 6, **ENVIRONMENT**, **KEY_BINDING** and **SIGNATURE**: the environment marker against the run's environment, the signer's key against the keyring, and the strict Ed25519 signature over `proof_hash`. A failure here ends the run.
-- Steps 7 to 9, **SHAPE**, **POLICY** and **DERIVE**: the schema, every network against the pins, and every hash, inclusion proof and link recomputed from the values the proof carries.
+- Steps 7 to 9, **SHAPE**, **POLICY** and **DERIVE**: the schema, every network against the pins, and every value a check compares and every inclusion walk recomputed from the values the proof carries, and every link checked.
 - Steps 10 to 12, **CHAIN**, **SOURCES** and **WINDOW**: online, each Stellar and Bitcoin commitment and each entropy observation read from its source, and the submitted-after and submitted-before edges drawn from what was read. Offline, each is a skip.
 - Step 13, **EXPECTED_HASH**: `--expected-hash` against `claims.hash`.
 - Step 14, **VERDICT**: the label.
 
-Each check gives one row, `pass`, `fail`, `skip`, `warn` or `info`, with a reason code. A skip is a check this run did not make, never a failure: an offline run, an unreachable source or history a source no longer holds leaves an edge absent and fails nothing. The text output names the label, the attribution, the trust root, the environment (beside the verdict when it is not `prod`), keyless mode in words, each edge with the source it was read from in this run, and every row that does not pass. No window is shown for a `failed` run. `--json` writes the report exactly as SPEC.md section 10.5 gives it (`attribution`, `code`, `environment`, `label`, `rows`, `subject_id`, `submitted_after`, `submitted_before`, `trust_root`, `type`, `verified`, `window`), or the bare rejection.
+Each check gives one row, `pass`, `fail`, `skip`, `warn` or `info`, with a reason code. A skip is a check this run did not make, never a failure: an offline run, an unreachable source or history a source no longer holds leaves an edge absent and fails nothing. The text output names the label, the attribution, the trust root, the environment (beside the verdict when it is not `prod`), keyless mode in words, each edge with the source it was read from in this run, and every row that does not pass. No window is shown for a `failed` run. For an item proof the text also gives the `item_hash` recomputed from the subject's record and, beside it, its item code (SPEC.md section 11.5): a name for the item, never a check, a pass or a row. `--json` writes the report exactly as SPEC.md section 10.5 gives it (`attribution`, `code`, `environment`, `label`, `rows`, `subject_id`, `submitted_after`, `submitted_before`, `trust_root`, `type`, `verified`, `window`), or the bare rejection, and carries no item code.
 
 `--remote` also asks the Truestamp service to verify the proof and prints its verdict on stderr, beside the report and never as a row of it; the exit code is this run's own.
+
+`truestamp inspect` reads a proof through the same reader and SHAPE checks, and prints every member it carries by its value class (SPEC.md section 3.7), `proof_hash`, the key id of the signer's key, the values DERIVE recomputes and, for an item proof, the item code. It verifies nothing: no key, no signature, no chain and no verdict.
+
+## Conformance
+
+This CLI passes every case of the conformance vectors of SPEC.md section 13 (`vectors/cases.json`), each online case answered from its replay file. The vectors are a copy under [`testdata/verification/`](./testdata/verification/), and a claim of conformance names what SPEC.md section 13.1 asks for: the commit of truestamp-verification that [`testdata/verification/SOURCE`](./testdata/verification/SOURCE) names, and the SHA-256 of the copy's [`testdata/verification/MANIFEST.sha256`](./testdata/verification/MANIFEST.sha256), which gives the SHA-256 of every file under the copy's `spec/` and `vectors/`. Both are read from the files, never written here: `shasum -a 256 testdata/verification/MANIFEST.sha256` prints the digest, and the conformance test logs the claim, `conforms to truestamp-verification <commit>, MANIFEST.sha256 <digest>: <n> cases`:
+
+```sh
+go test -count=1 -run '^TestConformance$' -v ./internal/vectorcases/
+```
 
 ## Rate limits
 
 The Truestamp API refuses an over-limit request with HTTP `429` and an error whose code is `rate_limited`. The refusal names how long to wait: a `Retry-After` header (whole seconds) on refusals from the per-surface request-rate limit, or `meta.retry_after_ms` on refusals raised inside an action (an item submission over the per-user rate, for example). The CLI waits that long, plus up to two seconds of random jitter, and repeats the request once, saying why it has gone quiet when stderr is a terminal. The jitter is deliberate: the per-address guard described below is a window aligned to the clock minute, so every client it refuses in the same minute is told the same second, and one that retried on exactly that second would arrive at the boundary together with all the others. The per-caller budget is a token bucket, so its `Retry-After` is your own short wait for the next token, and the jitter costs at most two seconds there. A second refusal, a wait of more than a minute, or a `retry_after_ms` of `null` (the request is over the limit on its own, and no wait admits it) is reported as `rate limited (retry after Ns, limit L): <server detail>`, and the command exits `1`. The OAuth token and revocation endpoints get the same one retry, keyed on the `429` status and `Retry-After`; a rate-limited token refresh is reported as a rate limit and never as an expired session, so wait rather than signing in again.
 
-The limits themselves are server configuration and can change without a CLI release. At the time of writing: the per-caller budget for the JSON:API is a token bucket of 120 requests refilling at 120 per minute; each API surface also admits at most 1,000 requests per minute per client address, checked before any credential is examined, so a flood of missing or bad credentials is refused with the same `429`; the OAuth endpoints allow 60 per minute per IP; item submission is limited to 1,000 per minute per user; proof generation (`proofs get`) to 300 per minute per account; and proof verification (`verify --remote`) to 30 per minute per account, with a fleet-wide ceiling of 120 per minute on verifications that contact the public chains (`--offline` skips that ceiling). The limit a refusal names (`meta.limit`) is the one that applied.
+The limits themselves are server configuration and can change without a CLI release. At the time of writing: the per-caller budget for the JSON:API is a token bucket of 120 requests refilling at 120 per minute; each API surface also admits at most 1,000 requests per minute per client address, checked before any credential is examined, so a flood of missing or bad credentials is refused with the same `429`; the OAuth endpoints allow 60 per minute per IP; item submission is limited to 1,000 per minute per user; proof generation (`proofs get`) to 300 per minute per caller; and proof verification (`verify --remote`) to 30 per minute per caller (the user, or the client address when signed out). The limit a refusal names (`meta.limit`) is the one that applied.
 
 ## Exit codes
 
@@ -525,7 +571,7 @@ Only `0` says that Truestamp signed the proof and that its submission window is 
 
 `upgrade --check` exits `0` whatever it finds; the answer is the line it prints. Pass `--exit-code` to encode the result in the status instead: `1` an upgrade is available, `2` a network error prevented the check, `3` the latest release is a pre-release and will not auto-install.
 
-Usage and flag-parse errors (`unknown flag`, unknown sub-command) exit `1`, not `2`. Scripts that branch on specific codes should check only `upgrade --check`'s documented codes; for other commands, treat any non-zero as failure.
+Usage and flag-parse errors (`unknown flag`, unknown sub-command) exit `1`, not `2`. Scripts that branch on specific codes should check only `verify`'s codes above and `upgrade --check --exit-code`'s; for every other command, treat any non-zero as failure.
 
 ## Contributing
 

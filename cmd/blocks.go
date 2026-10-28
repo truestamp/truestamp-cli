@@ -24,10 +24,9 @@ A block is the full signed record: Merkle root, state, signature, key id,
 and the links to its predecessor. The same block projected to four public
 fields is a beacon; see 'truestamp beacons'.
 
-The two are not interchangeable. Only finalized or committed blocks
-project as beacons, and the chain advances about once a minute, so the
-head block is routinely not yet finalized: 'blocks latest' and
-'beacons latest' return different rows most of the time. They are two
+The two are not interchangeable. Every block is created finalized, so
+'blocks latest' and 'beacons latest' name the same head block, but a
+beacon is four fields and a block carries its internals. They are two
 questions, not two spellings of one.
 
 Requires authentication, run 'truestamp auth login', or set TRUESTAMP_API_KEY / --api-key for headless/CI use.`,
@@ -110,8 +109,8 @@ var blocksLatestCmd = &cobra.Command{
 	Long: `Show the head block: the block with the greatest height, whatever
 its state.
 
-This is not the same as 'truestamp beacons latest', which shows the most
-recent *finalized* block. The head is routinely not yet finalized.`,
+'truestamp beacons latest' names the same block, since every block is
+created finalized, but shows only its four public fields.`,
 	Args: cobra.NoArgs,
 	RunE: func(cmd *cobra.Command, _ []string) error {
 		cfg, err := blocksConfig(cmd)
@@ -209,7 +208,7 @@ func renderBlockList(cmd *cobra.Command, list []blocks.Block, pg listPage) error
 	tbl := ui.CompactTable().StyleFunc(ui.HeaderRowStyleFunc()).Rows(rows...)
 	ui.Fprintln(w, strings.Join([]string{header, "", tbl.String()}, "\n"))
 	renderListHints(cmd.ErrOrStderr(), pg,
-		"Hint: 'truestamp blocks get <id>' shows one block; 'truestamp proofs get --type block <id>' fetches its proof bundle.")
+		"Hint: 'truestamp blocks get <id>' shows one block; 'truestamp proofs get --type block <id>' fetches its proof.")
 	return nil
 }
 

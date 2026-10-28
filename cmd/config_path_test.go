@@ -168,19 +168,18 @@ func TestCLI_ConfigShow_ReportsActiveFile(t *testing.T) {
 	}
 }
 
-// TestCLI_TeamsUseClear_WritesToConfigFlag is the CLI-level write-path
-// regression. `teams use --clear` is the one writer reachable without a live
-// server: it short-circuits on appConfig.Team and calls config.SetTeam("")
-// with no network access at all.
-//
-// Before the fix this test failed twice over, the custom file kept
-// `team = "..."` and the platform default was created and written.
+// TestCLI_TeamsUseClear_WritesToConfigFlag: `teams use --clear` writes
+// to the file --config names. It is the one writer reachable without a
+// live server: it short-circuits on appConfig.Team and calls
+// config.SetTeam("") with no network access at all. Mutant killed: the
+// write sent to the platform default, ConfigFilePath in place of
+// ActivePath (the run fails reading a default file that does not exist).
 func TestCLI_TeamsUseClear_WritesToConfigFlag(t *testing.T) {
 	dir := t.TempDir()
 	custom := filepath.Join(dir, "custom.toml")
 	// An unrelated setting that must survive the rewrite. Deliberately NOT
-	// `silent`: since Phase 0 that key is CLI-wide, so setting it here
-	// would silence the very command under test.
+	// `silent`: that key is CLI-wide, so setting it here would silence the
+	// very command under test.
 	original := `base_url = "https://example.invalid"
 team = "019dbd00-0000-7000-8000-000000000000"
 

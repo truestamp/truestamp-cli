@@ -35,14 +35,14 @@ served unauthenticated from /.well-known/keyring.json, and it is the same
 document 'truestamp verify' consults for the key binding step.
 
 What the keyring can and cannot tell you: it answers "is this key
-Truestamp's", which a proof bundle cannot answer about itself, because a
-forged bundle is self-consistent by construction and carries its forger's
-own public key. It does not tell you a key was uncompromised, was valid
-at signing time, or was authorized — the document carries no revocation
+Truestamp's", which a proof cannot answer about itself, because a forged
+proof is self-consistent by construction and carries its forger's own
+public key. It does not tell you a key was uncompromised, was valid at
+signing time, or was authorized: the document carries no revocation
 flag, no validity interval and no timestamps.
 
-The stronger artifact is the bundle-carried signing key event, which ties
-a key to a block whose hash sits under a root committed to a public
+The stronger artifact is the signing key event a proof carries, which
+ties a key to a block whose hash sits under a root committed to a public
 blockchain, and stays checkable long after Truestamp is gone.`,
 }
 

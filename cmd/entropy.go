@@ -95,11 +95,12 @@ var entropyGetCmd = &cobra.Command{
 
 The two shapes are disjoint: a UUIDv7 has hyphens, and an entropy hash is
 exactly 64 lowercase hex characters, so which you passed is unambiguous.
-The hash is the value an item's metadata commits to under
-subject.metadata.witnesses, so this is how a witness named in a proof is
-traced back to the observation it came from:
+The hash is the value an item's record commits to under
+/proof/subject/record/witness_hashes/entropy_X (X is nist, stellar or
+bitcoin), so this is how a witness named in a proof is traced back to the
+observation it came from:
 
-  truestamp entropy get $(jq -r .subject.metadata.witnesses.entropy_stellar proof.json)
+  truestamp entropy get $(jq -r .proof.subject.record.witness_hashes.entropy_stellar proof.json)
 
 There is no by-hash route on the server, so a hash lookup is a filter; the
 hex is validated here before the request is sent, and more than one match
@@ -302,7 +303,7 @@ func renderObservationList(cmd *cobra.Command, list []entropy.Observation, pg li
 	tbl := ui.CompactTable().StyleFunc(ui.HeaderRowStyleFunc()).Rows(rows...)
 	ui.Fprintln(w, strings.Join([]string{header, "", tbl.String()}, "\n"))
 	renderListHints(cmd.ErrOrStderr(), pg,
-		"Hint: 'truestamp proofs get --type entropy_<source> <id>' fetches a verifiable proof bundle "+
+		"Hint: 'truestamp proofs get --type entropy_<source> <id>' fetches a verifiable proof "+
 			"(<source> is the SOURCE column).")
 	return nil
 }

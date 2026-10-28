@@ -9,7 +9,7 @@ body:
   - type: markdown
     attributes:
       value: |
-        This form is for the CLI itself — a flag, an output format, a sub-command, shell behaviour.
+        This form is for the CLI itself: a flag, an output format, a sub-command, shell behaviour.
 
         For the Truestamp service (new chains, webhooks, the API, the web app), [the feedback board](https://truestamp.userjot.com/board/features) is the better home: ideas are votable and feed the [roadmap](https://truestamp.userjot.com/roadmap). Posting needs a UserJot account; the Feedback popup on [truestamp.com/support](https://www.truestamp.com/support) doesn't.
 

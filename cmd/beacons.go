@@ -30,10 +30,9 @@ A beacon is the four-field public view of a finalized block:
 entropy observation finalized inside a minute window and makes a good
 "proof of life" commitment.
 
-Only finalized or committed blocks project as beacons, so
-'beacons latest' and 'blocks latest' answer different questions: the head
-block is routinely not yet finalized. For a block's internals — Merkle
-root, state, signature, key id, chain links — use 'truestamp blocks get'.
+Every block is created finalized, so 'beacons latest' and 'blocks latest'
+name the same head block, in two views. For a block's internals (Merkle
+root, state, signature, key id, chain links) use 'truestamp blocks get'.
 
 Requires authentication, run 'truestamp auth login', or set TRUESTAMP_API_KEY / --api-key for headless/CI use.`,
 }

@@ -154,7 +154,7 @@ func TestSetUserAgent_StampedOnOutboundRequests(t *testing.T) {
 // --- Typed error coverage ---
 //
 // A verifier must report an unreachable source as `skip` and a
-// definitive 404 on its own terms (whitepaper E.17/E.18/E.21/E.22), so
+// definitive 404 on its own terms (SPEC.md section 10.4), so
 // the status code and the transport/response distinction have to reach
 // the call site instead of collapsing into one opaque error.
 

@@ -25,10 +25,10 @@ import (
 // will wait, the jitter added to that wait, and the single retry, so those
 // live here.
 //
-// The shared client built by Init is deliberately NOT given the retry: the
-// third-party sources the verifier consults through GetJSONCtx report a
-// 429 as `skip` (whitepaper Appendix E.22) and must not be retried, and
-// the upgrade check treats GitHub's 429 as a failed check. The Truestamp
+// The shared client built by Init is deliberately NOT given the retry: a
+// 429 it receives is returned to its caller as it is, and the caller
+// decides what it means. The verifier reads its sources through a
+// [SingleRead], a client of its own that makes one attempt. The Truestamp
 // JSON:API gets the retry in internal/jsonapi.Send; the OAuth token and
 // revocation endpoints get it from NewRetryAfterTransport.
 

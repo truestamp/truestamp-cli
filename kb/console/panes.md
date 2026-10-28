@@ -45,7 +45,13 @@ sharing one WebSocket (`internal/console/app.go`, `pane` enum +
    server-pushed events plus a Detail Panel underneath rendering the
    full untruncated payload of the selected row. All catalog streams
    are subscribed automatically once the welcome envelope arrives
-   (`subscribeAllStreams`). Default focus is the waterfall, and the
+   (`subscribeAllStreams`). The catalog is the server's
+   (`ConsoleStreams.catalog_for/1`): `blocks`, `blocks.healing`,
+   `beacons`, `commitments.subjects` (every entropy observation's
+   commitment into its block and the current team's items'),
+   `commitments.blocks` (blocks into epochs on Stellar and Bitcoin),
+   `entropy.nist`, `entropy.stellar` and `entropy.bitcoin`, and
+   `items.team` when a team is in scope. Default focus is the waterfall, and the
    default order is reverse-chronological (newest at top).
 
 2. **New Item** (key `2`): a `huh` form for registering a timestamped
@@ -56,12 +62,23 @@ sharing one WebSocket (`internal/console/app.go`, `pane` enum +
    - Group B (external-hash mode only): `Hash type`, `Hash`. The whole
      group is skipped when the mode is "Claims content as source of
      truth", and the description validator enforces the 32-character
-     minimum inline in that mode.
+     minimum inline in that mode, counting the characters (code points)
+     of the text as typed. The `Hash type` picker starts on "Choose a
+     hash type", with no type chosen, and one must be picked.
 
-   Submit pushes `items.create` with `watch: true` over the lobby, so
-   the server auto-watches the new item. The pane then swaps into a
-   watching state showing a summary card with live `item.*` state
-   transitions flowing in below.
+   Submit pushes `items.create` over the lobby with `{claims_json,
+   watch: true}`: `claims_json` is the claims the form states as one
+   JSON text, each value exactly as typed, nothing trimmed, case-folded
+   or filled in, and an empty optional field left out
+   (`buildCreateItemPayload`). `watch` makes the server auto-watch the
+   new item. A refusal shows the reply's code and message, and each of
+   its `claims_reasons` with its JSON pointer into the claims. On
+   success the pane swaps into a watching state: a summary card (the
+   id, the name and description, the state, the hash and its type in
+   external-hash mode, the item hash, the item code, and the reply's
+   `claims_jcs` and `claims_hash`, the claims in canonical form exactly
+   as the server keeps them and the hash computed over them) with live
+   `item.*` state transitions flowing in below.
 
 3. **Teams** (key `3`): the membership table (`GET /memberships`),
    with the active team marked from the shared `activeScope`. `enter`
@@ -176,7 +193,18 @@ row with a dim count badge in the resource's own accent color.
 
 For entropy bursts the stream id is spliced into the kind
 (`entropy.burst` on stream `entropy.bitcoin` renders as
-`entropy.bitcoin.burst`, via `events.burstKind`).
+`entropy.bitcoin.burst`, via `events.burstKind`). A
+`commitment.burst` on `commitments.blocks` holds only block rows and
+renders as `commitment.block.burst`; one on `commitments.subjects` may
+mix items and observations and stays `commitment.burst`.
+
+A single `commitment.created` row carries the server's `subject_kind`,
+which `events.compactKind` makes the middle segment of its kind:
+`commitment.item` or `commitment.observation` (a record committed into
+its block, on `commitments.subjects`) and `commitment.block` (a block
+committed into an epoch's tree on a public chain, on
+`commitments.blocks`). Both are the one kind of commitment, at its two
+levels.
 
 The rest of the burst payload (`window_ms`, `first_at`, `last_at`,
 `by_kind`, `by_state`, and the nested `latest` projection) is
