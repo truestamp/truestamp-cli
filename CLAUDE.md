@@ -78,7 +78,7 @@ Read-only `git log`, `git show`, `git diff`, `git blame`, and `gh ...` commands 
 
 `task build` produces `build/truestamp`. For the subcommand and flag inventory, run `./build/truestamp --help` (and `<subcommand> --help`), or read `README.md` §Commands / §Configuration. The flag semantics `--help` cannot convey are in [`kb/configuration.md`](kb/configuration.md).
 
-Pagination limits: the CLI enforces only the floor (`--limit 0` is refused locally; the OpenAPI document states `page.limit` `minimum: 1` and **no maximum anywhere**). The ceiling belongs to the server and differs by endpoint: `beacons` refuses over 100 (`HTTP 400: must be less than or equal to 100`), while the JSON:API resources do not: `blocks list --limit 250` returns 250. A `MaxLimit = 100` constant used to live in `internal/items` and `internal/blocks`; it was both unbacked and wrong, and was removed. See `cmd/limits.go`.
+Pagination limits: the CLI enforces only the floor (`--limit 0` is refused locally; the OpenAPI document states `page.limit` `minimum: 1` and **no maximum anywhere**). The ceiling belongs to the server: every list route, `beacons` included, lowers a `page[limit]` above its action's `max_page_size` (250) to that size instead of refusing it, and the listing says so. See `cmd/limits.go`.
 
 ### Pipeline recipes
 
