@@ -111,11 +111,16 @@ func (s *lobbyServer) reply(f wschannel.Frame, response any) {
 	s.write(wschannel.Frame{JoinRef: f.JoinRef, Ref: f.Ref, Topic: f.Topic, Event: "phx_reply", Payload: payload})
 }
 
+// pushAtLayout is the server's "at" format: RFC 3339 in UTC with
+// microseconds.
+const pushAtLayout = "2006-01-02T15:04:05.000000Z"
+
 // push sends a stream push as the channel's push_event/4 does: on the
-// lobby topic, event "stream", {stream, kind, at, data}.
-func (s *lobbyServer) push(t *testing.T, stream, kind string, data map[string]any) {
+// lobby topic, event "stream", {stream, kind, at, data}, with at the
+// given time in the server's format.
+func (s *lobbyServer) push(t *testing.T, stream, kind string, at time.Time, data map[string]any) {
 	t.Helper()
-	payload, err := json.Marshal(map[string]any{"stream": stream, "kind": kind, "at": "2026-10-27T16:00:00.123456Z", "data": data})
+	payload, err := json.Marshal(map[string]any{"stream": stream, "kind": kind, "at": at.UTC().Format(pushAtLayout), "data": data})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -163,11 +168,16 @@ func commitmentRow(id, subjectKind string) map[string]any {
 // commitment streams among them, and renders the one commitment event
 // both emit, commitment.created, as a row naming its subject_kind: an
 // item and an observation on commitments.subjects, a block on
-// commitments.blocks (TruestampWeb.ConsoleStreams.classify/3). The
-// server is a loopback stand-in speaking Phoenix V2 frames. Mutants
-// killed: subscribeAllStreams leaving any one catalog stream out (here
-// commitments.subjects or commitments.blocks); compactKind without its
-// commitment branch (all three rows "commitment").
+// commitments.blocks (TruestampWeb.ConsoleStreams.classify/3). Each
+// row is stamped one minute before the current time, inside the
+// Monitor's retention, and a first event stamped an hour beyond the
+// retention ages out. The server is a loopback stand-in speaking
+// Phoenix V2 frames. Mutants killed: subscribeAllStreams leaving any
+// one catalog stream out (here commitments.subjects or
+// commitments.blocks); compactKind without its commitment branch (all
+// three rows "commitment"); evictAged with a cutoff that drops every
+// event (no rows) or keeps every event (the aged event rendered as a
+// fourth row).
 func TestMonitor_FollowsTheServersCommitmentStreams(t *testing.T) {
 	srv := startLobbyServer(t)
 	client, err := wschannel.New(wschannel.Options{URL: srv.url(), APIKey: "test-key", HeartbeatInterval: time.Hour})
@@ -212,14 +222,19 @@ func TestMonitor_FollowsTheServersCommitmentStreams(t *testing.T) {
 		{"commitments.subjects", "019a3f2c-6b1e-7d40-9a51-3c2b1d0e4f62", "observation", "commitment.observation"},
 		{"commitments.blocks", "019a3f2c-6b1e-7d40-9a51-3c2b1d0e4f63", "block", "commitment.block"},
 	}
-	for _, r := range rows {
-		srv.push(t, r.stream, "commitment.created", commitmentRow(r.id, r.subjectKind))
+	deliver := func(stream, subjectKind, id string, at time.Time) {
+		t.Helper()
+		srv.push(t, stream, "commitment.created", at, commitmentRow(id, subjectKind))
 		select {
 		case p := <-client.Pushes():
 			m.handlePush(pushMsg{Topic: p.Topic, Event: p.Event, Payload: p.Payload})
 		case <-ctx.Done():
-			t.Fatalf("the %s push never arrived", r.subjectKind)
+			t.Fatalf("the %s push never arrived", subjectKind)
 		}
+	}
+	deliver("commitments.subjects", "item", "019a3f2c-6b1e-7d40-9a51-3c2b1d0e4f60", time.Now().Add(-eventRetention-time.Hour))
+	for _, r := range rows {
+		deliver(r.stream, r.subjectKind, r.id, time.Now().Add(-time.Minute))
 	}
 	if len(m.events) != len(rows) {
 		t.Fatalf("%d rows rendered; want %d", len(m.events), len(rows))
