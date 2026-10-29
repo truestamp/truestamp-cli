@@ -722,7 +722,8 @@ func TestVerify_Faults(t *testing.T) {
 // --- the verifier's compiled-in addresses ---
 
 // The binary every test runs is built with both compiled-in addresses at
-// deadEndpoints, as its build information records. An online run of it
+// deadEndpoints and the fixed BuildYear of testBuildYearFlag, as its build
+// information records (testBinaryLDFlags). An online run of it
 // under prod reads its keyring there: keyring_unavailable, with
 // trust_root's location the dead address. An online run of the vectors'
 // sound item proof, which carries a NIST pulse, under E_v test with the
@@ -734,7 +735,8 @@ func TestVerify_Faults(t *testing.T) {
 // read goes to www.truestamp.com, which the guard refuses and records);
 // nistBeaconBase initialized by a call, `fmt.Sprint(NISTBeaconURL)`, which
 // the linker cannot set (the NIST row's source is
-// https://beacon.nist.gov).
+// https://beacon.nist.gov); runTests building binaryPath without
+// testBuildYearFlag (the build information lacks it).
 func TestVerify_TheTestBinaryIsRedirected(t *testing.T) {
 	info, err := buildinfo.ReadFile(binaryPath)
 	if err != nil {
@@ -746,7 +748,7 @@ func TestVerify_TheTestBinaryIsRedirected(t *testing.T) {
 			ldflags = s.Value
 		}
 	}
-	if ldflags != verifierEndpointFlags(deadEndpoints) {
+	if ldflags != testBinaryLDFlags() {
 		t.Errorf("the test binary's -ldflags are %q", ldflags)
 	}
 	path := writeTestProof(t, productionProof)

@@ -144,8 +144,9 @@ func renderBeaconCard(w io.Writer, apiURL string, b *beacons.Beacon) {
 	ui.Fprintln(w, strings.Join([]string{header, "", tbl.String()}, "\n"))
 }
 
-// timestampWithRelative appends a coarse "N minutes ago" hint to an ISO
-// timestamp when it parses cleanly. Falls back to the input string.
+// timestampWithRelative appends a coarse "5m ago" hint to an ISO
+// timestamp when it parses cleanly, or "in 5m" when it is in the future
+// (an item's expiry). Falls back to the input string.
 // Delegates the second-precision truncation to the shared ui helper so
 // all CLI surfaces render timestamps consistently.
 func timestampWithRelative(ts string) string {
@@ -159,20 +160,27 @@ func timestampWithRelative(ts string) string {
 	return ui.TruncateToSecond(ts) + "  (" + humanizeAge(time.Since(parsed)) + ")"
 }
 
+// humanizeAge renders d, the time since an instant, in one coarse unit:
+// "Ns ago", "Nm ago", "Nh ago" or "Nd ago" for an instant in the past,
+// and "in Ns", "in Nm", "in Nh" or "in Nd" for one in the future (a
+// negative d). The age is rounded to the second first, so an instant
+// less than half a second ahead reads "0s ago".
 func humanizeAge(d time.Duration) string {
-	if d < 0 {
-		d = -d
-	}
 	secs := int(math.Round(d.Seconds()))
+	format := "%d%s ago"
+	if secs < 0 {
+		secs = -secs
+		format = "in %d%s"
+	}
 	switch {
 	case secs < 60:
-		return fmt.Sprintf("%ds ago", secs)
+		return fmt.Sprintf(format, secs, "s")
 	case secs < 3600:
-		return fmt.Sprintf("%dm ago", secs/60)
+		return fmt.Sprintf(format, secs/60, "m")
 	case secs < 86400:
-		return fmt.Sprintf("%dh ago", secs/3600)
+		return fmt.Sprintf(format, secs/3600, "h")
 	default:
-		return fmt.Sprintf("%dd ago", secs/86400)
+		return fmt.Sprintf(format, secs/86400, "d")
 	}
 }
 

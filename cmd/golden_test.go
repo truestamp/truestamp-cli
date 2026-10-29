@@ -62,6 +62,9 @@ func truncate(s string, n int) string {
 
 // TestGolden_Help pins the top-level --help output. Changes to the
 // command tree or a misplaced flag description will break this test.
+// Its copyright line names the year testBuildYearFlag links into the
+// binary, so it passes in any year: it fails when that flag is dropped
+// and internal/version's clock fallback names a year other than 2026.
 func TestGolden_Help(t *testing.T) {
 	// Set a stable config path so the --config default doesn't include
 	// the runner's $HOME.
