@@ -7,7 +7,7 @@
     "PINNED": "compared with pinned values before anything uses them",
     "PREIMAGE": "input to a CHECKED hash or a named check; a payload value is compared with its source only after a read",
     "RECORDED": "never a verdict input except where a row above uses it; shown under a provenance heading chosen by attribution",
-    "SUBMITTED": "bound by claims_hash; shown only as the submitter's statement, with bidirectional and zero-width characters escaped"
+    "SUBMITTED": "bound by claims_hash; shown only as the submitter's statement, with at least U+061C, U+200B to U+200F, U+202A to U+202E, U+2060 to U+2064, U+2066 to U+2069 and U+FEFF escaped"
   },
   "conditions": {
     "genesis_block": "the block record's metadata has a genesis member",

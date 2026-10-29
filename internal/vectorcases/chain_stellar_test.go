@@ -85,7 +85,9 @@ func sourcesReadsOf(replay *caseReplay) []chainRead {
 // second root read of sources-first-past_not_held's source a); the
 // message of a row not_held_by_source or source_unreachable chosen from
 // its code alone (the ledger cases say nothing of the transaction
-// matching).
+// matching); one failing source taken as the row's outcome under all
+// (sources-all-fail_and_unreachable's row fails chain_mismatch, beside a
+// source that is unreachable, where it skips sources_incomplete).
 func TestCases_TheStellarCommitmentCases(t *testing.T) {
 	cases, err := vectorcases.Load()
 	if err != nil {
@@ -139,8 +141,8 @@ func TestCases_TheStellarCommitmentCases(t *testing.T) {
 			checkStellarCandidate(t, c, got.run, file, replay)
 		})
 	}
-	if held != 34 || messaged != 2 {
-		t.Fatalf("%d Stellar cases, want 34, and %d ledger cases, want 2", held, messaged)
+	if held != 35 || messaged != 2 {
+		t.Fatalf("%d Stellar cases, want 35, and %d ledger cases, want 2", held, messaged)
 	}
 }
 

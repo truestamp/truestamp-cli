@@ -13,7 +13,7 @@ import (
 )
 
 // Load reads a case's sources, {<chain>: {<network>: {policy, required,
-// sources}}} (SPEC.md section 13.2): 18 cases name them, each online, each
+// sources}}} (SPEC.md section 13.2): 19 cases name them, each online, each
 // naming only networks the case pins, as a commitment or an entropy pin,
 // and sources-at_least_2-one_unreachable's Stellar testnet has the policy
 // at_least, required 2, over the sources a, b and c, in that order, and
@@ -53,8 +53,8 @@ func TestLoad_ReadsSources(t *testing.T) {
 			t.Errorf("%s: sources %+v", c.ID, c.Config.Sources)
 		}
 	}
-	if named != 18 {
-		t.Fatalf("%d cases name sources, want 18", named)
+	if named != 19 {
+		t.Fatalf("%d cases name sources, want 19", named)
 	}
 }
 

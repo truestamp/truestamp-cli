@@ -146,8 +146,8 @@ func TestCases_TheEntropyCases(t *testing.T) {
 			checkEntropyCandidates(t, c, got.run, objects, file, replay)
 		})
 	}
-	if held != 64 || named != 19 {
-		t.Fatalf("%d entropy cases, want 64; %d named, want 19", held, named)
+	if held != 66 || named != 19 {
+		t.Fatalf("%d entropy cases, want 66; %d named, want 19", held, named)
 	}
 }
 

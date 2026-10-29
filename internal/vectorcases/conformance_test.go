@@ -245,11 +245,11 @@ func citation(t *testing.T) (commit, manifest string) {
 }
 
 // The conformance test of SPEC.md section 13.1: this verifier gives the
-// expected output of every case of cases.json, all 482, each of the 87
+// expected output of every case of cases.json, all 484, each of the 89
 // online ones answered from its replay file by the replay adapter
 // (SPEC.md section 13.2), as section 13.1 compares it (conformance): the
-// 65 bare rejections by code and sub_reason, and the 417 reports by label
-// and every row, the 81 online reports by their edges too, the one case
+// 65 bare rejections by code and sub_reason, and the 419 reports by label
+// and every row, the 83 online reports by their edges too, the one case
 // whose expected gives a code (two_steps-policy-derive) by that code, and
 // the 28 cases that name one of the 11 sound traces by that trace. It logs the claim of conformance
 // section 13.1 asks for, the spec commit and the digest of MANIFEST.sha256
@@ -271,8 +271,8 @@ func TestConformance(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(cases) != 482 {
-		t.Fatalf("cases.json holds %d cases, want 482", len(cases))
+	if len(cases) != 484 {
+		t.Fatalf("cases.json holds %d cases, want 484", len(cases))
 	}
 	tally := map[string]int{}
 	for _, c := range cases {
@@ -290,8 +290,8 @@ func TestConformance(t *testing.T) {
 		})
 	}
 	want := map[string]int{
-		"matched": 482, "online": 87, "bare rejection": 65, "report": 417,
-		"the code": 1, "the edges": 81, "the trace": 28, "through Verify": 482,
+		"matched": 484, "online": 89, "bare rejection": 65, "report": 419,
+		"the code": 1, "the edges": 83, "the trace": 28, "through Verify": 484,
 	}
 	if len(tally) != len(want) {
 		t.Fatalf("tally %v, want %v", tally, want)
@@ -307,7 +307,7 @@ func TestConformance(t *testing.T) {
 // One source configured for a network through a case's sources, under
 // each policy of SPEC.md section 9, first, at_least 1 and all, gives the
 // output of the case, which names no sources and so has one source under
-// first (section 13.2): each of the 69 online cases that names none, run
+// first (section 13.2): each of the 70 online cases that names none, run
 // again with each network its replay file stands for given its one source
 // under each policy, matches as the conformance test compares it, and the
 // runner's checkSources holds each run to the policy given. Mutant killed:
@@ -352,7 +352,7 @@ func TestConformance_OneSourceUnderEachPolicyIsNoSources(t *testing.T) {
 			runs++
 		}
 	}
-	if runs != 69*3 {
-		t.Fatalf("%d runs, want %d: three for each of the 69 online cases that name no sources", runs, 69*3)
+	if runs != 70*3 {
+		t.Fatalf("%d runs, want %d: three for each of the 70 online cases that name no sources", runs, 70*3)
 	}
 }

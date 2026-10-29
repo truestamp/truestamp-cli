@@ -737,7 +737,7 @@ func unsourced(t *testing.T, c vectorcases.Case, o outcome) []string {
 // subject id its proof carries, stays open through DERIVE, and has a
 // failing row exactly when its expected rows do, and any other run takes
 // neither; a run that reaches DERIVE decides the external gate gateOf
-// gives (open in the 77 online cases that fail no row before CHAIN), and
+// gives (open in the 79 online cases that fail no row before CHAIN), and
 // every case whose gate does not open, the 336 offline reports and four
 // online ones (gates-online-policy, gates-online-derive and the two
 // key_binding-unavailable-* cases), matches in full, every row, CHAIN's,
@@ -745,15 +745,15 @@ func unsourced(t *testing.T, c vectorcases.Case, o outcome) []string {
 // included, with its label and its code (checkLabel), the code also the
 // one the case gives in the one case that gives it,
 // two_steps-policy-derive, whose first failing row, network_mismatch at
-// POLICY, decides it over its derivation_mismatch at DERIVE; each of the 77
+// POLICY, decides it over its derivation_mismatch at DERIVE; each of the 79
 // open cases matches in full too, every CHAIN row, Stellar's, Bitcoin's,
 // genesis.bitcoin's and KEY_EVENT_COMMITMENT's, every SOURCES row, NIST's,
 // Stellar's and Bitcoin's, and every WINDOW row, with its label and its
 // code, the six reads-entropy-*-differs cases failing at SOURCES and
-// window-inverted failing at WINDOW among them; each of the 81 online
+// window-inverted failing at WINDOW among them; each of the 83 online
 // reports has the edges its case gives (checkEdges): both null in the 29
-// labelled failed, both drawn in 34, only the submitted-before edge in 6
-// and only the submitted-after edge in 12; a run that reaches DERIVE has
+// labelled failed, both drawn in 35, only the submitted-before edge in 6
+// and only the submitted-after edge in 13; a run that reaches DERIVE has
 // exactly
 // the rows and trace of DERIVE that the model of derive_model_test.go gives
 // (checkDerive), and a run that ended before it has no trace; every row's
@@ -761,10 +761,10 @@ func unsourced(t *testing.T, c vectorcases.Case, o outcome) []string {
 // the run computed or holds (valueSourced), every SHAPE row's keyword
 // "false" or one of verifier.SchemaKeywords() among them; the five online
 // cases CONFIGURATION decides give configuration_error through the replay
-// adapter; the 18 sources-* cases, which alone name several sources of a
+// adapter; the 19 sources-* cases, which alone name several sources of a
 // network (SPEC.md section 9), run with those sources in their order under
 // their policy, sources-configuration-regtest-mainnet_block0 giving
-// configuration_error and the other 17 every row, their gate open; every
+// configuration_error and the other 18 every row, their gate open; every
 // other online case runs with one source configured for each network its
 // file stands for, under the policy first; each online case that passes
 // CONFIGURATION has, for each pin, the sources and policy its case gives
@@ -772,7 +772,7 @@ func unsourced(t *testing.T, c vectorcases.Case, o outcome) []string {
 // keyring is unavailable, key_binding-unavailable-unreachable and
 // key_binding-unavailable-load_check, read the keyring of www.truestamp.com
 // through the replay adapter and fail KEY_BINDING keyring_unavailable.
-// Each of the 417 reports, the 336 offline and the 81 online, matches as
+// Each of the 419 reports, the 336 offline and the 83 online, matches as
 // a whole report too (checkReport): written by the verifier with JCS and
 // read back, its members exactly SPEC.md section 10.5's in their order,
 // every row, its label and code, the code the case gives included, its
@@ -822,7 +822,7 @@ func unsourced(t *testing.T, c vectorcases.Case, o outcome) []string {
 // which gives the mainnet hash for regtest, is never read, and the run
 // passes CONFIGURATION); decideExternalGate ignoring a failure (the 168
 // cases that fail at POLICY or DERIVE give skip offline rows); ignoring
-// Config.Online (the 77 open online cases give skip offline rows);
+// Config.Online (the 79 open online cases give skip offline rows);
 // closedRow giving skip offline whatever the gate (the cases failing
 // before CHAIN differ); Chain without KEY_EVENT_COMMITMENT (every proof
 // with a signing key event lacks its row); Window giving
@@ -858,8 +858,8 @@ func TestCases_ThroughEveryStep(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(cases) != 482 {
-		t.Fatalf("cases.json holds %d cases, want 482", len(cases))
+	if len(cases) != 484 {
+		t.Fatalf("cases.json holds %d cases, want 484", len(cases))
 	}
 	tally := map[string]int{}
 	names := map[string]bool{}
@@ -980,19 +980,19 @@ func TestCases_ThroughEveryStep(t *testing.T) {
 		"report, POLICY fails":                 16,
 		"report, DERIVE fails":                 152,
 		"report, passes through DERIVE":        71,
-		"online report, passes through DERIVE": 77,
+		"online report, passes through DERIVE": 79,
 		"online report, POLICY fails":          1,
 		"online report, DERIVE fails":          1,
 		"online report, the gate fails":        2,
 		"bare rejection, its members":          65,
 		"report, the case gives its code":      1,
 		"matched in full":                      336,
-		"online matched in full":               81,
-		"online the external gate opens":       77,
+		"online matched in full":               83,
+		"online the external gate opens":       79,
 		"edges: none, label failed":            29,
-		"edges: both":                          34,
+		"edges: both":                          35,
 		"edges: submitted_before only":         6,
-		"edges: submitted_after only":          12,
+		"edges: submitted_after only":          13,
 	}
 	if len(tally) != len(want) {
 		t.Fatalf("tally = %v, want %v", tally, want)
@@ -1002,8 +1002,8 @@ func TestCases_ThroughEveryStep(t *testing.T) {
 			t.Fatalf("tally = %v, want %v", tally, want)
 		}
 	}
-	if len(several) != 18 {
-		t.Fatalf("%d cases name several sources of a network, %q; want the 18 sources-* cases", len(several), several)
+	if len(several) != 19 {
+		t.Fatalf("%d cases name several sources of a network, %q; want the 19 sources-* cases", len(several), several)
 	}
 	reached := slices.Sorted(maps.Keys(names))
 	if wantNames := []string{"chain", "class", "constructions", "constructions_digest", "declared", "keyword",

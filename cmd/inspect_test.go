@@ -1155,12 +1155,13 @@ func writeProof(t *testing.T, doc any) string {
 	return file
 }
 
-// inspect --json writes a claims member name with each bidirectional and
-// zero-width code point of its list (U+061C, U+200B to U+200F, U+202A to
-// U+202E, U+2060 to U+2064, U+2066 to U+2069, U+FEFF), every code point of
-// Unicode's Bidi_Control property among them, as its \uXXXX escape, the
-// same JSON value, and every other code point as itself, its neighbours
-// outside the list among them; the text quotes the name with each escaped.
+// inspect --json writes a claims member name with each code point of the
+// list SPEC.md section 3.7's SUBMITTED row escapes at least (U+061C,
+// U+200B to U+200F, U+202A to U+202E, U+2060 to U+2064, U+2066 to U+2069,
+// U+FEFF), every code point of Unicode's Bidi_Control property among
+// them, as its \uXXXX escape, the same JSON value, and every other code
+// point as itself, its neighbours outside the list among them; the text
+// quotes the name with each escaped.
 // Mutants killed: the escape left out (claimsName without its
 // MarshalJSON); a range cut short at its upper end (U+200F, U+202E, U+2064
 // or U+2069 written as itself); U+061C ARABIC LETTER MARK left out of the

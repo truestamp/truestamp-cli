@@ -10,5 +10,5 @@
   "hex": "0200000002c29ce2cc348705cc69dce93987f69a0bb070d7ff0ea533e6189dfac83ddde9f20000000000fdffffff1a14a7f457ea5bafbfc733b68cccce5dc507aac02bc6420d43976d1170fb8ee80000000000fdffffff0260c30000000000002251204499254275e5b05118d50c7f6ec0026619de4c261d170c2556038b3fbcc9fda20000000000000000226a201706e3d19201b806508fb177a212e748f59a20c152c588fef942814b772345f400000000",
   "kind": "transaction",
   "network": "regtest",
-  "source": "The regtest chain of Truestamp's staging environment, mined by its Bitcoin Core node: the raw_transaction and txoutproof of the Bitcoin commitment at /commitments/0 of a staging proof, which truestamp-cli keeps as testdata/staging-2026-09-03/proof-complete.json."
+  "source": "The regtest chain of Truestamp's staging environment, mined by its Bitcoin Core node: the raw_transaction and txoutproof of the Bitcoin commitment at /commitments/0 of a staging proof of 2026-09-03, in the layout proofs had then."
 }
