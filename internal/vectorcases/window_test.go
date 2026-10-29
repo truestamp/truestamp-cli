@@ -243,7 +243,7 @@ func idTime(t *testing.T, id string) int64 {
 	return int64(ms)
 }
 
-// The window-* family (10), and the cases whose window the entry names,
+// The window-* family (11), and the cases whose window the entry names,
 // through every step (SPEC.md sections 11.1 to 11.3 and 11.5), beyond
 // TestCases_ThroughEveryStep's rows, label and edges:
 //
@@ -256,6 +256,10 @@ func idTime(t *testing.T, id string) int64 {
 //     time lies outside the window;
 //   - window-submitted_before_tie's two submitted-before candidates are at
 //     one instant, and the edge is /commitments/bitcoin's, the first in
+//     row order;
+//   - window-submitted_after_tie's Bitcoin and Stellar entropy candidates
+//     are at one instant, later than its NIST candidate, and the
+//     submitted-after edge is /witnesses/entropy_bitcoin's, the first in
 //     row order;
 //   - window-edges_at_one_instant's edges are at one millisecond, a NIST
 //     pulse and a Stellar ledger, and its row passes;
@@ -279,6 +283,8 @@ func idTime(t *testing.T, id string) int64 {
 //
 // Mutants killed: the earliest submitted-before candidate taken with <=
 // (window-submitted_before_tie's edge is /commitments/stellar's); the
+// latest submitted-after candidate taken with >=
+// (window-submitted_after_tie's edge is /witnesses/entropy_stellar's); the
 // first submitted-before candidate always taken, or the earliest
 // submitted-after one (an edge differs from the model's); window_inverted
 // on >= (window-edges_at_one_instant fails); the inverted check left out
@@ -330,6 +336,17 @@ func TestCases_TheWindow(t *testing.T) {
 			if len(instants) != 2 || instants[0] != instants[1] || r.SubmittedBefore.Part != "/commitments/bitcoin" {
 				t.Errorf("%s: candidates at %v, the edge %s", c.ID, instants, r.SubmittedBefore.Part)
 			}
+		case "window-submitted_after_tie":
+			instants := map[string]int64{}
+			for _, row := range r.Rows {
+				if row.Step == "SOURCES" && row.Status == verifier.StatusPass && row.Part != nil {
+					instants[*row.Part] = rowInstant(t, row)
+				}
+			}
+			bitcoin, stellar, nist := instants["/witnesses/entropy_bitcoin"], instants["/witnesses/entropy_stellar"], instants["/witnesses/entropy_nist"]
+			if len(instants) != 3 || bitcoin != stellar || nist >= bitcoin || r.SubmittedAfter == nil || r.SubmittedAfter.Part != "/witnesses/entropy_bitcoin" {
+				t.Errorf("%s: candidates at %v, the edge %+v", c.ID, instants, r.SubmittedAfter)
+			}
 		case "window-edges_at_one_instant":
 			if r.SubmittedAfter.Candidate.Milliseconds() != r.SubmittedBefore.Candidate.Milliseconds() ||
 				r.SubmittedAfter.Candidate.Basis != "nist_pulse_time_read" || r.SubmittedBefore.Candidate.Basis != "stellar_ledger_close_read" {
@@ -379,8 +396,8 @@ func TestCases_TheWindow(t *testing.T) {
 			}
 		}
 	}
-	if seen != 16 {
-		t.Fatalf("%d cases, want the 10 window-* cases and 6 named", seen)
+	if seen != 17 {
+		t.Fatalf("%d cases, want the 11 window-* cases and 6 named", seen)
 	}
 }
 

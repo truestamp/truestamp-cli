@@ -287,7 +287,7 @@ func mustMarshal(t *testing.T, v any) []byte {
 
 // EXPECTED_HASH failing after WINDOW passed (SPEC.md section 10.2, steps
 // 13 and 14): each online case that is not failed and whose WINDOW drew a
-// submitted-before edge, the 40 of them, run again with an expected hash
+// submitted-before edge, the 41 of them, run again with an expected hash
 // that is not hex of any listed type's length, so its EXPECTED_HASH row
 // is fail expected_hash_mismatch at /subject/claims/hash, whatever the
 // proof's type, gives every other row as its case does, the label failed,
@@ -331,7 +331,7 @@ func TestCases_ExpectedHashFailsAfterWindow(t *testing.T) {
 			t.Errorf("%s: rows %v, report %s", c.ID, got.rows, encoded)
 		}
 	}
-	if seen != 40 {
-		t.Fatalf("%d cases, want the 40 online cases with a submitted-before edge that are not failed", seen)
+	if seen != 41 {
+		t.Fatalf("%d cases, want the 41 online cases with a submitted-before edge that are not failed", seen)
 	}
 }

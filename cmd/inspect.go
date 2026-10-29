@@ -256,9 +256,9 @@ type InspectRecorded struct {
 }
 
 // claimsName is a member name of the claims, which --json writes with
-// each bidirectional and zero-width code point as a \uXXXX escape: the
-// same JSON value, which no reader shows as a reordering or an invisible
-// character (SPEC.md section 3.7, SUBMITTED).
+// each code point SPEC.md section 3.7's SUBMITTED row lists as escaped at
+// least (escapedCodePoint) as a \uXXXX escape: the same JSON value, which
+// no reader shows as a reordering or an invisible character.
 type claimsName string
 
 // escapedCodePoint reports whether r is one of the code points a claims

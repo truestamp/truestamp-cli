@@ -63,7 +63,7 @@ func TestReplay_KeyringReads(t *testing.T) {
 }
 
 // Every case's replay file loads with its case's sources, and every file
-// under corpus/replay/ is one case's: 85 files, 18 of them the sources-*
+// under corpus/replay/ is one case's: 87 files, 19 of them the sources-*
 // cases', which alone hold records with a source; two of them hold a
 // keyring read, each of www.truestamp.com, and no other does; and each
 // holds the identity read of every source of every Stellar and Bitcoin
@@ -131,7 +131,7 @@ func TestReplay_EveryCaseFileLoads(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(entries) != len(named) || len(named) != 85 || keyringReads != 2 || withSources != 18 {
+	if len(entries) != len(named) || len(named) != 87 || keyringReads != 2 || withSources != 19 {
 		t.Fatalf("%d files, %d named by cases, %d keyring reads, %d with sources", len(entries), len(named), keyringReads, withSources)
 	}
 	for _, entry := range entries {
