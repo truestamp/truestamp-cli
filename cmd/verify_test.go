@@ -52,6 +52,18 @@ var (
 // by an origin no stored session uses.
 const deadBaseURL = "http://127.0.0.1:9"
 
+// testBuildYearFlag links the binary TestMain builds with a fixed
+// BuildYear, the year the --help goldens' copyright line names. Without
+// it internal/version falls back to the clock's year, and
+// TestGolden_Help fails from the first day of the next year.
+const testBuildYearFlag = "-X github.com/truestamp/truestamp-cli/internal/version.BuildYear=2026"
+
+// testBinaryLDFlags are the linker flags of the binary TestMain builds:
+// the verifier's two addresses at deadEndpoints, and testBuildYearFlag.
+func testBinaryLDFlags() string {
+	return verifierEndpointFlags(deadEndpoints) + " " + testBuildYearFlag
+}
+
 func TestMain(m *testing.M) {
 	os.Exit(runTests(m))
 }
@@ -80,7 +92,7 @@ func runTests(m *testing.M) int {
 	// -buildvcs=false: the binary reports version "dev" in a checkout as
 	// in a copy without VCS metadata, so the once-a-day upgrade notice,
 	// which is off for "dev", never reaches api.github.com from a test.
-	buildArgs := []string{"build", "-buildvcs=false", "-ldflags", verifierEndpointFlags(deadEndpoints)}
+	buildArgs := []string{"build", "-buildvcs=false", "-ldflags", testBinaryLDFlags()}
 	subprocessCoverDir = os.Getenv("TRUESTAMP_COVERDIR")
 	if subprocessCoverDir != "" {
 		buildArgs = append(buildArgs, "-cover", "-coverpkg=./...")
