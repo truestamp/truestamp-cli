@@ -250,8 +250,8 @@ func Configure(cfg Config) (*Run, *Rejection, error) {
 // run under E_v prod with no keyring option loads (SPEC.md section 8.3).
 // It is keyring.CompiledPin; the package's tests replace it, through
 // export_test.go, with a keyring holding a key that exists only in the
-// test, since the pin holds no key until Truestamp's production keys join
-// the spec.
+// test, since the pin holds Truestamp's production key and no test can
+// sign with it.
 var compiledPin = keyring.CompiledPin
 
 // readOnline reads the keyring at url through the run's reader and loads it

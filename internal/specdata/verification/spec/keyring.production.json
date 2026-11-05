@@ -1,4 +1,11 @@
 {
-  "keys": [],
+  "keys": [
+    {
+      "active": true,
+      "key_id": "77e51f02",
+      "public_key": "1hHbF5H5u8LiSp-nVMRb8duR2eGkOo5Q1JYfcmAtF28",
+      "sequence": 0
+    }
+  ],
   "version": "1.0"
 }

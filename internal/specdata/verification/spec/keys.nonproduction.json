@@ -11,6 +11,11 @@
       "public_key": "CTwMqDZnPd_QTLSq8aTeSD3a-j2DQxKcGfhhIYJQ65Y"
     },
     {
+      "environment": "staging",
+      "key_id": "0df0ebbb",
+      "public_key": "sYfRKf1R_ILtfRv1KjBgk6F6kgIrXDfVbz3Pl-kgE2U"
+    },
+    {
       "environment": "test",
       "key_id": "04a76bfd",
       "public_key": "krcqBwjUBsOjj10-7DuxK5VussLbOau7X56e2PVgyyE"

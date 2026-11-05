@@ -34,6 +34,6 @@
 //     computed from the embedded bytes, [Accepted].
 //
 // The contents of keyring.production.json, the compiled keyring pin of
-// SPEC.md section 8.3, are read only through [File]: it holds no key until
-// the production keys reach the spec, and a later sync brings them.
+// SPEC.md section 8.3, are read only through [File]: it holds Truestamp's
+// production key, and no table of this package transcribes it.
 package specdata

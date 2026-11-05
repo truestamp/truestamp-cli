@@ -339,7 +339,7 @@ func TestKeyBinding_AKeyIDCollisionPartnerBindsNothing(t *testing.T) {
 // the SHA-256 of the file's bytes and its path; keyless mode, unattributed
 // with no digest or location; the keyring read from www.truestamp.com,
 // truestamp with the digest of the bytes read and its URL; the compiled
-// pin, which holds no key yet, key_binding_failed with its digest and the
+// pin, which does not hold K, key_binding_failed with its digest and the
 // message to update the verifier or run online; and a failed read from
 // www.truestamp.com or from another origin, keyring_unavailable whatever K
 // is, with no digest. trust_root after the gate is the one CONFIGURATION
@@ -419,8 +419,9 @@ func TestKeyBinding_EachKeyringAndItsAttribution(t *testing.T) {
 }
 
 // A run under the compiled pin whose key binds is attributed truestamp
-// (SPEC.md section 10.5). The pin built into this verifier holds no key, so
-// the test admits a production proof offline under prod, which fixes
+// (SPEC.md section 10.5). The pin built into this verifier holds
+// Truestamp's production key, which no test can sign with, so the test
+// admits a production proof offline under prod, which fixes
 // trust_root compiled_pin, and gives the run, in place of the pin, a
 // keyring loaded under prod that holds a key only this test uses, the key
 // that signed the proof. Mutant killed: compiled_pin left out of the

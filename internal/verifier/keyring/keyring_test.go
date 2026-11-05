@@ -151,14 +151,67 @@ func TestLoad_ANonproductionKeyOutsideProd(t *testing.T) {
 }
 
 // The compiled pin passes the load checks as a production keyring, through
-// the same loader every keyring a run loads goes through. No test assumes
-// its keys: it holds none until the production keys reach the spec.
+// the same loader every keyring a run loads goes through.
 func TestCompiledPin_PassesTheLoadChecksUnderProd(t *testing.T) {
 	if _, err := Load(CompiledPin(), "prod", ""); err != nil {
 		t.Fatalf("the compiled pin: %v", err)
 	}
 	if _, err := specdata.File("keyring.production.json"); err != nil {
 		t.Fatal(err)
+	}
+}
+
+// productionKey and stagingKey are Truestamp's production and staging
+// keys, as spec/keyring.production.json and spec/keys.nonproduction.json
+// give them, with their key ids under SPEC.md section 3.3.
+const (
+	productionKey   = "1hHbF5H5u8LiSp-nVMRb8duR2eGkOo5Q1JYfcmAtF28"
+	productionKeyID = "77e51f02"
+	stagingKey      = "sYfRKf1R_ILtfRv1KjBgk6F6kgIrXDfVbz3Pl-kgE2U"
+	stagingKeyID    = "0df0ebbb"
+)
+
+// The compiled pin, loaded under prod, holds exactly one key: Truestamp's
+// production key, active, at sequence 0, under its key id. Mutants killed:
+// the pin synced from a spec whose keyring.production.json holds no key; a
+// pin whose one key is any other.
+func TestCompiledPin_HoldsTheProductionKey(t *testing.T) {
+	want, err := registry.DecodeB64U32(productionKey)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := registry.KeyIDOf(want); got != productionKeyID {
+		t.Fatalf("the production key's key id is %s, want %s", got, productionKeyID)
+	}
+	pin, err := Load(CompiledPin(), "prod", "")
+	if err != nil {
+		t.Fatalf("the compiled pin: %v", err)
+	}
+	expected := []Key{{Active: true, KeyID: productionKeyID, PublicKey: want, Sequence: 0}}
+	if len(pin.Keys) != len(expected) || pin.Keys[0] != expected[0] {
+		t.Fatalf("the compiled pin holds %+v, want %+v", pin.Keys, expected)
+	}
+}
+
+// A keyring holding only Truestamp's staging key loads under staging and
+// is refused under prod by check 7, at that key. Mutants killed: the
+// staging key left out of spec/keys.nonproduction.json; check 7 made under
+// no E_v.
+func TestLoad_TheStagingKeyAloneUnderProd(t *testing.T) {
+	key, err := registry.DecodeB64U32(stagingKey)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := registry.KeyIDOf(key); got != stagingKeyID {
+		t.Fatalf("the staging key's key id is %s, want %s", got, stagingKeyID)
+	}
+	data := keyringOf(sound(key, 0))
+	if keyring, err := Load(data, "staging", ""); err != nil || len(keyring.Keys) != 1 || keyring.Keys[0].KeyID != stagingKeyID {
+		t.Fatalf("under staging: %+v, %v", keyring, err)
+	}
+	failure := failureOf(t, func() error { _, err := Load(data, "prod", ""); return err }())
+	if failure.Check != CheckNonproductionKey || failure.Key != 0 {
+		t.Fatalf("under prod: check %d at key %d, want %d at 0", failure.Check, failure.Key, CheckNonproductionKey)
 	}
 }
 

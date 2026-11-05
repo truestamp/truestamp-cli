@@ -1164,7 +1164,7 @@ truestamp verify proof.json --offline | head -8
 #               A check failed, and its row says which.
 # Code:         environment_mismatch
 # Attribution:  none
-# Trust root:   compiled_pin, SHA-256 4087b26b2507c609068dbe6b628b18246c1ce80f289f7ea72ee9d3565a13ff6e
+# Trust root:   compiled_pin, SHA-256 4e57588da2d0b7c34202d866664057aac36b5ee581dceb1eec9a0a35df8f9a6f
 # Environment:  prod
 # Window:       none is shown, since a check failed
 # Rows:         14 (4 pass, 1 fail, 9 skip, 0 warn, 0 info)
