@@ -15,10 +15,10 @@ import (
 
 // The test seams of this package's keyrings (SPEC.md section 8.3).
 //
-// The compiled pin, spec/keyring.production.json as built in, holds no key
-// until Truestamp's production keys join the spec, so a test of a run the
-// pin governs replaces it, for that test only, with a keyring holding
-// pinKey, a key that exists only here: no environment uses it, and
+// The compiled pin, spec/keyring.production.json as built in, holds
+// Truestamp's production key, and no test can sign with that key, so a test
+// of a run the pin governs replaces it, for that test only, with a keyring
+// holding pinKey, a key that exists only here: no environment uses it, and
 // spec/keys.nonproduction.json does not list it, so the pin passes its load
 // checks under prod.
 

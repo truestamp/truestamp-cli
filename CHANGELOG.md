@@ -71,7 +71,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   signed the proof and that its submission window is established. The CLI
   passes every case of the conformance vectors at the spec commit
   `testdata/verification/SOURCE` names, and the conformance test logs that
-  commit and the SHA-256 of `testdata/verification/MANIFEST.sha256`.
+  commit and the SHA-256 of `testdata/verification/MANIFEST.sha256`. The
+  keys built into the CLI, the compiled pin of SPEC.md section 8.3, are
+  Truestamp's production key alone (key id `77e51f02`): `verify --offline`
+  under prod binds that key in a production proof that carries it, a
+  production proof carrying any other key fails KEY_BINDING with
+  `key_binding_failed` (exit 3), and a keyring file holding a key of a
+  non-production environment, Truestamp's staging key `0df0ebbb` among
+  them, is refused under prod as a `configuration_error` (exit 8).
 
 - **`verify --remote` sends the file as it is.** It posts the file's bytes
   to the service's raw verify route and prints the label of the service's

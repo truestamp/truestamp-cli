@@ -11,8 +11,8 @@ package specdata
 // failure here is a table that disagrees with its file: a sync that changed
 // a file needs its table changed with it.
 //
-// No test here assumes what keyring.production.json holds: it has no key
-// until the production keys reach the spec, and a later sync brings them.
+// No test here assumes what keyring.production.json holds: the keyring
+// package's tests hold it to Truestamp's one production key.
 
 import (
 	"bytes"
