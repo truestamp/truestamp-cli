@@ -11,8 +11,6 @@ import (
 	"strings"
 	"testing"
 
-	gojcs "github.com/gowebpki/jcs"
-
 	"github.com/truestamp/truestamp-cli/internal/specdata"
 	"github.com/truestamp/truestamp-cli/internal/strictjson"
 )
@@ -115,28 +113,22 @@ func TestTransform_ANumberIsItsNearestBinary64(t *testing.T) {
 	}
 }
 
-// gowebpki/jcs is not a validating parser and rewrites several malformed
-// texts into different valid ones, which Transform refuses, each as the
-// strict reader does; so two texts, one malformed, never give one digest.
-// A repeated member name, which encoding/json's v1 API keeps the last of, is refused
-// too. Mutant killed: Transform canonicalizing the bytes with gowebpki/jcs's
-// Transform (each rewrite is accepted).
-func TestTransform_RefusesWhatTheLibraryRewrites(t *testing.T) {
-	for _, tc := range []struct{ in, impostor string }{
-		{`{"a":1 2}`, `{"a":12}`},
-		{`{"a":+1}`, `{"a":1}`},
-		{`{"a":0009}`, `{"a":9}`},
-		{`{"a":01}`, `{"a":1}`},
-		{`{"a":.5}`, `{"a":0.5}`},
-		{`{"a":1.}`, `{"a":1}`},
-		{`[1 2]`, `[12]`},
-	} {
-		got, libErr := gojcs.Transform([]byte(tc.in))
-		if libErr != nil || string(got) != tc.impostor || jsontext.Value(tc.in).IsValid() {
-			t.Fatalf("%s: the library gives %s, %v; this row no longer covers what it claims", tc.in, got, libErr)
+// Transform refuses each malformed text as the strict reader does, with
+// malformed_json, so two texts, one malformed, never give one digest.
+// gowebpki/jcs before 1.0.2 was not a validating parser and rewrote each of
+// these texts into a different valid one ({"a":1 2} into {"a":12}); 1.0.2
+// refuses them, with an error of its own. Transform never hands the bytes
+// to the library, so neither behavior reaches it. A repeated member name,
+// which encoding/json's v1 API keeps the last of, is refused too. Mutant
+// killed: Transform canonicalizing the bytes with gowebpki/jcs's Transform
+// (1.0.1 accepts each rewrite, and 1.0.2's refusal is not malformed_json).
+func TestTransform_RefusesMalformedText(t *testing.T) {
+	for _, in := range []string{`{"a":1 2}`, `{"a":+1}`, `{"a":0009}`, `{"a":01}`, `{"a":.5}`, `{"a":1.}`, `[1 2]`} {
+		if jsontext.Value(in).IsValid() {
+			t.Fatalf("%s is valid JSON; this row no longer covers what it claims", in)
 		}
-		if out, err := Transform([]byte(tc.in)); !isMalformed(err) || out != nil {
-			t.Errorf("Transform(%s) = %s, %v; want malformed_json", tc.in, out, err)
+		if out, err := Transform([]byte(in)); !isMalformed(err) || out != nil {
+			t.Errorf("Transform(%s) = %s, %v; want malformed_json", in, out, err)
 		}
 	}
 	for _, in := range []string{`{"a":1,"a":2}`, ``, `   `, `{`, "\ufeff{}", `{"a":1}{"b":2}`, `{"huge":1e400}`} {
