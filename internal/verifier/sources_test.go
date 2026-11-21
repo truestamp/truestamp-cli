@@ -5,7 +5,7 @@ package verifier
 
 import (
 	"encoding/base64"
-	"encoding/json"
+	"encoding/json/v2"
 	"errors"
 	"fmt"
 	"net"
@@ -131,7 +131,7 @@ func newNode(t *testing.T, value string) *node {
 		}
 		switch {
 		case r.Method == http.MethodGet && r.URL.Path == "/":
-			_ = json.NewEncoder(w).Encode(map[string]any{"network_passphrase": n.value, "history_latest_ledger": 1})
+			_ = json.MarshalWrite(w, map[string]any{"network_passphrase": n.value, "history_latest_ledger": 1})
 		case r.Method == http.MethodGet && r.URL.Path == "/block-height/0":
 			_, _ = w.Write([]byte(n.value))
 		case r.Method == http.MethodPost && r.URL.Path == "/":
@@ -770,7 +770,7 @@ func TestSources_TheRunRecordsEachSource(t *testing.T) {
 	if rejection != nil {
 		t.Fatal(rejection)
 	}
-	data, err := json.Marshal(run.Rows[0].Values["sources"])
+	data, err := json.Marshal(run.Rows[0].Values["sources"], json.Deterministic(true))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -896,11 +896,11 @@ func TestSources_CoreCredentialsNeverReachAnOutput(t *testing.T) {
 			if record.Status != SourceUnreachable {
 				t.Fatalf("record = %+v", record)
 			}
-			rowValues, err := json.Marshal(run.Rows[0].Values)
+			rowValues, err := json.Marshal(run.Rows[0].Values, json.Deterministic(true))
 			if err != nil {
 				t.Fatal(err)
 			}
-			configJSON, err := json.Marshal([]any{cfg.Sources, options, run.Sources})
+			configJSON, err := json.Marshal([]any{cfg.Sources, options, run.Sources}, json.Deterministic(true))
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -1044,7 +1044,7 @@ func pathAnswering(n *node) *node {
 			_, _ = fmt.Fprintf(w, `{"result":%q,"error":null,"id":"truestamp-verify"}`, n.value)
 			return
 		}
-		_ = json.NewEncoder(w).Encode(map[string]any{"network_passphrase": n.value})
+		_ = json.MarshalWrite(w, map[string]any{"network_passphrase": n.value})
 	}
 	return n
 }
@@ -1107,7 +1107,7 @@ func TestSources_APrintedURLIsItsSchemeHostAndPort(t *testing.T) {
 			case rejection != nil || err != nil:
 				t.Fatalf("%v, %v", rejection, err)
 			default:
-				values, _ := json.Marshal(run.Rows[0].Values)
+				values, _ := json.Marshal(run.Rows[0].Values, json.Deterministic(true))
 				printed = append(printed, string(values), run.Rows[0].Message)
 				var got []string
 				for _, r := range run.Sources {

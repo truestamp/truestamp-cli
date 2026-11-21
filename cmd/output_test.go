@@ -4,7 +4,7 @@
 package cmd
 
 import (
-	"encoding/json"
+	"encoding/json/jsontext"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -283,7 +283,7 @@ func TestCLI_SchemaGetRendersTextByDefault(t *testing.T) {
 	if err != nil {
 		t.Fatalf("schema get exit-codes: %v", err)
 	}
-	if json.Valid(text) {
+	if jsontext.Value(text).IsValid() {
 		t.Errorf("the default rendering should be text, got JSON:\n%s", text)
 	}
 	if !strings.Contains(string(text), "MEANING") {
@@ -294,7 +294,7 @@ func TestCLI_SchemaGetRendersTextByDefault(t *testing.T) {
 	if err != nil {
 		t.Fatalf("schema get exit-codes --json: %v", err)
 	}
-	if !json.Valid(asJSON) {
+	if !jsontext.Value(asJSON).IsValid() {
 		t.Errorf("--json should emit JSON, got:\n%s", asJSON)
 	}
 

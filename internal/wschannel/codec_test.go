@@ -4,7 +4,8 @@
 package wschannel
 
 import (
-	"encoding/json"
+	"encoding/json/jsontext"
+	"encoding/json/v2"
 	"testing"
 )
 
@@ -66,7 +67,7 @@ func TestFrameRoundTrip(t *testing.T) {
 				t.Errorf("ref mismatch: got %v want %v", deref(f.Ref), deref(tc.ref))
 			}
 
-			out, err := json.Marshal(f)
+			out, err := json.Marshal(f, json.Deterministic(true))
 			if err != nil {
 				t.Fatalf("marshal: %v", err)
 			}
@@ -89,7 +90,7 @@ func TestParseReply(t *testing.T) {
 	frame := Frame{
 		Topic:   "console:lobby",
 		Event:   "phx_reply",
-		Payload: json.RawMessage(`{"status":"ok","response":{"pong":12345}}`),
+		Payload: jsontext.Value(`{"status":"ok","response":{"pong":12345}}`),
 	}
 
 	r, err := ParseReply(frame)
@@ -113,7 +114,7 @@ func TestParseReply(t *testing.T) {
 func TestParseReplyRejectsNonReply(t *testing.T) {
 	t.Parallel()
 
-	frame := Frame{Event: "stream", Payload: json.RawMessage(`{}`)}
+	frame := Frame{Event: "stream", Payload: jsontext.Value(`{}`)}
 	if _, err := ParseReply(frame); err == nil {
 		t.Fatalf("expected error for non phx_reply frame")
 	}

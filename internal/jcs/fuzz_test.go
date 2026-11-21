@@ -5,7 +5,7 @@ package jcs
 
 import (
 	"bytes"
-	"encoding/json"
+	"encoding/json/jsontext"
 	"strings"
 	"testing"
 
@@ -58,7 +58,7 @@ func FuzzTransform(f *testing.F) {
 			}
 			return
 		}
-		if !json.Valid(data) || !json.Valid(canonical) {
+		if !jsontext.Value(data).IsValid() || !jsontext.Value(canonical).IsValid() {
 			t.Fatalf("%q accepted as %q", data, canonical)
 		}
 		again, err := Transform(canonical)

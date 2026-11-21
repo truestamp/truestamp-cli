@@ -29,7 +29,7 @@ type Flag struct {
 	Default   string   `json:"default,omitempty"`
 	Values    []string `json:"values,omitempty"`
 	Inherited bool     `json:"inherited"`
-	Hidden    bool     `json:"hidden,omitempty"`
+	Hidden    bool     `json:"hidden,omitzero"`
 	// NoOptDefVal records that the flag may be passed without a value,
 	// and what it means when it is. The CLI uses this for the interactive
 	// sentinels (`--file` with no path opens a picker), which is exactly
@@ -46,7 +46,7 @@ type Command struct {
 	Example     string    `json:"example,omitempty"`
 	Group       bool      `json:"group"`
 	Runnable    bool      `json:"runnable"`
-	Hidden      bool      `json:"hidden,omitempty"`
+	Hidden      bool      `json:"hidden,omitzero"`
 	Deprecated  string    `json:"deprecated,omitempty"`
 	Aliases     []string  `json:"aliases,omitempty"`
 	Flags       []Flag    `json:"flags,omitempty"`

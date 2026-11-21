@@ -5,7 +5,7 @@ package selfupgrade
 
 import (
 	"context"
-	"encoding/json"
+	"encoding/json/v2"
 	"errors"
 	"net/http"
 	"net/http/httptest"
@@ -20,7 +20,7 @@ func stubReleaseServer(t *testing.T, latest Release, byTag map[string]Release) *
 	mux := http.NewServeMux()
 	mux.HandleFunc("/releases/latest", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		_ = json.NewEncoder(w).Encode(latest)
+		_ = json.MarshalWrite(w, latest)
 	})
 	mux.HandleFunc("/releases/tags/", func(w http.ResponseWriter, r *http.Request) {
 		tag := r.URL.Path[len("/releases/tags/"):]
@@ -30,7 +30,7 @@ func stubReleaseServer(t *testing.T, latest Release, byTag map[string]Release) *
 			return
 		}
 		w.Header().Set("Content-Type", "application/json")
-		_ = json.NewEncoder(w).Encode(rel)
+		_ = json.MarshalWrite(w, rel)
 	})
 	return httptest.NewServer(mux)
 }

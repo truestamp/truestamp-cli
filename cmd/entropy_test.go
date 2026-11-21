@@ -4,7 +4,7 @@
 package cmd
 
 import (
-	"encoding/json"
+	"encoding/json/v2"
 	"maps"
 	"net/http"
 	"net/http/httptest"

@@ -5,7 +5,7 @@ package console
 
 import (
 	"context"
-	"encoding/json"
+	"encoding/json/v2"
 	"io"
 	"log/slog"
 	"net/http"
@@ -107,7 +107,7 @@ func (s *lobbyServer) handle(w http.ResponseWriter, r *http.Request) {
 
 // reply answers frame f with status ok and response.
 func (s *lobbyServer) reply(f wschannel.Frame, response any) {
-	payload, _ := json.Marshal(map[string]any{"status": "ok", "response": response})
+	payload, _ := json.Marshal(map[string]any{"status": "ok", "response": response}, json.Deterministic(true))
 	s.write(wschannel.Frame{JoinRef: f.JoinRef, Ref: f.Ref, Topic: f.Topic, Event: "phx_reply", Payload: payload})
 }
 
@@ -120,7 +120,7 @@ const pushAtLayout = "2006-01-02T15:04:05.000000Z"
 // given time in the server's format.
 func (s *lobbyServer) push(t *testing.T, stream, kind string, at time.Time, data map[string]any) {
 	t.Helper()
-	payload, err := json.Marshal(map[string]any{"stream": stream, "kind": kind, "at": at.UTC().Format(pushAtLayout), "data": data})
+	payload, err := json.Marshal(map[string]any{"stream": stream, "kind": kind, "at": at.UTC().Format(pushAtLayout), "data": data}, json.Deterministic(true))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -128,7 +128,7 @@ func (s *lobbyServer) push(t *testing.T, stream, kind string, at time.Time, data
 }
 
 func (s *lobbyServer) write(f wschannel.Frame) {
-	data, _ := json.Marshal(f)
+	data, _ := json.Marshal(f, json.Deterministic(true))
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)

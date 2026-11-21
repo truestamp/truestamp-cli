@@ -41,7 +41,8 @@
 package events
 
 import (
-	"encoding/json"
+	"encoding/json/jsontext"
+	"encoding/json/v2"
 	"fmt"
 	"strings"
 	"time"
@@ -75,10 +76,10 @@ type Row struct {
 // Push mirrors the wire shape produced by ConsoleProjector +
 // ConsoleChannel.push_stream/4.
 type Push struct {
-	Stream string          `json:"stream"`
-	Kind   string          `json:"kind"`
-	At     string          `json:"at"`
-	Data   json.RawMessage `json:"data"`
+	Stream string         `json:"stream"`
+	Kind   string         `json:"kind"`
+	At     string         `json:"at"`
+	Data   jsontext.Value `json:"data"`
 }
 
 // Project converts a Push into a Row. `now` is the local receive time
@@ -298,7 +299,7 @@ func projectID(kind string, payload map[string]any) string {
 // Helpers
 // =============================================================================
 
-func decodePayload(raw json.RawMessage) map[string]any {
+func decodePayload(raw jsontext.Value) map[string]any {
 	if len(raw) == 0 {
 		return map[string]any{}
 	}
@@ -341,12 +342,6 @@ func numField(m map[string]any, key string) (int64, bool) {
 		return int64(n), true
 	case int64:
 		return n, true
-	case json.Number:
-		i, err := n.Int64()
-		if err != nil {
-			return 0, false
-		}
-		return i, true
 	}
 	return 0, false
 }

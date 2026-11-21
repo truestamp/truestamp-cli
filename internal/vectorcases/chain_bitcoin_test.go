@@ -12,7 +12,7 @@
 package vectorcases_test
 
 import (
-	"encoding/json"
+	"encoding/json/v2"
 	"fmt"
 	"slices"
 	"strings"
@@ -223,7 +223,10 @@ func checkBitcoinCandidate(t *testing.T, c vectorcases.Case, r *verifier.Run, re
 	if string(c.Expected.SubmittedBefore) == "null" && c.Expected.Label == "failed" {
 		return
 	}
-	var edge struct{ Basis, Instant string }
+	var edge struct {
+		Basis   string `json:"basis"`
+		Instant string `json:"instant"`
+	}
 	if err := json.Unmarshal(c.Expected.SubmittedBefore, &edge); err != nil || edge.Instant == "" {
 		t.Fatalf("the case's submitted-before edge %s: %v", c.Expected.SubmittedBefore, err)
 	}

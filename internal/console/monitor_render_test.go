@@ -4,7 +4,7 @@
 package console
 
 import (
-	"encoding/json"
+	"encoding/json/v2"
 	"strings"
 	"testing"
 	"time"
@@ -248,7 +248,7 @@ func TestRenderWaterfallWithDetailPanelOpen(t *testing.T) {
 
 func mustProject(t *testing.T, stream, kind, at string, data map[string]any) events.Row {
 	t.Helper()
-	raw, err := json.Marshal(data)
+	raw, err := json.Marshal(data, json.Deterministic(true))
 	if err != nil {
 		t.Fatalf("marshal: %v", err)
 	}

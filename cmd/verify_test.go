@@ -5,7 +5,8 @@ package cmd
 
 import (
 	"bytes"
-	"encoding/json"
+	"encoding/json/jsontext"
+	"encoding/json/v2"
 	"errors"
 	"fmt"
 	"io"
@@ -786,7 +787,7 @@ func TestVerify_TraceFile(t *testing.T) {
 		for _, row := range rows {
 			delete(row, "inputs")
 		}
-		out, _ := json.Marshal(rows)
+		out, _ := json.Marshal(rows, json.Deterministic(true))
 		return out
 	}; !bytes.Equal(strip(got), strip(want)) || !bytes.HasPrefix(got, []byte("[\n  {\n    \"construction\": ")) {
 		t.Errorf("the trace differs from the vector's:\n%s", got)
@@ -901,12 +902,12 @@ func TestCLI_Verify_Remote(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	var pretty bytes.Buffer
-	if err := json.Indent(&pretty, sound, "", "  "); err != nil {
+	pretty := jsontext.Value(bytes.Clone(sound))
+	if err := pretty.Indent(jsontext.WithIndent("  ")); err != nil {
 		t.Fatal(err)
 	}
 	file := filepath.Join(t.TempDir(), "item.proof.json")
-	if err := os.WriteFile(file, pretty.Bytes(), 0o644); err != nil {
+	if err := os.WriteFile(file, pretty, 0o644); err != nil {
 		t.Fatal(err)
 	}
 	notAProof := []byte("{\"not\": \"a proof\"}\n")
@@ -935,24 +936,24 @@ func TestCLI_Verify_Remote(t *testing.T) {
 		log                              map[string]any
 	}{
 		{"a verdict that disagrees", "200", `{"label":"verified","verified":true}`, srv.URL,
-			verdict + "verified.\n", nil, "offline=true", 6, file, pretty.Bytes(),
+			verdict + "verified.\n", nil, "offline=true", 6, file, []byte(pretty),
 			map[string]any{"msg": "verify_remote_verdict", "label": "verified"}},
 		{"a failed verdict", "200", `{"code":"signature_invalid","label":"failed","verified":false}`, srv.URL,
-			verdict + "failed.\n", nil, "offline=true", 6, file, pretty.Bytes(),
+			verdict + "failed.\n", nil, "offline=true", 6, file, []byte(pretty),
 			map[string]any{"msg": "verify_remote_verdict", "label": "failed"}},
 		{"a verified verdict over a local failure", "200", `{"label":"verified"}`, srv.URL,
-			verdict + "verified.\n", []string{"--expected-hash", hash}, "expected_hash=" + hash + "&offline=true", 3, file, pretty.Bytes(),
+			verdict + "verified.\n", []string{"--expected-hash", hash}, "expected_hash=" + hash + "&offline=true", 3, file, []byte(pretty),
 			map[string]any{"msg": "verify_remote_verdict", "label": "verified"}},
 		{"a verdict on a file the local run rejects bare", "200", `{"label":"failed"}`, srv.URL,
 			verdict + "failed.\n", nil, "offline=true", 4, rejected, notAProof,
 			map[string]any{"msg": "verify_remote_verdict", "label": "failed"}},
 		{"a refusal", "400", `{"errors":[{"detail":"This file is not a Truestamp proof.","meta":{"code":"invalid_envelope"}}]}`, srv.URL,
-			noAnswer + refusal + "\n", nil, "offline=true", 6, file, pretty.Bytes(),
+			noAnswer + refusal + "\n", nil, "offline=true", 6, file, []byte(pretty),
 			map[string]any{"msg": "verify_remote_no_verdict", "err": refusal, "code": "invalid_envelope"}},
 		{"a server error", "500", `oops`, srv.URL,
-			noAnswer + "API error (HTTP 500): oops\n", nil, "offline=true", 6, file, pretty.Bytes(),
+			noAnswer + "API error (HTTP 500): oops\n", nil, "offline=true", 6, file, []byte(pretty),
 			map[string]any{"msg": "verify_remote_no_verdict", "err": "API error (HTTP 500): oops"}},
-		{"no server", "200", `{"label":"verified"}`, closed.URL, noAnswer, nil, "", 6, file, pretty.Bytes(), nil},
+		{"no server", "200", `{"label":"verified"}`, closed.URL, noAnswer, nil, "", 6, file, []byte(pretty), nil},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			answer.Store(&[2]string{tc.status, tc.body})

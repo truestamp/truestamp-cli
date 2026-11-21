@@ -5,7 +5,8 @@ package wschannel
 
 import (
 	"context"
-	"encoding/json"
+	"encoding/json/jsontext"
+	"encoding/json/v2"
 	"errors"
 	"fmt"
 	"io"
@@ -71,9 +72,9 @@ func (s Status) String() string {
 // Push is a server-initiated channel event delivered to the application
 // loop (Bubble Tea, etc.) via Pushes().
 type Push struct {
-	Topic   string          // e.g. "console:lobby" or "console:clock"
-	Event   string          // e.g. "stream", "tick", "error"
-	Payload json.RawMessage // raw JSON object
+	Topic   string         // e.g. "console:lobby" or "console:clock"
+	Event   string         // e.g. "stream", "tick", "error"
+	Payload jsontext.Value // raw JSON object
 }
 
 // Reconnected is a synthetic event the client emits over Pushes() each
@@ -341,7 +342,7 @@ var reconnectBackoff = []time.Duration{
 // topic, and emits a synthetic `rejoined` push (event ReconnectedEvent)
 // per topic so the application can resync any in-channel state the
 // server doesn't remember (subscriptions, item watches).
-func (c *Client) Connect(ctx context.Context) (json.RawMessage, error) {
+func (c *Client) Connect(ctx context.Context) (jsontext.Value, error) {
 	c.connectStarted.Store(true)
 	if err := c.dial(ctx); err != nil {
 		return nil, err
@@ -652,7 +653,7 @@ func (c *Client) dropConn(code websocket.StatusCode, reason string) {
 // emitTokenRefreshing surfaces a transient "refreshing session" hint when
 // the server signals OAuth token expiry. Best-effort; dropped if the push
 // buffer is full (the subsequent reconnect events still inform the UI).
-func (c *Client) emitTokenRefreshing(payload json.RawMessage) {
+func (c *Client) emitTokenRefreshing(payload jsontext.Value) {
 	select {
 	case c.pushes <- Push{Event: TokenRefreshEvent, Payload: payload}:
 	default:
@@ -672,18 +673,18 @@ func (c *Client) emitAuthFailed(err error) {
 
 // JoinTopic joins an additional channel topic on the existing socket.
 // Returns the raw join reply payload. Safe to call after Connect.
-func (c *Client) JoinTopic(ctx context.Context, topic string) (json.RawMessage, error) {
+func (c *Client) JoinTopic(ctx context.Context, topic string) (jsontext.Value, error) {
 	return c.joinTopic(ctx, topic, c.send)
 }
 
 // joinTopicOnSocket is the internal variant used during the initial
 // primary-topic join and during rejoin replays. It bypasses the session
 // gate (which can't be open yet) but still respects the socket gate.
-func (c *Client) joinTopicOnSocket(ctx context.Context, topic string) (json.RawMessage, error) {
+func (c *Client) joinTopicOnSocket(ctx context.Context, topic string) (jsontext.Value, error) {
 	return c.joinTopic(ctx, topic, c.sendOnSocket)
 }
 
-func (c *Client) joinTopic(ctx context.Context, topic string, sendFn func(context.Context, Frame) error) (json.RawMessage, error) {
+func (c *Client) joinTopic(ctx context.Context, topic string, sendFn func(context.Context, Frame) error) (jsontext.Value, error) {
 	if topic == "" {
 		return nil, errors.New("wschannel: topic is required")
 	}

@@ -8,7 +8,7 @@ package strictjson_test
 
 import (
 	"bytes"
-	"encoding/json"
+	"encoding/json/jsontext"
 	"errors"
 	"slices"
 	"testing"
@@ -23,7 +23,7 @@ import (
 //
 //   - a refusal is malformed_json with one of SPEC.md section 10.1's
 //     sub_reasons, and a syntax refusal is a text RFC 8259 refuses too
-//     (encoding/json's json.Valid), since the two grammars are one;
+//     (rfc8259), since the two grammars are one;
 //   - an accepted text is one RFC 8259 accepts;
 //   - JCS of the value succeeds, and parses back to a value with the same
 //     JCS (SPEC.md section 10.1, "After the signature");
@@ -54,12 +54,12 @@ func FuzzParse(f *testing.F) {
 				!slices.Contains(subReasons, rejection.SubReason) {
 				t.Fatalf("Parse(%q) error = %v, want malformed_json with a sub_reason", data, err)
 			}
-			if rejection.SubReason == specdata.SubReasonSyntax && json.Valid(data) {
+			if rejection.SubReason == specdata.SubReasonSyntax && rfc8259(data) {
 				t.Fatalf("Parse(%q) is a syntax error, but RFC 8259 accepts the text", data)
 			}
 			return
 		}
-		if !json.Valid(data) {
+		if !rfc8259(data) {
 			t.Fatalf("Parse(%q) accepted a text RFC 8259 refuses", data)
 		}
 
@@ -87,4 +87,12 @@ func FuzzParse(f *testing.F) {
 			t.Fatalf("the canonical form reads as another value: %q then %q (%v)", m, m3, err)
 		}
 	})
+}
+
+// rfc8259 reports whether data is a JSON text by RFC 8259's grammar alone:
+// encoding/json/v2's reader with its checks of repeated names and of UTF-8
+// (escaped lone surrogates included) turned off, since RFC 8259 leaves both
+// open. It accepts exactly what v1's json.Valid accepted.
+func rfc8259(data []byte) bool {
+	return jsontext.Value(data).IsValid(jsontext.AllowDuplicateNames(true), jsontext.AllowInvalidUTF8(true))
 }

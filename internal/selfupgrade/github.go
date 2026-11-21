@@ -5,7 +5,7 @@ package selfupgrade
 
 import (
 	"context"
-	"encoding/json"
+	"encoding/json/v2"
 	"errors"
 	"fmt"
 	"net/http"
@@ -84,7 +84,7 @@ func fetchRelease(ctx context.Context, url string) (*Release, error) {
 	// We deliberately do NOT call DisallowUnknownFields, the GitHub
 	// payload is much larger than our shape and we only care about the
 	// handful of fields declared on Release.
-	if err := json.NewDecoder(resp.Body).Decode(&rel); err != nil {
+	if err := json.UnmarshalRead(resp.Body, &rel); err != nil {
 		return nil, fmt.Errorf("decode release JSON: %w", err)
 	}
 	if rel.TagName == "" {

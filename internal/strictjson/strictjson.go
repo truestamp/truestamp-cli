@@ -13,9 +13,10 @@
 // [Read] and [ReadFile] make J1, reading at most MAX_READ_OCTETS + 1 octets,
 // which decides it; [CheckSize] makes J1 on bytes already in memory.
 // [Parse] makes J2 to J6 with its own tokenizer, which builds the value
-// directly: nothing is decoded by encoding/json, which keeps the last of two
-// members with one name and replaces invalid UTF-8 and lone surrogates with
-// U+FFFD. [Decode] makes J1 and then J2 to J6, in step order. A file the
+// directly: nothing is decoded by encoding/json, whose v1 API keeps the last
+// of two members with one name and replaces invalid UTF-8 and lone
+// surrogates with U+FFFD, and whose v2 API makes J2 to J4 but not J1, J5 or
+// J6. [Decode] makes J1 and then J2 to J6, in step order. A file the
 // rules refuse is a [*Rejection], the bare rejection input_too_large or
 // malformed_json with its sub_reason (SPEC.md sections 10.1 and 12.1).
 //

@@ -5,7 +5,8 @@ package entropy
 
 import (
 	"context"
-	"encoding/json"
+	"encoding/json/jsontext"
+	"encoding/json/v2"
 	"errors"
 	"maps"
 	"net/http"
@@ -81,16 +82,16 @@ func TestGet_DecodesTheServersObservation(t *testing.T) {
 		SourcePublishedAt: "2026-09-05T20:29:07.000000Z", InsertedAt: "2026-09-05T20:29:07.848738Z",
 		BlockID: "01a07335-b000-7000-8000-000000000001",
 		Entropy: map[string]any{"closed_at": "2026-09-05T20:29:07Z", "hash": "abc",
-			"paging_token": "19427477109604352", "sequence": json.Number("4523312")},
+			"paging_token": "19427477109604352", "sequence": jsontext.Value("4523312")},
 	}
 	if !reflect.DeepEqual(*o, want) {
 		t.Errorf("decoded\n%+v\nwant\n%+v", *o, want)
 	}
-	encoded, err := json.Marshal(o)
+	encoded, err := json.Marshal(o, json.Deterministic(true))
 	if err != nil {
 		t.Fatal(err)
 	}
-	var fields map[string]json.RawMessage
+	var fields map[string]jsontext.Value
 	if err := json.Unmarshal(encoded, &fields); err != nil {
 		t.Fatal(err)
 	}
@@ -123,7 +124,7 @@ func TestObservation_HasAFieldForEachPublicAttributeOnly(t *testing.T) {
 	}
 }
 
-// TestGet_DecodesNumbersExactly pins the json.Number decode: a ledger
+// TestGet_DecodesNumbersExactly pins the decode of jsonnumber.AsWritten: a ledger
 // sequence must survive as the digits the source published, never as a
 // float64 that re-prints in scientific notation.
 func TestGet_DecodesNumbersExactly(t *testing.T) {
@@ -135,9 +136,9 @@ func TestGet_DecodesNumbersExactly(t *testing.T) {
 	if o.ID != validID || o.Source != "entropy_stellar" || o.BlockID != "01a07335-b000-7000-8000-000000000001" {
 		t.Errorf("decoded %+v", o)
 	}
-	seq, ok := o.Entropy["sequence"].(json.Number)
-	if !ok || seq.String() != "4523312" {
-		t.Errorf("sequence should decode as json.Number 4523312, got %T %v", o.Entropy["sequence"], o.Entropy["sequence"])
+	seq, ok := o.Entropy["sequence"].(jsontext.Value)
+	if !ok || string(seq) != "4523312" {
+		t.Errorf("sequence should decode as the jsontext.Value 4523312, got %T %v", o.Entropy["sequence"], o.Entropy["sequence"])
 	}
 }
 

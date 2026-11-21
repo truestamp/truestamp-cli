@@ -5,7 +5,7 @@ package cmd
 
 import (
 	"bytes"
-	"encoding/json"
+	"encoding/json/v2"
 	"errors"
 	"fmt"
 	"os"
@@ -650,7 +650,7 @@ func TestCLI_Inspect_NeverPrintsACarriedTimeAsAFact(t *testing.T) {
 			}
 			declared += len(wantDeclared)
 			delete(raw, "declared_times")
-			rest, err := json.Marshal(raw)
+			rest, err := json.Marshal(raw, json.Deterministic(true))
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -1144,7 +1144,7 @@ func TestCLI_Inspect_TheConstructionsMode(t *testing.T) {
 // writeProof writes doc as JSON to a new file and gives its path.
 func writeProof(t *testing.T, doc any) string {
 	t.Helper()
-	data, err := json.Marshal(doc)
+	data, err := json.Marshal(doc, json.Deterministic(true))
 	if err != nil {
 		t.Fatal(err)
 	}

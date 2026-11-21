@@ -25,7 +25,7 @@
 // answer's value is in the values every later step reads, and a keyring
 // answered from it is a value with no bytes of its own, whose digest is
 // never compared (section 13.2). A read is found by building the same
-// object the file holds, compared as its encoding/json form with its
+// object the file holds, compared as its JSON text with its
 // members sorted, so the order of a read's members carries no meaning. A
 // read the file does not hold has no answer (section 13.2):
 // [Replay.Keyring] and [Replay.Identity] give [ErrNoAnswer], which the test
@@ -41,7 +41,7 @@
 package vectorcases
 
 import (
-	"encoding/json"
+	"encoding/json/v2"
 	"errors"
 	"fmt"
 	"os"
@@ -256,10 +256,11 @@ func answerOf(answer map[string]any, kind string) (Answer, error) {
 	return Answer{}, fmt.Errorf("the outcome %q", outcome)
 }
 
-// readKey is the form a read is found by: its encoding/json text, whose
-// object members encoding/json writes sorted by name.
+// readKey is the form a read is found by: its JSON text, with every
+// object's members sorted by name (json.Deterministic), so one read has one
+// key whatever order its map gives.
 func readKey(read map[string]any) (string, error) {
-	key, err := json.Marshal(read)
+	key, err := json.Marshal(read, json.Deterministic(true))
 	if err != nil {
 		return "", fmt.Errorf("a read encoding/json cannot write: %w", err)
 	}

@@ -10,7 +10,7 @@
 package vectorcases_test
 
 import (
-	"encoding/json"
+	"encoding/json/v2"
 	"fmt"
 	"slices"
 	"strings"
@@ -212,7 +212,10 @@ func checkEntropyCandidates(t *testing.T, c vectorcases.Case, r *verifier.Run, o
 		}
 		return
 	}
-	var edge struct{ Basis, Instant string }
+	var edge struct {
+		Basis   string `json:"basis"`
+		Instant string `json:"instant"`
+	}
 	if err := json.Unmarshal(c.Expected.SubmittedAfter, &edge); err != nil || latest == nil {
 		t.Fatalf("the edge %s: %v, the latest candidate %v", c.Expected.SubmittedAfter, err, latest)
 	}

@@ -10,7 +10,8 @@ package vectorcases_test
 
 import (
 	"bytes"
-	"encoding/json"
+	"encoding/json/jsontext"
+	"encoding/json/v2"
 	"fmt"
 	"slices"
 	"strconv"
@@ -35,9 +36,12 @@ var specAssumptions = map[string]string{
 
 // expectedEdge is a case's expected edge, {basis, instant}, or nil for
 // null.
-type expectedEdge struct{ Basis, Instant string }
+type expectedEdge struct {
+	Basis   string `json:"basis"`
+	Instant string `json:"instant"`
+}
 
-func expectedEdgeOf(t *testing.T, raw json.RawMessage) *expectedEdge {
+func expectedEdgeOf(t *testing.T, raw jsontext.Value) *expectedEdge {
 	t.Helper()
 	if string(raw) == "null" || len(raw) == 0 {
 		return nil

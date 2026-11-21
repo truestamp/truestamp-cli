@@ -15,7 +15,8 @@ package teams
 
 import (
 	"context"
-	"encoding/json"
+	"encoding/json/jsontext"
+	"encoding/json/v2"
 	"errors"
 	"fmt"
 	"net/url"
@@ -43,7 +44,7 @@ type Membership struct {
 	ID     string `json:"id"`
 	TeamID string `json:"team_id"`
 	Role   string `json:"role"` // "team_owner" | "team_admin" | "team_member" | "team_viewer"
-	Team   *Team  `json:"team,omitempty"`
+	Team   *Team  `json:"team,omitzero"`
 }
 
 // Errors surfaced by the client. CLI layers may errors.Is these to pick
@@ -495,7 +496,7 @@ type jsonAPISingle struct {
 type jsonAPIResource struct {
 	Type          string                            `json:"type"`
 	ID            string                            `json:"id"`
-	Attributes    map[string]json.RawMessage        `json:"attributes"`
+	Attributes    map[string]jsontext.Value         `json:"attributes"`
 	Relationships map[string]jsonAPIRelationshipObj `json:"relationships"`
 }
 
@@ -550,7 +551,7 @@ func teamFromResource(r *jsonAPIResource) (*Team, error) {
 	}, nil
 }
 
-func decodeStringAttr(m map[string]json.RawMessage, key string) (string, error) {
+func decodeStringAttr(m map[string]jsontext.Value, key string) (string, error) {
 	raw, ok := m[key]
 	if !ok || len(raw) == 0 || string(raw) == "null" {
 		return "", nil

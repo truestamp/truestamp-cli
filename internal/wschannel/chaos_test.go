@@ -21,7 +21,7 @@ package wschannel
 
 import (
 	"context"
-	"encoding/json"
+	"encoding/json/v2"
 	"fmt"
 	"runtime"
 	"sync"

@@ -5,7 +5,6 @@ package cmd
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"github.com/truestamp/truestamp-cli/internal/inputsrc"
@@ -246,9 +245,7 @@ func printTeamCreateJSON(cmd *cobra.Command, team *teams.Team, setActive bool) e
 		"created_at":      team.CreatedAt,
 		"active":          setActive,
 	}
-	enc := json.NewEncoder(cmd.OutOrStdout())
-	enc.SetIndent("", "  ")
-	return enc.Encode(out)
+	return emitJSON(cmd.OutOrStdout(), out)
 }
 
 // printTeamCreateErrorJSON emits a structured, parseable error object on
@@ -270,9 +267,7 @@ func printTeamCreateErrorJSON(cmd *cobra.Command, err error) error {
 		"error": redact.String(err.Error()),
 		"code":  code,
 	}
-	enc := json.NewEncoder(cmd.OutOrStdout())
-	enc.SetIndent("", "  ")
-	_ = enc.Encode(out)
+	_ = emitJSON(cmd.OutOrStdout(), out)
 	return errSilentFail
 }
 

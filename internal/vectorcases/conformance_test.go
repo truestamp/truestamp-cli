@@ -16,7 +16,8 @@ import (
 	"bytes"
 	"crypto/sha256"
 	"encoding/hex"
-	"encoding/json"
+	"encoding/json/jsontext"
+	"encoding/json/v2"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -70,11 +71,11 @@ func conformance(t *testing.T, c vectorcases.Case, got outcome) []string {
 		t.Fatal(err)
 	}
 	var report struct {
-		Code            *string           `json:"code"`
-		Label           string            `json:"label"`
-		Rows            []json.RawMessage `json:"rows"`
-		SubmittedAfter  json.RawMessage   `json:"submitted_after"`
-		SubmittedBefore json.RawMessage   `json:"submitted_before"`
+		Code            *string          `json:"code"`
+		Label           string           `json:"label"`
+		Rows            []jsontext.Value `json:"rows"`
+		SubmittedAfter  jsontext.Value   `json:"submitted_after"`
+		SubmittedBefore jsontext.Value   `json:"submitted_before"`
 	}
 	if err := json.Unmarshal(encoded, &report); err != nil {
 		t.Fatal(err)
@@ -108,7 +109,7 @@ func conformance(t *testing.T, c vectorcases.Case, got outcome) []string {
 	if c.Config.Online != nil {
 		for _, edge := range []struct {
 			name      string
-			got, want json.RawMessage
+			got, want jsontext.Value
 		}{
 			{"submitted_after", report.SubmittedAfter, c.Expected.SubmittedAfter},
 			{"submitted_before", report.SubmittedBefore, c.Expected.SubmittedBefore},

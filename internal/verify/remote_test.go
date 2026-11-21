@@ -97,7 +97,7 @@ func TestAskRemoteCtx_OnlyALabelledReportIsAVerdict(t *testing.T) {
 		{http.StatusCreated, report, "API error (HTTP 201): " + report},
 		{http.StatusOK, `{"rows":[]}`, "the service's report carries no label"},
 		{http.StatusOK, `{"label":"maybe"}`, `the service's report carries the label "maybe", which SPEC.md section 10.5 does not define`},
-		{http.StatusOK, `not json`, "the service's answer is not a report: invalid character 'o' in literal null (expecting 'u')"},
+		{http.StatusOK, `not json`, "the service's answer is not a report: jsontext: invalid character 'o' in literal null (expecting 'u') after offset 1"},
 	} {
 		url, _, hits := answering(t, tc.status, tc.body)
 		label, err := AskRemoteCtx(context.Background(), []byte(unservedForm), RemoteOptions{APIURL: url})

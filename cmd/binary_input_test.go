@@ -6,7 +6,8 @@ package cmd
 import (
 	"bytes"
 	"encoding/binary"
-	"encoding/json"
+	"encoding/json/jsontext"
+	"encoding/json/v2"
 	"go/ast"
 	"go/parser"
 	"go/token"
@@ -18,6 +19,8 @@ import (
 	"slices"
 	"strings"
 	"testing"
+
+	"github.com/truestamp/truestamp-cli/internal/jsonnumber"
 )
 
 // rfc8949 encodes the JSON text doc in the binary encoding of RFC 8949
@@ -27,10 +30,8 @@ import (
 // tagged prepends the self-describing tag 55799 (d9 d9 f7).
 func rfc8949(t *testing.T, doc []byte, tagged bool) []byte {
 	t.Helper()
-	dec := json.NewDecoder(bytes.NewReader(doc))
-	dec.UseNumber()
 	var v any
-	if err := dec.Decode(&v); err != nil {
+	if err := json.Unmarshal(doc, &v, jsonnumber.AsWritten); err != nil {
 		t.Fatalf("decoding the document: %v", err)
 	}
 	var out []byte
@@ -67,14 +68,14 @@ func rfc8949Value(t *testing.T, v any) []byte {
 		return []byte{0xf4}
 	case string:
 		return append(rfc8949Head(3, uint64(len(x))), x...)
-	case json.Number:
-		if i, err := x.Int64(); err == nil {
+	case jsontext.Value: // a number, as written (jsonnumber.AsWritten)
+		if i, err := jsonnumber.Int64(x); err == nil {
 			if i < 0 {
 				return rfc8949Head(1, uint64(-1-i))
 			}
 			return rfc8949Head(0, uint64(i))
 		}
-		f, err := x.Float64()
+		f, err := jsonnumber.Float64(x)
 		if err != nil {
 			t.Fatalf("number %s: %v", x, err)
 		}

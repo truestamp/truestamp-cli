@@ -7,7 +7,8 @@ import (
 	"bytes"
 	"crypto/sha256"
 	"encoding/hex"
-	"encoding/json"
+	"encoding/json/jsontext"
+	"encoding/json/v2"
 	"errors"
 	"fmt"
 	"os"
@@ -20,6 +21,7 @@ import (
 	"github.com/transparency-dev/merkle/rfc6962"
 	"golang.org/x/mod/sumdb/tlog"
 
+	"github.com/truestamp/truestamp-cli/internal/jsonnumber"
 	"github.com/truestamp/truestamp-cli/internal/strictjson"
 )
 
@@ -50,13 +52,13 @@ func TestWalk_TheLibraryHashesUnderTheRegistrysBytes(t *testing.T) {
 
 // The Merkle known answers, testdata/merkle/merkle.json, as
 // truestamp-merkle-ex's README defines its members. Integers above
-// 2^53 stay exact as json.Number.
+// 2^53 stay exact as the jsontext.Value each is written as.
 type merkleVectors struct {
 	Description string `json:"description"`
 	Constants   struct {
-		EmptyRoot   string      `json:"empty_root"`
-		MaxSteps    int         `json:"max_steps"`
-		MaxTreeSize json.Number `json:"max_tree_size"`
+		EmptyRoot   string         `json:"empty_root"`
+		MaxSteps    int            `json:"max_steps"`
+		MaxTreeSize jsontext.Value `json:"max_tree_size"`
 	} `json:"constants"`
 	Trees []struct {
 		Name    string `json:"name"`
@@ -64,35 +66,35 @@ type merkleVectors struct {
 			Key    string `json:"key"`
 			Digest string `json:"digest"`
 		} `json:"entries"`
-		Root     string      `json:"root"`
-		Depth    int         `json:"depth"`
-		TreeSize json.Number `json:"tree_size"`
+		Root     string         `json:"root"`
+		Depth    int            `json:"depth"`
+		TreeSize jsontext.Value `json:"tree_size"`
 		Paths    []struct {
-			Key       string      `json:"key"`
-			Digest    string      `json:"digest"`
-			LeafIndex json.Number `json:"leaf_index"`
-			TreeSize  json.Number `json:"tree_size"`
-			Path      []string    `json:"path"`
-			BinaryHex string      `json:"binary_hex"`
+			Key       string         `json:"key"`
+			Digest    string         `json:"digest"`
+			LeafIndex jsontext.Value `json:"leaf_index"`
+			TreeSize  jsontext.Value `json:"tree_size"`
+			Path      []string       `json:"path"`
+			BinaryHex string         `json:"binary_hex"`
 		} `json:"paths"`
 	} `json:"trees"`
-	EntryRefusals []json.RawMessage `json:"entry_refusals"`
+	EntryRefusals []jsontext.Value `json:"entry_refusals"`
 	WalkAccepts   []struct {
-		Name      string          `json:"name"`
-		Digest    string          `json:"digest"`
-		Proof     json.RawMessage `json:"proof"`
-		MaxSteps  int             `json:"max_steps"`
-		Root      string          `json:"root"`
-		BinaryHex string          `json:"binary_hex"`
+		Name      string         `json:"name"`
+		Digest    string         `json:"digest"`
+		Proof     jsontext.Value `json:"proof"`
+		MaxSteps  int            `json:"max_steps"`
+		Root      string         `json:"root"`
+		BinaryHex string         `json:"binary_hex"`
 	} `json:"walk_accepts"`
 	WalkRefusals []struct {
-		Name     string          `json:"name"`
-		Digest   string          `json:"digest"`
-		Proof    json.RawMessage `json:"proof"`
-		MaxSteps int             `json:"max_steps"`
-		Error    string          `json:"error"`
+		Name     string         `json:"name"`
+		Digest   string         `json:"digest"`
+		Proof    jsontext.Value `json:"proof"`
+		MaxSteps int            `json:"max_steps"`
+		Error    string         `json:"error"`
 	} `json:"walk_refusals"`
-	BinaryRefusals []json.RawMessage `json:"binary_refusals"`
+	BinaryRefusals []jsontext.Value `json:"binary_refusals"`
 }
 
 func loadMerkleVectors(t *testing.T) merkleVectors {
@@ -101,15 +103,11 @@ func loadMerkleVectors(t *testing.T) merkleVectors {
 	if err != nil {
 		t.Fatal(err)
 	}
-	decoder := json.NewDecoder(bytes.NewReader(data))
-	decoder.UseNumber()
-	decoder.DisallowUnknownFields()
+	// Unmarshal refuses content after the value; RejectUnknownMembers refuses
+	// a member merkleVectors does not name.
 	var vectors merkleVectors
-	if err := decoder.Decode(&vectors); err != nil {
+	if err := json.Unmarshal(data, &vectors, json.RejectUnknownMembers(true)); err != nil {
 		t.Fatalf("merkle.json: %v", err)
-	}
-	if decoder.More() {
-		t.Fatal("merkle.json has content after its value")
 	}
 	return vectors
 }
@@ -123,9 +121,9 @@ func mustHex64(t *testing.T, text string) [32]byte {
 	return out
 }
 
-func mustUint64(t *testing.T, n json.Number) uint64 {
+func mustUint64(t *testing.T, n jsontext.Value) uint64 {
 	t.Helper()
-	out, err := strconv.ParseUint(n.String(), 10, 64)
+	out, err := jsonnumber.Uint64(n)
 	if err != nil {
 		t.Fatalf("%s: %v", n, err)
 	}
@@ -134,16 +132,14 @@ func mustUint64(t *testing.T, n json.Number) uint64 {
 
 // typedProof reads a known answer's proof object, whose integers may pass
 // 2^53, into an InclusionProof.
-func typedProof(t *testing.T, raw json.RawMessage) InclusionProof {
+func typedProof(t *testing.T, raw jsontext.Value) InclusionProof {
 	t.Helper()
 	var p struct {
-		LeafIndex json.Number `json:"leaf_index"`
-		TreeSize  json.Number `json:"tree_size"`
-		Path      []string    `json:"path"`
+		LeafIndex jsontext.Value `json:"leaf_index"`
+		TreeSize  jsontext.Value `json:"tree_size"`
+		Path      []string       `json:"path"`
 	}
-	decoder := json.NewDecoder(bytes.NewReader(raw))
-	decoder.UseNumber()
-	if err := decoder.Decode(&p); err != nil {
+	if err := json.Unmarshal(raw, &p); err != nil {
 		t.Fatal(err)
 	}
 	out := InclusionProof{LeafIndex: mustUint64(t, p.LeafIndex), TreeSize: mustUint64(t, p.TreeSize)}
@@ -156,19 +152,17 @@ func typedProof(t *testing.T, raw json.RawMessage) InclusionProof {
 // parsedProof reads a known answer's proof object into the form
 // internal/strictjson gives a carried value: a number is a
 // strictjson.Number, its nearest binary64 value.
-func parsedProof(t *testing.T, raw json.RawMessage) any {
+func parsedProof(t *testing.T, raw jsontext.Value) any {
 	t.Helper()
-	decoder := json.NewDecoder(bytes.NewReader(raw))
-	decoder.UseNumber()
 	var value any
-	if err := decoder.Decode(&value); err != nil {
+	if err := json.Unmarshal(raw, &value, jsonnumber.AsWritten); err != nil {
 		t.Fatal(err)
 	}
 	var convert func(any) any
 	convert = func(v any) any {
 		switch typed := v.(type) {
-		case json.Number:
-			f, err := strconv.ParseFloat(typed.String(), 64)
+		case jsontext.Value:
+			f, err := jsonnumber.Float64(typed)
 			if err != nil {
 				t.Fatal(err)
 			}

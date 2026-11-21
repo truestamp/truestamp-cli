@@ -4,7 +4,8 @@
 package wschannel
 
 import (
-	"encoding/json"
+	"encoding/json/jsontext"
+	"encoding/json/v2"
 	"strings"
 	"testing"
 
@@ -55,7 +56,7 @@ func FuzzFrameUnmarshal(f *testing.F) {
 		}
 		// If decode succeeded, encoding it back must not panic and must
 		// produce something that decodes again.
-		out, err := json.Marshal(frame)
+		out, err := json.Marshal(frame, json.Deterministic(true))
 		if err != nil {
 			t.Fatalf("re-marshal failed for accepted frame %q: %v", data, err)
 		}
@@ -104,7 +105,7 @@ func FuzzParseReply(f *testing.F) {
 		frame := Frame{
 			Topic:   "console:lobby",
 			Event:   "phx_reply",
-			Payload: json.RawMessage(payload),
+			Payload: jsontext.Value(payload),
 		}
 		// Either a valid reply or an error, never a panic.
 		_, _ = ParseReply(frame)

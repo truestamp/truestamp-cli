@@ -4,7 +4,8 @@
 package cmd
 
 import (
-	"encoding/json"
+	"encoding/json/jsontext"
+	"encoding/json/v2"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -244,6 +245,33 @@ func TestCLI_Items_Update_SendsOnlyChangedAttributes(t *testing.T) {
 	}
 	if sent.Data.Attributes["visibility"] != "public" {
 		t.Errorf("visibility not sent: %v", sent.Data.Attributes)
+	}
+}
+
+// TestCLI_Items_Update_ClearingTagsSendsAnEmptyList pins `--tags ""`: it
+// clears the item's tags by sending "tags":[], never "tags":null, which the
+// server's tags attribute (a list that is never nil) does not take. Mutant
+// killed: the request body written with encoding/json's v1 semantics, which
+// write the nil slice NormalizeTags gives as null.
+func TestCLI_Items_Update_ClearingTagsSendsAnEmptyList(t *testing.T) {
+	s := startItemsServer(t, func(w http.ResponseWriter, r *http.Request) {
+		_, _ = w.Write([]byte(itemDoc(testItemID)))
+	})
+	_, stderr, exit := runCLI(t, "--base-url", s.URL, "--api-key", "k",
+		"items", "update", testItemID, "--tags", "")
+	if exit != 0 {
+		t.Fatalf("exit=%d stderr=%q", exit, stderr)
+	}
+	var sent struct {
+		Data struct {
+			Attributes map[string]jsontext.Value `json:"attributes"`
+		} `json:"data"`
+	}
+	if err := json.Unmarshal([]byte(s.body()), &sent); err != nil {
+		t.Fatalf("request body is not JSON: %v\n%s", err, s.body())
+	}
+	if tags, ok := sent.Data.Attributes["tags"]; !ok || string(tags) != "[]" || len(sent.Data.Attributes) != 1 {
+		t.Errorf("--tags \"\" should send only \"tags\":[], got %s", s.body())
 	}
 }
 

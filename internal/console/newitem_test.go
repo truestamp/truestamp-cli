@@ -4,7 +4,8 @@
 package console
 
 import (
-	"encoding/json"
+	"encoding/json/jsontext"
+	"encoding/json/v2"
 	"reflect"
 	"strings"
 	"testing"
@@ -410,7 +411,7 @@ func TestBuildCreateItemPayload_BareHashAddsNoHashType(t *testing.T) {
 // as itself, as items.ClaimsJSONString writes it. Mutants killed: the
 // writer leaving a newline unescaped (claims_json is then not JSON), and
 // the pane writing its claims with a writer of its own that drifts from
-// the shared one (encoding/json's, which writes "<" as \u003c).
+// the shared one (v1 encoding/json's, which writes "<" as \u003c).
 func TestBuildCreateItemPayload_ClaimsOnly_IgnoresHashFields(t *testing.T) {
 	t.Parallel()
 
@@ -477,7 +478,7 @@ func TestValidateHashJudgesTheTextAsTyped(t *testing.T) {
 func TestParseCreateReply_ClaimsReasons(t *testing.T) {
 	t.Parallel()
 
-	reply := parseCreateReply("error", json.RawMessage(`{"code":"invalid","message":"/name begins with a space (U+0020). Remove it. The claims need a description.",`+
+	reply := parseCreateReply("error", jsontext.Value(`{"code":"invalid","message":"/name begins with a space (U+0020). Remove it. The claims need a description.",`+
 		`"claims_reasons":[{"code":"claims_surrounding_whitespace","message":"/name begins with a space (U+0020). Remove it.","pointer":"/name"},`+
 		`{"code":"claims_content","message":"The claims need a description.","pointer":""}]}`))
 	want := []items.ClaimsReason{
@@ -507,7 +508,7 @@ func TestParseCreateReply_ClaimsReasons(t *testing.T) {
 func TestParseCreateReply_ItemCodeUnavailable(t *testing.T) {
 	t.Parallel()
 
-	reply := parseCreateReply("error", json.RawMessage(`{"code":"item_code_unavailable","message":"Could not issue an item code. Try again."}`))
+	reply := parseCreateReply("error", jsontext.Value(`{"code":"item_code_unavailable","message":"Could not issue an item code. Try again."}`))
 	if reply.err == nil || reply.err.Error() != "item_code_unavailable: Could not issue an item code. Try again." || reply.reasons != nil {
 		t.Errorf("reply %+v", reply)
 	}
@@ -522,7 +523,7 @@ func TestParseCreateReply_ClaimsJCSAndHash(t *testing.T) {
 
 	const jcs = `{"hash":"abab","hash_type":"sha256","name":"Doc"}`
 	const hash = "0f1e2d3c4b5a69788796a5b4c3d2e1f00f1e2d3c4b5a69788796a5b4c3d2e1f0"
-	reply := parseCreateReply("ok", json.RawMessage(`{"item":{"id":"019a0000-0000-7000-8000-000000000001","state":"created",`+
+	reply := parseCreateReply("ok", jsontext.Value(`{"item":{"id":"019a0000-0000-7000-8000-000000000001","state":"created",`+
 		`"claims":{"name":"Doc"},"claims_hash":"`+hash+`","item_hash":"ih"},"watched":true,`+
 		`"claims_jcs":"{\"hash\":\"abab\",\"hash_type\":\"sha256\",\"name\":\"Doc\"}","claims_hash":"`+hash+`"}`))
 	if reply.err != nil || reply.item == nil || reply.item.ClaimsJCS != jcs || reply.item.ClaimsHash != hash {
@@ -550,7 +551,7 @@ func TestParseCreateReply_ItemCodeBesideItemHash(t *testing.T) {
 
 	const itemHash = "e74892d046d46175c8dbdecbbbc705a36816df58e65a2ee1861c100c16eb5f8c"
 	const code = "WX495M26THGQBJ68"
-	reply := parseCreateReply("ok", json.RawMessage(`{"item":{"id":"019a0000-0000-7000-8000-000000000001","state":"created",`+
+	reply := parseCreateReply("ok", jsontext.Value(`{"item":{"id":"019a0000-0000-7000-8000-000000000001","state":"created",`+
 		`"claims":{"name":"Doc"},"claims_hash":"ch","item_hash":"`+itemHash+`","item_code":"`+code+`"},"watched":true,`+
 		`"claims_jcs":"{\"name\":\"Doc\"}","claims_hash":"ch"}`))
 	if reply.err != nil || reply.item == nil || reply.item.ItemCode != code {

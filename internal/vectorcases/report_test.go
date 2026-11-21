@@ -13,7 +13,8 @@ import (
 	"bytes"
 	"crypto/sha256"
 	"encoding/hex"
-	"encoding/json"
+	"encoding/json/jsontext"
+	"encoding/json/v2"
 	"errors"
 	"io"
 	"os"
@@ -36,26 +37,25 @@ var reportMembers = []string{"attribution", "code", "environment", "label", "row
 // holds, in the order it writes them.
 func memberNames(t *testing.T, encoded []byte) []string {
 	t.Helper()
-	decoder := json.NewDecoder(bytes.NewReader(encoded))
-	if token, err := decoder.Token(); err != nil || token != json.Delim('{') {
+	decoder := jsontext.NewDecoder(bytes.NewReader(encoded))
+	if token, err := decoder.ReadToken(); err != nil || token.Kind() != '{' {
 		t.Fatalf("not an object: %s (%v)", encoded, err)
 	}
 	var names []string
-	for decoder.More() {
-		token, err := decoder.Token()
+	for decoder.PeekKind() != '}' {
+		token, err := decoder.ReadToken()
 		if err != nil {
 			t.Fatal(err)
 		}
-		names = append(names, token.(string))
-		var skipped json.RawMessage
-		if err := decoder.Decode(&skipped); err != nil {
+		names = append(names, token.String())
+		if err := decoder.SkipValue(); err != nil {
 			t.Fatal(err)
 		}
 	}
-	if _, err := decoder.Token(); err != nil {
+	if _, err := decoder.ReadToken(); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := decoder.Token(); !errors.Is(err, io.EOF) {
+	if _, err := decoder.ReadToken(); !errors.Is(err, io.EOF) {
 		t.Fatalf("more than one value: %s", encoded)
 	}
 	return names
@@ -157,7 +157,7 @@ func checkReport(t *testing.T, c vectorcases.Case, r *verifier.Run) {
 		t.Fatalf("code %v; the case gives the code %s", report["code"], c.Expected.Code)
 	}
 
-	var rows []json.RawMessage
+	var rows []jsontext.Value
 	if err := json.Unmarshal(mustMarshal(t, report["rows"]), &rows); err != nil {
 		t.Fatal(err)
 	}
@@ -196,7 +196,7 @@ func checkReport(t *testing.T, c vectorcases.Case, r *verifier.Run) {
 
 	for _, e := range []struct {
 		name  string
-		want  json.RawMessage
+		want  jsontext.Value
 		drawn *verifier.Edge
 	}{{"submitted_after", c.Expected.SubmittedAfter, r.SubmittedAfter}, {"submitted_before", c.Expected.SubmittedBefore, r.SubmittedBefore}} {
 		got, _ := report[e.name].(map[string]any)
@@ -278,7 +278,7 @@ func normalized(t *testing.T, v any) any {
 
 func mustMarshal(t *testing.T, v any) []byte {
 	t.Helper()
-	data, err := json.Marshal(v)
+	data, err := json.Marshal(v, json.Deterministic(true))
 	if err != nil {
 		t.Fatal(err)
 	}

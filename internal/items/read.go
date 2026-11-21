@@ -5,7 +5,8 @@ package items
 
 import (
 	"context"
-	"encoding/json"
+	"encoding/json/jsontext"
+	"encoding/json/v2"
 	"errors"
 	"fmt"
 	"net/http"
@@ -204,7 +205,7 @@ func Update(ctx context.Context, apiURL, team, id string, opts UpdateOptions) (*
 			"attributes": attrs,
 		},
 	}
-	raw, err := json.Marshal(payload)
+	raw, err := json.Marshal(payload, json.Deterministic(true))
 	if err != nil {
 		return nil, fmt.Errorf("encoding request: %w", err)
 	}
@@ -218,8 +219,8 @@ func Update(ctx context.Context, apiURL, team, id string, opts UpdateOptions) (*
 // resourceObject is the JSON:API shape both the single and list responses
 // use: identity at the top, everything else under attributes.
 type resourceObject struct {
-	ID         string          `json:"id"`
-	Attributes json.RawMessage `json:"attributes"`
+	ID         string         `json:"id"`
+	Attributes jsontext.Value `json:"attributes"`
 }
 
 func itemFromResource(r resourceObject) (Item, error) {

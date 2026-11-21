@@ -7,7 +7,7 @@ package items
 import (
 	"bytes"
 	"context"
-	"encoding/json"
+	"encoding/json/v2"
 	"errors"
 	"fmt"
 	"net/http"
@@ -118,8 +118,9 @@ func CreateItemCtx(ctx context.Context, apiURL, team string, claimsJSON []byte, 
 }
 
 // createBody writes the JSON:API document with claimsJSON spliced in
-// verbatim. encoding/json is not used for the claims: json.RawMessage is
-// compacted and HTML-escaped when marshaled, which would change the text.
+// verbatim. No JSON encoder writes the claims: one reformats a
+// jsontext.Value it marshals (whitespace dropped, each string rewritten in
+// its shortest form), which would change the text.
 func createBody(claimsJSON []byte, visibility string, tags []string) ([]byte, error) {
 	var b bytes.Buffer
 	b.WriteString(`{"data":{"type":"item","attributes":{"claims":`)

@@ -9,7 +9,7 @@ import (
 	"debug/buildinfo"
 	"encoding/base64"
 	"encoding/hex"
-	"encoding/json"
+	"encoding/json/v2"
 	"errors"
 	"fmt"
 	"go/ast"
@@ -484,7 +484,7 @@ func (s *chainStub) serve(w http.ResponseWriter, r *http.Request) {
 	s.mu.Unlock()
 	answer := func(v any) {
 		w.Header().Set("Content-Type", "application/json")
-		_ = json.NewEncoder(w).Encode(v)
+		_ = json.MarshalWrite(w, v)
 	}
 	block := map[string]any{"height": 212, "mediantime": stubMedianTime, "timestamp": stubMedianTime, "tx_count": 1}
 	switch path := r.URL.Path; {
@@ -510,7 +510,7 @@ func (s *chainStub) serve(w http.ResponseWriter, r *http.Request) {
 			Method string `json:"method"`
 			Params []any  `json:"params"`
 		}
-		if err := json.NewDecoder(r.Body).Decode(&call); err != nil {
+		if err := json.UnmarshalRead(r.Body, &call); err != nil {
 			http.Error(w, "bad call", http.StatusBadRequest)
 			return
 		}

@@ -5,7 +5,7 @@ package proof
 
 import (
 	"encoding/hex"
-	"encoding/json"
+	"encoding/json/v2"
 	"errors"
 	"os"
 	"path/filepath"

@@ -4,7 +4,7 @@
 package config
 
 import (
-	"encoding/json"
+	"encoding/json/v2"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -598,7 +598,7 @@ func TestLoad_TheKeyringKeyIsRetiredAndNetworksComeFromTheFile(t *testing.T) {
 	if !reflect.DeepEqual(cfg.Verify.Sources, want) {
 		t.Errorf("networks = %+v", cfg.Verify.Sources)
 	}
-	shown, err := json.Marshal(cfg)
+	shown, err := json.Marshal(cfg, json.Deterministic(true))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -688,7 +688,7 @@ func TestLoad_ConfiguredKeyringsComeFromTheFile(t *testing.T) {
 	if k.For("prod") != "" || k.For("production") != "" {
 		t.Errorf("a keyring for prod: %q", k.For("prod"))
 	}
-	shown, err := json.Marshal(cfg)
+	shown, err := json.Marshal(cfg, json.Deterministic(true))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -755,7 +755,7 @@ func TestLoad_TheVerifierSources(t *testing.T) {
 		v.BitcoinCoreUser != "file-user" || v.BitcoinCorePassword != "file-secret-5b1e" {
 		t.Fatalf("from the file: %+v", v)
 	}
-	shown, err := json.Marshal(cfg)
+	shown, err := json.Marshal(cfg, json.Deterministic(true))
 	if err != nil {
 		t.Fatal(err)
 	}

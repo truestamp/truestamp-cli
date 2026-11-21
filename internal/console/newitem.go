@@ -5,7 +5,8 @@ package console
 
 import (
 	"context"
-	"encoding/json"
+	"encoding/json/jsontext"
+	"encoding/json/v2"
 	"fmt"
 	"regexp"
 	"strconv"
@@ -504,7 +505,7 @@ func (m *newItemModel) submit() tea.Cmd {
 // parseCreateReply reads an items.create reply. A refusal is its code and
 // message, with each claims_reasons entry kept; a success is the item,
 // with the reply's claims_jcs and claims_hash.
-func parseCreateReply(status string, response json.RawMessage) itemCreateReplyMsg {
+func parseCreateReply(status string, response jsontext.Value) itemCreateReplyMsg {
 	if status != "ok" {
 		var e struct {
 			Code          string               `json:"code"`

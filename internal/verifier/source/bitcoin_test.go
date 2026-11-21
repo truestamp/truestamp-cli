@@ -6,7 +6,7 @@ package source
 import (
 	"context"
 	"encoding/base64"
-	"encoding/json"
+	"encoding/json/v2"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -65,7 +65,7 @@ type coreCallOf struct {
 func core(answers map[string]string) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		var call coreCallOf
-		_ = json.NewDecoder(r.Body).Decode(&call)
+		_ = json.UnmarshalRead(r.Body, &call)
 		answer, ok := answers[call.Method]
 		if !ok {
 			w.WriteHeader(404)
@@ -336,7 +336,7 @@ func TestBitcoinReads_NothingANodeEchoesReachesAReasonOrValue(t *testing.T) {
 	afterHash := func(rewrite func(auth string) string) http.HandlerFunc {
 		return func(w http.ResponseWriter, r *http.Request) {
 			var call coreCallOf
-			_ = json.NewDecoder(r.Body).Decode(&call)
+			_ = json.UnmarshalRead(r.Body, &call)
 			if call.Method == "getblockhash" {
 				_, _ = w.Write([]byte(result(`"` + blockHash + `"`)))
 				return
@@ -387,7 +387,7 @@ func TestBitcoinReads_NothingANodeEchoesReachesAReasonOrValue(t *testing.T) {
 		}{{tipRead, tc.tip}, {heightRead(232), tc.block}} {
 			srv, seen := recording(t, tc.node)
 			got := Read(context.Background(), reads(), BitcoinCore, srv.URL, coreCreds, r.read)
-			printed, _ := json.Marshal(got)
+			printed, _ := json.Marshal(got, json.Deterministic(true))
 			for _, planted := range []string{coreUser, corePasswd, coreBasic, strings.TrimPrefix(srv.URL, "http://")} {
 				if strings.Contains(string(printed)+fmt.Sprintf("%+v", got), planted) {
 					t.Errorf("%s, %s: %q is printed: %s", tc.name, r.read["kind"], planted, printed)
@@ -688,7 +688,7 @@ func TestBitcoinReads_NothingANodeEchoesReachesABlockByItsHash(t *testing.T) {
 	} {
 		srv, seen := recording(t, tc.node)
 		got := Read(context.Background(), reads(), BitcoinCore, srv.URL, coreCreds, hashRead)
-		printed, _ := json.Marshal(got)
+		printed, _ := json.Marshal(got, json.Deterministic(true))
 		for _, planted := range []string{coreUser, corePasswd, coreBasic} {
 			if strings.Contains(string(printed)+fmt.Sprintf("%+v", got), planted) {
 				t.Errorf("%s: %q is printed: %s", name, planted, printed)
