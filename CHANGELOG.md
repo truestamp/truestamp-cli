@@ -192,6 +192,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   Not yet committed hint shows only for an item still waiting for its
   block.
 
+- **Dependencies and tools bumped.** bubbletea 2.1.2, lipgloss 2.1.1,
+  bubbles 2.2.2, koanf 2.4.1, gowebpki/jcs 1.0.2 (only its
+  unchanged number formatter is used; its parser now refuses the malformed
+  texts it once rewrote, which the strict reader already refused), and
+  `golang.org/x/{crypto,mod,oauth2,sys,term}`. Tools: GoReleaser 2.20.3,
+  cosign 3.1.4, syft 1.57.2, Task 3.54.0, gosec 2.30.0, govulncheck
+  1.10.0, caddy 2.11.9 and websocat 1.14.2. Workflows: `jdx/mise-action`
+  v5.2.10, `actions/upload-artifact` v7.0.2 and `github/codeql-action`
+  v4.39.4, each pinned SHA checked against the tag it claims. pflag stays
+  at 1.0.10, the line cobra 1.10.2 is built on: 1.1.0 has an open
+  regression that reports an out-of-range number flag as not a number
+  (spf13/pflag#544).
+
 ### Removed
 
 - **The earlier proof layout and the earlier `verify` report.** A document
@@ -223,14 +236,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Security
 
-- **Go toolchain bumped to 1.27.3.** Go 1.26.8 carried ten standard
+- **Go toolchain bumped to 1.27.4.** Go 1.26.8 carried ten standard
   library vulnerabilities this binary reaches: GO-2026-6809, distrusting
   compromised intermediate certificates in `crypto/x509` (fixed in
   1.26.10), and nine fixed in 1.26.9 (GO-2026-6617, GO-2026-6613,
   GO-2026-6612, GO-2026-6611, GO-2026-6610, GO-2026-6605 and GO-2026-6603
   in `net/http`, GO-2026-6608 in `net/textproto` and GO-2026-6607 in
-  `crypto/tls`). staticcheck moves to 2026.2.2 and govulncheck to 1.9.0,
-  built with Go 1.27.3, the releases that read Go 1.27's packages.
+  `crypto/tls`). Go 1.27.3 carried GO-2026-6859 in `net/http`, fixed in
+  1.27.4. staticcheck moves to 2026.2.2, the release that reads Go 1.27's
+  packages.
+- **The console ignores an implausible terminal resize report.**
+  bubbletea 2.1.1 fixed GHSA-qc58-pfg9-7pph, a terminal size query a
+  hostile terminal could abuse.
+- **A release is built by the pinned GoReleaser, in a job that restores
+  no cache.** The publish step ran `goreleaser-action` at `version:
+  latest`, not the GoReleaser `.tool-versions` pins and the dry run in the
+  same job tests; it now runs the pinned one, 2.20.3, which fixes
+  GHSA-9422-8p9m-393x, GHSA-7qv4-9g3j-wvq8, GHSA-rjp9-h7gp-wr7q,
+  GHSA-gvxm-cvj4-qwvp and GHSA-qx28-5g8c-9fw6. The job no longer restores
+  the mise cache, as mise-action advises for a job that publishes, so no
+  file another workflow cached reaches a release.
 - **An OAuth session's access token is no longer sent to GitHub.** Since
   0.9.0, with an OAuth session signed in and a stale `GITHUB_TOKEN` set,
   GitHub's 401 to the upgrade check (the passive notice or `truestamp

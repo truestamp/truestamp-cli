@@ -33,7 +33,7 @@ task build      # Build for current platform -> build/truestamp
 
 Do **not** `go install` the linters at `@latest`. CI deliberately invokes the same Taskfile tasks you run locally so that tool versions come from `.tool-versions` and nothing can drift between a developer machine and CI. A `go install`-ed binary also lives in the active Go toolchain's bin directory and is shadowed the moment the Go version moves.
 
-The Go module path is `github.com/truestamp/truestamp-cli`, and the main package is `./cmd/truestamp` (not the repo root, so a bare `go build .` will not work). The Go floor is `go 1.27.3`, stated in both [`go.mod`](./go.mod) and [`.tool-versions`](./.tool-versions); the two must stay in agreement. Bumping Go should always be followed by re-running `task vuln-check` to confirm no new stdlib CVEs surface.
+The Go module path is `github.com/truestamp/truestamp-cli`, and the main package is `./cmd/truestamp` (not the repo root, so a bare `go build .` will not work). The Go floor is `go 1.27.4`, stated in both [`go.mod`](./go.mod) and [`.tool-versions`](./.tool-versions); the two must stay in agreement. Bumping Go should always be followed by re-running `task vuln-check` to confirm no new stdlib CVEs surface.
 
 ## Version control: this repo uses Jujutsu
 
