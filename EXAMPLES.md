@@ -1331,6 +1331,10 @@ multitenancy context. The id is stored under the top-level `team` key in
 # help: a group is a namespace, never a command.
 truestamp teams list
 
+# --json lists your memberships. Each entry's own id is the membership's;
+# the team's id, the one teams get and teams use take, is team_id.
+truestamp teams list --json | jq -r '.[] | "\(.team_id) \(.role) \(.team.name)"'
+
 # Detail card for the team the CLI is pointed at, or a specific one by id
 truestamp teams current
 truestamp teams get 01a0db60-0000-7000-8000-000000000001

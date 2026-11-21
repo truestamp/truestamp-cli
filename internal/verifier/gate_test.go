@@ -384,6 +384,35 @@ func configure(t *testing.T, cfg Config) (*Run, *Rejection) {
 	return run, rejection
 }
 
+// A run under another environment than prod with no keyring is
+// configuration_error, and its message names every way to supply one that
+// the run could take: online, an explicit --base-url too, whose origin's
+// keyring is a supplied keyring; offline, not, since no keyring is read.
+// Mutant killed: the message offering --base-url offline, or leaving it out
+// online (the dev server run found an online `--environment dev` told only
+// of --keyring, a configured keyring and --no-keyring).
+func TestConfigure_ANonProductionRunWithNoKeyringNamesEachWay(t *testing.T) {
+	for _, online := range []bool{true, false} {
+		cfg, err := NewConfig("dev")
+		if err != nil {
+			t.Fatal(err)
+		}
+		cfg.Online = online
+		_, rejection := configure(t, cfg)
+		if rejection == nil || rejection.Code != specdata.ReasonConfigurationError {
+			t.Fatalf("online %v: %+v, want configuration_error", online, rejection)
+		}
+		for _, way := range []string{"--keyring FILE", "a keyring configured for dev", "--no-keyring"} {
+			if !strings.Contains(rejection.Message, way) {
+				t.Errorf("online %v: the message %q does not name %s", online, rejection.Message, way)
+			}
+		}
+		if got := strings.Contains(rejection.Message, "--base-url"); got != online {
+			t.Errorf("online %v: the message names --base-url: %v, want %v (%q)", online, got, online, rejection.Message)
+		}
+	}
+}
+
 // A keyring file is loaded under the run's E_v, so under prod it is a
 // production keyring: one holding a non-production key is
 // configuration_error, as is one that fails any load check or is over

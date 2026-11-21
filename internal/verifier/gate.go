@@ -200,11 +200,18 @@ func Configure(cfg Config) (*Run, *Rejection, error) {
 	case source.Kind == SourceKeyless:
 		run.TrustRoot = TrustRoot{Kind: KindNone}
 	case source.Kind == SourceDefault && cfg.Environment != "prod":
+		// Online, a keyring read from the origin --base-url names is a
+		// supplied keyring too, so the message offers it; offline no
+		// keyring is read, so it does not.
+		origin := ""
+		if cfg.Online {
+			origin = fmt.Sprintf(", with --base-url naming the host that serves %s's keyring", cfg.Environment)
+		}
 		return nil, ConfigurationError(fmt.Sprintf(
 			"A run whose environment is %s checks proofs of that environment against a supplied keyring, "+
-				"and none was given: run again with --keyring FILE, with a keyring configured for %s, "+
+				"and none was given: run again with --keyring FILE, with a keyring configured for %s%s, "+
 				"or with --no-keyring to check the signature only against the key the proof carries.",
-			cfg.Environment, cfg.Environment)), nil
+			cfg.Environment, cfg.Environment, origin)), nil
 	case source.Kind == SourceDefault && !cfg.Online:
 		loaded, err := keyring.Load(compiledPin(), "prod", "")
 		if err != nil {
