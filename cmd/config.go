@@ -241,7 +241,7 @@ func presentConfig(cfg *config.Config) {
 	}
 
 	general = general.
-		Row("Keyring URL", cfg.KeyringURL).
+		Row("Keys keyring", cfg.KeyringURL).
 		Row("HTTP Timeout", cfg.HTTPTimeout).
 		Row("Cosign Path", cosignPathDisplay(cfg.CosignPath)).
 		Row("Silent", fmt.Sprintf("%v", cfg.Silent)).

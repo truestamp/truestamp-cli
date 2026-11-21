@@ -167,8 +167,9 @@ Examples:
 // entropySourceFlag reads --source and refuses a value outside the closed
 // set before any request is made. Empty means every source.
 func entropySourceFlag(cmd *cobra.Command) (string, error) {
+	// Compared exactly, the same words proofs get --type takes, with no
+	// trimming.
 	source, _ := cmd.Flags().GetString("source")
-	source = strings.TrimSpace(source)
 	if source == "" {
 		return "", nil
 	}

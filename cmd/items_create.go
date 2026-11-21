@@ -106,9 +106,12 @@ Requires authentication, run 'truestamp auth login', or set TRUESTAMP_API_KEY / 
 			return err
 		}
 
-		jsonOutput, _ := outputMode(cmd)
+		jsonOutput, silent := outputMode(cmd)
 
 		visibility, _ := cmd.Flags().GetString("visibility")
+		if cmd.Flags().Changed("visibility") && visibility == "" {
+			return items.ErrEmptyVisibility
+		}
 		if err := items.ValidateVisibility(visibility); err != nil {
 			return err
 		}
@@ -127,6 +130,9 @@ Requires authentication, run 'truestamp auth login', or set TRUESTAMP_API_KEY / 
 		}
 		appLogger.Info("create_completed", "id", resp.ID)
 
+		if silent {
+			return nil
+		}
 		if jsonOutput {
 			return printCreateJSON(cmd.OutOrStdout(), resp)
 		}

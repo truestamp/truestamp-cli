@@ -87,6 +87,13 @@ func ExpectedHash(run *Run) {
 	}
 	hashType, hash, listed := listedHash(run)
 	if !listed {
+		if run.Type != "item" {
+			// The reason stays no_listed_hash (the value SPEC.md gives
+			// it); only the message says why: a non-item proof has no
+			// claims at all.
+			mismatch("no_listed_hash", "The expected hash was not matched: this is a "+run.Type+" proof, which carries no claims and so no hash to compare.")
+			return
+		}
 		mismatch("no_listed_hash", "The expected hash was not matched: this proof's claims hold no hash of a type the comparison lists.")
 		return
 	}

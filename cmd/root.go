@@ -330,7 +330,7 @@ func Execute() (err error) {
 		os.Exit(panicExitCode)
 	}()
 
-	err = rootCmd.Execute()
+	executed, err := rootCmd.ExecuteC()
 	// Mirror the final outcome to the log so a single grep over
 	// truestamp.log shows every invocation's exit shape, even when
 	// the failure short-circuited PersistentPostRun.
@@ -361,8 +361,38 @@ func Execute() (err error) {
 	if errors.As(err, &ec) {
 		return err
 	}
-	if !errors.Is(err, errSilentFail) {
+	if !errors.Is(err, errSilentFail) && !silentRun(executed) {
 		ui.Fprintln(os.Stderr, err)
 	}
 	return err
+}
+
+// rawOutputCommands are R10's exemptions: the pipeline primitives, which
+// read --json and --silent from their own flags and ignore the ambient
+// setting from config.toml or the environment.
+var rawOutputCommands = map[string]bool{
+	"truestamp encode": true, "truestamp decode": true, "truestamp jcs": true, "truestamp hash": true,
+	"truestamp convert time": true, "truestamp convert id": true, "truestamp convert keyid": true,
+}
+
+// silentRun reports whether the command that ran is under --silent, as its
+// own output rules read it: an explicit --silent decides, and otherwise the
+// ambient setting does, except on rawOutputCommands. Under it a failure
+// prints nothing, whichever command it is ("No output, exit code only"),
+// where some commands returned errSilentFail and others printed the error.
+func silentRun(c *cobra.Command) bool {
+	// Before the configuration loads (a bad flag, --silent with --json),
+	// the error is a usage error and is always printed.
+	if c == nil || appConfig == nil {
+		return false
+	}
+	f := c.Flags().Lookup("silent")
+	if f == nil {
+		return false
+	}
+	if f.Changed {
+		v, _ := c.Flags().GetBool("silent")
+		return v
+	}
+	return !rawOutputCommands[c.CommandPath()] && appConfig != nil && appConfig.Silent
 }

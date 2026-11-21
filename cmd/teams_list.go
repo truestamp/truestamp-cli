@@ -23,7 +23,7 @@ team (the one stored under 'team' in config.toml) is marked with a star.
 
 Examples:
   truestamp teams list
-  truestamp teams list --json | jq '.[].id'`,
+  truestamp teams list --json | jq -r '.[].team_id'`,
 	Args: cobra.NoArgs,
 	RunE: runTeamList,
 }
@@ -60,9 +60,7 @@ func runTeamList(cmd *cobra.Command, _ []string) error {
 	})
 
 	if silent {
-		if len(memberships) == 0 {
-			return errSilentFail
-		}
+		// An empty list is no failure, as in text and --json.
 		return nil
 	}
 

@@ -202,7 +202,7 @@ Truly global (persistent) flags, available on every sub-command:
 - `--config <path>` overrides the config file location
 - `--no-upgrade-check` suppresses the passive "new version available" notice
 - `--log-level` / `--log-file` control the shared JSON log file
-- `--base-url` / `--api-key` / `--team` / `--http-timeout` are the network settings. Every service URL (API, keyring, console WebSocket, health) is derived from the single `--base-url` origin; there is no `--api-url` and no `--keyring-url` (both are rejected with `unknown flag`, exit 1). One exception to "available everywhere": `auth login` declares its own local `--api-key`, a boolean that switches it to interactive key entry, and that shadows the persistent string flag on that one command.
+- `--base-url` / `--api-key` / `--team` / `--http-timeout` are the network settings. Every service URL (API, keyring, console WebSocket, health) is derived from the single `--base-url` origin; there is no `--api-url` and no `--keyring-url` (both are rejected with `unknown flag`, exit 1). Two exceptions to "available everywhere": `auth login` and `auth logout` each declare their own local `--api-key`, a boolean (interactive key entry on login, removing the stored key on logout) that shadows the persistent string flag on those two commands and is never read as a key.
 
 `--json` and `--silent` are deliberately *not* persistent flags: a persistent
 flag would appear on `auth login`, `console` and `completion`, which render no
@@ -505,7 +505,7 @@ truestamp config show --base-url https://www.truestamp.com
 ```
 
 `config show` renders a General block (Config File, API URL, Auth Mode, API
-Key, Team, Keyring URL, HTTP Timeout, Cosign Path, Silent, JSON) followed by
+Key, Team, Keys keyring (the keyring `keys` and the console read; `verify` reads it only with an explicit `--base-url`), HTTP Timeout, Cosign Path, Silent, JSON) followed by
 the Verification, Hash and Convert sections. Verification shows Offline and
 Remote, the verifier's Horizon, Esplora and Bitcoin Core sources, each
 network's several sources with its policy, and the keyring configured for
@@ -928,7 +928,7 @@ truestamp proofs get 01a0db66-c2e0-78a4-b8cc-12b11bc97493 | truestamp verify --o
 # Trust root:   supplied_keyring, from keyring.test.json, SHA-256 e06820401e366a5325b9ec9788440fd4bc63f584e08a0fc7b33b4f2c5123c1fd
 # Environment:  test, not production: this run checks proofs of Truestamp's test environment
 # Type:         item
-# Subject id:   01a0db66-c2e0-78a4-b8cc-12b11bc97493
+# Subject id:   01a0db66-c2e0-78a4-b8cc-12b11bc97493 (declared by the signer, not attributed to Truestamp)
 # Item hash:    e74892d046d46175c8dbdecbbbc705a36816df58e65a2ee1861c100c16eb5f8c (recomputed from the subject's record)
 # Item code:    WX495M26THGQBJ68 (of that item_hash: a name for the item, not a check)
 
@@ -1110,7 +1110,7 @@ Attribution:  keyring:e06820401e366a5325b9ec9788440fd4bc63f584e08a0fc7b33b4f2c51
 Trust root:   supplied_keyring, from keyring.test.json, SHA-256 e06820401e366a5325b9ec9788440fd4bc63f584e08a0fc7b33b4f2c5123c1fd
 Environment:  test, not production: this run checks proofs of Truestamp's test environment
 Type:         item
-Subject id:   01a0db66-c2e0-78a4-b8cc-12b11bc97493
+Subject id:   01a0db66-c2e0-78a4-b8cc-12b11bc97493 (declared by the signer, not attributed to Truestamp)
 Item hash:    e74892d046d46175c8dbdecbbbc705a36816df58e65a2ee1861c100c16eb5f8c (recomputed from the subject's record)
 Item code:    WX495M26THGQBJ68 (of that item_hash: a name for the item, not a check)
 Submitted after:  not established in this run (offline at /witnesses/entropy_bitcoin, offline at /witnesses/entropy_nist, offline at /witnesses/entropy_stellar)
@@ -1179,7 +1179,7 @@ Without it the row is `skip expected_hash_not_checked`.
 
 Under `--json` stdout is exactly the report of SPEC.md section 10.5:
 `attribution`, `code` (for a failed run), `environment`, `label`, `rows`
-(each `{code, message, part, status, step, values}`), `subject_id`,
+(each `{code, message, part, status, step, values}`, with no `code` on a pass), `subject_id`,
 `submitted_after`, `submitted_before`, `trust_root`, `type`, `verified` and
 `window`, written with JCS. It carries no item code.
 
@@ -2370,7 +2370,7 @@ truestamp proofs get --type block 01a0db68-2270-796b-a428-e3946340a287 | truesta
 # Trust root:   supplied_keyring, from keyring.test.json, SHA-256 e06820401e366a5325b9ec9788440fd4bc63f584e08a0fc7b33b4f2c5123c1fd
 # Environment:  test, not production: this run checks proofs of Truestamp's test environment
 # Type:         block
-# Subject id:   01a0db68-2270-796b-a428-e3946340a287
+# Subject id:   01a0db68-2270-796b-a428-e3946340a287 (declared by the signer, not attributed to Truestamp)
 # Submitted after:  none: this proof carries nothing that could give this edge
 # Submitted before: not established in this run (offline at /commitments/bitcoin, offline at /commitments/stellar)
 ```
@@ -2501,7 +2501,8 @@ keyring, whose one key is `fbd680e8`.
 truestamp keys list
 #   Signing Keys (1)
 #
-#   0  fbd680e8  IVL40Zt5HSRFMkLhXy6rbLfP-ntqXtMAl5YOBpiB2xI  (active)
+#   SEQ    KEY ID      PUBLIC KEY                                     ACTIVE
+#   0      fbd680e8    IVL40Zt5HSRFMkLhXy6rbLfP-ntqXtMAl5YOBpiB2xI    yes
 
 truestamp keys current                 # the key signing right now
 truestamp keys get fbd680e8            # by its 8-hex key id
@@ -2618,14 +2619,16 @@ truestamp version
 # The same fields as JSON
 truestamp version --json
 
-# One-liner: version plus the short commit and the build date
+# One-liner: version plus the commit and the build date
 truestamp --version
-# truestamp dev (commit: unknown, built: unknown)
+# truestamp 0.17.0 (commit: 6379aaaa2bbc6e3b12d24dbb7d7a1c3f8e4a5b90, built: 2026-11-21T18:16:16Z)
 ```
 
-That is a binary built from source without the release flags; a release
-build prints its version, its short commit and its build date in their
-place.
+A release build prints its version, its whole commit hash and its build
+date. A binary built from source with `go build` takes all three from Go's
+VCS stamp (a dirty tree's version ends `+dirty`), and one built with no VCS
+information (`go build -buildvcs=false`, or outside a repository) prints the
+version `dev`, with `unknown` for the commit and for the build date.
 
 ---
 
@@ -2991,7 +2994,8 @@ Environment variables for CI:
 | `TRUESTAMP_TEAM` | Multi-tenant team ID |
 | `TRUESTAMP_HTTP_TIMEOUT` | HTTP timeout (`30s`, `1m`) |
 | `TRUESTAMP_COSIGN_PATH` | Absolute path to the `cosign` binary used by `truestamp upgrade` (empty = `$PATH` lookup) |
-| `TRUESTAMP_REQUIRE_COSIGN` | `1` makes a missing `cosign` binary or signature bundle a hard error during an in-place `truestamp upgrade` instead of a warning (SHA-256 is always enforced) |
+| `TRUESTAMP_REQUIRE_COSIGN` | `1` makes a missing `cosign` binary or signature bundle a hard error during an in-place `truestamp upgrade` instead of a warning (SHA-256 is always enforced), and refuses `--no-verify` |
+| `GITHUB_TOKEN` | Sent as a bearer token to api.github.com by `truestamp upgrade` and `upgrade --check`, raising GitHub's rate limit; CI runners often set it |
 | `TRUESTAMP_LOGGING_LEVEL` / `TRUESTAMP_LOGGING_FILE` | Log level and log file path (named after the `[logging]` config section, not the flag) |
 | `TRUESTAMP_LOGGING_MAX_SIZE_MB` / `TRUESTAMP_LOGGING_MAX_BACKUPS` / `TRUESTAMP_LOGGING_MAX_AGE_DAYS` | Log rotation budget |
 | `TRUESTAMP_SILENT` / `TRUESTAMP_JSON` | CLI-wide defaults for `--silent` / `--json` (setting both is an error) |
@@ -3002,7 +3006,7 @@ Environment variables for CI:
 | `TRUESTAMP_HASH_ENCODING` | Default digest encoding (`hex` / `base64` / `base64url`) |
 | `TRUESTAMP_HASH_STYLE` | Default output style (`gnu` / `bsd` / `bare`) |
 | `TRUESTAMP_CONVERT_TIME_ZONE` | Default `--to-zone` for `convert time` / `convert id` |
-| `TRUESTAMP_NO_UPGRADE_CHECK` | Disable the passive upgrade nag |
+| `TRUESTAMP_NO_UPGRADE_CHECK` | Any non-empty value (`1`, but also `0` or `false`) disables the passive upgrade notice |
 | `NO_COLOR` | Industry-standard: strip all ANSI colors |
 
 The verifier's environment and keyless mode are never set by an
@@ -3042,10 +3046,10 @@ truestamp verify proof.json --offline --environment test --keyring keyring.test.
 # Attribution:  keyring:e06820401e366a5325b9ec9788440fd4bc63f584e08a0fc7b33b4f2c5123c1fd
 
 # The convert / hash / encode / decode / jcs / inspect primitives compute
-# locally and make no network calls, unless you explicitly pass --url,
-# which downloads the input (hash, encode, decode, jcs and inspect accept
-# it; convert time / id / keyid have no --url and are unconditionally
-# offline).
+# locally and make no network calls, unless you ask for a download:
+# --url, or, for encode, decode, jcs and inspect, a positional argument
+# that is an http(s) URL (hash reads a positional argument as a path, and
+# convert time / id / keyid have no --url and are unconditionally offline).
 truestamp hash -a sha256 contract.pdf
 truestamp jcs < claims.json
 truestamp convert id 01a0db66-c2e0-78a4-b8cc-12b11bc97493

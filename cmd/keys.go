@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"regexp"
+	"strconv"
 	"strings"
 
 	"github.com/spf13/cobra"
@@ -147,14 +148,19 @@ func renderKeyList(w io.Writer, kr *external.KeyringResponse) {
 		return
 	}
 	header := ui.AccentBoldStyle().Render(fmt.Sprintf("  Signing Keys (%d)", len(kr.Keys)))
-	tbl := ui.CompactTable().StyleFunc(ui.LabelValueStyleFunc())
+	// Exactly the keyring's four facts, with a header row as every other
+	// list has (kb/command-tree.md: SEQ · KEY ID · PUBLIC KEY · ACTIVE). An
+	// inactive key reads "no", never a blank a reader could take for
+	// unknown, and never a status the keyring does not carry.
+	rows := [][]string{{"SEQ", "KEY ID", "PUBLIC KEY", "ACTIVE"}}
 	for _, k := range kr.Keys {
-		active := ""
+		active := "no"
 		if k.Active {
-			active = "  (active)"
+			active = "yes"
 		}
-		tbl = tbl.Row(fmt.Sprintf("%d  %s", k.Sequence, k.KeyID), k.PublicKey+active)
+		rows = append(rows, []string{strconv.Itoa(k.Sequence), k.KeyID, k.PublicKey, active})
 	}
+	tbl := ui.CompactTable().StyleFunc(ui.HeaderRowStyleFunc()).Rows(rows...)
 	ui.Fprintln(w, strings.Join([]string{header, "", tbl.String()}, "\n"))
 }
 

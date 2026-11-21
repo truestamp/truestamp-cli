@@ -142,8 +142,8 @@ func TestPopulateFromBuildInfo_UsesMainPath(t *testing.T) {
 	if Version != "v1.2.3-dirty" {
 		t.Errorf("Version should be bumped to -dirty, got %q", Version)
 	}
-	if GitCommit != "abcdef123" {
-		t.Errorf("GitCommit should be truncated to 9 chars, got %q", GitCommit)
+	if GitCommit != "abcdef1234567890" {
+		t.Errorf("GitCommit should be the whole revision, got %q", GitCommit)
 	}
 	if BuildDate != "2024-01-15T10:00:00Z" {
 		t.Errorf("BuildDate: got %q", BuildDate)

@@ -566,6 +566,36 @@ func TestResolve_StdinMaxBytesOverflow(t *testing.T) {
 	}
 }
 
+// TestResolveStream_StdinIsNotCapped pins that a stream of stdin is given
+// whole whatever MaxBytes says, as a file is: hash streams it and reads no
+// overflow signal, so a cap truncated what it digested (a 70 MB pipe hashed
+// as its first 64 MiB + 1 octets, with exit 0). Mutant killed: stdin
+// wrapped in io.LimitReader(MaxBytes+1).
+func TestResolveStream_StdinIsNotCapped(t *testing.T) {
+	orig := os.Stdin
+	r, w, err := os.Pipe()
+	if err != nil {
+		t.Fatal(err)
+	}
+	payload := strings.Repeat("x", 128)
+	go func() {
+		defer w.Close()
+		_, _ = w.Write([]byte(payload))
+	}()
+	os.Stdin = r
+	t.Cleanup(func() { os.Stdin = orig; _ = r.Close() })
+
+	stream, _, err := ResolveStream(context.Background(), Options{AllowStdin: true, MaxBytes: 32})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer stream.Close()
+	got, err := io.ReadAll(stream)
+	if err != nil || string(got) != payload {
+		t.Fatalf("read %d octets (%v); want all %d", len(got), err, len(payload))
+	}
+}
+
 func TestResolveStream_Stdin(t *testing.T) {
 	orig := os.Stdin
 	r, w, err := os.Pipe()

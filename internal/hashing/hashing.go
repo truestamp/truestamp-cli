@@ -169,8 +169,18 @@ func FormatGNU(digestHex, filename string, binaryMode bool) string {
 // BSD md5(1)'s tagged form:
 //
 //	"<NAME> (<filename>) = <hex>\n"
+//
+// A filename holding '\' or '\n' is escaped as FormatGNU escapes it, with
+// the leading '\' on the line, as shasum --tag writes it
+// (`\SHA256 (a\\b) = …`); unescaped, a newline in a name would split the
+// line in two.
 func FormatBSD(algBSDName, digestHex, filename string) string {
-	return fmt.Sprintf("%s (%s) = %s\n", algBSDName, filename, digestHex)
+	escaped, needsEscape := gnuEscape(filename)
+	lead := ""
+	if needsEscape {
+		lead = "\\"
+	}
+	return fmt.Sprintf("%s%s (%s) = %s\n", lead, algBSDName, escaped, digestHex)
 }
 
 // gnuEscape replicates GNU coreutils' filename escaping for checksum

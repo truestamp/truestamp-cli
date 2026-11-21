@@ -106,7 +106,8 @@ type Options struct {
 	URLPromptPlaceholder string
 
 	// MaxBytes caps in-memory reads from stdin and URLs. 0 = 64 MB.
-	// File paths are streamed straight from disk and are not affected.
+	// File paths are streamed straight from disk and are not affected, and
+	// neither is stdin under ResolveStream, which streams it unbuffered.
 	MaxBytes int64
 
 	// ReadAtMost, when above 0, makes ResolveStream give at most that many
@@ -231,12 +232,11 @@ func ResolveStream(ctx context.Context, opts Options) (io.ReadCloser, Source, er
 		if opts.ReadAtMost > 0 {
 			return io.NopCloser(io.LimitReader(os.Stdin, opts.ReadAtMost)), src, nil
 		}
-		max := opts.MaxBytes
-		if max <= 0 {
-			max = defaultMaxBytes
-		}
-		// LimitReader + +1 lets callers detect an overflow after the fact.
-		return io.NopCloser(io.LimitReader(os.Stdin, max+1)), src, nil
+		// A stream is never buffered, so stdin is given whole, as a file
+		// is: a cap here would silently truncate what a caller such as
+		// `truestamp hash` digests (a 70 MB pipe hashed as its first
+		// 64 MiB + 1 octets, with exit 0).
+		return io.NopCloser(os.Stdin), src, nil
 	}
 
 	return nil, Source{}, ErrNoInput

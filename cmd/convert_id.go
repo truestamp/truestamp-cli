@@ -22,6 +22,7 @@ import (
 
 var convertIDCmd = &cobra.Command{
 	Use:   "id [value]",
+	Args:  cobra.MaximumNArgs(1),
 	Short: "Read the time recorded inside a UUIDv7 id",
 	Long: `Every Truestamp id, of an item, a block, an entropy observation or a
 beacon, is a UUIDv7, whose leftmost 48 bits are a time: the milliseconds

@@ -50,7 +50,7 @@ builds:
     ldflags:
       - -s -w
       - -X github.com/truestamp/truestamp-cli/internal/version.Version={{.Version}}
-      - -X github.com/truestamp/truestamp-cli/internal/version.GitCommit={{.ShortCommit}}
+      - -X github.com/truestamp/truestamp-cli/internal/version.GitCommit={{.FullCommit}}
       - -X github.com/truestamp/truestamp-cli/internal/version.BuildDate={{.Date}}
       - -X github.com/truestamp/truestamp-cli/internal/version.BuildYear={{.Now.Format "2006"}}
 

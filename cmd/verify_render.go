@@ -84,7 +84,9 @@ func renderReport(w io.Writer, report *verifier.Report, itemHash string) error {
 	}
 	if report.Type != "" {
 		fmt.Fprintf(&b, "Type:         %s\n", report.Type)
-		fmt.Fprintf(&b, "Subject id:   %s\n", report.SubjectID)
+		// An id is RECORDED (SPEC.md section 3.7), shown under the
+		// provenance its attribution gives (section 11.5).
+		fmt.Fprintf(&b, "Subject id:   %s (%s)\n", displayText(report.SubjectID), recordedProvenance(report.Attribution))
 	}
 	if code, ok := itemCodeOfHex(itemHash); ok && report.Type == "item" {
 		fmt.Fprintf(&b, "Item hash:    %s (recomputed from the subject's record)\n", itemHash)
@@ -213,7 +215,7 @@ func absentReasons(rows []verifier.Row) map[string][]string {
 					code = "pass"
 				}
 				part, _ := reason["part"].(string)
-				reasons = append(reasons, code+" at "+part)
+				reasons = append(reasons, code+" at "+displayText(part))
 			}
 			out[edge] = reasons
 		}
@@ -242,13 +244,13 @@ func rowsText(rows []verifier.Row, failed bool) string {
 		}
 		at := ""
 		if row.Part != nil {
-			at = " at " + *row.Part
+			at = " at " + displayText(*row.Part)
 		}
 		if row.Step == "WINDOW" && (failed || windowRowsWithoutMessage[row.Code]) {
 			fmt.Fprintf(&b, "  %s %s %s%s\n", row.Status, row.Step, row.Code, at)
 			continue
 		}
-		fmt.Fprintf(&b, "  %s %s %s%s: %s\n", row.Status, row.Step, row.Code, at, row.Message)
+		fmt.Fprintf(&b, "  %s %s %s%s: %s\n", row.Status, row.Step, row.Code, at, displayText(row.Message))
 	}
 	return b.String()
 }
@@ -272,6 +274,17 @@ func renderRejection(w io.Writer, rejection *verifier.Rejection) error {
 	if rejection.SubReason != "" {
 		reason = " (" + string(rejection.SubReason) + ")"
 	}
-	_, err := fmt.Fprintf(w, "Rejected:     %s%s\n              %s\n              No report and no verdict.\n", rejection.Code, reason, rejection.Message)
+	_, err := fmt.Fprintf(w, "Rejected:     %s%s\n              %s\n              No report and no verdict.\n", rejection.Code, reason, displayText(rejection.Message))
 	return err
+}
+
+// recordedProvenance is the caption of a RECORDED value, such as the
+// subject's id, under attribution (SPEC.md sections 3.7 and 11.5): recorded
+// by Truestamp when the run attributes the proof to Truestamp, and declared
+// by the signer otherwise.
+func recordedProvenance(attribution string) string {
+	if attribution == "truestamp" {
+		return "recorded by Truestamp, not confirmed in this run"
+	}
+	return "declared by the signer, not attributed to Truestamp"
 }

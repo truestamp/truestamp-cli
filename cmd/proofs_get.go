@@ -117,12 +117,10 @@ Requires authentication, run 'truestamp auth login', or set TRUESTAMP_API_KEY / 
 Exit code 0 on success, 1 on any error (validation failure, network
 error, missing API key, server rejection, or failure to write the
 output file).`,
-	Args: cobra.MaximumNArgs(1),
+	// One id, as every get takes: none is a usage error, exit 1, never
+	// the help printed with exit 0.
+	Args: cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
-		if len(args) == 0 {
-			return cmd.Help()
-		}
-
 		cfg := appConfig
 		// The id exactly as typed: DetectIDType trims nothing.
 		typed := args[0]
@@ -145,8 +143,9 @@ output file).`,
 			return fmt.Errorf("--out and --to-file are mutually exclusive: --out names a path, --to-file picks the conventional name")
 		}
 
+		// Compared exactly, as a proof type always is (CLAUDE.md, "Never give
+		// a proof type a number"): no trimming, no case folding.
 		typeFlag, _ := cmd.Flags().GetString("type")
-		typeFlag = strings.ToLower(strings.TrimSpace(typeFlag))
 
 		// Pre-flight id-shape validation, catches obvious typos before
 		// the network round-trip and is also the basis for the smart

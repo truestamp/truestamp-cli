@@ -4,11 +4,14 @@
 package httpclient
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"io"
 	"net/http"
 	"os"
+
+	"github.com/truestamp/truestamp-cli/internal/redact"
 )
 
 // DefaultMaxDownloadSize caps a single DownloadCtx response at 200 MB,
@@ -46,7 +49,7 @@ func DownloadCtx(ctx context.Context, url, destPath string, maxBytes int64) (int
 		// Read a small slice of the body for error context without
 		// exhausting a large error page.
 		snippet, _ := io.ReadAll(io.LimitReader(resp.Body, 512))
-		return 0, fmt.Errorf("HTTP %d: %s", resp.StatusCode, Truncate(string(snippet), 120))
+		return 0, fmt.Errorf("HTTP %d: %s", resp.StatusCode, errorSnippet(snippet))
 	}
 
 	out, err := os.OpenFile(destPath, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0644)
@@ -111,8 +114,21 @@ func DownloadAtMostCtx(ctx context.Context, url string, limit int64) ([]byte, er
 
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 		snippet, _ := io.ReadAll(io.LimitReader(resp.Body, 512))
-		return nil, fmt.Errorf("HTTP %d: %s", resp.StatusCode, Truncate(string(snippet), 120))
+		return nil, fmt.Errorf("HTTP %d: %s", resp.StatusCode, errorSnippet(snippet))
 	}
 
 	return io.ReadAll(io.LimitReader(resp.Body, limit))
+}
+
+// errorSnippet is what a failed download's error quotes of the body it
+// got, as internal/jsonapi.ParseError quotes one: an HTML page is named as
+// one rather than printed as markup, and anything else is cut to 120
+// characters and run through the secret redactor, since a server or a
+// reflected request can put a credential in it.
+func errorSnippet(body []byte) string {
+	trimmed := bytes.TrimSpace(body)
+	if len(trimmed) > 0 && trimmed[0] == '<' {
+		return "server returned HTML error page"
+	}
+	return redact.String(Truncate(string(body), 120))
 }

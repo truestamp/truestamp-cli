@@ -344,7 +344,7 @@ func Load(configPath string, flags *pflag.FlagSet) (*Config, error) {
 				return "", nil
 			}
 			key, ok := flagKeyMap[f.Name]
-			if !ok {
+			if !ok || !isRootAPIKeyFlag(f) {
 				return "", nil
 			}
 			return key, posflag.FlagVal(flags, f)
@@ -370,6 +370,20 @@ func Load(configPath string, flags *pflag.FlagSet) (*Config, error) {
 	// verify. Enforcing it here rather than in each RunE means a command
 	// added later cannot forget to check: there is one output contract and
 	// one place that rejects an incoherent request for it.
+	// A flag beats the file and the environment (later overrides earlier),
+	// so an explicit --json clears a silent that came only from them, and an
+	// explicit --silent clears such a json. Both given on the command line
+	// stay an error.
+	if flags != nil {
+		jsonSet := flags.Lookup("json") != nil && flags.Changed("json")
+		silentSet := flags.Lookup("silent") != nil && flags.Changed("silent")
+		switch {
+		case jsonSet && !silentSet && cfg.JSON:
+			cfg.Silent = false
+		case silentSet && !jsonSet && cfg.Silent:
+			cfg.JSON = false
+		}
+	}
 	if cfg.Silent && cfg.JSON {
 		return nil, fmt.Errorf("--silent and --json are mutually exclusive")
 	}
@@ -378,7 +392,7 @@ func Load(configPath string, flags *pflag.FlagSet) (*Config, error) {
 	// the auth resolver can let an explicit key override a stored OAuth
 	// session. A key sitting in the config file is not "explicit".
 	cfg.APIKeyExplicit = os.Getenv("TRUESTAMP_API_KEY") != "" ||
-		(flags != nil && flags.Lookup("api-key") != nil && flags.Changed("api-key"))
+		(flags != nil && flags.Lookup("api-key") != nil && isRootAPIKeyFlag(flags.Lookup("api-key")) && flags.Changed("api-key"))
 
 	// Compose the canonical Truestamp service URLs from BaseURL. The path
 	// layout is fixed by the server (lib/truestamp_web/router.ex) so we
@@ -633,4 +647,30 @@ max_age_days = %d
 		c.Convert.TimeZone,
 		c.Logging.File, c.Logging.Level,
 		c.Logging.MaxSizeMB, c.Logging.MaxBackups, c.Logging.MaxAgeDays)
+}
+
+// isRootAPIKeyFlag reports whether f, if it is named api-key, is the root's
+// string flag that carries a key. `auth login` and `auth logout` register a
+// local boolean --api-key ("store a key", "remove the stored key") that
+// shadows it, and read as a key it would make api_key "true" and look like
+// an explicit key, so `auth logout --api-key` cleared nothing. Every other
+// flag reports true.
+func isRootAPIKeyFlag(f *pflag.Flag) bool {
+	return f.Name != "api-key" || f.Value.Type() == "string"
+}
+
+// FileTeam is the team the active configuration file names, "" when it
+// names none or there is no file: the value `teams use --clear` clears.
+// It ignores --team and TRUESTAMP_TEAM, which apply to one run and are not
+// stored, so a run that sets either still sees what the file holds.
+func FileTeam() (string, error) {
+	path := ActivePath()
+	if _, err := os.Stat(path); os.IsNotExist(err) {
+		return "", nil
+	}
+	k := koanf.New(".")
+	if err := k.Load(file.Provider(path), toml.Parser()); err != nil {
+		return "", fmt.Errorf("reading %s: %w", path, err)
+	}
+	return k.String("team"), nil
 }

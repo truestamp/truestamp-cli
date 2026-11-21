@@ -87,6 +87,23 @@ func TestDownloadCtx_httpError(t *testing.T) {
 	}
 }
 
+// TestDownloadAtMostCtx_HTMLErrorPageIsNamed pins that a failed download
+// whose body is an HTML page says so rather than printing its markup, as
+// internal/jsonapi.ParseError does. Mutant killed: the error quoting the
+// raw body, "HTTP 404: <!doctype html>...".
+func TestDownloadAtMostCtx_HTMLErrorPageIsNamed(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusNotFound)
+		_, _ = w.Write([]byte("<!doctype html><html lang=en><head><title>404</title></head></html>"))
+	}))
+	defer srv.Close()
+
+	_, err := DownloadAtMostCtx(context.Background(), srv.URL, 1024)
+	if err == nil || err.Error() != "HTTP 404: server returned HTML error page" {
+		t.Errorf("error = %v, want HTTP 404: server returned HTML error page", err)
+	}
+}
+
 func TestDownloadCtx_ctxCancel(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		// Slow server: wait long enough that ctx.Done() fires first.

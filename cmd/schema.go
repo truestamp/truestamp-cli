@@ -16,8 +16,10 @@ import (
 	"github.com/truestamp/truestamp-cli/internal/hashing"
 	"github.com/truestamp/truestamp-cli/internal/introspect"
 	"github.com/truestamp/truestamp-cli/internal/itemcode"
+	"github.com/truestamp/truestamp-cli/internal/items"
 	"github.com/truestamp/truestamp-cli/internal/proof"
 	"github.com/truestamp/truestamp-cli/internal/specdata"
+	"github.com/truestamp/truestamp-cli/internal/teams"
 	"github.com/truestamp/truestamp-cli/internal/ui"
 )
 
@@ -439,9 +441,24 @@ func cliEnums() introspect.EnumValues {
 		// --format: a timestamp format.
 		"truestamp convert time|format": {"rfc3339", "unix-s", "unix-ms", "unix-us", "unix-ns"},
 
-		// --to: a byte encoding.
-		"truestamp encode|to": byteEncodings,
-		"truestamp decode|to": byteEncodings,
+		// --to and --from: a byte encoding.
+		"truestamp encode|to":   byteEncodings,
+		"truestamp decode|to":   byteEncodings,
+		"truestamp encode|from": byteEncodings,
+		"truestamp decode|from": byteEncodings,
+
+		// --from on convert: an input format, or a public key encoding.
+		"truestamp convert time|from":  {"auto", "rfc3339", "unix-s", "unix-ms", "unix-us", "unix-ns"},
+		"truestamp convert keyid|from": {"auto", "hex", "base64", "base64url"},
+		"truestamp convert id|extract": {"time", "raw"},
+
+		// --environment: the environments SPEC.md section 6.4 names.
+		"truestamp verify|environment": specdata.Environments(),
+
+		// --visibility and --ownership-model: the server's closed sets.
+		"truestamp items create|visibility":      items.Visibilities,
+		"truestamp items update|visibility":      items.Visibilities,
+		"truestamp teams create|ownership-model": {teams.OwnershipCreatorRetains, teams.OwnershipTeamRetains},
 	}
 }
 

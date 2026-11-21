@@ -6,6 +6,7 @@ package httpclient
 import (
 	"context"
 	"io"
+	"math"
 	"math/rand/v2"
 	"net/http"
 	"strconv"
@@ -83,6 +84,12 @@ func ParseRetryAfter(value string, now time.Time) (delay time.Duration, ok bool)
 	if secs, err := strconv.ParseInt(value, 10, 64); err == nil {
 		if secs < 0 {
 			return 0, false
+		}
+		// Saturate rather than overflow: a value past what time.Duration
+		// holds would otherwise wrap to a negative wait, which BoundRetry
+		// would accept and retry at once.
+		if secs > math.MaxInt64/int64(time.Second) {
+			return time.Duration(math.MaxInt64), true
 		}
 		return time.Duration(secs) * time.Second, true
 	}

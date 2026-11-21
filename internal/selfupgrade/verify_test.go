@@ -32,6 +32,17 @@ func TestSHA256File(t *testing.T) {
 	}
 }
 
+// TestChecksumFor_BinaryModeLine pins that a checksums.txt line in
+// sha256sum's binary-mode form, "<hex> *<name>", names <name>. Mutant
+// killed: the name compared with its star, so the archive reads as unlisted.
+func TestChecksumFor_BinaryModeLine(t *testing.T) {
+	t.Parallel()
+	got, err := ChecksumFor([]byte("deadbeef *truestamp-cli_0.3.0_darwin_arm64.tar.gz\n"), "truestamp-cli_0.3.0_darwin_arm64.tar.gz")
+	if err != nil || got != "deadbeef" {
+		t.Errorf("ChecksumFor = %q, %v; want deadbeef", got, err)
+	}
+}
+
 func TestChecksumFor(t *testing.T) {
 	t.Parallel()
 	body := []byte(`# comment line

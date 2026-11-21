@@ -108,7 +108,11 @@ func collectFlags(c *cobra.Command, path string, enums EnumValues) []Flag {
 	var out []Flag
 
 	add := func(f *pflag.Flag, inherited bool) {
-		if seen[f.Name] {
+		// cobra adds -h/--help lazily, to whichever command runs, so it
+		// would appear on that one command alone (`schema get`, when the
+		// tree is listed from there). Every command takes it; listing it
+		// nowhere is the only uniform answer.
+		if seen[f.Name] || f.Name == "help" {
 			return
 		}
 		seen[f.Name] = true
