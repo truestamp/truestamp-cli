@@ -4,7 +4,7 @@
 package verifier
 
 import (
-	"encoding/json"
+	"encoding/json/v2"
 	"maps"
 	"strings"
 	"testing"
@@ -54,7 +54,7 @@ func expectedHashRow(t *testing.T, proof map[string]any, attribution string, giv
 		t.Fatalf("EXPECTED_HASH gave %d rows", len(run.Rows)-before)
 	}
 	row := run.Rows[before]
-	values, err := json.Marshal(row.Values)
+	values, err := json.Marshal(row.Values, json.Deterministic(true))
 	if err != nil {
 		t.Fatal(err)
 	}

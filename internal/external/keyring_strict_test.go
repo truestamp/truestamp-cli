@@ -20,7 +20,7 @@ import (
 // sequence (1.0, 1e0) is that integer, a null element of keys is a zero
 // key, and only the exact name keys is the list, so a body whose list is
 // named KEYS, like one with no list, is not a keyring. Mutants killed:
-// ParseKeyring decoding with encoding/json (the repeated name and the lone
+// ParseKeyring decoding with v1's encoding/json (the repeated name and the lone
 // surrogate read as keyrings, "KEYS" as the keys list, and the sequences
 // 1.0 and 1e0 refused); keyringKeyOf accepting a sequence that is not an
 // integer; decodeKeyring refusing a null element.
@@ -82,7 +82,7 @@ func TestParseKeyring_ReadsThroughTheStrictReader(t *testing.T) {
 // FetchKeyring reads the body it fetches through the same reader: a body
 // that repeats the keys name is malformed, the strict reader's rejection
 // kept, never the keyring its second, empty list would make. Mutant
-// killed: FetchKeyring decoding with encoding/json (it gives a keyring of
+// killed: FetchKeyring decoding with v1's encoding/json (it gives a keyring of
 // no keys).
 func TestFetchKeyring_ARepeatedNameIsMalformed(t *testing.T) {
 	srv := statusServer(t, 200, `{"version":"1.0","keys":[{"key_id":"aa","public_key":"bb"}],"keys":[]}`)

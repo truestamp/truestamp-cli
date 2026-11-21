@@ -5,7 +5,7 @@ package wschannel
 
 import (
 	"context"
-	"encoding/json"
+	"encoding/json/v2"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -85,7 +85,7 @@ func (s *switchTeamServer) sendReply(joinRef, ref, topic, status string, respons
 	if err != nil {
 		return err
 	}
-	data, err := json.Marshal(frame)
+	data, err := json.Marshal(frame, json.Deterministic(true))
 	if err != nil {
 		return err
 	}

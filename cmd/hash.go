@@ -366,7 +366,7 @@ type hashJSON struct {
 	Encoding  string     `json:"encoding"`
 	SizeBytes int64      `json:"size_bytes"`
 	Prefix    string     `json:"prefix,omitempty"`
-	JCS       bool       `json:"jcs,omitempty"`
+	JCS       bool       `json:"jcs,omitzero"`
 	Input     jsonInput  `json:"input"`
 }
 

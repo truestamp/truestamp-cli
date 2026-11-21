@@ -5,7 +5,7 @@ package verifier
 
 import (
 	"bytes"
-	"encoding/json"
+	"encoding/json/v2"
 	"fmt"
 	"strings"
 	"testing"
@@ -269,7 +269,7 @@ func TestRow_Value(t *testing.T) {
 		{NewRow("DERIVE", specdata.ReasonNotAttributable, nil, "info", nil),
 			`{"code":"not_attributable","message":"info","part":null,"status":"info","step":"DERIVE","values":{}}`},
 	} {
-		got, err := json.Marshal(c.row.Value())
+		got, err := json.Marshal(c.row.Value(), json.Deterministic(true))
 		if err != nil || string(got) != c.want {
 			t.Errorf("%s, %v; want %s", got, err, c.want)
 		}

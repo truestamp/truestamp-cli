@@ -24,9 +24,9 @@
 package entropy
 
 import (
-	"bytes"
 	"context"
-	"encoding/json"
+	"encoding/json/jsontext"
+	"encoding/json/v2"
 	"errors"
 	"fmt"
 	"net/url"
@@ -34,6 +34,7 @@ import (
 
 	"github.com/truestamp/truestamp-cli/internal/ids"
 	"github.com/truestamp/truestamp-cli/internal/jsonapi"
+	"github.com/truestamp/truestamp-cli/internal/jsonnumber"
 )
 
 // Observation is the public shape of one entropy observation: the public
@@ -42,8 +43,9 @@ import (
 // signing key id; Network is empty for NIST, which has none. Entropy is
 // the source's own record under its own field names (a Stellar ledger's
 // sequence and closed_at, a NIST pulse's index, a Bitcoin block's height)
-// and is rendered as published, never renamed. Its numbers are decoded as
-// json.Number so a ledger sequence is never re-printed as a float.
+// and is rendered as published, never renamed. Each number in it is decoded
+// as the jsontext.Value it is written as (jsonnumber.AsWritten), so a ledger
+// sequence is never re-printed as a float.
 type Observation struct {
 	ID                string         `json:"id"`
 	Source            string         `json:"source"`
@@ -212,16 +214,14 @@ func Latest(ctx context.Context, cfg Config, source string) (*Observation, error
 // resource is the JSON:API resource object: identity at the top,
 // everything else under attributes.
 type resource struct {
-	ID         string          `json:"id"`
-	Attributes json.RawMessage `json:"attributes"`
+	ID         string         `json:"id"`
+	Attributes jsontext.Value `json:"attributes"`
 }
 
 func fromResource(r resource) (Observation, error) {
 	var o Observation
 	if len(r.Attributes) > 0 {
-		dec := json.NewDecoder(bytes.NewReader(r.Attributes))
-		dec.UseNumber()
-		if err := dec.Decode(&o); err != nil {
+		if err := json.Unmarshal(r.Attributes, &o, jsonnumber.AsWritten); err != nil {
 			return Observation{}, fmt.Errorf("parsing entropy observation: %w", err)
 		}
 	}

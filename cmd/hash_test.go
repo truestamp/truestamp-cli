@@ -7,7 +7,8 @@ import (
 	"bytes"
 	"crypto/sha256"
 	"encoding/hex"
-	"encoding/json"
+	"encoding/json/jsontext"
+	"encoding/json/v2"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -389,7 +390,7 @@ func TestCLI_ClaimsHashExamplesGiveTheProofsClaimsHash(t *testing.T) {
 	var doc struct {
 		Proof struct {
 			Subject struct {
-				Claims json.RawMessage `json:"claims"`
+				Claims jsontext.Value `json:"claims"`
 				Record struct {
 					ClaimsHash string `json:"claims_hash"`
 				} `json:"record"`

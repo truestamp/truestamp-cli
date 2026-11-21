@@ -5,7 +5,7 @@ package wschannel
 
 import (
 	"context"
-	"encoding/json"
+	"encoding/json/v2"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -131,7 +131,7 @@ func (s *testPhoenixServer) BroadcastFrame(topic, event string, payload any) err
 	if err != nil {
 		return err
 	}
-	data, err := json.Marshal(frame)
+	data, err := json.Marshal(frame, json.Deterministic(true))
 	if err != nil {
 		return err
 	}
@@ -163,7 +163,7 @@ func (s *testPhoenixServer) SendReply(joinRef, ref, topic string, status string,
 	if err != nil {
 		return err
 	}
-	data, err := json.Marshal(frame)
+	data, err := json.Marshal(frame, json.Deterministic(true))
 	if err != nil {
 		return err
 	}

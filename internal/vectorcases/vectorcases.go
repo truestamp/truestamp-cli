@@ -14,18 +14,18 @@
 // runner and compares exactly what section 13.1 compares; the per-step
 // tests beside it compare more.
 //
-// cases.json is decoded by encoding/json, which shares no code with the
+// cases.json is decoded by encoding/json/v2, which shares no code with the
 // strict reader the runner tests, so a defect in that reader cannot hide in
-// the cases it is compared with. The decode refuses unknown members, and
-// the runner also parses cases.json with the strict reader, which refuses a
-// repeated member name that encoding/json would keep the last of.
+// the cases it is compared with. The decode refuses unknown members, a
+// repeated member name and invalid UTF-8, and the runner also parses
+// cases.json with the strict reader.
 // cases.json is larger than MAX_READ_OCTETS, which binds a document and not
 // a data file (SPEC.md section 9), so that parse does not make J1.
 package vectorcases
 
 import (
-	"bytes"
-	"encoding/json"
+	"encoding/json/jsontext"
+	"encoding/json/v2"
 	"errors"
 	"fmt"
 	"maps"
@@ -120,8 +120,8 @@ type Expected struct {
 	Trace string `json:"trace"`
 	// SubmittedAfter and SubmittedBefore are an online case's edges, each
 	// null or {basis, instant}, kept as their JSON.
-	SubmittedAfter  json.RawMessage `json:"submitted_after"`
-	SubmittedBefore json.RawMessage `json:"submitted_before"`
+	SubmittedAfter  jsontext.Value `json:"submitted_after"`
+	SubmittedBefore jsontext.Value `json:"submitted_before"`
 }
 
 // Bare reports whether the case expects a bare rejection: a code and no
@@ -203,14 +203,11 @@ func Load() ([]Case, error) {
 // load decodes the bytes of a cases.json and checks its cases as [Load]
 // says.
 func load(data []byte) ([]Case, error) {
-	decoder := json.NewDecoder(bytes.NewReader(data))
-	decoder.DisallowUnknownFields()
+	// Unmarshal refuses content after the array, a repeated member name and
+	// invalid UTF-8; RejectUnknownMembers refuses a member Case does not name.
 	var cases []Case
-	if err := decoder.Decode(&cases); err != nil {
+	if err := json.Unmarshal(data, &cases, json.RejectUnknownMembers(true)); err != nil {
 		return nil, fmt.Errorf("vectorcases: cases.json: %w", err)
-	}
-	if decoder.More() {
-		return nil, fmt.Errorf("vectorcases: cases.json: content after the array")
 	}
 	seen := make(map[string]bool, len(cases))
 	for _, c := range cases {

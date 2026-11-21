@@ -5,7 +5,7 @@ package console
 
 import (
 	"context"
-	"encoding/json"
+	"encoding/json/v2"
 	"fmt"
 	"log/slog"
 	"sort"
@@ -906,7 +906,7 @@ func formatPanelValue(v any) string {
 	case map[string]any:
 		// Caller flattens these one level; this branch only fires for
 		// maps nested two-deep, which we render compactly.
-		raw, err := json.Marshal(x)
+		raw, err := json.Marshal(x, json.Deterministic(true))
 		if err != nil {
 			return fmt.Sprintf("%v", x)
 		}

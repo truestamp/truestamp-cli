@@ -5,7 +5,7 @@ package verifier
 
 import (
 	"encoding/base64"
-	"encoding/json"
+	"encoding/json/v2"
 	"errors"
 	"fmt"
 	"net/url"
@@ -487,7 +487,7 @@ func TestSources_OneSourceUnderEveryPolicyIsTheSingleSourceRun(t *testing.T) {
 		if rejection != nil {
 			t.Fatal(rejection)
 		}
-		wantRow, _ := json.Marshal([]any{base.Rows[0].Message, base.Rows[0].Values})
+		wantRow, _ := json.Marshal([]any{base.Rows[0].Message, base.Rows[0].Values}, json.Deterministic(true))
 		for _, policy := range []SourcePolicy{{Kind: SourcePolicyFirst}, {Kind: SourcePolicyAtLeast, N: 1}, {Kind: SourcePolicyAll}} {
 			cfg := online(t, "test", valuesReader(values))
 			cfg.NetworkSources = []NetworkSources{
@@ -498,7 +498,7 @@ func TestSources_OneSourceUnderEveryPolicyIsTheSingleSourceRun(t *testing.T) {
 			if rejection != nil {
 				t.Fatalf("%s: %v", policy, rejection)
 			}
-			gotRow, _ := json.Marshal([]any{run.Rows[0].Message, run.Rows[0].Values})
+			gotRow, _ := json.Marshal([]any{run.Rows[0].Message, run.Rows[0].Values}, json.Deterministic(true))
 			if string(gotRow) != string(wantRow) {
 				t.Errorf("%s, Stellar %q: CONFIGURATION\n got %s\nwant %s", policy, stellarValue, gotRow, wantRow)
 			}
@@ -694,8 +694,8 @@ func TestSources_SeveralCoreNodesKeepTheirCredentialsAndPrintNoPath(t *testing.T
 			if rejection != nil {
 				t.Fatal(rejection)
 			}
-			values, _ := json.Marshal(run.Rows[0].Values)
-			sets, _ := json.Marshal(run.SourceSets)
+			values, _ := json.Marshal(run.Rows[0].Values, json.Deterministic(true))
+			sets, _ := json.Marshal(run.SourceSets, json.Deterministic(true))
 			printed = append(printed, string(values), string(sets), run.Rows[0].Message,
 				fmt.Sprintf("%v %+v %#v", run.Sources, run.SourceSets, *run))
 			for _, n := range nodes {
@@ -707,7 +707,7 @@ func TestSources_SeveralCoreNodesKeepTheirCredentialsAndPrintNoPath(t *testing.T
 				t.Fatalf("regtest's sources %+v", set)
 			}
 		}
-		configJSON, _ := json.Marshal(cfg.NetworkSources)
+		configJSON, _ := json.Marshal(cfg.NetworkSources, json.Deterministic(true))
 		printed = append(printed, string(configJSON), fmt.Sprintf("%v %+v %#v %s %q %x", cfg, cfg, cfg, cfg.NetworkSources, cfg.NetworkSources, cfg.NetworkSources))
 		text := strings.Join(printed, "\n")
 		report := printed[0]

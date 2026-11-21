@@ -4,7 +4,8 @@
 package auth
 
 import (
-	"encoding/json"
+	"encoding/json/jsontext"
+	"encoding/json/v2"
 	"errors"
 	"os"
 	"path/filepath"
@@ -156,7 +157,7 @@ func (s Store) fileClear() error {
 
 // writeFile0600 atomically writes m as indented JSON with 0600 perms.
 func writeFile0600(path string, m map[string]Session) error {
-	b, err := json.MarshalIndent(m, "", "  ") //#nosec G117 -- deliberate: this is the 0600-file token store; the file is created mode 0600 and the bytes are the session we intend to persist
+	b, err := json.Marshal(m, jsontext.WithIndent("  "), json.Deterministic(true)) //#nosec G117 -- deliberate: this is the 0600-file token store; the file is created mode 0600 and the bytes are the session we intend to persist
 	if err != nil {
 		return err
 	}

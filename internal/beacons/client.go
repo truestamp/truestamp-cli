@@ -11,7 +11,8 @@ package beacons
 
 import (
 	"context"
-	"encoding/json"
+	"encoding/json/jsontext"
+	"encoding/json/v2"
 	"fmt"
 	"net/url"
 
@@ -170,7 +171,7 @@ func unmarshalBeaconDocument(body []byte) ([]Beacon, error) {
 // unwrap returns the inner payload if body is {"result": <x>}, else body.
 func unwrap(body []byte) []byte {
 	var envelope struct {
-		Result json.RawMessage `json:"result"`
+		Result jsontext.Value `json:"result"`
 	}
 	if err := json.Unmarshal(body, &envelope); err == nil && len(envelope.Result) > 0 {
 		return envelope.Result

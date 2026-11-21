@@ -8,7 +8,8 @@
 package console
 
 import (
-	"encoding/json"
+	"encoding/json/jsontext"
+	"encoding/json/v2"
 	"time"
 
 	tea "charm.land/bubbletea/v2"
@@ -27,7 +28,7 @@ const (
 type pushMsg struct {
 	Topic   string
 	Event   string
-	Payload json.RawMessage
+	Payload jsontext.Value
 }
 
 // clockTickMsg is dispatched whenever the server's TimeBroadcaster emits
@@ -49,7 +50,7 @@ type closedMsg struct {
 // remember (subscriptions, item watches).
 type rejoinedMsg struct {
 	Topic   string
-	Welcome json.RawMessage
+	Welcome jsontext.Value
 }
 
 // reconnectingMsg fires before every dial attempt while the session is

@@ -7,7 +7,7 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/base64"
-	"encoding/json"
+	"encoding/json/v2"
 	"fmt"
 	"io"
 	"net/http"
@@ -74,7 +74,7 @@ func (f *fakeAS) refuse(w http.ResponseWriter, code string) bool {
 	}
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusTooManyRequests)
-	_ = json.NewEncoder(w).Encode(map[string]string{
+	_ = json.MarshalWrite(w, map[string]string{
 		"error":             code,
 		"error_description": "Rate limit exceeded; retry after 1 seconds",
 	})
@@ -206,13 +206,13 @@ func s256(verifier string) string {
 
 func writeJSON(w http.ResponseWriter, v any) {
 	w.Header().Set("Content-Type", "application/json")
-	_ = json.NewEncoder(w).Encode(v)
+	_ = json.MarshalWrite(w, v)
 }
 
 func writeTokenError(w http.ResponseWriter, code string) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusBadRequest)
-	_ = json.NewEncoder(w).Encode(map[string]string{"error": code})
+	_ = json.MarshalWrite(w, map[string]string{"error": code})
 }
 
 // useMockKeyring routes go-keyring through its in-memory mock for the

@@ -6,7 +6,7 @@ package jcs
 import (
 	"crypto/sha256"
 	"encoding/hex"
-	"encoding/json"
+	"encoding/json/jsontext"
 	"errors"
 	"strings"
 	"testing"
@@ -118,7 +118,7 @@ func TestTransform_ANumberIsItsNearestBinary64(t *testing.T) {
 // gowebpki/jcs is not a validating parser and rewrites several malformed
 // texts into different valid ones, which Transform refuses, each as the
 // strict reader does; so two texts, one malformed, never give one digest.
-// A repeated member name, which encoding/json keeps the last of, is refused
+// A repeated member name, which encoding/json's v1 API keeps the last of, is refused
 // too. Mutant killed: Transform canonicalizing the bytes with gowebpki/jcs's
 // Transform (each rewrite is accepted).
 func TestTransform_RefusesWhatTheLibraryRewrites(t *testing.T) {
@@ -132,7 +132,7 @@ func TestTransform_RefusesWhatTheLibraryRewrites(t *testing.T) {
 		{`[1 2]`, `[12]`},
 	} {
 		got, libErr := gojcs.Transform([]byte(tc.in))
-		if libErr != nil || string(got) != tc.impostor || json.Valid([]byte(tc.in)) {
+		if libErr != nil || string(got) != tc.impostor || jsontext.Value(tc.in).IsValid() {
 			t.Fatalf("%s: the library gives %s, %v; this row no longer covers what it claims", tc.in, got, libErr)
 		}
 		if out, err := Transform([]byte(tc.in)); !isMalformed(err) || out != nil {

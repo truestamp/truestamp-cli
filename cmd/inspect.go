@@ -4,7 +4,7 @@
 package cmd
 
 import (
-	"encoding/json"
+	"encoding/json/v2"
 	"errors"
 	"fmt"
 	"io"
@@ -201,12 +201,12 @@ type InspectProof struct {
 	Constructions   InspectConstructions `json:"constructions"`
 	Environment     any                  `json:"environment"`
 	Format          any                  `json:"format"`
-	Observations    any                  `json:"observations,omitempty"`
+	Observations    any                  `json:"observations,omitzero"`
 	SigningKeyEvent any                  `json:"signing_key_event"`
-	Subject         any                  `json:"subject,omitempty"`
+	Subject         any                  `json:"subject,omitzero"`
 	Type            any                  `json:"type"`
 	Version         any                  `json:"version"`
-	Witnesses       any                  `json:"witnesses,omitempty"`
+	Witnesses       any                  `json:"witnesses,omitzero"`
 }
 
 // InspectConstructions is the constructions mode SHAPE found and, in full

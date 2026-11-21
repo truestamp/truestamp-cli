@@ -7,7 +7,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/base64"
-	"encoding/json"
+	"encoding/json/v2"
 	"errors"
 	"fmt"
 	"io"
@@ -210,7 +210,7 @@ func TestCredentials_PrintMasked(t *testing.T) {
 	for _, verb := range []string{"%v", "%+v", "%#v", "%s", "%q", "%x", "%X", "%d", "%T"} {
 		printed = append(printed, fmt.Sprintf(verb, creds), fmt.Sprintf(verb, holder), fmt.Sprintf(verb, &holder))
 	}
-	data, err := json.Marshal(holder)
+	data, err := json.Marshal(holder, json.Deterministic(true))
 	if err != nil {
 		t.Fatal(err)
 	}

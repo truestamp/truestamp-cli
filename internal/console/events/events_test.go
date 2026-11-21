@@ -4,7 +4,8 @@
 package events
 
 import (
-	"encoding/json"
+	"encoding/json/jsontext"
+	"encoding/json/v2"
 	"strings"
 	"testing"
 	"time"
@@ -405,8 +406,8 @@ func TestProjectorPreservesPayload(t *testing.T) {
 				// Maps and ints round-trip through JSON in their JSON-decoded
 				// forms (float64 / map[string]any), so just compare via
 				// json-marshal for shape equality.
-				want, _ := json.Marshal(v)
-				gotMar, _ := json.Marshal(got)
+				want, _ := json.Marshal(v, json.Deterministic(true))
+				gotMar, _ := json.Marshal(got, json.Deterministic(true))
 				if string(want) != string(gotMar) {
 					t.Errorf("%s: Payload[%q] = %s, want %s", tc.name, k, gotMar, want)
 				}
@@ -425,7 +426,7 @@ func TestProjectAtParse(t *testing.T) {
 		Stream: "blocks",
 		Kind:   "block.created",
 		At:     "2026-04-29T13:58:00.456789Z",
-		Data:   json.RawMessage(`{"id":"X"}`),
+		Data:   jsontext.Value(`{"id":"X"}`),
 	}
 
 	row := Project(now, p)
@@ -443,7 +444,7 @@ func TestProjectAtFallback(t *testing.T) {
 	t.Parallel()
 
 	now := time.Date(2026, 4, 29, 14, 22, 33, 0, time.UTC)
-	p := Push{Stream: "blocks", Kind: "block.created", At: "", Data: json.RawMessage(`{"id":"X"}`)}
+	p := Push{Stream: "blocks", Kind: "block.created", At: "", Data: jsontext.Value(`{"id":"X"}`)}
 
 	row := Project(now, p)
 
@@ -549,7 +550,7 @@ func TestKindMaxWidth(t *testing.T) {
 // stay readable.
 func makePush(t *testing.T, stream, kind string, data map[string]any) Push {
 	t.Helper()
-	raw, err := json.Marshal(data)
+	raw, err := json.Marshal(data, json.Deterministic(true))
 	if err != nil {
 		t.Fatalf("makePush: marshal data: %v", err)
 	}

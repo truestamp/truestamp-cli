@@ -13,8 +13,9 @@ import (
 // below U+0020 are escaped, and every other character is written as
 // itself. It is the one writer of a claims value that `truestamp items
 // create` and the console's new-item pane build, so the two send the same
-// claims text for the same input. encoding/json is not used: it rewrites
-// invalid UTF-8 to U+FFFD and escapes "<", ">" and "&".
+// claims text for the same input. encoding/json is not used: its v1 API
+// rewrites invalid UTF-8 to U+FFFD and escapes "<", ">" and "&", and its v2
+// API refuses invalid UTF-8.
 func ClaimsJSONString(s string) []byte {
 	var out bytes.Buffer
 	out.WriteByte('"')

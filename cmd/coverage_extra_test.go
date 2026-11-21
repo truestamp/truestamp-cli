@@ -5,7 +5,7 @@ package cmd
 
 import (
 	"encoding/base64"
-	"encoding/json"
+	"encoding/json/v2"
 	"errors"
 	"github.com/truestamp/truestamp-cli/internal/inputsrc"
 	"net/http"

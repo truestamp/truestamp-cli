@@ -57,6 +57,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **JSON is read and written with Go's `encoding/json/v2`.** BREAKING for
+  scripts that read `--json` output byte for byte or test for `null`.
+  - **Responses:** a response from the Truestamp API, the console
+    WebSocket or GitHub that names a member twice or holds invalid UTF-8 is
+    now refused with an error. Before, it was read as Go's older
+    `encoding/json` reads it: the last of the two names, and U+FFFD in
+    place of the bad bytes. Field names match exactly.
+  - **`--json` output:** an empty list is `[]` where it was `null`, `<`,
+    `>` and `&` are written as themselves rather than as `\u003c`-style
+    escapes, and a map's members stay in name order.
+  - **Input:** a tag, team name or other text containing invalid UTF-8 is
+    refused before anything is sent, where it was sent with U+FFFD in place
+    of the bad bytes.
+  - **Errors:** a response that does not decode is reported in the new
+    library's words.
+  - **Unchanged:** proofs, keyrings and the Stellar, Bitcoin and NIST
+    answers `verify` reads still go through the CLI's own strict reader and
+    canonical form, never a JSON library, so no verification result
+    changes. `verify --json` is byte-for-byte what it was.
+
 - **`truestamp verify` is a verifier of SPEC.md, held to its conformance
   vectors.** BREAKING for scripts that read the earlier report or its exit
   codes. A proof is one JSON document, the `{proof, signature}` envelope
@@ -202,6 +222,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   is returned as it is.
 
 ### Fixed
+
+- **`items update --tags ""` clears an item's tags.** It sent
+  `"tags": null`, which the server refused (`HTTP 400: is required`), since
+  its tags attribute is a list that is never null. It now sends
+  `"tags": []`.
 
 - **An upgrade check that cannot reach GitHub no longer slows every
   command.** When the passive upgrade notice could not reach GitHub

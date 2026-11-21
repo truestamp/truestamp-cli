@@ -10,7 +10,7 @@ import (
 
 // TestClaimsJSONString pins the JSON string a claims value is written as:
 // only a quotation mark, a reverse solidus and the control characters are
-// escaped. Mutant killed: encoding/json used to write it ("<" becomes
+// escaped. Mutant killed: v1's encoding/json used to write it ("<" becomes
 // \u003c, and U+2028 \u2028).
 func TestClaimsJSONString(t *testing.T) {
 	got := string(ClaimsJSONString("a\"b\\c\n\x01<&>\u2028é"))

@@ -4,7 +4,8 @@
 package cmd
 
 import (
-	"encoding/json"
+	"encoding/json/jsontext"
+	"encoding/json/v2"
 	"flag"
 	"os"
 	"os/exec"
@@ -182,9 +183,9 @@ func canonicalJSON(t *testing.T, raw []byte) string {
 	if err := json.Unmarshal(raw, &v); err != nil {
 		t.Fatalf("not valid JSON: %v\n%s", err, raw)
 	}
-	// encoding/json's Marshal sorts object keys alphabetically for
-	// map[string]any values, exactly what we want here.
-	out, err := json.MarshalIndent(v, "", "  ")
+	// Deterministic sorts the members of each map[string]any by name,
+	// exactly what we want here.
+	out, err := json.Marshal(v, jsontext.WithIndent("  "), json.Deterministic(true))
 	if err != nil {
 		t.Fatal(err)
 	}

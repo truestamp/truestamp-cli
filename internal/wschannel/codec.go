@@ -18,33 +18,34 @@
 package wschannel
 
 import (
-	"encoding/json"
+	"encoding/json/jsontext"
+	"encoding/json/v2"
 	"errors"
 	"fmt"
 )
 
 // Frame is a single Phoenix Channel message in V2 array form.
 type Frame struct {
-	JoinRef *string         // optional; null in JSON when absent
-	Ref     *string         // optional; null for server pushes
-	Topic   string          // e.g. "console:lobby" or "phoenix" (heartbeat)
-	Event   string          // e.g. "phx_join", "subscribe", "stream"
-	Payload json.RawMessage // raw JSON object
+	JoinRef *string        // optional; null in JSON when absent
+	Ref     *string        // optional; null for server pushes
+	Topic   string         // e.g. "console:lobby" or "phoenix" (heartbeat)
+	Event   string         // e.g. "phx_join", "subscribe", "stream"
+	Payload jsontext.Value // raw JSON object
 }
 
 // MarshalJSON encodes the frame as the canonical 5-element array.
 func (f Frame) MarshalJSON() ([]byte, error) {
 	payload := f.Payload
 	if len(payload) == 0 {
-		payload = json.RawMessage("{}")
+		payload = jsontext.Value("{}")
 	}
-	arr := [5]any{f.JoinRef, f.Ref, f.Topic, f.Event, json.RawMessage(payload)}
+	arr := [5]any{f.JoinRef, f.Ref, f.Topic, f.Event, jsontext.Value(payload)}
 	return json.Marshal(arr)
 }
 
 // UnmarshalJSON decodes a 5-element Phoenix array into a Frame.
 func (f *Frame) UnmarshalJSON(data []byte) error {
-	var arr [5]json.RawMessage
+	var arr [5]jsontext.Value
 	if err := json.Unmarshal(data, &arr); err != nil {
 		return fmt.Errorf("frame: unmarshal array: %w", err)
 	}
@@ -69,8 +70,8 @@ func (f *Frame) UnmarshalJSON(data []byte) error {
 //
 //	{"status":"ok","response":{...}}    or    {"status":"error","response":{...}}
 type PhxReply struct {
-	Status   string          `json:"status"`
-	Response json.RawMessage `json:"response"`
+	Status   string         `json:"status"`
+	Response jsontext.Value `json:"response"`
 }
 
 // ParseReply extracts the PhxReply from a "phx_reply" frame.
@@ -85,7 +86,7 @@ func ParseReply(f Frame) (PhxReply, error) {
 	return r, nil
 }
 
-func unmarshalNullableString(raw json.RawMessage, dst **string) error {
+func unmarshalNullableString(raw jsontext.Value, dst **string) error {
 	if len(raw) == 0 || string(raw) == "null" {
 		*dst = nil
 		return nil
@@ -100,11 +101,11 @@ func unmarshalNullableString(raw json.RawMessage, dst **string) error {
 
 // Helper for callers: build a payload-less frame.
 func newFrame(joinRef, ref *string, topic, event string, payload any) (Frame, error) {
-	var raw json.RawMessage
+	var raw jsontext.Value
 	if payload == nil {
-		raw = json.RawMessage("{}")
+		raw = jsontext.Value("{}")
 	} else {
-		b, err := json.Marshal(payload)
+		b, err := json.Marshal(payload, json.Deterministic(true))
 		if err != nil {
 			return Frame{}, fmt.Errorf("encode payload: %w", err)
 		}

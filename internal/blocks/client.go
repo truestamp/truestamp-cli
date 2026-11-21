@@ -27,7 +27,8 @@ package blocks
 
 import (
 	"context"
-	"encoding/json"
+	"encoding/json/jsontext"
+	"encoding/json/v2"
 	"errors"
 	"fmt"
 	"net/url"
@@ -252,7 +253,7 @@ func unmarshalList(body []byte) ([]Block, error) {
 // object, because the two shapes differ across this API's routes.
 func unwrap(body []byte) []byte {
 	var envelope struct {
-		Data json.RawMessage `json:"data"`
+		Data jsontext.Value `json:"data"`
 	}
 	if err := json.Unmarshal(body, &envelope); err != nil || len(envelope.Data) == 0 {
 		return body
@@ -263,15 +264,15 @@ func unwrap(body []byte) []byte {
 // flattenAttributes merges a JSON:API resource object's `attributes` up
 // into the object itself, so `{"id":…, "attributes":{"state":…}}` decodes
 // into Block. Non-resource shapes pass through untouched.
-func flattenAttributes(raw json.RawMessage) json.RawMessage {
+func flattenAttributes(raw jsontext.Value) jsontext.Value {
 	// Try a list first.
-	var items []json.RawMessage
+	var items []jsontext.Value
 	if err := json.Unmarshal(raw, &items); err == nil {
-		out := make([]json.RawMessage, 0, len(items))
+		out := make([]jsontext.Value, 0, len(items))
 		for _, it := range items {
 			out = append(out, flattenOne(it))
 		}
-		merged, err := json.Marshal(out)
+		merged, err := json.Marshal(out, json.Deterministic(true))
 		if err != nil {
 			return raw
 		}
@@ -280,8 +281,8 @@ func flattenAttributes(raw json.RawMessage) json.RawMessage {
 	return flattenOne(raw)
 }
 
-func flattenOne(raw json.RawMessage) json.RawMessage {
-	var obj map[string]json.RawMessage
+func flattenOne(raw jsontext.Value) jsontext.Value {
+	var obj map[string]jsontext.Value
 	if err := json.Unmarshal(raw, &obj); err != nil {
 		return raw
 	}
@@ -289,7 +290,7 @@ func flattenOne(raw json.RawMessage) json.RawMessage {
 	if !ok {
 		return raw
 	}
-	var inner map[string]json.RawMessage
+	var inner map[string]jsontext.Value
 	if err := json.Unmarshal(attrs, &inner); err != nil {
 		return raw
 	}
@@ -299,7 +300,7 @@ func flattenOne(raw json.RawMessage) json.RawMessage {
 		}
 	}
 	delete(obj, "attributes")
-	merged, err := json.Marshal(obj)
+	merged, err := json.Marshal(obj, json.Deterministic(true))
 	if err != nil {
 		return raw
 	}

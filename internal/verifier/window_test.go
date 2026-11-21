@@ -4,7 +4,7 @@
 package verifier
 
 import (
-	"encoding/json"
+	"encoding/json/v2"
 	"testing"
 )
 
@@ -47,7 +47,7 @@ func TestWindow_ClosedGate(t *testing.T) {
 		Sources(run)
 		Window(run)
 		row := run.Rows[len(run.Rows)-1]
-		values, err := json.Marshal(row.Values)
+		values, err := json.Marshal(row.Values, json.Deterministic(true))
 		if got := rowSummary([]Row{row}); got != c.row || err != nil || string(values) != c.values {
 			t.Errorf("%s, failed %v: %s, values %s, %v\nwant %s, %s", c.proof, c.failed, got, values, err, c.row, c.values)
 		}

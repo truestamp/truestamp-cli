@@ -4,7 +4,8 @@
 package cmd
 
 import (
-	"encoding/json"
+	"encoding/json/jsontext"
+	"encoding/json/v2"
 	"errors"
 	"fmt"
 	"io"
@@ -45,8 +46,19 @@ func addRecordOutputFlags(cmd *cobra.Command) {
 // emitJSON writes v as indented JSON. It is the single JSON writer for
 // every --json rendering, so the shape of that output is decided in one
 // place rather than by whichever encoder each command reached for.
+//
+// Map members are written sorted by name (json.Deterministic), so one value
+// prints one way. jsontext.PreserveRawStrings keeps a string a MarshalJSON
+// method wrote exactly as written: without it the encoder rewrites each
+// string in its shortest form, which would undo the \uXXXX escapes
+// claimsName.MarshalJSON writes for the invisible and directional code
+// points of SPEC.md section 3.7 (inspect_test.go checks both).
 func emitJSON(w io.Writer, v any) error {
-	out, err := json.MarshalIndent(v, "", "  ")
+	out, err := json.Marshal(v,
+		jsontext.WithIndent("  "),
+		json.Deterministic(true),
+		jsontext.PreserveRawStrings(true),
+	)
 	if err != nil {
 		return fmt.Errorf("marshaling JSON: %w", err)
 	}

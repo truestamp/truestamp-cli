@@ -18,13 +18,12 @@ import (
 	"bytes"
 	"crypto/sha256"
 	"encoding/hex"
-	"encoding/json"
+	"encoding/json/jsontext"
+	"encoding/json/v2"
 	"errors"
-	"fmt"
 	"go/ast"
 	"go/parser"
 	"go/token"
-	"io"
 	"io/fs"
 	"os"
 	"path/filepath"
@@ -35,6 +34,8 @@ import (
 	"strings"
 	"testing"
 	"testing/fstest"
+
+	"github.com/truestamp/truestamp-cli/internal/jsonnumber"
 )
 
 // specMDFiles are the files SPEC.md section 9's table lists under spec/, but
@@ -49,76 +50,27 @@ var specMDFiles = []string{
 // of section 7.3.
 const specMDConstructionsText = "c0d70826d7501d5089184d1947bad3dcc33c3172269d425f16fc0025ed07df49"
 
-// fixture decodes testdata/verification/spec/<name> with encoding/json,
-// numbers as json.Number, refusing anything but whitespace after the value
-// and an object that names a member twice, which encoding/json would read as
-// its last value.
+// fixture decodes testdata/verification/spec/<name> with encoding/json/v2,
+// each number as written (jsonnumber.AsWritten). v2 refuses anything but
+// whitespace after the value and an object that names a member twice, which
+// v1 would have read as its last value.
 func fixture(t *testing.T, name string) any {
 	t.Helper()
 	data := mustRead(t, filepath.Join(fixturesDir, "spec", name))
-	decoder := json.NewDecoder(bytes.NewReader(data))
-	decoder.UseNumber()
 	var value any
-	if err := decoder.Decode(&value); err != nil {
-		t.Fatalf("spec/%s: %v", name, err)
-	}
-	if _, err := decoder.Token(); err != io.EOF {
-		t.Fatalf("spec/%s: content after the value", name)
-	}
-	if err := repeatedName(data); err != nil {
+	if err := json.Unmarshal(data, &value, jsonnumber.AsWritten); err != nil {
 		t.Fatalf("spec/%s: %v", name, err)
 	}
 	return value
 }
 
-// repeatedName walks one JSON value token by token and reports the first
-// object that names a member twice.
-func repeatedName(data []byte) error {
-	decoder := json.NewDecoder(bytes.NewReader(data))
-	var walk func() error
-	walk = func() error {
-		token, err := decoder.Token()
-		if err != nil {
-			return err
-		}
-		switch token {
-		case json.Delim('{'):
-			seen := map[string]bool{}
-			for decoder.More() {
-				name, err := decoder.Token()
-				if err != nil {
-					return err
-				}
-				if seen[name.(string)] {
-					return fmt.Errorf("an object names %q twice", name)
-				}
-				seen[name.(string)] = true
-				if err := walk(); err != nil {
-					return err
-				}
-			}
-		case json.Delim('['):
-			for decoder.More() {
-				if err := walk(); err != nil {
-					return err
-				}
-			}
-		default:
-			return nil
-		}
-		_, err = decoder.Token()
-		return err
-	}
-	return walk()
-}
-
 func asInt64(t *testing.T, value any) int64 {
 	t.Helper()
-	number, ok := value.(json.Number)
+	number, ok := value.(jsontext.Value)
 	if !ok {
 		t.Fatalf("%v (%T) is not a number", value, value)
 	}
-	n, err := number.Int64()
+	n, err := jsonnumber.Int64(number)
 	if err != nil {
 		t.Fatalf("%v is not an integer: %v", number, err)
 	}
@@ -140,12 +92,12 @@ func asStrings(t *testing.T, value any) []string {
 	return out
 }
 
-// integers converts every json.Number in value to an int64, so a decoded
+// integers converts every number in value (a jsontext.Value) to an int64, so a decoded
 // file compares with a table built from Go values.
 func integers(t *testing.T, value any) any {
 	t.Helper()
 	switch v := value.(type) {
-	case json.Number:
+	case jsontext.Value:
 		return asInt64(t, v)
 	case map[string]any:
 		out := make(map[string]any, len(v))

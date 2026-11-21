@@ -8,7 +8,8 @@
 package upgradecheck
 
 import (
-	"encoding/json"
+	"encoding/json/jsontext"
+	"encoding/json/v2"
 	"os"
 	"path/filepath"
 	"time"
@@ -71,7 +72,7 @@ func WriteCache(c Cache) error {
 	if err != nil {
 		return err
 	}
-	body, err := json.MarshalIndent(c, "", "  ")
+	body, err := json.Marshal(c, jsontext.WithIndent("  "), json.Deterministic(true))
 	if err != nil {
 		return err
 	}

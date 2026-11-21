@@ -69,7 +69,7 @@ func (b *bodyServer) serve(body []byte) {
 // keyring document, an object the strict reader reads (SPEC.md section
 // 10.1) carrying a keys list; any other body is an error and no keyring.
 // Mutant killed, by the seed that repeats keys: FetchKeyring decoding
-// with encoding/json, which keeps the second, empty list.
+// with v1's encoding/json, which keeps the second, empty list.
 func FuzzFetchKeyringBody(f *testing.F) {
 	for _, s := range []string{
 		`{}`, `null`, `{"version":"1"}`, `{"keys":null}`, `{"keys":[]}`,

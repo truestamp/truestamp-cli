@@ -5,7 +5,7 @@ package cmd
 
 import (
 	"context"
-	"encoding/json"
+	"encoding/json/v2"
 	"errors"
 	"fmt"
 	"net/http"
@@ -329,7 +329,7 @@ type authStatusRecord struct {
 	TeamID      string `json:"team_id,omitempty"`
 	TeamName    string `json:"team_name,omitempty"`
 	TeamRole    string `json:"team_role,omitempty"`
-	HTTPStatus  int    `json:"http_status,omitempty"`
+	HTTPStatus  int    `json:"http_status,omitzero"`
 }
 
 // finishAuthStatus is the single exit point for the JSON and silent

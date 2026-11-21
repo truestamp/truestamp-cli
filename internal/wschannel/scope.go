@@ -5,7 +5,8 @@ package wschannel
 
 import (
 	"context"
-	"encoding/json"
+	"encoding/json/jsontext"
+	"encoding/json/v2"
 	"fmt"
 )
 
@@ -130,7 +131,7 @@ func (c *Client) SwitchTeam(ctx context.Context, teamID string) (*SwitchTeamRepl
 // envelope. Falls back to a code of "unknown" with the raw payload as
 // the message when the shape isn't recognized so the user still sees
 // useful diagnostic text.
-func decodeChannelError(raw json.RawMessage) error {
+func decodeChannelError(raw jsontext.Value) error {
 	var env struct {
 		Code    string `json:"code"`
 		Message string `json:"message"`

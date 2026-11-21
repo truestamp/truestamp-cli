@@ -389,6 +389,8 @@ Every list (`items list`, `blocks list`, `beacons list`, `entropy list`) pages t
 
 `--json` (structured output for scripting) and `-s` / `--silent` (exit code only) are **CLI-wide, mutually exclusive settings**. Every command that renders a *record* carries them, including `auth status`, `config show`, `config path` and `version`. They can be set once via `config.toml`, `TRUESTAMP_JSON` or `TRUESTAMP_SILENT`.
 
+A record under `--json` is indented two spaces. A map's members come in name order, an empty list is `[]` (never `null`), and `<`, `>` and `&` appear as themselves rather than as `\u003c`-style escapes. `inspect --json` is the one place a character is escaped on purpose: it writes the invisible and directional code points of SPEC.md section 3.7 in a claims member name as `\uXXXX`. `verify --json` prints the report of SPEC.md section 10.5 as its canonical form (JCS, RFC 8785), on one line, and a bare rejection the same way.
+
 The exemptions are deliberate: the pipeline primitives (`encode`, `decode`, `jcs`, `convert time|id|keyid`, `hash`) still carry `--json` and `--silent` as explicit flags, but ignore the ambient config-file and environment setting. They print one bare value or raw bytes, and `truestamp hash` defaults to GNU `sha256sum`-compatible output with `--style bsd` for BSD `shasum --tag` format, so a `silent = true` in `config.toml` must not be able to silence a pipe built on them. `proofs get` emits a payload rather than a record and follows the stdout / `-o` / `--to-file` triad instead.
 
 **More examples:** [EXAMPLES.md](./EXAMPLES.md) covers every sub-command with copy-pastable recipes, scripting patterns, CI conventions, and offline usage.

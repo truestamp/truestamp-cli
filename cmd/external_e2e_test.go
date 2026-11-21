@@ -5,7 +5,8 @@ package cmd
 
 import (
 	"encoding/base64"
-	"encoding/json"
+	"encoding/json/jsontext"
+	"encoding/json/v2"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -266,7 +267,7 @@ sources = [{ bitcoin_core = "http://`+plantedUser+`:planted-pass-9z@core.sources
 	}
 	out, _ := runCLIText(t, "config", "show", "--config", path, "--json")
 	var record struct {
-		Verify map[string]json.RawMessage `json:"verify"`
+		Verify map[string]jsontext.Value `json:"verify"`
 	}
 	if err := json.Unmarshal([]byte(out), &record); err != nil {
 		t.Fatal(err)

@@ -4,7 +4,8 @@
 package cmd
 
 import (
-	"encoding/json"
+	"encoding/json/jsontext"
+	"encoding/json/v2"
 	"fmt"
 	"io"
 	"sort"
@@ -268,10 +269,10 @@ func entropyValue(v any) string {
 	switch t := v.(type) {
 	case string:
 		return t
-	case json.Number:
-		return t.String()
+	case jsontext.Value:
+		return string(t) // a number, as the server wrote it (entropy.Observation)
 	default:
-		b, err := json.Marshal(v)
+		b, err := json.Marshal(v, json.Deterministic(true))
 		if err != nil {
 			return fmt.Sprint(v)
 		}

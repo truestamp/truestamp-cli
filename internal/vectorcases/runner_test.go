@@ -18,7 +18,7 @@ package vectorcases_test
 import (
 	"crypto/sha256"
 	"encoding/hex"
-	"encoding/json"
+	"encoding/json/v2"
 	"errors"
 	"fmt"
 	"maps"
@@ -288,7 +288,7 @@ func replayOf(t *testing.T, c vectorcases.Case) *caseReplay {
 	}
 	adapter.chains = func(s verifier.Source, read map[string]any) verifier.SourceRead {
 		name, known := adapter.names[s.URL]
-		key, err := json.Marshal(read)
+		key, err := json.Marshal(read, json.Deterministic(true))
 		if err != nil {
 			t.Errorf("%s: a chain read encoding/json cannot write: %v", c.ID, err)
 		}

@@ -7,7 +7,7 @@ import (
 	"crypto/sha256"
 	"encoding/binary"
 	"encoding/hex"
-	"encoding/json"
+	"encoding/json/v2"
 	"math/rand/v2"
 	"os"
 	"path/filepath"

@@ -15,7 +15,8 @@ package jsonapi
 import (
 	"bytes"
 	"context"
-	"encoding/json"
+	"encoding/json/jsontext"
+	"encoding/json/v2"
 	"errors"
 	"fmt"
 	"io"
@@ -144,7 +145,7 @@ func Get(ctx context.Context, cfg Config, path string) ([]byte, error) {
 
 // Post marshals payload as the request body and POSTs it.
 func Post(ctx context.Context, cfg Config, path string, payload any) ([]byte, error) {
-	body, err := json.Marshal(payload)
+	body, err := json.Marshal(payload, json.Deterministic(true))
 	if err != nil {
 		return nil, fmt.Errorf("encoding request: %w", err)
 	}
@@ -333,8 +334,8 @@ func ParseError(status int, body []byte) *APIError {
 				Pointer string `json:"pointer"`
 			} `json:"source"`
 			Meta struct {
-				RetryAfterMS json.RawMessage `json:"retry_after_ms"`
-				Limit        json.RawMessage `json:"limit"`
+				RetryAfterMS jsontext.Value `json:"retry_after_ms"`
+				Limit        jsontext.Value `json:"limit"`
 			} `json:"meta"`
 		} `json:"errors"`
 	}
@@ -377,7 +378,7 @@ func ParseError(status int, body []byte) *APIError {
 // from absent because the contract gives null a meaning of its own on
 // `retry_after_ms`: the request can never be admitted. Anything that is
 // not a non-negative number reads as absent.
-func metaInt(raw json.RawMessage) (n int64, null bool) {
+func metaInt(raw jsontext.Value) (n int64, null bool) {
 	s := strings.TrimSpace(string(raw))
 	switch {
 	case s == "":

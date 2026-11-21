@@ -4,7 +4,8 @@
 package verifier
 
 import (
-	"encoding/json"
+	"encoding/json/jsontext"
+	"encoding/json/v2"
 	"fmt"
 	"strings"
 	"testing"
@@ -409,9 +410,9 @@ func TestWindow_TheEdgeObjects(t *testing.T) {
 		`"instant":"2026-09-21T14:13:20.250Z","part":"/witnesses/entropy_nist","source":"https://beacon.nist.gov",` +
 		`"sources":[{"cached":false,"fetched_at":"2026-09-21T14:13:20.001Z","source":"https://beacon.nist.gov"}]}`
 	var decoded struct {
-		Absent     map[string]any    `json:"absent"`
-		Candidates []json.RawMessage `json:"candidates"`
-		Edges      map[string]json.RawMessage
+		Absent     map[string]any            `json:"absent"`
+		Candidates []jsontext.Value          `json:"candidates"`
+		Edges      map[string]jsontext.Value `json:"edges"`
 	}
 	if err := json.Unmarshal(values, &decoded); err != nil {
 		t.Fatal(err)
@@ -421,7 +422,7 @@ func TestWindow_TheEdgeObjects(t *testing.T) {
 		if err := json.Unmarshal(raw, &v); err != nil {
 			t.Fatal(err)
 		}
-		data, err := json.Marshal(v)
+		data, err := json.Marshal(v, json.Deterministic(true))
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -433,7 +434,7 @@ func TestWindow_TheEdgeObjects(t *testing.T) {
 			t.Fatal(err)
 		}
 		v["edge"] = name
-		data, _ := json.Marshal(v)
+		data, _ := json.Marshal(v, json.Deterministic(true))
 		return string(data)
 	}
 	switch {

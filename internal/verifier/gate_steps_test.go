@@ -7,7 +7,7 @@ import (
 	goed25519 "crypto/ed25519"
 	"encoding/binary"
 	"encoding/hex"
-	"encoding/json"
+	"encoding/json/v2"
 	"errors"
 	"fmt"
 	"os"

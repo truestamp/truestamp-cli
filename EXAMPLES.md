@@ -403,7 +403,7 @@ truestamp auth status --json --api-key not-a-real-key
 # {
 #   "ok": false,
 #   "reason": "credential_rejected",
-#   "message": "Authentication required. Provide an API key as 'Authorization: Bearer \u003capi_key\u003e'. See https://www.truestamp.com/llms-full.txt",
+#   "message": "Authentication required. Provide an API key as 'Authorization: Bearer <api_key>'. See https://www.truestamp.com/llms-full.txt",
 #   "config_file": "/Users/you/.config/truestamp/config.toml",
 #   "api_url": "https://www.truestamp.com/api/json",
 #   "auth_mode": "API key",
