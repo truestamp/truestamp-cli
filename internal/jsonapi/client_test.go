@@ -62,6 +62,26 @@ func TestParseError_PrefersPointerBearingError(t *testing.T) {
 	}
 }
 
+// TestAPIError_NamesThePointer pins the message of an error the server ties
+// to a member: the dev server answers `"tags": null` with the detail "is
+// required" and the pointer /data/attributes/tags, and the message names
+// both. Mutant killed: Error() leaving the pointer out, which printed
+// "HTTP 400: is required" with nothing to say what is required.
+func TestAPIError_NamesThePointer(t *testing.T) {
+	for _, c := range []struct {
+		body string
+		want string
+	}{
+		{`{"errors":[{"code":"required","status":"400","title":"Required","source":{"pointer":"/data/attributes/tags"},"detail":"is required"}]}`,
+			"HTTP 400: is required (at /data/attributes/tags)"},
+		{`{"errors":[{"detail":"bad request"}]}`, "HTTP 400: bad request"},
+	} {
+		if got := ParseError(400, []byte(c.body)).Error(); got != c.want {
+			t.Errorf("%s: %q, want %q", c.body, got, c.want)
+		}
+	}
+}
+
 func TestSentinelFor_Classes(t *testing.T) {
 	for _, tc := range []struct {
 		status int

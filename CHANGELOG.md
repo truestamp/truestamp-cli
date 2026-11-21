@@ -223,6 +223,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **An API error names the member it is about.** When the server ties an
+  error to a member, the message now ends with it, as in
+  `HTTP 400: length must be less than or equal to 32 (at /data/attributes/tags)`,
+  where it said only `HTTP 400: length must be less than or equal to 32`.
+
 - **`items update --tags ""` clears an item's tags.** It sent
   `"tags": null`, which the server refused (`HTTP 400: is required`), since
   its tags attribute is a list that is never null. It now sends

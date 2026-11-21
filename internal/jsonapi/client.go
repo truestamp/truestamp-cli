@@ -81,11 +81,18 @@ type APIError struct {
 	Sentinel error
 }
 
+// Error names the status, the detail and, when the server named one, the
+// member the error is about: a detail such as "is required" says nothing
+// without its source.pointer, "/data/attributes/tags".
 func (e *APIError) Error() string {
+	msg := fmt.Sprintf("HTTP %d", e.Status)
 	if e.Detail != "" {
-		return fmt.Sprintf("HTTP %d: %s", e.Status, e.Detail)
+		msg += ": " + e.Detail
 	}
-	return fmt.Sprintf("HTTP %d", e.Status)
+	if e.Pointer != "" {
+		msg += " (at " + e.Pointer + ")"
+	}
+	return msg
 }
 
 func (e *APIError) Unwrap() error { return e.Sentinel }
