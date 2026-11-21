@@ -238,10 +238,44 @@ func (a *oauthAuthorizer) token(ctx context.Context, force bool) (*oauth2.Token,
 	if scope, ok := nt.Extra("scope").(string); ok && scope != "" {
 		a.sess.Scope = scope
 	}
-	// Best-effort persist: a failed write must not break the request, the
-	// in-memory token is still valid for this process.
-	_ = a.store.Save(a.sess)
+	// A failed write must not break the request: the in-memory token is
+	// still valid for this process. But it cannot heal later. The server
+	// rotates refresh tokens with reuse detection and no grace period, so
+	// the next process presents the stored, already-rotated token, and
+	// the server revokes the whole chain, this new token included. So the
+	// failure is reported now (notifySaveFailure), not left to surface as
+	// "session expired" on the next run.
+	if err := a.store.Save(a.sess); err != nil {
+		notifySaveFailure(err)
+	}
 	return a.tok, nil
+}
+
+var (
+	saveFailureMu     sync.Mutex
+	saveFailureNotify = func(error) {}
+)
+
+// SetSaveFailureNotifier installs the function the OAuth authorizer calls
+// when a refreshed session cannot be saved to the keychain or the 0600
+// file. The command layer installs one that logs the failure and tells the
+// user the next command will need a fresh sign-in; the console installs
+// one that holds the message until its full-screen view has closed. nil
+// restores the default, which does nothing.
+func SetSaveFailureNotifier(fn func(error)) {
+	saveFailureMu.Lock()
+	defer saveFailureMu.Unlock()
+	if fn == nil {
+		fn = func(error) {}
+	}
+	saveFailureNotify = fn
+}
+
+func notifySaveFailure(err error) {
+	saveFailureMu.Lock()
+	fn := saveFailureNotify
+	saveFailureMu.Unlock()
+	fn(err)
 }
 
 // refreshConfig builds the oauth2.Config used for refresh (and revoke).

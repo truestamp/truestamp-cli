@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"github.com/truestamp/truestamp-cli/internal/inputsrc"
 	"os"
+	"sync"
 	"time"
 
 	"github.com/spf13/cobra"
@@ -92,7 +93,20 @@ func runConsole(cmd *cobra.Command, _ []string) error {
 		"log_path", appLogPath,
 		"version", cmd.Root().Version)
 
-	return console.Run(cmd.Context(), console.Options{
+	// The console refreshes its session in-band, and stderr written while
+	// its full-screen view is up would garble it. So a lost session save
+	// is logged at once and said on stderr only after the view closes.
+	var (
+		lostSaveMu sync.Mutex
+		lostSave   error
+	)
+	auth.SetSaveFailureNotifier(func(err error) {
+		appLogger.Warn("session_save_failed", "err", err.Error())
+		lostSaveMu.Lock()
+		lostSave = err
+		lostSaveMu.Unlock()
+	})
+	runErr := console.Run(cmd.Context(), console.Options{
 		WSURL:          wsURL,
 		Authorizer:     auth.Default(),
 		APIURL:         appConfig.APIURL,
@@ -102,6 +116,12 @@ func runConsole(cmd *cobra.Command, _ []string) error {
 		ConfigFilePath: config.ActivePath(),
 		HealthTargets:  console.DefaultHealthTargets(appConfig.HealthURL, appConfig.KeyringURL),
 	})
+	lostSaveMu.Lock()
+	defer lostSaveMu.Unlock()
+	if lostSave != nil {
+		ui.Fprintln(cmd.ErrOrStderr(), sessionSaveWarning(lostSave))
+	}
+	return runErr
 }
 
 // promptForFirstRunTeam fetches the user's memberships and runs the

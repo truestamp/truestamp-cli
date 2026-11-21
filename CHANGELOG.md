@@ -250,6 +250,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   value the text shows from the document now writes control characters,
   line separators and invisible or directional code points as `\uXXXX`.
 
+- **A sign-in session the CLI cannot save is reported, and one it saved
+  is never hidden.**
+  - **Reported:** after refreshing an OAuth session the CLI saves the
+    rotated refresh token. When neither the keychain nor the 0600 file took
+    it, the error was dropped. The server then revoked the session on the
+    next command, which only said it had expired. The command still goes
+    on, but it now warns on stderr that the next command will need
+    `truestamp auth login`; the console warns once its view has closed.
+  - **Never hidden:** when the keychain refused the save but the file took
+    it, the keychain's older copy still won the next read. Now the newer
+    session wins, and the older keychain copy is removed.
+
 - **`hash` on stdin larger than 64 MiB gave a wrong digest with exit 0.**
   It hashed only the first 64 MiB + 1 octets. Stdin is now streamed whole,
   as a file is, and matches `sha256sum` / `shasum`.

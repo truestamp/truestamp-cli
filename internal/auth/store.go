@@ -52,19 +52,47 @@ func NewStore(baseURL string) Store {
 	return Store{origin: canonicalOrigin(baseURL)}
 }
 
-// Load returns the stored session for the origin, or [ErrNoSession].
+// Load returns the stored session for the origin, or [ErrNoSession]. When
+// both backends hold one, it returns the newer, the one whose access token
+// expires later: every refresh or sign-in issues a later expiry, so the
+// newer session holds the refresh token the server has not rotated yet.
+// Returning the keychain's copy unconditionally let a stale keychain entry
+// hide a session that Save had to write to the file when the keychain
+// write failed; presenting its already-rotated refresh token then made the
+// server revoke the whole chain.
 func (s Store) Load() (Session, error) {
-	if v, err := keyring.Get(keyringService, s.origin); err == nil {
-		var sess Session
-		if json.Unmarshal([]byte(v), &sess) == nil && sess.RefreshToken != "" {
-			return sess, nil
+	fromKeychain, inKeychain := s.keychainLoad()
+	fromFile, fileErr := s.fileLoad()
+	switch {
+	case inKeychain && fileErr == nil:
+		if fromFile.Expiry.After(fromKeychain.Expiry) {
+			return fromFile, nil
 		}
+		return fromKeychain, nil
+	case inKeychain:
+		return fromKeychain, nil
+	default:
+		return fromFile, fileErr
 	}
-	return s.fileLoad()
+}
+
+// keychainLoad returns the keychain's session for the origin and whether
+// it holds one with a refresh token.
+func (s Store) keychainLoad() (Session, bool) {
+	v, err := keyring.Get(keyringService, s.origin)
+	if err != nil {
+		return Session{}, false
+	}
+	var sess Session
+	if json.Unmarshal([]byte(v), &sess) != nil || sess.RefreshToken == "" {
+		return Session{}, false
+	}
+	return sess, true
 }
 
 // Save persists the session, preferring the keychain and falling back to
 // the 0600 file when the keychain write fails (unsupported/unavailable).
+// An error means neither backend took it.
 func (s Store) Save(sess Session) error {
 	b, err := json.Marshal(sess) //#nosec G117 -- deliberate: serializing the OAuth session for the OS keychain / 0600-file token store is the store's purpose, not a leak
 	if err != nil {
@@ -77,7 +105,15 @@ func (s Store) Save(sess Session) error {
 		_ = s.fileClear()
 		return nil
 	}
-	return s.fileSave(sess)
+	if err := s.fileSave(sess); err != nil {
+		return err
+	}
+	// The file now holds the newest session. Remove the keychain's older
+	// copy, best effort, so it cannot shadow the file's; where the
+	// keychain refuses the delete too, Load's newer-wins rule still picks
+	// the file's.
+	_ = keyring.Delete(keyringService, s.origin)
+	return nil
 }
 
 // Clear removes the session from both backends. Missing entries are not an

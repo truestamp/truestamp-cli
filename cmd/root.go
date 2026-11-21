@@ -15,6 +15,7 @@ import (
 	"os"
 	"runtime/debug"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/spf13/cobra"
@@ -141,6 +142,11 @@ var rootCmd = &cobra.Command{
 		// and the transport is sitting out the wait before its one
 		// retry.
 		jsonapi.SetRateLimitNotifier(rateLimitNotice(cmd, cfg.Silent))
+		// Say at once when a refreshed sign-in session cannot be saved:
+		// nothing recovers it, and the next command would otherwise just
+		// report an expired session.
+		_, silentRun := outputMode(cmd)
+		auth.SetSaveFailureNotifier(sessionSaveNotice(cmd, silentRun))
 
 		// Stash the logger on the command's context so Bubble Tea
 		// programs and downstream callers that already accept a
@@ -395,4 +401,33 @@ func silentRun(c *cobra.Command) bool {
 		return v
 	}
 	return !rawOutputCommands[c.CommandPath()] && appConfig != nil && appConfig.Silent
+}
+
+// sessionSaveNotice is the function the root installs with
+// auth.SetSaveFailureNotifier. A refreshed OAuth session that neither the
+// keychain nor the 0600 file took is logged and, unless the run is silent,
+// said once on stderr, terminal or not: nothing recovers it, since the next
+// command presents the stored refresh token, which the server has already
+// rotated, and the server then revokes the whole chain. The command itself
+// goes on with the new token it holds.
+func sessionSaveNotice(cmd *cobra.Command, silent bool) func(error) {
+	var once sync.Once
+	return func(err error) {
+		if appLogger != nil {
+			appLogger.Warn("session_save_failed", "err", err.Error())
+		}
+		if silent {
+			return
+		}
+		once.Do(func() {
+			ui.Fprintln(cmd.ErrOrStderr(), sessionSaveWarning(err))
+		})
+	}
+}
+
+// sessionSaveWarning is the one wording of a lost session save, shared by
+// the root and the console.
+func sessionSaveWarning(err error) string {
+	return "warning: your sign-in session was refreshed but could not be saved (" + err.Error() +
+		"); this command goes on, but the next one will ask you to run 'truestamp auth login' again"
 }
