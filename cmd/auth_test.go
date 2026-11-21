@@ -16,6 +16,18 @@ import (
 	"github.com/truestamp/truestamp-cli/internal/teams"
 )
 
+// useHTTPTimeout gives the shared HTTP client timeout d for one test and
+// puts back the client's 10-second default when the test ends. The client
+// is process-wide, so a short timeout a test leaves behind governs every
+// later test in the package: TestCheckAPIKey_TransportErrorReturnsError's
+// 100ms once failed TestCheckAuth_RateLimited on a slow CI runner, whose
+// loopback server took longer than that to answer.
+func useHTTPTimeout(t *testing.T, d time.Duration) {
+	t.Helper()
+	httpclient.Init(d)
+	t.Cleanup(func() { httpclient.Init(10 * time.Second) })
+}
+
 func TestAPIKeysURL(t *testing.T) {
 	cases := []struct {
 		in   string
@@ -49,7 +61,7 @@ func TestAPIKeysURL(t *testing.T) {
 }
 
 func TestCheckAPIKey(t *testing.T) {
-	httpclient.Init(5 * time.Second)
+	useHTTPTimeout(t, 5*time.Second)
 
 	cases := []struct {
 		name            string
@@ -160,7 +172,7 @@ func TestCheckAPIKey(t *testing.T) {
 }
 
 func TestFetchTeam(t *testing.T) {
-	httpclient.Init(5 * time.Second)
+	useHTTPTimeout(t, 5*time.Second)
 
 	cases := []struct {
 		name          string
@@ -292,7 +304,7 @@ func TestFormatTeamLines(t *testing.T) {
 }
 
 func TestCheckAPIKey_SendsTenantHeaderWhenTeamSet(t *testing.T) {
-	httpclient.Init(5 * time.Second)
+	useHTTPTimeout(t, 5*time.Second)
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if got := r.Header.Get("tenant"); got != "team_42" {
 			t.Errorf("tenant header = %q, want team_42", got)
@@ -308,7 +320,7 @@ func TestCheckAPIKey_SendsTenantHeaderWhenTeamSet(t *testing.T) {
 }
 
 func TestCheckAPIKey_TransportErrorReturnsError(t *testing.T) {
-	httpclient.Init(100 * time.Millisecond)
+	useHTTPTimeout(t, 100*time.Millisecond)
 	// Point at a TCP port we're not listening on.
 	res, err := checkAuth(context.Background(), auth.APIKeyAuthorizer("k"), "http://127.0.0.1:1/api/json", "")
 	if err == nil {
