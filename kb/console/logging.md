@@ -20,7 +20,7 @@ console-specific. Records emitted while the console is running carry
 | -------- | ----------------------------------------------------- |
 | macOS    | `~/Library/Caches/truestamp/truestamp.log`            |
 | Linux    | `~/.cache/truestamp/truestamp.log`                    |
-| Windows  | `%LOCALAPPDATA%\truestamp\Cache\truestamp.log`        |
+| Windows  | `%LOCALAPPDATA%\truestamp\truestamp.log`              |
 
 Override with `--log-file <path>`. `logging.DefaultPath()` computes the
 same value and is what the flag's help text prints.
@@ -33,9 +33,9 @@ invocation that emits no records never touches the filesystem.
 | Knob          | Default       | Override                                |
 | ------------- | ------------- | --------------------------------------- |
 | Log level     | `info`        | `--log-level debug\|info\|warn\|error`  |
-| Rotation size | 10 MB         | `logging.Options.MaxSizeMB` (no flag)   |
-| Retention     | 14 days       | `logging.Options.MaxAgeDays` (no flag)  |
-| Backups       | 5 files       | `logging.Options.MaxBackups` (no flag)  |
+| Rotation size | 10 MB         | `[logging] max_size_mb`, `TRUESTAMP_LOGGING_MAX_SIZE_MB` (no flag) |
+| Retention     | 14 days       | `[logging] max_age_days`, `TRUESTAMP_LOGGING_MAX_AGE_DAYS` (no flag) |
+| Backups       | 5 files       | `[logging] max_backups`, `TRUESTAMP_LOGGING_MAX_BACKUPS` (no flag) |
 | Compression   | gzip          | (constant, always on)                   |
 
 Worst-case disk: roughly `MaxSize x (MaxBackups + 1)` before

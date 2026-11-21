@@ -64,6 +64,11 @@ func runBeaconsList(cmd *cobra.Command, _ []string) error {
 	if jsonOut {
 		return emitJSON(cmd.OutOrStdout(), listEnvelope("beacons", rows, pg))
 	}
+	if len(rows) == 0 {
+		// As every other list says it, never a bare header row.
+		ui.Fprintln(cmd.OutOrStdout(), ui.HintStyle().Render(hintIndent+"No beacons."))
+		return nil
+	}
 	renderBeaconList(cmd.OutOrStdout(), rows, pg)
 	// The tip is suppressed when stdout is piped so shell pipelines stay
 	// clean; renderListHints applies that gate.

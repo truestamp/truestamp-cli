@@ -63,6 +63,11 @@ func runTeamCreate(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
+	// The name comes from --name or the positional, never both: given
+	// both, one would be dropped without a word.
+	if nameFlag != "" && len(args) > 0 {
+		return fmt.Errorf("give the team name once: as the positional argument or as --name, not both")
+	}
 	name := strings.TrimSpace(nameFlag)
 	if name == "" && len(args) > 0 {
 		name = strings.TrimSpace(args[0])
@@ -236,16 +241,16 @@ func renderTeamCreateCard(cmd *cobra.Command, apiURL string, team *teams.Team, s
 	}
 }
 
+// printTeamCreateJSON writes the new team in the shape teams get, current
+// and use write (the team's own members, inserted_at among them, and the
+// caller's role, always team_owner for a team just created), and whether
+// --use made it the active team.
 func printTeamCreateJSON(cmd *cobra.Command, team *teams.Team, setActive bool) error {
-	out := map[string]any{
-		"id":              team.ID,
-		"name":            team.Name,
-		"personal":        team.Personal,
-		"ownership_model": team.OwnershipModel,
-		"created_at":      team.CreatedAt,
-		"active":          setActive,
-	}
-	return emitJSON(cmd.OutOrStdout(), out)
+	return emitJSON(cmd.OutOrStdout(), struct {
+		*teams.Team
+		Role   string `json:"role"`
+		Active bool   `json:"active"`
+	}{team, "team_owner", setActive})
 }
 
 // printTeamCreateErrorJSON emits a structured, parseable error object on

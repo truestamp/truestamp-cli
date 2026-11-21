@@ -20,6 +20,7 @@ import (
 
 var convertKeyIDCmd = &cobra.Command{
 	Use:   "keyid [pubkey]",
+	Args:  cobra.MaximumNArgs(1),
 	Short: "Derive the 4-byte Truestamp kid fingerprint from an Ed25519 public key",
 	Long: `A key's key id (SPEC.md section 3.3) is the hex of the first 4 bytes of
 SHA-256(0x60 || its 32 bytes), the prefix 0x60 of SPEC.md section 4's

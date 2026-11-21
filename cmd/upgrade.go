@@ -83,6 +83,17 @@ func runUpgrade(cmd *cobra.Command, _ []string) error {
 	if ctx == nil {
 		ctx = context.Background()
 	}
+	// --exit-code only means something beside --check; alone it would fall
+	// through to an in-place upgrade, which a script, with no terminal to
+	// confirm on, would run unasked.
+	if upgradeFlagExitCode && !upgradeFlagCheck {
+		return errors.New("--exit-code works only with --check: it reports whether an upgrade is available and installs nothing")
+	}
+	// An operator who requires a cosign signature has asked for exactly the
+	// check --no-verify skips; refuse rather than let the flag win.
+	if upgradeFlagNoVerify && os.Getenv("TRUESTAMP_REQUIRE_COSIGN") == "1" {
+		return errors.New("--no-verify cannot be used while TRUESTAMP_REQUIRE_COSIGN=1 requires the cosign signature check")
+	}
 	method := install.Detect()
 	current := version.Version
 

@@ -57,6 +57,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **Output that changed shape.**
+  - **`verify` text:** the subject id is captioned with its provenance,
+    "declared by the signer, not attributed to Truestamp" or "recorded by
+    Truestamp, not confirmed in this run" (SPEC.md sections 3.7 and 11.5).
+  - **`keys list`:** a table headed `SEQ`, `KEY ID`, `PUBLIC KEY` and
+    `ACTIVE` (yes or no).
+  - **`beacons list`:** an empty list says "No beacons.", as the other
+    lists do.
+  - **`teams create --json`:** writes the team as `teams get` does,
+    `inserted_at` and `role` included, plus `active`.
+  - **`teams list --silent`:** exits 0 for an empty list, as the other
+    modes do.
+  - **`config show`:** the keyring row is labelled "Keys keyring", the
+    keyring `keys` reads, which `verify` uses only with an explicit
+    `--base-url`.
+  - **`schema get commands`:** lists the closed value sets of
+    `--environment`, `--visibility`, `--ownership-model`, `--from` and
+    `--extract`, and no longer lists `--help` on one command.
+
 - **JSON is read and written with Go's `encoding/json/v2`.** BREAKING for
   scripts that read `--json` output byte for byte or test for `null`.
   - **Responses:** a response from the Truestamp API, the console
@@ -222,6 +241,78 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   is returned as it is.
 
 ### Fixed
+
+- **`verify` and `inspect` can no longer be made to print a forged line.**
+  A member name the document chooses was printed as-is. A proof could add
+  a member named `x`, a newline, then `Verdict:      verified`, and a
+  failed `verify` would show a second, forged verdict line; an ESC
+  sequence could retitle or clear the terminal. Every part, message and
+  value the text shows from the document now writes control characters,
+  line separators and invisible or directional code points as `\uXXXX`.
+
+- **`hash` on stdin larger than 64 MiB gave a wrong digest with exit 0.**
+  It hashed only the first 64 MiB + 1 octets. Stdin is now streamed whole,
+  as a file is, and matches `sha256sum` / `shasum`.
+
+- **`upgrade` safety.**
+  - **A failed install left no binary:** the running binary had been moved
+    to its `.bak` name. It is now put back, and the error says so.
+  - **`--exit-code` without `--check` ran a real upgrade:** in a script it
+    replaced the binary unasked. It is now refused.
+  - **`--no-verify` skipped a required signature check:** it is now refused
+    while `TRUESTAMP_REQUIRE_COSIGN=1` requires that check.
+
+- **`auth logout --api-key` removes the stored key.** Its own boolean
+  `--api-key` was read as a key, so it said "nothing is stored to clear"
+  and left the key in `config.toml`.
+
+- **An explicit flag beats the ambient setting.**
+  - **`--json` and `--silent`:** a `silent` or `json` set in `config.toml`
+    or the environment made the opposite explicit flag fail with "mutually
+    exclusive", on the pipeline primitives too. Both on the command line
+    are still refused.
+  - **`beacons --hash-only`:** it was refused under an ambient `json` or
+    `silent`, naming a flag the user never passed.
+
+- **`--silent` is silent everywhere.**
+  - **`items create --silent`:** it printed its card on success.
+  - **On failure:** `decode`, `jcs`, `convert`, `keys list` and `schema
+    get` still printed their error. Under `--silent` no command now prints
+    anything, and the exit code is unchanged.
+
+- **`items list --pending` asks the server.** It filtered each page after
+  the fetch, so an empty page hid its `More:` cursor, `--count` counted
+  every item, and `--max` could walk one row at a time.
+
+- **`teams use --clear` clears the team `config.toml` names.** A `--team ""`
+  hid that team, so nothing was cleared. It now also says when `--team` or
+  `TRUESTAMP_TEAM` still names a team for the runs that set it.
+
+- **`hash --style bsd` escapes names as `shasum --tag` does.** A backslash
+  or a newline in a file name is escaped, with a leading backslash on the
+  line.
+
+- **Inputs are refused, not dropped or changed.**
+  - **Extra arguments:** `encode`, `decode`, `jcs` and `convert time|id|keyid`
+    refuse a second positional argument.
+  - **Values that are no value:** an empty `--visibility` is refused, and
+    `--to-team` must be a team's UUIDv7 id.
+  - **A team name given twice:** `teams create` refuses one given both as
+    the positional and as `--name`.
+  - **Exact comparison:** `proofs get --type` and `entropy --source` compare
+    exactly, with no case folding or trimming.
+  - **A missing id or proof:** `proofs get` with no id, and `inspect` with
+    no input, exit 1 with nothing on stdout.
+
+- **Smaller fixes.**
+  - **Download errors:** an HTML error page is named, not printed, and any
+    other body is redacted.
+  - **`Retry-After`:** a huge value no longer overflows into an immediate
+    retry.
+  - **Upgrade checksums:** a `checksums.txt` line in `sha256sum -b` form
+    (`<hex> *<name>`) is read.
+  - **`--version`:** it prints the whole commit hash and no longer adds
+    `-dirty` to a version Go already ends `+dirty`.
 
 - **An API error names the member it is about.** When the server ties an
   error to a member, the message now ends with it, as in

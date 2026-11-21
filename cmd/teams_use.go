@@ -7,6 +7,7 @@ import (
 	"context"
 	"fmt"
 	"github.com/truestamp/truestamp-cli/internal/inputsrc"
+	"os"
 	"sort"
 
 	"charm.land/huh/v2"
@@ -204,26 +205,41 @@ func init() {
 }
 
 // clearActiveTeam implements `teams use --clear`, formerly `team unset`.
+//
+// It clears the team the configuration file names, whatever --team or
+// TRUESTAMP_TEAM say for this run: those are not stored, so they neither
+// stand for the file's team nor hide it. When one of them is set, the
+// message says it still applies.
 func clearActiveTeam(cmd *cobra.Command, jsonOut, silent bool) error {
-	if appConfig.Team != "" {
+	stored, err := config.FileTeam()
+	if err != nil {
+		return err
+	}
+	if stored != "" {
 		if err := config.SetTeam(""); err != nil {
 			return fmt.Errorf("writing config: %w", err)
 		}
 	}
+	ambient := os.Getenv("TRUESTAMP_TEAM") != "" || cmd.Flags().Changed("team")
 	switch {
 	case silent:
 		return nil
 	case jsonOut:
 		return emitJSON(cmd.OutOrStdout(), map[string]any{"id": ""})
-	case appConfig.Team == "":
+	case stored == "":
 		ui.Fprintln(cmd.OutOrStdout(), ui.FaintStyle().Render(
-			"  No team is configured."))
-		return nil
+			"  No team is configured in "+config.ActivePath()+"."))
+	default:
+		ui.Fprintln(cmd.OutOrStdout(),
+			ui.SuccessBanner("Team cleared"))
+		if !ambient {
+			ui.Fprintln(cmd.OutOrStdout(), ui.FaintStyle().Render(
+				"    Subsequent API requests will fall back to the personal team."))
+		}
 	}
-
-	ui.Fprintln(cmd.OutOrStdout(),
-		ui.SuccessBanner("Team cleared"))
-	ui.Fprintln(cmd.OutOrStdout(), ui.FaintStyle().Render(
-		"    Subsequent API requests will fall back to the personal team."))
+	if ambient {
+		ui.Fprintln(cmd.OutOrStdout(), ui.FaintStyle().Render(
+			"    --team or TRUESTAMP_TEAM still names a team for the runs that set it."))
+	}
 	return nil
 }

@@ -37,7 +37,8 @@ and 7), and print every member it carries, each by its value class
     Truestamp)", never as a fact;
   - the claims as their member names only: the submitter's statement,
     never checked as true;
-  - every other member as carried.
+  - every other member as carried, but the constructions text, which is
+    shown as its mode and, in full mode, the digest SHAPE computed of it.
 
 It also prints proof_hash and the key id of the signer's key, and, for
 an item proof, its item code (SPEC.md section 3.9), computed from the
@@ -107,8 +108,9 @@ func runInspect(cmd *cobra.Command, args []string) error {
 	})
 	if err != nil {
 		if errors.Is(err, inputsrc.ErrNoInput) {
-			_ = cmd.Help()
-			return nil
+			// As verify does: no input is an error, exit 1, never the help on
+			// stdout, which would break --silent and --json.
+			return fail(fmt.Errorf("no proof was given: name a file or a URL, or pipe the proof on standard input\n\n%s", strings.TrimRight(cmd.UsageString(), "\n")))
 		}
 		return fail(err)
 	}
@@ -399,9 +401,11 @@ const declaredCaption = "Declared by the signer (not attributed to Truestamp)"
 // declaredClosing is the last line of the declared section.
 const declaredClosing = "None of these values is confirmed, and no time among them is an edge of a submission window."
 
-// inspectRow writes one row of the text: label, padded, and value.
+// inspectRow writes one row of the text: label, padded, and value, each
+// through displayText, since both can hold text the document chose (a
+// member name in a path, the part a refusal names, a carried string).
 func inspectRow(b *strings.Builder, label, value string) {
-	fmt.Fprintf(b, "  %-24s %s\n", label, value)
+	fmt.Fprintf(b, "  %-24s %s\n", displayText(label), displayText(value))
 }
 
 // renderInspect is the text of out, every value whole.
@@ -486,7 +490,13 @@ func renderInspect(out InspectOutput) string {
 		}
 		row("", declaredClosing)
 	}
-	b.WriteString("\n  Nothing was verified. Run 'truestamp verify' to verify the proof.\n")
+	if out.Rejection != nil && out.Proof == nil {
+		// A refusal before SHAPE is the bare rejection verify gives too, so
+		// running verify would only repeat it.
+		b.WriteString("\n  Nothing was verified.\n")
+	} else {
+		b.WriteString("\n  Nothing was verified. Run 'truestamp verify' to verify the proof.\n")
+	}
 	return b.String()
 }
 

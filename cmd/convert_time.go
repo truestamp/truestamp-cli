@@ -20,6 +20,7 @@ import (
 
 var convertTimeCmd = &cobra.Command{
 	Use:   "time [input]",
+	Args:  cobra.MaximumNArgs(1),
 	Short: "Parse and re-format a timestamp across zones and Unix formats",
 	Long: `Parse a timestamp from RFC 3339 or a Unix numeric form and re-emit
 it in a target zone and format.

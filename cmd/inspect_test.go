@@ -1377,22 +1377,34 @@ func TestCLI_Inspect_HonorsCLIWideOutputSettings(t *testing.T) {
 		}
 	})
 
-	// Asking for both is incoherent whatever the two settings came from;
-	// inspect answers exactly as verify does.
-	t.Run("json plus silent is rejected, the same way verify rejects it", func(t *testing.T) {
+	// A flag beats the environment, so an explicit --json wins over an
+	// ambient TRUESTAMP_SILENT; inspect answers exactly as verify does.
+	t.Run("an explicit --json beats an ambient silent, as in verify", func(t *testing.T) {
 		for _, args := range [][]string{
 			{"inspect", proof, "--json"},
 			{"verify", proof, "--offline", "--json"},
 		} {
 			cmd := exec.Command(binaryPath, args...)
 			cmd.Env = append(cleanEnv(), "TRUESTAMP_SILENT=true")
-			out, err := cmd.CombinedOutput()
-			if err == nil {
-				t.Errorf("%v with TRUESTAMP_SILENT: expected an error, got none", args)
-				continue
+			out, _ := cmd.Output()
+			if !strings.HasPrefix(string(out), "{") {
+				t.Errorf("%v with TRUESTAMP_SILENT: got %q, want the JSON output", args, firstLine(string(out)))
 			}
-			if !strings.Contains(string(out), "mutually exclusive") {
-				t.Errorf("%v with TRUESTAMP_SILENT: got %q, want a mutual-exclusion error", args, firstLine(string(out)))
+		}
+	})
+
+	// Asking for both on the command line is incoherent; inspect answers
+	// exactly as verify does.
+	t.Run("--json plus --silent is rejected, the same way verify rejects it", func(t *testing.T) {
+		for _, args := range [][]string{
+			{"inspect", proof, "--json", "--silent"},
+			{"verify", proof, "--offline", "--json", "--silent"},
+		} {
+			cmd := exec.Command(binaryPath, args...)
+			cmd.Env = cleanEnv()
+			out, err := cmd.CombinedOutput()
+			if err == nil || !strings.Contains(string(out), "mutually exclusive") {
+				t.Errorf("%v: got %q (%v), want a mutual-exclusion error", args, firstLine(string(out)), err)
 			}
 		}
 	})

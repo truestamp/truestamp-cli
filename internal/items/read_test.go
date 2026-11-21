@@ -114,34 +114,27 @@ func TestList_CommittedAndPendingConflict(t *testing.T) {
 	}
 }
 
-// TestList_PendingFiltersClientSide: the server has no "not committed"
-// filter, so this is an exclusion after the fetch, and it keeps exactly
-// the items still on their way into a block, those created or
-// processing: a committed, redacted or deleted item is not pending, and
-// the page keeps the server's order. Mutant killed: the exclusion kept as
-// "every state but committed" (the redacted and deleted items are kept).
-func TestList_PendingFiltersClientSide(t *testing.T) {
-	body := `{"data":[
-      {"type":"item","id":"01AAA","attributes":{"state":"committed"}},
-      {"type":"item","id":"01BBB","attributes":{"state":"processing"}},
-      {"type":"item","id":"01CCC","attributes":{"state":"redacted"}},
-      {"type":"item","id":"01DDD","attributes":{"state":"created"}},
-      {"type":"item","id":"01EEE","attributes":{"state":"deleted_user"}},
-      {"type":"item","id":"01FFF","attributes":{"state":"deleted_expired"}}]}`
-	apiURL, rec := serveItems(t, body)
+// TestList_PendingAsksTheServer pins that --pending asks the server for
+// exactly the states still on their way into a block, created and
+// processing (Item.Pending), as a list filter, so the page, its cursors
+// and --count describe pending items alone. Mutants killed: the filter
+// applied to each page after the fetch (an empty page hid its cursor and
+// --count counted every item); "every state but committed" (redacted and
+// deleted items read as pending).
+func TestList_PendingAsksTheServer(t *testing.T) {
+	apiURL, rec := serveItems(t, `{"data":[{"type":"item","id":"01BBB","attributes":{"state":"processing"}}]}`)
 	page, err := List(context.Background(), apiURL, "", ListOptions{Pending: true})
 	if err != nil {
 		t.Fatalf("List: %v", err)
 	}
+	if got := rec.query["filter[state][in][]"]; !slices.Equal(got, []string{"created", "processing"}) {
+		t.Errorf("filter[state][in][] = %v, want [created processing]", got)
+	}
 	if rec.query.Get("filter[state]") != "" {
-		t.Error("there is no server-side pending filter; none should be sent")
+		t.Errorf("filter[state] = %q, want none beside the list filter", rec.query.Get("filter[state]"))
 	}
-	var kept []string
-	for _, it := range page.Items {
-		kept = append(kept, it.ID)
-	}
-	if want := []string{"01BBB", "01DDD"}; !slices.Equal(kept, want) {
-		t.Errorf("pending kept %v, want %v", kept, want)
+	if len(page.Items) != 1 || page.Items[0].ID != "01BBB" {
+		t.Errorf("the server's page should be returned as served, got %+v", page.Items)
 	}
 }
 

@@ -309,8 +309,8 @@ total (`page[count]=true`, read from `meta.page.total`). A text page ends with `
 <cursor>` and `Back: --before <cursor>`, each only when there is somewhere to go. Both are
 guidance, so both go to stderr and only when stdout is a terminal (see kb/architecture.md
 "Trailing guidance"); a piped or redirected listing carries rows alone. the `--json`
-rendering is one envelope, `{"<noun>": [...], "next_cursor": "...", "prev_cursor": "...", "total": N}`,
-`total` only under `--count`, the cursors empty at the end and the start respectively. Rows are
+rendering is one envelope, `{"<noun>": [...], "next_cursor": "...", "prev_cursor": "...", "total": N, "page_limit": N}`,
+`total` only under `--count`, `page_limit` only when the server used a smaller page than `--limit` asked for, the cursors empty at the end and the start respectively. Rows are
 always in the listing's order whichever way the walk went: pages fetched backward are prepended.
 
 There is no `--all`. The tables behind these lists grow by the minute (the entropy tables alone hold over half
@@ -627,8 +627,9 @@ Two things are open and tracked here rather than silently dropped:
   style.Render(...))` keeps them. Writes into string builders deliberately do not: stripping there
   would remove colour before it ever reached a terminal.
 - R10 mandates the *presence* of `--json` on record-rendering commands, not a uniform envelope
-  around it. `verify --json` is exactly the report of SPEC.md section 10.5, `hash --json` is a bare
-  array, and every paged list has R14's one envelope.
+  around it. `verify --json` is exactly the report of SPEC.md section 10.5, `hash --json` is one object for
+  one input and an array for several (`[]` when every input failed), and every paged list has
+  R14's one envelope.
 
 ## Deferred
 

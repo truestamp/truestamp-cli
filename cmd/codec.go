@@ -66,6 +66,7 @@ func writeOutput(cmd *cobra.Command, silent bool, enc encoding.Encoding, out []b
 
 var encodeCmd = &cobra.Command{
 	Use:   "encode [flags] [file]",
+	Args:  cobra.MaximumNArgs(1),
 	Short: "Encode raw bytes into hex, base64, or base64url",
 	Long: `Encode raw bytes (the default input) into a textual representation.
 
@@ -91,6 +92,7 @@ func runEncode(cmd *cobra.Command, args []string) error {
 
 var decodeCmd = &cobra.Command{
 	Use:   "decode [flags] [file]",
+	Args:  cobra.MaximumNArgs(1),
 	Short: "Decode hex / base64 / base64url into raw bytes",
 	Long: `Decode a textual representation back into raw bytes.
 
@@ -196,6 +198,7 @@ func runCodec(cmd *cobra.Command, args []string, spec codecSpec) error {
 
 var jcsCmd = &cobra.Command{
 	Use:   "jcs [flags] [file]",
+	Args:  cobra.MaximumNArgs(1),
 	Short: "Canonicalize JSON per RFC 8785 (JSON Canonicalization Scheme)",
 	Long: `Apply RFC 8785 JSON Canonicalization to the input. The output is a
 byte-stable form suitable for hashing and signing, pipes directly into

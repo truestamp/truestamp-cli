@@ -65,12 +65,16 @@ func Replace(destPath, newBinPath string) (backupPath string, err error) {
 	}
 
 	// Atomic-replace step: rename the new binary into place.
-	if err := os.Rename(newBinPath, destPath); err != nil {
-		// Cross-filesystem fallback.
-		if err := copyFile(newBinPath, destPath); err != nil {
-			return backupPath, fmt.Errorf("install new binary: %w", err)
+	if err := installBinary(newBinPath, destPath); err != nil {
+		if backupPath == "" {
+			return "", fmt.Errorf("install new binary: %w", err)
 		}
-		_ = os.Remove(newBinPath)
+		// The running binary was moved aside above; put it back, so a
+		// failed install never leaves the install path empty.
+		if rerr := moveFile(backupPath, destPath); rerr != nil {
+			return backupPath, fmt.Errorf("install new binary: %w; restoring the previous binary from %s also failed: %v", err, backupPath, rerr)
+		}
+		return "", fmt.Errorf("install new binary: %w (the previous binary is back in place)", err)
 	}
 
 	if err := os.Chmod(destPath, 0755); err != nil {
@@ -85,6 +89,23 @@ func Replace(destPath, newBinPath string) (backupPath string, err error) {
 	_ = pruneOldBackups(filepath.Dir(destPath), destPath)
 
 	return backupPath, nil
+}
+
+// installBinary moves the new binary into place. It is a variable so a
+// test can make the install fail after the backup is taken.
+var installBinary = moveFile
+
+// moveFile renames src to dst, falling back to a copy and removing src
+// when the rename fails, as it does across filesystems (EXDEV).
+func moveFile(src, dst string) error {
+	if err := os.Rename(src, dst); err == nil {
+		return nil
+	}
+	if err := copyFile(src, dst); err != nil {
+		return err
+	}
+	_ = os.Remove(src)
+	return nil
 }
 
 func copyFile(src, dst string) error {

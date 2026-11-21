@@ -74,6 +74,13 @@ func beaconSharedFlags(cmd *cobra.Command) (jsonOut, hashOnly, silent bool, err 
 	// --hash-only is not registered on `list`, where a single hash makes
 	// no sense; GetBool returns false there, which is what we want.
 	hashOnly, _ = cmd.Flags().GetBool("hash-only")
+	// An explicit --hash-only beats a json or silent that came only from
+	// the configuration file or the environment, as an explicit flag beats
+	// them everywhere; only a --json or --silent given with it conflicts.
+	if hashOnly {
+		jsonOut = jsonOut && cmd.Flags().Changed("json")
+		silent = silent && cmd.Flags().Changed("silent")
+	}
 
 	if silent && hashOnly {
 		return false, false, false, fmt.Errorf("--silent and --hash-only are mutually exclusive")

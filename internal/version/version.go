@@ -10,6 +10,7 @@ import (
 	"runtime"
 	"runtime/debug"
 	"strconv"
+	"strings"
 	"time"
 )
 
@@ -66,10 +67,9 @@ func populateFromBuildInfo(info *debug.BuildInfo) {
 		switch s.Key {
 		case "vcs.revision":
 			if GitCommit == "unknown" && s.Value != "" {
+				// Whole, as every hash this CLI prints is (CLAUDE.md, "Never
+				// truncate a hash").
 				GitCommit = s.Value
-				if len(GitCommit) > 9 {
-					GitCommit = GitCommit[:9]
-				}
 			}
 		case "vcs.time":
 			if BuildDate == "unknown" && s.Value != "" {
@@ -78,7 +78,8 @@ func populateFromBuildInfo(info *debug.BuildInfo) {
 		case "vcs.modified":
 			// Mark dirty builds, but only when the version string came from
 			// BuildInfo, an explicit ldflags Version is trusted as-is.
-			if s.Value == "true" && usedInfoVersion {
+			// Go already ends such a version "+dirty"; add nothing then.
+			if s.Value == "true" && usedInfoVersion && !strings.HasSuffix(Version, "+dirty") {
 				Version += "-dirty"
 			}
 		}

@@ -70,7 +70,9 @@ func ChecksumFor(checksumsBody []byte, archiveName string) (string, error) {
 		if len(fields) < 2 {
 			continue
 		}
-		name := fields[len(fields)-1]
+		// sha256sum -b writes "<hex> *<name>": the star marks binary mode
+		// and is not part of the name.
+		name := strings.TrimPrefix(fields[len(fields)-1], "*")
 		if name == archiveName {
 			return strings.ToLower(fields[0]), nil
 		}

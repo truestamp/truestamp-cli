@@ -4,6 +4,7 @@
 package items
 
 import (
+	"errors"
 	"fmt"
 	"strings"
 )
@@ -12,6 +13,11 @@ import (
 // visibility. It is declared once so `items create` and `items update`
 // validate and describe the same three values.
 var Visibilities = []string{"private", "team", "public"}
+
+// ErrEmptyVisibility refuses an explicit empty --visibility: the flag given
+// with no value would otherwise send "" (update) or drop the member
+// (create), where the user named a visibility and gave none.
+var ErrEmptyVisibility = errors.New("--visibility needs a value: private, team or public")
 
 // ValidateVisibility rejects a value outside Visibilities. The empty
 // string is accepted: it means "not supplied".

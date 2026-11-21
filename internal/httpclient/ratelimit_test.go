@@ -7,6 +7,7 @@ import (
 	"context"
 	"errors"
 	"io"
+	"math"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -31,6 +32,8 @@ func TestParseRetryAfter(t *testing.T) {
 		{"1.5", 0, false},
 		{now.Add(90 * time.Second).Format(http.TimeFormat), 90 * time.Second, true},
 		{now.Add(-90 * time.Second).Format(http.TimeFormat), 0, true},
+		// Past what time.Duration holds: saturated, never wrapped negative.
+		{"99999999999", time.Duration(math.MaxInt64), true},
 	}
 	for _, tc := range cases {
 		got, ok := ParseRetryAfter(tc.in, now)

@@ -224,6 +224,15 @@ func TestFormatBSD(t *testing.T) {
 	if got != want {
 		t.Errorf("FormatBSD: got %q, want %q", got, want)
 	}
+	// A name holding a backslash or a newline is escaped as shasum --tag
+	// (Perl Digest::SHA) writes it, with a leading backslash on the line.
+	// Mutant killed: the name written raw, so a newline split the line.
+	if got, want := FormatBSD("SHA256", "abc123", "b\\sl"), "\\SHA256 (b\\\\sl) = abc123\n"; got != want {
+		t.Errorf("FormatBSD(backslash): got %q, want %q", got, want)
+	}
+	if got, want := FormatBSD("SHA256", "abc123", "n\nl"), "\\SHA256 (n\\nl) = abc123\n"; got != want {
+		t.Errorf("FormatBSD(newline): got %q, want %q", got, want)
+	}
 }
 
 func TestCompute_ReaderError(t *testing.T) {

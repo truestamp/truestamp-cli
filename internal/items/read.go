@@ -86,7 +86,8 @@ type ListOptions struct {
 	// Count asks the server for the total, reported as Page.Total.
 	Count bool
 	// Committed and Pending filter on commitment state. Both false means
-	// no filter; both true is rejected by the caller.
+	// no filter; both true is refused here and, before any request, by the
+	// command's mutually exclusive flags.
 	Committed bool
 	Pending   bool
 }
@@ -99,8 +100,8 @@ func List(ctx context.Context, apiURL, team string, opts ListOptions) (*Page, er
 	}
 	// No client-side ceiling. The server's OpenAPI document declares
 	// page.limit with "minimum": 1 and no maximum at all, so a constant
-	// here would be an unbacked second source of truth; the server refuses
-	// an over-large page and names its own cap. See cmd/limits.go.
+	// here would be an unbacked second source of truth; the server lowers
+	// an over-large page to its own cap and says so. See cmd/limits.go.
 
 	q := url.Values{}
 	jsonapi.SetPageQuery(q, limit, opts.After, opts.Before, opts.Count)
@@ -123,9 +124,12 @@ func List(ctx context.Context, apiURL, team string, opts ListOptions) (*Page, er
 		q.Set("filter[state]", "committed")
 	case opts.Pending:
 		// "Pending" is the two states before a block, created and
-		// processing (Item.Pending). The server has no such filter, so
-		// this is a client-side exclusion after the fetch rather than a
-		// query the server can index.
+		// processing (Item.Pending), asked of the server as a list, so a
+		// page, its cursors and --count describe pending items alone. A
+		// filter applied after the fetch hid the cursor of a page with no
+		// pending item and counted every item.
+		q.Add("filter[state][in][]", "created")
+		q.Add("filter[state][in][]", "processing")
 	}
 
 	body, err := jsonapi.Do(ctx, jsonapi.Config{APIURL: apiURL, Team: team}, http.MethodGet, "/items?"+q.Encode(), nil)
@@ -135,15 +139,6 @@ func List(ctx context.Context, apiURL, team string, opts ListOptions) (*Page, er
 	page, err := parseList(body)
 	if err != nil {
 		return nil, err
-	}
-	if opts.Pending {
-		kept := page.Items[:0]
-		for _, it := range page.Items {
-			if it.Pending() {
-				kept = append(kept, it)
-			}
-		}
-		page.Items = kept
 	}
 	return page, nil
 }

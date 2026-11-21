@@ -466,7 +466,7 @@ Settings are resolved in this order (later overrides earlier):
 | `--log-level` | `TRUESTAMP_LOGGING_LEVEL` | `info` |
 | `--log-file` | `TRUESTAMP_LOGGING_FILE` | `<user cache dir>/truestamp/truestamp.log` |
 | `--no-color` | `NO_COLOR` | `false` |
-| `--no-upgrade-check` | `TRUESTAMP_NO_UPGRADE_CHECK` | `false` |
+| `--no-upgrade-check` | `TRUESTAMP_NO_UPGRADE_CHECK` (any non-empty value) | `false` |
 | (config file / env only: `cosign_path`) | `TRUESTAMP_COSIGN_PATH` |   |
 
 `--json` and `-s` / `--silent` are not root flags: every record-rendering command registers the pair itself, so they go after the command name. `TRUESTAMP_JSON` / `TRUESTAMP_SILENT` (default `false`) and the top-level `json` / `silent` config keys set them CLI-wide.
@@ -527,7 +527,7 @@ Because `--offline` and `--remote` are also config keys, an ambient `TRUESTAMP_V
 - Step 13, **EXPECTED_HASH**: `--expected-hash` against `claims.hash`.
 - Step 14, **VERDICT**: the label.
 
-Each check gives one row, `pass`, `fail`, `skip`, `warn` or `info`, with a reason code. A skip is a check this run did not make, never a failure: an offline run, an unreachable source or history a source no longer holds leaves an edge absent and fails nothing. The text output names the label, the attribution, the trust root, the environment (beside the verdict when it is not `prod`), keyless mode in words, each edge with the source it was read from in this run, and every row that does not pass. No window is shown for a `failed` run. For an item proof the text also gives the `item_hash` recomputed from the subject's record and, beside it, its item code (SPEC.md section 11.5): a name for the item, never a check, a pass or a row. `--json` writes the report exactly as SPEC.md section 10.5 gives it (`attribution`, `code`, `environment`, `label`, `rows`, `subject_id`, `submitted_after`, `submitted_before`, `trust_root`, `type`, `verified`, `window`), or the bare rejection, and carries no item code.
+Each check gives one row, `pass`, `fail`, `skip`, `warn` or `info`, and every row but a pass carries a reason code. A skip is a check this run did not make, never a failure: an offline run, an unreachable source or history a source no longer holds leaves an edge absent and fails nothing. The text output names the label, the attribution, the trust root, the environment (beside the verdict when it is not `prod`), keyless mode in words, each edge with the source it was read from in this run, and every row that does not pass. No window is shown for a `failed` run. For an item proof the text also gives the `item_hash` recomputed from the subject's record and, beside it, its item code (SPEC.md section 11.5): a name for the item, never a check, a pass or a row. `--json` writes the report exactly as SPEC.md section 10.5 gives it (`attribution`, `code`, `environment`, `label`, `rows`, `subject_id`, `submitted_after`, `submitted_before`, `trust_root`, `type`, `verified`, `window`), or the bare rejection, and carries no item code.
 
 `--remote` also asks the Truestamp service to verify the proof and prints its verdict on stderr, beside the report and never as a row of it; the exit code is this run's own.
 

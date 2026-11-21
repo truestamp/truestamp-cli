@@ -321,7 +321,7 @@ func TestCLI_Items_Update_ToTeamIsSeparateFromRequestScope(t *testing.T) {
 		_, _ = w.Write([]byte(itemDoc(testItemID)))
 	})
 	_, _, exit := runCLI(t, "--base-url", s.URL, "--api-key", "k",
-		"items", "update", testItemID, "--team", "scope-team", "--to-team", "dest-team")
+		"items", "update", testItemID, "--team", "scope-team", "--to-team", "019dbd00-0000-7000-8000-000000000002")
 	if exit != 0 {
 		t.Fatalf("exit=%d", exit)
 	}
@@ -331,7 +331,7 @@ func TestCLI_Items_Update_ToTeamIsSeparateFromRequestScope(t *testing.T) {
 		} `json:"data"`
 	}
 	_ = json.Unmarshal([]byte(s.body()), &sent)
-	if sent.Data.Attributes["team_id"] != "dest-team" {
+	if sent.Data.Attributes["team_id"] != "019dbd00-0000-7000-8000-000000000002" {
 		t.Errorf("--to-team should set the destination, got %v", sent.Data.Attributes)
 	}
 	if len(sent.Data.Attributes) != 1 {

@@ -6,8 +6,10 @@
 package selfupgrade
 
 import (
+	"errors"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 )
@@ -116,6 +118,40 @@ func TestReplace_BackupSurvivesAgedPriorBinary(t *testing.T) {
 	if time.Since(info.ModTime()) > 24*time.Hour {
 		t.Errorf("backup mtime not refreshed: age=%v (expected < 24h)",
 			time.Since(info.ModTime()))
+	}
+}
+
+// TestReplace_FailedInstallRestoresThePreviousBinary pins that an install
+// that fails after the running binary was moved aside puts it back: the
+// install path holds the old binary, no backup is left behind, and the
+// error says so. Mutant killed: Replace returning the install error with
+// the old binary still at its .bak path and nothing at the install path.
+func TestReplace_FailedInstallRestoresThePreviousBinary(t *testing.T) {
+	dir := t.TempDir()
+	dest := filepath.Join(dir, "truestamp")
+	if err := os.WriteFile(dest, []byte("old"), 0755); err != nil {
+		t.Fatal(err)
+	}
+	newBin := filepath.Join(dir, "truestamp-new")
+	if err := os.WriteFile(newBin, []byte("new"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	orig := installBinary
+	installBinary = func(string, string) error { return errors.New("disk full") }
+	t.Cleanup(func() { installBinary = orig })
+
+	backup, err := Replace(dest, newBin)
+	if err == nil || !strings.Contains(err.Error(), "back in place") {
+		t.Fatalf("Replace: %v, want an install error that says the previous binary is back", err)
+	}
+	if backup != "" {
+		t.Errorf("backup %q, want none left behind", backup)
+	}
+	if body, rerr := os.ReadFile(dest); rerr != nil || string(body) != "old" {
+		t.Errorf("install path holds %q (%v), want the previous binary", body, rerr)
+	}
+	if leftovers, _ := filepath.Glob(dest + ".bak.*"); len(leftovers) != 0 {
+		t.Errorf("backups left behind: %v", leftovers)
 	}
 }
 

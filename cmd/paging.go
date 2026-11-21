@@ -14,7 +14,7 @@ import (
 	"github.com/truestamp/truestamp-cli/internal/ui"
 )
 
-// Every keyset-paged list (items, blocks, entropy) pages the same way
+// Every keyset-paged list (items, blocks, beacons, entropy) pages the same way
 // (kb/command-tree.md R14): --limit is the page size, --after and --before
 // continue from a cursor a previous page printed, forward or backward,
 // --oldest-first starts the walk at the beginning instead of the newest
@@ -23,9 +23,6 @@ import (
 // minute (the entropy tables alone hold well over half a million rows),
 // and an unbounded walk is a footgun, so the walk always has a cap the
 // caller wrote down.
-//
-// beacons is the exception: its endpoint takes ?limit= (at most 100) and
-// returns no cursor, so it carries --limit alone.
 
 // pagingOptions are the four flags, already validated.
 type pagingOptions struct {

@@ -425,16 +425,15 @@ func TestItemList_HasAWholeCodeColumn(t *testing.T) {
 	}
 }
 
-// --pending lists only the items created or processing, as the card's
-// hint has it. Mutant killed: the exclusion kept as every state but
-// committed (the redacted item is listed).
+// --pending asks the server for the items created or processing, as the
+// card's hint has it, and lists the page it is given. Mutants killed: the
+// filter applied to each page after the fetch; every state but committed
+// asked for (redacted items would be pending).
 func TestCLI_ItemsList_PendingIsCreatedOrProcessing(t *testing.T) {
 	s := startItemsServer(t, func(w http.ResponseWriter, r *http.Request) {
 		_, _ = w.Write([]byte(`{"data":[` +
 			`{"type":"item","id":"019a0000-0000-7000-8000-00000000000a","attributes":{"state":"created"}},` +
-			`{"type":"item","id":"019a0000-0000-7000-8000-00000000000b","attributes":{"state":"redacted"}},` +
-			`{"type":"item","id":"019a0000-0000-7000-8000-00000000000c","attributes":{"state":"processing"}},` +
-			`{"type":"item","id":"019a0000-0000-7000-8000-00000000000d","attributes":{"state":"committed"}}]}`))
+			`{"type":"item","id":"019a0000-0000-7000-8000-00000000000c","attributes":{"state":"processing"}}]}`))
 	})
 	stdout, stderr, exit := runCLI(t, "--base-url", s.URL, "--api-key", "k", "items", "list", "--pending", "--json")
 	if exit != 0 {
@@ -452,6 +451,9 @@ func TestCLI_ItemsList_PendingIsCreatedOrProcessing(t *testing.T) {
 	}
 	if want := []string{"created", "processing"}; !slices.Equal(listed, want) {
 		t.Errorf("--pending listed %q, want %q", listed, want)
+	}
+	if got := s.query()["filter[state][in][]"]; !slices.Equal(got, []string{"created", "processing"}) {
+		t.Errorf("filter[state][in][] = %v, want [created processing]", got)
 	}
 }
 

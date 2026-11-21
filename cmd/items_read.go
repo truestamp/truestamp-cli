@@ -49,6 +49,10 @@ evidence, and the authoritative answer is:
 		}
 		committed, _ := cmd.Flags().GetBool("committed")
 		pending, _ := cmd.Flags().GetBool("pending")
+		// Refused before the credential check, as every local refusal is.
+		if committed && pending {
+			return fmt.Errorf("--committed and --pending are mutually exclusive")
+		}
 		if err := requireAuth(cmd); err != nil {
 			return err
 		}
@@ -148,6 +152,9 @@ Examples:
 		var opts items.UpdateOptions
 		if cmd.Flags().Changed("visibility") {
 			v, _ := cmd.Flags().GetString("visibility")
+			if v == "" {
+				return items.ErrEmptyVisibility
+			}
 			if err := items.ValidateVisibility(v); err != nil {
 				return err
 			}
@@ -160,6 +167,11 @@ Examples:
 		}
 		if cmd.Flags().Changed("to-team") {
 			v, _ := cmd.Flags().GetString("to-team")
+			// Checked before any request, as teams get and teams use check a
+			// team id.
+			if !ids.IsUUIDv7Text(v) {
+				return fmt.Errorf("%q is no team id: --to-team takes a team's UUIDv7 id (e.g. 019dbd00-0000-7000-8000-000000000000)", v)
+			}
 			opts.TeamID = &v
 		}
 		if opts.Empty() {
