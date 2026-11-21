@@ -218,6 +218,20 @@ func (a *oauthAuthorizer) token(ctx context.Context, force bool) (*oauth2.Token,
 	if !force && a.tok.Valid() {
 		return a.tok, nil
 	}
+	// Serialize the refresh with every other truestamp process for this
+	// origin (refreshlock.go), and read the session again once the lock is
+	// held: another process may have rotated it since this one loaded it.
+	// Refreshing with this process's token would then present one the
+	// server has already rotated, which it reads as reuse and answers by
+	// revoking the whole chain, the other process's new token included.
+	release := a.store.lockRefresh(ctx)
+	defer release()
+	if a.adoptStored() && a.tok.Valid() {
+		// The other process's access token serves this request too; a
+		// forced refresh (a 401, or the console's token_expired) was about
+		// this process's older token, which the adopted one replaces.
+		return a.tok, nil
+	}
 	// A source seeded with only the refresh token (no access token, zero
 	// expiry) treats itself as expired, so the first Token() call runs the
 	// refresh grant. The 30s-bounded token client honors the caller's ctx
@@ -249,6 +263,26 @@ func (a *oauthAuthorizer) token(ctx context.Context, force bool) (*oauth2.Token,
 		notifySaveFailure(err)
 	}
 	return a.tok, nil
+}
+
+// adoptStored replaces the authorizer's session with the stored one when
+// the stored refresh token differs from the one this authorizer holds,
+// which means another process has refreshed since this one loaded the
+// session, and reports whether it did. a.mu must be held.
+func (a *oauthAuthorizer) adoptStored() bool {
+	stored, err := a.store.Load()
+	if err != nil || stored.RefreshToken == "" || stored.RefreshToken == a.tok.RefreshToken {
+		return false
+	}
+	a.sess = stored
+	a.conf = refreshConfig(stored)
+	a.tok = &oauth2.Token{
+		AccessToken:  stored.AccessToken,
+		RefreshToken: stored.RefreshToken,
+		TokenType:    stored.TokenType,
+		Expiry:       stored.Expiry,
+	}
+	return true
 }
 
 var (

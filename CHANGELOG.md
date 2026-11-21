@@ -261,6 +261,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - **Never hidden:** when the keychain refused the save but the file took
     it, the keychain's older copy still won the next read. Now the newer
     session wins, and the older keychain copy is removed.
+  - **Never refreshed twice:** two truestamp processes refreshing one
+    sign-in at the same moment (the console and another command, or
+    commands run in parallel just after the daily expiry) both presented
+    the same refresh token, and the server revoked the session for both.
+    A refresh now takes a lock shared by every truestamp process for the
+    server, and reads the saved session again first: when another process
+    has already refreshed, it uses that session, so an already-used token
+    is never sent. The lock is taken only to refresh, waits at most 30
+    seconds, and is skipped rather than allowed to fail or hang a command.
 
 - **`hash` on stdin larger than 64 MiB gave a wrong digest with exit 0.**
   It hashed only the first 64 MiB + 1 octets. Stdin is now streamed whole,
