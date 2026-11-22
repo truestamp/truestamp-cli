@@ -154,13 +154,18 @@ func TestUpgrade_NoVerifyIsRefusedWhenCosignIsRequired(t *testing.T) {
 }
 
 // TestInspect_NoInputIsAnError pins that inspect with nothing to read exits
-// 1 with nothing on stdout, as verify does, under --silent and --json too.
-// Mutant killed: the help printed to stdout with exit 0.
+// 1 with nothing on stdout, as verify does, under --silent too, and under
+// --json with the one failure object and no help. Mutant killed: the help
+// printed to stdout with exit 0.
 func TestInspect_NoInputIsAnError(t *testing.T) {
-	for _, args := range [][]string{{"inspect"}, {"inspect", "--silent"}, {"inspect", "--json"}} {
+	for _, args := range [][]string{{"inspect"}, {"inspect", "--silent"}} {
 		stdout, _, exit := runCLI(t, args...)
 		if exit != 1 || stdout != "" {
 			t.Errorf("%v: exit %d, stdout %d octets; want exit 1 and none", args, exit, len(stdout))
 		}
+	}
+	stdout, _, exit := runCLI(t, "inspect", "--json")
+	if obj := oneFailureObject(t, stdout); exit != 1 || obj["code"] != codeCommandFailed {
+		t.Errorf("inspect --json: exit %d, stdout %q; want exit 1 and the command_failed object", exit, stdout)
 	}
 }

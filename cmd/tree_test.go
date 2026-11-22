@@ -37,10 +37,11 @@ var resourceGroups = []string{"items", "proofs", "blocks", "beacons", "entropy",
 // so a group that ran its list would answer "what can I do here?" with an
 // auth error on a fresh machine.
 // allGroups is every namespace in the tree: the resource groups plus the
-// four that own no server records. A fresh slice each call, so appending
-// to it can never alias resourceGroups.
+// four that own no server records, and cobra's completion command, which
+// Execute makes a group too. A fresh slice each call, so appending to it
+// can never alias resourceGroups.
 func allGroups() []string {
-	return append(append([]string(nil), resourceGroups...), "auth", "config", "convert", "schema")
+	return append(append([]string(nil), resourceGroups...), "auth", "config", "convert", "schema", "completion")
 }
 
 func TestTree_BareGroupPrintsHelp(t *testing.T) {

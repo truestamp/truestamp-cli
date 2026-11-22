@@ -330,3 +330,48 @@ func TestList_KeepsSortingWhenFollowingACursor(t *testing.T) {
 		t.Errorf("page[after] = %q, want the cursor to still be sent", got)
 	}
 }
+
+// TestGet_IncludesTheBlockState: Get asks for the item's block, its state
+// only, and reads that state from included[]: by the relationship's id
+// when the item carries one, else from the one block included, and empty
+// when no block came back. List asks for no block. Mutants killed: the
+// include left out; the block's state read from another included block;
+// BlockState set from an item's own state.
+func TestGet_IncludesTheBlockState(t *testing.T) {
+	const withBlock = `{"data":{"type":"item","id":"01AAA","attributes":{"state":"committed"},
+	  "relationships":{"block":{"data":{"type":"block","id":"B2"}}}},
+	  "included":[{"type":"block","id":"B1","attributes":{"state":"finalized"}},
+	              {"type":"block","id":"B2","attributes":{"state":"committed"}}]}`
+	const noLinkage = `{"data":{"type":"item","id":"01AAA","attributes":{"state":"committed"}},
+	  "included":[{"type":"block","id":"B1","attributes":{"state":"finalized"}}]}`
+	for _, tc := range []struct {
+		name, body, want string
+		committed        bool
+	}{
+		{"linked", withBlock, "committed", true},
+		{"one included", noLinkage, "finalized", false},
+		{"none included", oneItem, "", false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			apiURL, rec := serveItems(t, tc.body)
+			it, err := Get(context.Background(), apiURL, "", "01AAA")
+			if err != nil {
+				t.Fatalf("Get: %v", err)
+			}
+			if rec.query.Get("include") != "block" || rec.query.Get("fields[block]") != "state" {
+				t.Errorf("Get must ask for include=block and fields[block]=state, got %v", rec.query)
+			}
+			if it.BlockState != tc.want || it.BlockCommitted() != tc.committed {
+				t.Errorf("BlockState %q (committed %v), want %q (%v)", it.BlockState, it.BlockCommitted(), tc.want, tc.committed)
+			}
+		})
+	}
+
+	apiURL, rec := serveItems(t, `{"data":[]}`)
+	if _, err := List(context.Background(), apiURL, "", ListOptions{}); err != nil {
+		t.Fatalf("List: %v", err)
+	}
+	if rec.query.Has("include") {
+		t.Errorf("List asks for no block, got include=%q", rec.query.Get("include"))
+	}
+}

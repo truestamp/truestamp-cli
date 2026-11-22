@@ -10,9 +10,13 @@ package config
 import (
 	_ "embed"
 	"fmt"
+	"net"
 	"net/url"
 	"os"
 	"path/filepath"
+	"reflect"
+	"slices"
+	"sort"
 	"strings"
 	"sync"
 	"time"
@@ -85,6 +89,13 @@ type Config struct {
 	Hash    HashConfig    `koanf:"hash" json:"hash"`
 	Convert ConvertConfig `koanf:"convert" json:"convert"`
 	Logging LoggingConfig `koanf:"logging" json:"logging"`
+
+	// Warnings are what Load found wrong in the configuration file
+	// without refusing it: each key the file sets that no setting reads.
+	// Load returns them rather than printing them, so it stays free of
+	// side effects; cmd/root.go prints each on stderr unless the run is
+	// silent. Computed during Load; not user-settable.
+	Warnings []string `koanf:"-" json:"-"`
 }
 
 // LoggingConfig holds CLI-wide logging settings. The logger is
@@ -304,7 +315,13 @@ func Load(configPath string, flags *pflag.FlagSet) (*Config, error) {
 	if configPath == "" {
 		configPath = ConfigFilePath()
 	}
-	if err := k.Load(file.Provider(configPath), toml.Parser()); err != nil && !os.IsNotExist(err) {
+	// The file is read once into its own instance and merged, so the
+	// unknown-key check below walks exactly the keys that were merged.
+	fileK := koanf.New(".")
+	if err := fileK.Load(file.Provider(configPath), toml.Parser()); err != nil && !os.IsNotExist(err) {
+		return nil, fmt.Errorf("loading config file %s: %w", configPath, err)
+	}
+	if err := k.Merge(fileK); err != nil {
 		return nil, fmt.Errorf("loading config file %s: %w", configPath, err)
 	}
 
@@ -365,6 +382,7 @@ func Load(configPath string, flags *pflag.FlagSet) (*Config, error) {
 	if err := k.Unmarshal("", &cfg); err != nil {
 		return nil, fmt.Errorf("unmarshaling config: %w", err)
 	}
+	cfg.Warnings = unknownFileKeys(configPath, fileK.Keys(), k)
 
 	// --silent and --json are mutually exclusive everywhere, not just on
 	// verify. Enforcing it here rather than in each RunE means a command
@@ -424,7 +442,115 @@ func Load(configPath string, flags *pflag.FlagSet) (*Config, error) {
 		return nil, fmt.Errorf("invalid cosign_path %q: must be an absolute path (or empty for $PATH lookup)", cfg.CosignPath)
 	}
 
+	// Validate logging.level against the levels the logger knows, so a
+	// typo is an error here rather than a quiet fall back to info.
+	if !validLogLevel(cfg.Logging.Level) {
+		return nil, fmt.Errorf("invalid logging.level %q: must be debug, info, warn or error", cfg.Logging.Level)
+	}
+
 	return &cfg, nil
+}
+
+// validLogLevel reports whether level is one internal/logging knows:
+// debug, info, warn (or warning) or error, in any case and with
+// surrounding space, or empty for the default. It is not logging.ValidLevel
+// because internal/verifier imports this package, and importing
+// internal/logging would bring its log-rotation dependency into the
+// verifier's imports (internal/registry's rule 2 test); a cmd test checks
+// the two agree.
+func validLogLevel(level string) bool {
+	switch strings.ToLower(strings.TrimSpace(level)) {
+	case "", "debug", "info", "warn", "warning", "error":
+		return true
+	}
+	return false
+}
+
+// knownKeys is every key path the Config struct reads from a file,
+// lowercased: each leaf, and each table on the way to one, since koanf
+// gives an empty table such as a bare [verify.keyrings] header as a key of
+// its own. knownPrefixes are the tables read as maps (verify.sources),
+// under which any key is accepted.
+var knownKeys, knownPrefixes = configKeys()
+
+func configKeys() (map[string]bool, []string) {
+	keys := map[string]bool{}
+	var prefixes []string
+	var walk func(t reflect.Type, prefix string)
+	walk = func(t reflect.Type, prefix string) {
+		for i := range t.NumField() {
+			f := t.Field(i)
+			tag := f.Tag.Get("koanf")
+			if tag == "" || tag == "-" {
+				continue
+			}
+			path := tag
+			if prefix != "" {
+				path = prefix + "." + tag
+			}
+			keys[path] = true
+			switch f.Type.Kind() {
+			case reflect.Struct:
+				walk(f.Type, path)
+			case reflect.Map:
+				prefixes = append(prefixes, path+".")
+			}
+		}
+	}
+	walk(reflect.TypeFor[Config](), "")
+	return keys, prefixes
+}
+
+// unknownFileKeys returns a warning for each key of the configuration
+// file at path that no setting reads, which Unmarshal would otherwise drop
+// without a word. api_url and keyring_url are left to warnLegacyURLKeys,
+// which reads them spelled exactly so; any other spelling of them is
+// reported here. Only the file is checked: environment variables share the
+// TRUESTAMP_ prefix with variables that are not settings, and cobra
+// refuses an unknown flag itself. merged is the configuration Unmarshal
+// reads (defaults, file, environment and flags together).
+func unknownFileKeys(path string, fileKeys []string, merged *koanf.Koanf) []string {
+	var warnings []string
+	for _, key := range fileKeys {
+		if key == "api_url" || key == "keyring_url" {
+			continue
+		}
+		if !reachesSetting(key, merged) {
+			warnings = append(warnings, fmt.Sprintf("%s: unknown config key %q has no effect", path, key))
+		}
+	}
+	sort.Strings(warnings)
+	return warnings
+}
+
+// reachesSetting reports whether Unmarshal reads the file key key into a
+// setting. Case is compared as Unmarshal compares it: at each level it
+// takes the key spelled exactly as the setting's tag, and folds case only
+// when no such key exists. Every tag is lowercase, so a segment with an
+// upper-case letter reaches its setting only while merged holds no
+// lowercase spelling of that path, which a default, the environment or the
+// file itself may give; otherwise Unmarshal reads the lowercase one and
+// drops this one (BASE_URL beside base_url's default). Under a table read
+// as a map (verify.sources) any key is accepted.
+func reachesSetting(key string, merged *koanf.Koanf) bool {
+	lowerPath := ""
+	for seg := range strings.SplitSeq(key, ".") {
+		lower := strings.ToLower(seg)
+		if lowerPath != "" {
+			lowerPath += "."
+		}
+		lowerPath += lower
+		if !knownKeys[lowerPath] {
+			return false
+		}
+		if seg != lower && merged.Exists(lowerPath) {
+			return false
+		}
+		if slices.Contains(knownPrefixes, lowerPath+".") {
+			return true
+		}
+	}
+	return true
 }
 
 // truestampPaths centralises the well-known path components served by
@@ -453,6 +579,18 @@ func composeTruestampURLs(cfg *Config) error {
 	if u.Scheme == "" || u.Host == "" {
 		return fmt.Errorf("invalid base_url %q: must include scheme and host (e.g. https://www.truestamp.com)", cfg.BaseURL)
 	}
+	// The API key, an OAuth token and the console WebSocket all go to this
+	// origin, so it must be https, or plain http to a loopback host only
+	// (the local dev server and the tests' httptest servers).
+	switch strings.ToLower(u.Scheme) {
+	case "https":
+	case "http":
+		if !isLoopbackHost(u.Hostname()) {
+			return fmt.Errorf("base_url %q uses http:// to a non-loopback host; credentials would be sent unencrypted, use https://", cfg.BaseURL)
+		}
+	default:
+		return fmt.Errorf("invalid base_url %q: scheme must be https (or http for a loopback host)", cfg.BaseURL)
+	}
 	// Normalise: keep only scheme + host, drop everything else so
 	// composition is deterministic.
 	origin := (&url.URL{Scheme: u.Scheme, Host: u.Host}).String()
@@ -464,9 +602,44 @@ func composeTruestampURLs(cfg *Config) error {
 	return nil
 }
 
+// isLoopbackHost reports whether host, as url.URL.Hostname gives it, is
+// localhost, a name under .localhost, or a loopback IP address (all of
+// 127.0.0.0/8, and ::1).
+func isLoopbackHost(host string) bool {
+	h := strings.ToLower(host)
+	if h == "localhost" || strings.HasSuffix(h, ".localhost") {
+		return true
+	}
+	ip := net.ParseIP(h)
+	return ip != nil && ip.IsLoopback()
+}
+
+// ValidateWebSocketURL applies base_url's rule to a WebSocket URL given
+// in its place (console --ws-url): the API key or OAuth token rides on it,
+// so it must be wss://, or plain ws:// to a loopback host only.
+func ValidateWebSocketURL(raw string) error {
+	u, err := url.Parse(raw)
+	if err != nil {
+		return fmt.Errorf("invalid WebSocket URL %q: %w", raw, err)
+	}
+	if u.Host == "" {
+		return fmt.Errorf("invalid WebSocket URL %q: must include scheme and host (e.g. wss://www.truestamp.com%s)", raw, truestampWebSocketPath)
+	}
+	switch strings.ToLower(u.Scheme) {
+	case "wss":
+	case "ws":
+		if !isLoopbackHost(u.Hostname()) {
+			return fmt.Errorf("WebSocket URL %q uses ws:// to a non-loopback host; credentials would be sent unencrypted, use wss://", raw)
+		}
+	default:
+		return fmt.Errorf("invalid WebSocket URL %q: scheme must be wss (or ws for a loopback host)", raw)
+	}
+	return nil
+}
+
 // wsScheme maps an http(s) scheme to its WebSocket counterpart.
-// Anything else passes through unchanged so an explicit ws:// /
-// wss:// scheme in BaseURL is preserved.
+// composeTruestampURLs accepts no other scheme, so the fall-through
+// return is never reached from Load.
 func wsScheme(s string) string {
 	switch strings.ToLower(s) {
 	case "http":

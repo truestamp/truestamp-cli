@@ -232,10 +232,16 @@ func TestOptions_AnExplicitBaseURLMovesTheKeyringRead(t *testing.T) {
 		t.Fatalf("offline: %+v, %q", run.TrustRoot, reader.urls)
 	}
 
+	// Plain http to a host that is not loopback never reaches the
+	// verifier: config.Load refuses it, since credentials go to base_url.
+	plainPath := filepath.Join(t.TempDir(), "config.toml")
+	if _, err := config.Load(plainPath, commandFlags(t, "--base-url", "http://www.truestamp.com")); err == nil ||
+		!strings.Contains(err.Error(), "uses http:// to a non-loopback host") {
+		t.Errorf("http://www.truestamp.com: %v, want the cleartext refusal", err)
+	}
 	for _, www := range []string{
 		"https://www.truestamp.com:443",
 		"https://www.truestamp.com.",
-		"http://www.truestamp.com",
 		"HTTPS://WWW.TRUESTAMP.COM.:443/x",
 		"https://www.truestamp.com:8443",
 	} {

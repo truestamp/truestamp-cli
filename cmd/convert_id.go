@@ -199,7 +199,7 @@ func init() {
 	f := convertIDCmd.Flags()
 	f.String("type", "auto", "ID type: auto, uuid7")
 	f.String("extract", "time", "What to extract: time, raw")
-	f.String("to-zone", "UTC", "Target IANA zone for time output (default UTC)")
+	f.String("to-zone", "UTC", "Target IANA zone for time output")
 	addRecordOutputFlags(convertIDCmd)
 	convertCmd.AddCommand(convertIDCmd)
 }

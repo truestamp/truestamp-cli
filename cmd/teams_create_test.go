@@ -8,6 +8,7 @@ import (
 	"context"
 	"encoding/json/v2"
 	"fmt"
+	"reflect"
 	"strings"
 	"testing"
 
@@ -147,22 +148,28 @@ func TestRunTeamCreate_ErrorRoutesToRenderer(t *testing.T) {
 	}
 }
 
-func TestRunTeamCreate_JSONErrorIsParseable(t *testing.T) {
+// TestRunTeamCreate_JSONErrorIsTheFailureObject: under --json a refused
+// create prints nothing itself and returns the failure Execute writes as
+// the one object, {code, message, http_status}, the shape every command
+// shares. Mutant killed: the old {error, code} object printed on stdout.
+func TestRunTeamCreate_JSONErrorIsTheFailureObject(t *testing.T) {
 	withTeamCreateEnv(t, func(_ context.Context, _ teams.Config, _, _ string) (*teams.Team, error) {
-		return nil, fmt.Errorf("create: %w", teams.ErrOwnershipNotEntitled)
+		return nil, fmt.Errorf("create: %w", &teams.APIError{Status: 403, Detail: "Team ownership is not in your plan.", Sentinel: teams.ErrOwnershipNotEntitled})
 	})
 
-	c, out, _ := newCreateTestCmd()
+	c, out, errb := newCreateTestCmd()
 	_ = c.Flags().Set("json", "true")
-	if err := runTeamCreate(c, []string{"Acme"}); err == nil {
+	err := runTeamCreate(c, []string{"Acme"})
+	if err == nil {
 		t.Fatal("want non-nil error on create failure")
 	}
-	var got map[string]any
-	if err := json.Unmarshal(out.Bytes(), &got); err != nil {
-		t.Fatalf("--json failure stdout is not parseable JSON: %v\n%s", err, out.String())
+	if out.Len() != 0 || errb.Len() != 0 {
+		t.Errorf("nothing is printed before Execute writes the object; stdout %q, stderr %q", out.String(), errb.String())
 	}
-	if got["code"] != "ownership_not_entitled" {
-		t.Errorf("json code = %v, want ownership_not_entitled", got["code"])
+	got := failureRecord(err)
+	want := map[string]any{"code": "ownership_not_entitled", "message": "Team ownership is not in your plan.", "http_status": 403}
+	if !reflect.DeepEqual(got, want) {
+		t.Errorf("failure object = %v, want %v", got, want)
 	}
 }
 

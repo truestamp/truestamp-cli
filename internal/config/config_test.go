@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"regexp"
 	"strings"
 	"testing"
 	"time"
@@ -800,5 +801,274 @@ func TestLoad_TheVerifierSources(t *testing.T) {
 		if strings.Contains(name, "user") || strings.Contains(name, "password") || strings.HasPrefix(key, "verify.bitcoin_core_") {
 			t.Errorf("flagKeyMap maps --%s to %s", name, key)
 		}
+	}
+}
+
+// --- Unknown keys in the configuration file -----------------------------
+
+// writeConfig writes text to a config.toml in a fresh directory and
+// returns its path.
+func writeConfig(t *testing.T, text string) string {
+	t.Helper()
+	path := filepath.Join(t.TempDir(), "config.toml")
+	if err := os.WriteFile(path, []byte(text), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	return path
+}
+
+// A key the file sets that no setting reads, such as the retired
+// verify.skip_external (once offline) or verify.keyring, is reported in
+// Warnings instead of being dropped without a word, and Load still
+// succeeds; the keys it does read, the configured keyrings and a
+// network's sources table included, are not reported. Mutants killed: no
+// warning at all; verify.sources not treated as a map prefix.
+func TestLoad_UnknownFileKeysAreReported(t *testing.T) {
+	clearTruestampEnv(t)
+	path := writeConfig(t, "bogus_key = 1\n\n[verify]\nskip_external = true\nsilent = true\nkeyring = \"/k.json\"\n\n"+
+		"[verify.keyrings]\nstaging = \"/k/staging.json\"\n\n"+
+		"[verify.sources.stellar.pubnet]\npolicy = \"first\"\nsources = [{ horizon = \"https://h.example\" }]\n")
+	cfg, err := Load(path, nil)
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	var want []string
+	for _, key := range []string{"bogus_key", "verify.keyring", "verify.silent", "verify.skip_external"} {
+		want = append(want, path+`: unknown config key "`+key+`" has no effect`)
+	}
+	if !reflect.DeepEqual(cfg.Warnings, want) {
+		t.Errorf("Warnings =\n%q\nwant\n%q", cfg.Warnings, want)
+	}
+	if cfg.Verify.Offline {
+		t.Error("verify.skip_external made the run offline")
+	}
+	if cfg.Verify.Keyrings.Staging != "/k/staging.json" || cfg.Verify.Sources["stellar"]["pubnet"].Policy != "first" {
+		t.Errorf("the known tables did not load: %+v", cfg.Verify)
+	}
+}
+
+// koanf gives an empty table as a key of its own, so a file holding only
+// table headers names each table as a key: none is unknown. The legacy
+// api_url and keyring_url are left to their own warning. Mutant killed: a
+// known set of leaves only.
+func TestLoad_EmptyTablesAndLegacyKeysAreNotUnknown(t *testing.T) {
+	clearTruestampEnv(t)
+	path := writeConfig(t, "[hash]\n[logging]\n[verify]\n[verify.keyrings]\n[verify.sources]\n[verify.sources.bitcoin.mainnet]\n[convert]\n")
+	cfg, err := Load(path, nil)
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	if len(cfg.Warnings) != 0 {
+		t.Errorf("Warnings = %q", cfg.Warnings)
+	}
+	origStderr := os.Stderr
+	_, w, _ := os.Pipe()
+	os.Stderr = w
+	cfg, err = Load(writeConfig(t, "api_url = \"https://old.example\"\nkeyring_url = \"https://old.example/k\"\n"), nil)
+	w.Close()
+	os.Stderr = origStderr
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	if len(cfg.Warnings) != 0 {
+		t.Errorf("legacy keys reported twice: %q", cfg.Warnings)
+	}
+}
+
+// Unmarshal takes a key spelled exactly as its setting's lowercase tag
+// first and folds case only when there is none, and the defaults give
+// every leaf they set a lowercase key. So an upper-case BASE_URL, or
+// OFFLINE under an upper-case [VERIFY], is dropped beside the default and
+// must be reported, and so must an upper-case API_URL, which the legacy
+// warning (exact keys only) does not see. A key with no lowercase
+// spelling beside it is folded and read, and is not reported. Mutants
+// killed: keys compared lowercased, which took every one of these for a
+// known key; every upper-case key reported.
+func TestLoad_UpperCaseKeyBesideALowercaseOneIsUnknown(t *testing.T) {
+	clearTruestampEnv(t)
+	path := writeConfig(t, "BASE_URL = \"https://staging.truestamp.com\"\nAPI_URL = \"https://old.example\"\n[VERIFY]\nOFFLINE = true\n")
+	cfg, err := Load(path, nil)
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	want := []string{
+		path + `: unknown config key "API_URL" has no effect`,
+		path + `: unknown config key "BASE_URL" has no effect`,
+		path + `: unknown config key "VERIFY.OFFLINE" has no effect`,
+	}
+	if !reflect.DeepEqual(cfg.Warnings, want) {
+		t.Errorf("Warnings =\n%q\nwant\n%q", cfg.Warnings, want)
+	}
+	if cfg.Verify.Offline || cfg.BaseURL == "https://staging.truestamp.com" {
+		t.Errorf("an upper-case key took effect: offline %v, base_url %q", cfg.Verify.Offline, cfg.BaseURL)
+	}
+
+	// With no lowercase spelling beside it (verify.sources has no
+	// default), Unmarshal folds case, and the key takes effect: it is not
+	// reported.
+	cfg, err = Load(writeConfig(t, "[verify.SOURCES.stellar.pubnet]\npolicy = \"first\"\n"), nil)
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	if got := cfg.Verify.Sources["stellar"]["pubnet"].Policy; len(cfg.Warnings) != 0 || got != "first" {
+		t.Errorf("a folded key: Warnings %q, policy %q; want none and first", cfg.Warnings, got)
+	}
+}
+
+// The embedded template config init writes loads with no warning, and so
+// does every example it carries commented out (each table header and
+// key = value line, the sources array included), so a template example
+// that drifts from the struct fails here.
+func TestLoad_DefaultsAndEmbeddedTemplateHaveNoUnknownKeys(t *testing.T) {
+	clearTruestampEnv(t)
+	cfg, err := Load(writeConfig(t, DefaultTOML), nil)
+	if err != nil {
+		t.Fatalf("Load(template): %v", err)
+	}
+	if len(cfg.Warnings) != 0 {
+		t.Errorf("template Warnings = %q", cfg.Warnings)
+	}
+
+	example := regexp.MustCompile(`^(\[[a-z_.]+\]|[a-z_]+ = .*|\s+\{ .* \},|\])$`)
+	var lines []string
+	uncommented := 0
+	for _, line := range strings.Split(DefaultTOML, "\n") {
+		if rest, ok := strings.CutPrefix(line, "# "); ok && example.MatchString(rest) {
+			line = rest
+			uncommented++
+		}
+		lines = append(lines, line)
+	}
+	text := strings.Join(lines, "\n")
+	if uncommented < 8 || !strings.Contains(text, "\n[verify.keyrings]\n") || !strings.Contains(text, "\n[verify.sources.bitcoin.mainnet]\n") {
+		t.Fatalf("uncommented %d example lines:\n%s", uncommented, text)
+	}
+	cfg, err = Load(writeConfig(t, text), nil)
+	if err != nil {
+		t.Fatalf("Load(template examples): %v\n%s", err, text)
+	}
+	if len(cfg.Warnings) != 0 {
+		t.Errorf("template example Warnings = %q", cfg.Warnings)
+	}
+	if cfg.Verify.Keyrings.Staging == "" || cfg.Verify.Sources["bitcoin"]["mainnet"].Policy == "" {
+		t.Errorf("the examples did not load: %+v", cfg.Verify)
+	}
+}
+
+// Only the file is checked: a TRUESTAMP_ variable that is not a setting,
+// such as TRUESTAMP_NO_UPGRADE_CHECK, is not reported.
+func TestLoad_UnknownEnvVarIsNotReported(t *testing.T) {
+	clearTruestampEnv(t)
+	t.Setenv("TRUESTAMP_NO_UPGRADE_CHECK", "1")
+	t.Setenv("TRUESTAMP_VERIFY_SKIP_EXTERNAL", "true")
+	cfg, err := Load(filepath.Join(t.TempDir(), "none.toml"), nil)
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	if len(cfg.Warnings) != 0 {
+		t.Errorf("Warnings = %q", cfg.Warnings)
+	}
+}
+
+// --- base_url scheme and host --------------------------------------------
+
+// The API key, OAuth tokens and the console WebSocket all go to base_url,
+// so it must be https, or plain http to a loopback host only: localhost, a
+// name under .localhost, or a loopback address (127.0.0.0/8, ::1). Plain
+// http to any other host is refused with the cleartext message, and any
+// other scheme with its own, at Load, before a request can be built.
+// Mutants killed: the http host check removed; a scheme other than http(s)
+// accepted; loopback matched by a "localhost" prefix rather than the name.
+func TestLoad_BaseURLScheme(t *testing.T) {
+	clearTruestampEnv(t)
+	for _, base := range []string{
+		"http://127.0.0.1:9", "http://127.1.2.3", "http://[::1]:4000", "http://localhost:4000",
+		"http://LocalHost:4000", "http://app.localhost", "https://staging.truestamp.com",
+		"HTTPS://WWW.TRUESTAMP.COM", "https://10.0.0.5",
+	} {
+		if _, err := Load(writeConfig(t, `base_url = "`+base+`"`), nil); err != nil {
+			t.Errorf("%s refused: %v", base, err)
+		}
+	}
+	for _, base := range []string{
+		"http://staging.truestamp.com", "http://www.truestamp.com", "http://localhost.example.com",
+		"http://127.0.0.1.nip.io", "http://10.0.0.5", "http://[::2]:4000", "HTTP://EXAMPLE.COM",
+	} {
+		_, err := Load(writeConfig(t, `base_url = "`+base+`"`), nil)
+		if err == nil || !strings.Contains(err.Error(), "uses http:// to a non-loopback host; credentials would be sent unencrypted, use https://") {
+			t.Errorf("%s: %v, want the cleartext refusal", base, err)
+		}
+	}
+	for _, base := range []string{"ws://localhost", "wss://www.truestamp.com", "ftp://x"} {
+		_, err := Load(writeConfig(t, `base_url = "`+base+`"`), nil)
+		if err == nil || !strings.Contains(err.Error(), "scheme must be https (or http for a loopback host)") {
+			t.Errorf("%s: %v, want the scheme refusal", base, err)
+		}
+	}
+	// A flag or variable is checked the same way as the file.
+	t.Setenv("TRUESTAMP_BASE_URL", "http://example.com")
+	if _, err := Load(filepath.Join(t.TempDir(), "none.toml"), nil); err == nil ||
+		!strings.Contains(err.Error(), "uses http:// to a non-loopback host") {
+		t.Errorf("TRUESTAMP_BASE_URL http://example.com: %v, want the cleartext refusal", err)
+	}
+}
+
+// A WebSocket URL given in base_url's place (console --ws-url) is held to
+// its rule: wss://, or ws:// to a loopback host only, and no other scheme.
+// Mutants killed: ws:// accepted to any host; the loopback exception
+// dropped; any scheme accepted.
+func TestValidateWebSocketURL(t *testing.T) {
+	for _, ok := range []string{"wss://www.truestamp.com/console/websocket", "ws://localhost:4000/console/websocket",
+		"ws://app.localhost/x", "ws://127.0.0.1:4000/x", "ws://[::1]:4000/x"} {
+		if err := ValidateWebSocketURL(ok); err != nil {
+			t.Errorf("%s refused: %v", ok, err)
+		}
+	}
+	for raw, want := range map[string]string{
+		"ws://example.com/x":    "uses ws:// to a non-loopback host",
+		"ws://10.0.0.5:4000/x":  "uses ws:// to a non-loopback host",
+		"https://example.com/x": "scheme must be wss (or ws for a loopback host)",
+		"wss:///x":              "must include scheme and host",
+	} {
+		if err := ValidateWebSocketURL(raw); err == nil || !strings.Contains(err.Error(), want) {
+			t.Errorf("%s: %v, want %q", raw, err, want)
+		}
+	}
+}
+
+// --- logging.level --------------------------------------------------------
+
+// logging.level must be a level the logger knows, from the file, the
+// environment or --log-level, like http_timeout; anything else is an
+// error naming the value rather than a quiet fall back to info. Mutant
+// killed: the check removed from Load.
+func TestLoad_LogLevelValidated(t *testing.T) {
+	clearTruestampEnv(t)
+	for _, level := range []string{"", "debug", "INFO", " warn ", "warning", "error"} {
+		if _, err := Load(writeConfig(t, "[logging]\nlevel = \""+level+"\"\n"), nil); err != nil {
+			t.Errorf("level %q refused: %v", level, err)
+		}
+	}
+	for _, level := range []string{"bogus", "trace", "verbose"} {
+		_, err := Load(writeConfig(t, "[logging]\nlevel = \""+level+"\"\n"), nil)
+		if err == nil || !strings.Contains(err.Error(), `invalid logging.level "`+level+`"`) {
+			t.Errorf("file level %q: %v", level, err)
+		}
+	}
+
+	t.Setenv("TRUESTAMP_LOGGING_LEVEL", "trace")
+	if _, err := Load(filepath.Join(t.TempDir(), "none.toml"), nil); err == nil || !strings.Contains(err.Error(), `"trace"`) {
+		t.Errorf("env level trace: %v", err)
+	}
+	t.Setenv("TRUESTAMP_LOGGING_LEVEL", "")
+	_ = os.Unsetenv("TRUESTAMP_LOGGING_LEVEL")
+
+	flags := pflag.NewFlagSet("root", pflag.ContinueOnError)
+	flags.String("log-level", "", "")
+	if err := flags.Parse([]string{"--log-level", "verbose"}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := Load(filepath.Join(t.TempDir(), "none.toml"), flags); err == nil || !strings.Contains(err.Error(), `"verbose"`) {
+		t.Errorf("flag level verbose: %v", err)
 	}
 }

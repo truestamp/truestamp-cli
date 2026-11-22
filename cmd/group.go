@@ -5,6 +5,7 @@ package cmd
 
 import (
 	"fmt"
+	"os"
 
 	"github.com/spf13/cobra"
 )
@@ -35,4 +36,19 @@ func asGroup(c *cobra.Command) *cobra.Command {
 	c.Args = cobra.ArbitraryArgs
 	c.RunE = groupRunE
 	return c
+}
+
+// registerCompletionGroup makes cobra's completion command a group like
+// every other. Cobra creates that command lazily, inside ExecuteC, with
+// NoArgs and no Run, so `truestamp completion bogus` printed help and
+// exited 0. Creating it here first, with the same arguments ExecuteC
+// passes, lets asGroup reach it; ExecuteC then finds it already present
+// and leaves it alone.
+func registerCompletionGroup(root *cobra.Command) {
+	root.InitDefaultCompletionCmd(os.Args[1:]...)
+	for _, c := range root.Commands() {
+		if c.Name() == "completion" {
+			asGroup(c)
+		}
+	}
 }

@@ -5,8 +5,11 @@ package cmd
 
 import (
 	"context"
+	"encoding/json/v2"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"regexp"
 	"strings"
 	"testing"
 	"time"
@@ -142,7 +145,7 @@ func TestCheckAPIKey(t *testing.T) {
 			}))
 			t.Cleanup(srv.Close)
 
-			res, err := checkAuth(context.Background(), auth.APIKeyAuthorizer("test-key"), srv.URL+"/api/json", "")
+			res, err := checkAuth(context.Background(), auth.APIKeyAuthorizer("test-key"), srv.URL+"/api/json")
 			if err != nil {
 				t.Fatalf("unexpected error: %v", err)
 			}
@@ -303,27 +306,126 @@ func TestFormatTeamLines(t *testing.T) {
 	}
 }
 
-func TestCheckAPIKey_SendsTenantHeaderWhenTeamSet(t *testing.T) {
+// TestCheckAuth_NeverSendsTenantHeader: the /users probe tests the
+// credential alone. The server refuses a tenant the caller cannot use with
+// a 403 before any action runs, so a probe that carried the configured team
+// read a valid credential as rejected (auth status) and lost the identity
+// (auth login, which runs the same probe). The stub answers like the
+// server: 403 whenever a tenant header is present.
+func TestCheckAuth_NeverSendsTenantHeader(t *testing.T) {
 	useHTTPTimeout(t, 5*time.Second)
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if got := r.Header.Get("tenant"); got != "team_42" {
-			t.Errorf("tenant header = %q, want team_42", got)
+		if got := r.Header.Get("tenant"); got != "" {
+			t.Errorf("tenant header = %q, want none", got)
+			w.WriteHeader(http.StatusForbidden)
+			_, _ = w.Write([]byte(tenantRefusalBody))
+			return
 		}
 		w.WriteHeader(200)
-		_, _ = w.Write([]byte(`{"data":[]}`))
+		_, _ = w.Write([]byte(`{"data":[{"type":"user","id":"u1","attributes":{"email":"a@example.com"}}]}`))
 	}))
 	t.Cleanup(srv.Close)
 
-	if _, err := checkAuth(context.Background(), auth.APIKeyAuthorizer("k"), srv.URL+"/api/json", "team_42"); err != nil {
+	res, err := checkAuth(context.Background(), auth.APIKeyAuthorizer("k"), srv.URL+"/api/json")
+	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
+	}
+	if !res.ok || res.email != "a@example.com" {
+		t.Errorf("result = %+v, want ok with the identity resolved", res)
+	}
+}
+
+// tenantRefusalBody is the server's answer to a tenant header naming a
+// team the caller cannot use (truestamp-v2's tenant plug), without the
+// source member a newer server adds.
+const tenantRefusalBody = `{"errors":[{"status":"403","code":"forbidden","title":"Forbidden","detail":"Invalid or unauthorized tenant specified"}]}`
+
+// tenantStrictServer answers /api/json/users with a user unless a tenant
+// header is present, and /api/json/teams/<team> with the tenant refusal,
+// as the server does for a team the caller is not a member of.
+func tenantStrictServer(t *testing.T, team string) *httptest.Server {
+	t.Helper()
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/vnd.api+json")
+		switch {
+		case r.URL.Path == "/api/json/users" && r.Header.Get("tenant") == "":
+			_, _ = w.Write([]byte(`{"data":[{"type":"user","id":"u1","attributes":{"email":"a@example.com"}}]}`))
+		case r.URL.Path == "/api/json/users", r.URL.Path == "/api/json/teams/"+team:
+			w.WriteHeader(http.StatusForbidden)
+			_, _ = w.Write([]byte(tenantRefusalBody))
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	t.Cleanup(srv.Close)
+	return srv
+}
+
+// TestAuthStatus_InaccessibleTeam_TeamNotAccessible: a valid credential
+// with a --team the caller cannot use is reported as the team's failure,
+// the reason the help documents, never as a rejected credential.
+func TestAuthStatus_InaccessibleTeam_TeamNotAccessible(t *testing.T) {
+	const team = "019dbd00-0000-7000-8000-00000000000a"
+	srv := tenantStrictServer(t, team)
+
+	stdout, stderr, exit := runCLI(t, "auth", "status", "--api-key", "k", "--base-url", srv.URL, "--team", team, "--json")
+	if exit != 1 {
+		t.Fatalf("exit = %d, want 1\nstdout=%s\nstderr=%s", exit, stdout, stderr)
+	}
+	var rec struct {
+		OK         bool   `json:"ok"`
+		Reason     string `json:"reason"`
+		HTTPStatus int    `json:"http_status"`
+		TeamID     string `json:"team_id"`
+		Email      string `json:"email"`
+	}
+	if err := json.Unmarshal([]byte(stdout), &rec); err != nil {
+		t.Fatalf("stdout is not one JSON record: %v\n%s", err, stdout)
+	}
+	if rec.OK || rec.Reason != "team_not_accessible" || rec.HTTPStatus != 403 || rec.TeamID != team {
+		t.Errorf("record = %+v, want ok=false reason=team_not_accessible http_status=403 team_id=%s", rec, team)
+	}
+	if rec.Email != "a@example.com" {
+		t.Errorf("email = %q, want the identity the credential resolved", rec.Email)
+	}
+
+	text, _, exit := runCLI(t, "auth", "status", "--api-key", "k", "--base-url", srv.URL, "--team", team)
+	if exit != 1 {
+		t.Fatalf("text exit = %d, want 1\n%s", exit, text)
+	}
+	if !strings.Contains(text, "Team "+team+" is not accessible") {
+		t.Errorf("text output should name the team as not accessible:\n%s", text)
+	}
+	if strings.Contains(text, "Credential rejected") {
+		t.Errorf("text output must not call the credential rejected:\n%s", text)
 	}
 }
 
 func TestCheckAPIKey_TransportErrorReturnsError(t *testing.T) {
 	useHTTPTimeout(t, 100*time.Millisecond)
 	// Point at a TCP port we're not listening on.
-	res, err := checkAuth(context.Background(), auth.APIKeyAuthorizer("k"), "http://127.0.0.1:1/api/json", "")
+	res, err := checkAuth(context.Background(), auth.APIKeyAuthorizer("k"), "http://127.0.0.1:1/api/json")
 	if err == nil {
 		t.Fatalf("expected transport-level error, got result: %+v", res)
+	}
+}
+
+// auth status --help lists every reason identifier the command can emit,
+// read from the source so the list cannot fall behind it (rate_limited
+// was missing).
+func TestAuthStatus_HelpNamesEveryReason(t *testing.T) {
+	src, err := os.ReadFile("auth.go")
+	if err != nil {
+		t.Fatal(err)
+	}
+	reasons := regexp.MustCompile(`rec\.Reason = "([a-z_]+)"`).FindAllStringSubmatch(string(src), -1)
+	if len(reasons) < 5 {
+		t.Fatalf("found only %d reasons in auth.go", len(reasons))
+	}
+	long := strings.Join(strings.Fields(authStatusCmd.Long), " ")
+	for _, m := range reasons {
+		if !regexp.MustCompile(`\b` + m[1] + `\b`).MatchString(long) {
+			t.Errorf("auth status --help does not name reason %q", m[1])
+		}
 	}
 }

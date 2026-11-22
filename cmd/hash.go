@@ -61,6 +61,14 @@ Exit code 0 on success, 1 if any input failed.`,
 
 func runHash(cmd *cobra.Command, args []string) error {
 	if list, _ := cmd.Flags().GetBool("list"); list {
+		// --json and --silent are read from the command's own flags, as
+		// the rest of runHash reads them (R10's raw-output exemption).
+		if silent, _ := cmd.Flags().GetBool("silent"); silent {
+			return nil
+		}
+		if jsonOut, _ := cmd.Flags().GetBool("json"); jsonOut {
+			return emitJSON(cmd.OutOrStdout(), algorithmsDocument())
+		}
 		printAlgorithmList(cmd.OutOrStdout())
 		return nil
 	}
@@ -152,13 +160,23 @@ func runHash(cmd *cobra.Command, args []string) error {
 		return nil
 	}
 
-	results, hadError := runHashMany(cmd, sources, alg, prefixByte, prefixSet, useJCS, silent)
+	// Under --json one input that fails is the run's one failure object,
+	// so its message goes there rather than to stderr. Over several
+	// inputs the array of the digests that were computed is the record,
+	// and each failure is a line on stderr, as sha256sum gives it.
+	single := len(sources) == 1
+	results, failures := runHashMany(cmd, sources, alg, prefixByte, prefixSet, useJCS, silent || (jsonOut && single))
+	hadError := len(failures) > 0
 
 	if silent {
 		if hadError {
 			return errSilentFail
 		}
 		return nil
+	}
+
+	if jsonOut && single && hadError {
+		return failures[0]
 	}
 
 	if jsonOut {
@@ -193,10 +211,10 @@ const parallelHashThreshold = 3
 // on a bounded worker pool. Stdin sources force serial execution because
 // os.Stdin is not safe to read from multiple goroutines.
 //
-// Per-input errors are written to stderr (unless --silent) and the
-// corresponding slot is dropped from results; hadError is true when any
-// input failed, so the caller exits non-zero.
-func runHashMany(cmd *cobra.Command, sources []inputsrc.Options, alg hashing.Algorithm, prefixByte byte, prefixSet, useJCS, silent bool) ([]hashResult, bool) {
+// Per-input errors are written to stderr (unless quiet) and the
+// corresponding slot is dropped from results; failures holds each of them
+// in input order, so the caller exits non-zero when any input failed.
+func runHashMany(cmd *cobra.Command, sources []inputsrc.Options, alg hashing.Algorithm, prefixByte byte, prefixSet, useJCS, quiet bool) ([]hashResult, []error) {
 	ctx := cmd.Context()
 	slots := make([]*hashResult, len(sources))
 	errs := make([]error, len(sources))
@@ -244,11 +262,11 @@ func runHashMany(cmd *cobra.Command, sources []inputsrc.Options, alg hashing.Alg
 	}
 
 	results := make([]hashResult, 0, len(sources))
-	hadError := false
+	var failures []error
 	for i := range sources {
 		if errs[i] != nil {
-			hadError = true
-			if !silent {
+			failures = append(failures, errs[i])
+			if !quiet {
 				ui.Fprintf(cmd.ErrOrStderr(), "truestamp hash: %s\n", errs[i])
 			}
 			continue
@@ -257,7 +275,7 @@ func runHashMany(cmd *cobra.Command, sources []inputsrc.Options, alg hashing.Alg
 			results = append(results, *slots[i])
 		}
 	}
-	return results, hadError
+	return results, failures
 }
 
 // runHashOne resolves one input and hashes it. For raw byte-stream inputs

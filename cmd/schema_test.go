@@ -240,8 +240,8 @@ func specFile(t *testing.T, name string) []byte {
 	return data
 }
 
-// schema lists exactly its five documents, algorithms, commands,
-// exit-codes, item-code and reason-codes: schema list names those, the
+// schema lists exactly its six documents, algorithms, commands,
+// error-codes, exit-codes, item-code and reason-codes: schema list names those, the
 // shell offers those as a document name, schema get refuses subject-types
 // and witnesses, and no flag of the command tree is --witnesses. Mutants
 // killed: a subject-types document added to schemaDocs (listed, gettable
@@ -265,11 +265,11 @@ func TestSchema_ListsExactlyItsDocuments(t *testing.T) {
 	for _, s := range listed.Schemas {
 		names = append(names, s.Name)
 	}
-	if want := []string{"algorithms", "commands", "exit-codes", "item-code", "reason-codes"}; !slices.Equal(names, want) {
+	if want := []string{"algorithms", "commands", "error-codes", "exit-codes", "item-code", "reason-codes"}; !slices.Equal(names, want) {
 		t.Errorf("schema list names %q, want %q", names, want)
 	}
 	completed := completionValues(t, "schema", "get", "")
-	if want := []string{"algorithms", "commands", "exit-codes", "item-code", "reason-codes"}; !slices.Equal(completed, want) {
+	if want := []string{"algorithms", "commands", "error-codes", "exit-codes", "item-code", "reason-codes"}; !slices.Equal(completed, want) {
 		t.Errorf("schema get completes %q, want %q", completed, want)
 	}
 	for _, gone := range []string{"subject-types", "witnesses"} {
@@ -328,9 +328,10 @@ func TestSchema_ReasonCodesAreTheSpecs(t *testing.T) {
 	}
 }
 
-// TestSchema_AlgorithmsMatchHashList keeps the two views of one registry
-// honest: `hash --list` is the human form and `schema get algorithms` the
-// machine form, and they read the same source.
+// TestSchema_AlgorithmsMatchHashList keeps the views of one registry
+// honest: `hash --list` prints it as text, or with --json as the same
+// document `schema get algorithms --json` prints, and both read the same
+// source.
 func TestSchema_AlgorithmsMatchHashList(t *testing.T) {
 	doc := runSchema(t, "algorithms")
 	raw, _ := doc["algorithms"].([]any)
@@ -347,6 +348,57 @@ func TestSchema_AlgorithmsMatchHashList(t *testing.T) {
 			t.Errorf("algorithm %q is in the schema but not in `hash --list`", name)
 		}
 	}
+	jsonOut, err := exec.Command(binaryPath, "hash", "--list", "--json").Output()
+	if err != nil {
+		t.Fatalf("hash --list --json: %v\n%s", err, jsonOut)
+	}
+	var listDoc map[string]any
+	if err := json.Unmarshal(jsonOut, &listDoc); err != nil {
+		t.Fatalf("hash --list --json is not JSON: %v\n%s", err, jsonOut)
+	}
+	want, _ := json.Marshal(map[string]any{"algorithms": doc["algorithms"]}, json.Deterministic(true))
+	got, _ := json.Marshal(listDoc, json.Deterministic(true))
+	if string(got) != string(want) {
+		t.Errorf("hash --list --json is\n%s\nwant the schema's\n%s", got, want)
+	}
+}
+
+// Cobra adds the root's --version (-v) flag only to the command it
+// executes, so `schema get commands` listed none on the root although
+// root --help shows it. The root node now lists it, local and not
+// inherited, and no other node inherits it (upgrade's own --version, a
+// string that pins a release, is a different flag). Mutant killed:
+// commandTree without its InitDefaultVersionFlag call.
+func TestSchema_RootCarriesVersionFlag(t *testing.T) {
+	out, err := exec.Command(binaryPath, "schema", "get", "commands", "--json").Output()
+	if err != nil {
+		t.Fatalf("schema get commands: %v", err)
+	}
+	var root introspect.Command
+	if err := json.Unmarshal(out, &root); err != nil {
+		t.Fatalf("not JSON: %v", err)
+	}
+	found := false
+	for _, f := range root.Flags {
+		if f.Name == "version" {
+			found = f.Shorthand == "v" && !f.Inherited && f.Type == "bool"
+		}
+	}
+	if !found {
+		t.Errorf("root flags lack version/-v (bool, not inherited): %+v", root.Flags)
+	}
+	var walk func(c introspect.Command)
+	walk = func(c introspect.Command) {
+		for _, sub := range c.Subcommands {
+			for _, f := range sub.Flags {
+				if f.Name == "version" && (f.Inherited || f.Shorthand == "v") {
+					t.Errorf("%s lists the root's version flag: %+v", sub.Path, f)
+				}
+			}
+			walk(sub)
+		}
+	}
+	walk(root)
 }
 
 // TestSchema_TextAndJSONCarryTheSameFacts. Both renderings read one
@@ -363,7 +415,7 @@ func TestSchema_TextAndJSONCarryTheSameFacts(t *testing.T) {
 	// The command tree is excluded: its JSON deliberately carries far more
 	// than the text outline (every flag, type, default and enum), which is
 	// what --json is for.
-	for _, name := range []string{"algorithms", "reason-codes", "exit-codes", "item-code"} {
+	for _, name := range []string{"algorithms", "reason-codes", "exit-codes", "item-code", "error-codes"} {
 		t.Run(name, func(t *testing.T) {
 			text, err := exec.Command(binaryPath, "schema", "get", name).CombinedOutput()
 			if err != nil {

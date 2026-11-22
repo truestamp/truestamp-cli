@@ -16,7 +16,7 @@ when no credential is configured, pointing the user at
 
 | Flag | Scope | Default | Notes |
 | ---- | ----- | ------- | ----- |
-| `--ws-url` | console only | derived from `--base-url` | Escape hatch for debugging or a non-standard WS path. The default is `<scheme>://<host>/console/websocket` computed in `internal/config` (`http` maps to `ws`, `https` to `wss`). |
+| `--ws-url` | console only | derived from `--base-url` | Escape hatch for debugging or a non-standard WS path, held to `base_url`'s rule (`config.ValidateWebSocketURL`): `wss://`, or `ws://` to a loopback host only, since the credential rides on it. The default is `<scheme>://<host>/console/websocket` computed in `internal/config` (`http` maps to `ws`, `https` to `wss`). |
 | `--base-url` | global | `https://www.truestamp.com` | Origin the WebSocket URL and the Teams pane's JSON:API calls are derived from. |
 | `--api-key` | global | `""` | Headless/CI credential. An explicit key outranks a stored OAuth session. |
 | `--team` | global | `""` | Active team id. Also read from `config.toml`. |

@@ -34,7 +34,7 @@ Every block is created finalized, so 'beacons latest' and 'blocks latest'
 name the same head block, in two views. For a block's internals (Merkle
 root, state, signature, key id, chain links) use 'truestamp blocks get'.
 
-Requires authentication, run 'truestamp auth login', or set TRUESTAMP_API_KEY / --api-key for headless/CI use.`,
+Requires authentication: run 'truestamp auth login', or set TRUESTAMP_API_KEY / --api-key for headless/CI use.`,
 }
 
 var beaconsLatestCmd = &cobra.Command{

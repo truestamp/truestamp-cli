@@ -360,6 +360,78 @@ func TestCLI_ConvertKeyID_Base64URL(t *testing.T) {
 	}
 }
 
+// A padded base64url key is 44 characters, the length of a padded
+// standard one, and auto-detection used to send it to the standard
+// decoder, which refused its '-' and '_'. It now gives the key id the
+// unpadded form and --from base64url give.
+func TestCLI_ConvertKeyID_PaddedBase64URL(t *testing.T) {
+	const padded = "sYfRKf1R_ILtfRv1KjBgk6F6kgIrXDfVbz3Pl-kgE2U="
+	for _, args := range [][]string{
+		{"convert", "keyid", padded},
+		{"convert", "keyid", strings.TrimSuffix(padded, "=")},
+		{"convert", "keyid", padded, "--from", "base64url"},
+	} {
+		out, err := exec.Command(binaryPath, args...).CombinedOutput()
+		if err != nil {
+			t.Fatalf("%v: %v\n%s", args, err, out)
+		}
+		if got := strings.TrimSpace(string(out)); got != "0df0ebbb" {
+			t.Errorf("%v: key id %q, want 0df0ebbb", args, got)
+		}
+	}
+}
+
+// decodePublicKey's auto mode chooses the base64 alphabet by content, not
+// by length: the padded and unpadded forms of either alphabet, and hex,
+// give the same 32 bytes, and a value mixing the two alphabets is
+// refused. Before, a 44-character value always went to standard base64
+// and a 43-character one to base64url, so a padded base64url key and an
+// unpadded standard key holding '+' or '/' were refused.
+func TestDecodePublicKey_ChoosesAlphabetByContent(t *testing.T) {
+	// A key whose standard encoding holds '+' or '/', so its base64url
+	// encoding holds '-' or '_' in the same places.
+	var raw []byte
+	for seed := 0; ; seed++ {
+		raw = make([]byte, 32)
+		for i := range raw {
+			raw[i] = byte(seed*31 + i*97 + 251)
+		}
+		if strings.ContainsAny(base64.StdEncoding.EncodeToString(raw), "+/") {
+			break
+		}
+	}
+	std := base64.StdEncoding.EncodeToString(raw)
+	forms := map[string]string{
+		"hex":                encodeHex(raw),
+		"padded base64url":   base64.URLEncoding.EncodeToString(raw),
+		"unpadded base64url": base64.RawURLEncoding.EncodeToString(raw),
+		"padded base64":      std,
+		"unpadded base64":    base64.RawStdEncoding.EncodeToString(raw),
+	}
+	for name, in := range forms {
+		got, err := decodePublicKey(in, "auto")
+		if err != nil {
+			t.Errorf("%s %q: %v", name, in, err)
+			continue
+		}
+		if string(got) != string(raw) {
+			t.Errorf("%s %q: decoded %x, want %x", name, in, got, raw)
+		}
+	}
+	// One standard symbol and one url-safe symbol in the same value: keep
+	// the '+' or '/' and put a '-' in another place.
+	j := 0
+	if strings.IndexAny(std, "+/") == 0 {
+		j = 1
+	}
+	mixed := std[:j] + "-" + std[j+1:]
+	for _, in := range []string{mixed, strings.TrimSuffix(mixed, "=")} {
+		if _, err := decodePublicKey(in, ""); err == nil {
+			t.Errorf("mixed alphabet %q decoded", in)
+		}
+	}
+}
+
 func TestCLI_ConvertKeyID_Stdin(t *testing.T) {
 	cmd := exec.Command(binaryPath, "convert", "keyid")
 	cmd.Stdin = strings.NewReader("CTwMqDZnPd/QTLSq8aTeSD3a+j2DQxKcGfhhIYJQ65Y=")

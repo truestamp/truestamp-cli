@@ -15,7 +15,6 @@ import (
 
 	"github.com/spf13/cobra"
 	"github.com/truestamp/truestamp-cli/internal/jsonapi"
-	"github.com/truestamp/truestamp-cli/internal/ui"
 )
 
 // The R10 output contract, in one place so a new command cannot invent a
@@ -62,6 +61,7 @@ func emitJSON(w io.Writer, v any) error {
 	if err != nil {
 		return fmt.Errorf("marshaling JSON: %w", err)
 	}
+	recordWritten = true
 	_, err = fmt.Fprintln(w, string(out))
 	return err
 }
@@ -88,27 +88,6 @@ func outputMode(cmd *cobra.Command) (jsonOut, silent bool) {
 	return jsonOut, silent
 }
 
-// printNotAuthenticated is the one rendering of the "Not authenticated"
-// banner and its remediation hint, so the wording, the stream and the
-// silent gating cannot drift between the resource groups. It prints
-// nothing under --silent.
-func printNotAuthenticated(cmd *cobra.Command) {
-	if _, silent := outputMode(cmd); silent {
-		return
-	}
-	ui.Fprintln(cmd.ErrOrStderr(), ui.FailureBanner("Not authenticated"))
-	ui.Fprintln(cmd.ErrOrStderr(), ui.FaintStyle().Render(
-		"    Run 'truestamp auth login' to sign in (or set TRUESTAMP_API_KEY)."))
-}
-
-// failNotAuthenticated prints the banner and returns errSilentFail. It is
-// the right response both when no credential is configured and when the
-// server rejects the one that is (a 401 on a request that did carry one).
-func failNotAuthenticated(cmd *cobra.Command) error {
-	printNotAuthenticated(cmd)
-	return errSilentFail
-}
-
 // requireAuth is the pre-flight gate every command that needs a credential
 // runs before its first request: it refuses early, with the banner, when
 // neither an OAuth session nor an API key is configured.
@@ -120,41 +99,48 @@ func requireAuth(cmd *cobra.Command) error {
 }
 
 // renderAPIError turns a jsonapi client error into the message and exit
-// shape the resource groups share: a 401 is the shared banner, a 403 an
-// "Access denied" banner, a 404 one line naming the record, anything else
-// one line carrying the server's detail, and nothing at all under
-// --silent. noun names the record ("beacon", "block", "item", "team").
+// shape the resource groups share: a 401 is the shared banner (no
+// credential, or the one sent was rejected), a 403 an "Access denied"
+// banner naming the team when the server refused the tenant and the record
+// otherwise, a 404 one line naming the record, anything else one line
+// carrying the server's detail, and nothing at all under --silent. Under
+// --json each is a *cliError, which Execute writes as the one failure
+// object. noun names the record ("beacon", "block", "item", "team").
 func renderAPIError(cmd *cobra.Command, err error, noun string) error {
 	if errors.Is(err, jsonapi.ErrUnauthorized) {
-		return failNotAuthenticated(cmd)
-	}
-	_, silent := outputMode(cmd)
-	if errors.Is(err, jsonapi.ErrForbidden) {
-		if !silent {
-			ui.Fprintln(cmd.ErrOrStderr(), ui.FailureBanner("Access denied"))
-			ui.Fprintln(cmd.ErrOrStderr(), ui.FaintStyle().Render(
-				"    You're authenticated, but you do not have access to that "+noun+"."))
+		if !authConfigured() {
+			return failNotAuthenticated(cmd)
 		}
-		return errSilentFail
-	}
-	if silent {
-		return errSilentFail
+		return failCredentialRejected(cmd, err)
 	}
 	var apiErr *jsonapi.APIError
-	if errors.As(err, &apiErr) {
-		switch {
-		case errors.Is(err, jsonapi.ErrNotFound):
-			return fmt.Errorf("%s not found", noun)
-		case apiErr.Code == jsonapi.CodeInvalidKeyset:
-			// A cursor is opaque and only meaningful to the listing that
-			// printed it; say that rather than echoing "invalid keyset".
-			return errors.New("the cursor was not recognised: use one printed by a previous page of this listing (More: --after, Back: --before)")
-		case errors.Is(err, jsonapi.ErrRateLimited):
-			return errors.New(describeRateLimit(apiErr))
+	isAPI := errors.As(err, &apiErr)
+	if errors.Is(err, jsonapi.ErrForbidden) {
+		if isAPI && isTenantRefusal(apiErr) {
+			return failTeamRefused(cmd, err)
 		}
-		return errors.New(apiErr.Error())
+		msg := "You're authenticated, but you do not have access to that " + noun + "."
+		return failWith(cmd, &cliError{code: codeForbidden, message: msg, status: 403, cause: err},
+			"Access denied", msg)
 	}
-	return err
+	if _, silent := outputMode(cmd); silent {
+		return errSilentFail
+	}
+	if !isAPI {
+		return err
+	}
+	e := &cliError{code: apiFailureCode(apiErr), message: apiErr.Error(), status: apiErr.Status, cause: err}
+	switch {
+	case errors.Is(err, jsonapi.ErrNotFound):
+		e.message = noun + " not found"
+	case apiErr.Code == jsonapi.CodeInvalidKeyset:
+		// A cursor is opaque and only meaningful to the listing that
+		// printed it; say that rather than echoing "invalid keyset".
+		e.message = "the cursor was not recognised: use one printed by a previous page of this listing (More: --after, Back: --before)"
+	case errors.Is(err, jsonapi.ErrRateLimited):
+		e.message = describeRateLimit(apiErr)
+	}
+	return e
 }
 
 // describeRateLimit is the one rendering of a 429 that is still standing

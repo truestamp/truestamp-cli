@@ -96,6 +96,15 @@ var rootCmd = &cobra.Command{
 		}
 		appConfig = cfg
 
+		// Say which keys of the configuration file have no effect (a
+		// renamed or retired setting, a typo), on stderr only, so stdout
+		// and --json stay the record; a silent run prints nothing.
+		if !silentRun(cmd) {
+			for _, w := range cfg.Warnings {
+				ui.Fprintf(cmd.ErrOrStderr(), "warning: %s\n", w)
+			}
+		}
+
 		// Record which file is in effect, now that we know it loaded. Every
 		// downstream "which config file?" site reads this: `config path`,
 		// `config init`, SetAPIKey, SetTeam, and the auth/team/console cards.
@@ -287,7 +296,8 @@ func maybeEmitUpgradeNotice(cmd *cobra.Command) {
 
 // Execute runs the root command. rootCmd sets SilenceErrors, which cobra
 // honours for every command under it, so Execute is the single place
-// errors reach stderr.
+// errors reach stderr, or, under --json, the single place the one failure
+// object is written (cmd/failure.go).
 // A command that needs silent-on-error UX (e.g. `verify --silent`) returns
 // errSilentFail instead of the real error to opt out of printing. The
 // upgrade --check flow uses exitCodeErr to return a specific exit code
@@ -312,6 +322,8 @@ func Execute() (err error) {
 		registerEnumCompletions(rootCmd)
 	}
 	registerHelpCommand(rootCmd)
+	registerCompletionGroup(rootCmd)
+	recordWritten = false
 
 	defer func() {
 		r := recover()
@@ -368,7 +380,7 @@ func Execute() (err error) {
 		return err
 	}
 	if !errors.Is(err, errSilentFail) && !silentRun(executed) {
-		ui.Fprintln(os.Stderr, err)
+		writeFailure(executed, err)
 	}
 	return err
 }

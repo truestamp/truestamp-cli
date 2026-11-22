@@ -44,6 +44,7 @@ in-code registries, so it always describes the binary you are running.
   truestamp schema get algorithms        the hash algorithm registry
   truestamp schema get reason-codes      verify's reason codes
   truestamp schema get exit-codes        each command's exit codes
+  truestamp schema get error-codes       the codes of a --json failure
   truestamp schema get item-code         where the item code is read and written
 
 'schema get commands --json' is the one call that answers "what can this
@@ -129,19 +130,45 @@ type schemaDoc struct {
 	render func(w io.Writer)
 }
 
+// commandTree is the walked command tree the commands document prints.
+// Cobra adds the root's --version (-v) flag lazily, only to the command
+// it executes, so under `schema get commands` the root would have none;
+// creating it first lists it on the root node, as root --help shows it.
+// InitDefaultVersionFlag does nothing when the flag already exists.
+func commandTree() introspect.Command {
+	rootCmd.InitDefaultVersionFlag()
+	return introspect.Walk(rootCmd, cliEnums(), false)
+}
+
+// algorithmsDocument is the algorithms document, which both
+// `schema get algorithms --json` and `hash --list --json` print.
+func algorithmsDocument() map[string]any {
+	algs := hashing.Algorithms()
+	out := make([]map[string]any, 0, len(algs))
+	for _, a := range algs {
+		out = append(out, map[string]any{
+			"name":       a.Name,
+			"size_bytes": a.Size,
+			"aliases":    a.Aliases,
+			"legacy":     a.Legacy,
+		})
+	}
+	return map[string]any{"algorithms": out}
+}
+
 var schemaDocs = map[string]schemaDoc{
 	"commands": {
 		description: "The full command tree: every path, flag, type, default and enum",
 		note: "A trailing / marks a group. --json adds every flag, type, default, " +
 			"shorthand and closed value set.",
 		build: func() any {
-			return introspect.Walk(rootCmd, cliEnums(), false)
+			return commandTree()
 		},
 		render: func(w io.Writer) {
 			// An indented outline of every path. This is the one document
 			// whose text form is genuinely different from --help: it shows
 			// the whole shape at once rather than one level at a time.
-			tree := introspect.Walk(rootCmd, cliEnums(), false)
+			tree := commandTree()
 			ui.Fprintln(w, ui.AccentBoldStyle().Render("  Command tree"))
 			ui.Fprintln(w)
 			var walk func(c introspect.Command, depth int)
@@ -165,19 +192,7 @@ var schemaDocs = map[string]schemaDoc{
 	},
 	"algorithms": {
 		description: "Hash algorithms accepted by `truestamp hash -a`",
-		build: func() any {
-			algs := hashing.Algorithms()
-			out := make([]map[string]any, 0, len(algs))
-			for _, a := range algs {
-				out = append(out, map[string]any{
-					"name":       a.Name,
-					"size_bytes": a.Size,
-					"aliases":    a.Aliases,
-					"legacy":     a.Legacy,
-				})
-			}
-			return map[string]any{"algorithms": out}
-		},
+		build:       func() any { return algorithmsDocument() },
 		render: func(w io.Writer) {
 			// Booleans render as their literal value, not as a marker or a
 			// blank. A blank cell is indistinguishable from a missing one,
@@ -254,6 +269,21 @@ var schemaDocs = map[string]schemaDoc{
 				rows = append(rows, []string{f.Command, f.Where, f.From})
 			}
 			renderSchemaTable(w, "Where the item code is written", rows)
+		},
+	},
+	"error-codes": {
+		description: "The code of the one object a command run with --json prints when it fails",
+		note: "The object is code and message, plus http_status when an HTTP refusal caused the failure; " +
+			"auth status and verify keep their own records, and --silent prints nothing.",
+		build: func() any {
+			return map[string]any{"error_codes": errorCodes}
+		},
+		render: func(w io.Writer) {
+			rows := [][]string{{"CODE", "MEANING"}}
+			for _, e := range errorCodes {
+				rows = append(rows, []string{e.Code, e.Meaning})
+			}
+			renderSchemaTable(w, "Error codes of a --json failure", rows)
 		},
 	},
 	"exit-codes": {

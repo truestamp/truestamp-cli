@@ -72,13 +72,10 @@ func runTeamsGet(cmd *cobra.Command, args []string) error {
 		}
 	}
 	if teamID == "" {
-		if !silent {
-			ui.Fprintln(cmd.ErrOrStderr(), ui.FailureBanner("No team configured"))
-			ui.Fprintln(cmd.ErrOrStderr(), ui.FaintStyle().Render(
-				"    Run 'truestamp teams use' to pick one interactively, or "+
-					"'truestamp teams list' to see all available teams."))
-		}
-		return errSilentFail
+		const hint = "Run 'truestamp teams use' to pick one interactively, or " +
+			"'truestamp teams list' to see all available teams."
+		return failWith(cmd, &cliError{code: codeNoTeamConfigured, message: "No team configured. " + hint},
+			"No team configured", hint)
 	}
 
 	// Use the actor's CURRENT active tenant (cfg.Team) as the tenant

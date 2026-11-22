@@ -6,6 +6,8 @@ package cmd
 import (
 	"strings"
 	"testing"
+
+	"github.com/spf13/cobra"
 )
 
 // TestCLI_Help_UnknownTopicExitsNonZero.
@@ -38,5 +40,29 @@ func TestCLI_Help_UnknownTopicExitsNonZero(t *testing.T) {
 				t.Errorf("%v should say what was not found, got %q", tc.args, firstLine(string(out)))
 			}
 		})
+	}
+}
+
+// No help text joins its two clauses with a comma ("Requires
+// authentication, run ..."); the colon form is the one EXAMPLES.md uses.
+func TestHelp_NoRequiresAuthenticationCommaSplice(t *testing.T) {
+	var walk func(c *cobra.Command)
+	walk = func(c *cobra.Command) {
+		if strings.Contains(c.Long, "Requires authentication, run") {
+			t.Errorf("%s: comma splice in its help", c.CommandPath())
+		}
+		for _, sub := range c.Commands() {
+			walk(sub)
+		}
+	}
+	walk(rootCmd)
+}
+
+// keys is not the only group that needs no credential (hash, encode, jcs,
+// convert, verify and inspect need none either), so its help must not say
+// it is. Mutant killed: the claim restored.
+func TestHelp_KeysDoesNotClaimToBeTheOnlyCredentialFreeGroup(t *testing.T) {
+	if strings.Contains(keysCmd.Long, "only command group") {
+		t.Error("keys --help claims to be the only command group that needs no credential")
 	}
 }

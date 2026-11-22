@@ -256,6 +256,9 @@ type GenerateAPIError struct {
 	StatusCode int
 	Code       string
 	Detail     string
+	// Header is the request header the refusal names in
+	// `source.header`, "tenant" when the server refused the team.
+	Header string
 }
 
 func (e *GenerateAPIError) Error() string {
@@ -274,6 +277,9 @@ func parseGenerateError(statusCode int, body []byte) error {
 			Meta   struct {
 				Code string `json:"code"`
 			} `json:"meta"`
+			Source struct {
+				Header string `json:"header"`
+			} `json:"source"`
 		} `json:"errors"`
 	}
 	if err := json.Unmarshal(body, &envelope); err == nil && len(envelope.Errors) > 0 {
@@ -283,7 +289,7 @@ func parseGenerateError(statusCode int, body []byte) error {
 			detail = first.Title
 		}
 		if detail != "" {
-			return &GenerateAPIError{StatusCode: statusCode, Code: first.Meta.Code, Detail: detail}
+			return &GenerateAPIError{StatusCode: statusCode, Code: first.Meta.Code, Detail: detail, Header: first.Source.Header}
 		}
 	}
 

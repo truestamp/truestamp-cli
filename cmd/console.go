@@ -45,7 +45,7 @@ honors the --log-file / --log-level persistent flags.`,
 
 func init() {
 	f := consoleCmd.Flags()
-	f.String("ws-url", "", "WebSocket URL override (default derived from --base-url)")
+	f.String("ws-url", "", "WebSocket URL override, wss:// or ws:// to a loopback host (default derived from --base-url)")
 	consoleCmd.GroupID = groupOther
 	rootCmd.AddCommand(consoleCmd)
 }
@@ -58,9 +58,13 @@ func runConsole(cmd *cobra.Command, _ []string) error {
 	// Resolve the WebSocket URL. Default comes from base_url via Config;
 	// --ws-url stays as an explicit per-invocation escape hatch for
 	// debugging or pointing at a non-standard WS path.
+	// An override is held to base_url's rule, since the credential rides
+	// on it.
 	wsURL, _ := cmd.Flags().GetString("ws-url")
 	if wsURL == "" {
 		wsURL = appConfig.WebSocketURL
+	} else if err := config.ValidateWebSocketURL(wsURL); err != nil {
+		return fmt.Errorf("--ws-url: %w", err)
 	}
 
 	// First-run team picker, only when stdin is a TTY and no team

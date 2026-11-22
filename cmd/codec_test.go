@@ -167,8 +167,10 @@ func jcsRun(t *testing.T, in string, args ...string) (string, string, int) {
 
 // `truestamp jcs` refuses an integer of magnitude above MAX_INTEGER and
 // below 10^21 as rule J5 does, in each of J5's spellings and with --json
-// and --silent too: exit 1 and nothing on stdout, with stderr naming
-// malformed_json (number), and under --silent nothing on stderr either.
+// and --silent too: exit 1, and nothing on stdout with stderr naming
+// malformed_json (number); under --json the one failure object on stdout,
+// code malformed_json and sub_reason number, with nothing on stderr; and
+// under --silent nothing on either.
 // MAX_INTEGER itself, 1e21 and 1.5 are written.
 // Mutant killed: runJCS canonicalizing with gowebpki/jcs's Transform
 // (9007199254740992 is written, exit 0).
@@ -177,6 +179,13 @@ func TestCLI_JCS_RefusesAnIntegerPastMaxInteger(t *testing.T) {
 		for _, args := range [][]string{nil, {"--json"}, {"--silent"}} {
 			stdout, stderr, code := jcsRun(t, in, args...)
 			silent := len(args) == 1 && args[0] == "--silent"
+			if len(args) == 1 && args[0] == "--json" {
+				obj := oneFailureObject(t, stdout)
+				if code != 1 || stderr != "" || obj["code"] != "malformed_json" || obj["sub_reason"] != "number" {
+					t.Errorf("%s %v: exit %d, stdout %q, stderr %q", in, args, code, stdout, stderr)
+				}
+				continue
+			}
 			if code != 1 || stdout != "" || (silent && stderr != "") || (!silent && !strings.Contains(stderr, "malformed_json (number)")) {
 				t.Errorf("%s %v: exit %d, stdout %q, stderr %q", in, args, code, stdout, stderr)
 			}

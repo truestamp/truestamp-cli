@@ -12,6 +12,133 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- **Breaking: a failure under `--json` is one object on stdout.** Every
+  command run with `--json` that fails now prints exactly one object on
+  stdout, `{"code", "message"}`, plus `"http_status"` when an HTTP refusal
+  caused it, and nothing else on stderr (a warning about an unknown
+  config.toml key aside); it used to print text on stderr and nothing on
+  stdout. The message is redacted as log lines are. `code` is one of a closed set that the new
+  `schema get error-codes` document lists (`not_authenticated`,
+  `credential_rejected`, `team_not_accessible`, `forbidden`, `not_found`,
+  `rate_limited`, `no_team_configured`, `malformed_json`, `invalid_usage`,
+  `command_failed` and others). Two existing shapes move to it, which
+  breaks a script that read them: `items create`'s refusals used `"error"`
+  for the code (`{"error": "claims_refused", ...}`), and now carry `"code"`
+  (keeping `claims_reasons`, `other_errors` and `retryable`); `teams create`
+  used `"error"` for the message and `"code"` for the code, and its
+  `create_failed` and `unauthenticated` codes are gone, replaced by the
+  shared ones (`credential_rejected`, `not_authenticated`, ...). `auth
+  status` keeps its record, `verify` keeps SPEC.md's report and bare
+  rejection, and `--silent` still prints nothing. A script doing
+  `x=$(truestamp ... --json)` must check the exit code, since stdout now
+  carries the failure object too.
+
+- **A rejected credential says so.** A `401` on a request that carried a
+  credential used to print `Not authenticated` with the advice to set
+  `TRUESTAMP_API_KEY`, which the holder had just done; `teams` had wording
+  of its own, `items create` printed a bare `HTTP 401` line, and `proofs
+  get` printed `Proof request refused` or, for a UUIDv7 given with no
+  `--type`, told you to pass `--type`. Every group now prints `Credential
+  rejected` (the banner `auth status` uses)
+  with a hint that names the API key or the OAuth session. `Not
+  authenticated` is kept for no credential at all.
+
+- **A refused team is named.** When the server refuses the team in scope
+  (a stale `team` in config.toml, or a `--team` you are not a member of),
+  `items`, `blocks`, `beacons`, `entropy`, `proofs get` and `items create`
+  used to say you do not have access to "that item" (or block, ...). They
+  now say the server refused team `<id>`, and how to list or change your
+  teams. A `403` that refuses the record itself, such as an update your
+  role does not allow, still names the record.
+
+- **`items get` says whether a committed item's proof is ready.** The
+  State row of a committed item used to say its proof follows once the
+  block is committed to a public chain, even when it already was. The
+  card now reads the block's state: a block committed to a public chain
+  names the `proofs get` command that fetches the proof, a finalized
+  block keeps the old wording, and with no block in the response (an
+  update's card) the row says only what is always true. `items get --json`
+  is unchanged.
+
+- **Breaking: `base_url` must be https, or plain http to a loopback
+  host.** The API key, an OAuth token and the console WebSocket all go to
+  `base_url`, so a plain `http://` origin sent them unencrypted. A
+  `base_url` (from config.toml, `TRUESTAMP_BASE_URL` or `--base-url`) of
+  `http://` to a host other than `localhost`, a name under `.localhost`,
+  `127.0.0.0/8` or `::1` is now refused at start, exit 1, with a message
+  saying why; so is any scheme but `http` and `https` (`ws://`, `wss://`,
+  `ftp://` were accepted and then failed at request time). A remote dev
+  server reached over plain http needs https now, for example through
+  `tailscale serve`. A bad `base_url` in the file also stops `config show`
+  and `config edit`; `--base-url https://...` or `TRUESTAMP_BASE_URL`
+  overrides the file for that run. An OAuth session stored for a plain
+  http remote origin is no longer reachable; sign in again over https.
+  `console --ws-url` is held to the same rule: `wss://`, or `ws://` to a
+  loopback host.
+
+- **Breaking: an invalid log level is an error.** `--log-level`,
+  `TRUESTAMP_LOGGING_LEVEL` and `[logging] level` must be `debug`, `info`,
+  `warn` (or `warning`) or `error`, in any case; anything else used to log
+  at `info` without a word and now stops every command with exit 1, as a
+  bad `http_timeout` does. `--log-level info` overrides a bad value in the
+  file, `config edit` included.
+
+- **`truestamp completion <unknown>` exits 1.** It printed the completion
+  help and exited 0, unlike every other group, which says `unknown
+  command` and exits 1. A bare `truestamp completion` still prints its
+  help and exits 0.
+
+### Fixed
+
+- **`auth status --team` with a team you cannot use** reported
+  `credential_rejected` for a valid credential, because the credential
+  check sent the team and the server refused it first. The check now sends
+  no team, and the run reports `team_not_accessible` with the HTTP status,
+  the reason the help always documented. `auth login` with a stale team
+  configured no longer loses the "Signed in as" identity for the same
+  reason.
+
+- **Unknown keys in config.toml are reported.** A key the configuration
+  file sets that no setting reads, such as a renamed or retired one
+  (`verify.skip_external`, which once meant `offline`, `verify.silent`,
+  `verify.json`, `verify.keyring`) or a typo, used to be dropped without a
+  word, so an old file kept loading while doing something other than its
+  author meant. Each such key now prints `warning: <file>: unknown config
+  key "<key>" has no effect` on stderr; the command still runs, stdout and
+  `--json` output are unchanged, and `--silent` prints nothing. So is an
+  upper-case spelling such as `BASE_URL` or `[VERIFY]`, which the
+  lowercase default shadows. Only the file is checked, not environment
+  variables.
+
+- **`hash --list` honours `--json` and `--silent`.** It printed the text
+  table whatever was asked; `--json` now prints the same
+  `{"algorithms": [...]}` document as `schema get algorithms --json`, and
+  `--silent` prints nothing.
+
+- **`convert keyid` reads a padded base64url key**, and an unpadded
+  standard base64 key holding `+` or `/`. Auto-detection chose the
+  alphabet by length alone, so a 44-character padded base64url key went to
+  the standard decoder and was refused for its `-` and `_`, and a
+  43-character standard key to the base64url decoder. A 43- or
+  44-character key is now read as base64url when it holds `-` or `_`, and
+  as standard base64 otherwise; one mixing both alphabets is still
+  refused.
+
+- **`schema get commands` lists the root's `--version` (`-v`) flag**, as
+  `truestamp --help` shows it. Cobra adds that flag only to the command it
+  runs, so the schema's root node had none.
+
+- **Help text:** `convert id --to-zone` named its default twice; `auth
+  status --help` left `rate_limited` out of its reason identifiers (so did
+  EXAMPLES.md); `keys --help` claimed to be the only group that needs no
+  credential; `verify --help`'s `--base-url` row now reads as a sentence;
+  `items create --timestamp`'s usage starts with a capital, like its
+  siblings; and `beacons`, `blocks`, `items create` and `proofs get` say
+  "Requires authentication: run ..." instead of joining the clauses with a
+  comma.
+
 ## [0.17.0] - 2026-11-21
 
 ### Added

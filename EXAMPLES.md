@@ -397,7 +397,7 @@ truestamp auth status --json
 
 # A credential the API rejects: exit 1, plus a stable `reason` identifier
 # (never a sentence) and a human-readable `message`. The reason vocabulary
-# is not_authenticated, api_unreachable, credential_rejected,
+# is not_authenticated, api_unreachable, credential_rejected, rate_limited,
 # unexpected_api_response, team_lookup_failed, team_not_accessible.
 truestamp auth status --json --api-key not-a-real-key
 # {
@@ -1411,8 +1411,14 @@ when nothing names a team, neither `config.toml` nor `--team` nor
 
 The server is the authority on which teams you can read, and each rejection
 gets its own banner because each has a different fix: an unknown id gives
-`Team not found`, a team you have no membership in gives `Access denied`,
-and a rejected credential gives `Not authenticated`. All three exit `1`.
+`Team not found`, and so does a team you have no membership in, since the
+request carries your current team rather than the one asked for and the
+server answers that it has no such team; a rejected credential gives
+`Credential rejected`, the banner every group gives a 401. Both exit `1`.
+A configured team you cannot use (a stale `team` in config.toml) is
+refused before any record is read: the resource groups name it in an
+`Access denied` banner ("the server refused team ..."), and
+`truestamp auth status` reports it as `team_not_accessible`.
 
 ```text
   Team not found
@@ -1495,7 +1501,9 @@ are persistent root flags that every subcommand honors; the console consumes
 the logger the root already built, tagged `component=console`. With `--ws-url`
 unset, the WebSocket URL is derived from `--base-url` as
 `ws(s)://<host>/console/websocket` (`http` maps to `ws`, `https` to `wss`),
-the same single origin every other service URL comes from.
+the same single origin every other service URL comes from. An override is held
+to `base_url`'s rule, since the credential rides on it: `wss://`, or `ws://` to
+a loopback host only.
 
 The TUI needs a controlling terminal. Under CI, or anywhere `/dev/tty` is not
 available, it exits 1 before it dials:
@@ -2217,12 +2225,14 @@ truestamp items list --limit 2 --count | head -1
 truestamp items list --oldest-first --limit 2
 truestamp items list --oldest-first --before <cursor>
 
-# One item, by its item code, including whether it is in a block yet
+# One item, by its item code, including whether it is in a block yet and,
+# once it is, whether that block is committed to a public chain (until it
+# is, the State row says the proof follows once it is)
 truestamp items get WX495M26THGQBJ68
 #   Item
 #
 #            ID  01a0db66-c2e0-78a4-b8cc-12b11bc97493
-#         State  committed  (in a block; its proof follows once the block is committed to a public chain)
+#         State  committed  (in a block committed to a public chain; 'truestamp proofs get WX495M26THGQBJ68' fetches its proof)
 #    Visibility  private
 #          Name  Q3 report "final", saved as C:\reports\q3.pdf
 #   Claims hash  bd4341f1a42c9b0c085b7ae89df18bdab66eeb77284c1e53077e4ae45320f4f3
