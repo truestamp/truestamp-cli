@@ -131,16 +131,35 @@ func defaultPath() (string, error) {
 	return filepath.Join(cache, "truestamp", "truestamp.log"), nil
 }
 
+// ValidLevel reports whether s names a log level parseLevel knows:
+// debug, info, warn (or warning) and error, in any case and with
+// surrounding space, or the empty string, which means the default, info.
+// config.Load refuses any other value, so a typo in --log-level,
+// TRUESTAMP_LOGGING_LEVEL or [logging] level is an error, not info.
+func ValidLevel(s string) bool {
+	_, ok := levelOf(s)
+	return ok
+}
+
 func parseLevel(s string) slog.Level {
+	level, _ := levelOf(s)
+	return level
+}
+
+// levelOf maps s to its level and reports whether ValidLevel accepts s.
+// An unknown value gives info, for a caller that bypassed config.Load.
+func levelOf(s string) (slog.Level, bool) {
 	switch strings.ToLower(strings.TrimSpace(s)) {
+	case "", "info":
+		return slog.LevelInfo, true
 	case "debug":
-		return slog.LevelDebug
+		return slog.LevelDebug, true
 	case "warn", "warning":
-		return slog.LevelWarn
+		return slog.LevelWarn, true
 	case "error":
-		return slog.LevelError
+		return slog.LevelError, true
 	default:
-		return slog.LevelInfo
+		return slog.LevelInfo, false
 	}
 }
 

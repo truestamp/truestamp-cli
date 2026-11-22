@@ -9,7 +9,6 @@ import (
 
 	"github.com/spf13/cobra"
 	"github.com/truestamp/truestamp-cli/internal/teams"
-	"github.com/truestamp/truestamp-cli/internal/ui"
 )
 
 // teamsCmd is the parent for the `truestamp teams ...` subtree. Like every
@@ -39,36 +38,44 @@ func teamConfig(cmd *cobra.Command) (teams.Config, error) {
 }
 
 // teamRenderError converts a client error into a user-facing message
-// and an appropriate non-zero exit. The 401/403/404 split is
-// load-bearing: each gets remediation guidance specific to teams (the
-// credential was rejected, list your teams, the id is wrong), which is
-// why these three cases are not left to the shared renderAPIError.
+// and an appropriate non-zero exit. A 401 is the shared credential
+// rendering every group uses. The 403 and 404 cases keep remediation
+// specific to teams (list your teams, the id is wrong), which is why they
+// are not left to the shared renderAPIError. A 403 for a team the caller
+// is not a member of reads correctly as "no access to that team" whether
+// the server refused the tenant header or the team record, so the text
+// does not tell the two apart; the --json code does.
 func teamRenderError(cmd *cobra.Command, err error, silent bool) error {
-	if errors.Is(err, teams.ErrUnauthorized) {
-		if !silent {
-			ui.Fprintln(cmd.ErrOrStderr(), ui.FailureBanner("Not authenticated"))
-			ui.Fprintln(cmd.ErrOrStderr(), ui.FaintStyle().Render(
-				"    Your credential was rejected. Run 'truestamp auth login' to sign in again."))
-		}
+	if silent {
 		return errSilentFail
 	}
+	if errors.Is(err, teams.ErrUnauthorized) {
+		return renderAPIError(cmd, err, "team")
+	}
+	var apiErr *teams.APIError
+	isAPI := errors.As(err, &apiErr)
 	if errors.Is(err, teams.ErrForbidden) {
-		if !silent {
-			ui.Fprintln(cmd.ErrOrStderr(), ui.FailureBanner("Access denied"))
-			ui.Fprintln(cmd.ErrOrStderr(), ui.FaintStyle().Render(
-				"    You're authenticated, but you do not have access to that team."))
-			ui.Fprintln(cmd.ErrOrStderr(), ui.FaintStyle().Render(
-				"    Run 'truestamp teams list' to see the teams you are a member of."))
+		e := &cliError{
+			code:    codeForbidden,
+			message: "You're authenticated, but you do not have access to that team. Run 'truestamp teams list' to see the teams you are a member of.",
+			status:  403,
+			cause:   err,
 		}
-		return errSilentFail
+		if isAPI && isTenantRefusal(apiErr) {
+			e.code = codeTeamNotAccessible
+		}
+		return failWith(cmd, e, "Access denied",
+			"You're authenticated, but you do not have access to that team.",
+			"Run 'truestamp teams list' to see the teams you are a member of.")
 	}
 	if errors.Is(err, teams.ErrNotFound) {
-		if !silent {
-			ui.Fprintln(cmd.ErrOrStderr(), ui.FailureBanner("Team not found"))
-			ui.Fprintln(cmd.ErrOrStderr(), ui.FaintStyle().Render(
-				"    No team exists with that id. Run 'truestamp teams list' to see valid options."))
-		}
-		return errSilentFail
+		return failWith(cmd, &cliError{
+			code:    codeNotFound,
+			message: "No team exists with that id. Run 'truestamp teams list' to see valid options.",
+			status:  404,
+			cause:   err,
+		}, "Team not found",
+			"No team exists with that id. Run 'truestamp teams list' to see valid options.")
 	}
 	return renderAPIError(cmd, err, "team")
 }

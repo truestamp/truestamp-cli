@@ -28,8 +28,9 @@ The keyring that governs the signer's key, for this run only:
   --keyring FILE         a keyring file you supply
   --no-keyring           keyless: the signature is checked only against
                          the key the proof carries
-  --base-url URL         online, a host other than www.truestamp.com: the
-                         keyring read from that origin, a supplied keyring
+  --base-url URL         online, when its host is not www.truestamp.com:
+                         the keyring read from that origin, which counts
+                         as a supplied keyring
   --environment NAME     check proofs of Truestamp's dev, staging or test
                          environment, with --keyring FILE, a keyring
                          configured for it, or --no-keyring

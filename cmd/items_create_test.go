@@ -131,7 +131,7 @@ func TestCLI_ItemsCreate_Help_ShowsAllFlags(t *testing.T) {
 			t.Errorf("help output missing flag %s", flag)
 		}
 	}
-	const timestampHelp = "claimed timestamp: your own statement; the CLI and Truestamp check only that it is a well-formed, real date or time"
+	const timestampHelp = "Claimed timestamp: your own statement; the CLI and Truestamp check only that it is a well-formed, real date or time"
 	if !containsString(output, timestampHelp) {
 		t.Errorf("help output missing the --timestamp text %q:\n%s", timestampHelp, output)
 	}
@@ -596,9 +596,10 @@ func TestCLI_ItemsCreate_ClaimsReasonsPrinted(t *testing.T) {
 	}
 }
 
-// TestCLI_ItemsCreate_ClaimsReasonsJSON: under --json the refusal is one
-// object on stdout carrying every reason with its code, message and
-// pointer, a whole-claims reason's pointer written as "". Mutants killed:
+// TestCLI_ItemsCreate_ClaimsReasonsJSON: under --json the refusal is the
+// one failure object on stdout, code claims_refused with the HTTP status,
+// carrying every reason with its code, message and pointer, a whole-claims
+// reason's pointer written as "". Mutants killed:
 // the --json branch printing the English lines on stderr instead (stdout
 // is empty), and ClaimsReason's pointer tagged omitempty (the key is left
 // out).
@@ -609,9 +610,10 @@ func TestCLI_ItemsCreate_ClaimsReasonsJSON(t *testing.T) {
 		t.Fatalf("exit %d, want 1", exit)
 	}
 	var got struct {
-		Error   string               `json:"error"`
-		Message string               `json:"message"`
-		Reasons []items.ClaimsReason `json:"claims_reasons"`
+		Code       string               `json:"code"`
+		Message    string               `json:"message"`
+		HTTPStatus int                  `json:"http_status"`
+		Reasons    []items.ClaimsReason `json:"claims_reasons"`
 	}
 	if err := json.Unmarshal([]byte(stdout), &got); err != nil {
 		t.Fatalf("stdout is not JSON: %v\n%s", err, stdout)
@@ -620,7 +622,7 @@ func TestCLI_ItemsCreate_ClaimsReasonsJSON(t *testing.T) {
 		{Code: "claims_surrounding_whitespace", Message: "/name begins with a space (U+0020). Remove it.", Pointer: "/name"},
 		{Code: "claims_hash_pair", Message: "The claims have hash without hash_type. Add hash_type.", Pointer: ""},
 	}
-	if got.Error != "claims_refused" || got.Message != "the server refused the claims" || !reflect.DeepEqual(got.Reasons, want) {
+	if got.Code != "claims_refused" || got.Message != "the server refused the claims" || got.HTTPStatus != 422 || !reflect.DeepEqual(got.Reasons, want) {
 		t.Errorf("got %+v", got)
 	}
 	// A whole-claims reason carries the key "pointer" with the value "",
@@ -667,7 +669,7 @@ func TestCLI_ItemsCreate_ItemCodeUnavailableIsRetryable(t *testing.T) {
 	if err := json.Unmarshal([]byte(stdout), &got); err != nil || exit != 1 {
 		t.Fatalf("exit %d, stdout %q: %v", exit, stdout, err)
 	}
-	want := map[string]any{"error": "item_code_unavailable", "message": "Could not issue an item code. Try again.", "retryable": true}
+	want := map[string]any{"code": "item_code_unavailable", "message": "Could not issue an item code. Try again.", "http_status": float64(409), "retryable": true}
 	if !reflect.DeepEqual(got, want) {
 		t.Errorf("got %v, want %v", got, want)
 	}

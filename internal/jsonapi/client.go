@@ -56,7 +56,11 @@ type APIError struct {
 	Status  int
 	Code    string // errors[].code, the server's machine-readable reason, when present
 	Pointer string // errors[].source.pointer, when present
-	Detail  string
+	// Header is errors[].source.header, when present: the request header
+	// the error is about (JSON:API 1.1), "tenant" on the server's refusal
+	// of a team the caller cannot use.
+	Header string
+	Detail string
 	// RetryAfter is the verbatim Retry-After header on a 429. The
 	// per-surface request-rate plug sends one (whole seconds, at least
 	// 1); a refusal raised inside an action does not, and names its wait
@@ -324,12 +328,13 @@ func ErrorFromResponse(resp *http.Response, body []byte) *APIError {
 }
 
 // ParseError classifies a non-2xx response. It keeps `errors[].detail`
-// (or `title`) and the `source.pointer` of the first error that carries
-// one: the server can return several errors at once (a free-plan user
-// requesting team_retains trips both the plan-limit and the entitlement
-// rejection), and the pointer is the structural discriminator, so it wins
-// over array position. On a 429 it also reads the rate-limit meta:
-// `retry_after_ms` (a number, or null for "never admitted") and `limit`.
+// (or `title`), the `code` and `source.header` of the error chosen, and
+// the `source.pointer` of the first error that carries one: the server
+// can return several errors at once (a free-plan user requesting
+// team_retains trips both the plan-limit and the entitlement rejection),
+// and the pointer is the structural discriminator, so it wins over array
+// position. On a 429 it also reads the rate-limit meta: `retry_after_ms`
+// (a number, or null for "never admitted") and `limit`.
 func ParseError(status int, body []byte) *APIError {
 	e := &APIError{Status: status, Sentinel: sentinelFor(status)}
 	var envelope struct {
@@ -339,6 +344,7 @@ func ParseError(status int, body []byte) *APIError {
 			Title  string `json:"title"`
 			Source struct {
 				Pointer string `json:"pointer"`
+				Header  string `json:"header"`
 			} `json:"source"`
 			Meta struct {
 				RetryAfterMS jsontext.Value `json:"retry_after_ms"`
@@ -355,6 +361,7 @@ func ParseError(status int, body []byte) *APIError {
 			}
 		}
 		e.Pointer = chosen.Source.Pointer
+		e.Header = chosen.Source.Header
 		e.Code = chosen.Code
 		switch {
 		case chosen.Detail != "":

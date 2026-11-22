@@ -60,9 +60,11 @@ func ResolveSubjectType(ctx context.Context, apiURL, team, id string) (string, e
 	if err != nil {
 		return "", fmt.Errorf("resolving id: %w", err)
 	}
-	if resp.StatusCode == http.StatusTooManyRequests {
-		// A rate limit is not an unresolvable id: carry the classified
-		// refusal so the command can say "wait", not "pass --type".
+	switch resp.StatusCode {
+	case http.StatusUnauthorized, http.StatusForbidden, http.StatusTooManyRequests:
+		// A refused credential, a refused team or a rate limit is not an
+		// unresolvable id: carry the classified refusal so the command
+		// can say what was refused, or "wait", not "pass --type".
 		return "", fmt.Errorf("resolving id: %w", jsonapi.ErrorFromResponse(resp, body))
 	}
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {

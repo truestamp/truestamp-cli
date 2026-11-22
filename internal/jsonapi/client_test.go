@@ -62,6 +62,20 @@ func TestParseError_PrefersPointerBearingError(t *testing.T) {
 	}
 }
 
+// TestParseError_SourceHeader: source.header, the request header an error
+// is about, is kept, as the server names "tenant" on its refusal of a team
+// the caller cannot use; an error without one leaves it empty. Mutant
+// killed: the member not decoded.
+func TestParseError_SourceHeader(t *testing.T) {
+	err := ParseError(403, []byte(`{"errors":[{"status":"403","code":"forbidden","detail":"Invalid or unauthorized tenant specified","source":{"header":"tenant"}}]}`))
+	if err.Header != "tenant" || err.Pointer != "" || err.Detail != "Invalid or unauthorized tenant specified" {
+		t.Errorf("got header=%q pointer=%q detail=%q", err.Header, err.Pointer, err.Detail)
+	}
+	if plain := ParseError(403, []byte(`{"errors":[{"detail":"forbidden"}]}`)); plain.Header != "" {
+		t.Errorf("an error naming no header has Header %q", plain.Header)
+	}
+}
+
 // TestAPIError_NamesThePointer pins the message of an error the server ties
 // to a member: the dev server answers `"tags": null` with the detail "is
 // required" and the pointer /data/attributes/tags, and the message names

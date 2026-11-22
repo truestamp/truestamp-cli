@@ -452,3 +452,32 @@ func TestCLI_ClaimsHashExamplesGiveTheProofsClaimsHash(t *testing.T) {
 		}
 	}
 }
+
+// hash --list honours --json, printing the algorithms document of
+// `schema get algorithms --json`, and --silent, printing nothing; it used
+// to print the text table whatever was asked. Mutant killed: the --list
+// branch returning before it reads either flag.
+func TestCLI_Hash_List_JSONAndSilent(t *testing.T) {
+	out, err := exec.Command(binaryPath, "hash", "--list", "--json").Output()
+	if err != nil {
+		t.Fatalf("hash --list --json: %v", err)
+	}
+	var doc struct {
+		Algorithms []struct {
+			Name      string   `json:"name"`
+			SizeBytes int      `json:"size_bytes"`
+			Aliases   []string `json:"aliases"`
+			Legacy    bool     `json:"legacy"`
+		} `json:"algorithms"`
+	}
+	if err := json.Unmarshal(out, &doc); err != nil {
+		t.Fatalf("not JSON: %v\n%s", err, out)
+	}
+	if len(doc.Algorithms) < 10 || doc.Algorithms[0].Name == "" || doc.Algorithms[0].SizeBytes == 0 {
+		t.Errorf("algorithms = %+v", doc.Algorithms)
+	}
+	out, err = exec.Command(binaryPath, "hash", "--list", "--silent").CombinedOutput()
+	if err != nil || len(out) != 0 {
+		t.Errorf("hash --list --silent: %v, %q", err, out)
+	}
+}

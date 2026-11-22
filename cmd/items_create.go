@@ -84,7 +84,7 @@ flags add their members, enabling combinations like:
 --data-hash and --hash-type are refused beside a hashed file: the file
 supplies the hash and its hash_type.
 
-Requires authentication, run 'truestamp auth login', or set TRUESTAMP_API_KEY / --api-key for headless/CI use.`,
+Requires authentication: run 'truestamp auth login', or set TRUESTAMP_API_KEY / --api-key for headless/CI use.`,
 	Args: cobra.MaximumNArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		// Resolve claims from input sources first so `truestamp items create`
@@ -586,78 +586,69 @@ func checkTimestamp(raw string) error {
 }
 
 // explainCreateError renders the two refusals of a create the CLI knows
-// how to explain, and returns any other error unchanged.
+// how to explain, and every other API refusal through renderAPIError, so a
+// rejected credential, a refused team and a rate limit read as they do in
+// every other group.
 //
 // A claims refusal lists every rule the server found broken, each with
 // its JSON pointer into the claims, its code and its message, which names
 // the fix. item_code_unavailable means nothing was created and the same
-// request may be sent again. Under --json each is one object on stdout;
-// under --silent nothing is printed.
+// request may be sent again. Under --json each is the one failure object,
+// with claims_reasons (and other_errors) or retryable beside code and
+// message; under --silent nothing is printed.
 func explainCreateError(cmd *cobra.Command, err error) error {
-	jsonOutput, silent := outputMode(cmd)
-
 	var refused *items.ClaimsRefusedError
 	if errors.As(err, &refused) {
-		if jsonOutput {
-			out := map[string]any{
-				"error":          "claims_refused",
-				"message":        "the server refused the claims",
-				"claims_reasons": refused.Reasons,
-			}
-			if len(refused.Others) > 0 {
-				out["other_errors"] = refused.Others
-			}
-			if err := emitJSON(cmd.OutOrStdout(), out); err != nil {
-				return err
-			}
-			return errSilentFail
+		extra := map[string]any{"claims_reasons": refused.Reasons}
+		if len(refused.Others) > 0 {
+			extra["other_errors"] = refused.Others
 		}
-		if silent {
-			return errSilentFail
-		}
-		w := cmd.ErrOrStderr()
-		ui.Fprintln(w, ui.FailureBanner("Claims refused"))
+		lines := make([]string, 0, len(refused.Reasons)+len(refused.Others)+1)
 		for _, r := range refused.Reasons {
-			ui.Fprintln(w, ui.FaintStyle().Render(fmt.Sprintf("    pointer %s, %s: %s", strconv.Quote(r.Pointer), r.Code, r.Message)))
+			lines = append(lines, fmt.Sprintf("pointer %s, %s: %s", strconv.Quote(r.Pointer), r.Code, r.Message))
 		}
-		for _, o := range refused.Others {
-			ui.Fprintln(w, ui.FaintStyle().Render("    "+o))
-		}
-		ui.Fprintln(w, ui.FaintStyle().Render(fmt.Sprintf("    Nothing was created. The server answered HTTP %d.", refused.Status)))
-		return errSilentFail
+		lines = append(lines, refused.Others...)
+		lines = append(lines, fmt.Sprintf("Nothing was created. The server answered HTTP %d.", refused.Status))
+		return failWith(cmd, &cliError{
+			code:    codeClaimsRefused,
+			message: "the server refused the claims",
+			status:  refused.Status,
+			extra:   extra,
+			cause:   err,
+		}, "Claims refused", lines...)
 	}
 
 	if errors.Is(err, items.ErrItemCodeUnavailable) {
 		detail := "Could not issue an item code."
+		status := 0
 		var apiErr *jsonapi.APIError
-		if errors.As(err, &apiErr) && apiErr.Detail != "" {
-			detail = apiErr.Detail
-		}
-		if jsonOutput {
-			if err := emitJSON(cmd.OutOrStdout(), map[string]any{
-				"error":     items.CodeItemCodeUnavailable,
-				"message":   detail,
-				"retryable": true,
-			}); err != nil {
-				return err
+		if errors.As(err, &apiErr) {
+			status = apiErr.Status
+			if apiErr.Detail != "" {
+				detail = apiErr.Detail
 			}
-			return errSilentFail
 		}
-		if silent {
-			return errSilentFail
-		}
-		w := cmd.ErrOrStderr()
-		ui.Fprintln(w, ui.FailureBanner("Item not created yet"))
-		for _, l := range []string{
+		return failWith(cmd, &cliError{
+			code:    codeItemCodeUnavailable,
+			message: detail,
+			status:  status,
+			extra:   map[string]any{"retryable": true},
+			cause:   err,
+		}, "Item not created yet",
 			detail,
 			"Nothing was created. This clears on its own: run the same command again.",
-			"The server said " + items.CodeItemCodeUnavailable + " (HTTP 409).",
-		} {
-			ui.Fprintln(w, ui.FaintStyle().Render("    "+l))
-		}
-		return errSilentFail
+			"The server said "+items.CodeItemCodeUnavailable+" (HTTP 409).")
 	}
 
+	// A refused credential, a refused team and a rate limit read as they
+	// do in every group. Anything else keeps the server's own answer,
+	// since renderAPIError's "item not found" makes no sense for a create;
+	// Execute still classifies it under --json.
+	if errors.Is(err, jsonapi.ErrUnauthorized) ||
+		errors.Is(err, jsonapi.ErrForbidden) ||
+		errors.Is(err, jsonapi.ErrRateLimited) {
+		return renderAPIError(cmd, err, "item")
+	}
 	return err
 }
 
@@ -766,7 +757,7 @@ func init() {
 	f.String("hash-type", "", "Hash algorithm of --data-hash (sha256, sha512, md5, etc.)")
 	f.StringP("description", "d", "", "Item description")
 	f.String("url", "", "HTTPS URL associated with the item")
-	f.String("timestamp", "", "claimed timestamp: your own statement; the CLI and Truestamp check only that it is a well-formed, real date or time")
+	f.String("timestamp", "", "Claimed timestamp: your own statement; the CLI and Truestamp check only that it is a well-formed, real date or time")
 	f.String("metadata", "", "JSON string of freeform metadata")
 	f.String("location", "", "Geographic location as lat,lon (e.g. 37.7749,-122.4194)")
 

@@ -286,13 +286,25 @@ func renderItem(cmd *cobra.Command, it *items.Item) error {
 
 // commitmentLabel says plainly what a committed item's state means for
 // its proof, because that is what most callers want from the state
-// field: the item is in a block, and its proof follows once that block
-// is committed to a public chain.
+// field: the item is in a block, and the server serves its proof once
+// that block is committed to a public chain. The block's state says which
+// of the two it is, when the response included the block; without it
+// (an update's response, or a server that sent none) the label says only
+// what is always true.
 func commitmentLabel(it *items.Item) string {
-	if it.Committed() {
+	switch {
+	case !it.Committed():
+		return it.State
+	case it.BlockCommitted():
+		ref := it.ItemCode
+		if ref == "" {
+			ref = it.ID
+		}
+		return it.State + "  (in a block committed to a public chain; 'truestamp proofs get " + ref + "' fetches its proof)"
+	case it.BlockState == "finalized":
 		return it.State + "  (in a block; its proof follows once the block is committed to a public chain)"
 	}
-	return it.State
+	return it.State + "  (in a block; a proof is served once that block is committed to a public chain)"
 }
 
 func renderItemList(cmd *cobra.Command, list []items.Item, pg listPage) error {

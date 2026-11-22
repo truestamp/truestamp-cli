@@ -112,7 +112,7 @@ Examples:
   truestamp proofs get --type entropy_stellar 019cf813-99b8-730a-84f1-5a711a9c355e
   truestamp proofs get -o proof.json 01a0db66-c2e0-78a4-b8cc-12b11bc97493
 
-Requires authentication, run 'truestamp auth login', or set TRUESTAMP_API_KEY / --api-key for headless/CI use.
+Requires authentication: run 'truestamp auth login', or set TRUESTAMP_API_KEY / --api-key for headless/CI use.
 
 Exit code 0 on success, 1 on any error (validation failure, network
 error, missing API key, server rejection, or failure to write the
@@ -178,7 +178,9 @@ output file).`,
 			case proof.IDTypeUUIDv7:
 				resolved, rErr := proof.ResolveSubjectType(cmd.Context(), cfg.APIURL, cfg.Team, id)
 				if rErr != nil {
-					if errors.Is(rErr, jsonapi.ErrRateLimited) {
+					if errors.Is(rErr, jsonapi.ErrUnauthorized) ||
+						errors.Is(rErr, jsonapi.ErrForbidden) ||
+						errors.Is(rErr, jsonapi.ErrRateLimited) {
 						return renderAPIError(cmd, rErr, "proof")
 					}
 					if errors.Is(rErr, proof.ErrSeveralTypes) {
@@ -432,8 +434,16 @@ var generateCodeAdvice = map[string]struct {
 // whether waiting will help. `no_block_commitment` clears on its own in
 // minutes; `subject_redacted` does not.
 func explainGenerateError(cmd *cobra.Command, e *proof.GenerateAPIError) error {
-	if _, silent := outputMode(cmd); silent {
-		return errSilentFail
+	// A refused credential or a refused team is not a refusal of the
+	// proof, and reads as it does in every other group.
+	switch {
+	case e.StatusCode == 401:
+		if !authConfigured() {
+			return failNotAuthenticated(cmd)
+		}
+		return failCredentialRejected(cmd, e)
+	case isTenantRefusal(&jsonapi.APIError{Status: e.StatusCode, Detail: e.Detail, Header: e.Header}):
+		return failTeamRefused(cmd, e)
 	}
 	a, known := generateCodeAdvice[e.Code]
 	banner := "Proof request refused"
@@ -455,16 +465,16 @@ func explainGenerateError(cmd *cobra.Command, e *proof.GenerateAPIError) error {
 	case known:
 		lines = append(lines, "This will not clear on its own.")
 	}
-	code := e.Code
-	if code == "" {
-		code = "no error code"
+	serverCode := e.Code
+	if serverCode == "" {
+		serverCode = "no error code"
 	}
-	lines = append(lines, fmt.Sprintf("The server said %s (HTTP %d).", code, e.StatusCode))
+	lines = append(lines, fmt.Sprintf("The server said %s (HTTP %d).", serverCode, e.StatusCode))
 
-	w := cmd.ErrOrStderr()
-	ui.Fprintln(w, ui.FailureBanner(banner))
-	for _, l := range lines {
-		ui.Fprintln(w, ui.FaintStyle().Render("    "+l))
-	}
-	return errSilentFail
+	return failWith(cmd, &cliError{
+		code:    apiFailureCode(&jsonapi.APIError{Status: e.StatusCode}),
+		message: strings.Join(lines, " "),
+		status:  e.StatusCode,
+		cause:   e,
+	}, banner, lines...)
 }

@@ -80,20 +80,25 @@ func runConvertKeyID(cmd *cobra.Command, args []string) error {
 }
 
 // decodePublicKey parses the public key from one of the accepted
-// encodings. --from auto (default) tries hex → base64url → base64 in
-// that order, which is unambiguous for 32-byte keys.
+// encodings. --from auto (default) reads 64 characters as hex, and 43 or
+// 44 (a 32-byte key in base64, unpadded or padded) by the alphabet they
+// use: base64url when they hold '-' or '_', standard base64 otherwise,
+// which takes either padding and decodes a value holding none of the four
+// distinguishing symbols the same as base64url would. A value mixing '+'
+// or '/' with '-' or '_' is refused by base64url, whose error names the
+// clash. Any other length tries hex, base64url and base64 in turn.
 func decodePublicKey(raw, fromName string) ([]byte, error) {
 	trimmed := strings.TrimSpace(raw)
 	from := strings.ToLower(strings.TrimSpace(fromName))
 
 	if from == "" || from == "auto" {
-		// 32 bytes → 64 hex chars, 43 base64url chars, or 44 base64 chars.
 		switch len(trimmed) {
 		case 64:
 			return encoding.Decode(encoding.Hex, []byte(trimmed))
-		case 43:
-			return encoding.Decode(encoding.Base64URL, []byte(trimmed))
-		case 44:
+		case 43, 44:
+			if strings.ContainsAny(trimmed, "-_") {
+				return encoding.Decode(encoding.Base64URL, []byte(trimmed))
+			}
 			return encoding.Decode(encoding.Base64Std, []byte(trimmed))
 		}
 		// Fall back to trying each in turn.

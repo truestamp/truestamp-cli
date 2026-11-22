@@ -358,24 +358,33 @@ func TestCLI_Items_Get_ReportsCommitmentPlainly(t *testing.T) {
 // A committed item is in a block, and the server refuses its proof until
 // that block has a final commitment on a public chain (no_block_commitment
 // while it has none, commitment_not_final while none is final), so the
-// card's State row says exactly that, and only for a committed item. The
-// "Not yet committed" hint shows only for an item still waiting for its
-// block. Mutants killed: the label put back to "committed  (a proof can
-// be generated)"; the label shown for every state; the hint shown for a
-// redacted item.
+// card's State row says which of the two the item is in, read from the
+// included block: a block committed to a public chain names the command
+// that fetches the proof; a finalized block says the proof follows its
+// commitment; and with no block included (an older server) the row says
+// only what is always true. The "Not yet committed" hint shows only for an
+// item still waiting for its block. Mutants killed: the label put back to
+// one caption for every committed item ("follows once" for a committed
+// block); the label shown for every state; the hint shown for a redacted
+// item.
 func TestCLI_Items_Get_CommittedSaysTheProofFollowsTheBlock(t *testing.T) {
+	block := func(state string) string {
+		return `,"relationships":{"block":{"data":{"type":"block","id":"B1"}}}},"included":[{"type":"block","id":"B1","attributes":{"state":"` + state + `"}}]}`
+	}
 	for _, tc := range []struct {
-		state string
-		want  []string
-		hint  bool
+		name, state, tail string
+		want              []string
+		hint              bool
 	}{
-		{"committed", []string{"committed  (in a block; its proof follows once the block is committed to a public chain)"}, false},
-		{"processing", []string{"processing"}, true},
-		{"redacted", []string{"redacted"}, false},
+		{"committed block", "committed", block("committed"), []string{"committed  (in a block committed to a public chain; 'truestamp proofs get WX495M26THGQBJ68' fetches its proof)"}, false},
+		{"finalized block", "committed", block("finalized"), []string{"committed  (in a block; its proof follows once the block is committed to a public chain)"}, false},
+		{"no block included", "committed", "}}", []string{"committed  (in a block; a proof is served once that block is committed to a public chain)"}, false},
+		{"processing", "processing", "}}", []string{"processing"}, true},
+		{"redacted", "redacted", "}}", []string{"redacted"}, false},
 	} {
-		t.Run(tc.state, func(t *testing.T) {
+		t.Run(tc.name, func(t *testing.T) {
 			s := startItemsServer(t, func(w http.ResponseWriter, r *http.Request) {
-				_, _ = w.Write([]byte(`{"data":{"type":"item","id":"01AAA","attributes":{"state":"` + tc.state + `","visibility":"private"}}}`))
+				_, _ = w.Write([]byte(`{"data":{"type":"item","id":"01AAA","attributes":{"state":"` + tc.state + `","visibility":"private","item_code":"WX495M26THGQBJ68"}` + tc.tail))
 			})
 			stdout, _, exit := runCLI(t, "--base-url", s.URL, "--api-key", "k", "items", "get", testItemID)
 			if exit != 0 {
@@ -394,6 +403,22 @@ func TestCLI_Items_Get_CommittedSaysTheProofFollowsTheBlock(t *testing.T) {
 				t.Errorf("the Not yet committed hint shown: %v; want %v\n%s", got, tc.hint, stdout)
 			}
 		})
+	}
+}
+
+// TestCLI_Items_Update_CardHasNoBlockState: an update's response carries
+// no included block, so a committed item's card after an update gives the
+// neutral wording, never the claim that the proof follows or is ready.
+func TestCLI_Items_Update_CardHasNoBlockState(t *testing.T) {
+	s := startItemsServer(t, func(w http.ResponseWriter, r *http.Request) {
+		_, _ = w.Write([]byte(`{"data":{"type":"item","id":"` + testItemID + `","attributes":{"state":"committed","visibility":"public"}}}`))
+	})
+	stdout, stderr, exit := runCLI(t, "--base-url", s.URL, "--api-key", "k", "items", "update", testItemID, "--visibility", "public")
+	if exit != 0 {
+		t.Fatalf("exit=%d\n%s%s", exit, stdout, stderr)
+	}
+	if !strings.Contains(stdout, "committed  (in a block; a proof is served once that block is committed to a public chain)") {
+		t.Errorf("the update card should give the neutral wording:\n%s", stdout)
 	}
 }
 

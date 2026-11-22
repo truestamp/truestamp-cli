@@ -37,7 +37,16 @@ type Item struct {
 	InsertedAt  string   `json:"inserted_at,omitempty"`
 	UpdatedAt   string   `json:"updated_at,omitempty"`
 	ExpiresAt   string   `json:"expires_at,omitempty"`
+	// BlockState is the state of the item's block, "finalized" or
+	// "committed", when the response included the block (Get asks for
+	// it), and empty otherwise. It is not part of the --json output.
+	BlockState string `json:"-"`
 }
+
+// BlockCommitted reports whether the item's block is committed to a
+// public chain, as far as the response said: false when the block is
+// finalized or was not included.
+func (i Item) BlockCommitted() bool { return i.BlockState == "committed" }
 
 // Committed reports whether the item is in a block. Proof generation
 // requires it server-side: an item not yet committed is refused with
@@ -145,15 +154,71 @@ func List(ctx context.Context, apiURL, team string, opts ListOptions) (*Page, er
 
 // Get fetches one item by ref, its UUIDv7 id, its item code or its
 // item_hash, sent as given: the app's item read route (GET /items/:id,
-// its :read_by_ref action) reads each of the three.
+// its :read_by_ref action) reads each of the three. It includes the
+// item's block, its state only, so a committed item's card can say
+// whether that block is committed to a public chain yet (BlockState).
 func Get(ctx context.Context, apiURL, team, ref string) (*Item, error) {
 	q := url.Values{}
 	q.Set("fields[item]", requestFields)
+	q.Set("include", "block")
+	q.Set("fields[block]", "state")
 	body, err := jsonapi.Do(ctx, jsonapi.Config{APIURL: apiURL, Team: team}, http.MethodGet, "/items/"+url.PathEscape(ref)+"?"+q.Encode(), nil)
 	if err != nil {
 		return nil, err
 	}
-	return parseOne(body)
+	it, err := parseOne(body)
+	if err != nil {
+		return nil, err
+	}
+	it.BlockState = includedBlockState(body)
+	return it, nil
+}
+
+// includedBlockState reads the state of the block a single-item response
+// included: the included block the item's block relationship names, or,
+// when the relationship carries no linkage, the one block included. It is
+// empty when no block was included.
+func includedBlockState(body []byte) string {
+	var env struct {
+		Data struct {
+			Relationships struct {
+				Block struct {
+					Data *struct {
+						ID string `json:"id"`
+					} `json:"data"`
+				} `json:"block"`
+			} `json:"relationships"`
+		} `json:"data"`
+		Included []struct {
+			Type       string `json:"type"`
+			ID         string `json:"id"`
+			Attributes struct {
+				State string `json:"state"`
+			} `json:"attributes"`
+		} `json:"included"`
+	}
+	if err := json.Unmarshal(body, &env); err != nil {
+		return ""
+	}
+	wantID := ""
+	if link := env.Data.Relationships.Block.Data; link != nil {
+		wantID = link.ID
+	}
+	state, blocks := "", 0
+	for _, inc := range env.Included {
+		if inc.Type != "block" {
+			continue
+		}
+		if wantID != "" && inc.ID == wantID {
+			return inc.Attributes.State
+		}
+		blocks++
+		state = inc.Attributes.State
+	}
+	if wantID == "" && blocks == 1 {
+		return state
+	}
+	return ""
 }
 
 // UpdateOptions carries the mutable attributes.

@@ -29,7 +29,7 @@ The two are not interchangeable. Every block is created finalized, so
 beacon is four fields and a block carries its internals. They are two
 questions, not two spellings of one.
 
-Requires authentication, run 'truestamp auth login', or set TRUESTAMP_API_KEY / --api-key for headless/CI use.`,
+Requires authentication: run 'truestamp auth login', or set TRUESTAMP_API_KEY / --api-key for headless/CI use.`,
 }
 
 var blocksListCmd = &cobra.Command{

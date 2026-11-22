@@ -79,7 +79,7 @@ Exit codes:
   1  no credential, invalid credential, or network error
 
 --json emits one record: "ok", and on failure a "reason" identifier
-(not_authenticated, api_unreachable, credential_rejected,
+(not_authenticated, api_unreachable, credential_rejected, rate_limited,
 unexpected_api_response, team_lookup_failed, team_not_accessible) that a
 script can branch on.`,
 	Args: cobra.NoArgs,
@@ -143,7 +143,7 @@ func runOAuthLogin(cmd *cobra.Command) error {
 	// reflects who you just signed in as.
 	probe := auth.Resolve(auth.Credentials{}, store)
 	identity := ""
-	if res, perr := checkAuth(ctx, probe, cfg.APIURL, cfg.Team); perr == nil && res.ok {
+	if res, perr := checkAuth(ctx, probe, cfg.APIURL); perr == nil && res.ok {
 		identity = formatUserIdentity(res)
 	}
 
@@ -437,7 +437,7 @@ func runAuthStatus(cmd *cobra.Command, _ []string) error {
 
 	ctx := cmd.Context()
 
-	userResult, err := checkAuth(ctx, azr, apiURL, cfg.Team)
+	userResult, err := checkAuth(ctx, azr, apiURL)
 	if err != nil {
 		// A refresh the authorization server rate limited says nothing
 		// about the credential or the network: name it as the wait it is.
@@ -609,7 +609,12 @@ type teamCheckResult struct {
 // response. Returns a non-nil error only for transport-level failures and
 // for a dead/unconfigured credential (azr.Authorize failing). All HTTP
 // outcomes, 2xx, 4xx, 5xx, are reported in the result.
-func checkAuth(ctx context.Context, azr auth.Authorizer, apiURL, team string) (*authCheckResult, error) {
+//
+// The probe tests the credential alone, so it never sends a tenant header:
+// a user is not a team's record, and the server refuses a team the caller
+// cannot use before any action runs, which would read here as a rejected
+// credential. The team is checked apart, by fetchTeam.
+func checkAuth(ctx context.Context, azr auth.Authorizer, apiURL string) (*authCheckResult, error) {
 	if ctx == nil {
 		ctx = context.Background()
 	}
@@ -621,9 +626,6 @@ func checkAuth(ctx context.Context, azr auth.Authorizer, apiURL, team string) (*
 	req.Header.Set("Accept", "application/vnd.api+json")
 	if err := azr.Authorize(ctx, req); err != nil {
 		return nil, err
-	}
-	if team != "" {
-		req.Header.Set("tenant", team)
 	}
 
 	// jsonapi.Send carries the one retry of a rate-limited probe.

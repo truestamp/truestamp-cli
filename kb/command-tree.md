@@ -30,6 +30,8 @@ against the live tree.
 `truestamp <noun>` prints help and nothing else. Every group is configured by `asGroup` (`cmd/group.go`): its
 `RunE` prints help, or errors when handed an argument that names no sub-command, so a retired spelling
 fails loudly instead of printing help and exiting 0. That `RunE` is the help behaviour, not a default action.
+Cobra's own `completion` command follows the rule too: cobra creates it lazily inside `ExecuteC`, so
+`Execute` creates it first (`registerCompletionGroup`) and passes it through `asGroup`.
 
 Singular names are namespaces that own no server records: `auth`, `config`, `convert`, `schema`. A
 namespace may still use `list` / `get` when it owns an enumerable registry, which is what lets
@@ -183,6 +185,39 @@ shows which commands carry the pair.
 
 `-o` takes a required value, never an optional one (pflag's `NoOptDefVal`): with an optional value
 `-o file` would parse as `-o` plus a positional.
+
+### R10b: A failure under `--json` is one object, built in one place
+
+A command run with `--json` that fails prints exactly one object on stdout and nothing else on
+stderr (a warning about an unknown `config.toml` key aside, see `kb/configuration.md`):
+`{"code", "message"}`, plus `"http_status"` when an HTTP refusal caused the failure, plus the
+members a few failures carry (`items create`'s `claims_reasons`, `other_errors` and `retryable`,
+the `sub_reason` of a `malformed_json` input). The message is redacted as log lines are
+(`internal/redact`), since stdout is the stream logs and CI artifacts keep. Under `--silent` it
+prints nothing.
+
+- `code` comes from one closed registry, `errorCodes` in `cmd/failure.go`, which
+  `schema get error-codes` publishes (R10a). A new failure takes a code from it, or adds one there.
+- The object is built by `failureRecord` and written by `Execute`, nowhere else. A command or
+  renderer that fails returns a `*cliError` (its `Error()` is the text rendering's sentence, so
+  nothing changes outside `--json`); `Execute` classifies any other error it is handed (an HTTP
+  refusal by status, a strict-reader refusal by its SPEC.md code, an error before the
+  configuration loads as `invalid_usage`, anything else as `command_failed`).
+- Every failure banner goes through `failWith`, which returns the `*cliError` under `--json`
+  instead of printing. `cmd/failure_test.go` fails on a `ui.FailureBanner` call anywhere else
+  (`auth status`, whose banner follows its own record's `--json` branch, is the one exception) and
+  on a `cliError` built with a code outside the registry.
+- Two commands keep their own record: `auth status` (its record, with `ok` and `reason`, is its
+  answer either way) and `verify` (SPEC.md section 10.5's report or section 12.1's bare rejection,
+  and no other object, since one of the same shape could be read as a rejection with a code SPEC.md
+  does not define; a proof it cannot read is a runtime error on stderr). A command that has already
+  written its record, such as `hash --json` over several inputs of which some failed, is given no
+  second object.
+- `--json` and `--silent` given together are a usage error that names neither mode, printed as
+  text.
+- A known limit: flag parsing stops at the first bad flag, so a `--json` placed after it is never
+  read. `items list --json --bogus` prints the `invalid_usage` object, and `items list --bogus
+  --json` prints the usage error as text.
 
 ### R10a: `schema` renders text and JSON from one registry, never from prose
 
@@ -499,7 +534,9 @@ its `kind`, its `proof_type` and `also_verifiable_as`, the other types the same 
 verifiable as. A block's match names `block` and `beacon`, so a block's id is refused as
 `block | beacon` rather than guessed. This is the one place the id-shape dispatch used by
 `beacons get` cannot work, because items, blocks, beacons and entropy observations all share the
-UUIDv7 shape.
+UUIDv7 shape. A `401`, a `403` or a `429` on that request is a refusal, not an unresolvable id, and
+reads as it does in every group (`Credential rejected`, the refused team named, the rate limit),
+never as "pass --type explicitly".
 
 Before anything is written, an item proof is checked against the ref given: the record it carries
 must have the UUIDv7 asked for, or the `item_hash` recomputed from its record must give the item
@@ -627,9 +664,10 @@ Two things are open and tracked here rather than silently dropped:
   style.Render(...))` keeps them. Writes into string builders deliberately do not: stripping there
   would remove colour before it ever reached a terminal.
 - R10 mandates the *presence* of `--json` on record-rendering commands, not a uniform envelope
-  around it. `verify --json` is exactly the report of SPEC.md section 10.5, `hash --json` is one object for
-  one input and an array for several (`[]` when every input failed), and every paged list has
-  R14's one envelope.
+  around a record. `verify --json` is exactly the report of SPEC.md section 10.5, `hash --json` is
+  one object for one input and an array for several (`[]` when every one of several inputs
+  failed), and every paged list has R14's one envelope. A failure is the exception: R10b gives it
+  one shape everywhere but `auth status` and `verify`.
 
 ## Deferred
 

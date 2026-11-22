@@ -149,3 +149,18 @@ func TestCLI_Convert_KeyID_JSON(t *testing.T) {
 		t.Errorf("missing public_key_hex")
 	}
 }
+
+// convert id --to-zone names its default once, cobra's (default "UTC"),
+// and not a second time in its usage text.
+func TestCLI_ConvertID_Help_NoDuplicateDefault(t *testing.T) {
+	out, err := exec.Command(binaryPath, "convert", "id", "--help").Output()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if n := strings.Count(string(out), `(default "UTC")`); n != 1 {
+		t.Errorf(`(default "UTC") appears %d times:\n%s`, n, out)
+	}
+	if strings.Contains(string(out), "(default UTC)") {
+		t.Errorf("the usage repeats the default:\n%s", out)
+	}
+}

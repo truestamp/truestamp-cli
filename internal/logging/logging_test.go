@@ -289,3 +289,32 @@ func decodeJSONLine(t *testing.T, b []byte) map[string]any {
 	}
 	return m
 }
+
+// ValidLevel accepts exactly the levels parseLevel maps, in any case and
+// with surrounding space, and the empty string (the default, info); it
+// refuses anything else, which config.Load then reports as an error
+// instead of quietly logging at info.
+func TestValidLevel(t *testing.T) {
+	accepted := map[string]slog.Level{
+		"":        slog.LevelInfo,
+		"info":    slog.LevelInfo,
+		"INFO":    slog.LevelInfo,
+		"debug":   slog.LevelDebug,
+		" warn ":  slog.LevelWarn,
+		"warning": slog.LevelWarn,
+		"Error":   slog.LevelError,
+	}
+	for in, want := range accepted {
+		if !ValidLevel(in) {
+			t.Errorf("ValidLevel(%q) = false", in)
+		}
+		if got := parseLevel(in); got != want {
+			t.Errorf("parseLevel(%q) = %v, want %v", in, got, want)
+		}
+	}
+	for _, in := range []string{"bogus", "trace", "verbose", "infoo"} {
+		if ValidLevel(in) {
+			t.Errorf("ValidLevel(%q) = true", in)
+		}
+	}
+}

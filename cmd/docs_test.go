@@ -236,7 +236,7 @@ func docTreeAndGroups(t *testing.T) (map[string]map[string]bool, map[string]bool
 			walk(sub)
 		}
 	}
-	walk(introspect.Walk(rootCmd, cliEnums(), false))
+	walk(commandTree())
 	// introspect deliberately omits cobra's own help and completion
 	// scaffolding: `schema get commands` describes the Truestamp interface,
 	// not the framework's. Both are nonetheless real, invocable and

@@ -94,7 +94,7 @@ func rateLimitingAPI(t *testing.T) (*httptest.Server, *atomic.Int32) {
 
 func TestCheckAuth_RateLimited(t *testing.T) {
 	srv, calls := rateLimitingAPI(t)
-	res, err := checkAuth(context.Background(), auth.APIKeyAuthorizer("k"), srv.URL+"/api/json", "")
+	res, err := checkAuth(context.Background(), auth.APIKeyAuthorizer("k"), srv.URL+"/api/json")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}

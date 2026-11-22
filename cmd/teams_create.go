@@ -98,9 +98,6 @@ func runTeamCreate(cmd *cobra.Command, args []string) error {
 
 	team, err := createTeamCtx(cmd.Context(), cfg, name, ownership)
 	if err != nil {
-		if jsonOut {
-			return printTeamCreateErrorJSON(cmd, err)
-		}
 		return renderCreateError(cmd, cfg.APIURL, err, ownership, silent)
 	}
 
@@ -182,28 +179,33 @@ func requiredTrimmed(field string) func(string) error {
 
 // renderCreateError maps the two create-specific policy rejections to
 // tailored messages (preferring the server's self-describing detail) and
-// otherwise defers to the shared team error renderer.
+// otherwise defers to the shared team error renderer. Under --json each is
+// the one failure object, team_limit_reached or ownership_not_entitled.
 func renderCreateError(cmd *cobra.Command, apiURL string, err error, ownership string, silent bool) error {
 	if silent {
 		return errSilentFail
 	}
 	detail := apiErrorDetail(err)
+	status := 0
+	var ae *teams.APIError
+	if errors.As(err, &ae) {
+		status = ae.Status
+	}
 	switch {
 	case errors.Is(err, teams.ErrTeamLimitReached):
-		ui.Fprintln(cmd.ErrOrStderr(), ui.FailureBanner("Team limit reached"))
-		ui.Fprintln(cmd.ErrOrStderr(), ui.FaintStyle().Render(
-			"    "+orDefault(detail, "Your plan does not allow creating additional teams.")))
+		msg := orDefault(detail, "Your plan does not allow creating additional teams.")
+		lines := []string{msg}
 		if url := ui.TeamCreateURL(apiURL); url != "" {
-			ui.Fprintln(cmd.ErrOrStderr(), ui.FaintStyle().Render("    Manage teams & plans: "+url))
+			lines = append(lines, "Manage teams & plans: "+url)
 		}
-		return errSilentFail
+		return failWith(cmd, &cliError{code: codeTeamLimitReached, message: msg, status: status, cause: err},
+			"Team limit reached", lines...)
 	case errors.Is(err, teams.ErrOwnershipNotEntitled):
-		ui.Fprintln(cmd.ErrOrStderr(), ui.FailureBanner("Ownership model not available"))
-		ui.Fprintln(cmd.ErrOrStderr(), ui.FaintStyle().Render("    "+orDefault(detail, fmt.Sprintf(
-			"The %q ownership model isn't included in your plan.", teams.OwnershipLabel(ownership)))))
-		ui.Fprintln(cmd.ErrOrStderr(), ui.FaintStyle().Render(
-			"    Use --ownership-model creator_retains, or upgrade your plan."))
-		return errSilentFail
+		msg := orDefault(detail, fmt.Sprintf(
+			"The %q ownership model isn't included in your plan.", teams.OwnershipLabel(ownership)))
+		return failWith(cmd, &cliError{code: codeOwnershipNotEntitled, message: msg, status: status, cause: err},
+			"Ownership model not available",
+			msg, "Use --ownership-model creator_retains, or upgrade your plan.")
 	}
 	return teamRenderError(cmd, err, silent)
 }
@@ -251,29 +253,6 @@ func printTeamCreateJSON(cmd *cobra.Command, team *teams.Team, setActive bool) e
 		Role   string `json:"role"`
 		Active bool   `json:"active"`
 	}{team, "team_owner", setActive})
-}
-
-// printTeamCreateErrorJSON emits a structured, parseable error object on
-// stdout under --json (so a script's `| jq` doesn't choke on empty input)
-// and returns errSilentFail for the non-zero exit.
-func printTeamCreateErrorJSON(cmd *cobra.Command, err error) error {
-	code := "create_failed"
-	switch {
-	case errors.Is(err, teams.ErrTeamLimitReached):
-		code = "team_limit_reached"
-	case errors.Is(err, teams.ErrOwnershipNotEntitled):
-		code = "ownership_not_entitled"
-	case errors.Is(err, teams.ErrUnauthorized):
-		code = "unauthenticated"
-	case errors.Is(err, teams.ErrForbidden):
-		code = "forbidden"
-	}
-	out := map[string]any{
-		"error": redact.String(err.Error()),
-		"code":  code,
-	}
-	_ = emitJSON(cmd.OutOrStdout(), out)
-	return errSilentFail
 }
 
 func init() {

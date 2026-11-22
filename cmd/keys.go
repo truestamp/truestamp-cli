@@ -31,9 +31,9 @@ var keysCmd = &cobra.Command{
 	Short: "Read-only: Truestamp's published signing keys",
 	Long: `Read the published Truestamp signing keyring.
 
-This is the only command group that needs no credential: the keyring is
-served unauthenticated from /.well-known/keyring.json, and it is the same
-document 'truestamp verify' consults for the key binding step.
+It needs no credential: the keyring is served unauthenticated from
+/.well-known/keyring.json, and it is the same document 'truestamp verify'
+consults for the key binding step.
 
 What the keyring can and cannot tell you: it answers "is this key
 Truestamp's", which a proof cannot answer about itself, because a forged
@@ -90,7 +90,7 @@ characters. To derive it from a public key you already hold, use
 		}
 		k, ok := kr.FindByID(want)
 		if !ok {
-			return fmt.Errorf("no published key with id %q", want)
+			return &cliError{code: codeNotFound, message: fmt.Sprintf("no published key with id %q", want)}
 		}
 		return renderOneKey(cmd, k)
 	},
