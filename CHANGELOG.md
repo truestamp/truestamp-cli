@@ -12,6 +12,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.18.0] - 2026-11-23
+
 ### Changed
 
 - **Breaking: a failure under `--json` is one object on stdout.** Every
@@ -2640,7 +2642,8 @@ carried it, and not whether a third-party service happened to answer.
   v0.1.0 is the first release of a standalone Go codebase; the two share
   nothing beyond the repository name.
 
-[Unreleased]: https://github.com/truestamp/truestamp-cli/compare/v0.17.0...HEAD
+[Unreleased]: https://github.com/truestamp/truestamp-cli/compare/v0.18.0...HEAD
+[0.18.0]: https://github.com/truestamp/truestamp-cli/releases/tag/v0.18.0
 [0.17.0]: https://github.com/truestamp/truestamp-cli/releases/tag/v0.17.0
 [0.16.1]: https://github.com/truestamp/truestamp-cli/releases/tag/v0.16.1
 [0.16.0]: https://github.com/truestamp/truestamp-cli/releases/tag/v0.16.0
