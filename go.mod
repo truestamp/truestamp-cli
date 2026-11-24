@@ -20,7 +20,7 @@ require (
 	github.com/knadh/koanf/providers/posflag v1.0.2
 	github.com/knadh/koanf/v2 v2.4.1
 	github.com/spf13/cobra v1.10.2
-	github.com/spf13/pflag v1.0.10
+	github.com/spf13/pflag v1.1.0
 	github.com/transparency-dev/merkle v0.0.2
 	github.com/zalando/go-keyring v0.2.8
 	golang.org/x/crypto v0.59.0
