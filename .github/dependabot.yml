@@ -12,6 +12,13 @@ updates:
       - dependencies
       - go
     open-pull-requests-limit: 10
+    ignore:
+      # pflag 1.1.0 reports an out-of-range number flag as not a number
+      # (spf13/pflag#544) and appends [=true|false] to every bool flag in
+      # --help with no way to turn it off (spf13/pflag#454). Only this
+      # version is skipped, so a later release is still proposed.
+      - dependency-name: "github.com/spf13/pflag"
+        versions: ["1.1.0"]
     groups:
       go-dependencies:
         patterns:
